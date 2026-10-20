@@ -79,15 +79,15 @@ QEMU 归档自身随附 Meson 1.11.1、pycotap 1.3.1、qemu.qmp 0.0.6 的离线 
 
 ## 已支持与未实现
 
-下表“基线已验”指打包前同一源码路线的已有验收，本包本轮只执行主机检查与 prepare-only，**未重新构建或启动 VM**。新目录自己的记录见 [validation/README.md](validation/README.md)。
+下表“基线已验”指打包前同一源码路线的已有验收。本包已完成主机检查、prepare-only、自身 QEMU 的独立构建/安装，并实际复验 **单 GTK 相机窗、简中首设、原 HUD/MENU 和 SD 保存**。网络开关及跨运行卡回载另行验收。新目录自己的记录见 [validation/README.md](validation/README.md)。
 
 | 功能 | 当前范围 |
 | --- | --- |
 | 官方 BODYDATA 导入/安全 overwrite | 基线已验；本包实测导入、原输入校验及全部字体安装 |
-| 原软件 LCD 640×480、单 GTK 机身窗 | 基线已验；LCD 由原应用绘图提交消费，不是独立仿制菜单 |
-| 简中首设、原 HUD 与 MENU | 基线已到达；本包待 VM 复验 |
+| 原软件 LCD 640×480、单 GTK 机身窗 | 本包 VM 已复验；LCD 由原应用绘图提交消费 |
+| 简中首设、原 HUD 与 MENU | 本包 VM 已完成首设并显示原 HUD、中文 MENU，main 已直接核画面 |
 | 主要按键/拨盘 | 输入链和菜单导航基线已验；送达不等于各拍摄业务已完成，未知码保持禁用/待验 |
-| 单物理槽虚拟文件卡、原 Fsys 读写 | 基线已验 SD 导出与跨运行回载；多槽和照片视频产出不在此结论内 |
+| 单物理槽虚拟文件卡、原 Fsys 读写 | 本包已验原数据库/XML 写入、Flush、整卡导出、摘要和 fsck；跨运行回载继续复验 |
 | 隔离 USB 以太网 | 默认 UI profile 初始 OFF；基线同 VM ON/OFF/ON＋SD 保存正常退出已验；源码包含 sysbus xHCI 补丁 |
 | 原固件照片/视频生成 | **未实现/未验收**：CMOS 真实像素消费与完整编码链未闭合 |
 | 镜头、AF 合焦、完整曝光 | **未完成**，不以输入 ACK 或虚拟状态代替实际消费 |
@@ -123,4 +123,4 @@ sha256sum --check SOURCE-SHA256SUMS
 
 完整来源、修改记录及许可边界见 [SOURCES.md](SOURCES.md)、[THIRD-PARTY.md](THIRD-PARTY.md)。`SOURCE-ORIGINS.json` 记录所选原文件 SHA；`SOURCE-SHA256SUMS` 记录本包交付源码 SHA，均不包含 Sony 派生产物。
 
-发布准备阶段仍未编译或启动 VM；本机动态测试待 main 串行执行，见 [validation/README.md](validation/README.md)。
+本包已完成独立构建及相机启动、中文菜单、SD 保存复验，其它功能继续串行核验，见 [validation/README.md](validation/README.md)。

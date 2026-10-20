@@ -1,6 +1,46 @@
 # 本包验证记录
 
-本记录只覆盖独立源码打包、主机检查与官方包准备。**未编译/安装 QEMU 或 guest 助手，未启动任何 VM，未连接真机、物理 SD/磁盘/TTY。** 旧路线的 VM 结果只作为 README 中标注的基线状态，不冒充本包验收。
+本记录保留首次独立源码打包、主机检查与官方包准备结果，并追加 main 的后续验收。**本包 QEMU 已独立构建和安装；新目录的单 GTK 相机窗口、中文首设、原 HUD/MENU 和 SD 保存已复验。** 网络开关与跨运行卡回载继续单独验收。全部实验限定普通虚拟文件与隔离网络。旧路线 VM 结果仍只作为 README 中标注的基线状态。
+
+## main 后续构建验收
+
+本包自己的 `./build-qemu.sh` 已返回 0，并安装到本包 `runtime/sources/`。编译和测试在共享运行锁释放后串行执行，未使用旧交付目录的 QEMU 程序。
+
+实际输出包含 `QEMU_NATIVE_INPUT_PASS`（真实 QMP/device/socket 路由、按住去重、未知按键及正常退出）、GTK 显示后端、`qemu-aarch64 version 11.1.2` 和 `HOST_LIBFDT_SYMBOLS_PASS`；已安装 GTK/SDL/none 显示支持。DTC 编译有上游 const 警告，板级 DTS 有时钟/GPIO phandle 警告；构建未据此失败，也不将这些警告解释为相机硬件仿真通过。
+
+本机安装摘要由被忽略的 `source/build-programs.sha256` 保存：
+
+| 安装产物 | SHA-256 |
+| --- | --- |
+| 整机 QEMU | `f8ac2b3033dcf193570f54417d8fe478b76b39e8a46d862f6db76de0ca709695` |
+| 用户态 QEMU | `137e06877ed4b7ed273f86372eaef0e29d8410b6f497eeb85b03399dfd93336b` |
+| libfdt | `b1eb40b61c1d1d8db2d63d407964d11887278d2636baf1a9ccce390950d7b750` |
+| dtc | `c6af532ed9d576f6add3877ab3c91242f0936908936e4dcaf5ef9e92b9eac68a` |
+| 派生 DTB | `bb1248f5b1338b37ba125a0033a378ad1b319f912405bac34fee859f3c64a20c` |
+
+上述为本机这一轮构建的程序身份，不要求其它主机复现相同程序 SHA。相机实际启动、中文首设、MENU、SD 保存、网络和跨运行回载需各自观察；下文首次打包时“未编译/未运行”的记录保留其当时范围。
+
+## main 后续相机启动验收
+
+在本包 `runtime/analysis/` 执行：
+
+```bash
+python3 -u check-natural-gtk-input.py --new-ui --firstboot --simplified-chinese --export-sd
+```
+
+主会话在全项目单 VM 锁下运行，使用本包新构建程序，先核 `source/build-programs.sha256` 全部匹配。实验 run 为 `run-0wfqbd6k`；自动化返回 0、`automation_completed=true`，但原 `gtk-input-proof.json` 的总体 `ok=false` 保留，未将“自动化执行结束”当作相机全部功能成功。
+
+main 直接查看本轮 PNG，另在该 run 建立限定范围 `main-ui-review.json`：
+
+- `gtk-simplified-chinese-selected.png`：原语言页清楚显示简体中文被高亮。
+- `gtk-window-shooting-after-setup.png`：唯一 1360×930 GTK 机身窗中显示原 640×480 拍摄 HUD；场景仍为黑色，不能认作 CMOS 图像。
+- `gtk-window-menu-stable.png`：原中文 MENU 可见，第 2/57 页、快门速度标题和相机参数图标；实际鼠标/按键经已有控制链操作。
+
+原 Fsys Flush 返回 0，32 个 4 MiB guest/QMP 导出块逐段摘要匹配。main 再次从磁盘读取 134217728 字节卡镜像计算 SHA-256，与 export 完全一致：`23bc64afc94b54990edced3123d5b5d77bda9d19126fd73bf5c0acd200d6ce80`。独立 `fsck.fat -n` 返回 0（11 files、4732/65399 clusters），owner 恢复有确认；关闭时再次保存同样摘要。
+
+FAT 内容解析得到原应用生成的 `/PRIVATE/DATABASE/DATABASE.BIN`（9670656 字节）和 `/PRIVATE/M4ROOT/MEDIAPRO.XML`（406 字节）。这些数据库/XML 是文件系统和卡写入证据，不是照片或视频。此轮不包含 Wi-Fi 实际切换、跨运行恢复、动态插拔、配置保存或合焦；相应字段在人工限定 review 中保持 false。
+
+本轮原始输出保存在本机忽略文件 `validation/main-ui.log`，截图、原自动结果、SD 和限定 review 留在该 run。下述首次准备阶段的记录不覆盖这些新增结果，也不会因后续通过而抹去先前失败。
 
 ## 实际检查与结果
 
@@ -57,9 +97,9 @@ bwrap --unshare-net --die-with-parent --clearenv \
     --bodydata /mnt/input/BODYDATA.DAT --prepare-only
 ```
 
-main 仍须串行执行 `./build-qemu.sh`（含 QEMU 冒烟测试），再实际启动本包入口，复验单 GTK 窗/LCD、中文首设与 HUD/MENU、输入、USB 初始 OFF 与 ON/OFF/ON、SD 保存正常退出和跨运行回载。本包 helper 构建、cpio 启动以及 `/var/tmp` 短别名的真实 VM 消费均待验证；照片/录像、AF/CMOS/编码、宿主声音、配置跨 VM、SD 动态热拔插和真实无线关联继续标为未完成。
+main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中文首设与 HUD/MENU、菜单输入和 SD 保存复验；USB ON/OFF/ON、跨运行回载及 `/var/tmp` 短别名的实际网络消费继续核验。照片/录像、AF/CMOS/编码、宿主声音、配置跨 VM、SD 动态热拔插和真实无线关联继续标为未完成。
 
-以上为首次打包验证时的记录，当时尚未提交或推送。后续已在本目录独立 Git 仓库进行发布准备；未修改原交付树、父目录 Git 或项目 AGENTS。源码与验证记录按目录分离，验证日志默认不随源码发布。本包仍未编译、未启动 VM，本机动态验证待 main。
+以上首次打包验证时尚未提交或推送；随后已在本目录独立 Git 仓库提交推送。源码与验证记录按目录分离，验证日志默认不随源码发布。main 的本包构建结果见上节，其它动态验证以追加结果为准。
 
 ## Git 发布准备补充
 
