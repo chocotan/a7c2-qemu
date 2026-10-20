@@ -1,6 +1,6 @@
 # 本包验证记录
 
-本记录保留首次独立源码打包、主机检查与官方包准备结果，并追加 main 的后续验收。**本包 QEMU 已独立构建和安装；新目录的单 GTK 相机窗口、中文首设、原 HUD/MENU 和 SD 保存已复验。** 网络开关与跨运行卡回载继续单独验收。全部实验限定普通虚拟文件与隔离网络。旧路线 VM 结果仍只作为 README 中标注的基线状态。
+本记录保留首次独立源码打包、主机检查与官方包准备结果，并追加 main 的后续验收。**本包已复验独立构建、单 GTK 相机窗口、中文首设、原 HUD/MENU、SD 保存、后端网络开关和两轮跨运行卡回载。** 全部实验限定普通虚拟文件与隔离网络。旧路线 VM 结果仍只作为 README 中标注的基线状态；照片/录像等未完成功能见下文边界。
 
 ## main 后续构建验收
 
@@ -41,6 +41,24 @@ main 直接查看本轮 PNG，另在该 run 建立限定范围 `main-ui-review.j
 FAT 内容解析得到原应用生成的 `/PRIVATE/DATABASE/DATABASE.BIN`（9670656 字节）和 `/PRIVATE/M4ROOT/MEDIAPRO.XML`（406 字节）。这些数据库/XML 是文件系统和卡写入证据，不是照片或视频。此轮不包含 Wi-Fi 实际切换、跨运行恢复、动态插拔、配置保存或合焦；相应字段在人工限定 review 中保持 false。
 
 本轮原始输出保存在本机忽略文件 `validation/main-ui.log`，截图、原自动结果、SD 和限定 review 留在该 run。下述首次准备阶段的记录不覆盖这些新增结果，也不会因后续通过而抹去先前失败。
+
+## main 后续网络与卡回载验收
+
+独立包自己的 `menu_control.VM(native_display='none', natural_boot=True, usb_net=True)` 运行两轮；`card_seed` 依次指向前一个 run 的完整导出。本次走同一后端结构化队列，未在这两轮另做 GTK 开关鼠标点击。程序、kernel/DTB、网络代码均来自本包，不使用 scratch QEMU 或旧研究树的运行模块。
+
+在 `run-0hlybhgn` 的同一个 VM 中执行 ON/OFF/ON：首次 ON 接口 UP、地址实际配置，宿主收到本次匹配 echo reply（200.08 ms）；OFF 接口 down，同一个 peer 的新探测无回复；再次 ON 收到新的匹配回复（200.10 ms）。三项 `ok=true`，实际记录保存在该 run 的 `wifi-events.jsonl`。每次 ping 使用递增序号和随机 nonce，旧应答不能当作新成功。这里是隔离 USB 以太网及宿主用户态 peer ICMP，不是宿主系统路由 `ping(8)` 或真实无线关联。
+
+卡回载链如下：
+
+| run | 载入来源 | 完整导出 SHA-256 |
+| --- | --- | --- |
+| `run-0wfqbd6k` | 首轮新卡，原应用完成首设并写数据库 | `23bc64afc94b54990edced3123d5b5d77bda9d19126fd73bf5c0acd200d6ce80` |
+| `run-0hlybhgn` | `run-0wfqbd6k/SD/card.img` | 同上 |
+| `run-qt9k1bpj` | `run-0hlybhgn/SD/card.img` | 同上 |
+
+main 逐项核 runtime manifest 的实际 seed 路径/摘要，再独立读取三份 128 MiB 文件计算整卡 SHA；全部一致。两份原文件内容也逐项一致：DATABASE.BIN SHA 为 `a2fa95b03216066ff002a1e106b82c3cc663e72acde5521dd9fbf7097205d1ff`，MEDIAPRO.XML 为 `cc023c33123088b583acff6d18bc546e0770643e80f1489e2edc694c41b879fa`。三份卡均再次独立 `fsck.fat -n` 返回 0，32 段 guest/QMP 摘要匹配、原 Flush 0、owner 恢复；每个 VM 正常保存退出，最初输入卡未修改。
+
+本机原始输出在 `validation/main-network-reload.log`，有限范围人工复核在 `run-0hlybhgn/main-network-reload-review.json`。这证明本包的整卡跨运行保持，不等于相机语言等 Backup 配置持久化，也不证明动态拔插或生成照片/视频。
 
 ## 实际检查与结果
 
@@ -97,7 +115,7 @@ bwrap --unshare-net --die-with-parent --clearenv \
     --bodydata /mnt/input/BODYDATA.DAT --prepare-only
 ```
 
-main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中文首设与 HUD/MENU、菜单输入和 SD 保存复验；USB ON/OFF/ON、跨运行回载及 `/var/tmp` 短别名的实际网络消费继续核验。照片/录像、AF/CMOS/编码、宿主声音、配置跨 VM、SD 动态热拔插和真实无线关联继续标为未完成。
+main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中文首设与 HUD/MENU、菜单输入、SD 保存和两轮回载、USB 后端 ON/OFF/ON 及 `/var/tmp` 短别名的真实消费复验。照片/录像、AF/CMOS/编码、宿主声音、配置跨 VM、SD 动态热拔插和真实无线关联继续标为未完成。
 
 以上首次打包验证时尚未提交或推送；随后已在本目录独立 Git 仓库提交推送。源码与验证记录按目录分离，验证日志默认不随源码发布。main 的本包构建结果见上节，其它动态验证以追加结果为准。
 
