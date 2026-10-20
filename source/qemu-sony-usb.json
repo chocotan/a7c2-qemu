@@ -1,0 +1,14 @@
+{
+  "base_patch_sha256": "29a84ae7a23897af25279f3c438bef387a01d59137767e0362631d4c294f78f8",
+  "patch_sha256": "589873aab03e3655745d26b3756e93b044148ccaf453ac22fd0fd9b01e90ff96",
+  "source_files": {
+    "hw/arm/virt.c": {
+      "before": "0e7ff65238d2ae7b49cc902573fe03cdf325206fdf80079d57f70de817e3d103",
+      "after": "254f9621e21c2ff2290bc469a4e324511f7f0c6ed8ee464c6daa602d6896d2c0"
+    },
+    "hw/arm/Kconfig": {
+      "before": "75fb56926a49c78fa387ac8ac3813afb65bf471999db409d29eb30f88deef7fc",
+      "after": "6d009d2ef95abf7971a8de01c711df9aa3e1821dad65dbd77c672bf5025802ec"
+    }
+  }
+}

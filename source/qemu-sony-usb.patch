@@ -1,0 +1,57 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2900,6 +2900,38 @@
+     }
+ }
+ 
++/* Opt-in standard xHCI hardware model for the original platform USB driver. */
++static void create_sony_usb(VirtMachineState *vms)
++{
++    MachineState *ms = MACHINE(vms);
++    DeviceState *dev;
++    SysBusDevice *sbd;
++    const hwaddr base = 0x0b000000;
++    const int irq = 180;
++    const char *node = "/usb@b000000";
++
++    if (!g_strcmp0(g_getenv("QEMU_SONY_USB_NET"), "1")) {
++        dev = qdev_new("sysbus-xhci");
++        qdev_prop_set_uint32(dev, "intrs", 1);
++        qdev_prop_set_uint32(dev, "slots", 8);
++        sbd = SYS_BUS_DEVICE(dev);
++        sysbus_realize_and_unref(sbd, &error_fatal);
++        sysbus_mmio_map(sbd, 0, base);
++        qdev_connect_gpio_out_named(dev, SYSBUS_DEVICE_GPIO_IRQ, 0,
++                                   qdev_get_gpio_in(vms->gic, irq));
++
++        qemu_fdt_add_subnode(ms->fdt, node);
++        qemu_fdt_setprop_string(ms->fdt, node, "compatible", "generic-xhci");
++        qemu_fdt_setprop_sized_cells(ms->fdt, node, "reg", 2, base, 2,
++                                    memory_region_size(sysbus_mmio_get_region(sbd, 0)));
++        qemu_fdt_setprop_cells(ms->fdt, node, "interrupts",
++                              GIC_FDT_IRQ_TYPE_SPI, irq, GIC_FDT_IRQ_FLAGS_LEVEL_HI);
++        qemu_fdt_setprop(ms->fdt, node, "dma-coherent", NULL, 0);
++        qemu_fdt_setprop_string(ms->fdt, node, "status", "okay");
++    }
++}
++
++
+ static void machvirt_init(MachineState *machine)
+ {
+     VirtMachineState *vms = VIRT_MACHINE(machine);
+@@ -3179,6 +3211,7 @@
+     virt_flash_fdt(vms, sysmem, secure_sysmem ?: sysmem);
+ 
+     create_gic(vms, sysmem);
++    create_sony_usb(vms);
+     /* Local Sony experiment: overlay four timers on the generic RAM range. */
+     if (g_getenv("QEMU_SONY_TIMERS")) {
+         for (unsigned i = 0; i < 4; i++) {
+--- a/hw/arm/Kconfig
++++ b/hw/arm/Kconfig
+@@ -1,4 +1,5 @@
+ config ARM_VIRT
++    select USB_XHCI_SYSBUS
+     bool
+     default y
+     depends on ARM

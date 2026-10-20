@@ -1,0 +1,4 @@
+# Explicit prerequisites only; no launcher invokes pip or downloads packages.
+Pillow>=9.0
+pycryptodomex>=3.10
+# GTK/PyGObject/cairo and pytest are supplied by the host distribution; see README.

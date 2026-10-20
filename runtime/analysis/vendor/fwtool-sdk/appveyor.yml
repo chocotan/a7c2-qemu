@@ -1,0 +1,33 @@
+# Run windows builds on appveyor.com
+
+version: "Build #{build}"
+
+environment:
+ PYTHON: C:\Python36
+
+install:
+ # Path setup
+ - set PATH=%PYTHON%;%PYTHON%\Scripts;%PATH%
+
+ # Install dependencies
+ - pip install -r requirements.txt
+
+ # Log versions
+ - python --version
+ - pip list --format=columns
+
+build: off
+
+after_test:
+ # Run pyinstaller
+ - python -OO -m PyInstaller fwtool.spec
+
+artifacts:
+ - path: dist\*
+
+deploy:
+ # Deploy tagged releases
+ - provider: GitHub
+   auth_token: {secure: oojQVGlq4+lrv8NZ2LlNpsMMavvFEwgUKGgqZJ+TnoVV8XwqrbJnuAyvI2AHcCYu}
+   artifact: /.*/
+   on: {appveyor_repo_tag: true}

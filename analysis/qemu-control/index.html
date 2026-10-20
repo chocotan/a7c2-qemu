@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>α7C II · 本机相机实验</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#camera">跳到相机控制</a>
+  <main class="shell">
+    <header class="masthead">
+      <div><p class="eyebrow">LOCAL CAMERA LAB / ILCE-7CM2</p><h1>α7C II <span>相机实验</span></h1></div>
+      <div class="connection"><span class="status-light" aria-hidden="true"></span><strong id="state">disconnected</strong><span>仅本机 · owned VM</span></div>
+    </header>
+    <div class="workspace">
+      <section aria-label="相机机身与真实固件画面">
+        <div class="camera" id="camera" tabindex="-1">
+          <div class="camera-top">
+            <div class="brand"><strong>SONY</strong><span>α7C <b>II</b></span><small>ILCE-7CM2</small></div>
+            <div class="hotshoe" aria-hidden="true"><span></span></div>
+            <div class="mode"><button data-key="MODE" disabled>M · A · S · P<small>未验证</small></button><span>模式拨盘</span></div>
+            <div role="group" aria-label="拍摄类型，未验证"><button data-key="MODE_STILL" disabled>照片档</button><button data-key="MODE_MOVIE" disabled>录像档</button><button data-key="MODE_SQ" disabled>S&amp;Q档</button></div>
+            <div class="top-right">
+              <div class="dial front-dial" role="group" aria-label="前拨轮，未验证"><span>前拨轮 · 未验证</span><div><button data-key="FRONT_LEFT" class="dial-key" disabled aria-label="前拨轮左转">‹</button><button data-key="FRONT_RIGHT" class="dial-key" disabled aria-label="前拨轮右转">›</button></div></div>
+              <div class="power" role="group" aria-label="本次 VM 电源"><button id="start" disabled><span class="power-glyph" aria-hidden="true">⏻</span> ON</button><button id="stop" disabled>OFF</button><small id="power-state">disconnected</small></div>
+              <div class="top-buttons"><button data-key="REC" class="rec" disabled>REC<small>未验证</small></button><button data-key="SHUTTER" disabled>快门<small>未验证</small></button></div>
+            </div>
+          </div>
+          <div class="shoulder">
+            <div class="viewfinder" aria-hidden="true"><span></span></div>
+            <button data-key="MENU" disabled>MENU</button><button data-key="C1" disabled>C1<small>未验证</small></button>
+            <div class="dial rear-dial" role="group" aria-label="后拨轮，未验证"><span>后拨轮 · 未验证</span><div><button data-key="REAR_LEFT" class="dial-key" disabled aria-label="后拨轮左转">‹</button><button data-key="REAR_RIGHT" class="dial-key" disabled aria-label="后拨轮右转">›</button></div></div>
+          </div>
+          <div class="camera-back">
+            <figure class="lcd">
+              <div class="screen">
+                <img id="firmware-image" width="640" height="480" alt="本次 VM 已校验的真实固件画面" draggable="false" hidden>
+                <div id="screen-empty"><span class="screen-mark" aria-hidden="true">α</span><strong>等待本次固件画面</strong><p>ON 启动本控制台的 VM 后获取快照</p><small>640 × 480 · AP 软件输出</small></div>
+                <p id="image-error" hidden>画面读取失败；无法据此判断固件是否空屏。</p>
+                <span id="image-status" class="screen-status">尚无本次快照</span>
+              </div>
+              <figcaption><span id="capture-info">等待已校验快照</span><span>4:3 / LCD</span></figcaption>
+            </figure>
+            <div class="back-controls">
+              <div class="back-upper"><button data-key="AF_ON" disabled>AF-ON<small>未验证</small></button><div class="thumb-grip" aria-hidden="true"></div><button data-key="FN" disabled>Fn<small>未验证</small></button></div>
+              <div class="wheel-block">
+                <div class="wheel" id="control-wheel" role="group" aria-label="控制轮，拖动外圈旋转；也可使用下方左右转按钮" aria-disabled="true">
+                  <div class="wheel-ring" id="wheel-ring" aria-hidden="true"></div>
+                  <div class="direction-pad"><button data-key="UP" class="up" disabled aria-label="上">⌃</button><button data-key="LEFT" class="left" disabled aria-label="左">‹</button><button data-key="ENTER" class="enter" disabled>ENTER</button><button data-key="RIGHT" class="right" disabled aria-label="右">›</button><button data-key="DOWN" class="down" disabled aria-label="下">⌄</button></div>
+                </div>
+                <div class="wheel-buttons"><button data-key="CONTROL_LEFT" disabled aria-label="控制轮左转">↶ 左转</button><button data-key="CONTROL_RIGHT" disabled aria-label="控制轮右转">右转 ↷</button></div>
+                <p class="wheel-note">控制轮 · 可拖动外圈 · <span>未验证</span></p>
+              </div>
+              <div class="body-secondary"><button data-key="DISP" disabled>DISP<small>未验证</small></button><button data-key="ISO" disabled>ISO<small>未验证</small></button><button data-key="EXPOSURE_COMP" disabled>± 曝光<small>未验证</small></button></div>
+              <div class="bottom-buttons"><button data-key="PLAYBACK" disabled><span aria-hidden="true">▷</span> 播放<small>未验证</small></button><button data-key="C2" disabled>C2<small>未验证</small></button><button data-key="DELETE" disabled>删除</button></div>
+            </div>
+          </div>
+          <div class="body-bottom"><span>α / 原固件交互实验</span><span>按键响应以固件画面变化为准</span></div>
+        </div>
+        <div class="display-toolbar" aria-label="画面操作"><button id="refresh" disabled>刷新画面</button><button id="save" disabled>保存 PNG</button><label for="interval">自动快照 <select id="interval"><option value="0">关闭</option><option value="10">10 秒</option><option value="30" selected>30 秒</option><option value="60">60 秒</option></select></label><span id="frame-note">快照采集，不是视频流</span></div>
+        <p class="feedback" id="feedback" role="status" aria-live="polite" aria-atomic="true">正在连接本机控制服务。</p>
+      </section>
+      <aside class="inspector" aria-label="连接状态与操作记录">
+        <section class="connection-panel"><p class="eyebrow">SESSION / 当前会话</p><h2 id="connection">等待连接</h2><p id="connection-note">请使用入口给出的完整控制台地址。</p><p class="power-note">ON / OFF 启停本控制台创建的 VM；真实机身电源事件未模拟。</p><p id="error-text" class="error-text" role="alert" hidden></p></section>
+        <section class="events" aria-labelledby="events-title"><div class="section-head"><h2 id="events-title">操作记录</h2><span>最近 12 条</span></div><p class="empty" id="empty">尚无操作记录。</p><ol id="event-list" tabindex="0" aria-label="操作事件，最新在前"></ol></section>
+        <section class="legend"><h2>按键说明</h2><p><span class="verified-dot" aria-hidden="true"></span>MENU、确认与四向键已有固件实测。</p><p><span class="unverified-label">未验证</span> 功能或键码尚未实测。灰色控件不可发送；悬停或查看下方清单了解原因。</p><p>拨轮共用后拨轮单次 ±1024 增量；不发送伪释放。自然启动的 live 文件通道暂不支持拨轮。</p><p class="keyboard-note">方向键导航 · Enter 确认<br>M / Esc 菜单 · Delete 删除/帮助<br>PageUp / PageDown 后拨轮</p></section>
+      </aside>
+    </div>
+    <details class="key-details"><summary>全部按键与可用性 <span>含未验证控件</span></summary><div id="key-catalog" class="key-catalog"></div></details>
+    <footer><span>本地离线控制台 · 127.0.0.1</span><span>关闭网页不会停止 VM；请使用 OFF 或退出启动进程。</span></footer>
+    <noscript><p>需要启用 JavaScript 才能连接本机控制服务。</p></noscript>
+  </main>
+</body>
+</html>
