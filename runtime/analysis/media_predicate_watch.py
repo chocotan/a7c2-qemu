@@ -32,25 +32,42 @@ CAPACITY_FIELDS = {'getter_2878cc8': 0x7e811b0, 'getter_2879038': 0x7e81470,
                    'getter_2878ef8': 0x7e81370, 'getter_2867644': 0x7e6e7c8,
                    'getter_288badc': 0x7eddbc8, 'getter_286ae5c': 0x7e71a70,
                    'getter_2867bbc': 0x7e6ecc8, 'getter_286af4c': 0x7e71b50}
-# Named original media state cells (property id -> the address its row's getter
-# at +0x08 reads). Dispatch rows live in the second PT_LOAD segment, where
-# VA = file offset + 0x10000, so rows must be read through the segment map.
-# Row layout: +0x00 supported predicate, +0x08 getter, +0x10/+0x18 setters that
-# write additional shadow cells.
-# An earlier revision of this table used addresses decoded without that segment
-# mapping (0x7ead84c and friends); those readings were meaningless and are void.
-MEDIA_STATE_FIELDS = {'prm_102d_movie_recordable_slot1': 0x7e83b28,
+# Named fields from dispatch 0x5584c38, using PT_LOAD mapping, not file offsets.
+# +08 is the base/reset source; the general value read at 0x28bb0c8 uses +20.
+# The setters at +10/+18 write the value and shadow, not the +08 base cell.
+# Revision 1 mislabeled +08 readings as current values. Preserve both layers;
+# old unsuffixed fields without revision 2 are base readings, not live proof.
+# Still earlier 0x7ead84c-style addresses lacked PT_LOAD mapping and are void.
+MEDIA_OBSERVATION_REVISION = 2
+MEDIA_BASE_FIELDS = {name+'_base08': address for name, address in {
+                      'prm_102d_movie_recordable_slot1': 0x7e83b28,
                       'prm_102e_movie_recordable_slot2': 0x7e83b48,
                       'prm_09e1_media_mount_state_slot1': 0x7e78900,
                       'prm_09e4_media_mount_state_slot2': 0x7e78960,
                       'prm_0a13_filesystem_mount_state_slot1': 0x7e78f40,
                       'prm_0a17_filesystem_mount_state_slot2': 0x7e78fc0,
-                      'prm_1052_remaining_capacity_slot1': 0x7e84078,
                       'prm_138e_recordable_movie_slot1': 0x7e8a268,
                       'prm_09f5_full_state_still_slot1': 0x7e78b80,
                       'prm_0a18_full_state_movie_slot1': 0x7e78fe0,
                       'prm_0a20_setting_still_recording_media': 0x7e790e0,
-                      'prm_0a3a_setting_movie_recording_media': 0x7e79450}
+                      'prm_0a3a_setting_movie_recording_media': 0x7e79450}.items()}
+MEDIA_STATE_FIELDS = {'prm_102d_movie_recordable_slot1': 0x7e83b10,
+                      'prm_102e_movie_recordable_slot2': 0x7e83b30,
+                      'prm_09e1_media_mount_state_slot1': 0x7e788e8,
+                      'prm_09e4_media_mount_state_slot2': 0x7e78948,
+                      'prm_0a13_filesystem_mount_state_slot1': 0x7e78f28,
+                      'prm_0a17_filesystem_mount_state_slot2': 0x7e78fa8,
+                      'prm_138e_recordable_movie_slot1': 0x7e8a250,
+                      'prm_09f5_full_state_still_slot1': 0x7e78b68,
+                      'prm_0a18_full_state_movie_slot1': 0x7e78fc8,
+                      'prm_0a20_setting_still_recording_media': 0x7e790c8,
+                      'prm_0a3a_setting_movie_recording_media': 0x7e79438}
+# Dispatch key 0x1052 cannot be labelled from the name catalog: its two setters
+# feed a signed -15..15 validator and a relay from key 0x103c, and the catalog
+# index for that name is not proven to be this table's key space. Keep the cells
+# read-only and explicitly unresolved so they never count as capacity evidence.
+UNRESOLVED_FIELDS = {'dispatch_1052_unresolved_value': 0x7e83fd4}
+UNRESOLVED_BASE_FIELDS = {'dispatch_1052_unresolved_base08': 0x7e84078}
 ENTRY_PREFIX = bytes.fromhex('fd7bbda9fd030091')
 POLICY_POINT = (0x18831f4, 0x188331c)
 POLICY_PREFIX = bytes.fromhex('fd7bb9a9fd030091')
@@ -128,10 +145,15 @@ def gdb_main(config):
     last_signal = []
     result = {'scope': 'passive original predicates, not capture proof',
               'capture_verified': False, 'connected': False, 'events': 0,
-              'error': None, 'limit_reached': False}
+              'error': None, 'limit_reached': False,
+              'media_observation_revision': MEDIA_OBSERVATION_REVISION,
+              'named_media_field_layers': {'unsuffixed': 'dispatch+0x20 value',
+                                          '_base08': 'dispatch+0x08 base/reset source'},
+              'unresolved_named_properties': ['0x1052 is excluded from media fields']}
 
     def emit(event):
         nonlocal count
+        event['media_observation_revision'] = MEDIA_OBSERVATION_REVISION
         stream.write(json.dumps(event, sort_keys=True)+'\n')
         stream.flush()
         count += 1
@@ -172,7 +194,8 @@ def gdb_main(config):
                     emit(event)
                 else:
                     inf = gdb.selected_inferior()
-                    observed_fields = ({**FIELDS, **CAPACITY_FIELDS, **MEDIA_STATE_FIELDS}
+                    observed_fields = ({**FIELDS, **CAPACITY_FIELDS, **MEDIA_STATE_FIELDS, **MEDIA_BASE_FIELDS,
+                                         **UNRESOLVED_FIELDS, **UNRESOLVED_BASE_FIELDS}
                                        if policy else FIELDS)
                     values = {label: int.from_bytes(bytes(inf.read_memory(base+va, 4)), 'little')
                               for label, va in observed_fields.items()}

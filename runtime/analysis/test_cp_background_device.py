@@ -23,7 +23,7 @@ class CpBackgroundDevice(unittest.TestCase):
                                UBSAN_OPTIONS='halt_on_error=1')
             for case in ('normal', 'fast-free', 'fast-reuse', 'allocfail', 'sendfail',
                          'request-free-fail', 'wrong-free', 'reply-free-fail', 'leases-full',
-                         'real-backing-busy', 'bad-size', 'bad-source', 'bad-command',
+                         'observe-unhandled', 'real-backing-busy', 'bad-size', 'bad-source', 'bad-command',
                          'unused-bytes', 'bad-type', 'legacy-40b8', 'fork-initialization'):
                 with self.subTest(case=case):
                     result = subprocess.run([str(binary), case], cwd=directory, env=environment,

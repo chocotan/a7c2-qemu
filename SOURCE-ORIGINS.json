@@ -157,7 +157,7 @@
       "source": "runtime/analysis/device-models/cmos-source.h"
     },
     "runtime/analysis/device-models/cp-background-device.c": {
-      "sha256": "faace7e0c5ecb895887f20bae7e71193df2d015ec3ace06e8bce055d2ae8f61a",
+      "sha256": "f157119661b931f20cc6a57d79a12cdec3650e673a95ba25258666832b540e57",
       "source": "runtime/analysis/device-models/cp-background-device.c"
     },
     "runtime/analysis/device-models/cp-background-device.h": {
@@ -377,7 +377,7 @@
       "source": "runtime/analysis/device-models/test-cmos-source.c"
     },
     "runtime/analysis/device-models/test-cp-background-device.c": {
-      "sha256": "531ac5aaddea6f59e6aa93cf2e5f732e21ecdb26e4e44e178ec1e5ad3f9aeb08",
+      "sha256": "50dd01d7978ac6fd640dfb4a18c20ba78f28f1a1310f61cd214c23ecea393e92",
       "source": "runtime/analysis/device-models/test-cp-background-device.c"
     },
     "runtime/analysis/device-models/test-cp-cold-control.c": {
@@ -1069,7 +1069,7 @@
       "source": "runtime/analysis/test_confirm_input.py"
     },
     "runtime/analysis/test_cp_background_device.py": {
-      "sha256": "c919fd1ed5762994117a933050f4efc6d78594e6c2a9054359ad931288595f5d",
+      "sha256": "3ff62a65ef22fa503cc45766f1c7d44e8440bf109f9c56ab99438635a903715d",
       "source": "runtime/analysis/test_cp_background_device.py"
     },
     "runtime/analysis/test_cp_lens_length_contract.py": {
@@ -2814,6 +2814,20 @@
     }
   },
   "origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "media_observation_correction": {
+    "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera",
+    "scope": "read-only diagnostic revision 2: separate +08 reset/base readings from +20 value-accessor readings; 0x1052 excluded from media fields",
+    "files": {
+      "runtime/analysis/media_predicate_watch.py": {
+        "source": "runtime/analysis/media_predicate_watch.py",
+        "sha256": "24e8165b9f89325e0100b1ff8bef3505ee2cdb51445e04f42469bf8bd1bfdef6"
+      },
+      "runtime/analysis/test_media_predicate_watch.py": {
+        "source": "runtime/analysis/test_media_predicate_watch.py",
+        "sha256": "96dafcc5a91a387fc4fad973675220135c2208087837bcad1764628eb1e3e49e"
+      }
+    }
+  },
   "sd_hotplug_port": {
     "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera",
     "scope": "selected SD hotplug port; original notification/free and filesystem retirement; independent package validation required",
@@ -2824,33 +2838,114 @@
       "extra timeout, profile and strict marker regression coverage"
     ],
     "files": {
-      "runtime/analysis/sd-state.c": {"source": "runtime/analysis/sd-state.c", "sha256": "c06e80daa966f81962f3f831e3489e3a07f3c13408f468571631642c3ddc2658"},
-      "runtime/analysis/sd-state.h": {"source": "runtime/analysis/sd-state.h", "sha256": "fb1ada9230e4b4348fe7cc2afa7c59b11cde75bfe93f0480f411591d56fb9161"},
-      "runtime/analysis/sd-hotplug-runtime.c": {"source": "runtime/analysis/sd-hotplug-runtime.c", "sha256": "bc170748bfaa466caa3cef4793d41f821bdcd3feab3cbf5fd5ec10d62cf9206e"},
-      "runtime/analysis/sd-hotplug-runtime.h": {"source": "runtime/analysis/sd-hotplug-runtime.h", "sha256": "2822c16e79c628102837d0eb82d6d9919ab6776211139d523dbe92f444e46f40"},
-      "runtime/analysis/device-models/sd-hotplug-adapter.c": {"source": "runtime/analysis/device-models/sd-hotplug-adapter.c", "sha256": "1e7e2abc66ba6a63f0a62021d17969faaf5de19af2d68af3197459cb40220ae7"},
-      "runtime/analysis/device-models/sd-hotplug-adapter.h": {"source": "runtime/analysis/device-models/sd-hotplug-adapter.h", "sha256": "62598516543e183de9fb89b9b701a1fc4f97b5589015845a6ee082cabc6816fe"},
-      "runtime/analysis/rm-file-device.c": {"source": "runtime/analysis/rm-file-device.c", "sha256": "051d0bd588b14db483dc846bfc63a34f1896853dcebde5cbdcea1381ce5792fd"},
-      "runtime/analysis/rm-file-device.h": {"source": "runtime/analysis/rm-file-device.h", "sha256": "20dfacb7c1454bb87fcc0b53c2d479ae03b8b21da38e344a750293d17c24231c"},
-      "runtime/analysis/file-media-config.c": {"source": "runtime/analysis/file-media-config.c", "sha256": "4d4fecc0aa147c37377d82fb3c325bd67e0838d06240dc881b3776fc7f6d7153"},
-      "runtime/analysis/menu-observe.c": {"source": "runtime/analysis/menu-observe.c", "sha256": "06b018fa548e95b5afa6fccc888a7beca63b954de3d21314275d318cf220153c"},
-      "runtime/analysis/sd_hotplug.py": {"source": "runtime/analysis/sd_hotplug.py", "sha256": "ee4f453b8d5e6afb4d559fe838b4dcbec941cb08d689cd8f7cc8ff8b562baf4c"},
-      "runtime/analysis/menu_control.py": {"source": "runtime/analysis/menu_control.py", "sha256": "f1626c1c6c90348666064ddf462e9786e2e3920788309ebee65c02f9343fe776"},
-      "runtime/analysis/menu_live.py": {"source": "runtime/analysis/menu_live.py", "sha256": "73e96679c5ef0aa5caf845b82f1728f3355ada287a1d28691fed6e1e103ab219"},
-      "runtime/analysis/camera_ui.py": {"source": "runtime/analysis/camera_ui.py", "sha256": "b606269847318ad913899295d7cdf3620d501c14343e0dd643fdf82312fa39cc"},
-      "runtime/analysis/qemu-menu-probe.py": {"source": "runtime/analysis/qemu-menu-probe.py", "sha256": "e884226e9ab253cbfb9572833008011a779bc879de94974d8ea91aae1b7a0bf1"},
-      "runtime/analysis/sd_flush_barrier.py": {"source": "runtime/analysis/sd_flush_barrier.py", "sha256": "571edd5f11fb545f953540e28b36868d4207add0995172fdb0cdd7f86b8ebd9b"},
-      "runtime/analysis/build-observers.sh": {"source": "runtime/analysis/build-observers.sh", "sha256": "b332b36e33575c09fe08e1b91727934b71e035968c0d31aab05487b9cb2d55a0"},
-      "runtime/analysis/snapshot-observer-sources.py": {"source": "runtime/analysis/snapshot-observer-sources.py", "sha256": "1fe6f28945e44ba4ec19cd6d64b795b7faf15405f00b4d00ea7e056e6ff3ac74"},
-      "runtime/analysis/check-natural-gtk-input.py": {"source": "runtime/analysis/check-natural-gtk-input.py", "sha256": "7259f7b05806e25e428a879aeedcf27c816c23e66b2531f17fe4986569cab8be"},
-      "runtime/analysis/test-sd-hotplug-runtime.c": {"source": "runtime/analysis/test-sd-hotplug-runtime.c", "sha256": "91c11bd020269af237f51f4303bde210471154d4637d976144dbf68c334c49b1"},
-      "runtime/analysis/test_sd_hotplug_runtime.py": {"source": "runtime/analysis/test_sd_hotplug_runtime.py", "sha256": "fdae3d7d78465d0109625d4a8570e4813f95a7af27cdd03554d59f3159d046d3"},
-      "runtime/analysis/test_sd_hotplug.py": {"source": "runtime/analysis/test_sd_hotplug.py", "sha256": "a9bde915f04708a2791d910c363ec0334e60fedfc4d89c2fa819b0f61482f4d8"},
-      "runtime/analysis/test_sd_retired_export.py": {"source": "runtime/analysis/test_sd_retired_export.py", "sha256": "ad08f661540625b0a89a7a79189f7de0c2491d62f23a12548543b44f97177d10"},
-      "runtime/analysis/test-rm-file-device.c": {"source": "runtime/analysis/test-rm-file-device.c", "sha256": "a215d3ad89dd134a9480033c2ed58ab58607cd131b2debfcfc5b804bbd22d039"},
-      "runtime/analysis/test_rm_file_device.py": {"source": "runtime/analysis/test_rm_file_device.py", "sha256": "7fa1dc161a2ae84aed108a8e799c8dc94f250e26bdfa7901d6fc28454fb59532"},
-      "runtime/analysis/test_sd_flush_barrier.py": {"source": "runtime/analysis/test_sd_flush_barrier.py", "sha256": "31a48169bc93689e55a18e1633c6f86b1f586bd4ec8deb35ca770886722deb6c"},
-      "runtime/analysis/test_sd_image.py": {"source": "runtime/analysis/test_sd_image.py", "sha256": "ec63c511f00cbbc6b9e9605506ea6c9fefec07553ef829b9d95015bb7900aaa1"}
+      "runtime/analysis/sd-state.c": {
+        "source": "runtime/analysis/sd-state.c",
+        "sha256": "c06e80daa966f81962f3f831e3489e3a07f3c13408f468571631642c3ddc2658"
+      },
+      "runtime/analysis/sd-state.h": {
+        "source": "runtime/analysis/sd-state.h",
+        "sha256": "fb1ada9230e4b4348fe7cc2afa7c59b11cde75bfe93f0480f411591d56fb9161"
+      },
+      "runtime/analysis/sd-hotplug-runtime.c": {
+        "source": "runtime/analysis/sd-hotplug-runtime.c",
+        "sha256": "bc170748bfaa466caa3cef4793d41f821bdcd3feab3cbf5fd5ec10d62cf9206e"
+      },
+      "runtime/analysis/sd-hotplug-runtime.h": {
+        "source": "runtime/analysis/sd-hotplug-runtime.h",
+        "sha256": "2822c16e79c628102837d0eb82d6d9919ab6776211139d523dbe92f444e46f40"
+      },
+      "runtime/analysis/device-models/sd-hotplug-adapter.c": {
+        "source": "runtime/analysis/device-models/sd-hotplug-adapter.c",
+        "sha256": "1e7e2abc66ba6a63f0a62021d17969faaf5de19af2d68af3197459cb40220ae7"
+      },
+      "runtime/analysis/device-models/sd-hotplug-adapter.h": {
+        "source": "runtime/analysis/device-models/sd-hotplug-adapter.h",
+        "sha256": "62598516543e183de9fb89b9b701a1fc4f97b5589015845a6ee082cabc6816fe"
+      },
+      "runtime/analysis/rm-file-device.c": {
+        "source": "runtime/analysis/rm-file-device.c",
+        "sha256": "051d0bd588b14db483dc846bfc63a34f1896853dcebde5cbdcea1381ce5792fd"
+      },
+      "runtime/analysis/rm-file-device.h": {
+        "source": "runtime/analysis/rm-file-device.h",
+        "sha256": "20dfacb7c1454bb87fcc0b53c2d479ae03b8b21da38e344a750293d17c24231c"
+      },
+      "runtime/analysis/file-media-config.c": {
+        "source": "runtime/analysis/file-media-config.c",
+        "sha256": "4d4fecc0aa147c37377d82fb3c325bd67e0838d06240dc881b3776fc7f6d7153"
+      },
+      "runtime/analysis/menu-observe.c": {
+        "source": "runtime/analysis/menu-observe.c",
+        "sha256": "06b018fa548e95b5afa6fccc888a7beca63b954de3d21314275d318cf220153c"
+      },
+      "runtime/analysis/sd_hotplug.py": {
+        "source": "runtime/analysis/sd_hotplug.py",
+        "sha256": "ee4f453b8d5e6afb4d559fe838b4dcbec941cb08d689cd8f7cc8ff8b562baf4c"
+      },
+      "runtime/analysis/menu_control.py": {
+        "source": "runtime/analysis/menu_control.py",
+        "sha256": "f1626c1c6c90348666064ddf462e9786e2e3920788309ebee65c02f9343fe776"
+      },
+      "runtime/analysis/menu_live.py": {
+        "source": "runtime/analysis/menu_live.py",
+        "sha256": "73e96679c5ef0aa5caf845b82f1728f3355ada287a1d28691fed6e1e103ab219"
+      },
+      "runtime/analysis/camera_ui.py": {
+        "source": "runtime/analysis/camera_ui.py",
+        "sha256": "b606269847318ad913899295d7cdf3620d501c14343e0dd643fdf82312fa39cc"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "source": "runtime/analysis/qemu-menu-probe.py",
+        "sha256": "e884226e9ab253cbfb9572833008011a779bc879de94974d8ea91aae1b7a0bf1"
+      },
+      "runtime/analysis/sd_flush_barrier.py": {
+        "source": "runtime/analysis/sd_flush_barrier.py",
+        "sha256": "571edd5f11fb545f953540e28b36868d4207add0995172fdb0cdd7f86b8ebd9b"
+      },
+      "runtime/analysis/build-observers.sh": {
+        "source": "runtime/analysis/build-observers.sh",
+        "sha256": "b332b36e33575c09fe08e1b91727934b71e035968c0d31aab05487b9cb2d55a0"
+      },
+      "runtime/analysis/snapshot-observer-sources.py": {
+        "source": "runtime/analysis/snapshot-observer-sources.py",
+        "sha256": "1fe6f28945e44ba4ec19cd6d64b795b7faf15405f00b4d00ea7e056e6ff3ac74"
+      },
+      "runtime/analysis/check-natural-gtk-input.py": {
+        "source": "runtime/analysis/check-natural-gtk-input.py",
+        "sha256": "7259f7b05806e25e428a879aeedcf27c816c23e66b2531f17fe4986569cab8be"
+      },
+      "runtime/analysis/test-sd-hotplug-runtime.c": {
+        "source": "runtime/analysis/test-sd-hotplug-runtime.c",
+        "sha256": "91c11bd020269af237f51f4303bde210471154d4637d976144dbf68c334c49b1"
+      },
+      "runtime/analysis/test_sd_hotplug_runtime.py": {
+        "source": "runtime/analysis/test_sd_hotplug_runtime.py",
+        "sha256": "fdae3d7d78465d0109625d4a8570e4813f95a7af27cdd03554d59f3159d046d3"
+      },
+      "runtime/analysis/test_sd_hotplug.py": {
+        "source": "runtime/analysis/test_sd_hotplug.py",
+        "sha256": "a9bde915f04708a2791d910c363ec0334e60fedfc4d89c2fa819b0f61482f4d8"
+      },
+      "runtime/analysis/test_sd_retired_export.py": {
+        "source": "runtime/analysis/test_sd_retired_export.py",
+        "sha256": "ad08f661540625b0a89a7a79189f7de0c2491d62f23a12548543b44f97177d10"
+      },
+      "runtime/analysis/test-rm-file-device.c": {
+        "source": "runtime/analysis/test-rm-file-device.c",
+        "sha256": "a215d3ad89dd134a9480033c2ed58ab58607cd131b2debfcfc5b804bbd22d039"
+      },
+      "runtime/analysis/test_rm_file_device.py": {
+        "source": "runtime/analysis/test_rm_file_device.py",
+        "sha256": "7fa1dc161a2ae84aed108a8e799c8dc94f250e26bdfa7901d6fc28454fb59532"
+      },
+      "runtime/analysis/test_sd_flush_barrier.py": {
+        "source": "runtime/analysis/test_sd_flush_barrier.py",
+        "sha256": "31a48169bc93689e55a18e1633c6f86b1f586bd4ec8deb35ca770886722deb6c"
+      },
+      "runtime/analysis/test_sd_image.py": {
+        "source": "runtime/analysis/test_sd_image.py",
+        "sha256": "ec63c511f00cbbc6b9e9605506ea6c9fefec07553ef829b9d95015bb7900aaa1"
+      }
     }
   },
   "settings_port": {

@@ -12,7 +12,7 @@
 #define SOURCE 0x810261c7u
 struct message { unsigned int owner,source,bytes,live; unsigned char body[64]; };
 static struct message messages[80];
-static unsigned int allocations,releases,sends,accepts;
+static unsigned int allocations,releases,sends,accepts,unhandled;
 static int fail_allocate,fail_send,fast_free,reuse_address;
 static void *fail_free;
 static void *last_reply;
@@ -57,9 +57,13 @@ static int release(unsigned int owner,void *p) {
 static void set_source(void *p,unsigned int source) { assert(lookup(p)->live);lookup(p)->source=source; }
 static unsigned int source(void *p) { assert(lookup(p)->live);return lookup(p)->source; }
 static unsigned int size(void *p) { assert(lookup(p)->live);return lookup(p)->bytes; }
+static char unhandled_text[220];
 static void record(const char *tag,const char *text) {
     assert(tag && text);
     if (!strcmp(tag,"NATIVE_CP_BACKGROUND_ACCEPT ")) accepts++;
+    if (!strcmp(tag,"NATIVE_CP_BACKGROUND_UNHANDLED ")) {
+        unhandled++;assert(strlen(text)<sizeof unhandled_text);strcpy(unhandled_text,text);
+    }
 }
 static int send(unsigned int destination,void *p) {
     struct message *m=lookup(p);assert(m->live && destination==SOURCE);
@@ -122,6 +126,23 @@ int main(int argc,char **argv) {
             0x20,0x1e,0x17,0x2e,0x7f,0,0,0,0xc3,0x61,0x91,0x80,0,0,0,0};
         memcpy(p,wire,sizeof wire);assert(!dispatch(p) && accepts==1);
         assert(!memcmp(captured+4,(unsigned char[]){0x7f,0,0,0},4));free_reply(last_reply);
+    } else if (!strcmp(argv[1],"observe-unhandled")) {
+        /* A 4000-series batch must be delegated, logged, and never answered. */
+        unsigned char *batch=make(NATIVE_CP_BACKGROUND_SID,16,SOURCE);
+        batch[0]=5;batch[2]=0x63;batch[3]=0x40;
+        int result=123;
+        assert(!native_cp_background_dispatch(NATIVE_CP_BACKGROUND_SID,batch,&io,1,&result));
+        assert(unhandled==1 && strstr(unhandled_text,"opcode=0x4063") &&
+               strstr(unhandled_text,"delegated=1"));
+        assert(!allocations && !sends && !releases && !accepts && result==123);
+        assert(lookup(batch)->live);
+        unsigned char *shortp=make(NATIVE_CP_BACKGROUND_SID,2,SOURCE);
+        assert(!native_cp_background_dispatch(NATIVE_CP_BACKGROUND_SID,shortp,&io,1,&result));
+        assert(unhandled==2 && !allocations && !sends);
+        /* Delegation never consumes the request: the caller keeps ownership. */
+        assert(!release(NATIVE_CP_BACKGROUND_SID,shortp));
+        assert(!release(NATIVE_CP_BACKGROUND_SID,batch));
+        assert(!release(NATIVE_CP_BACKGROUND_SID,p));
     } else if (!strcmp(argv[1],"bad-command") || !strcmp(argv[1],"bad-type") ||
                !strcmp(argv[1],"legacy-40b8")) {
         if (!strcmp(argv[1],"bad-command")) ((unsigned char *)p)[2]=0x73;

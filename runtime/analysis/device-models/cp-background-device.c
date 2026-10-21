@@ -121,7 +121,20 @@ int native_cp_background_dispatch(unsigned int destination,void *request,
     /* A control overlay, not replacement of every CP channel. Returning
      * unhandled delegates to the original transport without inventing its
      * return value, accepting its packet or claiming a peripheral effect. */
-    if (size<4 || body[0] || body[2]!=7 || body[3]!=0x30) return 0;
+    unsigned int opcode=size>=4?(unsigned int)body[2]|(unsigned int)body[3]<<8:0;
+    if (size<4 || body[0] || opcode!=0x3007) {
+        /* Observation only: record what the original AP really addressed here
+         * (for example a 4000-series lens batch) and delegate untouched. No
+         * reply, lease, allocation or ownership change happens on this path. */
+        if (io->record) {
+            char line[220];
+            snprintf(line,sizeof line,"tid=%ld destination=%#x source=%#x type=%u opcode=%#x size=%u delegated=1",
+                     syscall(SYS_gettid),destination,io->source?io->source(request):0,
+                     size?body[0]:0,opcode,size);
+            io->record("NATIVE_CP_BACKGROUND_UNHANDLED ",line);
+        }
+        return 0;
+    }
     if (!io->allocate || !io->release || !io->send || !io->set_source || !io->source)
         return unsupported(io,result,"missing-transport");
     if (atomic_load(&owner_pid) && atomic_load(&owner_pid)!=getpid())

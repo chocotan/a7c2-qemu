@@ -52,7 +52,11 @@ def run_fake(tmp_path, monkeypatch, *, bad_code=False, read_error=False, rounds=
         if read_error:
             raise RuntimeError('Cannot read original field')
         assert address in [base+v for v in
-                           {**media.FIELDS, **media.CAPACITY_FIELDS, **media.MEDIA_STATE_FIELDS}.values()]
+                           {**media.FIELDS, **media.CAPACITY_FIELDS, **media.MEDIA_STATE_FIELDS,
+                            **media.MEDIA_BASE_FIELDS, **media.UNRESOLVED_FIELDS,
+                            **media.UNRESOLVED_BASE_FIELDS}.values()]
+        if address-base in {**media.MEDIA_BASE_FIELDS, **media.UNRESOLVED_BASE_FIELDS}.values():
+            return (2).to_bytes(4, 'little')
         return (1).to_bytes(4, 'little')
 
     def execute(command, to_string):
@@ -121,6 +125,9 @@ def test_policy_original_return_resolves_bounded_message_record(tmp_path, monkey
     assert selected['message_selector_va'] == '0x18826e0'
     assert all(events[0]['fields'][name] == 1
                for name in {**media.CAPACITY_FIELDS, **media.MEDIA_STATE_FIELDS})
+    assert all(events[0]['fields'][name] == 2 for name in media.MEDIA_BASE_FIELDS)
+    assert result['media_observation_revision'] == 2
+    assert all(event['media_observation_revision'] == 2 for event in events)
     assert events[1]['host_monotonic_ns'] >= events[0]['host_monotonic_ns']
     assert media.selected_record(None, 0, 0xffff) is None
     with pytest.raises(ValueError, match='bounds'):
@@ -215,18 +222,21 @@ def _va_to_offset(segments, va, size=1):
             return offset+(va-vaddr)
     raise ValueError(f'{va:#x} outside PT_LOAD segments')
 
-def test_media_state_fields_follow_original_dispatch_getters():
-    """Each named media-state cell must equal the getter target of its dispatch row."""
+@pytest.mark.parametrize('getter_slot,fields', [(0x20, media.MEDIA_STATE_FIELDS),
+                                             (0x08, media.MEDIA_BASE_FIELDS)])
+def test_media_state_fields_follow_original_dispatch_getters(getter_slot, fields):
+    """Keep the value read API and reset/base accessor separately bound."""
     import struct
     path = Path(__file__).parent/'menu-root/usr/lib/appFw.so'
     if not path.is_file():
         pytest.skip('Original public AP optional')
     raw = path.read_bytes()
     segments = _load_segments(raw)
-    dispatch_base, stride, getter_slot = 0x5584c38, 0x30, 0x08
-    loads = (0xb9400000, 0xf9400000, 0x39400000, 0x79400000)
-    assert media.MEDIA_STATE_FIELDS
-    for label, expected in media.MEDIA_STATE_FIELDS.items():
+    dispatch_base, stride = 0x5584c38, 0x30
+    assert raw[_va_to_offset(segments, 0x28bb0c0, 8):][:8] == bytes.fromhex('000440f900001fd6')
+    assert raw[_va_to_offset(segments, 0x28bb0dc, 8):][:8] == bytes.fromhex('001040f900001fd6')
+    assert fields
+    for label, expected in fields.items():
         pid = int(label.split('_')[1], 16)
         row = _va_to_offset(segments, dispatch_base+pid*stride, stride)
         getter = struct.unpack_from('<Q', raw, row+getter_slot)[0]
@@ -243,9 +253,31 @@ def test_media_state_fields_follow_original_dispatch_getters():
             if word & 0xff8003e0 == 0x91000000:                   # ADD x0,x0,#imm[,lsl12]
                 address += (word >> 10 & 0xfff) << (12 if word >> 22 & 1 else 0)
                 continue
-            assert word & 0xffc00000 in loads, label              # LDR families
+            assert word & 0xffc003ff == 0xb9400000, label          # LDR w0,[x0,#imm]
             assert address+(word >> 10 & 0xfff)*4 == expected, label
+            assert struct.unpack_from('<I', raw, start+4*(slot+1))[0] == 0xd65f03c0, label
             break
+        else:
+            pytest.fail(f'{label}: no bounded scalar return')
+
+
+def test_capacity_like_dispatch_key_is_not_a_media_field():
+    """0x1052 must stay unresolved: its validators allow only -15..15."""
+    import struct
+    path = Path(__file__).parent/'menu-root/usr/lib/appFw.so'
+    if not path.is_file():
+        pytest.skip('Original public AP optional')
+    raw = path.read_bytes()
+    segments = _load_segments(raw)
+    assert not any('1052' in name for name in media.MEDIA_STATE_FIELDS)
+    assert set(media.UNRESOLVED_FIELDS) == {'dispatch_1052_unresolved_value'}
+    for table in (0x56dc8c8, 0x56dc6b8):
+        record = _va_to_offset(segments, table, 16)
+        range_pointer = struct.unpack_from('<Q', raw, record+8)[0]
+        low, high, step = struct.unpack('<iii', raw[_va_to_offset(segments, range_pointer, 12):][:12])
+        assert (low, high, step) == (-15, 15, 1)
+    relay = _va_to_offset(segments, 0x4b93828, 24)
+    assert struct.unpack_from('<6I', raw, relay) == (0x103c, 0x103c, 0x1047, 0x1052, 1, 8)
 
 
 def test_host_refuses_missing_failed_or_abnormal_trace(tmp_path):
