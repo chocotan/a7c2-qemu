@@ -37,7 +37,8 @@ test_sd_flush_barrier.py test_setting_store.py test_capture_gate_readback.py
 test_handoff_lifecycle.py test_live_transport_retention.py test_media_initial_write.py
 test_media_predicate_watch.py test_sd_session_retry.py test_ee_entry_snapshot.py
 test_startup_caution_compare.py test_body_control_probe.py test_mode_wheel_probe.py
-test_focus_controls_probe.py'''.split()
+test_focus_controls_probe.py test_settings_checkpoint.py test_settings_instance.py
+test_instance_lifecycle.py test_vm_instance_lifecycle.py'''.split()
 
 
 class HostScope:

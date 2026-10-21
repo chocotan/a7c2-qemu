@@ -58,6 +58,16 @@ QEMU 归档自身随附 Meson 1.11.1、pycotap 1.3.1、qemu.qmp 0.0.6 的离线 
 
 默认新卡为 128 MiB FAT16；同窗口 OFF→ON 会继续使用已保存卡。跨进程运行要显式传入 `--sd-image`。卡导出成功以 `SD/export.json` 的刷新、恢复、完整摘要及 fsck 结果为准；初始语言页的卡可能尚无数据库。菜单数据库写入不是拍摄完成的证据。
 
+GTK 现默认绑定 `runtime/analysis/camera-instances/default`，正常 OFF 先快照完整 Backup，再保存 SD，最后在实例生命周期租约内 CAS 发布配置代。恢复时校验完整文件和双 bank checksum，派生本次 cpio 的两份 seed；损坏状态报错，不静默回默认。保存或发布失败会保留 VM。可显式选择私有实例根：
+
+```bash
+A7C2_INSTANCE_DIR=/path/to/private-instances ./start.sh --bodydata /path/to/BODYDATA.DAT
+```
+
+该根下使用 owned 0700 的 `default` 实例；已有状态不覆盖，链接路径拒绝。实例不包含跨进程自动 SD 选择，仍需显式 `--sd-image`。OFF 保存与退出完成后，“销毁并重新初始化”才可用；确认框默认取消，确认后成功发布 reset 墓碑才重新启动，失败不启动。重置保留虚拟 SD、历史配置代、原固件、overwrite 源和运行资料。
+
+**本包已通过真实 GTK 两轮保存/恢复、确认重置后第三次启动及 SD/历史保留复验。** native 另已验证真实菜单简中语言值25、日期格式值2跨 VM 原API读回；本包此次三轮主要复验默认配置的保存、恢复和重置交互，不能当作再次修改25/2的证据。有限 SID02cf 同步不等于所有设置已提交。首设完成状态仍未持久化，启动仍可能出现首设；完整 SID、镜头成像、拍照声音继续未完成。
+
 自定义固件覆盖使用普通文件的 guest 相对路径：
 
 ```bash
@@ -74,6 +84,7 @@ QEMU 归档自身随附 Meson 1.11.1、pycotap 1.3.1、qemu.qmp 0.0.6 的离线 
 | `runtime/analysis/menu-initramfs.cpio` | 本机生成的启动镜像 |
 | `runtime/analysis/menu-runs/run-*/SD/` | 导出的 `card.img`、`export.json` 和验证材料 |
 | `runtime/analysis/menu-runs/run-*/`、`ui-runs/` | 串口、快照、模型及输入证明；快照不是照片 |
+| `runtime/analysis/camera-instances/default/` | 私有配置代、当前代/重置墓碑与生命周期锁；不公开分发 |
 | `runtime/sources/` | 本地安装的 QEMU、libfdt、dtc，构建产物默认忽略 |
 | `source/build/`、`source/build-programs.sha256` | 构建目录和本次程序摘要 |
 
@@ -92,7 +103,7 @@ QEMU 归档自身随附 Meson 1.11.1、pycotap 1.3.1、qemu.qmp 0.0.6 的离线 
 | 原固件照片/视频生成 | **未实现/未验收**：CMOS 真实像素消费与完整编码链未闭合 |
 | 镜头、AF 合焦、完整曝光 | **未完成**，不以输入 ACK 或虚拟状态代替实际消费 |
 | 原固件驱动宿主声音 | **未实现**；WAV 资源导出不能算播放 |
-| 配置跨 VM 保存、“销毁并重新初始化” | **未接入完整 UI/VM 验收**；随附 store 的 host 测试不能代表此功能完成 |
+| 配置跨 VM 保存、“销毁并重新初始化” | **本包真实 GTK 三轮保存/恢复/确认重置已验**；快照/独立 guest 摘要/配置代/默认恢复/SD 与历史保留通过，首设完成状态及全部设置覆盖仍未验 |
 | SD 动态热拔插 | **未完成 guest/UI 验收**；只有 Ccore/adapter 修正及 owner/dest 分离的 host 验证源码 |
 | 真实无线关联 | **未实现**；虚拟网络为隔离 host–VM USB 以太网，没有真实 Wi-Fi 芯片 |
 | CP3006 与其它设备合同 | **未接管/仍缺若干实际消费合同**；不强写门禁，不伪 ready/ACK 美化显示 |
@@ -117,7 +128,7 @@ python3 tools/test-host.py
 sha256sum --check SOURCE-SHA256SUMS
 ```
 
-限定 host 测试不要求 Sony 资产、构建 QEMU 或 guest 助手；显式跳过需要 libfdt/DTB/固件字节的三项集成检查，并拦截编译器与 QEMU 子进程。其余原有 C/guest/图形集成测试保留在源码中，供构建后按各脚本前提运行；请勿把全部 `test*.py` 当作纯主机测试一次执行。
+限定 host 测试不要求 Sony 资产、构建 QEMU 或 guest 助手；显式跳过需要 libfdt/DTB/固件字节的三项集成检查，新增 settings parser 用例在官方 seed 缺失时明确 skip，并拦截编译器与 QEMU 子进程。纯 store/lifecycle 用例可启动小型 Python 子进程验证租约排他；无 DISPLAY 时 GTK 控件用例 skip。其余原有 C/guest/图形集成测试保留在源码中，供构建后按各脚本前提运行；请勿把全部 `test*.py` 当作纯主机测试一次执行。
 
 `./start.sh --help`、`./build-qemu.sh --help` 可以查看入口边界。缺命令/模块先修复宿主依赖；缺 QEMU 或 DTB 先构建；wrong asset/hash 错误先确认 **2.01 ALLLANG** 和输入未变；namespace 或 DISPLAY 错误检查 bubblewrap 权限、桌面与认证。保持失败日志及返回码，不通过改固定 hash、强制 ready 或关闭安全检查继续运行。
 

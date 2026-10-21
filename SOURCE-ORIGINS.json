@@ -2813,5 +2813,71 @@
       "source": "start.sh"
     }
   },
-  "origin": "a7c2-re/report/2026-10-17-qemu-native-camera"
+  "origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "settings_port": {
+    "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis",
+    "scope": "selected settings-only port; native VM evidence does not replace package VM revalidation",
+    "files": {
+      "runtime/analysis/settings_checkpoint.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/settings_checkpoint.py",
+        "sha256": "836ede60d80dfd442003b417030d15d2bebeefa7ecd5088af10b190f55d1b07a"
+      },
+      "runtime/analysis/settings_instance.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/settings_instance.py",
+        "sha256": "0e5fd92edf39f90b5ae74dfb285574d42959f9c161dce85d8da8a39f47945241"
+      },
+      "runtime/analysis/instance_lifecycle.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/instance_lifecycle.py",
+        "sha256": "daa5580ddde2d91c2655442b90ef47745c7a959aa8e1fcd7c15e0c0f6adc2ce6"
+      },
+      "runtime/analysis/user-settings-checkpoint.c": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/user-settings-checkpoint.c",
+        "sha256": "48d3941610b79c9da48e65394851fa08a2b780d1d4164fb35f4c984d6f4062af"
+      },
+      "runtime/analysis/test_settings_checkpoint.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_settings_checkpoint.py",
+        "sha256": "116e67f445898ec56a6ab50ed85a098cc6cdd903eb6872a9c5b74e49d5a66696"
+      },
+      "runtime/analysis/test_settings_instance.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_settings_instance.py",
+        "sha256": "8ecc4a148654f065fc7bc5b474eb3053a50775ddb1e95d55fa9c70b2ada61b48"
+      },
+      "runtime/analysis/test_instance_lifecycle.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_instance_lifecycle.py",
+        "sha256": "086bf432ea2e16738c44b38290bd2c2866b21963fafb0b3568bb68c60c4d57b6"
+      },
+      "runtime/analysis/test_vm_instance_lifecycle.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_vm_instance_lifecycle.py",
+        "sha256": "1cb21261c3a6537e5ae282fe33506187ae0b11796e8ab67195ade3894553d4d2"
+      },
+      "runtime/analysis/setting_store.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/setting_store.py",
+        "sha256": "71b6e5d9521865c24ba03be091e38c304b778205d7a5488384c0540dedd37f4d"
+      },
+      "runtime/analysis/menu_control.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu_control.py",
+        "sha256": "1eec9787a1d3ef69aebe8b609b9304a8ee2afe87993cd26424d172af2e051221"
+      },
+      "runtime/analysis/camera_ui.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/camera_ui.py",
+        "sha256": "b606269847318ad913899295d7cdf3620d501c14343e0dd643fdf82312fa39cc"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/qemu-menu-probe.py",
+        "sha256": "3d5a4ce8ff5967261d4a256cfe255dd818b92a2884191cb3b52bbb304c51e87f"
+      },
+      "runtime/analysis/build-observers.sh": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/build-observers.sh",
+        "sha256": "b332b36e33575c09fe08e1b91727934b71e035968c0d31aab05487b9cb2d55a0"
+      },
+      "runtime/analysis/check-natural-gtk-input.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/check-natural-gtk-input.py",
+        "sha256": "7259f7b05806e25e428a879aeedcf27c816c23e66b2531f17fe4986569cab8be"
+      },
+      "runtime/analysis/test_camera_ui.py": {
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_camera_ui.py",
+        "sha256": "f35c9c8cd309fa04b2922009831661717a83637ed387ec98700900f116d5d300"
+      }
+    }
+  }
 }

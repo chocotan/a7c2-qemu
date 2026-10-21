@@ -36,7 +36,8 @@ try:
     import Cryptodome.Cipher.AES
 except ImportError:
     import Crypto.Cipher.AES
-for name in ('bodydata-launch','prepare-assets','menu_control','camera_ui','usb_network','sd_transport'):
+for name in ('bodydata-launch','prepare-assets','menu_control','camera_ui','usb_network','sd_transport',
+             'setting_store','instance_lifecycle','settings_checkpoint','settings_instance'):
     importlib.import_module(name)
 print('HOST_IMPORTS_PASS')
 PY

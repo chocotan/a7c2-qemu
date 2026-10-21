@@ -1,5 +1,31 @@
 # 本包验证记录
 
+## Settings 源码移交与本包动态复验
+
+本次从 `final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/` 选择移交 settings helper、snapshot/restore、实例租约与 GTK 重初始化接线。未复制整个 runtime，未引入 SD 热插拔、portgate 或改变本包 RM/filemedia/SD Flush 路径；保留 `/var/tmp` 安全 socket alias 与无关文件保护。
+
+native 的真实 GTK 三轮 `run-zacu447o`、`run-k43fdxy7`、`run-qjk1g9iz` 已由 main 核验 SD/settings/restore/reset，后台112/110项与GTK27项测试证据属于 native，**不能计作本包已运行**。真实菜单语言25/日期格式2跨 VM 原API读回属于有限参数验收；完整2390264字节 Backup 的双 bank checksum、guest 独立 SHA、QMP/FNV 与实例 CAS 发布不能证明全部 SID 已提交。首设完成状态仍未持久化，完整设置、成像和声音继续未验。
+
+本包接线为：启动持同一实例租约并严格 load，私有 cpio 两 seed 恢复；OFF 顺序为配置 snapshot→SD 保存→配置 CAS 发布，任一失败保留 VM；OFF 退出后确认 reset，成功发布墓碑后才启动。默认保留 SD 与配置历史；跨进程 SD 仍由 `--sd-image` 显式选择。源码移交阶段只做受限 host 检查，没有编译或启动 VM；main 的后续包内动态结果见下节，不将两个阶段混为代理自己已做全部验收。
+
+`python3 -B tools/test-host.py` 实际返回0：**259 passed、33 skipped、71 subtests passed**。新增 settings checkpoint/instance 用例使用本包本地官方 seed 通过；生命周期用例使用小型 Python 子进程检查跨进程排他，出现一条多线程 `fork()` 弃用警告。无 DISPLAY 的 GTK 控件用例（含新增重置两项）明确 skip，不能将此计作 GTK 复验。另通过 Python AST、修改脚本 Bash 语法与 `git diff --check`。自然 GTK 输入驱动强制使用本次输出目录下的独立实例根，避免继承用户实例路径。
+
+### main：本包真实 GTK 保存、恢复和重置通过
+
+main独立复核了选择性移交diff和五份配置运行源码身份，确认没有SD热插拔runtime、portgate或SD插拔按钮，也未改变原RM/filemedia实现和安全短socket alias；随后重新执行受限host suite，仍为259 passed/33 skipped/71 subtests。代理的隐藏旧项目和Sony资产布局另为237 passed/55 skipped/71 subtests；跳过项与原固件/显示依赖有关，不扩作动态结果。
+
+实际三轮运行使用本包自己的production `camera_ui.main`、默认launcher、新编译的guest helper、已安装QEMU和私有实例。main逐项核selected-initramfs helper身份、原配置独立guest SHA/QMP文件、配置代与两seed恢复清单，实际xdotool点击ON/OFF及确认按钮，没有使用stub后端或替换运行器。
+
+| run | 实际行为 | 配置文件 SHA-256 |
+| --- | --- | --- |
+| `run-0dcczdbi` | 空实例首次保存，配置代 `dc443d86f18f48f6b97ab5715321ff97` | `29b5c7d43721ba2117371aa61b48741730c9730a1ce3d20703c9425bf0be81f6` |
+| `run-h3lr1ci5` | 从上一代两seed恢复后保存，代 `328c9858632946f5985240d84a217333` | `dd9d778f825979b835b5a394823580adbac751957fdae7a0d203eae64c5f1c42` |
+| `run-56a6nn27` | 真实确认框接受后reset，启动manifest不载旧配置，恢复默认后再保存 | `29b5c7d43721ba2117371aa61b48741730c9730a1ce3d20703c9425bf0be81f6` |
+
+main直接查看确认框截图：当前实例路径、恢复默认/重走首设以及SD/原固件/overwrite/历史代/运行资料保留范围均可见。实际reset代 `b08f1ef888124e9db2378d3353084f51` 是逻辑墓碑，两个旧backup代保留。第三次启动SD seed与重置前卡摘要一致，三份实际SD整卡SHA均为 `61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727`，独立fsck全部0、原Flush全部0、owner全部恢复，每轮正常退出。最终实例锁可重新获得。
+
+本机原始输出为忽略文件 `validation/main-settings-gtk.log`，第三run的`main-package-settings-review.json`保留有限main核验。此三轮配置值为默认语言1/日期3，证明实际GTK保存/恢复/重置交互；native另有真正原菜单25/2改值并跨VM恢复的有限证据，两者不混为本包本轮也重新操作25/2。首次设置完成状态、全部SID提交覆盖、拍照/录像/AF/音频仍未完成。原native首轮GTK第二次SD导出被SIGTERM中断的失败和未知来源没有被这轮包内成功改写。
+
 本记录保留首次独立源码打包、主机检查与官方包准备结果，并追加 main 的后续验收。**本包已复验独立构建、单 GTK 相机窗口、中文首设、原 HUD/MENU、SD 保存、后端网络开关和两轮跨运行卡回载。** 全部实验限定普通虚拟文件与隔离网络。旧路线 VM 结果仍只作为 README 中标注的基线状态；照片/录像等未完成功能见下文边界。
 
 ## main 后续构建验收
@@ -115,7 +141,7 @@ bwrap --unshare-net --die-with-parent --clearenv \
     --bodydata /mnt/input/BODYDATA.DAT --prepare-only
 ```
 
-main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中文首设与 HUD/MENU、菜单输入、SD 保存和两轮回载、USB 后端 ON/OFF/ON 及 `/var/tmp` 短别名的真实消费复验。照片/录像、AF/CMOS/编码、宿主声音、配置跨 VM、SD 动态热拔插和真实无线关联继续标为未完成。
+main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中文首设与 HUD/MENU、菜单输入、SD 保存和两轮回载、USB 后端 ON/OFF/ON，以及本包GTK配置保存/恢复/确认重置的三轮复验。照片/录像、AF/CMOS/编码、宿主声音、首设完成持久化和全部设置覆盖、SD 动态热拔插和真实无线关联继续标为未完成。
 
 以上首次打包验证时尚未提交或推送；随后已在本目录独立 Git 仓库提交推送。源码与验证记录按目录分离，验证日志默认不随源码发布。main 的本包构建结果见上节，其它动态验证以追加结果为准。
 

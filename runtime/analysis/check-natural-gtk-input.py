@@ -20,6 +20,7 @@ DRIVER = r'''
 import importlib.util,json,os,sys,threading
 from pathlib import Path
 geometry=Path(sys.argv[1]);new_ui=len(sys.argv)>2 and sys.argv[2]=='new';sys.argv=['gtk-input-driver']
+os.environ['A7C2_INSTANCE_DIR']=str(geometry.parent/'instances')
 from menu_control import VM
 ui_instance=None
 if os.environ.get('A7C2_TEST_INFRA20')=='1':

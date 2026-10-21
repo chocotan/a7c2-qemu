@@ -23,6 +23,7 @@ from menu_live import KEYS, FirmwareFault,FirmwareMonitor, control_catalog, rece
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parents[1]
 UI = ROOT / 'analysis/qemu-control'
+SETTINGS_FIRMWARE_SHA='2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b'
 spec = importlib.util.spec_from_file_location('start_menu', BASE / 'start-menu.py')
 launcher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(launcher)
@@ -61,7 +62,7 @@ def terminate_owned(process):
 
 
 class VM:
-    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False):
+    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
             raise ValueError('不支持的原生显示后端')
         self.command = command or ['bash', str(BASE / 'run-menu-probe.sh')]
@@ -93,6 +94,57 @@ class VM:
         self.commands = queue.Queue(maxsize=8)
         self.busy = ''
         self.log_path = ''
+        if instance is not None:
+            from instance_lifecycle import Instance
+            self.instance = Instance(instance)
+        else:
+            self.instance = None
+        self.instance_lease = None
+        self.settings_generation = None
+        self.settings_saved = None
+
+    def _release_instance_lease(self, process=None):
+        if self.instance_lease is None:
+            return
+        if process is not None:
+            if process.poll() is None:
+                raise RuntimeError('实例仍有运行进程；保留生命周期租约')
+            try:
+                os.killpg(process.pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise RuntimeError('实例进程组仍未退出；保留生命周期租约')
+        self.instance_lease.__exit__(None, None, None)
+        self.instance_lease = None
+
+    def reset_instance(self, expected_generation, *, confirmed):
+        """Host-only logical reset; guest Backup export/restore is separate."""
+        with self.lock:
+            if self.instance is None:
+                raise ValueError('本控制器未绑定持久实例')
+            if (self.instance_lease is not None or self.cleanup_error or self.owned_process is not None
+                    or (self.thread and self.thread.is_alive())):
+                raise ValueError('实例尚未完成停止和清理；不能重置')
+            return self.instance.reset(expected_generation, confirmed=confirmed)
+
+    def reset_configuration(self, *, confirmed):
+        """Stopped-instance logical reinitialization; preserve virtual SD/history."""
+        with self.lock:
+            if self.instance is None:raise ValueError('本控制器未绑定持久实例')
+            if (self.instance_lease is not None or self.cleanup_error or self.owned_process is not None
+                    or (self.thread and self.thread.is_alive())):
+                raise ValueError('请先 OFF 并等待相机保存与退出完成')
+            from settings_instance import load_for_boot
+            with self.instance.run_lease() as token:
+                current=load_for_boot(token,SETTINGS_FIRMWARE_SHA)
+            if current['generation'] is None:raise ValueError('当前相机尚无保存的配置')
+            result=self.instance.reset(current['generation'],confirmed=confirmed)
+            self.settings_generation=result['generation']
+            self.settings_saved={k:v for k,v in result.items() if k!='data'}
+            self.stale=True
+            self.event('当前相机配置已重新初始化；虚拟SD与历史运行资料保留',kind='storage')
+            return self.settings_saved
 
     def event(self, message, kind='status'):
         self.event_id += 1
@@ -108,6 +160,7 @@ class VM:
                         can_stop=self.state in ('starting','running','faulted'),
                         native_display=self.native_display, mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         wifi=self.wifi, usb_net=self.usb_net,
+                        settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
                         log=self.log_path, run=self.run_dir)
 
     def start(self):
@@ -115,6 +168,12 @@ class VM:
             if self.thread and self.thread.is_alive():
                 raise ValueError('已有 VM 正在启动、运行或停止')
             if self.owned_process and self.owned_process.poll() is None:raise ValueError('上一VM尚未清理，请先重试关闭')
+            if self.instance_lease is not None:
+                raise ValueError('上次实例生命周期尚未结束；请先清理')
+            if self.instance is not None:
+                token = self.instance.run_lease()
+                token.__enter__()
+                self.instance_lease = token
             self.firmware_fault=self.cleanup_error=''
             self.wifi = None
             self.state, self.error, self.stale = 'starting', '', True
@@ -126,7 +185,12 @@ class VM:
             self.commands = queue.Queue(maxsize=8)
             self.event('启动请求已接受；等待构建、锁与串口初始化完成')
             self.thread = threading.Thread(target=self._run, daemon=True)
-            self.thread.start()
+            try:
+                self.thread.start()
+            except BaseException:
+                self._release_instance_lease()
+                self.state = 'disconnected'
+                raise
 
     def enqueue(self, command):
         with self.lock:
@@ -183,6 +247,7 @@ class VM:
         if retry_cleanup:
             try:
                 if owned is not None:terminate_owned(owned)
+                with self.lock:self._release_instance_lease(owned)
             except (OSError,subprocess.TimeoutExpired) as error:
                 raise RuntimeError('VM清理仍失败：'+str(error)) from error
             with self.lock:
@@ -225,6 +290,14 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            if self.instance_lease is not None and not self.mock and self.natural_boot:
+                from settings_instance import load_for_boot
+                current=load_for_boot(self.instance_lease,SETTINGS_FIRMWARE_SHA)
+                self.settings_generation=current['generation']
+                env['A7C2_SETTINGS_PERSIST']='1'
+                if current['state']=='backup':
+                    env['A7C2_SETTINGS_RESTORE']=str(Path(self.instance.path)/('generation-'+current['generation'])/'backup.bin')
+                    env['A7C2_SETTINGS_RESTORE_SHA']=current['sha256']
             if self.usb_net and not self.mock and env.get('MENU_USB_NET') != '1':
                 from usb_network import prepare_profile
                 env.pop('A7C2_USB_NET_SELFTEST', None)
@@ -323,6 +396,14 @@ class VM:
                             self.error = str(reply.get('error', 'unknown'))
                             self.event('Wi-Fi 切换未完成：' + self.error, kind='network')
                     elif command['action']=='export_sd' and reply.get('type')=='sd_export':
+                        if reply.get('ok') and self.instance_lease is not None and not self.mock:
+                            try:
+                                from settings_instance import publish_snapshot
+                                self.settings_saved=publish_snapshot(self.instance_lease,self.run_dir,
+                                    reply.get('settings') or {},SETTINGS_FIRMWARE_SHA,self.settings_generation)
+                                self.settings_generation=self.settings_saved['generation']
+                            except (OSError,ValueError,RuntimeError) as error:
+                                reply={**reply,'ok':False,'error':'配置发布失败；VM保留：'+str(error)}
                         self.sd_export=reply
                         if reply.get('ok'):self.card_seed=Path(self.run_dir)/'SD/card.img'
                         self.event('虚拟SD已保存' if reply.get('ok') else '虚拟SD导出失败：'+str(reply.get('error','unknown')),
@@ -356,8 +437,13 @@ class VM:
             if process is not None:
                 try:
                     terminate_owned(process)
+                    with self.lock:self._release_instance_lease(process)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     cleanup_error = str(error)
+                except RuntimeError as error:
+                    cleanup_error = str(error)
+            else:
+                with self.lock:self._release_instance_lease()
             if log is not None:
                 log.close()
             with self.lock:

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Single GTK3 camera window. Importing this module never creates or starts a VM."""
 import math
+import os
+from pathlib import Path
 import signal
 import sys
 import threading
@@ -137,6 +139,8 @@ class CameraUI:
     def __init__(self, vm, *, timer=True, clock=time.monotonic):
         self.vm, self.clock = vm, clock
         self.closed = self.closing = False
+        self.reinitializing = False
+        self.reset_dialog = None
         self.state = vm.status()
         self.wifi_syncing = False
         self.wifi_confirmed = False
@@ -338,6 +342,10 @@ class CameraUI:
         self.interval.connect('changed', self._interval_changed)
         row.pack_start(self.interval, False, False, 0)
         self.capture_status = label('单条在途 / 自适应退避', 'hint')
+        self.reset_button = Gtk.Button(label='销毁并重新初始化')
+        self.reset_button.get_accessible().set_name('销毁当前相机配置并重新初始化，保留 SD')
+        self.reset_button.connect('clicked', lambda _: self.request_reinitialize())
+        row.pack_start(self.reset_button, False, False, 0)
         row.pack_end(self.capture_status, False, False, 0)
         self.root.pack_start(row, False, False, 0)
         self.feedback = label('ON 启动本窗口拥有的 VM，等待真实固件图像。', 'feedback', wrap=True)
@@ -364,7 +372,7 @@ class CameraUI:
             return '后端 registry 未提供此控件'
         if not entry.get('available'):
             return entry.get('unavailable_reason') or '键码未知或当前通道不可用'
-        if self.closing:
+        if self.closing or self.reinitializing:
             return '正在关闭本窗口拥有的 VM'
         if self.state.get('state') != 'running':
             return 'VM 尚未运行，请 ON 并等待启动完成'
@@ -447,7 +455,7 @@ class CameraUI:
         return True
 
     def power(self, on):
-        if self.closing:
+        if self.closing or self.reinitializing:
             return
         self._cancel_drag()
         try:
@@ -464,6 +472,7 @@ class CameraUI:
         self.update(self.vm.status())
 
     def capture(self, automatic=False):
+        if self.reinitializing:return False
         try:
             queued = self.poller.request(self.vm, self.vm.status(), self.clock(), force=not automatic)
             if queued and not automatic:
@@ -478,7 +487,7 @@ class CameraUI:
     def tick(self):
         if self.closed:
             return False
-        if self.closing:
+        if self.closing or self.reinitializing:
             return True
         try:
             self.update(self.vm.status())
@@ -491,6 +500,58 @@ class CameraUI:
 
     def _interval_changed(self, combo):
         self.poller.set_interval(int(combo.get_active_id()), self.clock())
+
+    def request_reinitialize(self):
+        state=self.vm.status()
+        if (self.closing or self.reinitializing or self.reset_dialog is not None
+                or not state.get('settings_persistent') or not state.get('settings_generation')
+                or state.get('state') not in ('disconnected','exited') or not state.get('can_start')):
+            return False
+        dialog=Gtk.MessageDialog(transient_for=self.window,modal=True,
+            message_type=Gtk.MessageType.WARNING,buttons=Gtk.ButtonsType.NONE,
+            text='重新初始化当前相机配置？')
+        dialog.set_title('重新初始化当前相机配置')
+        instance=getattr(getattr(self.vm,'instance',None),'path','当前相机实例')
+        dialog.format_secondary_text('实例：'+instance+'\n当前配置将恢复默认，下次从首设开始。\n'
+            '保留虚拟 SD、原固件、overwrite 源文件、历史配置代和运行资料。')
+        dialog.add_button('取消',Gtk.ResponseType.CANCEL)
+        dialog.add_button('重新初始化并启动',Gtk.ResponseType.ACCEPT)
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        self.reset_dialog=dialog
+        def response(widget,choice):
+            self.reset_dialog=None
+            widget.destroy()
+            if choice==Gtk.ResponseType.ACCEPT:self._reinitialize_confirmed()
+        dialog.connect('response',response)
+        dialog.show_all()
+        return True
+
+    def _reinitialize_confirmed(self):
+        state=self.vm.status()
+        if (self.closing or self.reinitializing or state.get('state') not in ('disconnected','exited')
+                or not state.get('can_start')):
+            return False
+        self.reinitializing=True
+        self.root.set_sensitive(False)
+        self.feedback.set_text('正在重新初始化配置；虚拟 SD 和历史资料保留。')
+        def reset():
+            error=''
+            try:self.vm.reset_configuration(confirmed=True)
+            except (ValueError,RuntimeError,OSError) as failure:error=str(failure)
+            GLib.idle_add(self._reinitialize_finished,error)
+        threading.Thread(target=reset,name='camera-instance-reinitialize',daemon=True).start()
+        return True
+
+    def _reinitialize_finished(self,error):
+        self.reinitializing=False
+        self.root.set_sensitive(True)
+        if error:
+            self.local_error='配置重初始化失败；未启动新 VM：'+error
+            self.update(self.vm.status())
+        else:
+            self.feedback.set_text('配置已重新初始化；正在从首设启动，SD 保留。')
+            self.power(True)
+        return False
 
     def _read_frame(self, state):
         # Retry a changed metadata version instead of pairing a PNG with the wrong frame.
@@ -532,6 +593,10 @@ class CameraUI:
         self.spinner.start() if activity or state.get('state') in ('starting', 'stopping') else self.spinner.stop()
         self.on.set_sensitive(not self.closing and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
         self.off.set_sensitive(not self.closing and state.get('can_stop', state.get('state') in ('starting', 'running')))
+        self.reset_button.set_sensitive(not(self.closing or self.reinitializing)
+            and state.get('settings_persistent') is True and bool(state.get('settings_generation'))
+            and state.get('state') in ('disconnected','exited') and bool(state.get('can_start')))
+        self.reset_button.set_tooltip_text('请先 OFF 并等待配置和 SD 保存完成；仅重置当前实例，默认保留 SD')
         wifi = state.get('wifi') or {}
         if state.get('state') != 'running':
             self.wifi_confirmed = False
@@ -704,6 +769,11 @@ class CameraUI:
         return False
 
     def _close(self, *_):
+        if self.reinitializing:
+            self.local_error='配置重初始化正在发布；请等待完成后关闭'
+            return True
+        if self.reset_dialog is not None:
+            self.reset_dialog.response(Gtk.ResponseType.CANCEL)
         if self.closing:
             return True
         self.closing = True
@@ -756,7 +826,10 @@ def main(autostart=True):
         print('GTK display initialization failed',file=sys.stderr)
         return 1
     from menu_control import VM
-    vm = VM(native_display='none', natural_boot=True, usb_net=True)
+    from settings_instance import default_instance
+    instance=default_instance(Path(os.environ.get('A7C2_INSTANCE_DIR',
+        str(Path(__file__).resolve().parent/'camera-instances'))))
+    vm = VM(native_display='none', natural_boot=True, usb_net=True,instance=instance)
     ui = CameraUI(vm)
     def interrupted(*_):
         ui._close()

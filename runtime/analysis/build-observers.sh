@@ -90,6 +90,12 @@ clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so
   -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \
   "$analysis_dir/menu-root/usr/lib/libosal_utm.so" \
   -Wl,--allow-shlib-undefined "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/seed-power-on"
+clang "${common[@]}" --sysroot=/usr/aarch64-linux-gnu \
+  -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
+  "$source_dir/user-settings-checkpoint.c" "$analysis_dir/menu-root/usr/lib/libbackup.so" \
+  -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \
+  "$analysis_dir/menu-root/usr/lib/libosal_utm.so" \
+  -Wl,--allow-shlib-undefined "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/user-settings-checkpoint"
 clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$source_dir/seed-indicator-config.c" "$analysis_dir/menu-root/usr/lib/libbackup.so" \
   -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \

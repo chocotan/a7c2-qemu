@@ -242,6 +242,17 @@ if os.path.lexists(overwrite_directory):
         overwrite_manifest=build_overlay_initramfs(Path(command[-1]),overwrite_directory,selected)
         (out/'overwrite-manifest.json').write_text(json.dumps(overwrite_manifest,indent=2)+'\n')
         command[-1]=str(selected)
+settings_restore_manifest=None
+settings_persist=os.environ.get('A7C2_SETTINGS_PERSIST')=='1'
+if os.environ.get('A7C2_SETTINGS_RESTORE'):
+    if not settings_persist or not args.initramfs:
+        raise ValueError('Settings restore requires the explicit persistent raw-initramfs profile')
+    from settings_instance import stage_restore
+    selected,settings_restore_manifest=stage_restore(os.environ['A7C2_SETTINGS_RESTORE'],
+        os.environ.get('A7C2_SETTINGS_RESTORE_SHA'),Path(command[-1]),out)
+    command[-1]=str(selected)
+    (out/'settings-restore-manifest.json').write_text(json.dumps(settings_restore_manifest,indent=2)+'\n')
+
 def sha256_file(path):
     with path.open('rb') as file:
         return hashlib.file_digest(file, 'sha256').hexdigest()
@@ -254,6 +265,7 @@ if cp_background:
 
 manifest = {'probe_args': vars(args).copy(), 'settle_seconds': int(os.environ.get('MENU_SETTLE_SECONDS', '90')),
             'overwrite':overwrite_manifest,
+            'settings_persist':settings_persist,'settings_restore':settings_restore_manifest,
             'custom_fixed_address_probe_compatibility_verified':False if overwrite_manifest else None,
             'boot_type': boot_type, 'files': {}, 'original_libraries_unchanged': False,
             'vdf_config_service': os.environ.get('MENU_VDF_CONFIG') == '1',
@@ -317,6 +329,8 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'menu-observ
              base / 'gui_model_capture.py',base / 'menu_live.py',base / 'media_state_readback.py',
              base / 'wifi_toggle.py',base / 'ethernet_peer.py',base / 'menu_control.py',base / 'usb_network.py',
              base / 'ee_entry_snapshot.py',
+             base / 'instance_lifecycle.py',base / 'setting_store.py',
+             base / 'settings_checkpoint.py',base / 'settings_instance.py',base / 'user-settings-checkpoint.c',
              kernel_script,board_dtb,
              base / 'media_predicate_watch.py',
              base / 'media_initial_write.py',
@@ -411,6 +425,8 @@ if args.initramfs:
         if rm_file:
             expected_guest['simulation/media-camera.fat']=manifest['files'][str(base/'menu-root/simulation/media-camera.fat')]
             expected_guest['simulation/sd-window-export']=manifest['files'][str(base/'menu-root/simulation/sd-window-export')]
+            if settings_persist:
+                expected_guest['simulation/user-settings-checkpoint']=sha256_file(base/'menu-root/simulation/user-settings-checkpoint')
         for name in ('usr/lib/libInfraFsys.so','usr/lib/libInfraMediaCommon.so','usr/lib/libMWF.so',
                      'usr/lib/libbackup.so','usr/lib/libosal_uipc.so','usr/lib/libosal_utm.so'):
             expected_guest[name]=sha256_file(base/'menu-root'/name)
@@ -419,6 +435,8 @@ if args.initramfs:
         expected_guest[library] = manifest['files'][str(base / 'menu-root' / library)]
     if overwrite_manifest:
         expected_guest.update({entry['path']:entry['new_sha256'] for entry in overwrite_manifest['entries']})
+    if settings_restore_manifest:
+        expected_guest.update({entry['path']:entry['new_sha256'] for entry in settings_restore_manifest['entries']})
     manifest['selected_initramfs_verified_files'] = verify_image(Path(command[-1]), expected_guest)
     manifest['original_libraries_unchanged'] = not overwrite_manifest or not any(
         entry['path'].startswith(('usr/lib/','lib/')) and entry['new_sha256']!=entry['old_sha256']
@@ -1092,9 +1110,16 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                                             proc, out/'console.log', command, timeout=timeout),
                                         wifi_peer_factory)
                     try:
+                        def export_with_settings():
+                            if not settings_persist:return export_virtual_sd()
+                            from settings_checkpoint import snapshot as snapshot_settings
+                            saved_settings=snapshot_settings(lambda command,timeout=90:
+                                serial_command(proc,out/'console.log',command,timeout=timeout),qmp,out)
+                            exported=export_virtual_sd()
+                            return {**exported,'settings':saved_settings}
                         run_live(proc, out, int(live_fd),
                                  display_capture=capture_native_display if args.native_display is not None else None,
-                                 sd_export=export_virtual_sd if rm_file else None,
+                                 sd_export=export_with_settings if rm_file else None,
                                  network=wifi)
                     finally:
                         if wifi is not None:

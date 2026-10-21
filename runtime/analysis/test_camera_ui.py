@@ -183,6 +183,45 @@ class GTKTests(unittest.TestCase):
         subprocess.run(['xdotool','key','Down'],check=True);self.settle()
         self.assertEqual(self.vm.calls[-1],{'action':'key','key':'DOWN'})
 
+    def test_stopped_reset_confirmation_cancel_success_and_retained_sd(self):
+        self.vm.value.update(state='exited',settings_persistent=True,settings_generation='old')
+        self.ui.update(self.vm.status())
+        self.assertTrue(self.ui.reset_button.get_sensitive())
+        self.assertTrue(self.ui.request_reinitialize())
+        dialog=self.ui.reset_dialog
+        self.assertIn('虚拟 SD',dialog.get_property('secondary-text'))
+        dialog.response(Gtk.ResponseType.CANCEL);self.settle()
+        self.assertIsNone(self.ui.reset_dialog)
+        self.assertNotIn('start',self.vm.calls)
+        card=object();self.vm.card_seed=card
+        def reset(*,confirmed):
+            self.assertIs(confirmed,True)
+            self.vm.calls.append('reset')
+        self.vm.reset_configuration=reset
+        self.assertTrue(self.ui.request_reinitialize())
+        self.ui.reset_dialog.response(Gtk.ResponseType.ACCEPT)
+        deadline=time.monotonic()+2
+        while 'start' not in self.vm.calls and time.monotonic()<deadline:self.settle()
+        self.assertLess(self.vm.calls.index('reset'),self.vm.calls.index('start'))
+        self.assertIs(self.vm.card_seed,card)
+        self.assertFalse(self.ui.reinitializing)
+
+    def test_reset_failure_never_restarts_and_live_vm_has_no_reset(self):
+        self.running()
+        self.vm.value.update(settings_persistent=True,settings_generation='old')
+        self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.reset_button.get_sensitive())
+        self.assertFalse(self.ui.request_reinitialize())
+        self.vm.stop();self.ui.update(self.vm.status())
+        def fail(*,confirmed):raise RuntimeError('injected CAS conflict')
+        self.vm.reset_configuration=fail
+        count=self.vm.calls.count('start')
+        self.ui.request_reinitialize();self.ui.reset_dialog.response(Gtk.ResponseType.ACCEPT)
+        deadline=time.monotonic()+2
+        while self.ui.reinitializing and time.monotonic()<deadline:self.settle()
+        self.assertEqual(self.vm.calls.count('start'),count)
+        self.assertIn('CAS conflict',self.ui.local_error)
+
     def test_three_independent_wheel_symbols(self):
         self.running()
         for prefix in ('FRONT', 'REAR', 'CONTROL'):

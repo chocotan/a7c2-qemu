@@ -41,3 +41,4 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.core
+runtime/analysis/camera-instances/
