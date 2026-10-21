@@ -126,8 +126,10 @@ def test_policy_original_return_resolves_bounded_message_record(tmp_path, monkey
     assert all(events[0]['fields'][name] == 1
                for name in {**media.CAPACITY_FIELDS, **media.MEDIA_STATE_FIELDS})
     assert all(events[0]['fields'][name] == 2 for name in media.MEDIA_BASE_FIELDS)
-    assert result['media_observation_revision'] == 2
-    assert all(event['media_observation_revision'] == 2 for event in events)
+    assert result['media_observation_revision'] == 3
+    assert all(event['media_observation_revision'] == 3 for event in events)
+    assert all(name.startswith('dispatch_') for name in media.MEDIA_STATE_FIELDS)
+    assert result['dispatch_name_binding'] == 'unverified for all catalog-derived names'
     assert events[1]['host_monotonic_ns'] >= events[0]['host_monotonic_ns']
     assert media.selected_record(None, 0, 0xffff) is None
     with pytest.raises(ValueError, match='bounds'):

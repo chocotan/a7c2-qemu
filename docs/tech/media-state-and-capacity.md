@@ -30,6 +30,7 @@
 
 **解决 →** 旧`+08`保留为`_base08`，值层另采，每个事件标`media_observation_revision=2`。
 修后原运行64对entry/return中，两层102d/e这次都为0/30，selector62次223/2次ffff。
+这描述的是历史revision2样本。当前revision3改用中性的`dispatch_<key>_value20/base08`字段名，并明确所有目录名字绑定均未验证；地址与读取宽度保持不变。
 **剩余 →** 新样本只证明本次时刻读数，不能追溯修补旧日志，也未证明枚举语义与写入历史。
 `+10/+18`是setter，不能把基值、shadow、current合成同一单元。
 

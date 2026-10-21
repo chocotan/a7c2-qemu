@@ -2816,15 +2816,33 @@
   "origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
   "media_observation_correction": {
     "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera",
-    "scope": "read-only diagnostic revision 2: separate +08 reset/base readings from +20 value-accessor readings; 0x1052 excluded from media fields",
+    "scope": "read-only revision 3: neutral dispatch keys; +08 and +20 accessor layers; all catalog-name bindings unverified",
     "files": {
       "runtime/analysis/media_predicate_watch.py": {
         "source": "runtime/analysis/media_predicate_watch.py",
-        "sha256": "24e8165b9f89325e0100b1ff8bef3505ee2cdb51445e04f42469bf8bd1bfdef6"
+        "sha256": "05183d9e44fcb5de593d7da848667a85381fb1b95f063b9c5873185090a8fdea"
       },
       "runtime/analysis/test_media_predicate_watch.py": {
         "source": "runtime/analysis/test_media_predicate_watch.py",
-        "sha256": "96dafcc5a91a387fc4fad973675220135c2208087837bcad1764628eb1e3e49e"
+        "sha256": "123a013716074490418ab83bb69d705a3125fa6a5b9aa892d377d1fdb09ad4fb"
+      }
+    }
+  },
+  "cp_command_observation": {
+    "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera",
+    "scope": "passive logging of unmatched CP commands before unchanged delegation; no additional reply or ownership transfer",
+    "files": {
+      "runtime/analysis/device-models/cp-background-device.c": {
+        "source": "runtime/analysis/device-models/cp-background-device.c",
+        "sha256": "f157119661b931f20cc6a57d79a12cdec3650e673a95ba25258666832b540e57"
+      },
+      "runtime/analysis/device-models/test-cp-background-device.c": {
+        "source": "runtime/analysis/device-models/test-cp-background-device.c",
+        "sha256": "50dd01d7978ac6fd640dfb4a18c20ba78f28f1a1310f61cd214c23ecea393e92"
+      },
+      "runtime/analysis/test_cp_background_device.py": {
+        "source": "runtime/analysis/test_cp_background_device.py",
+        "sha256": "3ff62a65ef22fa503cc45766f1c7d44e8440bf109f9c56ab99438635a903715d"
       }
     }
   },

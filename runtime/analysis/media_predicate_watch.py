@@ -38,8 +38,11 @@ CAPACITY_FIELDS = {'getter_2878cc8': 0x7e811b0, 'getter_2879038': 0x7e81470,
 # Revision 1 mislabeled +08 readings as current values. Preserve both layers;
 # old unsuffixed fields without revision 2 are base readings, not live proof.
 # Still earlier 0x7ead84c-style addresses lacked PT_LOAD mapping and are void.
-MEDIA_OBSERVATION_REVISION = 2
-MEDIA_BASE_FIELDS = {name+'_base08': address for name, address in {
+# Revision 3 removes unproven catalog semantics from every emitted field key.
+# Historical dictionary names remain for callers; the literal labels below are
+# catalog lookup hints only, not a binding to this dispatch table's key space.
+MEDIA_OBSERVATION_REVISION = 3
+MEDIA_BASE_FIELDS = {'dispatch_'+name.split('_')[1]+'_base08': address for name, address in {
                       'prm_102d_movie_recordable_slot1': 0x7e83b28,
                       'prm_102e_movie_recordable_slot2': 0x7e83b48,
                       'prm_09e1_media_mount_state_slot1': 0x7e78900,
@@ -51,7 +54,8 @@ MEDIA_BASE_FIELDS = {name+'_base08': address for name, address in {
                       'prm_0a18_full_state_movie_slot1': 0x7e78fe0,
                       'prm_0a20_setting_still_recording_media': 0x7e790e0,
                       'prm_0a3a_setting_movie_recording_media': 0x7e79450}.items()}
-MEDIA_STATE_FIELDS = {'prm_102d_movie_recordable_slot1': 0x7e83b10,
+MEDIA_STATE_FIELDS = {'dispatch_'+name.split('_')[1]+'_value20': address for name, address in {
+                      'prm_102d_movie_recordable_slot1': 0x7e83b10,
                       'prm_102e_movie_recordable_slot2': 0x7e83b30,
                       'prm_09e1_media_mount_state_slot1': 0x7e788e8,
                       'prm_09e4_media_mount_state_slot2': 0x7e78948,
@@ -61,7 +65,7 @@ MEDIA_STATE_FIELDS = {'prm_102d_movie_recordable_slot1': 0x7e83b10,
                       'prm_09f5_full_state_still_slot1': 0x7e78b68,
                       'prm_0a18_full_state_movie_slot1': 0x7e78fc8,
                       'prm_0a20_setting_still_recording_media': 0x7e790c8,
-                      'prm_0a3a_setting_movie_recording_media': 0x7e79438}
+                      'prm_0a3a_setting_movie_recording_media': 0x7e79438}.items()}
 # Dispatch key 0x1052 cannot be labelled from the name catalog: its two setters
 # feed a signed -15..15 validator and a relay from key 0x103c, and the catalog
 # index for that name is not proven to be this table's key space. Keep the cells
@@ -147,8 +151,9 @@ def gdb_main(config):
               'capture_verified': False, 'connected': False, 'events': 0,
               'error': None, 'limit_reached': False,
               'media_observation_revision': MEDIA_OBSERVATION_REVISION,
-              'named_media_field_layers': {'unsuffixed': 'dispatch+0x20 value',
+              'named_media_field_layers': {'_value20': 'dispatch+0x20 accessor',
                                           '_base08': 'dispatch+0x08 base/reset source'},
+              'dispatch_name_binding': 'unverified for all catalog-derived names',
               'unresolved_named_properties': ['0x1052 is excluded from media fields']}
 
     def emit(event):
