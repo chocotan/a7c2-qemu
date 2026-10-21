@@ -44,7 +44,7 @@ FULL="$W/final/a7c2-re/report/2026-10-17-qemu-full-system"
 
 ### 第 1 步：导入并固定固件资产
 
-文件：`runtime/analysis/bodydata-launch.py`。
+文件：`runtime/analysis/bodydata-launch.py`（详见 [01-firmware-assets](01-firmware-assets.md)）。
 
 1. 在 `incoming/bodydata/`（或 `--bodydata` 指定处）找到**唯一**一份
    `BODYDATA.DAT`，禁止符号链接，读取前后比对文件指纹。
@@ -56,7 +56,6 @@ FULL="$W/final/a7c2-re/report/2026-10-17-qemu-full-system"
    语言字体等从解包树安装/校验到运行目录，并以 `native-assets.json` 锁定身份。
 
 完成标志：输出 `BODYDATA_PREPARED ILCE-7CM2 2.01 ALLLANG`。
-细节见 [启动资产](boot-assets.md)。
 
 ### 第 2 步：打开相机控制台窗口
 
@@ -189,19 +188,22 @@ CreateScreen、OSD 提交、输入队列等。
 - **配置**：退出时把 Backup/设置快照发布为新代数；下次 ON 从该配置恢复，
   跳过首设直接进入拍摄主界面（恢复链路的完整验收仍在进行）。
 
-## 每一步对应的深入文档
+## 深入文档（按启动顺序编号）
 
-| 启动步骤 | 深入文档 |
+| 文档 | 覆盖的启动阶段 |
 | --- | --- |
-| 第 1 步 资产 | [boot-assets.md](boot-assets.md) |
-| 第 2/4 步 地址与观测 | [debugging-playbook.md](debugging-playbook.md) |
-| 第 7/8 步 画面 | [display-first-pixels.md](display-first-pixels.md) |
-| 第 8/9 步 输入 | [input.md](input.md) |
-| 第 6/9 步 存储与 SD | [storage.md](storage.md) |
-| 第 2/9 步 配置代数 | [settings-persistence.md](settings-persistence.md) |
-| 第 4 步 隔离网络 | [network.md](network.md) |
-| 第 8 步 媒体状态/容量 | [media-state-and-capacity.md](media-state-and-capacity.md) |
-| 第 8 步之后 成像/录像 | [imaging-and-recording.md](imaging-and-recording.md) |
+| [01-firmware-assets](01-firmware-assets.md) | 第 1 步：BODYDATA 解密、缓存、资产与 initramfs |
+| [02-qemu-boot](02-qemu-boot.md) | 第 2–5 步：控制台、运行器、QEMU/DTB 装配、内核到 shell |
+| [03-guest-environment](03-guest-environment.md) | 第 6 步：挂载、模块依赖序、seed、服务、媒体接入 |
+| [04-app-and-first-setup](04-app-and-first-setup.md) | 第 7–8 步：bootin 启动、首设、拍摄主页面判据 |
+| [05-display](05-display.md) | 显示链：建屏、像素、提交、ramfb、GTK LCD |
+| [06-input](06-input.md) | 输入链：键码、注入前端、事件序列、异常停输入 |
+| [07-storage](07-storage.md) | 虚拟 SD、热插拔、关机保存导出 |
+| [08-settings](08-settings.md) | 配置持久化：实例、Backup、代数发布 |
+| [09-network](09-network.md) | 隔离 USB 以太网 profile 与 Wi-Fi 边界 |
+| [10-media-frontier](10-media-frontier.md) | REC 提示与容量反查（未闭合） |
+| [11-imaging-frontier](11-imaging-frontier.md) | 成像、编码、录像（未闭合） |
+| [12-debugging](12-debugging.md) | 横切：地址校准与只读观测纪律 |
 
 ## 当前进度矩阵（启动视角）
 
