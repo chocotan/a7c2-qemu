@@ -290,6 +290,9 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            # These are controller-derived capabilities, never inherited input.
+            for name in ('A7C2_SETTINGS_PERSIST','A7C2_SETTINGS_RESTORE','A7C2_SETTINGS_RESTORE_SHA'):
+                env.pop(name,None)
             if self.instance_lease is not None and not self.mock and self.natural_boot:
                 from settings_instance import load_for_boot
                 current=load_for_boot(self.instance_lease,SETTINGS_FIRMWARE_SHA)
