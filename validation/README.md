@@ -30,6 +30,16 @@ main直接查看确认框截图：当前实例路径、恢复默认/重走首设
 
 后续主会话host故障夹具复现：若宿主残留 `A7C2_SETTINGS_RESTORE` 或其SHA，空实例会继承该内部参数，可能选到不属于当前实例的恢复输入。控制器现先清除三个内部settings参数，再仅由当前租约/store生成，正式的`A7C2_INSTANCE_DIR`选择不变。新增三项测试分别覆盖空实例、未绑定实例、已提交实例覆盖旧参数；全部不启动子进程。受限host suite复测 **262 passed、33 skipped、71 subtests passed**。此前真实GTK三轮正常环境结果继续有效；没有把这三项host边界测试写成新的VM实验，也没有以此声称首设问题已解决。
 
+### main：本包实际改值后跨整个GTK进程重开
+
+补验使用本包production UI、launcher和稳定实例；不是恢复测试时直接写入25/2。`run-mm4glr5l` 中实际操作原语言页选简体中文，原日期页选“月-日-年”，main直接查看两张高亮截图。正常OFF并关闭整个GTK后，配置代 `eec6ef396bb94d7da9fa531d7bcfb534` 的完整Backup SHA为 `05f50c52021ad674ec17738fae569120ff8f2698dae6d09971f1621b401b2c11`，原API/file均25/2。
+
+全新GTK进程启动 `run-p6jloiyb`，从同一实例加载该代。main独立解析实际选用cpio，两份 `seed-backup.bin`/`seed-setting/Backup.bin` 各出现一次，内容SHA都与来源相同；不只看恢复manifest。新运行正常OFF时原getter/file仍25/2，完整Backup SHA为 `fd99bda79d184c4756959dee1a6735163d58c8e1786ae35a0e0768ae082d20df`，发布新代 `e1d5982d35114d0ea95477e49b1da8fb`。两个全文件都由main重算SHA/FNV、原双bank checksum和目标字节，并核guest独立SHA记录。
+
+两次SD保存的完整SHA分别为 `7a1a4a077be0ff588359d2f68081bc269431971cc549a200fe5a1f8fce04cedb`、`61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727`；main独立读卡核摘要、fsck均0、owner均恢复。本次没有指定同一张SD跨进程恢复，不能把这两个不同摘要当作卡内容保持证明。
+
+第二GTK截图采得过早，仍是等待首帧的机身窗口，不能作为重开后的原语言页面证据。原console确有FRAME_DRAW_ENTER和后续原25/2读回；本次有限通过的是实际原菜单改值的跨进程保存/恢复，**首设完成、全部设置、重开后原页面的视觉复验、照片/录像仍未通过**。原自动proof总体false保持；本机main有限复核保存在实验目录 `main-review.json`，不随源码发布运行资料或Backup。
+
 本记录保留首次独立源码打包、主机检查与官方包准备结果，并追加 main 的后续验收。**本包已复验独立构建、单 GTK 相机窗口、中文首设、原 HUD/MENU、SD 保存、后端网络开关和两轮跨运行卡回载。** 全部实验限定普通虚拟文件与隔离网络。旧路线 VM 结果仍只作为 README 中标注的基线状态；照片/录像等未完成功能见下文边界。
 
 ## main 后续构建验收
