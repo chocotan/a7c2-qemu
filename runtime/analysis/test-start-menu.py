@@ -26,6 +26,8 @@ assert launcher.profile_environment({}, True)['MENU_KEY_INJECT'] == '0x1ab,0,1,0
 natural=launcher.profile_environment({'DISPLAY':':0','MENU_APPLY_MENU':'1','MENU_INJECT_KEY':'language-pressrelease',
                                      'MENU_KEY_INJECT':'bad','MENU_EXTRA_MODULES':'all'},natural_boot=True)
 assert natural['DISPLAY']==':0' and natural['MENU_RM_FILE']=='1' and natural['MENU_DMM_UNIT_CONFIG']=='1'
+assert natural['A7C2_SD_HOTPLUG']=='1'
+assert launcher.profile_environment({'A7C2_SD_HOTPLUG':'0'},natural_boot=True)['A7C2_SD_HOTPLUG']=='0'
 assert natural['MENU_CP_RELEASE_SERVICE']=='1' and natural['MENU_DATE_SERVICE']=='1'
 assert natural['MENU_LIVE_APP_INPUT']=='1' and natural['MENU_GUI_MODELS']=='virtual-inline-v1'
 assert 'MENU_LIVE_KEY_FILE' not in natural

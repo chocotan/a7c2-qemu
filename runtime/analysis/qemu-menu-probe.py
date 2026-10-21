@@ -329,6 +329,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'menu-observ
              base / 'gui_model_capture.py',base / 'menu_live.py',base / 'media_state_readback.py',
              base / 'wifi_toggle.py',base / 'ethernet_peer.py',base / 'menu_control.py',base / 'usb_network.py',
              base / 'ee_entry_snapshot.py',
+             base / 'sd_hotplug.py',base / 'sd-hotplug-runtime.c',base / 'sd-hotplug-runtime.h',base / 'sd-state.c',base / 'sd-state.h',
              base / 'instance_lifecycle.py',base / 'setting_store.py',
              base / 'settings_checkpoint.py',base / 'settings_instance.py',base / 'user-settings-checkpoint.c',
              kernel_script,board_dtb,
@@ -768,6 +769,10 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                     if live_fd or args.native_display is not None or args.headless_osd:
                         raise RuntimeError('Media selftest requires an exclusive non-display guest')
                 if media_selftest or rm_file:
+                    if os.environ.get('A7C2_SD_HOTPLUG')=='1':
+                        setup += ['export A7C2_SD_HOTPLUG=1']
+                    if os.environ.get('A7C2_FSYS_CONTENT_OBSERVE')=='1':
+                        setup += ['export A7C2_FSYS_CONTENT_OBSERVE=1']
                     if rm_file and rm_slot1:
                         setup += ['export MENU_RM_FILE_SLOT=0']
                     setup += ['export A7C2_FILE_MEDIA_TEST=1',
@@ -1091,6 +1096,11 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                                     {'error': f'{type(error).__name__}: {error}'}, indent=2)+'\n')
                         return result
                     wifi = None
+                    sd_card = None
+                    if os.environ.get('A7C2_SD_HOTPLUG') == '1' and rm_file:
+                        from sd_hotplug import SDHotplug
+                        sd_card = SDHotplug(lambda diagnostic: serial_command(
+                            proc, out/'console.log', diagnostic, timeout=30), out)
                     if os.environ.get('MENU_USB_NET') == '1':
                         # The isolated USB-Ethernet switch the UI toggles. The link
                         # object decides success from real evidence (guest address
@@ -1120,7 +1130,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                         run_live(proc, out, int(live_fd),
                                  display_capture=capture_native_display if args.native_display is not None else None,
                                  sd_export=export_with_settings if rm_file else None,
-                                 network=wifi)
+                                 network=wifi, sd_card=sd_card)
                     finally:
                         if wifi is not None:
                             wifi.close()

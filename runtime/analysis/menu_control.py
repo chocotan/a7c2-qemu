@@ -72,6 +72,8 @@ class VM:
         # the candidate build and the derived launcher/DTB.
         self.usb_net = bool(usb_net)
         self.wifi = None
+        self.sd_card = None
+        self.sd_pending = 0
         self.natural_boot=natural_boot
         self.run_dir = ''
         self.custom_firmware=False
@@ -160,6 +162,7 @@ class VM:
                         can_stop=self.state in ('starting','running','faulted'),
                         native_display=self.native_display, mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         wifi=self.wifi, usb_net=self.usb_net,
+                        sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
                         log=self.log_path, run=self.run_dir)
 
@@ -176,6 +179,8 @@ class VM:
                 self.instance_lease = token
             self.firmware_fault=self.cleanup_error=''
             self.wifi = None
+            self.sd_card = None
+            self.sd_pending = 0
             self.state, self.error, self.stale = 'starting', '', True
             self.run_dir = ''
             self.custom_firmware=False
@@ -192,14 +197,28 @@ class VM:
                 self.state = 'disconnected'
                 raise
 
+    def _admit_queued(self, command):
+        if (self.sd_pending or (self.sd_card or {}).get('state') in ('ejecting','inserting','uncertain')) and (
+                command.get('action') not in ('snapshot','export_sd','sd_card')):
+            self.event('SD 介质变化未收敛；已拒绝排队的 '+str(command.get('action')),kind='storage')
+            return False
+        return True
+
     def enqueue(self, command):
         with self.lock:
             if self.state != 'running' and not (self.state=='faulted' and command=={'action':'export_sd'}):
                 raise ValueError('VM 尚未运行')
+            card_state=(self.sd_card or {}).get('state')
+            if (self.sd_pending or self.busy=='sd_card' or card_state in ('ejecting','inserting','uncertain')) and (
+                    not isinstance(command,dict) or command.get('action') not in ('snapshot','export_sd')):
+                raise ValueError('SD 介质变化未收敛；暂停新的机身输入')
             if command == {'action': 'snapshot'}:
                 pass
             elif command=={'action':'export_sd'} and self.natural_boot and not self.mock:
                 pass
+            elif (isinstance(command,dict) and set(command)=={'action','present'}
+                  and command['action']=='sd_card' and type(command['present']) is bool):
+                if not self.natural_boot or self.mock:raise ValueError('SD hotplug requires the original camera profile')
             elif (isinstance(command,dict) and set(command)=={'action','enabled'}
                   and command['action']=='wifi' and type(command['enabled']) is bool):
                 if not self.usb_net:
@@ -221,6 +240,7 @@ class VM:
                 raise ValueError('未知按键或控制命令')
             try:
                 self.commands.put_nowait(command)
+                if command['action']=='sd_card':self.sd_pending+=1
             except queue.Full:
                 raise ValueError('命令队列已满，请稍后重试') from None
 
@@ -318,6 +338,7 @@ class VM:
             reply = receive_message(parent, timeout=300, cancelled=self.cancel.is_set)
             if reply.get('type') != 'ready':
                 raise RuntimeError('VM 初始化确认无效')
+            self.sd_card = reply.get('sd_card')
             if not self.mock:
                 run = Path(reply.get('run', '')).resolve()
                 if run.parent != (BASE / 'menu-runs').resolve():
@@ -361,6 +382,8 @@ class VM:
                 except queue.Empty:
                     continue
                 with self.lock:
+                    if not self._admit_queued(command):
+                        continue
                     self.busy = command['action']
                 shutdown=bool(command.pop('_shutdown',False))
                 send_message(parent, command)
@@ -372,6 +395,7 @@ class VM:
                         self.stale = True
                         self.event(self.error)
                     elif command['action'] == 'snapshot' and reply.get('type') == 'snapshot':
+                        if reply.get('sd_card') is not None:self.sd_card=reply['sd_card']
                         from PIL import Image
                         png = base64.b64decode(reply['png'], validate=True)
                         with Image.open(io.BytesIO(png)) as image:
@@ -390,6 +414,11 @@ class VM:
                         self.event(command['key'] + '：输入已提交', kind='input')
                     elif command['action']=='position' and reply=={'type':'position','key':command['key'],'position':command['position']}:
                         self.event(command['key']+' '+command['position']+'：位置输入已提交',kind='input')
+                    elif command['action']=='sd_card' and reply.get('type')=='sd_card':
+                        self.sd_card=reply
+                        self.sd_pending=max(0,self.sd_pending-1)
+                        self.event('虚拟SD状态：'+str(reply.get('state'))+
+                                   ('' if reply.get('ok') else ' / '+str(reply.get('error','未完成'))),kind='storage')
                     elif command['action']=='wifi' and reply.get('type')=='wifi':
                         self.wifi = {key: value for key, value in reply.items() if key != 'type'}
                         if reply.get('ok'):

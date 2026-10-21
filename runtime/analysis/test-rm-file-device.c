@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 struct buffer {unsigned int n,src,owner;unsigned char data[136];};
 static void (*callback)(void *,unsigned long);
-static void *sent[32],*alias;
+static void *sent[32],*alias,*failed_send;
 static unsigned int destinations[32],sent_count,freed,registered,allocation_fail,send_fail,done,fork_on_free,unreg_fail,fast_free;
 static void log_event(const char *,const char *);
 static struct buffer *buffer(void *p){return (void *)((char *)p - offsetof(struct buffer,data));}
@@ -34,7 +34,7 @@ static int release(unsigned int dst,void *p){
     __atomic_fetch_add(&freed,1,__ATOMIC_RELAXED);free(buffer(p));return 0;
 }
 static int send(unsigned int dst,void *p){
-    if(send_fail)return -1021;
+    if(send_fail){failed_send=p;return -1021;}
     assert(sent_count<32);destinations[sent_count]=dst;sent[sent_count++]=p;
     if(fast_free){int rc=-1;assert(native_rm_file_release(buffer(p)->owner,p,release,log_event,&rc)==1 && !rc);}
     return 0;
@@ -93,7 +93,12 @@ int main(int argc,char **argv){
         fast_free=!strcmp(argv[1],"front-fastfree");
         rc=native_rm_file_test_emit(owner,dst,pattern,7);
         if(allocation_fail || send_fail){
-            assert(rc && !sent_count && freed==(send_fail?1U:0U));return 0;
+            assert(rc && !sent_count && !freed);
+            if(send_fail){
+                assert(failed_send && buffer(failed_send)->owner==owner && !memcmp(failed_send,pattern,7));
+                int late=-1;assert(native_rm_file_release(owner,failed_send,release,log_event,&late)==1 && !late && freed==1);
+            }
+            return 0;
         }
         assert(!rc && sent_count==1 && destinations[0]==dst);
         if(fast_free){assert(freed==1);return 0;}
@@ -113,7 +118,14 @@ int main(int argc,char **argv){
     if(!strcmp(argv[1],"alias"))alias=p;
     if(!strcmp(argv[1],"fastfree"))fast_free=1;
     callback(p,0);wait_done(1);
-    if(allocation_fail || send_fail || alias){assert(!sent_count && freed==(send_fail?2U:1U));return 0;}
+    if(allocation_fail || send_fail || alias){
+        assert(!sent_count && freed==1);
+        if(send_fail){
+            assert(failed_send && size(failed_send)==136);
+            int late=-1;assert(native_rm_file_release(buffer(failed_send)->owner,failed_send,release,log_event,&late)==1 && !late && freed==2);
+        }
+        return 0;
+    }
     if(fast_free){assert(sent_count==1 && freed==2);return 0;}
     assert(sent_count==1 && freed==1 && size(sent[0])==136);
     unsigned char *out=sent[0];assert(!get32(out+12) && get32(out+24)==1);
@@ -121,7 +133,7 @@ int main(int argc,char **argv){
         /* Single physical slot reported on logical RM1: media fields on record 0 only. */
         assert(get32(out+28)==0 && get32(out+32)==1 && get32(out+36)==2 && get32(out+44)==0x20);
         assert(get32(out+64)==1 && !get32(out+68) && !get32(out+72) && !get32(out+80));
-    } else assert(get32(out+64)==1 && get32(out+68)==1 && get32(out+72)==2 && get32(out+80)==0x20);
+    } else assert(get32(out+64)==1 && get32(out+68)==2 && get32(out+72)==2 && get32(out+80)==0x20);
     for(unsigned int i=16;i<24;i++)assert(out[i]==i);
     if(!strcmp(argv[1],"wrongfree")){
         int bad=0;assert(native_rm_file_release(0x123,sent[0],release,log_event,&bad)==1 && bad && freed==1);

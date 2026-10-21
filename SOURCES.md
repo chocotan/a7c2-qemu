@@ -27,3 +27,5 @@
 - 排除两个只适用于 full-system、且依赖该路线启动器的 ADF/HDMI pin 校验脚本；本机原生运行链不使用它们。
 
 设备协议、CP 控制、SD adapter 和采集能力保持该基线，不因重新打包扩展验收结论。未引入 Sony 反编译伪代码或冒称拥有原厂源码。
+
+后续选择性移交分别由`SOURCE-ORIGINS.json`的`settings_port`和`sd_hotplug_port`记录来源快照；旧基线SHA保留，不用最终适配文件覆盖历史来源。SD移交范围为单卡RM通知生命周期、原文件系统退休观察、控制器/GTK及对应测试，保留包内路径和socket保护；可选内容摘要观察默认关闭，研究用4KiB诊断preload不随包发布。标准RM2自然启动默认策略、超时回归和验证说明是本包适配，最终文件身份以SOURCE-SHA256SUMS为准。实际包内动态结论见validation/README.md，未验的拍摄与硬件状态不因此升级。

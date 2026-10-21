@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
 #include "rm-file-device.h"
+#include "sd-hotplug-runtime.h"
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -9,6 +11,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MIN_IMAGE_BYTES 0x400000U
@@ -35,7 +38,7 @@ static struct {
     unsigned int slot;
     unsigned long long hash,serial,queries,types,subscriptions,notifications;
 } state={.fd=-1,.slot=1};
-static struct {void *p;unsigned int owner,destination,bytes;unsigned long long serial;long sender;} leases[16];
+static struct {void *p;unsigned int owner,destination,bytes;unsigned long long serial,generation;long sender;} leases[16];
 static unsigned int u16(const unsigned char *p){return p[0]|(unsigned int)p[1]<<8;}
 static unsigned int u32(const unsigned char *p){return u16(p)|(unsigned int)u16(p+2)<<16;}
 static void put16(unsigned char *p,unsigned int n){p[0]=n;p[1]=n>>8;}
@@ -55,18 +58,22 @@ static int backing(void){
     return boot[510]==0x55 && boot[511]==0xaa && u16(boot+11)==512 &&
            sectors==state.image_bytes/512 && boot[13] && !(boot[13]&(boot[13]-1))?0:-1;
 }
-static int emit(unsigned int owner,unsigned int dst,unsigned int source,const unsigned char *data,unsigned int n,void *request,const char *kind){
+static int emit_generation(unsigned int owner,unsigned int dst,unsigned int source,const unsigned char *data,unsigned int n,void *request,const char *kind,
+                           unsigned long long generation,sd_delivery *delivery){
+    if(delivery)*delivery=SD_NOT_SENT;
     void *p=0;int rc=state.io.allocate(owner,&p,n,1);
     pthread_mutex_lock(&mutex);int slot=-1,alias=p && p==request;
     for(unsigned int i=0;i<16;i++){if(p && leases[i].p==p)alias=1;if(!leases[i].p && slot<0)slot=i;}
     if(rc || !p || slot<0 || alias || state.io.size(p)!=n){
-        state.faults++;pthread_mutex_unlock(&mutex);
+        if(!generation || alias || (!rc && p))state.faults++;
+        pthread_mutex_unlock(&mutex);
         if(p && !alias)state.io.release(owner,p);
         event("FAULT ","reply allocation/size/lease unavailable");return -1;
     }
     memcpy(p,data,n);state.io.set_source(p,source);
     unsigned long long serial=++state.serial;long tid=syscall(SYS_gettid);
     leases[slot].p=p;leases[slot].owner=owner;leases[slot].destination=dst;
+    leases[slot].generation=generation;
     leases[slot].bytes=n;leases[slot].serial=serial;leases[slot].sender=tid;
     char raw[273],line[520];for(unsigned int i=0;i<n;i++)snprintf(raw+2*i,3,"%02x",data[i]);
     if(owner==dst)
@@ -76,14 +83,48 @@ static int emit(unsigned int owner,unsigned int dst,unsigned int source,const un
     event(kind,line);pthread_mutex_unlock(&mutex);
     rc=state.io.send(dst,p);
     if(rc){
-        pthread_mutex_lock(&mutex);int retained=leases[slot].p==p && leases[slot].serial==serial;
-        if(retained)memset(&leases[slot],0,sizeof leases[slot]);
-        state.faults++;pthread_mutex_unlock(&mutex);
-        if(retained)state.io.release(owner,p);
-        event("FAULT ","reply send failed");return -1;
+        /* Applies to replies and INITIAL as well as hotplug: a queue error is
+         * not proof that the receiver did not already consume this buffer. */
+        if(delivery)*delivery=SD_DELIVERY_UNCERTAIN;
+        if(!generation){pthread_mutex_lock(&mutex);state.faults++;pthread_mutex_unlock(&mutex);}
+        event("HOTPLUG_UNCERTAIN ","send failed; lease retained for original receiver/recovery");
+        return -1;
     }
+    if(delivery)*delivery=SD_SENT;
     return 0;
 }
+static int emit(unsigned int owner,unsigned int dst,unsigned int source,const unsigned char *data,unsigned int n,void *request,const char *kind){
+    return emit_generation(owner,dst,source,data,n,request,kind,0,0);
+}
+static bool hot_backing(void *context,const sd_backing *b){
+    pthread_mutex_lock(&mutex);int faults=state.faults;pthread_mutex_unlock(&mutex);
+    return context==&state && b->fd==state.fd && b->identity==(uint64_t)state.identity.st_ino &&
+           b->size==state.image_bytes && !faults && !backing();
+}
+static int hot_flush(void *context,uint64_t generation,uint32_t drive){
+    if(context!=&state || getpid()!=state.pid)return -1021;
+    void *(*lookup)(void *,const char *)=dlvsym(RTLD_NEXT,"dlsym","GLIBC_2.17");
+    int (*flush)(unsigned long long,unsigned int)=lookup?lookup(RTLD_DEFAULT,"file_media_hotplug_flush"):0;
+    return flush?flush(generation,drive):-1021;
+}
+static sd_send_result hot_notify(void *context,uint64_t generation,sd_operation operation,const uint8_t bytes[7]){
+    (void)operation;
+    sd_send_result result={SD_NOT_SENT,false};
+    if(context!=&state || state.slot!=1 || !state.subscriber || getpid()!=state.pid)return result;
+    emit_generation(0x8028017cU,state.subscriber,0x8028017cU,bytes,7,0,"HOTPLUG_QUEUED ",generation,&result.delivery);
+    return result;
+}
+unsigned long long native_rm_file_media_generation(void){return native_sd_hotplug_generation();}
+void native_rm_file_fsys_observed(unsigned long long generation,unsigned int kind,unsigned int drive,int rc,unsigned int before,unsigned int after,int path_validated){
+    if(!native_sd_hotplug_enabled() || getpid()!=state.pid || drive<'A' || drive>'Z')return;
+    unsigned int bit=1u<<(drive-'A');
+    int confirmed=kind==SD_MOUNT?(after&bit)!=0:(before&bit)!=0 && (after&bit)==0;
+    char text[260];snprintf(text,sizeof text,"pid=%d tid=%ld generation=%llu kind=%u drive=%u rc=%d before=%#x after=%#x path_validated=%d confirmed=%d",
+        getpid(),syscall(SYS_gettid),generation,kind,drive,rc,before,after,path_validated,confirmed);
+    event("HOTPLUG_FSYS_OBSERVED ",text);
+    native_sd_hotplug_fsys_generation(generation,(sd_observation_kind)kind,drive,rc,path_validated!=0,confirmed!=0);
+}
+int native_rm_file_media_retired(void){return native_sd_hotplug_retired();}
 #ifdef NATIVE_RM_FILE_TEST
 /* Host-only transport test; no unsolicited guest notification or card change. */
 int native_rm_file_test_emit(unsigned int owner,unsigned int dst,const unsigned char *data,unsigned int n){
@@ -106,10 +147,14 @@ static void dispatch(void *request,unsigned long arg){
                is a device-topology choice, not a capacity value: slot 1 = RM2 by
                default, slot 0 = RM1 when MENU_RM_FILE_SLOT=0. Media fields are
                reported on exactly one record either way. */
-            unsigned char *r=reply+28+state.slot*36;put32(r+4,1);put32(r+8,2);put32(r+16,0x20);
+            /* MediaDetect::Init ORs rec+4 into MediaInfo.rmdataMask. The
+             * notification updates R[slot], so report that exact channel bit. */
+            unsigned char *r=reply+28+state.slot*36;put32(r+4,1u<<state.slot);
+            put32(r+8,(native_sd_hotplug_port()&2)?2:0);put32(r+16,0x20);
             result=0;outbytes=112;state.queries++;
         } else if(opcode==2 && payload==8 && u32(in+24)==0x102){
-            memcpy(reply+24,in+24,8);put32(reply+28,3);result=0;outbytes=8;state.types++;
+            if(!(native_sd_hotplug_port()&2))result=NO_MEDIA;
+            else {memcpy(reply+24,in+24,8);put32(reply+28,3);result=0;outbytes=8;state.types++;}
         } else if(opcode==3 && payload==4 && (!u32(in+24) || local_queue(u32(in+24)))){
             state.subscriber=u32(in+24);memcpy(reply+24,in+24,4);result=0;outbytes=4;
             notify=state.subscriber;state.subscriptions++;
@@ -121,6 +166,7 @@ static void dispatch(void *request,unsigned long arg){
         event("REQUEST ",line);
         if(local_queue(dst) && !emit(dst,dst,NATIVE_RM_FILE_SID,reply,24+outbytes,request,"REPLY_QUEUED ") && notify){
             unsigned char initial[7]={2,0,0,2,0,2,0};
+            initial[5]=(unsigned char)native_sd_hotplug_port();
             if(!backing() && !emit(notify,notify,notify,initial,7,request,"INITIAL_QUEUED "))state.notifications++;
         }
     }
@@ -132,11 +178,20 @@ static void dispatch(void *request,unsigned long arg){
 static void *worker(void *unused){
     (void)unused;
     for(;;){
+        native_sd_hotplug_poll();
         pthread_mutex_lock(&queue_mutex);
-        while(!queue_count && !stopping)pthread_cond_wait(&queue_condition,&queue_mutex);
+        while(!queue_count && !stopping){
+            if(!native_sd_hotplug_enabled())pthread_cond_wait(&queue_condition,&queue_mutex);
+            else{
+                struct timespec wake;clock_gettime(CLOCK_REALTIME,&wake);
+                wake.tv_nsec+=100000000;if(wake.tv_nsec>=1000000000){wake.tv_sec++;wake.tv_nsec-=1000000000;}
+                if(pthread_cond_timedwait(&queue_condition,&queue_mutex,&wake)==ETIMEDOUT)break;
+            }
+        }
         if(!queue_count && stopping){pthread_mutex_unlock(&queue_mutex);return 0;}
-        void *p=pending[queue_head];queue_head=(queue_head+1)%16;queue_count--;
-        pthread_mutex_unlock(&queue_mutex);dispatch(p,0);
+        void *p=0;
+        if(queue_count){p=pending[queue_head];queue_head=(queue_head+1)%16;queue_count--;}
+        pthread_mutex_unlock(&queue_mutex);if(p)dispatch(p,0);
     }
 }
 static void receive(void *request,unsigned long arg){
@@ -188,6 +243,12 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
        state.identity.st_size<MIN_IMAGE_BYTES || state.identity.st_size>0x80000000LL || state.identity.st_size%4096)goto fail;
     state.image_bytes=(unsigned int)state.identity.st_size;
     if(backing())goto fail;
+    {
+        const struct native_sd_hotplug_io hot_io={&state,hot_backing,hot_flush,hot_notify};
+        const sd_backing image={state.fd,(uint64_t)state.identity.st_ino,state.image_bytes};
+        if(native_sd_hotplug_configure(&image,&hot_io))goto fail;
+        if(native_sd_hotplug_enabled() && state.slot!=1)goto fail;
+    }
     unsigned char bytes[4096];state.hash=0xcbf29ce484222325ULL;
     for(unsigned int offset=0;offset<state.image_bytes;offset+=sizeof bytes){
         if(pread(state.fd,bytes,sizeof bytes,offset)!=sizeof bytes)goto fail;
@@ -219,12 +280,19 @@ int native_rm_file_release(unsigned int dst,void *p,int (*release)(unsigned int,
     if(state.pid && getpid()!=state.pid){*rc=-1021;return 1;}
     pthread_mutex_lock(&mutex);
     for(unsigned int i=0;i<16;i++)if(leases[i].p==p){
-        unsigned int expected=leases[i].owner,bytes=leases[i].bytes;unsigned long long serial=leases[i].serial;long sender=leases[i].sender;
+        unsigned int expected=leases[i].owner,bytes=leases[i].bytes,destination=leases[i].destination;
+        unsigned long long serial=leases[i].serial,generation=leases[i].generation;long sender=leases[i].sender;
         *rc=dst==expected?release(dst,p):-1021;
         if(!*rc)memset(&leases[i],0,sizeof leases[i]);else state.faults++;
+        if(generation)native_sd_hotplug_freed(generation,*rc);
         char line[260];snprintf(line,sizeof line,"tid=%ld sender=%ld destination=%#x expected=%#x reply=%p lease=%llu bytes=%u rc=%d",
                                syscall(SYS_gettid),sender,dst,expected,p,serial,bytes,*rc);
         if(record)record(*rc?"FULL_RM_FILE_FAULT ":"FULL_RM_FILE_NATIVE_REPLY_FREE ",line);
+        if(generation && record){
+            snprintf(line,sizeof line,"generation=%llu owner=%#x destination=%#x bytes=%u rc=%d",
+                     generation,dst,destination,bytes,*rc);
+            record("FULL_RM_FILE_HOTPLUG_NOTIFY_FREE ",line);
+        }
         pthread_mutex_unlock(&mutex);return 1;
     }
     pthread_mutex_unlock(&mutex);return 0;

@@ -40,6 +40,12 @@ def observed_status(self):
  if threading.get_ident()==main_thread:
   info={k:state[k] for k in ('state','error','run','busy','pending','snapshot','events')}
   info['sd_export']=state.get('sd_export')
+  info['sd_card']=state.get('sd_card')
+  if ui_instance is not None and hasattr(ui_instance,'sd_action'):
+   button=ui_instance.sd_action;point=button.translate_coordinates(ui_instance.window,0,0)
+   if point is not None and button.get_mapped():
+    info['sd_button_position']=[point[0]+button.get_allocated_width()//2,
+                                point[1]+button.get_allocated_height()//2]
   if ui_instance is not None:
    info['button_positions']={}
    for name,button in ui_instance.buttons.items():
@@ -88,6 +94,8 @@ def main():
     new_ui='--new-ui' in sys.argv
     if new_ui and '--firstboot' not in sys.argv:raise ValueError('--new-ui currently requires --firstboot')
     if '--controls-smoke' in sys.argv and not new_ui:raise ValueError('--controls-smoke requires --new-ui')
+    if '--sd-hotplug-probe' in sys.argv and not (new_ui and '--firstboot' in sys.argv and '--export-sd' in sys.argv):
+        raise ValueError('--sd-hotplug-probe requires new UI firstboot and safe SD export')
     if '--body-controls-probe' in sys.argv and (not new_ui or '--sustain' in sys.argv):
         raise ValueError('--body-controls-probe requires --new-ui without --sustain')
     if '--mode-probe' in sys.argv and not new_ui:raise ValueError('--mode-probe requires --new-ui')
@@ -129,6 +137,7 @@ def main():
         with os.fdopen(read_fd) as stream:
             display = ':' + stream.readline().strip()
         env = dict(os.environ, DISPLAY=display, GDK_BACKEND='x11', NO_AT_BRIDGE='1')
+        if '--sd-hotplug-probe' in sys.argv:env['A7C2_SD_HOTPLUG']='1'
         if queue_probe:
             env.update(A7C2_QUEUE_WATCH='1',A7C2_CAPTURE_POWER='1',A7C2_TEST_APO_CANCEL='1',A7C2_MODE_READBACK='1')
             proof['queue_watch_probe']='owned Unix QEMU debug; hardware break/watch only; observation not dispatch proof'
@@ -474,6 +483,28 @@ def main():
                                 proof['focus_controls_symbols']=['MR1','P','SHUTTER_HALF','AF_ON']
                                 proof['focus_controls_note']='separate settled MR1 and P-context input/LCD review; AF success requires independent evidence'
                                 proof['main_review_required']=True
+                            if '--sd-hotplug-probe' in sys.argv:
+                                proof['sd_hotplug_after_setup']={'ok':False,'steps':[],
+                                    'scope':'real GTK button after original Chinese setup and MENU'}
+                                for present in (False,True):
+                                    state=idle();before=state.get('sd_card') or {}
+                                    if not before.get('ok') or before['state']!=('absent' if present else 'present'):
+                                        raise RuntimeError('No confirmed SD starting state after setup: '+str(before))
+                                    point=state.get('sd_button_position')
+                                    if not isinstance(point,list) or len(point)!=2:
+                                        raise RuntimeError('Actual SD button geometry missing')
+                                    xdo('mousemove','--window',native,*point);xdo('click',1)
+                                    state=wait(lambda s:(s.get('sd_card') or {}).get('sequence',0)>before['sequence'] and
+                                               not s.get('busy') and not s.get('pending'),100)
+                                    current=state['sd_card']
+                                    proof['sd_hotplug_after_setup']['steps'].append(current)
+                                    proof_path.write_text(json.dumps(proof,indent=2)+'\n')
+                                    print('GTK_SD_HOTPLUG_STEP',json.dumps(current),flush=True)
+                                    if not current.get('ok') or current.get('state')!=('present' if present else 'absent'):
+                                        raise RuntimeError('Original SD transition after setup did not complete; no auto reversal')
+                                    capture('sd-reinserted' if present else 'sd-retired','any')
+                                proof['sd_hotplug_after_setup']['ok']=True
+                                proof['sd_hotplug_after_setup']['read_write_after_reinsert_verified']=False
                             if '--export-sd' in sys.argv:
                                 if queue_watch is not None:
                                     proof['queue_watch_cleanup']=queue_watch.stop()

@@ -35,7 +35,7 @@ done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include \
   -c "$vdf_dir/system-sound-owner.c" -o "$device_build/system-sound-owner.o"
-for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device gui-model-wire gui-model-store; do
+for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store; do
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/$owner.c" \
     -o "$device_build/$owner.o"

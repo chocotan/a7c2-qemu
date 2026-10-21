@@ -75,6 +75,31 @@ class HostBarrierTests(unittest.TestCase):
             self.assertTrue(quiesce(serial, 123)['owner_stopped'])
         self.assertFalse(any(c[2] for c in serial.calls))
 
+    def test_publication_marker_is_newline_framed_and_requires_successful_mv(self):
+        for fail in (False,True):
+            with self.subTest(fail=fail),tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);calls=[]
+                if fail:(root/'sd-flush.request.new').mkdir()
+                def serial(command,**kwargs):
+                    calls.append(command)
+                    if 'SD_REQUEST_seq=' in command:
+                        self.assertIn("printf '\\nSD_REQUEST_seq=123\\n'",command)
+                        command=command.replace('/tmp/sd-flush.',str(root/'sd-flush.'))
+                        return subprocess.run(['/bin/sh','-c',command],capture_output=True).stdout
+                    if 'SD_STATE=' in command:return b'\nSD_STATE=T\n'
+                    return REPLY
+                if fail:
+                    with self.assertRaises(BarrierError):quiesce(serial,123)
+                    self.assertEqual(len(calls),1)
+                else:
+                    self.assertTrue(quiesce(serial,123)['owner_stopped'])
+                    self.assertEqual((root/'sd-flush.request').read_text(),'123\n')
+
+    def test_kernel_log_collision_does_not_loosen_marker_validation(self):
+        serial=SerialStub([b'SD_REQUEST_seq=123[ 6609.600450] UDIF: warning ret=-1021\n'])
+        with self.assertRaises(BarrierError):quiesce(serial,123)
+        self.assertEqual(len(serial.calls),1)
+
     def test_timeout_then_cancel_before_late_reply(self):
         serial = SerialStub([b'SD_REQUEST_seq=123\n', b'SD_FSYS_ABSENT_seq=123\n',
                              CANCEL, b'SD_FSYS_ABSENT_seq=123\n'])

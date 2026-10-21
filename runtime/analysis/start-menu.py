@@ -34,6 +34,10 @@ def profile_environment(current, menu_key=False, natural_boot=False):
                    MENU_PIN_REGISTRY='1',MENU_HDMI_BOOT_CONFIG='1',MENU_VDF_CONFIG='1',
                    MENU_CP_RELEASE_SERVICE='1',MENU_CP_TIME_SERVICE='1',MENU_CRYPT_LIB='1',
                    MENU_BUSPOWER='1',MENU_DATE_SERVICE='1',QEMU_BOOT_TYPE='1',MENU_SETTLE_SECONDS='20')
+        # The verified one-card RM2 profile supports genuine runtime removal.
+        # Keep an explicit opt-out and the unsupported RM1 diagnostic separate.
+        if current.get('MENU_RM_SLOT1')!='1':
+            env.setdefault('A7C2_SD_HOTPLUG','1')
         if cp_background:env['MENU_CP_BACKGROUND']=cp_background
         # Single-slot diagnostic: keep the RM1 mapping opt-in and explicit
         # instead of silently inheriting other research switches.

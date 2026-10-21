@@ -210,6 +210,7 @@ class SdImage(unittest.TestCase):
         binary = self.root / 'rm-env'
         subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pthread',
                         '-I', str(HERE), str(HERE / 'rm-file-device.c'), str(source),
+                        str(HERE / 'sd-state.c'), str(HERE / 'sd-hotplug-runtime.c'), '-ldl',
                         '-o', str(binary)], check=True, capture_output=True)
         for case in ('normal', 'symlink'):
             working = self.root / case

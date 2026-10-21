@@ -342,6 +342,12 @@ class CameraUI:
         self.interval.connect('changed', self._interval_changed)
         row.pack_start(self.interval, False, False, 0)
         self.capture_status = label('单条在途 / 自适应退避', 'hint')
+        self.sd_action = Gtk.Button(label='安全拔出 SD')
+        self.sd_action.connect('clicked', lambda _: self.change_sd())
+        self.sd_action.get_accessible().set_name('虚拟 SD 插入或安全拔出')
+        row.pack_start(self.sd_action, False, False, 0)
+        self.sd_label = label('SD 未确认', 'hint')
+        row.pack_start(self.sd_label, False, False, 0)
         self.reset_button = Gtk.Button(label='销毁并重新初始化')
         self.reset_button.get_accessible().set_name('销毁当前相机配置并重新初始化，保留 SD')
         self.reset_button.connect('clicked', lambda _: self.request_reinitialize())
@@ -453,6 +459,19 @@ class CameraUI:
         self.feedback.set_text('Wi-Fi 切换已排队；以实际接口状态与宿主 ping 结果为准。')
         self.update(self.vm.status())
         return True
+
+    def change_sd(self):
+        state=self.vm.status()
+        card=state.get('sd_card') or {}
+        if self.closing or state.get('state')!='running' or card.get('state') not in ('present','absent'):
+            return False
+        try:
+            self.vm.enqueue({'action':'sd_card','present':card['state']=='absent'})
+        except (ValueError,RuntimeError,OSError) as error:
+            self.local_error='SD 操作未发送：'+str(error)
+            self.update(self.vm.status());return False
+        self.feedback.set_text('正在等待原固件处理 SD 变化；完成后才更新介质状态。')
+        self.update(self.vm.status());return True
 
     def power(self, on):
         if self.closing or self.reinitializing:
@@ -616,6 +635,15 @@ class CameraUI:
             '隔离网络：开启后校验宿主 ping，关闭后校验接口状态和不可达')
         self.on.set_tooltip_text('启动本窗口拥有的 VM；真实机身电源事件未模拟')
         self.off.set_tooltip_text('关闭本窗口拥有的 VM；保留最近 LCD 并标明旧画面')
+        card=state.get('sd_card') or {}
+        card_state=card.get('state','unavailable')
+        self.sd_label.set_text({'present':'SD 已插入','absent':'SD 已拔出','ejecting':'SD 正在拔出',
+                                'inserting':'SD 正在插入','uncertain':'SD 状态未确认',
+                                'unavailable':'SD 未确认'}.get(card_state,'SD 未确认'))
+        self.sd_action.set_label('插入 SD' if card_state=='absent' else '安全拔出 SD')
+        self.sd_action.set_sensitive(not self.closing and state.get('state')=='running' and
+                                     not(state.get('busy') or state.get('pending')) and
+                                     card.get('ok') is True and card_state in ('present','absent'))
         error = '\n'.join(filter(None, (state.get('error'), self.local_error)))
         self.error_label.set_text(error)
         self.error_label.set_visible(bool(error))

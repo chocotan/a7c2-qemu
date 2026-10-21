@@ -11,4 +11,8 @@ int native_rm_file_start(const char *,const char *,const struct full_imaging_io 
                         int (*)(unsigned int,void *),int (*)(unsigned int,void *));
 int native_rm_file_release(unsigned int,void *,int (*)(unsigned int,void *),
                            void (*)(const char *,const char *),int *);
+/* Called only by transparent same-process original Fsys wrappers. */
+unsigned long long native_rm_file_media_generation(void);
+void native_rm_file_fsys_observed(unsigned long long,unsigned int,unsigned int,int,unsigned int,unsigned int,int);
+int native_rm_file_media_retired(void);
 #endif

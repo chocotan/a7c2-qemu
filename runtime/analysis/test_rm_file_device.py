@@ -12,7 +12,8 @@ class RmFileDevice(unittest.TestCase):
             binary=Path(temporary)/'rm-test'
             compiled=subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-g','-DNATIVE_RM_FILE_TEST','-fsanitize=address,undefined',
                             '-fno-omit-frame-pointer','-no-pie','-pthread',str(HERE/'rm-file-device.c'),
-                            str(HERE/'test-rm-file-device.c'),'-o',str(binary)],text=True,capture_output=True)
+                            str(HERE/'sd-state.c'),str(HERE/'sd-hotplug-runtime.c'),
+                            str(HERE/'test-rm-file-device.c'),'-ldl','-o',str(binary)],text=True,capture_output=True)
             self.assertEqual(compiled.returncode,0,compiled.stdout+compiled.stderr)
             for case in ('normal','large','bad-geometry','oversize','symlink','allocfail','sendfail','alias','wrongfree','fork','unregfail','fastfree',
                          'front-normal','front-allocfail','front-sendfail','front-fastfree','front-wrongfree'):

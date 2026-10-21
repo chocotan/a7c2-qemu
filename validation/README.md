@@ -1,5 +1,45 @@
 # 本包验证记录
 
+## SD热插拔：默认profile、原通知及退休导出已通过
+
+最新验收包括本包真实GTK两轮插拔、四状态导出、原文件内容消费，以及不显式设置hotplug变量、沿用上一卡的默认profile补验。标准RM2自然启动已默认开启，显式`A7C2_SD_HOTPLUG=0`可关闭；RM1诊断和旧菜单profile不自动开启。最新完整受限host为 **279 passed / 33 skipped / 73 subtests passed**。以下保留各阶段的待验、失败、恢复及补验记录，不将阶段性“进行中”当作最新状态，也不把整体拍摄标为通过。
+
+代理仅部分移交runtime和RM接线后结束；main已独立核diff并补齐构建、原Mount/Unmount与generation观察、在途处理、退休卷导出、控制通道及GTK按钮。原配置实例、恢复环境隔离、USB网络、`/var/tmp`短socket alias与无关文件保护保持；没有整体覆盖native树，也没有移交私有4KiB诊断preload或把诊断文件冒作照片。
+
+本包实际针对性回归 **93 passed / 61 subtests passed（26.57s）**，覆盖SD状态/runtime/RM迟到释放、控制隔离、原Fsys、配置、网络与GTK；3172条警告来自GTK/Python弃用。随后资产无关/无VM/无构建的`tools/test-host.py`加入SD控制及退休导出测试，实际 **276 passed / 33 skipped / 71 subtests passed（7.68s）**，一条多线程fork弃用警告。跳过项遵守该入口的显示/资产/构建边界，不计为动态通过。
+
+已准备实际production包内GTK两轮拔出/重插、每个absent/present状态后的独立导出；absent必须使用原Unmount退休证据而非新的Flush返回，导出等待本次新sequence并核owner恢复。该VM结果尚未收取，两份独立只读移交审查也未收齐，因此当前没有包内热插拔已通过或默认开启的结论。下方配置、显示、网络等既有记录各自保持原范围。
+
+后续两份审查已交付，未发现已确认的运行代码阻塞；A发现既有`test_sd_image.py`漏链新增runtime/core。main先实际复现链接失败，再补齐测试输入和`-ldl`，整份镜像测试 **16 passed / 11 subtests passed**；不把静态审查写作执行过VM。
+
+首轮包内`run-ocaot_1j`实际完成generation2拔出导出、generation3重插导出、generation4再次拔出导出，三次完整卡SHA均 `f42d70f32a38594d59ef4537992599c095589ac5c16f5b111e58ac240410d694`；之后第二次重插点击未确认，自动试验超时，整体失败。失败关闭期间一次`SD_REQUEST_seq`输出与内核UDIF日志同行，严格解析拒绝；owner恢复有确认，但GUI没有正常退出，按保护保留VM。不能把前三次成功扩大为两轮验收通过。
+
+main核owned PID/目录、当前稳定absent状态及上一保存的owner-resumed后，仅通过原UI action做一次安全保存，再走原GUI正常关闭。恢复保存和最终关闭保存都保持同一卡SHA，独立fsck0，pidfd确认原GUI退出、相机进程集合为空；未重插、未SIGKILL，原失败proof保持。故障控制目录作为证据有意保留。
+
+后续只改善标记输出为前后换行的printf，解析仍严格、受污染标记仍拒绝；真实host shell的成功/失败发布和既有取消/恢复等组合 **30 passed / 27 subtests passed**。私有GTK驱动另显式记录并等待实际widget-sensitive与busy/pending清空后点击；旧run没有记录该属性，首次点击超时的唯一根因仍未知，不以竞态猜测回填。修后包内复验及完整host复测正在单独进行，未默认开启或发布功能。
+
+标记修正后的完整受限host复测已实际结束：**278 passed / 33 skipped / 73 subtests passed（7.62s）**，仍只有原多线程fork弃用警告。该结果包含新增真实shell发布/拒绝场景；不会将首次VM失败改成通过，包内修后动态验收仍待主会话核。
+
+### main：修后本包两轮真实插拔与退休导出通过
+
+`run-6o17sqe2` 使用本包production UI、正常launcher及本包编译的guest库，实际四次GTK按钮均在widget-sensitive=true、busy空、pending0后点击。generation2/4原Unmount使卷mask1→0、2→0，generation3/5原Mount绑定新盘符B/C；Front原free与终态均有对应代号，未丢事件，RemoveCnt为1/1/2/2。
+
+每次absent/present之后均单独导出：absent明确`original_volume_retirement=true`、`original_Fsys_FlushVolume_rc=null`；present原Flush返回0。main读取四套不可变导出目录的32个4MiB块，按offset顺序重算完整镜像SHA，四者及最终关闭保存均为 `b511f810d3cf18a0f3b53367e161f5c394a0d8c24e7588d72c308b4070699b33`。后台每份fsck0，main另独立对最终同字节镜像执行fsck0；owner均恢复，自动验收正常结束。
+
+两次重插后原AP都实际Read完整DATABASE.BIN9670656B和XML406B，返回数据FNV分别 `269a0126c48af1d8`、`9bcc48eb1e140ffb`，main直接从FAT提取全部字节重算相同。文件SHA分别 `4965312e162b3b6b1cea36703bb34846a7811da06b9406408929c4e584608a7c`、`29e3c945be9e99688310882506b4aafe9f97445d5a9f096310a2fbf1e9d914d9`。这超出Open成功证据；本轮没有私有诊断preload，不宣称生成照片/视频或自然重插后新Write。
+
+main直接查看本轮唯一GTK拔出/重插画面，控件显示SD已拔出/已插入，原LCD卡图标相应消失/出现。原总体false proof保持，有限`main-package-sd-review.json`只对两周期、退休导出和内容read记true。首次`run-ocaot_1j`失败及恢复记录不因这轮成功改写。
+
+本地标准RM2自然启动profile随后设为默认开启，并保留`A7C2_SD_HOTPLUG=0`退出选项；RM1诊断/旧菜单profile不自动开启。默认/optout边界、配置隔离和控制回归25tests通过，原start-menu完整隔离/锁交接脚本通过。当前另跑不显式设置hotplug变量、沿用上一卡的真实默认profile；该附加结果与最终发布状态仍待核。
+
+### main：默认启动与上一张卡回载补验通过
+
+`run-mgfexv9k` 的测试驱动没有强设`A7C2_SD_HOTPLUG`，标准自然启动profile自行启用。源卡明确为上一轮`run-6o17sqe2/SD/card.img`；main不只核manifest路径，还读取实际选用cpio中的唯一`simulation/sd-card.fat`，SHA与源卡完全相同。真实GTK完成一轮原卸载/退休导出/重挂载/Flush导出，两次原文件Read的完整数据FNV仍匹配源文件。
+
+源卡、两次状态导出、最终关闭保存都保持 `b511f810d3cf18a0f3b53367e161f5c394a0d8c24e7588d72c308b4070699b33`；main独立fsck0、owner恢复、包内运行锁重新获取均通过。正常关闭无cleanup_error。验证结束后另有外部full路线VM启动，不属于本次owned实例，未干预；退出判据使用本包的正常cleanup与独立锁核验，没有把全机无任何QEMU作为必要条件。有限结果在`main-package-default-sd-review.json`，原自动总体false保留。
+
+默认策略后的完整asset-free/build-free宿主复测为 **279 passed / 33 skipped / 73 subtests passed（7.70s）**，一条既有多线程fork警告。全部测试先于功能提交。照片/录像、真实AF/CMOS/编码、原Wi-Fi关联及全部参数仍未验；native的4KiB显式原API存储诊断另有证据，未伪装成本包自然拍摄，也没有随本包默认加载。
+
 ## Settings 源码移交与本包动态复验
 
 本次从 `final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/` 选择移交 settings helper、snapshot/restore、实例租约与 GTK 重初始化接线。未复制整个 runtime，未引入 SD 热插拔、portgate 或改变本包 RM/filemedia/SD Flush 路径；保留 `/var/tmp` 安全 socket alias 与无关文件保护。

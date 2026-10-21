@@ -291,7 +291,7 @@ def display_snapshot_message(path,number):
                     'source':'QMP ramfb display','mode':'AP software display; not a captured photograph'}}
 
 
-def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None):
+def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None):
     monitor = FirmwareMonitor(out / 'console.log')
     input_stack_captured = False
     session_fault = None
@@ -316,7 +316,8 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
         serial_command(proc, out / 'console.log', 'true', monitor=monitor)
         if os.environ.get('A7C2_MEDIA_INIT_WATCH') == '1' and os.environ.get('MENU_GUI_MODELS') == 'virtual-inline-v1':
             wait_initial_model_commit(proc, out/'console.log')
-        send_message(control, {'type': 'ready', 'run': str(out)})
+        card_state=sd_card.status() if sd_card is not None else None
+        send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state})
         while True:
             fault=session_fault
             try:monitor.check()
@@ -336,7 +337,16 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             action = request.get('action')
             if fault and action!='export_sd':
                 send_message(control,{'type':'error','error':fault});continue
-            if (action=='wifi' and set(request)=={'action','enabled'}
+            if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd'):
+                raise ValueError('SD transition has no terminal observation; camera input is paused')
+            if (action=='sd_card' and set(request)=={'action','present'}
+                    and type(request['present']) is bool):
+                if sd_card is None:raise ValueError('This run has no SD hotplug profile')
+                try:result=sd_card.set_present(request['present'])
+                except (OSError,RuntimeError,ValueError) as error:
+                    result={'type':'sd_card','ok':False,'state':'uncertain',
+                            'error':f'{type(error).__name__}: {error}'}
+            elif (action=='wifi' and set(request)=={'action','enabled'}
                     and type(request['enabled']) is bool):
                 if network is None:
                     raise ValueError('本次运行未启用隔离网络')
@@ -360,6 +370,8 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                     else:
                         data = live_serial('/simulation/headless-osd-export')
                         result = snapshot_message(data)
+                    if sd_card is not None:
+                        result['sd_card'] = sd_card.status()
                     if os.environ.get('MENU_GUI_MODELS')=='virtual-inline-v1':
                         from gui_model_capture import decode_model_export
                         exported=live_serial('/simulation/gui-model-export')
