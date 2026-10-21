@@ -56,6 +56,28 @@ python3 tools/check-source.py
 
 相机设置默认保存在 `runtime/analysis/camera-instances/default/`，下次自动恢复；虚拟 SD 卡需要用上面的参数手动选择。
 
+### 使用 overwrite 替换固件文件
+
+想测试自己修改的程序或库，把文件放到本目录的 `overwrite/` 下，按相机内的路径排列。例如替换相机中的 `/usr/lib/appFw.so`：
+
+```text
+overwrite/
+└── usr/
+    └── lib/
+        └── appFw.so
+```
+
+正常运行 `./start.sh` 即会自动加载这些文件；固件不在默认位置时，照常加上 `--bodydata`。也可以指定其它覆盖目录：
+
+```bash
+./start.sh --bodydata /path/to/BODYDATA.DAT \
+  --overwrite-dir /path/to/my-overwrite
+```
+
+目录中的普通文件会替换相机内同路径的文件，路径不存在时会新增。只能使用普通目录和文件，不支持符号链接。
+
+覆盖只影响本次生成的启动镜像，不会修改原始 `BODYDATA.DAT` 或基础固件文件。要恢复原版，移走覆盖文件，并在下次启动时不再指定自定义覆盖目录；默认的 `overwrite/` 也应保持为空或不存在。替换不兼容的程序或库可能导致启动失败。
+
 ## 接下来准备实现什么
 
 - **取景画面**：模拟 CMOS 图像输入，让原厂程序显示实际场景。
