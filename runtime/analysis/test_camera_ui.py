@@ -103,6 +103,8 @@ class PollerTests(unittest.TestCase):
         self.vm.value['busy'] = ''
         self.poller.set_interval(0, 0)
         self.assertFalse(self.poller.request(self.vm, self.vm.status(), 999))
+        self.poller.after_input(999, delay=0)
+        self.assertFalse(self.poller.request(self.vm, self.vm.status(), 999))
         self.assertTrue(self.poller.request(self.vm, self.vm.status(), 999, force=True))
         self.vm.stop()
         self.poller.observe(self.vm.status(), 1000)
@@ -114,6 +116,41 @@ class PollerTests(unittest.TestCase):
             self.poller.request(self.vm, self.vm.status(), 0)
         self.assertFalse(self.poller.inflight)
         self.assertEqual(self.poller.next_at, 20)
+
+    def test_input_followup_waits_for_render_and_latest_input(self):
+        self.poller.after_input(1)
+        self.poller.after_input(1.1)
+        # A pending follow-up also suppresses an already-due periodic capture.
+        self.assertFalse(self.poller.request(self.vm, self.vm.status(), 1.2))
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), 1.3))
+        self.assertIsNone(self.poller.follow_up_at)
+
+    def test_input_during_inflight_snapshot_is_not_lost(self):
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), 0))
+        self.poller.after_input(.1)
+        self.vm.complete(png=b'fixture')
+        self.poller.observe(self.vm.status(), .2)
+        self.assertFalse(self.poller.inflight)
+        self.assertEqual(self.poller.next_at, 10.2)
+        self.assertFalse(self.poller.request(self.vm, self.vm.status(), .29))
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), .31))
+        self.assertIsNone(self.poller.follow_up_at)
+
+    def test_input_ack_starts_the_render_window(self):
+        self.poller.after_input(0)
+        self.vm.value['events'] = [dict(id=1, kind='input', message='MENU：输入已提交')]
+        self.poller.observe(self.vm.status(), .15)
+        self.assertAlmostEqual(self.poller.follow_up_at, .35)
+        self.assertFalse(self.poller.request(self.vm, self.vm.status(), .34))
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), .36))
+
+    def test_input_followup_respects_snapshot_error_backoff(self):
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), 0))
+        self.vm.complete(error='snapshot failure')
+        self.poller.observe(self.vm.status(), .1)
+        self.poller.after_input(.1)
+        self.assertFalse(self.poller.request(self.vm, self.vm.status(), .31))
+        self.assertTrue(self.poller.request(self.vm, self.vm.status(), 20.11))
 
 
 @unittest.skipUnless(Gtk.init_check()[0], 'GTK display required: use xvfb-run')
@@ -167,6 +204,7 @@ class GTKTests(unittest.TestCase):
         self.assertTrue(self.ui.buttons['MENU'].get_sensitive())
         self.click(self.ui.buttons['MENU'])
         self.assertEqual(self.vm.calls[-1], {'action': 'key', 'key': 'MENU'})
+        self.assertIsNotNone(self.ui.poller.follow_up_at)
         self.assertTrue(self.ui.buttons['MENU'].get_sensitive())
         self.vm.complete()
         self.ui.update(self.vm.status())
@@ -293,6 +331,16 @@ class GTKTests(unittest.TestCase):
         self.ui.update(self.vm.status())
         self.assertIn('旧画面', self.ui.frame_label.get_text())
 
+    def test_rapid_distinct_keyboard_shortcuts_are_not_dropped(self):
+        self.running()
+        self.ui.lcd.set_can_focus(True)
+        self.ui.lcd.grab_focus()
+        self.focus_window()
+        subprocess.run(['xdotool', 'key', 'Down', 'Left'], check=True)
+        self.settle()
+        keys = [call['key'] for call in self.vm.calls if isinstance(call, dict) and call['action'] == 'key']
+        self.assertEqual(keys[-2:], ['DOWN', 'LEFT'])
+
     def test_enter_after_camera_button_focus_remains_camera_confirm(self):
         self.running()
         self.ui.buttons['UP'].grab_focus()
@@ -372,10 +420,12 @@ class GTKTests(unittest.TestCase):
         evidence = Path(__file__).parent / 'evidence'
         evidence.mkdir(exist_ok=True)
         result = []
-        for width, height in ((1280, 900), (1920, 1080), (2560, 1440)):
+        for width, height in ((1280, 900), (1360, 930), (1920, 1080), (2560, 1440)):
             self.ui.window.resize(width, height)
             self.settle()
             actual_width, actual_height = self.ui.window.get_size()
+            lcd_width, lcd_height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
+            self.assertAlmostEqual(lcd_width / lcd_height, 4 / 3, delta=.02)
             for name, widget in dict(self.ui.buttons, ON=self.ui.on, OFF=self.ui.off, REFRESH=self.ui.refresh).items():
                 x, y = widget.translate_coordinates(self.ui.window, 0, 0)
                 self.assertGreaterEqual(x, 0, name)

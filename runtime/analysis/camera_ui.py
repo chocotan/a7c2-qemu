@@ -17,43 +17,53 @@ from gi.repository import Atk, Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
 
 
 CSS = b'''
-@define-color bg #151819;
-@define-color body #272d2f;
-@define-color key #30383a;
-@define-color edge #57625f;
-@define-color ink #edf0ee;
-@define-color muted #b9c3bd;
-@define-color accent #edb678;
-@define-color silver #cdd2cc;
-@define-color black #080b0c;
-@define-color danger #f5aaa0;
+@define-color bg #111517;
+@define-color body #1d2427;
+@define-color panel #242d30;
+@define-color key #2d383c;
+@define-color edge #4c5b60;
+@define-color ink #f2f5f3;
+@define-color muted #b4c0bc;
+@define-color accent #efbd72;
+@define-color silver #cbd2cd;
+@define-color black #070a0b;
+@define-color danger #f28f87;
 window { background: @bg; color: @ink; font: 14px sans-serif; }
-.camera { background: @body; border: 1px solid @edge; border-radius: 22px; padding: 12px 16px; }
-.top { background: @silver; color: @body; border-radius: 12px; padding: 10px 18px; }
-.brand { font: bold 25px serif; }
+.camera { background: @body; border: 1px solid @edge; border-radius: 18px; padding: 12px 16px; }
+.top { background: @silver; color: @body; border-radius: 12px; padding: 8px 16px; }
+.brand { font: bold 26px serif; }
 .title { font: 24px sans-serif; }
-.hint { color: @muted; font: 12px sans-serif; }
-.top .hint { color: #333d37; }
-.section { font: bold 12px sans-serif; }
-.status { font: 13px monospace; }
-button, combobox button { background-image: none; background-color: @key; color: @ink; border: 1px solid @edge; border-radius: 9px; padding: 7px 12px; min-height: 28px; min-width: 18px; box-shadow: none; text-shadow: none; }
-button:hover { background-color: #414c48; }
-button:active { background-color: @black; border-color: @accent; }
-button:disabled { background-color: #242b2d; color: #a9b3ad; border-color: #4a5550; }
-button:focus, combobox:focus, expander:focus { outline: 3px solid @accent; outline-offset: 2px; }
+.hint { color: @muted; font: 13px sans-serif; }
+.top .hint { color: #35413c; }
+.section { color: @muted; font: bold 13px sans-serif; }
+.status { background: @panel; color: @ink; border: 1px solid @edge; border-radius: 18px; padding: 7px 12px; font: bold 13px monospace; }
+button, combobox button { background-image: none; background-color: @key; color: @ink; border: 1px solid @edge; border-radius: 9px; padding: 8px 14px; min-height: 28px; min-width: 18px; box-shadow: none; text-shadow: none; }
+button:hover { background-color: #3a474b; border-color: #718086; }
+button:active { background-color: #172023; border-color: @accent; color: #ffffff; }
+button:disabled { background-color: #222a2d; color: #a9b4b0; border-color: #3d494d; }
+button:focus, combobox:focus, expander:focus, switch:focus { outline: 3px solid @accent; outline-offset: 2px; }
+.top button:focus { outline-color: @body; }
+button.direction { font: 18px sans-serif; }
 .round { border-radius: 50px; }
-.mode { border-radius: 60px; border: 5px double @edge; }
+.mode { border-radius: 60px; border: 4px double #718079; }
 popover.mode-positions { background: @body; color: @ink; }
-.record { border-color: @danger; }
+.record { border-color: @danger; color: #ffb0a8; }
 .power { border-color: @accent; }
-.wheel { border: 8px dashed #717f77; border-radius: 140px; background: #191f20; padding: 7px; }
-.wheel-off { border-color: #4c5851; }
+.danger { border-color: #9f5f5b; color: @danger; }
+.wheel { border: 7px solid #617075; border-radius: 140px; background: #141b1e; padding: 8px; }
+.wheel-off { border-color: #3d494d; }
 .wheel-drag { border-color: @accent; }
-.lcd { border: 3px double #97a49d; border-radius: 10px; background: @black; padding: 8px; }
-.feedback { background: #1f2628; border-left: 2px solid @accent; padding: 9px 12px; color: @muted; }
+.controls-panel { background: @panel; border: 1px solid #364448; border-radius: 12px; padding: 8px; }
+.lcd { border: none; background: transparent; padding: 0 8px; }
+.lcd-screen { background: @black; border: 1px solid #66747a; border-radius: 4px; }
+.lcd-stale { border-color: @accent; }
+.frame-meta { color: @muted; font: 12px monospace; }
+.toolbar { background: @panel; border: 1px solid #364448; border-radius: 10px; padding: 4px 8px; }
+.feedback { background: @panel; border-left: 3px solid @accent; padding: 10px 12px; color: @muted; }
 .error { color: @danger; }
 .warning { color: @accent; }
-textview, textview text { background: #1f2628; color: @muted; }
+expander { color: @muted; }
+textview, textview text { background: @panel; color: @muted; }
 '''
 
 STATE_NAMES = dict(disconnected='已关闭', exited='已关闭', starting='正在启动',
@@ -89,6 +99,9 @@ class SnapshotPoller:
         self.delay = interval
         self.error_before = ''
         self.event_before = None
+        self.follow_up_at = None
+        self.retry_at = 0.0
+        self.input_event = None
 
     @staticmethod
     def token(state):
@@ -99,22 +112,35 @@ class SnapshotPoller:
         if state.get('state') != 'running':
             self.inflight = False
             return
+        events = state.get('events') or []
+        submitted = next((event for event in events if event.get('kind') == 'input'), None)
+        if submitted and submitted.get('id') != self.input_event:
+            self.input_event = submitted.get('id')
+            self.after_input(now)
         if not self.inflight:
             return
         busy = bool(state.get('busy') or state.get('pending'))
         self.saw_busy |= busy
         changed = self.token(state) != self.before
         failed = bool(state.get('error')) and state.get('error') != self.error_before
-        events = state.get('events') or []
         completed_event = events and events[0].get('id') != self.event_before and not busy
         if changed or failed or completed_event or (self.saw_busy and not busy):
             self.inflight = False
             self.delay = min(60.0, max(self.interval, self.delay * 2)) if failed or not changed else self.interval
             self.next_at = now + self.delay
+            self.retry_at = self.next_at if failed or not changed else 0.0
+
+    def after_input(self, now, delay=.2):
+        # Give the firmware a short render window; a newer input supersedes an older follow-up.
+        self.follow_up_at = now + delay
 
     def request(self, vm, state, now, force=False):
+        follow_up = self.follow_up_at is not None and (force or now >= self.follow_up_at)
+        waiting_for_input = self.follow_up_at is not None and now < self.follow_up_at
+        periodic = bool(self.interval) and now >= self.next_at and not waiting_for_input
+        allowed = force or (bool(self.interval) and (follow_up or periodic))
         if (state.get('state') != 'running' or self.inflight or state.get('busy')
-                or state.get('pending') or (not force and (not self.interval or now < self.next_at))):
+                or state.get('pending') or not allowed or (not force and now < self.retry_at)):
             return False
         self.before = self.token(state)
         self.error_before = state.get('error', '')
@@ -124,14 +150,20 @@ class SnapshotPoller:
             vm.enqueue({'action': 'snapshot'})
         except (ValueError, RuntimeError, OSError):
             self.delay = min(60.0, max(2.0, self.delay * 2))
-            self.next_at = now + self.delay
+            self.next_at = self.retry_at = now + self.delay
+            if follow_up:
+                self.follow_up_at = self.next_at
             raise
+        if follow_up:
+            self.follow_up_at = None
         self.inflight, self.saw_busy = True, False
         return True
 
     def set_interval(self, seconds, now):
         self.interval = self.delay = float(seconds)
         self.next_at = now + self.interval
+        self.retry_at = 0.0
+        self.follow_up_at = None
 
 
 class CameraUI:
@@ -153,7 +185,7 @@ class CameraUI:
         self.local_error = ''
         self.drag = None
         self.wheel_widgets = []
-        self.last_input = 0.0
+        self.last_input = {}
         self.last_status = self.last_details = None
         self.source_id = 0
         self.provider = Gtk.CssProvider()
@@ -169,11 +201,11 @@ class CameraUI:
         self.outer = Gtk.ScrolledWindow()
         self.outer.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         self.window.add(self.outer)
-        self.root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.root.set_border_width(18)
         self.outer.add(self.root)
         self._build_header()
-        self.camera = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.camera = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         self.camera.get_style_context().add_class('camera')
         self.root.pack_start(self.camera, True, True, 0)
         self._build_top()
@@ -182,13 +214,13 @@ class CameraUI:
         self.window.show_all()
         self.update(self.state)
         if timer:
-            self.source_id = GLib.timeout_add(200, self.tick)
+            self.source_id = GLib.timeout_add(50, self.tick)
 
     def _build_header(self):
         row = Gtk.Box(spacing=18)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-        titles.pack_start(label('LOCAL CAMERA LAB / ILCE-7CM2', 'hint'), False, False, 0)
-        titles.pack_start(label('α7C II  /  单窗口相机控制', 'title'), False, False, 0)
+        titles.pack_start(label('NATIVE QEMU  /  ILCE-7CM2', 'hint'), False, False, 0)
+        titles.pack_start(label('α7C II  相机控制台', 'title'), False, False, 0)
         row.pack_start(titles, True, True, 0)
         self.status_label = label('', 'status')
         row.pack_end(self.status_label, False, False, 0)
@@ -205,7 +237,7 @@ class CameraUI:
         modes.set_halign(Gtk.Align.START)
         for name in ('MODE_STILL','MODE_MOVIE','MODE_SQ'):modes.pack_start(self._button(name),False,False,0)
         brand.pack_start(modes,False,False,0)
-        top.pack_start(brand, True, True, 0)
+        top.pack_start(brand, False, False, 0)
         mode = self._button('MODE', 'MODE', 'mode')
         mode.set_size_request(84, 84)
         top.pack_start(mode, False, False, 0)
@@ -227,7 +259,8 @@ class CameraUI:
         self.on.get_style_context().add_class('power')
         power.pack_start(row, False, False, 0)
         net = Gtk.Box(spacing=6)
-        net.pack_start(label('Wi-Fi', 'hint'), False, False, 0)
+        self.wifi_label = label('Wi-Fi 关', 'hint')
+        net.pack_start(self.wifi_label, False, False, 0)
         self.wifi_switch = Gtk.Switch()
         self.wifi_switch.set_active(False)
         self.wifi_switch.get_accessible().set_name(
@@ -240,7 +273,7 @@ class CameraUI:
         top.pack_end(power, False, False, 0)
         self.camera.pack_start(top, False, False, 0)
         self.shoulder = Gtk.Box(spacing=12)
-        self.shoulder.pack_start(label('LCD / 原固件软件输出', 'hint'), True, True, 0)
+        self.shoulder.pack_start(label('LCD  /  原固件画面', 'section'), True, True, 0)
         self.shoulder.pack_start(self._button('MENU'), False, False, 0)
         self.shoulder.pack_start(self._button('C1'), False, False, 0)
         self.shoulder.pack_start(self._dial('后拨轮', 'REAR', horizontal=True), False, False, 0)
@@ -248,6 +281,8 @@ class CameraUI:
 
     def _button(self, name, text=None, style=None):
         button = Gtk.Button(label=text or KEY_NAMES.get(name, name))
+        if text in ('‹', '›', '⌃', '⌄'):
+            button.get_style_context().add_class('direction')
         button.set_size_request(44, 44)
         button.set_valign(Gtk.Align.CENTER)
         if style:
@@ -274,18 +309,24 @@ class CameraUI:
         return surface
 
     def _build_back(self):
-        back = Gtk.Box(spacing=22)
-        lcd = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        back = Gtk.Box(spacing=18)
+        lcd = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         lcd.get_style_context().add_class('lcd')
         self.lcd = Gtk.DrawingArea()
-        self.lcd.set_size_request(320, 240)
+        self.lcd.set_size_request(480, 360)
+        self.lcd.get_style_context().add_class('lcd-screen')
         self.lcd.get_accessible().set_role(Atk.Role.IMAGE)
         self.lcd.get_accessible().set_name('LCD 本次 VM 图像，尚无画面')
         self.lcd.connect('draw', self._draw_lcd)
-        lcd.pack_start(self.lcd, True, True, 0)
+        screen = Gtk.AspectFrame(xalign=.5, yalign=.5, ratio=4 / 3, obey_child=False)
+        screen.set_shadow_type(Gtk.ShadowType.NONE)
+        screen.add(self.lcd)
+        lcd.pack_start(screen, True, True, 0)
         back.pack_start(lcd, True, True, 0)
         controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        controls.set_size_request(282, -1)
+        controls.get_style_context().add_class('controls-panel')
+        controls.set_size_request(300, -1)
+        controls.set_valign(Gtk.Align.CENTER)
         row = Gtk.Box(spacing=12, homogeneous=True)
         for name in ('AF_ON', 'FN'):
             row.pack_start(self._button(name, style='round'), True, True, 0)
@@ -293,7 +334,7 @@ class CameraUI:
         wheel_area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
         self.ring = Gtk.EventBox()
         self.ring.set_halign(Gtk.Align.CENTER)
-        self.ring.set_size_request(218, 218)
+        self.ring.set_size_request(200, 200)
         self.ring.get_style_context().add_class('wheel')
         self.ring.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK |
                              Gdk.EventMask.POINTER_MOTION_MASK)
@@ -309,14 +350,15 @@ class CameraUI:
             grid.attach(self._button(name, text, 'round'), x, y, 1, 1)
         self.ring.add(grid)
         self._scrollable(self.ring, 'CONTROL')
-        wheel_area.pack_start(self.ring, True, False, 0)
+        wheel_area.pack_start(self.ring, False, False, 0)
         row = Gtk.Box(spacing=8, homogeneous=True)
         row.pack_start(self._button('CONTROL_LEFT', '‹ 控制轮'), True, True, 0)
         row.pack_start(self._button('CONTROL_RIGHT', '控制轮 ›'), True, True, 0)
         wheel_area.pack_start(row, False, False, 0)
         self.wheel_note = label('外圈可拖动 / 独立控制轮', 'hint')
+        self.wheel_note.set_halign(Gtk.Align.CENTER)
         wheel_area.pack_start(self.wheel_note, False, False, 0)
-        controls.pack_start(wheel_area, True, True, 0)
+        controls.pack_start(wheel_area, False, False, 0)
         for names in (('DISP', 'ISO', 'EXPOSURE_COMP'), ('PLAYBACK', 'C2', 'DELETE')):
             row = Gtk.Box(spacing=8, homogeneous=True)
             for name in names:
@@ -324,11 +366,12 @@ class CameraUI:
             controls.pack_start(row, False, False, 0)
         back.pack_end(controls, False, False, 0)
         self.camera.pack_start(back, True, True, 0)
-        self.frame_label = label('尚无本次 VM 图像', 'hint', wrap=True)
-        self.camera.pack_start(self.frame_label, False, False, 0)
+        self.frame_label = label('尚无本次 VM 图像', 'frame-meta', wrap=True)
+        lcd.pack_start(self.frame_label, False, False, 0)
 
     def _build_footer(self):
         row = Gtk.Box(spacing=12)
+        row.get_style_context().add_class('toolbar')
         self.refresh = Gtk.Button(label='刷新 LCD')
         self.refresh.set_size_request(100, 44)
         self.refresh.connect('clicked', lambda _: self.capture())
@@ -341,7 +384,9 @@ class CameraUI:
         self.interval.get_accessible().set_name('自动 LCD 快照间隔')
         self.interval.connect('changed', self._interval_changed)
         row.pack_start(self.interval, False, False, 0)
-        self.capture_status = label('单条在途 / 自适应退避', 'hint')
+        self.capture_status = label('', 'hint')
+        self.capture_status.set_size_request(150, -1)
+        row.pack_start(self.capture_status, False, False, 0)
         self.sd_action = Gtk.Button(label='安全拔出 SD')
         self.sd_action.connect('clicked', lambda _: self.change_sd())
         self.sd_action.get_accessible().set_name('虚拟 SD 插入或安全拔出')
@@ -349,10 +394,10 @@ class CameraUI:
         self.sd_label = label('SD 未确认', 'hint')
         row.pack_start(self.sd_label, False, False, 0)
         self.reset_button = Gtk.Button(label='销毁并重新初始化')
+        self.reset_button.get_style_context().add_class('danger')
         self.reset_button.get_accessible().set_name('销毁当前相机配置并重新初始化，保留 SD')
         self.reset_button.connect('clicked', lambda _: self.request_reinitialize())
-        row.pack_start(self.reset_button, False, False, 0)
-        row.pack_end(self.capture_status, False, False, 0)
+        row.pack_end(self.reset_button, False, False, 0)
         self.root.pack_start(row, False, False, 0)
         self.feedback = label('ON 启动本窗口拥有的 VM，等待真实固件图像。', 'feedback', wrap=True)
         self.feedback.get_accessible().set_role(Atk.Role.STATUSBAR)
@@ -361,8 +406,7 @@ class CameraUI:
         self.error_label.set_no_show_all(True)
         self.error_label.get_accessible().set_role(Atk.Role.ALERT)
         self.root.pack_start(self.error_label, False, False, 0)
-        self.root.pack_start(label('方向键 / Enter / M / Esc / Delete；Tab 切换控件，Space 激活焦点。ON / OFF 仅管理 owned VM，真实电源未模拟。', 'hint', wrap=True), False, False, 0)
-        self.details = Gtk.Expander(label='操作记录与全部按键可用性')
+        self.details = Gtk.Expander(label='快捷键 / 操作记录 / 按键可用性')
         self.detail_text = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
         self.detail_text.get_accessible().set_name('最近操作记录和每个控件的禁用原因')
         scroll = Gtk.ScrolledWindow()
@@ -388,7 +432,7 @@ class CameraUI:
         return ''
 
     def send(self, name,*,position=None):
-        self.update(self.vm.status())
+        self.state = self.vm.status()
         reason = self.reason(name)
         if not reason and name=='MODE' and position is not None and position not in self.state['controls']['MODE']['positions']:
             reason='MODE 选位已不在后端 registry 中'
@@ -401,7 +445,7 @@ class CameraUI:
             self.vm.enqueue(command)
             self.local_error = ''
             self.feedback.set_text(name + (f' / {position}' if name=='MODE' else '') + ' 已排队；实际响应以固件新画面为准。')
-            self.poller.next_at = min(self.poller.next_at, self.clock() + .6)
+            self.poller.after_input(self.clock())
             self.update(self.vm.status())
             return True
         except (ValueError, RuntimeError, OSError) as error:
@@ -483,6 +527,7 @@ class CameraUI:
                 self.pixbuf = self.png_bytes = self.frame_token = None
                 self.display_frame = {}
                 self.poller = SnapshotPoller(float(self.interval.get_active_id()))
+                self.lcd.queue_draw()
             else:
                 self.vm.stop()
             self.local_error = ''
@@ -493,10 +538,13 @@ class CameraUI:
     def capture(self, automatic=False):
         if self.reinitializing:return False
         try:
-            queued = self.poller.request(self.vm, self.vm.status(), self.clock(), force=not automatic)
+            state = self.vm.status()
+            now = self.clock()
+            self.poller.observe(state, now)
+            queued = self.poller.request(self.vm, state, now, force=not automatic)
             if queued and not automatic:
                 self.feedback.set_text('LCD 快照已排队；等待后端校验。')
-            self.update(self.vm.status())
+            self.update(state)
             return queued
         except (ValueError, RuntimeError, OSError) as error:
             self.local_error = 'LCD 快照请求失败：' + str(error)
@@ -509,7 +557,6 @@ class CameraUI:
         if self.closing or self.reinitializing:
             return True
         try:
-            self.update(self.vm.status())
             self.capture(automatic=True)
         except (ValueError, RuntimeError, OSError) as error:
             self.local_error = '后端状态读取失败：' + str(error)
@@ -622,6 +669,7 @@ class CameraUI:
         elif wifi.get('ok') is True:
             self.wifi_confirmed = wifi.get('enabled') is True
         wifi_pending = bool(state.get('pending') or state.get('busy'))
+        self.wifi_label.set_text('Wi-Fi …' if wifi_pending else ('Wi-Fi 开' if self.wifi_confirmed else 'Wi-Fi 关'))
         self.wifi_switch.set_sensitive(not self.closing and state.get('state') == 'running'
                                        and bool(state.get('usb_net')) and not wifi_pending)
         if not wifi_pending:
@@ -668,7 +716,18 @@ class CameraUI:
         self.wheel_note.set_text('控制轮 / ' + ('当前通道不可用' if self.reason('CONTROL_LEFT') else '外圈可拖动；语义以固件为准'))
         waiting = self.poller.inflight or bool(state.get('pending') or state.get('busy'))
         self.refresh.set_sensitive(not self.closing and state.get('state') == 'running' and not waiting)
-        self.capture_status.set_text('正在等待快照 / 最多一条在途' if self.poller.inflight else f'快照采集 / 退避 {self.poller.delay:g}s')
+        if self.poller.inflight:
+            capture_text = '正在校验新画面'
+        elif self.poller.follow_up_at is not None and self.poller.interval:
+            capture_text = '按键后刷新已计划'
+        elif not self.poller.interval:
+            capture_text = '自动快照已关闭'
+        elif self.poller.delay > self.poller.interval:
+            capture_text = f'快照失败退避 · {self.poller.delay:g}s'
+        else:
+            capture_text = ''
+        self.capture_status.set_text(capture_text)
+        stale = False
         if self.pixbuf:
             stale = (state.get('stale', False) or state.get('state') != 'running' or bool(error)
                      or self.frame_token != SnapshotPoller.token(state))
@@ -678,14 +737,19 @@ class CameraUI:
             self.frame_label.set_text(prefix + freshness + f' / #{frame.get("number", "?")} / {source} / 640 x 480')
         else:
             self.frame_label.set_text(prefix + ('等待后端首幅图像' if state.get('state') == 'running' else '尚无本次 VM 图像 / ON 启动'))
+        if stale:
+            self.lcd.get_style_context().add_class('lcd-stale')
+        else:
+            self.lcd.get_style_context().remove_class('lcd-stale')
         self.lcd.get_accessible().set_name('LCD / ' + self.frame_label.get_text())
-        self.lcd.queue_draw()
         events = state.get('events') or []
         event_key = events[0].get('id') if events else None
         if event_key is not None and event_key != self.last_status:
             self.last_status = event_key
             self.feedback.set_text(events[0].get('message', ''))
-        detail = '\n'.join(['最近操作（输入已提交不代表固件功能完成）'] +
+        detail = '\n'.join(['快捷键：方向键 / Enter / M / Esc / Delete；Tab 切换控件，Space 激活焦点。',
+                           'ON / OFF 仅管理 owned VM，真实电源未模拟。', '',
+                           '最近操作（输入已提交不代表固件功能完成）'] +
                            [str(event.get('message', '')) for event in events[:12]] + ['\n全部按键 / registry'] +
                            [f'{symbol} / {entry.get("label", symbol)} / {entry.get("verification", "未验证")} / '
                             + (self.reason(symbol) or '可以排队，响应以固件为准') + ' / ' + entry.get('note', '')
@@ -735,8 +799,9 @@ class CameraUI:
             shortcut = shortcut.lower()
         for name, entry in self.state.get('controls', {}).items():
             if shortcut in entry.get('shortcuts', []):
-                if self.clock() - self.last_input >= .15:
-                    self.last_input = self.clock()
+                now = self.clock()
+                if now - self.last_input.get(name, -math.inf) >= .15:
+                    self.last_input[name] = now
                     self.send(name)
                 return True
         return False
@@ -755,9 +820,11 @@ class CameraUI:
             right = delta > 0
         else:
             right = event.direction in (Gdk.ScrollDirection.DOWN, Gdk.ScrollDirection.RIGHT)
-        if self.clock() - self.last_input >= .15:
-            self.last_input = self.clock()
-            self.send(prefix + ('_RIGHT' if right else '_LEFT'))
+        name = prefix + ('_RIGHT' if right else '_LEFT')
+        now = self.clock()
+        if now - self.last_input.get(name, -math.inf) >= .15:
+            self.last_input[name] = now
+            self.send(name)
         return True
 
     def _drag_start(self, widget, event):
