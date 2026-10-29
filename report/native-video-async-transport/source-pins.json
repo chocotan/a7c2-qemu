@@ -1,0 +1,34 @@
+{
+  "scope": "shallow API pointer transport; no whole pointed-to98byte expansion proof",
+  "artifacts": {
+    "I": {"path": "usr/lib/libInfraAvbbc.so", "bytes": 1738760, "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5"},
+    "F": {"path": "usr/lib/dataflowInfraFramework.so", "bytes": 306496, "sha256": "620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47"},
+    "O": {"path": "usr/lib/libosal_uipc.so", "bytes": 43752, "sha256": "09ebf5980237fc473077dc844763dcb00cba423f431646e3be7c0ca49ea70ff3"},
+    "U": {"path": "usr/kmod/osal_uipc.ko", "bytes": 76360, "sha256": "f0eb3a32a9d339066600e012aa3e91de31419c173e3fe5c1cc44aa9188763095"}
+  },
+  "windows": [
+    {"artifact": "I", "offset_hex": "b21e0", "bytes": 512, "sha256": "dbffbf1864f58c73967c41c31d8209fb1c429c340dd104ee015f5084b743ca96"},
+    {"artifact": "I", "offset_hex": "141a34", "bytes": 2432, "sha256": "d1f2193b39e146adfdd53d3daa3bfaadaa7e4ba2c670f00d5478aacc9dfb0389"},
+    {"artifact": "I", "offset_hex": "16bd34", "bytes": 252, "sha256": "a8b2ae01e46444be17586c1d0d3b531de38c914ed9ff11093c079d8c5b69794e"},
+    {"artifact": "F", "offset_hex": "32538", "bytes": 352, "sha256": "6e71d9f72e51a16347bca9d3da6937df3136dca6b5c4370b6cf8909d3ca9f026"},
+    {"artifact": "F", "offset_hex": "34110", "bytes": 288, "sha256": "b58ee0956064edf5f7ea30c5688e4bf735eeed1cbbd43546375280f5c44aefae"},
+    {"artifact": "O", "offset_hex": "3a10", "bytes": 136, "sha256": "046f41468e5749a726dde2c43f0dc5bc98fe9ce795f11dc66f0a4ea1c1698c62"},
+    {"artifact": "O", "offset_hex": "5e60", "bytes": 684, "sha256": "8f83c4c5e1d2cf13e56772bfa6a4279628aa95c5d44493f1a2b6cc0316706889"},
+    {"artifact": "U", "offset_hex": "540", "bytes": 240, "sha256": "72d1e4b24cabbda79c1a26c435fa9ad3d414b488d10d6cfe050b7d32fe8fb5e3"},
+    {"artifact": "U", "offset_hex": "1428", "bytes": 72, "sha256": "5ef0ad6890853c7bc183ff36c7688ef5e4e56ae943ff3af3681970ed3af0fc73"},
+    {"artifact": "U", "offset_hex": "3c60", "bytes": 568, "sha256": "bf3db8d70430147a4c61fafde213faa8c433e392213faf59f64921d8492083e9"}
+  ],
+  "window_count": 10,
+  "window_bytes": 5536,
+  "CID": "2003",
+  "MID": "0201",
+  "destinations": ["805720f9", "805700f9"],
+  "inline_command_bytes": 56,
+  "envelope_bytes": 80,
+  "retained_API_pointer_in_outer_payload_offset": 72,
+  "ioctl": "80000004",
+  "outer_pointer_relocation_only": true,
+  "pointed_to_parameter_expansion_verified": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false
+}

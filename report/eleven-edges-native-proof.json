@@ -1,0 +1,286 @@
+{
+  "scope": "eleven explicit virtual graph connections (1..10,13), control formats and metadata-only SD",
+  "run": "run-sp_b6ivq",
+  "evaluation": "../runtime/analysis/menu-runs/run-sp_b6ivq/graph-batch-native-evaluation.json",
+  "evaluation_sha256": "dfd872df95423fc32f1ee085d5fbc2226b0274fd2a6491c2ff2684e52a99af4e",
+  "observer_sha256": "c7d81562164603511fca3438d642c86e57687c73725d6fbf8c64c95152fd7752",
+  "source_count": 302,
+  "run_source_archive_sha256": "55d6fe19188fc021ec0847e1c22fd39598898a3411b9022d5b9421b74011b227",
+  "initial_ABI_source_archive_sha256": "d7306fcaf611ae7164959fac23121fb620a6aaaf703460b5bcceec82c13d1160",
+  "all_tested_archived_current_source_sets_and_SHA_equal": true,
+  "host_profile_current_bytes_verified_count": 5,
+  "host_profile_manifest_index_omissions": [
+    "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/start-menu.py"
+  ],
+  "candidate_QEMU_sha256": "a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02",
+  "unchanged_production_QEMU_sha256": "e23589c44386c19417551c982e394b7a4e779f8e68a72f2964b705aca1e96c0d",
+  "original_libraries_actual_readback_count": 12,
+  "original_libc225_ABI_verified": true,
+  "host_tests_passed": 1681,
+  "host_subtests_passed": 139,
+  "offline_verifier_checks_passed": 255,
+  "console_raw_sha256": "5b3e4ec45d68096981605606412102382a8f139d9b79147a398d18e1ff0612f7",
+  "console_parsed_sha256": "ce9968ecb5f58ee0c3ade320739db58e319ed65027af91d8c4746f78dce67f04",
+  "raw_console_unchanged": true,
+  "transport_interleavings": [
+    {
+      "raw_warning_start": 1118552,
+      "raw_warning_end": 1118619,
+      "raw_record_line": 12492,
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false,
+      "scope": "exact fixed fourth-edge COMMIT split by host stderr"
+    }
+  ],
+  "record_line_numbers_refer_to": "parsed console; each recovered raw offset/line is retained separately",
+  "original_AP_pid": 258,
+  "original_AP_tid": 381,
+  "native_verified_edge_numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    13
+  ],
+  "graph_batch_native_verified": true,
+  "all_13_graph_edges_complete": false,
+  "eleven_independent_56B_AP_replies_same_sender_consumed": true,
+  "actual_free_rc": 0,
+  "actual_free_faults": 0,
+  "new_edge_AP_free_records": [
+    {
+      "line": 12628,
+      "tag": "FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_FREE",
+      "raw": "OBS FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_FREE pid=258 tid=381 sender=381 waiter=1 destination=0x81cf61c4 expected=0x81cf61c4 pointer=0x7fa2563900 bytes=56 rc=0 faults=0 ap_consumed=1 frames_verified=0 capture_verified=0",
+      "fields": {
+        "pid": "258",
+        "tid": "381",
+        "sender": "381",
+        "waiter": "1",
+        "destination": "0x81cf61c4",
+        "expected": "0x81cf61c4",
+        "pointer": "0x7fa2563900",
+        "bytes": "56",
+        "rc": "0",
+        "faults": "0",
+        "ap_consumed": "1",
+        "frames_verified": "0",
+        "capture_verified": "0"
+      }
+    },
+    {
+      "line": 12660,
+      "tag": "FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE",
+      "raw": "OBS FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE pid=258 tid=381 sender=381 waiter=1 destination=0x81cf61c4 expected=0x81cf61c4 reply=0x7fa2563900 bytes=56 command=0x8001 rc=0 faults=0 ap_consumed=1 capture_verified=0",
+      "fields": {
+        "pid": "258",
+        "tid": "381",
+        "sender": "381",
+        "waiter": "1",
+        "destination": "0x81cf61c4",
+        "expected": "0x81cf61c4",
+        "reply": "0x7fa2563900",
+        "bytes": "56",
+        "command": "0x8001",
+        "rc": "0",
+        "faults": "0",
+        "ap_consumed": "1",
+        "capture_verified": "0"
+      }
+    },
+    {
+      "line": 12694,
+      "tag": "FULL_ADF_CONNECT_NATIVE_REPLY_FREE",
+      "raw": "OBS FULL_ADF_CONNECT_NATIVE_REPLY_FREE pid=258 tid=381 sender=381 waiter=1 destination=0x81cf61c4 expected=0x81cf61c4 reply=0x7fa25630c0 bytes=56 command=0x8001 rc=0 faults=0 ap_consumed=1 capture_verified=0",
+      "fields": {
+        "pid": "258",
+        "tid": "381",
+        "sender": "381",
+        "waiter": "1",
+        "destination": "0x81cf61c4",
+        "expected": "0x81cf61c4",
+        "reply": "0x7fa25630c0",
+        "bytes": "56",
+        "command": "0x8001",
+        "rc": "0",
+        "faults": "0",
+        "ap_consumed": "1",
+        "capture_verified": "0"
+      }
+    },
+    {
+      "line": 12723,
+      "tag": "FULL_PINMEM_DRAWINFO_CONNECT_NATIVE_REPLY_FREE",
+      "raw": "OBS FULL_PINMEM_DRAWINFO_CONNECT_NATIVE_REPLY_FREE pid=258 tid=381 sender=381 waiter=1 destination=0x81cf61c4 expected=0x81cf61c4 reply=0x7fa25632c0 bytes=56 command=0x8001 rc=0 faults=0 ap_consumed=1 capture_verified=0",
+      "fields": {
+        "pid": "258",
+        "tid": "381",
+        "sender": "381",
+        "waiter": "1",
+        "destination": "0x81cf61c4",
+        "expected": "0x81cf61c4",
+        "reply": "0x7fa25632c0",
+        "bytes": "56",
+        "command": "0x8001",
+        "rc": "0",
+        "faults": "0",
+        "ap_consumed": "1",
+        "capture_verified": "0"
+      }
+    },
+    {
+      "line": 12783,
+      "tag": "FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE",
+      "raw": "OBS FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE pid=258 tid=381 sender=381 waiter=1 destination=0x81cf61c4 expected=0x81cf61c4 pointer=0x7fa25632c0 bytes=56 rc=0 faults=0 ap_consumed=1 capture_verified=0",
+      "fields": {
+        "pid": "258",
+        "tid": "381",
+        "sender": "381",
+        "waiter": "1",
+        "destination": "0x81cf61c4",
+        "expected": "0x81cf61c4",
+        "pointer": "0x7fa25632c0",
+        "bytes": "56",
+        "rc": "0",
+        "faults": "0",
+        "ap_consumed": "1",
+        "capture_verified": "0"
+      }
+    }
+  ],
+  "exact_selected_Get_leases_same_sender_retired": true,
+  "seventh_original_sender_TID_saved_and_compared": true,
+  "seventh_foreign_free_clean_but_not_AP_consumed_regression": true,
+  "eighth_refuses_real_foreign_freed_seventh": true,
+  "seventh_event8_parameter_bytes": 32,
+  "seventh_event8_parameter_raw_logged": false,
+  "seventh_event8_parameter_basis": "actual event consumption log plus ABI-bound frozen full parameter/body/request comparison",
+  "seventh_event8_actual_token_body_peer_consumption": true,
+  "seventh_actual_VEF_ordinal": 15,
+  "seventh_PinMem_manager_callback_return": 0,
+  "eighth_ninth_tenth_event6_parameter_bytes": 12,
+  "eighth_ninth_tenth_actual_saved64_request_and_independent72_reply_consumed": true,
+  "new_five_DMM_format_cache_clock_MMIO_delta": 0,
+  "thirteenth_shared_HDMI_marker": {
+    "line": 12777,
+    "tag": "FULL_ADF_HDMI_AUDIO_CONNECT_HDMI_MARKER_READBACK",
+    "raw": "OBS FULL_ADF_HDMI_AUDIO_CONNECT_HDMI_MARKER_READBACK hook_raw=0x1297fe Generic_tag_ADF_byte4=1 state_vtable_offset=0x34 old_known=0 connected=1 known=1 writes=1 readback=1 singleton_offset=0x60 next_state_null=1 state_identity_known=0 original_CP_memory_identity_verified=0 DMM=0 SSYN=0 clocks=0 PCM=0 MMIO=0 capture_verified=0",
+    "fields": {
+      "hook_raw": "0x1297fe",
+      "Generic_tag_ADF_byte4": "1",
+      "state_vtable_offset": "0x34",
+      "old_known": "0",
+      "connected": "1",
+      "known": "1",
+      "writes": "1",
+      "readback": "1",
+      "singleton_offset": "0x60",
+      "next_state_null": "1",
+      "state_identity_known": "0",
+      "original_CP_memory_identity_verified": "0",
+      "DMM": "0",
+      "SSYN": "0",
+      "clocks": "0",
+      "PCM": "0",
+      "MMIO": "0",
+      "capture_verified": "0"
+    }
+  },
+  "thirteenth_marker_only_not_HDMI_current_state": true,
+  "first_six_actual_formats_and_three_live_cache_owners_preserved": true,
+  "sixth_same_handle": "0x8c00",
+  "sixth_DMM_commands": 9,
+  "sixth_same_handle_notifications_and_mapped_reads": 3,
+  "sixth_last_Free_owner_open_live": [
+    0,
+    0,
+    0
+  ],
+  "Imaging_live_cache": [
+    1,
+    1,
+    1920,
+    1080,
+    3
+  ],
+  "NoMem_AB_failure_S0_old_ordinal1_Speech_histories_preserved": true,
+  "remaining_refused_edge_numbers": [
+    11,
+    12
+  ],
+  "302c_completed": false,
+  "EE_state": 0,
+  "same_run_SD_two_original_Fsys_flushes": true,
+  "SD_flush_sequences": [
+    1472981736960998,
+    1472982682620813
+  ],
+  "SD_host_tree": [
+    {
+      "path": "INPUT.BIN",
+      "bytes": 85,
+      "sha256": "5f3a2af9df8e727712b613d46087bdd003381c108f8d171f0952228e8990ccc6"
+    },
+    {
+      "path": "private/database/database.bin",
+      "bytes": 9670656,
+      "sha256": "3e5841ab1f3e25b9c8516d37d4216b043570f3a0c29360f8e359d66bbe80ccc7"
+    },
+    {
+      "path": "private/m4root/mediapro.xml",
+      "bytes": 406,
+      "sha256": "a9f9f7b76d24d33f7240e1f2cd4e214ef9a15965d53875f98f23f4d3163dfb45"
+    }
+  ],
+  "SD_two_exports_all_paths_sizes_SHA_match": true,
+  "SD_clean_commit": true,
+  "cleanup": {
+    "owner_pid": 540793,
+    "owner_exited": true,
+    "owner_process_group_exited": true,
+    "group_check": "os.getpgid for live /proc processes",
+    "QEMU_absent": true,
+    "processes_inspected": 955,
+    "evaluator_signals_sent": false,
+    "locks_exclusive_acquired_and_released": [
+      ".menu-probe.lock",
+      "directory-sd-tests/.graph-batch-sender-fixed-ak4aoaa6.lock"
+    ]
+  },
+  "previous_candidate_not_accepted": "run-wv99y4lx",
+  "previous_candidate_receipt": "graph-batch-first-attempt.json",
+  "source_reviews": {
+    "seventh_P2": "d208 initialP2 then7a701 confirmed CLOSED",
+    "shared8_9_10_and_Get": "ff451 noP1-P3",
+    "audio13_sharedHDMI": "28fee noP1-P3"
+  },
+  "independent_native_review": {
+    "agent": "d847a086-fb42-4378-8b8e-2627bc560790",
+    "result": "no verified P1-P3; accept edges1-10 plus13 virtual control/format and same-run metadata SD",
+    "evaluation_replayed_in_memory_matches_archive": true,
+    "all_302_archived_current_ABI_bound_source_hashes_verified": true,
+    "five_actual_host_sources_and_declared_index_omission_verified": true,
+    "actual_original_AP_sender_and_waiter_verified": true,
+    "exact_67_byte_host_warning_interleaving_and_raw_SHA_verified": true,
+    "same_run_two_exports_and_host_tree_and_existing_locks_verified": true,
+    "in_memory_negative_cases_rejected": 12,
+    "camera_capture_verified": false
+  },
+  "original_CP_executed": false,
+  "original_CP_page_tables_verified": false,
+  "original_RTOS_scheduler_verified": false,
+  "original_CP_command_list_verified": false,
+  "PCM_verified": false,
+  "hardware_verified": false,
+  "frames_verified": false,
+  "CMOS_verified": false,
+  "JPEG_files": 0,
+  "MP4_files": 0,
+  "capture_verified": false
+}

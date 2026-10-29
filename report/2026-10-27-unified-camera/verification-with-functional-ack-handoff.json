@@ -1,0 +1,62 @@
+{
+  "scope": "Frozen functional-camera batch after native ACK handoff and orderly-shutdown repairs; original AP media acceptance remains pending",
+  "profile": "virtual-functional-camera-v1",
+  "batch": "runtime/analysis/scratch/unified-camera-d5lt_67f",
+  "regression": {
+    "returncode": 0,
+    "tests_passed": 3771,
+    "subtests_passed": 528,
+    "modules": 159,
+    "production_inputs": 426,
+    "all_unique_inputs": 861,
+    "changed": {"production": [], "host": [], "observer": [], "test": []}
+  },
+  "ready_sha256": "f36f01c13d00e049b014fceb6d67509a73128f23a503d548b5463310349a4278",
+  "inputs_sha256": "ee0b906a4f7f8ca04b63e0520ccc7b3e64d4dd867d67d08f02e3b13caef0d347",
+  "regression_sha256": "1c01f723579de1bb9fe3fee59ecdaeb55f943dfcb091ba276807c080110eaa26",
+  "abi_sha256": "1a29a2e83c72e5532aac0b9b590816b7a8a930cb5cdb86cfbe8241a000c7d7a9",
+  "all_input_archive_sha256": "a6ae880504237b9dd87156e02e10409fff616d6a2a9ea226bf76e7a5977995a0",
+  "observer_sha256": "038b87d4bd4ab38413db9d296962538c1157f5a4616d438fc03690663f52b76c",
+  "observer_source_archive_sha256": "bd89ecfaa498c93d739d5c722e676a9483f7a943f3aa8c7c151b3e4dd4a7562c",
+  "functional_model_library_sha256": "93834a9576bac45ad9b29b12e9a7edd412a581f7b7aefa9615212507fdf58756",
+  "functional_model_source_archive_sha256": "346cc080d275848569b98d1326184460587fa17d87d82fd3560430b44b153038",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "original_libc_ABI": {"returncode": 0, "media_returncode": 0, "media_LD_BIND_NOW": true},
+  "repairs": [
+    "Accept the actual imaging-worker ACK receive and retain immutable event tickets through promise handoff; ACK free still requires the original requesting thread",
+    "Functional UI close uses the existing control channel, then waits for broker CLOSED/DETACHED before owned VM exit; active or incomplete native media retains ownership",
+    "Index start-menu.py and actual functional SDK libraries; freeze the natural GTK driver and include menu_control lifecycle tests",
+    "Renew only the changed host controller source pin after reviewing its lifecycle-only diff; preserve firmware and input-wire pins"
+  ],
+  "retained_native_failures": [
+    {"run": "runtime/analysis/menu-runs/run-vs3nvfqy", "result": "GTK DOWN receipt mismatch; original press/release observed; no encoded media"},
+    {"run": "runtime/analysis/menu-runs/run-xpwm7k0g", "result": "Original CP3003 reached model INIT but ACK receive fault blocked progress; only database files exported; VM exited before broker detached", "safe_to_close": false, "mailbox_detached": false}
+  ],
+  "retained_failed_batch": "runtime/analysis/scratch/unified-camera-7nwia0us",
+  "native_attempt": {
+    "status": "completed; automation returncode 0, native capture failed",
+    "run": "runtime/analysis/menu-runs/run-epi38kew",
+    "returncode": 0,
+    "selected_image_sha256": "34f47dbd32da9d50c6e4f7b7d27edd0f1b277368fbcb651bc6deb549dd4fbfe7",
+    "startup_ACK": {"sender_tid": 379, "receiver_tid": 354, "free_tid": 379, "original_free_rc": 0, "start_complete": true, "faults": 0},
+    "mode1_requests": 0,
+    "exported_files": ["private/m4root/mediapro.xml", "private/database/database.bin"],
+    "JPEG_or_MP4_exported": false,
+    "safe_to_close": true,
+    "mailbox_detached": true,
+    "negative_receipt": "runtime/analysis/scratch/functional-refusal-run-epi38kew.json",
+    "graph_receipt": "runtime/analysis/scratch/functional-graph-run-epi38kew.json",
+    "cleanup_receipt": "runtime/analysis/scratch/functional-cleanup-run-epi38kew.json",
+    "remaining": "No post-3003 mode1 or original codec request; missing media/source/Fsys/decode joins. Graph checker also rejects an unrelated legacy OBS reason token; its failure is preserved for a later fix.",
+    "driver": "runtime/analysis/scratch/run-functional-current-batch.py",
+    "intent": "runtime/analysis/scratch/functional-native-intent-5sv3ljht/intent.json",
+    "host_card": "runtime/analysis/directory-sd-tests/functional-native-ubzzcewx",
+    "background_task": "b90b1d3a13e424634a99538acbb8f6e6a",
+    "automation_scope": "original natural GTK shutter, native control/memory/codec tracing, original MPR/Fsys export and orderly close; complete movie UI automation remains pending"
+  },
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_executed": false,
+  "original_CP_RAM_verified": false,
+  "original_RTOS_verified": false
+}

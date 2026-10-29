@@ -1,0 +1,81 @@
+--- before/functional-jpeg-codec.c
++++ after/functional-jpeg-codec.c
+@@ -156,7 +156,7 @@
+ static int separate(uintptr_t a, size_t an, uintptr_t b, size_t bn) {
+     return span(a, an) && span(b, bn) && (a + an <= b || b + bn <= a);
+ }
+-static int writable(void *pointer, size_t bytes) {
++static int memory_access(const void *pointer, size_t bytes, int need_write) {
+     uintptr_t next = (uintptr_t)pointer;
+     if (!span(next, bytes)) return -EFAULT;
+     FILE *f = fopen("/proc/self/maps", "r");
+@@ -168,22 +168,25 @@
+         if (jpeg_scan_maps(line, "%lx-%lx %4s", &lo, &hi, permissions) != 3) continue;
+         if (next < lo) break;
+         if (next >= hi) continue;
+-        if (permissions[0] != 'r' || permissions[1] != 'w') break;
++        if (permissions[0] != 'r' || (need_write && permissions[1] != 'w')) break;
+         next = hi < end ? hi : end;
+     }
+     int rc = next == end ? 0 : -EFAULT;
+     if (fclose(f) && !rc) rc = -errno;
+     return rc;
+ }
+-/* Source objects can be invalid on an error path: do not speculatively memcpy. */
++/* /proc/self/mem bypasses PROT_NONE; check ordinary read access before bounded pread.
++ * Source owners must still keep mappings alive; this check is not a lifetime pin. */
+ static int read_object(const void *pointer, void *out, size_t bytes) {
+     uintptr_t p = (uintptr_t)pointer;
+     if (!span(p, bytes) || p > INT64_MAX || bytes > INT64_MAX - p) return -EFAULT;
+-    int saved = errno, fd = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
+-    if (fd < 0) { int rc = -errno; errno = saved; return rc; }
++    int saved = errno, rc = memory_access(pointer, bytes, 0);
++    if (rc) { errno = saved; return rc; }
++    int fd = open("/proc/self/mem", O_RDONLY | O_CLOEXEC);
++    if (fd < 0) { rc = -errno; errno = saved; return rc; }
+     ssize_t n;
+     do { n = pread(fd, out, bytes, (off_t)p); } while (n < 0 && errno == EINTR);
+-    int rc = n == (ssize_t)bytes ? 0 : n < 0 ? -errno : -EFAULT;
++    rc = n == (ssize_t)bytes ? 0 : n < 0 ? -errno : -EFAULT;
+     if (close(fd) && !rc) rc = -errno;
+     errno = saved;
+     return rc;
+@@ -581,9 +584,9 @@
+     if (!atomic_load_explicit(&enabled, memory_order_acquire) ||
+         destination != FUNCTIONAL_JPEG_CODEC_SID) return 0;
+     int rc = process_guard();
+-    if (rc) { if (result && !writable(result, sizeof *result)) *result = rc; return 1; }
++    if (rc) { if (result && !memory_access(result, sizeof *result, 1)) *result = rc; return 1; }
+     if (!current) return 0;
+-    if (writable(result, sizeof *result)) return 0;
++    if (memory_access(result, sizeof *result, 1)) return 0;
+     struct full_imaging_io transport;
+     if (read_object(io, &transport, sizeof transport) || !valid_io(&transport)) return rejected(-EINVAL, result);
+     uint8_t packet[PACKET_BYTES];
+@@ -645,7 +648,7 @@
+         j.lease.bytes > j.lease.span.capacity - j.lease.span.offset ||
+         j.lease.span.offset > UINTPTR_MAX - j.lease.span.virtual_base ||
+         j.lease.address != j.lease.span.virtual_base + j.lease.span.offset ||
+-        !span(j.lease.address, j.lease.bytes) || writable((void *)j.lease.address, j.lease.bytes) ||
++        !span(j.lease.address, j.lease.bytes) || memory_access((void *)j.lease.address, j.lease.bytes, 1) ||
+         !separate(j.lease.address, j.lease.bytes, (uintptr_t)request, sizeof packet) ||
+         !separate(j.lease.address, j.lease.bytes, (uintptr_t)current->object, object_bytes(current->kind)) ||
+         !separate(j.lease.address, j.lease.bytes, (uintptr_t)current->manager, 0x20) ||
+@@ -753,7 +756,7 @@
+     if (slot != expected) return -ELIBBAD;
+     void *config = NULL;
+     if (original.get_pointer(j->native.control, 0x1048, &config) || !config ||
+-        (j->config && j->config != config) || writable(config, 0x78) ||
++        (j->config && j->config != config) || memory_access(config, 0x78, 1) ||
+         !separate((uintptr_t)config, 0x78, j->lease.address, j->lease.bytes) ||
+         !separate((uintptr_t)config, 0x78, (uintptr_t)j->native.object, 0x28) ||
+         !separate((uintptr_t)config, 0x78, (uintptr_t)j->completion.object, 0x28) ||
+@@ -1026,7 +1029,7 @@
+ int functional_jpeg_codec_snapshot(struct functional_jpeg_codec_snapshot *out) {
+     pid_t pid = atomic_load_explicit(&owner, memory_order_acquire);
+     if (pid && pid != getpid()) return -ECHILD;
+-    int rc = writable(out, sizeof *out);
++    int rc = memory_access(out, sizeof *out, 1);
+     if (rc) return rc;
+     pthread_mutex_lock(&lock); memcpy(out, &stats, sizeof stats); pthread_mutex_unlock(&lock);
+     return 0;

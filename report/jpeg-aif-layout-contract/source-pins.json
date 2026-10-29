@@ -1,0 +1,22 @@
+{
+  "scope": "public same-encoder input address-source and RMW fields; component byte order unresolved",
+  "artifact": "runtime/analysis/menu-root/system/av-cam.bin",
+  "bytes": 13797088,
+  "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+  "windows": [
+    {"raw_hex": "2acb14", "bytes": 472, "sha256": "cb579d5766d0e0f12a279a6d09f83524f5251335110a989c68911e29deae8cb9"},
+    {"raw_hex": "2aab4c", "bytes": 32, "sha256": "73258cf0fe0ae11e77f760396c592a4308fd532288400a0a78c139349d2bbbad"},
+    {"raw_hex": "2aaaf0", "bytes": 68, "sha256": "76dcd32571e58313c00a2e3a75be139aa4f6ea3837fea118c221585b2d5b5c77"},
+    {"raw_hex": "2a52fc", "bytes": 264, "sha256": "42fedf573f893a2bc0ba7211b1176819cd03c41d14b8c754ea57b7d8c489de6e"},
+    {"raw_hex": "2af620", "bytes": 120, "sha256": "59136d40090e87d123181c436b9b3796467a36fd61d2f4133357a28d9917517c"},
+    {"raw_hex": "2af698", "bytes": 432, "sha256": "37a9c905a328da8682ccc6a667a3a1a1acd56fce24e809cd6dda6a29c67b65b2"},
+    {"raw_hex": "2a5404", "bytes": 260, "sha256": "cc84f2f6dd1765237658816528413e90192fe4b82a4a0da0dd6f9dc48c9b594f"},
+    {"raw_hex": "2a4650", "bytes": 284, "sha256": "4db52facc17f269b5b14dd07dbbb5f0498e80aa636ee9a9d5b18fe234772bab3"},
+    {"raw_hex": "2aa684", "bytes": 40, "sha256": "52d7dcc4063db250999657afe7b63ec44f87f8c129bd9da4a47e9d5e45ecc98a"}
+  ],
+  "window_count": 9,
+  "window_bytes": 1972,
+  "pixel_layout_known": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false
+}

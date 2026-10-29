@@ -1,0 +1,131 @@
+{
+  "scope": "immutable failed native-prefix content index;not current-source re-evaluation or complete camera acceptance",
+  "observed_at_ns": 1793248816976157851,
+  "run": "run-52od7asp",
+  "frozen_batch_used": "unified-camera-9js4cyzh",
+  "batch_tests": 4260,
+  "batch_subtests": 2838,
+  "six_original_VDF_reply_consumptions": [
+    {
+      "console_line": 15152,
+      "cycle": 1,
+      "pid": 258,
+      "tid": 381,
+      "source": 2177851844,
+      "config_generation": 2,
+      "frame_generation": 2,
+      "AP_consumed": true,
+      "faults": 0
+    },
+    {
+      "console_line": 15218,
+      "cycle": 2,
+      "pid": 258,
+      "tid": 381,
+      "source": 2177851846,
+      "config_generation": 3,
+      "frame_generation": 3,
+      "AP_consumed": true,
+      "faults": 0
+    },
+    {
+      "console_line": 15249,
+      "cycle": 3,
+      "pid": 258,
+      "tid": 381,
+      "source": 2177851846,
+      "config_generation": 4,
+      "frame_generation": 4,
+      "AP_consumed": true,
+      "faults": 0
+    },
+    {
+      "console_line": 15279,
+      "cycle": 4,
+      "pid": 258,
+      "tid": 381,
+      "source": 2177851846,
+      "config_generation": 5,
+      "frame_generation": 5,
+      "AP_consumed": true,
+      "faults": 0
+    },
+    {
+      "console_line": 15328,
+      "cycle": 5,
+      "pid": 258,
+      "tid": 381,
+      "source": 2177851846,
+      "config_generation": 6,
+      "frame_generation": 6,
+      "AP_consumed": true,
+      "faults": 0
+    },
+    {
+      "console_line": 15401,
+      "cycle": 6,
+      "pid": 258,
+      "tid": 378,
+      "source": 2157207945,
+      "config_generation": 7,
+      "frame_generation": 7,
+      "AP_consumed": true,
+      "faults": 0
+    }
+  ],
+  "original_0141_global_binding": {
+    "console_line": 15361,
+    "pid": 258,
+    "tid": 378,
+    "source": 2157207945,
+    "caller_pc": 546660679484,
+    "global_va": 152107568,
+    "source_match": true,
+    "readback_verified": true,
+    "bind_rc": 0
+  },
+  "original_mode1_transport": {
+    "console_line": 15388,
+    "pid": 258,
+    "tid": 380,
+    "faults": 0,
+    "transport_mode1_complete": true
+  },
+  "AP_mode1_business_completed": false,
+  "failure": {
+    "function_VA": "0x3549328",
+    "strict_converter_VA": "0x352a094",
+    "assert_source_line": "0xb9a",
+    "subpacket_command": "0x20a6",
+    "full_offset": "0x664",
+    "word": 0,
+    "half": 0,
+    "reason": "zero tuple not present in original 73-entry shutter table;data freed before AP conversion failure",
+    "original_full_bytes": 1748,
+    "original_full_sha256": "1116c69d00ce3ee55f85758d70d368ae43d726161fed323b78363f4988b35484"
+  },
+  "recovery": {
+    "QMP_quit_commands": 1,
+    "QEMU_signals": 0,
+    "same_generation_exit_verified": true,
+    "broker_safe_to_close": true,
+    "preservation_receipt_sha256": "671d984ad71d6b22711b5d81feecfb681f4c702f09b68e2816cfa7693f45d3cd",
+    "resources_released_receipt_sha256": "be0e40dd4ef49db015b89911d0ec3102043fc23ffc42bd1b3509efbfac425cd9",
+    "host_visible_card_copy_verified": true,
+    "original_Fsys_save_verified": false,
+    "old_card_reusable": false
+  },
+  "raw_evidence_sha256": {
+    "menu-runs/run-52od7asp/console.log": "17aa9fd7e8180939d7c1032115d310e66f6994309c41e771bf719a774b945a3e",
+    "menu-runs/run-52od7asp/runtime-manifest.json": "fbf07a95dba4599a81a6164849738c4d6f1fb3b960596fc97b11fb4755d61334",
+    "menu-runs/run-52od7asp/functional-camera-runner.json": "3100813436fedacdb56b143e7921982aa461e2c117b4f8ff960cce7d1aab0911",
+    "menu-runs/run-52od7asp/selected-initramfs-retention.json": "17e02026fdd430199fa182e81e8722c7f1a20a6977e0e7a472ebc5c334831ba9"
+  },
+  "new_BB_histogram_clock_Main_code_validated_by_this_run": false,
+  "histogram_UI_verified": false,
+  "original_JPEG_or_MP4_produced": false,
+  "capture_verified": false,
+  "physical_ASIC_compatibility_verified": false,
+  "overall_verified": false,
+  "failure_receipts_modified": false
+}

@@ -1,0 +1,21 @@
+{
+  "run": "run-oow6rsz4",
+  "console_sha256": "ba8f7b308eb3913c7ae2e9cd9a2e2ef31d27ccb504b7eb51b1ff37d0fcfd6e3f",
+  "runtime_manifest_sha256": "f4775dc3d2263350b57fc904193eb18b85f54db521c7c96aab48343254fcf55c",
+  "summary_sha256": "7b31de34f66d0a837eaf118326755a7129606c689c6d848922614a768d85cf88",
+  "drawinfo_get_verified": true,
+  "registry_objects": 2,
+  "keys": [6, 1, 0],
+  "owner_sid": "0x928d0783",
+  "pin_state": 1,
+  "caller_tid": 325,
+  "reply_destination": "0x81cf61c8",
+  "reply_pointer": "0x7f7a246b40",
+  "lease": 1,
+  "request_free_rc": 0,
+  "original_waiter_free_rc": 0,
+  "connect_verified": false,
+  "drawing_verified": false,
+  "camera_startup_verified": false,
+  "next_query": {"destination": "0x909a015a", "keys": [4, 1, 0]}
+}

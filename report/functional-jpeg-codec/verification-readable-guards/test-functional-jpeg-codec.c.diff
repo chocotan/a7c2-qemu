@@ -1,0 +1,102 @@
+--- before/test-functional-jpeg-codec.c
++++ after/test-functional-jpeg-codec.c
+@@ -31,7 +31,7 @@
+ static uint8_t comp_object[0x28], config_copy[0x78], config_store[0x78], *native_config=config_store;
+ static uintptr_t control_vtable[22];
+ static uint8_t dmm_completion[32], previous_ack[16];
+-static int main_kind, comp_execs, entry_origin=1, reentries, comp_notes, config_notes;
++static int main_kind, comp_execs, entry_origin=1, reentries, comp_notes, config_notes, unreadable_entry;
+ static uint8_t selector, quality_code;
+ static uint8_t *arena;
+ static struct fcam_model *model;
+@@ -83,6 +83,13 @@
+ static uint32_t sdk_qid(void *p) { return get32((const uint8_t *)p+8); }
+ static uint32_t sdk_exec(void *p, const uint8_t *trigger) {
+     assert(p==object); ++native_execs;
++    if(unreadable_entry){
++        fprintf(stderr,"UNREADABLE_ENTRY scenario=%s native_execs=%d borrow_count=%d requests_freed=%d"
++            " release_count=%d serialized_writes=%d bridge_stills=%u send_calls=%d\n",
++            scenario,native_execs,borrow_count,requests_freed,release_count,
++            (int)serialized_writes,bridge_stills,send_calls);
++        assert(!unreadable_entry);
++    }
+     if(main_kind){
+         assert(trigger);if((int16_t)half(trigger+2))return 1;
+         assert(trigger==dmm_completion);
+@@ -539,18 +546,28 @@
+     void *object_mapping=NULL,*trigger_mapping=NULL,*config_mapping=NULL;
+     size_t page=(size_t)sysconf(_SC_PAGESIZE);
+     const uint8_t *trigger=dmm_completion;
+-    if(!strcmp(scenario,"main-small-object") || !strcmp(scenario,"main-short-object")){
++    if(!strcmp(scenario,"main-small-object") || !strcmp(scenario,"main-short-object") ||
++        !strcmp(scenario,"main-noaccess-object") || !strcmp(scenario,"main-readonly-object") ||
++        !strcmp(scenario,"main-rx-object") || !strcmp(scenario,"main-split-object")){
+         object_mapping=mmap(NULL,2*page,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+-        assert(object_mapping!=MAP_FAILED && !munmap((uint8_t *)object_mapping+page,page));
+-        size_t bytes=!strcmp(scenario,"main-small-object")?0x28:0x20;
+-        object=(uint8_t *)object_mapping+page-bytes;memcpy(object,object_store,bytes);
+-    }
+-    if(!strcmp(scenario,"main-dmm-failed") || !strcmp(scenario,"main-dmm-short")){
++        assert(object_mapping!=MAP_FAILED);
++        int split=!strcmp(scenario,"main-split-object"),short_object=!strcmp(scenario,"main-short-object");
++        object=(uint8_t *)object_mapping+page-(split || short_object?0x20:0x28);
++        memcpy(object,object_store,short_object?0x20:0x28);
++        assert(!mprotect((uint8_t *)object_mapping+page,page,split?PROT_READ:PROT_NONE));
++        unreadable_entry=short_object || !strcmp(scenario,"main-noaccess-object");
++        if(!strcmp(scenario,"main-noaccess-object"))assert(!mprotect(object_mapping,page,PROT_NONE));
++        if(!strcmp(scenario,"main-readonly-object"))assert(!mprotect(object_mapping,page,PROT_READ));
++        if(!strcmp(scenario,"main-rx-object"))assert(!mprotect(object_mapping,page,PROT_READ|PROT_EXEC));
++    }
++    if(!strcmp(scenario,"main-dmm-failed") || !strcmp(scenario,"main-dmm-short") ||
++        !strcmp(scenario,"main-noaccess-trigger")){
+         trigger_mapping=mmap(NULL,2*page,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);
+-        assert(trigger_mapping!=MAP_FAILED && !munmap((uint8_t *)trigger_mapping+page,page));
++        assert(trigger_mapping!=MAP_FAILED && !mprotect((uint8_t *)trigger_mapping+page,page,PROT_NONE));
+         uint8_t *short_trigger=(uint8_t *)trigger_mapping+page-4;
+         memset(short_trigger,0,4);store16(short_trigger+2,!strcmp(scenario,"main-dmm-failed")?0xffff:0);
+-        trigger=short_trigger;
++        trigger=short_trigger;unreadable_entry=strcmp(scenario,"main-dmm-failed")!=0;
++        if(!strcmp(scenario,"main-noaccess-trigger"))assert(!mprotect(trigger_mapping,page,PROT_NONE));
+     }
+     if(!strcmp(scenario,"main-bad-trigger"))trigger=(const uint8_t *)(uintptr_t)1;
+     if(!strcmp(scenario,"main-vptr"))object[0]^=1;
+@@ -574,13 +591,19 @@
+         functional_jpeg_test_unlock_owner();assert(!native_execs && !borrow_count);
+         goto idle_cleanup;
+     }
+-    const char *rejected[]={"main-short-object","main-dmm-short","main-bad-trigger","main-vptr","main-selector",
++    const char *rejected[]={"main-short-object","main-dmm-short","main-noaccess-object","main-noaccess-trigger",
++        "main-bad-trigger","main-vptr","main-selector",
+         "main-caller","main-range","main-quality","main-option","main-option2","main-soi","main-zero","main-primary",
+         "main-screen-zero","main-screen-primary","main-primary-mismatch",
+         "main-overflow","main-malformed","main-request-size","main-missing","main-alias","main-lease-offset","main-readonly",
+         "main-request-release","main-dmm-failed"};
+     for(size_t i=0;i<sizeof rejected/sizeof *rejected;i++)if(!strcmp(scenario,rejected[i])){
+-        assert(fixture_main_entry(object,trigger)==(!strcmp(scenario,"main-dmm-failed")?1:0x201));
++        errno=EDOM;
++        uint32_t native_result=fixture_main_entry(object,trigger);
++        assert(native_result==(!strcmp(scenario,"main-dmm-failed")?1:0x201));
++        if(unreadable_entry){
++            assert(errno==EFAULT && !native_execs && !borrow_count && !release_count);
++        }else if(!strcmp(scenario,"main-dmm-failed"))assert(errno==EDOM && native_execs==1 && !borrow_count);
+         assert(!requests_freed && !bridge_stills && !send_calls && !serialized_writes);
+         struct functional_jpeg_codec_snapshot s;assert(!functional_jpeg_codec_snapshot(&s));
+         if(!strcmp(scenario,"main-request-release")){
+@@ -700,13 +723,14 @@
+     free(retained_reply);
+     while(queue_first){struct message *p=queue_first;queue_first=p->next;free(p);}
+     if(config_mapping)assert(!munmap(config_mapping,page));
+-    if(object_mapping)assert(!munmap(object_mapping,page));
++    if(object_mapping)assert(!munmap(object_mapping,2*page));
++    if(trigger_mapping)assert(!munmap(trigger_mapping,2*page));
+     assert(!munmap(arena,ARENA_SIZE));return 0;
+ idle_cleanup:
+     assert(!functional_jpeg_codec_shutdown());
+ mapped_cleanup:
+-    if(object_mapping)assert(!munmap(object_mapping,page));
+-    if(trigger_mapping)assert(!munmap(trigger_mapping,page));
++    if(object_mapping)assert(!munmap(object_mapping,2*page));
++    if(trigger_mapping)assert(!munmap(trigger_mapping,2*page));
+     assert(!munmap(arena,ARENA_SIZE));return 0;
+ }
+ int main(int argc,char **argv) {

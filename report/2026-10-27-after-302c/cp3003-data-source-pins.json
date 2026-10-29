@@ -1,0 +1,48 @@
+{
+  "scope": "3003 four data-byte source gap; no data-provider implementation or run acceptance",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "pins": [
+    {
+      "CP_VA": 11722128,
+      "bytes": 176,
+      "raw_offset": 10640784,
+      "label": "pointer-table-getter",
+      "sha256": "dc55ba1b539fee7c65d120c9953cbed30a9356ec97dbb81970354a2ad811f94a"
+    },
+    {
+      "CP_VA": 10787264,
+      "bytes": 164,
+      "raw_offset": 9705920,
+      "label": "fourth-field-cache-override",
+      "sha256": "49b79f2fd8a51c40834254b541417c1ea630203055f1ff6a758095cd49dda894"
+    },
+    {
+      "CP_VA": 11110448,
+      "bytes": 152,
+      "raw_offset": 10029104,
+      "label": "fourth-field-predicate",
+      "sha256": "6651cea51254c1d42250da3457e53ab64b4a08060a32cc2f92eec6502f7605f7"
+    },
+    {
+      "CP_VA": 11725774,
+      "bytes": 220,
+      "raw_offset": 10644430,
+      "label": "subobject-pointer-constructor",
+      "sha256": "a2e2211414b27928ebe8ae507cf6d4539ab2b9834d9d4163123b8d105c34b358"
+    },
+    {
+      "CP_VA": 11081452,
+      "bytes": 78,
+      "raw_offset": 10000108,
+      "label": "predicate-Q-clear-update",
+      "sha256": "3bf135002c17bd6e5151a8c58c3be7418248a205a7370ec3c774dcc9425347f5"
+    }
+  ],
+  "known_virtual_provider_fields": 0,
+  "required_provider_fields": 4,
+  "first_three_fields": "root+3ec6/3ec7/3ec8 via pointertable+34=root+3e80",
+  "fourth_field": "a9885e predicate followed by M/C override-cache selection in a499f4; inputs/history unknown",
+  "BSS_not_used_as_file_data": true,
+  "zero_success_reply_allowed": false,
+  "capture_verified": false
+}

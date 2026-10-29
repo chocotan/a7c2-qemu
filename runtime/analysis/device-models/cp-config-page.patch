@@ -1,0 +1,19 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -3292,6 +3292,16 @@
+ 
+     create_pcie(vms);
+ 
++    if (g_getenv("QEMU_SONY_RC") && g_getenv("QEMU_SONY_PCIDMA")) {
++        DeviceState *control = qdev_new("sony-regfile");
++        SysBusDevice *sbd = SYS_BUS_DEVICE(control);
++        object_property_add_child(OBJECT(vms), "sony-f280-control", OBJECT(control));
++        qdev_prop_set_uint64(control, "size", 0x1000);
++        qdev_prop_set_uint64(control, "log-base", 0xf2800000);
++        sysbus_realize_and_unref(sbd, &error_fatal);
++        memory_region_add_subregion_overlap(sysmem, 0xf2800000,
++            sysbus_mmio_get_region(sbd, 0), 8);
++    }
+     /* Local Sony experiment: model the CXD900xx PCIe controller's embedded DMA
+        engine (eDMA) at its real address 0xf7380000 (PCIe ctrl 0xF7000000 +
+        DMA_OFFSET 0x380000) so the original pcidma UDIF driver -- compile-time

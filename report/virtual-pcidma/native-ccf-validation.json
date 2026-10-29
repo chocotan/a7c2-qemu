@@ -1,0 +1,63 @@
+{
+  "status": "PASS_ORIGINAL_CCF_SEVEN_PCIE_CLOCKS_ONLY",
+  "binary_sha256": "4bc13601cca24666b897de9c7d36f4a9b30fd234099b41575563efc669a42c64",
+  "client_sha256": "057c296ae2064d5f15900d7a0d8136869f74fe078592a779462050d4b6b5976a",
+  "original_provider_and_consumer_binding_verified": true,
+  "original_clock_api_rows": [
+    [
+      62,
+      99000000,
+      0,
+      1,
+      0
+    ],
+    [
+      63,
+      396000000,
+      0,
+      1,
+      0
+    ],
+    [
+      64,
+      396000000,
+      0,
+      1,
+      0
+    ],
+    [
+      65,
+      396000000,
+      0,
+      1,
+      0
+    ],
+    [
+      66,
+      1000000,
+      0,
+      1,
+      0
+    ],
+    [
+      29,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      30,
+      0,
+      0,
+      1,
+      0
+    ]
+  ],
+  "actual_gate_set_clear_sequences": 7,
+  "gate30_and_gate80_final_zero": true,
+  "unparented_rate_api_zero_is_not_physical_frequency": true,
+  "trace_sha256": "8f3dd55e30fa2a2307136536b66f5c2aa94256e3fc95bd858f7af2991150fbeb",
+  "cpu_resumed_and_owned_vm_exited": true,
+  "soc_host_phy_link_or_dma_or_capture_verified": false
+}

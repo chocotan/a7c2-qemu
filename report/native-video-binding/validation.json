@@ -1,0 +1,43 @@
+{
+  "scope": "new report/native-video-binding files only; no VM or full-root regression",
+  "native_usable": false,
+  "native_gap_mask": 63,
+  "component_encoded_packets_decoded": 2,
+  "media_storage": "anonymous subprocess pipes and caller-owned memory only",
+  "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider report/native-video-binding/test_native_video_binding.py -q",
+  "final": {
+    "returncode": 0,
+    "pytest_passed": 23,
+    "pytest_failed": 0,
+    "builds": ["strict C11 -Wall -Wextra -Werror -pedantic", "ASAN + UBSAN + leak checking"],
+    "source_windows_verified": 22,
+    "independent_decode": "ffmpeg h264 stdin -> raw RGB stdout; two source-correlated changing frames",
+    "file_hygiene": "all owned text files have final newline and no trailing whitespace"
+  },
+  "prior_failures": [
+    {
+      "returncode": 1,
+      "pytest_passed": 21,
+      "pytest_failed": 2,
+      "child_returncode": -6,
+      "assertion": "result[29] == 0x12",
+      "cause": "synthetic file-offset expected byte index was one too high in the C wire selfcheck, in both builds",
+      "fix": "expected index 28; original protocol implementation unchanged by this correction"
+    },
+    {
+      "check": "owned text whitespace",
+      "returncode": 1,
+      "cause": "generated Capstone no-operand assembly lines had a trailing space",
+      "fix": "normalized only the new assembly evidence text; raw byte hashes unchanged"
+    }
+  ],
+  "unrun": ["parent unified batch", "VM/QEMU build or execution", "full-root regression", "original MPR/Fsys recording", "physical devices or SD"],
+  "native_request": {
+    "destination_sid": "0x8055001f",
+    "explicit_message_source_sid": "0x80c70047",
+    "payload_bytes": 48,
+    "message_id": "0x210",
+    "command_parameter_sizes": {"1": 128, "2": 4, "3": 16},
+    "valid_request_result": "NVIDEO_UNSUPPORTED; no ACK, DMA, encoder dispatch or native publication"
+  }
+}

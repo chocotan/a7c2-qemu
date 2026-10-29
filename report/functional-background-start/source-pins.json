@@ -1,0 +1,60 @@
+{
+  "scope": "Inherited public ALLLANG caller/producer contract, three bounded windows only; no CP business closure or original execution",
+  "coordinate_system": "libObj original ELF VA uses its verified first PT_LOAD; CP VA = raw file offset + 0x108000",
+  "inherited_findings": [
+    "analysis/scratch/functional-qqu-mode-transition-frontier/RESULT.md",
+    "analysis/scratch/functional-camera-background-3006-policy/RESULT.md",
+    "report/cp3006-start/README.md",
+    "report/cp-background-contract/COMPLETION.md"
+  ],
+  "windows": [
+    {
+      "name": "dynamic-caller",
+      "path": "runtime/analysis/menu-root/usr/lib/libObj.so",
+      "file_bytes": 2997608,
+      "file_sha256": "c0897d72a40bf0a161fa7f89e9a34eef4d19e0506c7817a5c11a6f53897cdbbc",
+      "va": "0xed9e0",
+      "file_offset": "0xed9e0",
+      "size": 116,
+      "sha256": "4ec17f616c72fc96b1b3f4aa8ee177697b504ee83619d5e19a9dc34382e101bd",
+      "hex": "4120805240058052f71b00f99db6fd970001003434008052e003142af71b40f9f35341a9f55b42a9fd7bc6a8c0035fd623008052a1430191e003032a020380526000b2724bb4fd9760feff35a14f40b9a02b40f90bb1fd97a12b40f9200080526000b2723f0000393404007939b3fd9720fdff35",
+      "contract": "osal_dynamic_id(0x2a,0x102) actual queue; type0/cmd3006/24B; original send BL at eda4c=39b3fd97, return PC eda50. Caller/base/source provenance is the parent integration obligation."
+    },
+    {
+      "name": "3006-producer",
+      "path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+      "file_bytes": 18090880,
+      "file_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+      "va": "0xb2298c",
+      "file_offset": "0xa1a98c",
+      "size": 40,
+      "sha256": "f4ff7b5d4a05c77f844561ef0a60c10ce4e3102aae6515db6bbb043c3b902ab4",
+      "hex": "13460a4643f2060194f5cab00a4643f21c014ff4704394f5c3b00a4643f20a014ff4704394f5bcb0",
+      "contract": "Inherited family1/event303 reaches b2298c's cmd3006 tail; the bounded surrounding window includes adjacent producers and does not authorize them. 3007/event304 remains separate."
+    },
+    {
+      "name": "common-12-byte-reply",
+      "path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+      "file_bytes": 18090880,
+      "file_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+      "va": "0x4b6b2c",
+      "file_offset": "0x3aeb2c",
+      "size": 128,
+      "sha256": "cd3f987d880ea20363507bb9506db18114bfef3bf47be9fb64a2bc7053c418b8",
+      "hex": "f0b503af2de9000b84b00446984616460d46606898b3304629466af225f1606803a90c2201234ff00109aef055fb38b100211da2cde90001029113a084211be003980121c9f2030135f356f2039981f800904d80c1e901686068adf0d7ff05466db160680399aef0b5fb00200ea29721cde90050029004a00123fff701fd04b0",
+      "contract": "Inherited independent reply allocation12/type1/cmd/opaque original word+4/status, source90030001 and actual request source destination. This prefix is not a whole-function or business completion proof."
+    }
+  ],
+  "wire_policy": {
+    "request_bytes": 24,
+    "request_type": 0,
+    "command": "0x3006",
+    "request_byte1_and_tail": "Opaque, copied and hashed; never named, interpreted or dereferenced",
+    "reply_bytes": 12,
+    "reply_type": 1,
+    "reply_byte1": "Explicit software-defined zero",
+    "reply_word4": "Exact original word+4, any 32-bit value",
+    "reply_status": "0x0000f000 only after actual functional Core INIT128 + coherent STATE128 + cache readback",
+    "sony_physical_business_contract_closed": false
+  }
+}

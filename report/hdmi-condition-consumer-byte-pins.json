@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "scope": "read-only public ALLLANG menu-root; no runtime or camera access",
+  "decision": "No HDMI callback shim: the proven condition receiver polls and frees in task_hdmi.",
+  "callback_binding_proven": false,
+  "original_cp_executed": false,
+  "runtime_observed": false,
+  "hardware_verified": false,
+  "capture_verified": false,
+  "ready_asserted": false,
+  "rea_evidence_id": "ev_1fd6ef2f5c8ac1a2126fd15603a58d8664046c009fc9547ef6c2a15d760e9fc1",
+  "address_rule": "All selected ELF VAs are in original file-backed PT_LOAD regions with VA == file offset; no Ghidra +0x100000 applied.",
+  "artifacts": [
+    {
+      "path": "usr/lib/appFw.so",
+      "bytes": 99960744,
+      "sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+      "pins": [
+        {
+          "id": "AP-receiver-queue-source-and-receive",
+          "elf_va": "0x34e3f90",
+          "file_offset": "0x34e3f90",
+          "bytes": 72,
+          "hex": "d6228052d8028152b7a30191b5c20391f35301a9f96b04a95605b0725839b272fb2b00f9e10317aae003162a02008012bf3700f95fea8597a03740f9d5ed85971f00186b21070054",
+          "sha256": "bc74566dd8f2130facad98158cba8ecba7a33b98d34660a6b6a23af2c20f4f48"
+        },
+        {
+          "id": "AP-original-body-and-same-loop-free",
+          "elf_va": "0x34e406c",
+          "file_offset": "0x34e406c",
+          "bytes": 92,
+          "hex": "600740b9004400511f7c007108020054a16a6038c101003401bc00f02140049133786078000280d25c2fe397130800b9222f8052027c0029620b40b95f000071e2079f1a023000392f31e397a13740f9e003162aa4f08597bcffff17",
+          "sha256": "6e9ead79066971900a7fc59885cde75bd273be0ffe425154213ffa837ac15bf3"
+        },
+        {
+          "id": "AP-task-creation",
+          "elf_va": "0x34e68c0",
+          "file_offset": "0x34e68c0",
+          "bytes": 52,
+          "hex": "41e102b00208805220f004f9e0ffffb000f03d91010080d2ab16089441e102b0f35341a9f55b42a920f404f9fd7bc3a8c0035fd6",
+          "sha256": "d8f65bc5ef6a71a11b450aa737571895b29e8c3b9904aba810d64e8c490a74a9"
+        },
+        {
+          "id": "AP-thread-launcher-storage",
+          "elf_va": "0x36ec288",
+          "file_offset": "0x36ec288",
+          "bytes": 48,
+          "hex": "b40d0390000680d281023591030680526006009b760f01f0a306239b15640329b5120051bfa200711be800a968050054",
+          "sha256": "6dbea0bfef0d049eb7a4c79521c30122d9f5e3b3a8f0826e5549e90b8ee12fca"
+        },
+        {
+          "id": "AP-thread-launcher-create",
+          "elf_va": "0x36ec300",
+          "file_offset": "0x36ec300",
+          "bytes": 32,
+          "hex": "0000009000b00391a03f00f9e0398052a0130179a0a301912ec67d97a13340f9",
+          "sha256": "cb187e55e562b18f954a29d626b3814db836577307278b00450dd59bd7dfefee"
+        },
+        {
+          "id": "AP-0127-subscription-payload",
+          "elf_va": "0x34ecc80",
+          "file_offset": "0x34ecc80",
+          "bytes": 88,
+          "hex": "fd7bbda900a08452fd030091f30b00f9f30301aa81018052a0430079e0248052a047007980018052a04b007920008052a04f0079c02280524005b072a02b00b9a0830091c8e0ff977f0200b9f30b40f9fd7bc3a8c0035fd6",
+          "sha256": "fe7c42e707fd758da1942d102b15732144805052d30f692ad714828452ee6659"
+        },
+        {
+          "id": "AP-condition-mask",
+          "elf_va": "0x4c670f0",
+          "file_offset": "0x4c670f0",
+          "bytes": 32,
+          "hex": "0101010101010100000000000000000001010100000000000000000000000001",
+          "sha256": "e11f87d340dbdd82fdecb98431a9faf636ece34eb91f000f37ea69f7f32e8645"
+        },
+        {
+          "id": "AP-condition-model-map",
+          "elf_va": "0x4c67110",
+          "file_offset": "0x4c67110",
+          "bytes": 64,
+          "hex": "7b0f7c0f7d0f7e0f7f0f800f810f000000000000000000000000000000000000820f830f840f0000000000000000000000000000000000000000000000005a00",
+          "sha256": "468f96ebd4787c92659b7c3c7c78994aec6e55aa1e3d04a88e1d360e57936ef4"
+        }
+      ]
+    },
+    {
+      "path": "usr/lib/libosal_uipc.so",
+      "bytes": 43752,
+      "sha256": "09ebf5980237fc473077dc844763dcb00cba423f431646e3be7c0ca49ea70ff3",
+      "pins": [
+        {
+          "id": "OSAL-local-callback-trampoline",
+          "elf_va": "0x4d38",
+          "file_offset": "0x4d38",
+          "bytes": 76,
+          "hex": "fd7bbda9fd030091f51300f9f50300aa401c40f9f35301a9f40301aaf30302aa6af5ff97820642a9a062009140003fd6601e40f9cdf6ff97f51340f900008052f35341a9fd7bc3a8c0035fd6",
+          "sha256": "a61be5dc70a71fc9aa3737b723d38af32393f821beb01ec1e3e0313ea552ba44"
+        },
+        {
+          "id": "OSAL-kernel-worker-actual-callback",
+          "elf_va": "0x32cc",
+          "file_offset": "0x32cc",
+          "bytes": 76,
+          "hex": "a00240b9e20314aae10316aa96fcff97f303002a1f040031a0010035a20746a9a03b40f940003fd6bf8300b9a00240b9e20314aae10316aab74700f98afcff97f303002a1f040031a0feff34",
+          "sha256": "0431483831116b90e27955215cd986d943232f27509c23299b874034aceba073"
+        },
+        {
+          "id": "OSAL-u-async-registration-ioctl",
+          "elf_va": "0x3cd8",
+          "file_offset": "0x3cd8",
+          "bytes": 72,
+          "hex": "fd7bbaa9fd030091f35301a9b30000d0a4030191f4fe9f92bf7f05a91400b0f273e647f9f51300f9b5c30091a03300b9a48703a9a28f04a9600240b9e20315aae10314aa05faff97",
+          "sha256": "2f6c217bb0b04627a9e76f53a1bc22ec3bccffed4418a93f02f432d47b990b36"
+        },
+        {
+          "id": "OSAL-u-sync-registration-ioctl",
+          "elf_va": "0x3d68",
+          "file_offset": "0x3d68",
+          "bytes": 80,
+          "hex": "fd7bbaa925008052fd030091f35301a9b30000d0a4030191f4fe9f92f51300f9b5c3009173e647f91400b0f2a03300b9a48703a9a28f04a9a55b00b9600240b9e20315aae10314aae0f9ff971f040031",
+          "sha256": "09ca2543214afcc4cdcb5ac0a7216ac26eed0fb0ff3256b0df7d213a71dfb61a"
+        },
+        {
+          "id": "OSAL-sync-registration-local-ABI",
+          "elf_va": "0x5ba8",
+          "file_offset": "0x5ba8",
+          "bytes": 80,
+          "hex": "17380072e403002a40030054640678360004f837f30301aaf40302aaf60303aa16f3ff97f50300aa400400b4e0fffff0b45a02a900e03491e10315aaa00a00f9e003172a750200f9e4f1ff97f303002a",
+          "sha256": "a8ae5b4fbe7c28f68cd5ec9ed81cd4b5d9e89c659a8f241c28d6c6b6a1a71f2a"
+        },
+        {
+          "id": "OSAL-async-registration-local-ABI",
+          "elf_va": "0x6b98",
+          "file_offset": "0x6b98",
+          "bytes": 96,
+          "hex": "07380072f303002a00060054f3097836c006f837fffc0071f60302aaf70301aaf80303aa29070054e003072a3df9ff97f40300aa600700b414efff97f50300aa800700b4e0ffffd0b66202a900e03491a00a00f9f50200f9801e40f92befff97",
+          "sha256": "b61776dd355a29a59e866f2613c64a7f3c0a9f90e86dfa5d79527599005b7200"
+        },
+        {
+          "id": "OSAL-receive-kernel-route",
+          "elf_va": "0x64c0",
+          "file_offset": "0x64c0",
+          "bytes": 12,
+          "hex": "f303002af3067836a0feff37",
+          "sha256": "e1507d63630c5c620199eecddda64d7f00b64b19f688900bafc53fb038885f11"
+        },
+        {
+          "id": "OSAL-receive-u-call",
+          "elf_va": "0x65a0",
+          "file_offset": "0x65a0",
+          "bytes": 16,
+          "hex": "80f0ff97f503002ae003152af92340f9",
+          "sha256": "2b6ac643b1cc182a0d405ba091a1a9ae47fb7b81003248a0c39fc89380f8bdaa"
+        },
+        {
+          "id": "OSAL-free-u-route",
+          "elf_va": "0x6a88",
+          "file_offset": "0x6a88",
+          "bytes": 4,
+          "hex": "7aeeff17",
+          "sha256": "16750bad290fe0838366a67554888ceddb747e55fd3749d31df293545c8023b5"
+        },
+        {
+          "id": "OSAL-real-source-and-size",
+          "elf_va": "0x7e08",
+          "file_offset": "0x7e08",
+          "bytes": 40,
+          "hex": "600000b400805fb8c0035fd6e07f8012c0035fd60000000001401fb8c0035fd600405fb8c0035fd6",
+          "sha256": "872fa5850d6cd1435c6525e6b1063cd6bf7dab5cdd004023c4e8d95acaa1ede4"
+        },
+        {
+          "id": "OSAL-2f40-is-diagnostic",
+          "elf_va": "0x2f40",
+          "file_offset": "0x2f40",
+          "bytes": 52,
+          "hex": "fd7bb8a9fd030091f96b04a91a0040b9f35301a9fb2b00f9fb0300aaf55b02a9f76303a9ba030034190840f9790500b4f50319aa",
+          "sha256": "0a2f714561e2697b2b7f6baac8d9d54107ca92edea0e8ded89f370b0d887a01c"
+        }
+      ]
+    },
+    {
+      "path": "usr/lib/libInfraAvbbc.so",
+      "bytes": 1738760,
+      "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5",
+      "pins": [
+        {
+          "id": "INFRA-RegSyncCb-void-voidptr-voidptr",
+          "elf_va": "0x140b94",
+          "file_offset": "0x140b94",
+          "bytes": 20,
+          "hex": "fd7bbfa9fd0300918982fd97fd7bc1a84b83fd17",
+          "sha256": "d4574b480b17c9568d6941c7d48c095aa4447302a97887e69479e23cda41826d"
+        },
+        {
+          "id": "INFRA-actual-poll-and-metadata",
+          "elf_va": "0x140bec",
+          "file_offset": "0x140bec",
+          "bytes": 48,
+          "hex": "a1230191e003152acb74fd973683fd97f403002a40050035a02740f94275fd97601200b9a02740f97771fd97f603002a",
+          "sha256": "50947ade55692f9d92516e00d842579d52fb20ce3223ae4b1d2f6a328cc4b53b"
+        },
+        {
+          "id": "INFRA-poll-native-free",
+          "elf_va": "0x140d08",
+          "file_offset": "0x140d08",
+          "bytes": 16,
+          "hex": "a12740f9e003152a2085fd97e003142a",
+          "sha256": "051e5db9952598c54f33c34c1ea62a5310cb772e3520e95338cd58c061707cc0"
+        }
+      ]
+    }
+  ]
+}

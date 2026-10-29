@@ -1,0 +1,85 @@
+{
+  "scope": "host histogram owner component only; no VM/model build/core combination/native AP/physical/capture evidence",
+  "scenario_count_per_build": 290,
+  "builds": [
+    "strict C11 Wall Wextra Werror pedantic",
+    "ASan+UBSan, no recovery, leak detection"
+  ],
+  "component_runs": 580,
+  "production_dependency": "undefined fcam_bridge_histogram; no production stub or bridge initialization",
+  "source_windows": 44,
+  "source_bytes_with_overlap": 14624,
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "pytest",
+    "-p",
+    "no:cacheprovider",
+    "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_functional_histogram.py",
+    "-q",
+    "--color=no"
+  ],
+  "returncode": 0,
+  "stdout_hex": "2e2e2e2e2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020205b313030255d0a342070617373656420696e20322e3038730a",
+  "stderr_hex": "",
+  "stdout": "....                                                                     [100%]\n4 passed in 2.08s\n",
+  "stderr": "",
+  "python": "3.14.7",
+  "compiler": "16.2.1",
+  "source_sha256": {
+    "runtime/analysis/device-models/functional-histogram.c": "72a2268f29e4fa468ae10833f30641344acce1c15dc14b5903c70254cf88809b",
+    "runtime/analysis/device-models/functional-histogram.h": "67f797e3d26c390436f4b5dcdf438246be6f5de30e0a06bd0af6fcf2d61937d5",
+    "runtime/analysis/device-models/test-functional-histogram.c": "1d7a80340994c4608affb6ba4fa332f3e30ab198a20f5655c41a43e015694f9b",
+    "runtime/analysis/test_functional_histogram.py": "9b993b233dde0228c32b6de6c3281195839f9c59d3b1d432070afb344d643bf2",
+    "report/functional-histogram/README.md": "4a56ef47e939656e98afdd473765c81dd1c0c8112ba8fcb58f0c9fe15b87d935",
+    "report/functional-histogram/source-pins.json": "c881c5b996482bb2926b90cca21665d4ff0d33a207f5a450152309d060190599"
+  },
+  "initial_fixture_failures": [
+    {
+      "run": 1,
+      "pytest_returncode": 1,
+      "cases": [
+        {
+          "scenario": "inline",
+          "returncode": -6,
+          "reason": "fixture expected AP_consumed false after both successful inline receive/free; corrected assertion to expect true",
+          "stderr_extract": "Assertion `!s.ap_consumed && !s.capture_verified && !s.physical_asic_verified && !s.ui_applied' failed.",
+          "stderr_extract_utf8_hex": "417373657274696f6e206021732e61705f636f6e73756d65642026262021732e636170747572655f76657269666965642026262021732e706879736963616c5f617369635f76657269666965642026262021732e75695f6170706c69656427206661696c65642e"
+        },
+        {
+          "scenario": "foreign-retired-reuse",
+          "returncode": 1,
+          "reason": "fixture overwrote retained request backing before cleanup; cleaned its exclusively owned backing",
+          "stderr_extract": "SUMMARY: AddressSanitizer: 1034 byte(s) leaked in 1 allocation(s).",
+          "stderr_extract_utf8_hex": "53554d4d4152593a204164647265737353616e6974697a65723a20313033342062797465287329206c65616b656420696e203120616c6c6f636174696f6e2873292e"
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "pytest_returncode": 1,
+      "cases": [
+        {
+          "scenario": "receive-only",
+          "builds": [
+            "strict",
+            "asan-ubsan"
+          ],
+          "returncode": -6,
+          "reason": "fixture prefix included receive-only in intentional invalid-receive cases; restricted negative-case matching",
+          "stderr_extract": "Assertion `functional_histogram_observe_receive_cycle(strstr(scenario,\"destination\") ? 42 : D,messages[role].p, strstr(scenario,\"bad-source\") ? D : FUNCTIONAL_HISTOGRAM_SID, (role == 1 ? 12u : 1034u) - (strstr(scenario,\"bad-size\") ? 1u : 0u),&ticket) < 0' failed.",
+          "stderr_extract_utf8_hex": "417373657274696f6e206066756e6374696f6e616c5f686973746f6772616d5f6f6273657276655f726563656976655f6379636c6528737472737472287363656e6172696f2c2264657374696e6174696f6e2229203f203432203a20442c6d657373616765735b726f6c655d2e702c20737472737472287363656e6172696f2c226261642d736f757263652229203f2044203a2046554e4354494f4e414c5f484953544f4752414d5f5349442c2028726f6c65203d3d2031203f20313275203a20313033347529202d2028737472737472287363656e6172696f2c226261642d73697a652229203f203175203a203075292c267469636b657429203c203027206661696c65642e"
+        }
+      ]
+    }
+  ],
+  "core_combination_verified": false,
+  "native_AP_verified": false,
+  "physical_asic_verified": false,
+  "original_CP_FIFO_verified": false,
+  "physical_CP_RTOS_verified": false,
+  "UI_applied": false,
+  "continuous_histogram_verified": false,
+  "capture_verified": false
+}

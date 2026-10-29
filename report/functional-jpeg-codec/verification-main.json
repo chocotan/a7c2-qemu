@@ -1,0 +1,191 @@
+{
+  "status": "PASS_SCOPED_HOST",
+  "implementation": "gpt-6.1-sol; thinking=max",
+  "profile": "virtual-functional-camera-v1",
+  "scope": "Shared Main/MainComp JPEG codec extension in the existing authorized C/H, original C/Python tests and this codec report only",
+  "command_from_delivery_root": "PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider runtime/analysis/test_functional_jpeg_codec.py",
+  "returncode": 0,
+  "passed": 189,
+  "failed": 0,
+  "skipped": 0,
+  "elapsed_seconds": 26.67,
+  "normal_scenarios": 94,
+  "asan_ubsan_scenarios": 94,
+  "original_without_pin_scenarios_retained_per_build": 27,
+  "new_main_scenarios_per_build": 67,
+  "public_source_pin_tests": 1,
+  "public_source_windows": 50,
+  "instruction_anchors": 26,
+  "complete_runtime_api_function_fingerprints": 17,
+  "complete_runtime_scheduler_function_fingerprints": 2,
+  "native_vtable_export_relocations": 6,
+  "independent_pillow_in_memory_decodes": 76,
+  "strict_host_c11": "PASS; -std=c11 -Wall -Wextra -Werror -pedantic",
+  "aarch64_object_compilation": "PASS; existing aarch64-linux-gnu-gcc",
+  "sanitizers": "ASan/UBSan, leak detection and halt-on-error enabled; no sanitizer diagnostics",
+  "real_executed_components": [
+    "existing JPEG codec shared worker and TLS adapter",
+    "existing functional camera bridge",
+    "real functional camera core and virtual CMOS/optics",
+    "real JPEG hardware/codec and result chunk drain/release",
+    "serialized output writes and complete exact leased destination readback"
+  ],
+  "explicit_host_fixtures": [
+    "AArch64 SDK original Exec/Res and Dataflow/OSAL methods represented by source-shaped host ABI fixtures",
+    "mapped current SDS lease provider",
+    "native caller and original binding fixture selection"
+  ],
+  "main_contract_verified_in_host_fixtures": [
+    "exact 0x28-byte Main/MainComp object reads; guarded boundary and malformed vptr/short object refusals",
+    "conditional DMM completion reads; failed s16+2 returns original 1 without model/lease/request interception",
+    "Main and Screen target/primary nonzero geometry; Main target equals primary; no Main State geometry fallback",
+    "all three selector/SOI policies and Main quality codes 0/1/2/6",
+    "Main ACK original return0 remains nonterminal, including error status",
+    "distinct MainComp original Exec required after actual ACK receive and original Main Res consumption",
+    "same ACK argument address/bytes, receiver PID/TID, native caller, manager/control/context/selector association",
+    "identical ACK copy, missing/early/duplicate/expired Comp, wrong caller/fields/object, reentry and fork refusal",
+    "key1047 stable copy separate from key1048 writable pointer",
+    "actual original-shaped MainComp length write/readback for all selectors; error DONE clears it",
+    "readonly/alias/overflow/unsupported option/quality/malformed packet refusal",
+    "exact original receive body/source required for ACK and DONE",
+    "failed send/request free/lease release and wrong native length retain ownership",
+    "real model full JPEG/native no-SOI stream independently decoded only in memory"
+  ],
+  "record_schema": {
+    "common_additions": ["kind", "selector", "comp_object"],
+    "original-maincomp-exec": ["comp_caller", "comp_exec_entry", "previous_ack_hex", "previous_ack_address", "original_result", "native_config", "config_length_offset"],
+    "original-maincomp-config": ["native_config", "config_length_offset", "actual_length", "expected_length", "original_result"],
+    "main_ack_res_entry": "original_base+0x120e64",
+    "main_ack_expected_result": 0,
+    "main_comp_res_entry": "original_base+0x122b44",
+    "adapter_buffer_bytes": 1024,
+    "parent_console_budget_confirmed_by_user_bytes": 4096,
+    "parent_owned_checker_and_indexes_changed": false,
+    "native_reply_free_rc_tracked": false
+  },
+  "preserved_failure_evidence": [
+    {"passed_before_stop": 57, "failure": "Fixture incorrectly expected Main kind on setup sequence0 receipt", "resolution": "Restrict job identity assertion to sequenced receipts"},
+    {"passed_before_stop": 105, "failure": "Missing-Comp fixture incorrectly expected ACK receive rejection", "resolution": "Apply missing-Comp refusal expectation only to DONE"},
+    {"passed_before_stop": 153, "failure": "Tiny-capacity packet fixture did not update original config capacity", "resolution": "Keep packet, stable config copy and writable original config consistent"}
+  ],
+  "intermediate_complete_passes": [175, 181],
+  "files_sha256": {
+    "runtime/analysis/functional-jpeg-codec.c": "95ff9262ccbd54027333f8affb4c44ce910f4ea6b198b1031a8bc8633e7d73f6",
+    "runtime/analysis/functional-jpeg-codec.h": "d49dc12ded0b08962deb72771a3bc772e47d12e8a411c5db8eacdf9943d3f36c",
+    "runtime/analysis/test-functional-jpeg-codec.c": "4e8fcaf6cce8b2e7406d5701d76d5fbc802bf51cf5666b7120eda3c6677bcd8a",
+    "runtime/analysis/test_functional_jpeg_codec.py": "e74aec669cfe69b0c076685a987fd40ffcf369de3914278a85a0193dccf4c027",
+    "report/functional-jpeg-codec/source-pins.json": "1f4c1919c1ee30547f0f5e3f28180e90ff48de565fd6ff819e41ea1d10414cb8",
+    "report/functional-jpeg-codec/README.md": "ce32493c5b1b6d6354f187ca306d437055780d48b788d461b9a5ad2c00fcc35a"
+  },
+  "scope_matrix": {
+    "original_main_aarch64_execution_verified": false,
+    "actual_original_main_request_observed": false,
+    "original_ap_business_consumption_verified": false,
+    "original_input_metadata_pixel_producer_verified": false,
+    "cross_selector_same_sensor_frame_verified": false,
+    "physical_sony_quality_effect_verified": false,
+    "original_mpr_fsys_writer_verified": false,
+    "virtual_sd_independent_decode_verified": false,
+    "original_guest_dual_abi_run_by_worker": false,
+    "full_regression_run_by_worker": false,
+    "vm_run_by_worker": false,
+    "capture_verified": false,
+    "physical_asic_compatible": false
+  },
+  "reply_free_and_main_evidence_followup": {
+    "status": "PASS_SCOPED_HOST",
+    "historical_189_record_above_preserved": true,
+    "source_pins_changed": false,
+    "source_pins_sha256": "1f4c1919c1ee30547f0f5e3f28180e90ff48de565fd6ff819e41ea1d10414cb8",
+    "scope": "Only authorized codec C/H, original C/Python fixtures, codec README/this append, and evidence checker/test/README; parent owns generic OSAL free wiring",
+    "command_from_project_ROOT": "PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider --color=no final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_functional_jpeg_codec.py final/a7c2-re/report/2026-10-17-qemu-native-camera/report/functional-camera-evidence/test_evidence.py --maxfail=1",
+    "returncode": 0,
+    "raw_pytest_output": "........................................................................ [ 22%]\n........................................................................ [ 45%]\n............................................................................................................................................................................ [ 98%]\n....                                                                     [100%]\n320 passed, 4364 subtests passed in 47.17s\n",
+    "passed": 320,
+    "subtests_passed": 4364,
+    "failed": 0,
+    "skipped": 0,
+    "elapsed_seconds": 47.17,
+    "codec_tests": 213,
+    "normal_scenarios": 105,
+    "asan_ubsan_scenarios": 105,
+    "original_94_scenarios_retained_per_build": true,
+    "original_without_pin_scenarios_retained_per_build": 27,
+    "historical_public_source_pin_tests": 1,
+    "actual_C_stdout_to_checker_tests": 2,
+    "evidence_tests": 107,
+    "strict_host_c11": "PASS; -std=c11 -Wall -Wextra -Werror -pedantic",
+    "aarch64_object_compilation": "PASS; existing aarch64-linux-gnu-gcc",
+    "sanitizers": "ASan/UBSan/leak checks passed; only bounded allocator-reuse scenario disables ASan quarantine to exercise actual malloc address reuse",
+    "API": {
+      "declaration": "int functional_jpeg_codec_observe_freed(unsigned int destination, void *pointer, int actual_rc)",
+      "returns": "1 matched actual free0; 0 unclaimed/duplicate/stale; negative matched free failure or owner/reentry error",
+      "errno_preserved": true,
+      "snapshot_layout_unchanged": true,
+      "no_second_free_or_post_free_read": true,
+      "native_reply_free_rc_tracked": true,
+      "free_failure_sticky_retains_lease": true,
+      "parent_must_preserve_original_free_result": true
+    },
+    "record_schema_additions": {
+      "original-freed-ack_and_original-freed-done": ["receiver_pid", "receiver_tid", "reply_address", "response_hex", "reply_hex", "response_source", "response_destination", "free_rc", "lease_generation", "lease_token"],
+      "original-received-ack_and_original-received-done": ["reply_hex"],
+      "original-rescmd-ack_and_original-rescmd-done": ["response_address", "terminal", "lease_released"]
+    },
+    "verified_in_scoped_host_tests": [
+      "real receive snapshot then real free then observer then original-shaped Res; actual free result gates consumption and terminal release",
+      "no free, nonzero free, wrong TID/destination, duplicate/stale/fork, no pending and real malloc ACK/DONE same-address reuse",
+      "Main source 80/104-byte schema, selector/geometry/quality/SOI, independent CompExec and exact ACK argument address/receiver/common identity",
+      "original-shaped MainComp length store and actual 5c/68/74 readback; ACK return0 is nonterminal",
+      "same original Fsys JPEG Main0 primary and exact full Thumb1 JPEG extracted by bounded II/MM EXIF TIFF IFD1 tags0201/0202",
+      "malformed TIFF endian/type/count/offset/length/span, duplicate/overlapping IFD/EXIF, wrong file/source/config and compressed bytes refuse",
+      "actual C logger packets/free/leases and real core376B frame proof/model JPEG joined through explicit HOST_TEST broker/Fsys fixtures",
+      "historical Xsync20a6/3-72, BB/HIST lifecycle and default complete JPEG/H264/drain gates retained"
+    ],
+    "explicit_host_fixture_limits": [
+      "Original AArch64 SDK Exec/Res/OSAL are source-shaped host ABI fixtures",
+      "C stdout checker test maps only the host fixture caller PCs to their source-defined ABI locations; broker/Fsys/INIT are HOST_TEST replay support",
+      "TIFF EXIF media fixtures are host-only real independently decodable JPEGs; they are never native file evidence",
+      "The C stdout test's RGB/encoder376B proof and model JPEG are actual executed core outputs; the combined test remains HOST_TEST and capture acceptance false"
+    ],
+    "preserved_failure_evidence": [
+      {"raw_summary": "1 failed, 86 passed, 91 deselected in 20.08s", "failure": "New failed-DONE-free fixture expected failed free_rc on the preceding ACK", "resolution": "Bind failure assertion to actual ACK/DONE role"},
+      {"raw_summary": "1 failed, 97 deselected in 0.22s", "failure": "configuration_only fixture thumb local uninitialized", "resolution": "Initialize optional thumb before branch; preserve configuration-only path"},
+      {"raw_summary": "1 failed, 207 deselected in 5.10s", "failure": "Independent C stdout replay omitted mandatory broker INIT", "resolution": "Keep mandatory explicit HOST_TEST INIT and replay actual C model token"},
+      {"raw_summary": "1 failed, 207 deselected in 5.47s", "failure": "Verdict fixture omitted mandatory JPEG/MP4 product map", "resolution": "Use existing product schema; HOST_TEST verdict remains false"},
+      {"raw_summary": "1 failed, 6 passed, 426 subtests passed in 1.42s", "failure": "Retained VDF fixture loop overwrote local body name used by new JPEG fixture helper", "resolution": "Use immutable original wire[24:] instead of mutable loop local"},
+      {"raw_summary": "1 failed, 39 passed, 1499 subtests passed in 8.33s", "failure": "Existing refresh source-format assertion expected literal global_va910fa30 after parent shared formatter switched to dynamic %#lx", "resolution": "Test exact current formatter, original command0141 address selection, record route and complete field set; no production VDF change"}
+    ],
+    "intermediate_passes": [
+      "207 passed in 29.91s; codec before actual reuse/fork/stdout additions",
+      "6 passed, 99 deselected, 65 subtests passed in 1.36s; Main/Thumb targeted checker",
+      "6 passed, 207 deselected in 6.98s; actual C stdout/checker plus malloc reuse/fork",
+      "104 passed, 1 deselected, 4297 subtests passed in 14.55s; evidence excluding then-unresolved refresh source assertion"
+    ],
+    "other_checks": {
+      "analysis/sync_repo_scripts.sh --check": "PASS",
+      "git_diff_check": "PASS",
+      "owned_Python_AST_and_whitespace": "PASS",
+      "main_menu_observe_or_parent_wiring_tests_edited_by_worker": false,
+      "VM_debugger_network_signals_hardware_private_data_fullreg_main_model_build": "NOT_RUN"
+    },
+    "files_sha256": {
+      "runtime/analysis/functional-jpeg-codec.c": "3088642ca9e61d3ecb1f5158c0f9daa6dc35c21f838d0fefb4c2d5a0f7ad716b",
+      "runtime/analysis/functional-jpeg-codec.h": "1fd7325d7cb559e5377178074f7f8a2673ae4a13db848c08bc8ad73b2d2adf21",
+      "runtime/analysis/test-functional-jpeg-codec.c": "cc50d9e819a18466471c62f81bcd2b079abd6236ab8b335012e4a77cf4e99192",
+      "runtime/analysis/test_functional_jpeg_codec.py": "5921f54daf8f8b4da0a1997ae8d3baf331b23184c1000ed02765ebfb3352e683",
+      "report/functional-camera-evidence/check_evidence.py": "057980fbfc8e0c310f26a5554edf5630a4ab06cafcf087789a3443010849b796",
+      "report/functional-camera-evidence/test_evidence.py": "0701fbe5daa35e18c603675871c6e3b2b615c0fa3d5e4bb5d063f3ba99cf7624",
+      "report/functional-camera-evidence/README.md": "82b931d3ed98bb9aa4bd1f70f835a30e5a32d9704ec453c46ca6eb0299fbcb7c",
+      "report/functional-jpeg-codec/README.md": "211223e1c3848cce3fdc4cddef310bfb2c3211b27d62e71323d0510c24306fb2"
+    },
+    "scope_matrix": {
+      "original_AArch64_Main_AP_business_consumption_verified": false,
+      "original_MPR_Fsys_virtual_SD_native_capture_verified": false,
+      "cross_selector_same_sensor_frame_verified": false,
+      "screen_MPF_layout_verified": false,
+      "physical_asic_compatible": false,
+      "capture_verified": false
+    }
+  }
+}

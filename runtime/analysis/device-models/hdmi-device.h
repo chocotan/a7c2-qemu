@@ -16,8 +16,12 @@ struct full_hdmi_snapshot {
     unsigned char rates[5], last_rate_payload[4];
     unsigned int rate_known_mask;
     unsigned long long rate_requests;
+    unsigned int audio_pin_connected, audio_pin_connected_known;
+    unsigned long long audio_pin_connected_writes;
+    int audio_pin_connected_owner_pid;
 };
-/* Shared HDMI state configuration only. No cable, output state or frames.
+/* Shared HDMI configuration and the qualified audio-pin connected byte only.
+ * The current HDMI output state remains unknown; no cable, output or frames.
  * send/release/record must not synchronously reenter this module: they run
  * under its state mutex. The observer supplies original OSAL transport and
  * a file/console logger, not model callbacks. allocate runs outside the lock. */
@@ -25,6 +29,9 @@ int full_hdmi_dispatch(unsigned int, void *, const struct full_imaging_io *, int
 int full_hdmi_release_reply(unsigned int, void *, int (*)(unsigned int, void *),
                             void (*)(const char *, const char *), int *);
 void full_hdmi_snapshot(struct full_hdmi_snapshot *);
+/* CP true branches write singleton+0x60 in every state and return no next state.
+ * This one-way operation does not implement disconnected/output control. */
+int full_hdmi_audio_pin_connected_one(void);
 #ifdef FULL_HDMI_TEST
 void full_hdmi_test_reset(void);
 #endif

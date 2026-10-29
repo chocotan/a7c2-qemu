@@ -1,0 +1,15 @@
+{
+  "scope": "host ABI/import checks only, no original DMA yet",
+  "sha256": "a7c97c96ec09f902e168d64a4ee1f801abacdecc551fae4d0ab2b64831d46fc9",
+  "size": 5424,
+  "imports": [
+    "__get_free_pages",
+    "arch_va_to_phys",
+    "dma330_mem_transfer_async",
+    "flush_dcache_all",
+    "free_pages",
+    "msleep",
+    "printk"
+  ],
+  "source_sha256": "08a904f4d4cd740f6e331714f58715ba883c0f9dc3e4e37ce1aed22ee84c4846"
+}

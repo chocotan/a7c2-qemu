@@ -1,0 +1,28 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -3398,6 +3398,21 @@
+             memory_region_add_subregion_overlap(sysmem, cp_periphs[i].base,
+                 sysbus_mmio_get_region(cp_sbd, 0), 4);
+         }
++        if (g_getenv("QEMU_SONY_RC")) {
++            fprintf(stderr, "SONY_RC_REFERENCE_V1 packing=unverified engines=B,C\n");
++            for (unsigned i = 1; i <= 2; i++) {
++                char name[32];
++                snprintf(name, sizeof(name), "sony-rc-reference-%u", i);
++                DeviceState *rc = qdev_new("sony-rc-reference");
++                SysBusDevice *sbd = SYS_BUS_DEVICE(rc);
++                object_property_add_child(OBJECT(vms), name, OBJECT(rc));
++                qdev_prop_set_uint32(rc, "engine", i);
++                sysbus_realize_and_unref(sbd, &error_fatal);
++                memory_region_add_subregion_overlap(sysmem, 0xf30a0000 + i * 0x10000,
++                    sysbus_mmio_get_region(sbd, 0), 8);
++                sysbus_connect_irq(sbd, 0, qdev_get_gpio_in(vms->gic, i + 2));
++            }
++        }
+     }
+     create_cxl_host_reg_region(vms);
+ 
+--- a/hw/misc/meson.build
++++ b/hw/misc/meson.build
+@@ -173,0 +174,1 @@
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony-pcidma/sony_rc.c','sony-pcidma/rc-reference.c','sony-pcidma/rc-identity.c'))

@@ -24,12 +24,16 @@ struct pin_control_snapshot {
     unsigned long long allocations,releases,header_writes;
     unsigned long long shares,consumer_opens,consumer_closes;
     unsigned long long creator_releases,consumer_releases,payload_writes,consumer_reads;
+    unsigned long long creator_closes,creator_transfers;
 };
-/* Two bounded, distinguished references: the creating PinMem lease and one
- * shared VEF lease. These are a new finite policy, not a general Sony DMM.
- * Sharing freezes writes. Each role can release only its own reference; the
- * slot cannot retire until both roles have released it. A consumer close
- * alone leaves the shared owner reference live, as needed for forwarding. */
+/* This finite owner supports two distinguished roles, not general Sony DMM.
+ * The existing PinMem/VEF path shares an open creator, adding a consumer owner;
+ * both roles must release before retirement. Sharing freezes writes. A consumer
+ * close alone preserves its owner reference for reopening or forwarding.
+ * The InfraBB/InfraImaging path instead closes the sole creator's open, then
+ * transfers that same owner to a closed consumer without adding a reference.
+ * Transfer does not count as a share or creator release; the consumer must open
+ * before reading and release its own reference to retire the slot. */
 struct pin_control_references {
     unsigned int handle,owners,opens,creator,consumer,consumer_open;
 };
@@ -40,11 +44,20 @@ int pin_control_open_guest(int);
 int pin_control_allocate(unsigned int,struct pin_control_lease *);
 int pin_control_write_ssyn(unsigned int,unsigned long long *);
 int pin_control_write_payload(unsigned int,const unsigned char *,unsigned int,unsigned long long *);
+/* Closing requires a sole, open creator and preserves its owner. Both closed
+ * and transferred creators refuse writes; only a closed creator can transfer. */
+int pin_control_close_creator(unsigned int);
+int pin_control_transfer_creator(unsigned int,unsigned int);
 int pin_control_share(unsigned int,unsigned int);
 int pin_control_open_consumer(unsigned int,unsigned int,struct pin_control_lease *);
 int pin_control_read_consumer(unsigned int,unsigned int,unsigned char *,unsigned int);
 int pin_control_close_consumer(unsigned int);
+/* Option 2 free closes an open consumer; an already closed consumer is refused. */
 int pin_control_release_consumer(unsigned int);
+/* Option 0 free requires a sole closed consumer; it never closes again.
+ * A transferred, never-opened owner may also be freed. Callers enforce any
+ * required Open/read/Close history before invoking this owner-only operation. */
+int pin_control_release_closed_consumer(unsigned int);
 int pin_control_references(unsigned int,struct pin_control_references *);
 int pin_control_release(unsigned int);
 void pin_control_snapshot(struct pin_control_snapshot *);

@@ -121,6 +121,64 @@ def test_real_fat_multichunk(tmp_path, fat):
     assert (tmp_path/'SD'/result['evidence']/'fsck.txt').is_file()
 
 
+def test_real_ten_gib_sparse_fat_transport(tmp_path):
+    """Host FAT is a unit-test fixture only, never delivered as camera capture evidence."""
+    from sd_sparse import TOTAL, CAP
+    if __import__('shutil').disk_usage(tmp_path).free < 2*TOTAL+sd.RESERVE+CAP:
+        pytest.skip('Conservative export space guard requires 20GiB free')
+    source=tmp_path/'source.img'
+    with source.open('xb') as stream:stream.truncate(TOTAL)
+    subprocess.run(['mkfs.fat','-F','32','-s','64',str(source)],check=True,capture_output=True)
+
+    class SparseVM(VM):
+        def __init__(self):
+            super().__init__(b'')
+            self.fd=os.open(source,os.O_RDONLY)
+            self.maps=0
+
+        def serial(self, command):
+            st=os.fstat(self.fd)
+            stamp=(f'total={TOTAL} dev={st.st_dev} inode={st.st_ino} '
+                   f'mtime={st.st_mtime_ns//10**9}.{st.st_mtime_ns%10**9:09d} '
+                   f'ctime={st.st_ctime_ns//10**9}.{st.st_ctime_ns%10**9:09d}')
+            if command=='/simulation/sd-sparse map':
+                self.maps+=1;rows=['SD_SPARSE_BEGIN '+stamp];cursor=data=count=0
+                while cursor<TOTAL:
+                    try:start=os.lseek(self.fd,cursor,os.SEEK_DATA)
+                    except OSError as error:
+                        import errno
+                        assert error.errno==errno.ENXIO
+                        break
+                    end=os.lseek(self.fd,start,os.SEEK_HOLE)
+                    while start<end:
+                        length=min(CAP,end-start)
+                        rows.append(f'SD_SPARSE_RANGE offset={start} len={length}')
+                        count+=1;data+=length;start+=length
+                    cursor=end
+                rows.append(f'SD_SPARSE_END ranges={count} data={data} allocated={st.st_blocks*512} rc=0')
+                return ('\n'.join(rows)+'\n').encode()
+            offset,length,total=map(int,command.split()[1:])
+            assert total==TOTAL
+            self.window=os.pread(self.fd,length,offset)
+            return (f'SD_EXPORT_READY offset={offset} len={length} '+stamp+
+                    f' fnv64={sd.fnv64(self.window)} rc=0\n').encode()
+
+    vm=SparseVM();destination=tmp_path/'run';destination.mkdir()
+    try:
+        result=sd.export_card(destination,TOTAL,serial_command=vm.serial,qmp=vm.qmp,sparse=True)
+    finally:os.close(vm.fd)
+    assert result['ok'], result
+    assert result['fsck_rc']==0 and vm.maps==2
+    candidate=destination/'SD/card.img'
+    assert candidate.stat().st_size==TOTAL
+    assert candidate.stat().st_blocks*512<64*1024**2
+    assert sum(chunk['len'] for chunk in result['chunks'])<64*1024**2
+    # Independent full logical-byte digest includes all skipped, kernel-attested holes.
+    with source.open('rb') as stream:
+        expected=hashlib.file_digest(stream,'sha256').hexdigest()
+    assert result['sha256']==expected
+
+
 def test_overall_success_waits_for_recovery_even_when_final_report_cannot_be_written(tmp_path,fat):
     from unittest.mock import patch
     from sd_export_lifecycle import export_with_flush_lifecycle

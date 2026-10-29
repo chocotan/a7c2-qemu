@@ -1,0 +1,22 @@
+{
+  "status": "PASS_ORIGINAL_KERNEL_TEST_PCI_ENUM_ONLY",
+  "binary_sha256": "f2ec9a2723e49756c2a052cf68b9df1315a0bba769da265d812c606985b0cbf2",
+  "module_sha256": "2d62cd0c51361b0a91e47e71ffae1e45b098e459cb3eb3dc94d87e8edb36e2d3",
+  "bdf": "0000:01:00.0",
+  "vendor_device": "1b36:0005",
+  "bar0": [
+    "0x10000000",
+    "0x10ffffff"
+  ],
+  "actual_sysfs_and_independent_qmp_agree": true,
+  "guest_native_quirk_control_sequence": true,
+  "rootport_type": 4,
+  "root_mmio_writes": 46,
+  "trace_sha256": "eb38eaa899aba8f0522fb1e9fd6e6196585d568a0813b248aa488e0d017ffa9c",
+  "write_and_read_engines": 0,
+  "irq198_installed": false,
+  "native_initcalls_blacklisted": true,
+  "cpu_resumed_and_owned_vm_exited": true,
+  "original_pcidma_api_or_soc_phy_verified": false,
+  "capture_verified": false
+}

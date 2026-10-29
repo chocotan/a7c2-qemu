@@ -1,0 +1,20 @@
+--- a/hw/intc/arm_gic_common.c
++++ b/hw/intc/arm_gic_common.c
+@@ -27,6 +27,7 @@
+ #include "hw/core/qdev-properties.h"
+ #include "migration/vmstate.h"
+ #include "system/kvm.h"
++#include "sony-gic-readback.inc"
+ 
+ static int gic_pre_save(void *opaque)
+ {
+@@ -231,6 +232,9 @@
+          */
+         s->num_lrs = 4;
+     }
++    if (g_getenv("QEMU_SONY_PCIDMA")) {
++        object_property_add_str(OBJECT(dev), "sony-debug-state", sony_gic_readback, NULL);
++    }
+ }
+ 
+ static inline void arm_gic_common_reset_irq_state(GICState *s, int cidx,

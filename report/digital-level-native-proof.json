@@ -1,0 +1,17 @@
+{
+  "run": "run-dvpe50ts",
+  "virtual_notification_subscription_verified": true,
+  "mode_source": "explicit-virtual-profile",
+  "worker_execution": "inline-virtual",
+  "notification_enabled": 1,
+  "countdown": 30,
+  "caller_tid": 328,
+  "console_sha256": "da11297fc08b9914545cb265d684e193eeb16ee839aec0c3ce413ec711ccb175",
+  "sample_valid": false,
+  "original_cp_task_running": false,
+  "original_backup_mode_verified": false,
+  "angle_events_emitted": 0,
+  "sensor_ready_verified": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

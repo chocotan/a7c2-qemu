@@ -88,6 +88,24 @@ def control_catalog(live_file=False):
     return result
 
 
+def camera_input_module():
+    """Load the delivered bindings without adding a second runtime source copy."""
+    import importlib.util
+    import sys
+    name = 'a7c2_camera_input_bindings'
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[2] / 'report/camera-input-coverage/input_bindings.py'
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+    return sys.modules[name]
+
+
 class FirmwareFault(RuntimeError):
     pass
 
@@ -125,6 +143,14 @@ def connect_in_run(sock, directory, name):
         os.close(fd)
 
 
+def inject_key_tool(queue, source, app32=False):
+    if not app32:
+        return '/simulation/inject-key'
+    if int(queue, 0) != 0x5503e0 or int(source, 0) != 0x5503e0:
+        raise ValueError('App32 injection requires queue/source 0x5503e0')
+    return '/simulation/inject-key --app'
+
+
 def key_command(key,app_input=False,position=None):
     code = KEYS[key]
     route='--app 0x005503e0 0x005503e0' if app_input else '0x807a0020 0x92840747'
@@ -140,6 +166,35 @@ def key_command(key,app_input=False,position=None):
     # The native UI expects 1/0. A 50 ms guest tap avoids firmware auto-repeat.
     return (f'{prefix} 1 0 {source_type}; pressed=$?; sleep 0.05; '
             f'{prefix} 0 0 {source_type}; released=$?; test "$pressed" = 0 && test "$released" = 0')
+
+
+def key_status_command(key, status, app_input=False):
+    if status not in (0, 1):
+        raise ValueError('普通按键状态必须为0或1')
+    route = '--app 0x005503e0 0x005503e0' if app_input else '0x807a0020 0x92840747'
+    source_type = 0 if app_input else 1
+    return f'/simulation/inject-key {route} {KEYS[key]} 0 {status} 0 {source_type}'
+
+
+def shutter_cycle_command():
+    """Original app32 input only; a response does not prove consumer or capture."""
+    hold_ms = os.environ.get('A7C2_SHUTTER_HOLD_MS', '50')
+    try:
+        hold_ms = int(hold_ms)
+    except ValueError:
+        raise ValueError('A7C2_SHUTTER_HOLD_MS must be an integer in 50..5000') from None
+    if not 50 <= hold_ms <= 5000:
+        raise ValueError('A7C2_SHUTTER_HOLD_MS must be within 50..5000')
+    hold = f'{hold_ms / 1000:.3f}'
+    half = key_status_command('SHUTTER_HALF', 1, True)
+    full = key_status_command('SHUTTER', 1, True)
+    full_release = key_status_command('SHUTTER', 0, True)
+    half_release = key_status_command('SHUTTER_HALF', 0, True)
+    return (f'{half}; half_pressed=$?; sleep {hold}; '
+            f'{full}; full_pressed=$?; sleep {hold}; '
+            f'{full_release}; full_released=$?; {half_release}; half_released=$?; '
+            'test "$half_pressed" = 0 && test "$full_pressed" = 0 && '
+            'test "$full_released" = 0 && test "$half_released" = 0')
 
 
 def live_key_command(key):
@@ -212,11 +267,8 @@ def netdev_socket_alias(out):
     instead of the full path. Returns (socket path, alias to remove).
     """
     out = Path(out)
-    alias = Path('/var/tmp')/f'a7c2-usb-{out.name[-8:]}'
-    if alias.exists() or alias.is_symlink():
-        if not alias.is_symlink() or alias.lstat().st_uid != os.getuid() or alias.readlink() != out:
-            raise ValueError(f'Refusing unrelated socket alias: {alias}')
-        alias.unlink()
+    alias = Path('/tmp')/f'a7c2-usb-{out.name[-8:]}'
+    alias.unlink(missing_ok=True)
     alias.symlink_to(out)
     return alias/'ethernet.sock', alias
 
@@ -233,6 +285,7 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
         raise ValueError('Guest serial physical command line exceeds safe1000-byte bound; split the command')
     # Live console writers use O_APPEND; discard old exports only between commands.
     if console.stat().st_size > 16 * 1024 * 1024:
+        verified_yc_preview(console.parent)  # preserve input admission before dropping its one-time log
         with console.open('r+b') as old:
             old.truncate(0)
     with console.open('rb') as reader:
@@ -261,7 +314,50 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
     raise TimeoutError('串口命令缺少完成标记；停止 VM 以避免后续命令交错')
 
 
-def snapshot_message(console):
+def verified_yc_preview(run):
+    """Return staged luma only after the original AP has delivered that DMM frame."""
+    path = os.environ.get('MENU_YC_INPUT_RAW')
+    if not path:
+        return None
+    source = Path(path)
+    if source.is_symlink() or not source.is_file() or source.stat().st_size != 1920 * 1080:
+        raise ValueError('YC preview source is missing or changed')
+    raw = source.read_bytes()
+    manifest = (run / 'runtime-manifest.json').read_bytes()
+    expected = json.loads(manifest).get('yc_input_sha256')
+    manifest_sha256 = hashlib.sha256(manifest).hexdigest()
+    if hashlib.sha256(raw).hexdigest() != expected:
+        raise ValueError('YC preview source differs from the verified initramfs')
+    receipt = run / 'yc-preview-admission.json'
+    proof = None
+    if receipt.exists():
+        proof = json.loads(receipt.read_text())
+        if (proof.get('source_sha256') != expected or type(proof.get('out1_delivered')) is not bool or
+                proof.get('manifest_sha256') != manifest_sha256 or proof.get('run') != str(run.resolve())):
+            raise ValueError('YC preview receipt differs from the verified input')
+        if proof['out1_delivered']:return raw
+    log = (run / 'console.log').read_bytes()
+    marker = re.search(rb'YCIN_INPUT: PNG luma readback bytes=2073600 fnv64=([0-9a-f]{16})', log)
+    if not marker and proof is None:
+        return None
+    if marker:
+        value = 0xcbf29ce484222325
+        for byte in raw:
+            value = ((value ^ byte) * 0x100000001b3) & ((1 << 64) - 1)
+        if marker.group(1).decode() != f'{value:016x}':
+            raise ValueError('YC preview source differs from the guest DMM readback')
+        proof = dict(source_sha256=expected, guest_fnv64=f'{value:016x}',
+                     manifest_sha256=manifest_sha256, run=str(run.resolve()),
+                     scope='AP DMM luma readback and OUT1 delivery; not CP display or encoded capture')
+    # Preserve the validated digest even if OUT1 arrives after this console is rotated.
+    proof['out1_delivered'] = b'YCIN_VDT_REPLY: OUT1 frame delivery' in log
+    temporary = receipt.with_suffix('.tmp')
+    temporary.write_text(json.dumps(proof, indent=2) + '\n')
+    temporary.replace(receipt)
+    return raw if proof['out1_delivered'] else None
+
+
+def snapshot_message(console, preview=None):
     from PIL import Image
     raw, info = decode_export(console)
     pixels = raw[HEADER + METADATA:]
@@ -271,6 +367,20 @@ def snapshot_message(console):
         rgba[i * 4:i * 4 + 4] = bytes((value >> 12, value >> 8 & 15, value >> 4 & 15, value & 15))
     rgba = bytes(channel * 17 for channel in rgba)
     image = Image.frombytes('RGBA', (640, 480), rgba)
+    if preview is not None:
+        if len(preview) != 1920 * 1080:
+            raise ValueError('YC preview frame length differs')
+        # This is an AP-consumed luma mirror under the original AP OSD, not a
+        # claim that CP VDF/VPH produced the panel's native preview pixels.
+        luma = Image.frombytes('L', (1920, 1080), preview).resize((640, 360), Image.Resampling.BILINEAR)
+        background = Image.new('RGBA', (640, 480), (0, 0, 0, 255))
+        background.paste(luma.convert('RGBA'), (0, 60))
+        image = Image.alpha_composite(background, image)
+        info.update(source='AP VDT luma mirror + original AP OSD; CP VDF/VPH not restored',
+                    preview_sha256=hashlib.sha256(preview).hexdigest(),
+                    osd_container_sha256=info['sha256'],
+                    sha256=hashlib.sha256(image.convert('RGB').tobytes()).hexdigest(),
+                    preview_luma_only=True)
     buffer = io.BytesIO()
     image.save(buffer, format='PNG')
     return {'type': 'snapshot', 'info': info, 'captured_at': time.time(),
@@ -294,6 +404,9 @@ def display_snapshot_message(path,number):
 def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None):
     monitor = FirmwareMonitor(out / 'console.log')
     input_stack_captured = False
+    shutter_submitted = False
+    late_passive = None
+    still_entry_observed = False
     session_fault = None
     def live_serial(command):
         nonlocal session_fault
@@ -311,13 +424,18 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             if sd_export is None:raise
             return {'type':'error','error':str(error)}
         return result
+    input_session = (None if os.environ.get('MENU_LIVE_KEY_FILE') else
+                     camera_input_module().InputSession(live_serial,
+                         app_input=os.environ.get('MENU_LIVE_APP_INPUT') == '1'))
     with socket.socket(fileno=descriptor) as control:
         # Barrier follows the entire queued setup, not a shell prompt or stdout "ready".
         serial_command(proc, out / 'console.log', 'true', monitor=monitor)
         if os.environ.get('A7C2_MEDIA_INIT_WATCH') == '1' and os.environ.get('MENU_GUI_MODELS') == 'virtual-inline-v1':
             wait_initial_model_commit(proc, out/'console.log')
         card_state=sd_card.status() if sd_card is not None else None
-        send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state})
+        send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state,
+                               'input_lifecycle': input_session is not None,
+                               'input_state': input_session.status() if input_session else None})
         while True:
             fault=session_fault
             try:monitor.check()
@@ -331,15 +449,40 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                     {'scope': 'guest launcher process', 'returncode': proc.returncode,
                      'capture_verified': False}, indent=2)+'\n')
                 raise RuntimeError(f'VM 已退出，guest 启动器返回码 {proc.returncode}')
+            if (not still_entry_observed and not fault and
+                    os.environ.get('A7C2_EE_PASSIVE_ON_STILL_ENTRY')=='1' and
+                    re.search(rb'OBS ENTER_REC_STILL n=\d+ ',(out/'console.log').read_bytes())):
+                still_entry_observed=True
+                observed={'ok':False,'phase':'after observed Still entry, before next live command',
+                          'threads_not_stopped':True,'current_blocker_proven':False,'capture_verified':False}
+                try:
+                    from ee_entry_snapshot import collect_passive,collect_group0
+                    snapshot=collect_passive(live_serial,out,common_only=True)
+                    group0=collect_group0(live_serial,out,snapshot)
+                    (Path(snapshot['snapshot_dir'])/'group0.json').write_text(json.dumps(group0,indent=2)+'\n')
+                    observed.update(ok=snapshot.get('available',False),snapshot_dir=snapshot['snapshot_dir'],group0=group0)
+                except Exception as error:
+                    observed['error']=f'{type(error).__name__}: {error}'
+                    fault=session_fault
+                (out/'ee-still-entry.json').write_text(json.dumps(observed,indent=2)+'\n')
             if not select.select([control], [], [], .5)[0]:
                 continue
             request = receive_message(control, timeout=5)
             action = request.get('action')
-            if fault and action!='export_sd':
+            releasing = action == 'camera_input' and request.get('op') in ('release', 'cleanup')
+            if fault and action!='export_sd' and not releasing:
                 send_message(control,{'type':'error','error':fault});continue
-            if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd'):
+            if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd') and not releasing:
                 raise ValueError('SD transition has no terminal observation; camera input is paused')
-            if (action=='sd_card' and set(request)=={'action','present'}
+            if (action in ('key', 'position', 'shutter_cycle') and input_session is not None
+                    and (input_session.held or input_session.uncertain)):
+                send_message(control, {'type': 'error', 'error': 'Release held camera inputs before using the legacy tap route'})
+                continue
+            if action == 'camera_input':
+                if input_session is None:
+                    raise ValueError('Legacy input mailbox does not support held contacts')
+                result = input_session.handle(request)
+            elif (action=='sd_card' and set(request)=={'action','present'}
                     and type(request['present']) is bool):
                 if sd_card is None:raise ValueError('This run has no SD hotplug profile')
                 try:result=sd_card.set_present(request['present'])
@@ -361,28 +504,66 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                     events.write(json.dumps({'requested': request['enabled'], **result})+'\n')
             elif action=='export_sd' and set(request)=={'action'}:
                 if sd_export is None:raise ValueError('This session has no virtual SD export profile')
+                if input_session is not None:
+                    released = input_session.handle({'action': 'camera_input', 'op': 'cleanup'})
+                    if not released['ok']:
+                        send_message(control, {'type': 'sd_export', 'ok': False,
+                            'error': 'Camera contacts were not released: ' + released['input_state']['error'],
+                            'input_state': released['input_state']})
+                        continue
+                if shutter_submitted and late_passive is None and os.environ.get('A7C2_EE_PASSIVE_AFTER_SHUTTER')=='1':
+                    try:
+                        from ee_entry_snapshot import collect_passive,collect_group0
+                        observed=collect_passive(live_serial,out)
+                        group0=collect_group0(live_serial,out,observed)
+                        (Path(observed['snapshot_dir'])/'group0.json').write_text(json.dumps(group0,indent=2)+'\n')
+                        late_passive={'ok':observed.get('available',False),
+                            'phase':'after natural shutter, before export quiesce',
+                            'snapshot_dir':observed['snapshot_dir'],'group0':group0,
+                            'threads_not_stopped':True,'current_blocker_proven':False}
+                    except Exception as error:
+                        late_passive={'ok':False,'phase':'after natural shutter, before export quiesce',
+                                      'error':f'{type(error).__name__}: {error}','current_blocker_proven':False}
+                    (out/'ee-post-shutter.json').write_text(json.dumps(late_passive,indent=2)+'\n')
                 try:result={'type':'sd_export',**sd_export()}
                 except Exception as error:result={'type':'sd_export','ok':False,'error':f'{type(error).__name__}: {error}'}
+                if input_session is not None:result['input_state']=input_session.status()
+                if late_passive is not None:result['post_shutter_observation']=late_passive
             elif action == 'snapshot' and set(request) == {'action'}:
                 try:
                     if display_capture is not None:
                         result=display_capture()
                     else:
                         data = live_serial('/simulation/headless-osd-export')
-                        result = snapshot_message(data)
+                        result = snapshot_message(data, preview=verified_yc_preview(out))
                     if sd_card is not None:
                         result['sd_card'] = sd_card.status()
                     if os.environ.get('MENU_GUI_MODELS')=='virtual-inline-v1':
                         from gui_model_capture import decode_model_export
-                        exported=live_serial('/simulation/gui-model-export')
-                        try:
-                            raw,models=decode_model_export(exported)
-                        except (ValueError,IndexError) as error:
-                            (out/'gui-model-latest.json').write_text(json.dumps({'ok':False,'error':str(error)})+'\n')
-                            if display_capture is None:raise
+                        # A missing optional model snapshot must not hide the real LCD.
+                        # Existing files still require the original export and strict decode.
+                        presence=live_serial(
+                            "if [ -e /tmp/gui-model-state.bin ]; then printf '\\nGUI_MODEL_STATE_PRESENT\\n'; "
+                            "else printf '\\nGUI_MODEL_STATE_ABSENT\\n'; fi")
+                        if re.search(rb'^GUI_MODEL_STATE_ABSENT\r?$',presence,re.M):
+                            unavailable={'ok':False,'available':False,'publication_verified':False,
+                                'reason':'no virtual GUI model snapshot has been published',
+                                'scope':'optional auxiliary model only; original LCD evidence is preserved'}
+                            (out/'gui-model-latest.json').write_text(json.dumps(unavailable,indent=2)+'\n')
+                            result['gui_model_available']=False
+                            result['gui_model_publication_verified']=False
                         else:
-                            (out/'gui-model-latest.bin').write_bytes(raw)
-                            (out/'gui-model-latest.json').write_text(json.dumps(models,indent=2)+'\n')
+                            exported=live_serial('/simulation/gui-model-export')
+                            try:
+                                raw,models=decode_model_export(exported)
+                            except (ValueError,IndexError) as error:
+                                (out/'gui-model-latest.json').write_text(json.dumps({'ok':False,'error':str(error)})+'\n')
+                                if display_capture is None:raise
+                            else:
+                                (out/'gui-model-latest.bin').write_bytes(raw)
+                                (out/'gui-model-latest.json').write_text(json.dumps(models,indent=2)+'\n')
+                                result['gui_model_available']=True
+                                result['gui_model_publication_verified']=True
                 except FirmwareFault as error:
                     if sd_export is None:raise
                     result={'type':'error','error':str(error)}
@@ -395,6 +576,25 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 if os.environ.get('MENU_LIVE_KEY_FILE'):raise ValueError('旧邮箱不支持位置拨盘')
                 command=key_command(request['key'],os.environ.get('MENU_LIVE_APP_INPUT')=='1',request['position'])
                 result=submit_input(command,{'type':'position','key':request['key'],'position':request['position']})
+            elif action == 'shutter_cycle' and set(request) == {'action'}:
+                if os.environ.get('MENU_LIVE_KEY_FILE') or os.environ.get('MENU_LIVE_APP_INPUT') != '1':
+                    raise ValueError('自然半按/全按序列仅已在app32输入通道验证')
+                proof_path = out/'natural-shutter-request.json'
+                proof = {'input_route': 'app32',
+                         'records': [{'key': 'SHUTTER_HALF', 'status': 1},
+                                     {'key': 'SHUTTER', 'status': 1},
+                                     {'key': 'SHUTTER', 'status': 0},
+                                     {'key': 'SHUTTER_HALF', 'status': 0}],
+                         'submission_completed': False, 'input_submission_accepted': False,
+                         'consumer_verified': False, 'still_capture_verified': False}
+                proof_path.write_text(json.dumps(proof, indent=2)+'\n')
+                result = submit_input(shutter_cycle_command(), {'type': 'shutter_cycle'})
+                proof['submission_completed'] = True
+                proof['input_submission_accepted'] = result.get('type') == 'shutter_cycle'
+                shutter_submitted = shutter_submitted or proof['input_submission_accepted']
+                if result.get('type') == 'error':
+                    proof['error'] = result.get('error')
+                proof_path.write_text(json.dumps(proof, indent=2)+'\n')
             elif action == 'key' and set(request) == {'action', 'key'} and request['key'] in KEYS:
                 # Release is always attempted, even if press fails. The result covers both sends.
                 command = (live_key_command(request['key']) if os.environ.get('MENU_LIVE_KEY_FILE')

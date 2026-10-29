@@ -1,0 +1,9 @@
+{
+  "scope": "own normal-export mapping ABI only; no guest or data proof",
+  "size": 3672,
+  "sha256": "116d7b1ed73669082ff588d3a3c4e41324a5e74403614ea3119e8a9e537b0a2a",
+  "imports": [
+    "ioremap_page_range",
+    "printk"
+  ]
+}

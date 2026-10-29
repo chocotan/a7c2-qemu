@@ -1,0 +1,15 @@
+{
+  "scope": "normal exported osal_uipc APIs only; virtual panel backend for 200d:0118, not display hardware or a consumption proof",
+  "size": 5560,
+  "sha256": "80340fa53b262cf8d08e69844179330d55dc35c4d807738a54419ed029883af5",
+  "imports": [
+    "osal_free_msg",
+    "osal_get_msg_src",
+    "osal_reg_public",
+    "osal_set_msg_src",
+    "osal_snd_msg",
+    "osal_unreg_public",
+    "osal_valloc_msg_wait",
+    "printk"
+  ]
+}

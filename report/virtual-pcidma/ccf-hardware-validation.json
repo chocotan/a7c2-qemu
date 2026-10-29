@@ -1,0 +1,12 @@
+{
+  "status": "PASS_TEST_CCF_REGISTERS_ONLY",
+  "binary_sha256": "4bc13601cca24666b897de9c7d36f4a9b30fd234099b41575563efc669a42c64",
+  "status_banks": 20,
+  "direct_dividers": 5,
+  "actual_readbacks": 131,
+  "rejected_writes_no_mutation": 36,
+  "five_gated_wrappers": true,
+  "reset_effect_observed": true,
+  "trace_sha256": "8d1e967549c4d8917ff06a00df4f447affcb4aa421b381ecd6bc74cf3a6807d1",
+  "native_provider_or_soc_host_or_capture_verified": false
+}

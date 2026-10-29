@@ -85,6 +85,21 @@ def test_owned_socket_uses_short_owned_directory_fd(owned_run):
         os.close(fd)
 
 
+def test_resize_completion_budget_changes_only_for_explicit_model(owned_run):
+    from resize_mmio_watch import KERNEL_SHA
+    run,manifest=owned_run
+    manifest['resize_mmio_watch']=True
+    manifest['selected_initramfs_verified_files']['system/av-cam.bin']=KERNEL_SHA
+    for enabled,limit in ((False,16),(True,64)):
+        manifest['rc_board_profile']=enabled
+        (run/'runtime-manifest.json').write_text(json.dumps(manifest))
+        fd,config=watch.owned_config(run,0,os.getpid(),trace_mode='resize')
+        try:
+            assert config['limit']==limit
+            assert config.get('observe_sa_mmu',False) is enabled
+        finally:os.close(fd)
+
+
 def test_media_mode_has_independent_optin_without_weakening_queue_gate(owned_run):
     run, manifest = owned_run
     manifest.update(power_notice_observe=False, apo_cancel_request_probe=False,
@@ -99,6 +114,22 @@ def test_media_mode_has_independent_optin_without_weakening_queue_gate(owned_run
     (run/'runtime-manifest.json').write_text(json.dumps(manifest))
     with pytest.raises(ValueError):
         watch.owned_config(run, 1, os.getpid(), 'media')
+
+
+def test_resize_mode_requires_original_kernel_and_does_not_weaken_queue_gate(owned_run):
+    from resize_mmio_watch import KERNEL_SHA
+    run, manifest = owned_run
+    manifest.update(resize_mmio_watch=True, power_notice_observe=False,
+                    apo_cancel_request_probe=False, mode_state_readback=False)
+    (run/'runtime-manifest.json').write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match='original verified kernel'):
+        watch.owned_config(run, 0, os.getpid(), 'resize')
+    manifest['selected_initramfs_verified_files']['system/av-cam.bin'] = KERNEL_SHA
+    (run/'runtime-manifest.json').write_text(json.dumps(manifest))
+    fd, config = watch.owned_config(run, 0, os.getpid(), 'resize')
+    os.close(fd)
+    assert config['app_base'] == config['app_pid'] == 0
+    with pytest.raises(ValueError):watch.owned_config(run, 1, os.getpid(), 'counter')
 
 
 def test_preinit_uses_unique_original_gate_and_explicit_manifest(owned_run):

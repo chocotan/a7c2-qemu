@@ -1,0 +1,46 @@
+{
+  "base_sha256": "bb1248f5b1338b37ba125a0033a378ad1b319f912405bac34fee859f3c64a20c",
+  "derived_sha256": "c18449f4675d46d2cd289e8e68be43578c0ac97b547ba7fea3541989db53f3fe",
+  "only_added_nodes": [
+    "/sony-test-iomap-0",
+    "/sony-test-iomap-1",
+    "/sony-test-iomap-2",
+    "/sony-test-iomap-3",
+    "/sony-test-iomap-4",
+    "/sony-test-scu",
+    "/sony-test-scu/clock-controller@0",
+    "/sony-test-scu/rst@300",
+    "/sony-test-ccf-consumer"
+  ],
+  "schema_and_memtype_from_official": true,
+  "narrow_test_windows": [
+    [
+      "0xf1056000",
+      "0x2000"
+    ],
+    [
+      "0xf1100000",
+      "0x140000"
+    ],
+    [
+      "0xf7000000",
+      "0x1000"
+    ],
+    [
+      "0xf7300000",
+      "0x1000"
+    ],
+    [
+      "0xf7380000",
+      "0x2000"
+    ]
+  ],
+  "ccf_provider_handles": {
+    "scu": 32773,
+    "clock": 32774,
+    "reset": 32775
+  },
+  "ccf_test_generic_syscon_parent": true,
+  "driver_initcalls_changed": false,
+  "overlap_guard_unchanged": true
+}

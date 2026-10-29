@@ -1,0 +1,17 @@
+{
+  "run": "run-hobha2ig",
+  "config_backed_unit_size_verified": true,
+  "unit": "0x50b58",
+  "extent": "0xf0",
+  "size": 157286400,
+  "caller_tid": 328,
+  "original_ap_property_readback_verified": true,
+  "property": "main_image_unit_size",
+  "property_elf_va": "0x7ecfbf0",
+  "original_model_publish_callback_verified": false,
+  "config_sha256": "d3466cee62fd86d927236a2c6c37dd633f76cdc181b4ad07a9863696aab76660",
+  "console_sha256": "b5ac70aab7cf6320c92385b2ce826eee55f1bc9cbaf5c6d62e8378b90e578384",
+  "allocated_bytes": 0,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

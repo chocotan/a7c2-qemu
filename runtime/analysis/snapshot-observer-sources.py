@@ -7,21 +7,33 @@ import tarfile
 
 NATIVE = Path('report/2026-10-17-qemu-native-camera/runtime/analysis')
 SHARED = NATIVE / 'device-models'
+METADATA_INPUTS = (
+    'report/native-video-binding/native-video.c', 'report/native-video-binding/native-video.h',
+    'report/native-video-paramsets/native-paramsets.c', 'report/native-video-paramsets/native-paramsets.h',
+    'report/native-video-au-contract/native-au.c', 'report/native-video-au-contract/native-au.h',
+    'report/native-video-length-format/native-lengths.c', 'report/native-video-length-format/native-lengths.h',
+    'report/virtual-video-engine/video-engine.h',
+)
+
+
+def source_paths(native):
+    local = [path for directory in (native, native / 'device-models')
+             for path in sorted(directory.iterdir()) if path.suffix in ('.c', '.h', '.inc', '.sh')]
+    return local + [native.parents[1] / name for name in METADATA_INPUTS]
 
 
 def snapshot(native, work):
     inputs = {}
-    for source, relative in ((native, NATIVE), (native / 'device-models', SHARED)):
+    for path in source_paths(native):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f'Expected ordinary source: {path}')
+        relative = NATIVE.parents[1] / path.relative_to(native.parents[1])
         target = work / relative
-        target.mkdir(parents=True)
-        files = sorted(p for p in source.iterdir() if p.suffix in ('.c', '.h', '.inc','.sh'))
-        for path in files:
-            if path.is_symlink() or not path.is_file():
-                raise ValueError(f'Expected ordinary source: {path}')
-            data = path.read_bytes()
-            (target / path.name).write_bytes(data)
-            inputs[str(path)] = {'archive_path': str(relative / path.name),
-                                 'sha256': hashlib.sha256(data).hexdigest()}
+        target.parent.mkdir(parents=True, exist_ok=True)
+        data = path.read_bytes()
+        target.write_bytes(data)
+        inputs[str(path)] = {'archive_path': str(relative),
+                             'sha256': hashlib.sha256(data).hexdigest()}
     for path, entry in inputs.items():
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != entry['sha256']:
             raise ValueError(f'Source changed during snapshot: {path}')

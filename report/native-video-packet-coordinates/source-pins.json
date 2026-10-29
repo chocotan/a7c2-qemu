@@ -1,0 +1,42 @@
+{
+  "scope": "original MPR fixed-area dual addresses and explicit 48B-to-Infra38B framing; kernel address conversion and final inline identity remain unclosed",
+  "artifacts": {
+    "M": {"path": "runtime/analysis/menu-root/usr/lib/libmpr.so", "bytes": 3528576, "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"},
+    "I": {"path": "runtime/analysis/menu-root/usr/lib/libInfraAvbbc.so", "bytes": 1738760, "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5"},
+    "W": {"path": "runtime/analysis/menu-root/usr/lib/libMWF.so", "bytes": 353120, "sha256": "63104a2506a385144ee4b485357c72cff7420aedc8d705e40124df20e6f97e69"},
+    "F": {"path": "runtime/analysis/menu-root/usr/lib/dataflowInfraFramework.so", "bytes": 306496, "sha256": "620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47"}
+  },
+  "window_mapping": "all listed windows in first PT_LOAD: VA=fileoffset; do not generalize to second loads",
+  "windows": [
+    {"artifact": "M", "VA_hex": "2c38b8", "bytes": 180, "sha256": "0f48ff62e7653bafb332110aa9fc318b08e40077f65a306ebd25d575b62aa814"},
+    {"artifact": "M", "VA_hex": "2e35b0", "bytes": 5, "sha256": "d5ec4fae35e41744624e600ca85d30756b20824b17b69971c9ef9c5aa40e1755"},
+    {"artifact": "M", "VA_hex": "2c3a58", "bytes": 252, "sha256": "03b493189bcf160e73e876ff80264c0b4822cc73111352cc1b928c72f126c730"},
+    {"artifact": "M", "VA_hex": "2c396c", "bytes": 236, "sha256": "a3a76b22d378c5747ad1d92af629d5c3827aa56057ca6e7673d2ec82f9351f1d"},
+    {"artifact": "M", "VA_hex": "27be38", "bytes": 152, "sha256": "cbc8afff44ed550dbec69af5bfae83439e70bea842fc8b70d371b60af701db96"},
+    {"artifact": "M", "VA_hex": "280bc8", "bytes": 1028, "sha256": "55d22f23de2fc47031d8a8f488afd156ad1511e093a44782985afb63850de13d"},
+    {"artifact": "M", "VA_hex": "27c058", "bytes": 376, "sha256": "a007573409a8cca35688502d4c1915a67d7d6ee5ebd41fe6fa9c4ced8ebf74c6"},
+    {"artifact": "I", "VA_hex": "139b64", "bytes": 296, "sha256": "fbec3a95c2c7ed0b89b7720ecd1aecee9e01e41d5a20577fab7301bdf5f7fcc3"},
+    {"artifact": "I", "VA_hex": "b34a4", "bytes": 100, "sha256": "c2b7a999da6134ad125516eb2bc6df6c2eb0904975778aec25af45c02dabe3a0"},
+    {"artifact": "I", "VA_hex": "b21e0", "bytes": 248, "sha256": "db65db9162ee1cbdae6d802fe156078c1fb9925b13cce784ba5b38f3ff995c04"},
+    {"artifact": "I", "VA_hex": "a41b0", "bytes": 204, "sha256": "454b7cec71539ae916e40077c5166c2063e12677ab50793fd5cf88060ef00c05"},
+    {"artifact": "I", "VA_hex": "a46e4", "bytes": 196, "sha256": "4f369139be02e942d26973679172723d1d10fe9561ba35af751c8ea83025341f"},
+    {"artifact": "W", "VA_hex": "2f740", "bytes": 8, "sha256": "4197ad96213c98161e13fbfd6185a724b5570ba296d316558cbd5cc5c1842369"},
+    {"artifact": "W", "VA_hex": "2f778", "bytes": 104, "sha256": "32a153592c40fd6e25b7f622ea5cf1ce57349c94377e56c819972a328d606a8e"},
+    {"artifact": "F", "VA_hex": "32330", "bytes": 292, "sha256": "1175eeb7a2317591ed85cf1f8c6c418f10a4d5a6c9adc1eaa7ab50c1b39d78a8"}
+  ],
+  "window_count": 15,
+  "window_bytes": 3677,
+  "fixed_area_type": 2,
+  "GetFixedArea_type2_branch_VA_hex": "2c38e0",
+  "fixed_area_declared_bytes_hex": "200",
+  "fixed_area_pair": {"mapped_V": "ctx20", "mmap_offset_domain_P": "ctx28", "difference": "ctx38=V-P", "numeric_equality_claimed": false, "runtime_allocation_or_extent_measured": false},
+  "MPR_fields": {"payload08": "P", "payload28": "V", "payload24": "original message ID", "payload18": "codec type", "payload1a": "view ID"},
+  "EncOpen_actual_copy": {"source": "original converted API argument A", "destination": "FP+c8=PayloadMpr+28=V", "source_call_VA_hex": "280f9c", "bytes": "u64(zeroextend count)*unit size", "selected_API_stride_hex": "98"},
+  "Infra_frame": {"destination_of_GetMsg": "CMD+8", "requested_copy_bytes_hex": "30", "command_size_hex": "38", "normal_full48_message_required": true, "CMD10": "MPR08=P", "CMD30": "MPR28=V", "CMD2c": "MPR24", "CMD20": "MPR18", "CMD22": "MPR1a"},
+  "ParameterControl_1001": {"source_copy_bytes_hex": "38", "SetValue_does_not_strip20_prefix": true, "GetValue_does_not_shift_payload": true},
+  "kernel_P10_to_KVA_conversion_proven": false,
+  "original_queue_to_final_inline_body_identity_proven": false,
+  "live_memory_or_native_execution_proven": false,
+  "native_video_gaps": 63,
+  "capture_verified": false
+}

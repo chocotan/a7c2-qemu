@@ -19,3 +19,4 @@ int native_osdpin_release_reply(unsigned int id,void *reply,int (*release)(unsig
     return pin_registry_release(&registry,id,reply,release,record,rc);
 }
 void native_osdpin_snapshot(struct full_vef_snapshot *out){pin_registry_snapshot(&registry,out);}
+struct pin_registry_owner *native_osdpin_registry(void){return &registry;}

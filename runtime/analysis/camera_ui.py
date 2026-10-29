@@ -211,6 +211,10 @@ class CameraUI:
         self._build_top()
         self._build_back()
         self._build_footer()
+        self.input_bindings = None
+        if getattr(vm, 'supports_input_lifecycle', False):
+            from menu_live import camera_input_module
+            self.input_bindings = camera_input_module().attach_gtk(self)
         self.window.show_all()
         self.update(self.state)
         if timer:
@@ -522,6 +526,8 @@ class CameraUI:
             return
         self._cancel_drag()
         try:
+            if not on and self.input_bindings is not None and not self.release_inputs():
+                return
             if on:
                 self.vm.start()
                 self.pixbuf = self.png_bytes = self.frame_token = None
@@ -692,7 +698,8 @@ class CameraUI:
         self.sd_action.set_sensitive(not self.closing and state.get('state')=='running' and
                                      not(state.get('busy') or state.get('pending')) and
                                      card.get('ok') is True and card_state in ('present','absent'))
-        error = '\n'.join(filter(None, (state.get('error'), self.local_error)))
+        input_error = (state.get('input_state') or {}).get('error', '')
+        error = '\n'.join(filter(None, (state.get('error'), self.local_error, input_error)))
         self.error_label.set_text(error)
         self.error_label.set_visible(bool(error))
         registry = state.get('controls', {})
@@ -733,7 +740,9 @@ class CameraUI:
                      or self.frame_token != SnapshotPoller.token(state))
             frame = self.display_frame
             freshness = '旧画面 / 当前画面未确认' if stale else '本次后端已校验快照'
-            source=('显示帧' if frame.get('source')=='QMP ramfb display' else '像素提交 '+str(frame.get('pixel_source_seq','?')))
+            source=('模拟灰度预览 / AP已消费 / 非CP面板' if str(frame.get('source','')).startswith('AP VDT luma mirror') else
+                    '显示帧' if frame.get('source')=='QMP ramfb display' else
+                    '像素提交 '+str(frame.get('pixel_source_seq','?')))
             self.frame_label.set_text(prefix + freshness + f' / #{frame.get("number", "?")} / {source} / 640 x 480')
         else:
             self.frame_label.set_text(prefix + ('等待后端首幅图像' if state.get('state') == 'running' else '尚无本次 VM 图像 / ON 启动'))
@@ -747,7 +756,10 @@ class CameraUI:
         if event_key is not None and event_key != self.last_status:
             self.last_status = event_key
             self.feedback.set_text(events[0].get('message', ''))
-        detail = '\n'.join(['快捷键：方向键 / Enter / M / Esc / Delete；Tab 切换控件，Space 激活焦点。',
+        input_hint = ('快捷键：方向键/Enter/M/Esc/Delete；F1=C1，F2=C2，A=AF-ON，F=Fn，P=播放，R=REC，H=半按，S=全按；'
+                      'Q/E=前轮，[/]=后轮，,/.=控制轮；1/2/3=照片/录像/S&Q；F5–F12=AUTO/P/A/S/M/MR1/MR2/MR3。'
+                      if self.input_bindings is not None else '快捷键：方向键 / Enter / M / Esc / Delete；')
+        detail = '\n'.join([input_hint + 'Tab 切换控件，Space 激活焦点。',
                            'ON / OFF 仅管理 owned VM，真实电源未模拟。', '',
                            '最近操作（输入已提交不代表固件功能完成）'] +
                            [str(event.get('message', '')) for event in events[:12]] + ['\n全部按键 / registry'] +
@@ -871,6 +883,8 @@ class CameraUI:
             self.reset_dialog.response(Gtk.ResponseType.CANCEL)
         if self.closing:
             return True
+        if self.input_bindings is not None and not self.release_inputs():
+            return True
         self.closing = True
         self._cancel_drag()
         self.feedback.set_text('正在保存虚拟SD并关闭本窗口拥有的 VM，请稍候。')
@@ -924,7 +938,11 @@ def main(autostart=True):
     from settings_instance import default_instance
     instance=default_instance(Path(os.environ.get('A7C2_INSTANCE_DIR',
         str(Path(__file__).resolve().parent/'camera-instances'))))
-    vm = VM(native_display='none', natural_boot=True, usb_net=True,instance=instance)
+    # shortcut: both imaging profiles use the PCI DMA QEMU build without USB networking;
+    # combine them after a single build models both devices together.
+    vm = VM(native_display='none', natural_boot=True,
+            usb_net=not bool(os.environ.get('A7C2_PREVIEW_PNG') or
+                             os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1'), instance=instance)
     ui = CameraUI(vm)
     def interrupted(*_):
         ui._close()

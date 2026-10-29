@@ -1,0 +1,31 @@
+{
+  "scope": "original generic CPU color-reader loops and bounded software-JPEG search; no binding to native capture lease",
+  "artifacts": {
+    "gstvideo": {"path": "runtime/analysis/menu-root/usr/lib/libgstvideo-1.0.so.0", "bytes": 571080, "sha256": "5c4df2f111f41b3689c23e0a2b7814da3ebac4e93db23e1eb4041531aaadb49d"},
+    "mpr": {"path": "runtime/analysis/menu-root/usr/lib/libmpr.so", "bytes": 3528576, "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"}
+  },
+  "windows": [
+    {"artifact": "gstvideo", "raw_hex": "5db58", "bytes": 88, "sha256": "b9ca9252597fe0d2739c7b493db632de76283a034a9515da8ac52245553f61ce"},
+    {"artifact": "gstvideo", "raw_hex": "84260", "bytes": 720, "sha256": "2f69f6dbeeb3006a479dea7c0d4e8163855c6d9749d542a9b0dfbffb53106016"},
+    {"artifact": "gstvideo", "raw_hex": "85430", "bytes": 240, "sha256": "e686f78b6cb95ca1f0a233d3917eb614c0f2469ad362d3c0a6a167ec6ef9c66c"},
+    {"artifact": "gstvideo", "raw_hex": "7bc28", "bytes": 168, "sha256": "ef131d63fbcb5b91cbe821741e69294cc4502160957e3b98bbed8a2858735b70"},
+    {"artifact": "gstvideo", "raw_hex": "5cbb8", "bytes": 864, "sha256": "ad18c2fcd4e8597ab396a88e45aae96efc50d2f0458b076e27c341f7df945325"},
+    {"artifact": "gstvideo", "raw_hex": "5b7e8", "bytes": 356, "sha256": "500a1116f5523be46c729ddff4c0a58cf9deb1a44cbef74a3e1f3b35f13330f2"},
+    {"artifact": "mpr", "raw_hex": "26d540", "bytes": 452, "sha256": "3117bbb298b92cfb7444420bc1ee627e664cf63e82943f5032286b7ab02cf830"},
+    {"artifact": "mpr", "raw_hex": "2c8cd8", "bytes": 8, "sha256": "2f6110664dbd16b514a0c2c7c8326932a36e85d2f15b91e57ca76efd2c7a625a"}
+  ],
+  "window_count": 8,
+  "window_bytes": 2896,
+  "format_table": {"ELF_VA_hex": "93ea0", "stride": 240, "unpack_pointer_offset": 160, "destination_format": 6, "destination_name": "AYUV", "formats": [{"id": 4, "name": "YUY2", "entry_VA_hex": "94260", "unpack_VA_hex": "5cdd8"}, {"id": 5, "name": "UYVY", "entry_VA_hex": "94350", "unpack_VA_hex": "5cbb8"}, {"id": 23, "name": "NV12", "entry_VA_hex": "95430", "unpack_VA_hex": "5b7e8"}]},
+  "source_CPU_pixel_reads_present": true,
+  "bound_to_native_CMOS_RC_JPEG_lease": false,
+  "software_JPEG_compressor_found_in_examined_paths": false,
+  "whole_firmware_software_JPEG_absence_proven": false,
+  "signature_query_scope": {"nonsymlink_files": 360, "bytes": 189754536, "queries": ["Independent JPEG Group", "Bogus input colorspace", "JPEG parameter struct mismatch", "jpeg_CreateCompress", "JPEGLIB", "jpeg_write_scanlines", "jpeg_start_compress", "jpeg_read_scanlines", "jpeg_CreateDecompress", "jpeglib", "JFIF"], "matches": 0, "limits": "stripped/custom/packed or indirect implementations not excluded"},
+  "direct_symbol_query_scope": {"ELF_dynsym_tables": 339, "selected_format_frame_api_importers": ["libgstpbutils-1.0.so.0"], "gst_video_converter_new_or_frame_direct_importer_found": false, "indirect_consumers_examined": false},
+  "MprIf_EncodeStill_is_8byte_return_zero_stub": true,
+  "libjpeg_get_metadata_entry_is_compressor_verified": false,
+  "firmware_executed": false,
+  "source_pixel_format_closed": false,
+  "capture_verified": false
+}

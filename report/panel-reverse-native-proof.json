@@ -1,0 +1,17 @@
+{
+  "run": "run-f6pnqj0o",
+  "virtual_panel_reverse_config_verified": true,
+  "caller_tid": 324,
+  "hrev": 1,
+  "vrev": 1,
+  "osdrev": 0,
+  "virtual_control": 3,
+  "raw_reply_status": 0,
+  "console_sha256": "b0bb2e9bd7ad814cead832bb0a910ce1d303c1c7594e2f30cdb75f9f05362400",
+  "original_device_phase_verified": false,
+  "original_vfc_scheduling_verified": false,
+  "hardware_driver_executed": false,
+  "pixels_flipped": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

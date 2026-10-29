@@ -74,7 +74,7 @@ class UnmountTraceTests(unittest.TestCase):
         source = FIXTURE + '\n#include "file-media-config.c"\n' + MAIN
         with tempfile.TemporaryDirectory() as folder:
             binary = Path(folder) / 'test-unmount'
-            subprocess.run(['cc', '-x', 'c', '-', '-I', str(HERE), '-o', str(binary),
+            subprocess.run(['cc', '-x', 'c', '-', str(HERE/'fsys-write-trace.c'), '-I', str(HERE), '-o', str(binary),
                             '-Wall', '-Wextra', '-Werror', '-pthread',
                             '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie'],
                            input=source, text=True, capture_output=True, check=True)

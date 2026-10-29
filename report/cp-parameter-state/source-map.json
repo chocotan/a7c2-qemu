@@ -1,0 +1,7117 @@
+{
+  "cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "cp_bytes": 18090880,
+  "fields": [
+    {
+      "slot": 0,
+      "wire_offset": 8,
+      "image_offset": 1680,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 8,
+      "image_offset": 2356,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 9,
+      "image_offset": 2360,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 10,
+      "image_offset": 2361,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 12,
+      "image_offset": 2362,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 14,
+      "image_offset": 2364,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 16,
+      "image_offset": 2368,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 17,
+      "image_offset": 2369,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 18,
+      "image_offset": 2370,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 20,
+      "image_offset": 2372,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 24,
+      "image_offset": 2376,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 28,
+      "image_offset": 2380,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 32,
+      "image_offset": 2384,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 36,
+      "image_offset": 2388,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 40,
+      "image_offset": 2392,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 44,
+      "image_offset": 2396,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 1,
+      "wire_offset": 48,
+      "image_offset": 2400,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 2,
+      "wire_offset": 8,
+      "image_offset": 2366,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 2,
+      "wire_offset": 9,
+      "image_offset": 2367,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 3,
+      "wire_offset": 8,
+      "image_offset": 292,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 3,
+      "wire_offset": 9,
+      "image_offset": 296,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 3,
+      "wire_offset": 12,
+      "image_offset": 288,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 4,
+      "wire_offset": 8,
+      "image_offset": 2860,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 5,
+      "wire_offset": 8,
+      "image_offset": 2864,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 6,
+      "wire_offset": 8,
+      "image_offset": 2868,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 7,
+      "wire_offset": 8,
+      "image_offset": 2872,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 8,
+      "wire_offset": 8,
+      "image_offset": 2876,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 9,
+      "wire_offset": 8,
+      "image_offset": 2832,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 9,
+      "wire_offset": 9,
+      "image_offset": 2836,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 9,
+      "wire_offset": 10,
+      "image_offset": 2837,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 10,
+      "wire_offset": 8,
+      "image_offset": 680,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 11,
+      "wire_offset": 8,
+      "image_offset": 3372,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 12,
+      "wire_offset": 8,
+      "image_offset": 3256,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 13,
+      "wire_offset": 8,
+      "image_offset": 3260,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 8,
+      "image_offset": 320,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 9,
+      "image_offset": 324,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 10,
+      "image_offset": 328,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 11,
+      "image_offset": 332,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 12,
+      "image_offset": 336,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 13,
+      "image_offset": 340,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 14,
+      "image_offset": 344,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 14,
+      "wire_offset": 16,
+      "image_offset": 348,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 16,
+      "wire_offset": 8,
+      "image_offset": 3320,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 17,
+      "wire_offset": 8,
+      "image_offset": 3364,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 19,
+      "wire_offset": 8,
+      "image_offset": 1388,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 19,
+      "wire_offset": 9,
+      "image_offset": 1392,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 20,
+      "wire_offset": 8,
+      "image_offset": 1384,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 21,
+      "wire_offset": 8,
+      "image_offset": 1732,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 24,
+      "wire_offset": 8,
+      "image_offset": 1396,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 25,
+      "wire_offset": 8,
+      "image_offset": 1397,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 26,
+      "wire_offset": 8,
+      "image_offset": 1400,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 8,
+      "image_offset": 772,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 9,
+      "image_offset": 776,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 10,
+      "image_offset": 780,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 11,
+      "image_offset": 784,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 12,
+      "image_offset": 788,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 13,
+      "image_offset": 792,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 14,
+      "image_offset": 1108,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 27,
+      "wire_offset": 15,
+      "image_offset": 796,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 28,
+      "wire_offset": 8,
+      "image_offset": 352,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 29,
+      "wire_offset": 8,
+      "image_offset": 804,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 29,
+      "wire_offset": 9,
+      "image_offset": 808,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 29,
+      "wire_offset": 10,
+      "image_offset": 812,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 30,
+      "wire_offset": 8,
+      "image_offset": 2404,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 31,
+      "wire_offset": 8,
+      "image_offset": 2408,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 32,
+      "wire_offset": 8,
+      "image_offset": 2412,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 33,
+      "wire_offset": 8,
+      "image_offset": 3282,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 34,
+      "wire_offset": 8,
+      "image_offset": 2413,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 35,
+      "wire_offset": 8,
+      "image_offset": 2414,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 36,
+      "wire_offset": 8,
+      "image_offset": 712,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 37,
+      "wire_offset": 8,
+      "image_offset": 2416,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 38,
+      "wire_offset": 8,
+      "image_offset": 2420,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 39,
+      "wire_offset": 8,
+      "image_offset": 1772,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 40,
+      "wire_offset": 8,
+      "image_offset": 704,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 40,
+      "wire_offset": 9,
+      "image_offset": 708,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 40,
+      "wire_offset": 10,
+      "image_offset": 703,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 41,
+      "wire_offset": 8,
+      "image_offset": 3268,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 42,
+      "wire_offset": 8,
+      "image_offset": 3376,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 42,
+      "wire_offset": 9,
+      "image_offset": 3380,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 43,
+      "wire_offset": 8,
+      "image_offset": 1776,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 44,
+      "wire_offset": 8,
+      "image_offset": 821,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 45,
+      "wire_offset": 8,
+      "image_offset": 822,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 46,
+      "wire_offset": 8,
+      "image_offset": 2424,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 47,
+      "wire_offset": 8,
+      "image_offset": 3352,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 48,
+      "wire_offset": 8,
+      "image_offset": 3360,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 8,
+      "image_offset": 592,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 9,
+      "image_offset": 596,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 10,
+      "image_offset": 597,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 11,
+      "image_offset": 598,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 12,
+      "image_offset": 599,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 13,
+      "image_offset": 600,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 14,
+      "image_offset": 604,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 15,
+      "image_offset": 608,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 16,
+      "image_offset": 609,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 17,
+      "image_offset": 610,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 18,
+      "image_offset": 611,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 19,
+      "image_offset": 612,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 20,
+      "image_offset": 613,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 21,
+      "image_offset": 614,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 22,
+      "image_offset": 615,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 23,
+      "image_offset": 616,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 24,
+      "image_offset": 620,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 25,
+      "image_offset": 624,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 26,
+      "image_offset": 625,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 27,
+      "image_offset": 626,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 28,
+      "image_offset": 627,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 29,
+      "image_offset": 628,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 30,
+      "image_offset": 632,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 31,
+      "image_offset": 633,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 32,
+      "image_offset": 634,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 33,
+      "image_offset": 635,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 34,
+      "image_offset": 636,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 35,
+      "image_offset": 637,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 36,
+      "image_offset": 638,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 37,
+      "image_offset": 639,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 38,
+      "image_offset": 640,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 39,
+      "image_offset": 644,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 40,
+      "image_offset": 648,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 42,
+      "image_offset": 652,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 44,
+      "image_offset": 654,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 45,
+      "image_offset": 655,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 46,
+      "image_offset": 656,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 47,
+      "image_offset": 657,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 48,
+      "image_offset": 658,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 50,
+      "image_offset": 660,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 51,
+      "image_offset": 661,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 52,
+      "image_offset": 662,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 53,
+      "image_offset": 663,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 49,
+      "wire_offset": 54,
+      "image_offset": 588,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 51,
+      "wire_offset": 8,
+      "image_offset": 724,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 52,
+      "wire_offset": 8,
+      "image_offset": 744,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 53,
+      "wire_offset": 8,
+      "image_offset": 716,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 54,
+      "wire_offset": 8,
+      "image_offset": 3328,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 55,
+      "wire_offset": 8,
+      "image_offset": 3332,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 56,
+      "wire_offset": 8,
+      "image_offset": 3356,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 57,
+      "wire_offset": 8,
+      "image_offset": 3368,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 58,
+      "wire_offset": 8,
+      "image_offset": 828,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 59,
+      "wire_offset": 8,
+      "image_offset": 1784,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 59,
+      "wire_offset": 9,
+      "image_offset": 1788,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 60,
+      "wire_offset": 8,
+      "image_offset": 1792,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 61,
+      "wire_offset": 8,
+      "image_offset": 1420,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 62,
+      "wire_offset": 8,
+      "image_offset": 1796,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 63,
+      "wire_offset": 8,
+      "image_offset": 1424,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 64,
+      "wire_offset": 8,
+      "image_offset": 844,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 64,
+      "wire_offset": 9,
+      "image_offset": 848,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 65,
+      "wire_offset": 8,
+      "image_offset": 852,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 67,
+      "wire_offset": 8,
+      "image_offset": 3000,
+      "width": 1,
+      "source_width": 1,
+      "mode": "EQ",
+      "argument": 1,
+      "condition_zero": false
+    },
+    {
+      "slot": 68,
+      "wire_offset": 8,
+      "image_offset": 2888,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 69,
+      "wire_offset": 8,
+      "image_offset": 516,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 70,
+      "wire_offset": 8,
+      "image_offset": 524,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 71,
+      "wire_offset": 8,
+      "image_offset": 508,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 72,
+      "wire_offset": 8,
+      "image_offset": 1452,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 74,
+      "wire_offset": 8,
+      "image_offset": 823,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 75,
+      "wire_offset": 8,
+      "image_offset": 856,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 76,
+      "wire_offset": 8,
+      "image_offset": 432,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 77,
+      "wire_offset": 8,
+      "image_offset": 484,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 78,
+      "wire_offset": 8,
+      "image_offset": 3026,
+      "width": 1,
+      "source_width": 1,
+      "mode": "EQ",
+      "argument": 1,
+      "condition_zero": false
+    },
+    {
+      "slot": 79,
+      "wire_offset": 8,
+      "image_offset": 720,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 80,
+      "wire_offset": 8,
+      "image_offset": 860,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 81,
+      "wire_offset": 8,
+      "image_offset": 2897,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 82,
+      "wire_offset": 8,
+      "image_offset": 1868,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 83,
+      "wire_offset": 8,
+      "image_offset": 1872,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 85,
+      "wire_offset": 8,
+      "image_offset": 868,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 86,
+      "wire_offset": 8,
+      "image_offset": 1880,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 87,
+      "wire_offset": 8,
+      "image_offset": 1884,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 88,
+      "wire_offset": 8,
+      "image_offset": 872,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 89,
+      "wire_offset": 8,
+      "image_offset": 1892,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 90,
+      "wire_offset": 8,
+      "image_offset": 1896,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 90,
+      "wire_offset": 12,
+      "image_offset": 1900,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 90,
+      "wire_offset": 16,
+      "image_offset": 1904,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 91,
+      "wire_offset": 8,
+      "image_offset": 2880,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 92,
+      "wire_offset": 8,
+      "image_offset": 1456,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 93,
+      "wire_offset": 8,
+      "image_offset": 880,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 93,
+      "wire_offset": 10,
+      "image_offset": 884,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 93,
+      "wire_offset": 11,
+      "image_offset": 888,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 94,
+      "wire_offset": 8,
+      "image_offset": 356,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 95,
+      "wire_offset": 8,
+      "image_offset": 892,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 96,
+      "wire_offset": 8,
+      "image_offset": 896,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 97,
+      "wire_offset": 8,
+      "image_offset": 1828,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 98,
+      "wire_offset": 8,
+      "image_offset": 1876,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 99,
+      "wire_offset": 8,
+      "image_offset": 1916,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 100,
+      "wire_offset": 8,
+      "image_offset": 1728,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 101,
+      "wire_offset": 8,
+      "image_offset": 1920,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 102,
+      "wire_offset": 8,
+      "image_offset": 3340,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 103,
+      "wire_offset": 8,
+      "image_offset": 2899,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 104,
+      "wire_offset": 8,
+      "image_offset": 928,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 105,
+      "wire_offset": 8,
+      "image_offset": 932,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 106,
+      "wire_offset": 8,
+      "image_offset": 2900,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 107,
+      "wire_offset": 8,
+      "image_offset": 1928,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 8,
+      "image_offset": 2916,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 8,
+      "image_offset": 2904,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 9,
+      "image_offset": 2920,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 9,
+      "image_offset": 2908,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 10,
+      "image_offset": 2924,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 108,
+      "wire_offset": 10,
+      "image_offset": 2912,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 8,
+      "image_offset": 2928,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 8,
+      "image_offset": 2904,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 9,
+      "image_offset": 2932,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 9,
+      "image_offset": 2908,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 10,
+      "image_offset": 2936,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 109,
+      "wire_offset": 10,
+      "image_offset": 2912,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 110,
+      "wire_offset": 8,
+      "image_offset": 3396,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 111,
+      "wire_offset": 8,
+      "image_offset": 948,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 111,
+      "wire_offset": 12,
+      "image_offset": 952,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 111,
+      "wire_offset": 16,
+      "image_offset": 956,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 112,
+      "wire_offset": 8,
+      "image_offset": 900,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 113,
+      "wire_offset": 8,
+      "image_offset": 3304,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 114,
+      "wire_offset": 8,
+      "image_offset": 2852,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 115,
+      "wire_offset": 8,
+      "image_offset": 360,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 116,
+      "wire_offset": 8,
+      "image_offset": 2940,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 117,
+      "wire_offset": 8,
+      "image_offset": 2944,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 118,
+      "wire_offset": 8,
+      "image_offset": 1932,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 119,
+      "wire_offset": 8,
+      "image_offset": 3400,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 8,
+      "image_offset": 958,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 9,
+      "image_offset": 959,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 10,
+      "image_offset": 960,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 11,
+      "image_offset": 961,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 12,
+      "image_offset": 962,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 121,
+      "wire_offset": 13,
+      "image_offset": 963,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 122,
+      "wire_offset": 8,
+      "image_offset": 964,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 123,
+      "wire_offset": 8,
+      "image_offset": 1936,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 124,
+      "wire_offset": 8,
+      "image_offset": 436,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 125,
+      "wire_offset": 8,
+      "image_offset": 980,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 126,
+      "wire_offset": 8,
+      "image_offset": 440,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 128,
+      "wire_offset": 8,
+      "image_offset": 2985,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 129,
+      "wire_offset": 8,
+      "image_offset": 2988,
+      "width": 4,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 129,
+      "wire_offset": 8,
+      "image_offset": 3064,
+      "width": 4,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 130,
+      "wire_offset": 8,
+      "image_offset": 2992,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 131,
+      "wire_offset": 8,
+      "image_offset": 2993,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 132,
+      "wire_offset": 8,
+      "image_offset": 2564,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 133,
+      "wire_offset": 8,
+      "image_offset": 2410,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 134,
+      "wire_offset": 8,
+      "image_offset": 2409,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 135,
+      "wire_offset": 8,
+      "image_offset": 2411,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 136,
+      "wire_offset": 8,
+      "image_offset": 3283,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 137,
+      "wire_offset": 8,
+      "image_offset": 3284,
+      "width": 1,
+      "source_width": 1,
+      "mode": "SIGN",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 139,
+      "wire_offset": 8,
+      "image_offset": 2800,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 140,
+      "wire_offset": 8,
+      "image_offset": 2804,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 141,
+      "wire_offset": 8,
+      "image_offset": 3048,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 142,
+      "wire_offset": 8,
+      "image_offset": 3056,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 143,
+      "wire_offset": 8,
+      "image_offset": 1972,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 144,
+      "wire_offset": 8,
+      "image_offset": 984,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 147,
+      "wire_offset": 8,
+      "image_offset": 1976,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 148,
+      "wire_offset": 8,
+      "image_offset": 3308,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 149,
+      "wire_offset": 8,
+      "image_offset": 1368,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 150,
+      "wire_offset": 8,
+      "image_offset": 876,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 151,
+      "wire_offset": 8,
+      "image_offset": 72,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 151,
+      "wire_offset": 9,
+      "image_offset": 76,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 151,
+      "wire_offset": 10,
+      "image_offset": 80,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 152,
+      "wire_offset": 8,
+      "image_offset": 84,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 153,
+      "wire_offset": 8,
+      "image_offset": 88,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 154,
+      "wire_offset": 8,
+      "image_offset": 1460,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 155,
+      "wire_offset": 8,
+      "image_offset": 760,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 155,
+      "wire_offset": 0,
+      "image_offset": 756,
+      "width": 4,
+      "source_width": 0,
+      "mode": "CONST",
+      "argument": 0,
+      "condition_zero": true
+    },
+    {
+      "slot": 156,
+      "wire_offset": 8,
+      "image_offset": 252,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 157,
+      "wire_offset": 8,
+      "image_offset": 768,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 159,
+      "wire_offset": 8,
+      "image_offset": 988,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 160,
+      "wire_offset": 8,
+      "image_offset": 992,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 161,
+      "wire_offset": 8,
+      "image_offset": 504,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 162,
+      "wire_offset": 8,
+      "image_offset": 996,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 163,
+      "wire_offset": 8,
+      "image_offset": 1980,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 164,
+      "wire_offset": 8,
+      "image_offset": 1984,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 165,
+      "wire_offset": 8,
+      "image_offset": 2080,
+      "width": 1,
+      "source_width": 1,
+      "mode": "EQ",
+      "argument": 1,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 8,
+      "image_offset": 1000,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 12,
+      "image_offset": 1004,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 14,
+      "image_offset": 1008,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 16,
+      "image_offset": 1012,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 20,
+      "image_offset": 1016,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 22,
+      "image_offset": 1020,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 166,
+      "wire_offset": 23,
+      "image_offset": 1024,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 167,
+      "wire_offset": 8,
+      "image_offset": 100,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 167,
+      "wire_offset": 9,
+      "image_offset": 101,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 167,
+      "wire_offset": 11,
+      "image_offset": 102,
+      "width": 1,
+      "source_width": 1,
+      "mode": "ORBOOL",
+      "argument": 10,
+      "condition_zero": false
+    },
+    {
+      "slot": 167,
+      "wire_offset": 12,
+      "image_offset": 103,
+      "width": 1,
+      "source_width": 1,
+      "mode": "ORBOOL",
+      "argument": 10,
+      "condition_zero": false
+    },
+    {
+      "slot": 169,
+      "wire_offset": 8,
+      "image_offset": 200,
+      "width": 1,
+      "source_width": 1,
+      "mode": "BOOL",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 171,
+      "wire_offset": 8,
+      "image_offset": 1068,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 171,
+      "wire_offset": 12,
+      "image_offset": 1072,
+      "width": 4,
+      "source_width": 4,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 172,
+      "wire_offset": 8,
+      "image_offset": 444,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 172,
+      "wire_offset": 10,
+      "image_offset": 448,
+      "width": 2,
+      "source_width": 2,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 173,
+      "wire_offset": 8,
+      "image_offset": 2081,
+      "width": 1,
+      "source_width": 1,
+      "mode": "EQ",
+      "argument": 1,
+      "condition_zero": false
+    },
+    {
+      "slot": 175,
+      "wire_offset": 8,
+      "image_offset": 1033,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 176,
+      "wire_offset": 8,
+      "image_offset": 1036,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 176,
+      "wire_offset": 9,
+      "image_offset": 1040,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 177,
+      "wire_offset": 8,
+      "image_offset": 2828,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 8,
+      "image_offset": 2948,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 9,
+      "image_offset": 2952,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 10,
+      "image_offset": 2956,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 11,
+      "image_offset": 2960,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 12,
+      "image_offset": 2964,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 13,
+      "image_offset": 2968,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 179,
+      "wire_offset": 14,
+      "image_offset": 2972,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 180,
+      "wire_offset": 8,
+      "image_offset": 212,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 181,
+      "wire_offset": 8,
+      "image_offset": 3324,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 182,
+      "wire_offset": 8,
+      "image_offset": 1044,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 183,
+      "wire_offset": 8,
+      "image_offset": 2976,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 184,
+      "wire_offset": 8,
+      "image_offset": 305,
+      "width": 1,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 187,
+      "wire_offset": 8,
+      "image_offset": 2980,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 8,
+      "image_offset": 3232,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 9,
+      "image_offset": 3236,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 10,
+      "image_offset": 3240,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 11,
+      "image_offset": 3244,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 12,
+      "image_offset": 3248,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 188,
+      "wire_offset": 13,
+      "image_offset": 3252,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    },
+    {
+      "slot": 189,
+      "wire_offset": 8,
+      "image_offset": 452,
+      "width": 4,
+      "source_width": 1,
+      "mode": "COPY",
+      "argument": 0,
+      "condition_zero": false
+    }
+  ],
+  "slots": [
+    {
+      "slot": 0,
+      "opcode": 16386,
+      "handler_va": 9284884,
+      "first": 0,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 1,
+      "opcode": 16390,
+      "handler_va": 3492096,
+      "first": 1,
+      "count": 16,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 2,
+      "opcode": 16391,
+      "handler_va": 3492356,
+      "first": 17,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 3,
+      "opcode": 16392,
+      "handler_va": 3492444,
+      "first": 19,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        9288068
+      ],
+      "old_reads": [
+        [
+          312,
+          4
+        ]
+      ],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 4,
+      "opcode": 16394,
+      "handler_va": 3492848,
+      "first": 22,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 5,
+      "opcode": 16395,
+      "handler_va": 3492920,
+      "first": 23,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 6,
+      "opcode": 16396,
+      "handler_va": 3492992,
+      "first": 24,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 7,
+      "opcode": 16397,
+      "handler_va": 3493064,
+      "first": 25,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 8,
+      "opcode": 16398,
+      "handler_va": 3493132,
+      "first": 26,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 9,
+      "opcode": 16399,
+      "handler_va": 3493200,
+      "first": 27,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 10,
+      "opcode": 16400,
+      "handler_va": 3493292,
+      "first": 30,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 11,
+      "opcode": 16401,
+      "handler_va": 3493364,
+      "first": 31,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 12,
+      "opcode": 16402,
+      "handler_va": 3495360,
+      "first": 32,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 13,
+      "opcode": 16403,
+      "handler_va": 3495432,
+      "first": 33,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 14,
+      "opcode": 16405,
+      "handler_va": 3496008,
+      "first": 34,
+      "count": 8,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 15,
+      "opcode": 16406,
+      "handler_va": 3493444,
+      "first": 42,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          500,
+          1
+        ]
+      ],
+      "unclosed": [
+        "354e6a: beq #0x354e76"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 16,
+      "opcode": 16407,
+      "handler_va": 3493564,
+      "first": 42,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 17,
+      "opcode": 16409,
+      "handler_va": 9285066,
+      "first": 43,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 18,
+      "opcode": 16410,
+      "handler_va": 3493636,
+      "first": 44,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          1380,
+          1
+        ]
+      ],
+      "unclosed": [
+        "354f1c: adds r0, #1"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 19,
+      "opcode": 16413,
+      "handler_va": 3494140,
+      "first": 44,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 20,
+      "opcode": 16414,
+      "handler_va": 3494228,
+      "first": 46,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 21,
+      "opcode": 16417,
+      "handler_va": 3497524,
+      "first": 47,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 22,
+      "opcode": 16418,
+      "handler_va": 9284260,
+      "first": 48,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        11722164
+      ],
+      "old_reads": [],
+      "unclosed": [
+        "8daabc: cbz r0, #0x8daacc"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 23,
+      "opcode": 16419,
+      "handler_va": 3497692,
+      "first": 48,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        11109778
+      ],
+      "old_reads": [],
+      "unclosed": [
+        "355ee6: cbnz r0, #0x355f14"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 24,
+      "opcode": 16420,
+      "handler_va": 3496416,
+      "first": 48,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 25,
+      "opcode": 16421,
+      "handler_va": 3496516,
+      "first": 49,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 26,
+      "opcode": 16422,
+      "handler_va": 3496608,
+      "first": 50,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 27,
+      "opcode": 16425,
+      "handler_va": 3496992,
+      "first": 51,
+      "count": 8,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 28,
+      "opcode": 16426,
+      "handler_va": 3496340,
+      "first": 59,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 29,
+      "opcode": 16430,
+      "handler_va": 3498888,
+      "first": 60,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 30,
+      "opcode": 16431,
+      "handler_va": 3499140,
+      "first": 63,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 31,
+      "opcode": 16432,
+      "handler_va": 3499212,
+      "first": 64,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 32,
+      "opcode": 16433,
+      "handler_va": 3499288,
+      "first": 65,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 33,
+      "opcode": 16434,
+      "handler_va": 3499364,
+      "first": 66,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 34,
+      "opcode": 16435,
+      "handler_va": 3499808,
+      "first": 67,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 35,
+      "opcode": 16436,
+      "handler_va": 3499884,
+      "first": 68,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 36,
+      "opcode": 16442,
+      "handler_va": 3494408,
+      "first": 69,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 37,
+      "opcode": 16449,
+      "handler_va": 3498980,
+      "first": 70,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 38,
+      "opcode": 16452,
+      "handler_va": 3499060,
+      "first": 71,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 39,
+      "opcode": 16455,
+      "handler_va": 3499956,
+      "first": 72,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 40,
+      "opcode": 16456,
+      "handler_va": 3494312,
+      "first": 73,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 41,
+      "opcode": 16457,
+      "handler_va": 3500300,
+      "first": 76,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 42,
+      "opcode": 16458,
+      "handler_va": 3500372,
+      "first": 77,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 43,
+      "opcode": 16460,
+      "handler_va": 3500572,
+      "first": 79,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 44,
+      "opcode": 16461,
+      "handler_va": 3494476,
+      "first": 80,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 45,
+      "opcode": 16463,
+      "handler_va": 3494556,
+      "first": 81,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 46,
+      "opcode": 16464,
+      "handler_va": 3500820,
+      "first": 82,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 47,
+      "opcode": 16465,
+      "handler_va": 3500976,
+      "first": 83,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 48,
+      "opcode": 16466,
+      "handler_va": 3501056,
+      "first": 84,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 49,
+      "opcode": 16470,
+      "handler_va": 9285174,
+      "first": 85,
+      "count": 44,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 50,
+      "opcode": 16473,
+      "handler_va": 3494748,
+      "first": 129,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          802,
+          1
+        ]
+      ],
+      "unclosed": [
+        "355376: adds r0, #1"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 51,
+      "opcode": 16474,
+      "handler_va": 3494848,
+      "first": 129,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 52,
+      "opcode": 16475,
+      "handler_va": 3494924,
+      "first": 130,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 53,
+      "opcode": 16476,
+      "handler_va": 3495000,
+      "first": 131,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 54,
+      "opcode": 16477,
+      "handler_va": 3500652,
+      "first": 132,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 55,
+      "opcode": 16478,
+      "handler_va": 3500736,
+      "first": 133,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 56,
+      "opcode": 16479,
+      "handler_va": 3501136,
+      "first": 134,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 57,
+      "opcode": 16480,
+      "handler_va": 9285120,
+      "first": 135,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 58,
+      "opcode": 16481,
+      "handler_va": 3501304,
+      "first": 136,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 59,
+      "opcode": 16482,
+      "handler_va": 3501216,
+      "first": 137,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 60,
+      "opcode": 16484,
+      "handler_va": 3501376,
+      "first": 139,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 61,
+      "opcode": 16486,
+      "handler_va": 3501696,
+      "first": 140,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 62,
+      "opcode": 16487,
+      "handler_va": 3501776,
+      "first": 141,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 63,
+      "opcode": 16494,
+      "handler_va": 3501928,
+      "first": 142,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 64,
+      "opcode": 16504,
+      "handler_va": 3504444,
+      "first": 143,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 65,
+      "opcode": 16505,
+      "handler_va": 3504536,
+      "first": 145,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 66,
+      "opcode": 16506,
+      "handler_va": 3504612,
+      "first": 146,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "3579f6: subs r1, #1"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 67,
+      "opcode": 16508,
+      "handler_va": 3491796,
+      "first": 146,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 68,
+      "opcode": 16509,
+      "handler_va": 3504856,
+      "first": 147,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 69,
+      "opcode": 16510,
+      "handler_va": 3504936,
+      "first": 148,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        9283966
+      ],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 70,
+      "opcode": 16511,
+      "handler_va": 3505020,
+      "first": 149,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        9283966
+      ],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 71,
+      "opcode": 16512,
+      "handler_va": 3505108,
+      "first": 150,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        9283966
+      ],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 72,
+      "opcode": 16514,
+      "handler_va": 3505196,
+      "first": 151,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 73,
+      "opcode": 16515,
+      "handler_va": 3491884,
+      "first": 152,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "354842: bne #0x354852"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 74,
+      "opcode": 16516,
+      "handler_va": 3505276,
+      "first": 152,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 75,
+      "opcode": 16518,
+      "handler_va": 3505592,
+      "first": 153,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 76,
+      "opcode": 16520,
+      "handler_va": 3505752,
+      "first": 154,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 77,
+      "opcode": 16521,
+      "handler_va": 3491600,
+      "first": 155,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 78,
+      "opcode": 16524,
+      "handler_va": 3505976,
+      "first": 156,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 79,
+      "opcode": 16525,
+      "handler_va": 3496920,
+      "first": 157,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 80,
+      "opcode": 16531,
+      "handler_va": 3506152,
+      "first": 158,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 81,
+      "opcode": 16535,
+      "handler_va": 9286196,
+      "first": 159,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        11810332
+      ],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 82,
+      "opcode": 16538,
+      "handler_va": 3506808,
+      "first": 160,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 83,
+      "opcode": 16545,
+      "handler_va": 9286450,
+      "first": 161,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 84,
+      "opcode": 16546,
+      "handler_va": 3507596,
+      "first": 162,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        11722164
+      ],
+      "old_reads": [],
+      "unclosed": [
+        "3585a2: unclosed IT"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 85,
+      "opcode": 16548,
+      "handler_va": 3501444,
+      "first": 162,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 86,
+      "opcode": 16550,
+      "handler_va": 3507780,
+      "first": 163,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 87,
+      "opcode": 16551,
+      "handler_va": 3507868,
+      "first": 164,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 88,
+      "opcode": 16553,
+      "handler_va": 3501516,
+      "first": 165,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 89,
+      "opcode": 16554,
+      "handler_va": 3506884,
+      "first": 166,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 90,
+      "opcode": 16555,
+      "handler_va": 3506960,
+      "first": 167,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 91,
+      "opcode": 16556,
+      "handler_va": 3508248,
+      "first": 170,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        3489772
+      ],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 92,
+      "opcode": 16557,
+      "handler_va": 3508324,
+      "first": 171,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 93,
+      "opcode": 16558,
+      "handler_va": 3509248,
+      "first": 172,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 94,
+      "opcode": 16559,
+      "handler_va": 3508408,
+      "first": 175,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 95,
+      "opcode": 16560,
+      "handler_va": 3508856,
+      "first": 176,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 96,
+      "opcode": 16561,
+      "handler_va": 3508932,
+      "first": 177,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 97,
+      "opcode": 16562,
+      "handler_va": 9286504,
+      "first": 178,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 98,
+      "opcode": 16563,
+      "handler_va": 9286558,
+      "first": 179,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 99,
+      "opcode": 16564,
+      "handler_va": 3509012,
+      "first": 180,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 100,
+      "opcode": 16565,
+      "handler_va": 3509076,
+      "first": 181,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 101,
+      "opcode": 16566,
+      "handler_va": 3509164,
+      "first": 182,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 102,
+      "opcode": 16578,
+      "handler_va": 3511280,
+      "first": 183,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 103,
+      "opcode": 16579,
+      "handler_va": 3511356,
+      "first": 184,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 104,
+      "opcode": 16580,
+      "handler_va": 3510144,
+      "first": 185,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 105,
+      "opcode": 16581,
+      "handler_va": 3510228,
+      "first": 186,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 106,
+      "opcode": 16582,
+      "handler_va": 3511432,
+      "first": 187,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 107,
+      "opcode": 16583,
+      "handler_va": 3511512,
+      "first": 188,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 108,
+      "opcode": 16586,
+      "handler_va": 3511592,
+      "first": 189,
+      "count": 6,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 109,
+      "opcode": 16587,
+      "handler_va": 3511712,
+      "first": 195,
+      "count": 6,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 110,
+      "opcode": 16588,
+      "handler_va": 3511832,
+      "first": 201,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 111,
+      "opcode": 16589,
+      "handler_va": 3511908,
+      "first": 202,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 112,
+      "opcode": 16590,
+      "handler_va": 3512012,
+      "first": 205,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 113,
+      "opcode": 16594,
+      "handler_va": 3512244,
+      "first": 206,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 114,
+      "opcode": 16595,
+      "handler_va": 3512316,
+      "first": 207,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 115,
+      "opcode": 16596,
+      "handler_va": 3508496,
+      "first": 208,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 116,
+      "opcode": 16597,
+      "handler_va": 3512400,
+      "first": 209,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 117,
+      "opcode": 16598,
+      "handler_va": 3512484,
+      "first": 210,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 118,
+      "opcode": 16599,
+      "handler_va": 9286612,
+      "first": 211,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 119,
+      "opcode": 16600,
+      "handler_va": 3512564,
+      "first": 212,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 120,
+      "opcode": 16601,
+      "handler_va": 3512644,
+      "first": 213,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          3408,
+          1
+        ]
+      ],
+      "unclosed": [
+        "359956: adds r0, #1"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 121,
+      "opcode": 16603,
+      "handler_va": 3512832,
+      "first": 213,
+      "count": 6,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 122,
+      "opcode": 16604,
+      "handler_va": 3513152,
+      "first": 219,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 123,
+      "opcode": 16611,
+      "handler_va": 3513920,
+      "first": 220,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 124,
+      "opcode": 16612,
+      "handler_va": 3513668,
+      "first": 221,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 125,
+      "opcode": 16614,
+      "handler_va": 3513760,
+      "first": 222,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 126,
+      "opcode": 16615,
+      "handler_va": 3513840,
+      "first": 223,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 127,
+      "opcode": 16616,
+      "handler_va": 3510396,
+      "first": 224,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "359080: beq #0x3590a0"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 128,
+      "opcode": 16617,
+      "handler_va": 3510628,
+      "first": 224,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 129,
+      "opcode": 16618,
+      "handler_va": 3510720,
+      "first": 225,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 130,
+      "opcode": 16619,
+      "handler_va": 3510808,
+      "first": 227,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 131,
+      "opcode": 16620,
+      "handler_va": 3510908,
+      "first": 228,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 132,
+      "opcode": 16625,
+      "handler_va": 3516384,
+      "first": 229,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 133,
+      "opcode": 16627,
+      "handler_va": 3499440,
+      "first": 230,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 134,
+      "opcode": 16628,
+      "handler_va": 3499516,
+      "first": 231,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 135,
+      "opcode": 16629,
+      "handler_va": 3499588,
+      "first": 232,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 136,
+      "opcode": 16630,
+      "handler_va": 3499660,
+      "first": 233,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 137,
+      "opcode": 16631,
+      "handler_va": 3499736,
+      "first": 234,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 138,
+      "opcode": 16632,
+      "handler_va": 3514172,
+      "first": 235,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          3027,
+          1
+        ]
+      ],
+      "unclosed": [
+        "359f4c: beq #0x359f54"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 139,
+      "opcode": 16635,
+      "handler_va": 3514268,
+      "first": 235,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 140,
+      "opcode": 16636,
+      "handler_va": 3514344,
+      "first": 236,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 141,
+      "opcode": 16637,
+      "handler_va": 3514428,
+      "first": 237,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 142,
+      "opcode": 16639,
+      "handler_va": 3514584,
+      "first": 238,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 143,
+      "opcode": 16640,
+      "handler_va": 3514948,
+      "first": 239,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 144,
+      "opcode": 16641,
+      "handler_va": 3515036,
+      "first": 240,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 145,
+      "opcode": 16643,
+      "handler_va": 3515124,
+      "first": 241,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [
+        8292542
+      ],
+      "old_reads": [],
+      "unclosed": [
+        "35a304: unclosed IT"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 146,
+      "opcode": 16644,
+      "handler_va": 3515572,
+      "first": 241,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 147,
+      "opcode": 16645,
+      "handler_va": 3515656,
+      "first": 241,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 148,
+      "opcode": 16695,
+      "handler_va": 3521148,
+      "first": 242,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 149,
+      "opcode": 16696,
+      "handler_va": 3516296,
+      "first": 243,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 150,
+      "opcode": 16698,
+      "handler_va": 3516576,
+      "first": 244,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 151,
+      "opcode": 16699,
+      "handler_va": 3516740,
+      "first": 245,
+      "count": 3,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 152,
+      "opcode": 16700,
+      "handler_va": 3516656,
+      "first": 248,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 153,
+      "opcode": 16701,
+      "handler_va": 9286796,
+      "first": 249,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 154,
+      "opcode": 16702,
+      "handler_va": 3516472,
+      "first": 250,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 155,
+      "opcode": 16703,
+      "handler_va": 3516932,
+      "first": 251,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 156,
+      "opcode": 16705,
+      "handler_va": 3498816,
+      "first": 253,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 157,
+      "opcode": 16706,
+      "handler_va": 3517116,
+      "first": 254,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 158,
+      "opcode": 16707,
+      "handler_va": 3521920,
+      "first": 255,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [
+        [
+          2812,
+          4
+        ]
+      ],
+      "unclosed": [
+        "35bd8e: bne #0x35bd9e"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 159,
+      "opcode": 16709,
+      "handler_va": 3522252,
+      "first": 255,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 160,
+      "opcode": 16710,
+      "handler_va": 3522336,
+      "first": 256,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 161,
+      "opcode": 16712,
+      "handler_va": 3522420,
+      "first": 257,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 162,
+      "opcode": 16713,
+      "handler_va": 3523348,
+      "first": 258,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 163,
+      "opcode": 16715,
+      "handler_va": 3522496,
+      "first": 259,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 164,
+      "opcode": 16716,
+      "handler_va": 3522572,
+      "first": 260,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 165,
+      "opcode": 16720,
+      "handler_va": 3522656,
+      "first": 261,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 166,
+      "opcode": 16721,
+      "handler_va": 9286920,
+      "first": 262,
+      "count": 7,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 167,
+      "opcode": 16724,
+      "handler_va": 3523748,
+      "first": 269,
+      "count": 4,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 168,
+      "opcode": 16725,
+      "handler_va": 3523916,
+      "first": 273,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "35c55a: cbz r0, #0x35c564"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 169,
+      "opcode": 16726,
+      "handler_va": 3524264,
+      "first": 273,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 170,
+      "opcode": 16727,
+      "handler_va": 9287022,
+      "first": 274,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "8db590: beq #0x8db59a"
+      ],
+      "debug_guard": false
+    },
+    {
+      "slot": 171,
+      "opcode": 16728,
+      "handler_va": 3497224,
+      "first": 274,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 172,
+      "opcode": 16729,
+      "handler_va": 3524644,
+      "first": 276,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 173,
+      "opcode": 16731,
+      "handler_va": 3524544,
+      "first": 278,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 174,
+      "opcode": 16735,
+      "handler_va": 3515224,
+      "first": 279,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": false,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [
+        "35a406: stm r1!, {r0, r2, r3, r5, r6}"
+      ],
+      "debug_guard": true
+    },
+    {
+      "slot": 175,
+      "opcode": 16737,
+      "handler_va": 3524900,
+      "first": 279,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 176,
+      "opcode": 16738,
+      "handler_va": 3524988,
+      "first": 280,
+      "count": 2,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 177,
+      "opcode": 16739,
+      "handler_va": 3525092,
+      "first": 282,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 178,
+      "opcode": 16740,
+      "handler_va": 9287124,
+      "first": 283,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": true,
+      "noop": true,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 179,
+      "opcode": 16741,
+      "handler_va": 9287128,
+      "first": 283,
+      "count": 7,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 180,
+      "opcode": 16742,
+      "handler_va": 3525256,
+      "first": 290,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 181,
+      "opcode": 16743,
+      "handler_va": 3525328,
+      "first": 291,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 182,
+      "opcode": 16745,
+      "handler_va": 3525604,
+      "first": 292,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 183,
+      "opcode": 16748,
+      "handler_va": 3525696,
+      "first": 293,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 184,
+      "opcode": 16752,
+      "handler_va": 3496268,
+      "first": 294,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 185,
+      "opcode": 16754,
+      "handler_va": 9284252,
+      "first": 295,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": true,
+      "noop": true,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 186,
+      "opcode": 16755,
+      "handler_va": 9284256,
+      "first": 295,
+      "count": 0,
+      "config_closed": false,
+      "semantic_closed": true,
+      "noop": true,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": false
+    },
+    {
+      "slot": 187,
+      "opcode": 16756,
+      "handler_va": 3525180,
+      "first": 295,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 188,
+      "opcode": 16758,
+      "handler_va": 3525944,
+      "first": 296,
+      "count": 6,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    },
+    {
+      "slot": 189,
+      "opcode": 16759,
+      "handler_va": 3526088,
+      "first": 302,
+      "count": 1,
+      "config_closed": true,
+      "semantic_closed": true,
+      "noop": false,
+      "calls": [],
+      "old_reads": [],
+      "unclosed": [],
+      "debug_guard": true
+    }
+  ],
+  "pins": [
+    {
+      "slot": 0,
+      "opcode": 16386,
+      "va": 9284884,
+      "size": 54,
+      "sha256": "391963eb1407af4ca4159584908f88806e3ef9748323575e2d1e8401c809528b"
+    },
+    {
+      "slot": 1,
+      "opcode": 16390,
+      "va": 3492096,
+      "size": 146,
+      "sha256": "503116a052fbd61d624c766ddde08cdbc1bcf9051822a25c4575ea365f6d3479"
+    },
+    {
+      "slot": 2,
+      "opcode": 16391,
+      "va": 3492356,
+      "size": 58,
+      "sha256": "5d93137b55f609b6df970ece6c8fe3936e559120f5a2501340ea9b4733b9873a"
+    },
+    {
+      "slot": 3,
+      "opcode": 16392,
+      "va": 3492444,
+      "size": 70,
+      "sha256": "4f4038c815a4e91e264d97eb39a940270e579e8a79c191f95a7c17ca4a5fc2bf"
+    },
+    {
+      "slot": 4,
+      "opcode": 16394,
+      "va": 3492848,
+      "size": 48,
+      "sha256": "51b6b607ec85b87c59cc298c7dde4022eefd03d7db22ad01723cfd2162b4da5e"
+    },
+    {
+      "slot": 5,
+      "opcode": 16395,
+      "va": 3492920,
+      "size": 48,
+      "sha256": "7dcbb97f1c0b1cc76d4e23302d22f73b5da81d1bee9df1bfa3d6091f13e8f6f4"
+    },
+    {
+      "slot": 6,
+      "opcode": 16396,
+      "va": 3492992,
+      "size": 48,
+      "sha256": "d37a82726c0b81b4efd3d880e68f78fa877144d566cdb65013b5c7f02341d313"
+    },
+    {
+      "slot": 7,
+      "opcode": 16397,
+      "va": 3493064,
+      "size": 48,
+      "sha256": "f32337427a0d9ab78b24cffb13cf9939faa26a9a39f8cbf5098025f77003f478"
+    },
+    {
+      "slot": 8,
+      "opcode": 16398,
+      "va": 3493132,
+      "size": 48,
+      "sha256": "ea1eaf4dd5403fc46267743725913a0374d217d2086e7f13960938812db05fcc"
+    },
+    {
+      "slot": 9,
+      "opcode": 16399,
+      "va": 3493200,
+      "size": 60,
+      "sha256": "67f2bdf1524e608e7284669f93c010edf4573391aeaf665499a9272608ecb0d0"
+    },
+    {
+      "slot": 10,
+      "opcode": 16400,
+      "va": 3493292,
+      "size": 48,
+      "sha256": "946b0c45be41dce843d83d89377c913ffc561838a71d32ce8d9bb7ba8b642494"
+    },
+    {
+      "slot": 11,
+      "opcode": 16401,
+      "va": 3493364,
+      "size": 48,
+      "sha256": "1d835227f00aa1e880a30fc2637c7c5f66d5fb855d415c46733ee959f2328105"
+    },
+    {
+      "slot": 12,
+      "opcode": 16402,
+      "va": 3495360,
+      "size": 48,
+      "sha256": "3e67efbcf8aafef30863c8f817547cdfa77d16c7df9f76ee8a53412dabbb1811"
+    },
+    {
+      "slot": 13,
+      "opcode": 16403,
+      "va": 3495432,
+      "size": 48,
+      "sha256": "0a11f72d604e190a09ed49fd3077e4661b2d0ac1d1486c879bd83a8a40f2781b"
+    },
+    {
+      "slot": 14,
+      "opcode": 16405,
+      "va": 3496008,
+      "size": 112,
+      "sha256": "a1e3693480c83aa1494e85f1aa5a04621f2142fa47efa1af61d8f3749f806c4c"
+    },
+    {
+      "slot": 15,
+      "opcode": 16406,
+      "va": 3493444,
+      "size": 88,
+      "sha256": "3ca75220a26085de3d9619b475ee6f2de34b2a4297b5328ec7ce9ffe18446017"
+    },
+    {
+      "slot": 16,
+      "opcode": 16407,
+      "va": 3493564,
+      "size": 48,
+      "sha256": "84098a6e47b65d97eda6260e76cff74dac1fa64f615ce38d3886ab439bb7a631"
+    },
+    {
+      "slot": 17,
+      "opcode": 16409,
+      "va": 9285066,
+      "size": 54,
+      "sha256": "83f6710fa0a6b2fc8a037fa951c9c021acc77bd87c253377ea68c331a705fdb3"
+    },
+    {
+      "slot": 18,
+      "opcode": 16410,
+      "va": 3493636,
+      "size": 66,
+      "sha256": "2dd0cb4e4a0a62fd62fdd42c913f9126dd1e3b9ec56e74219e5a584dbebbe4f9"
+    },
+    {
+      "slot": 19,
+      "opcode": 16413,
+      "va": 3494140,
+      "size": 56,
+      "sha256": "9a0fd4984224fe94d00f3af19af01a4fc96f98ce04799b23eae193d471fe7b64"
+    },
+    {
+      "slot": 20,
+      "opcode": 16414,
+      "va": 3494228,
+      "size": 48,
+      "sha256": "765ab5c3ac8dc1bdc3b541952598302f152fd7012a59e40d83edc9add226f65b"
+    },
+    {
+      "slot": 21,
+      "opcode": 16417,
+      "va": 3497524,
+      "size": 48,
+      "sha256": "60edcfdaf45015113c304cb1cbdf4ab6a81988b9e4744b357c24a31e6fe14743"
+    },
+    {
+      "slot": 22,
+      "opcode": 16418,
+      "va": 9284260,
+      "size": 342,
+      "sha256": "5a7dd232f534a8b20753de1726a48e5dfcea5b1cc2ba8e98792f88cc5cb88cfb"
+    },
+    {
+      "slot": 23,
+      "opcode": 16419,
+      "va": 3497692,
+      "size": 194,
+      "sha256": "cfab5b222ca825d9ff526314c796c732e0cc58f8f0330ea758110f012737fc61"
+    },
+    {
+      "slot": 24,
+      "opcode": 16420,
+      "va": 3496416,
+      "size": 62,
+      "sha256": "8940765d7f785c4f0b3d60ef8502ebe9ea891f35ba9bc3fffc3a8bd1ce1a806c"
+    },
+    {
+      "slot": 25,
+      "opcode": 16421,
+      "va": 3496516,
+      "size": 62,
+      "sha256": "0b774b93e1819c4cd687acc0962b3d8e618991b8001f4b141f13dcac5284c21b"
+    },
+    {
+      "slot": 26,
+      "opcode": 16422,
+      "va": 3496608,
+      "size": 48,
+      "sha256": "466649ee5839bf3610f43c66f635542bd9ab4cfa46bf31ae2a1a7bddf8800e9b"
+    },
+    {
+      "slot": 27,
+      "opcode": 16425,
+      "va": 3496992,
+      "size": 124,
+      "sha256": "ba966b88bbbdbbdd68eb827cd3d8fd9aaecac321a0acbd94c0df9ae5f1c23ed0"
+    },
+    {
+      "slot": 28,
+      "opcode": 16426,
+      "va": 3496340,
+      "size": 48,
+      "sha256": "90a7dbc70630bdebcfdd44c327be64a13b33591b063d7fee1db134283c397d6f"
+    },
+    {
+      "slot": 29,
+      "opcode": 16430,
+      "va": 3498888,
+      "size": 60,
+      "sha256": "f9bb83168dcb14a32c70c68037bf15594e930823dd058db8934479438ed8ea79"
+    },
+    {
+      "slot": 30,
+      "opcode": 16431,
+      "va": 3499140,
+      "size": 48,
+      "sha256": "c3dead3c056e548baf50180756b34ef140610b104872c67067b3e0381febb5e2"
+    },
+    {
+      "slot": 31,
+      "opcode": 16432,
+      "va": 3499212,
+      "size": 50,
+      "sha256": "6e90f81e4c1d7370a7e7bbdec671b2703450b144cc49f014d00eeb86f7a02bcd"
+    },
+    {
+      "slot": 32,
+      "opcode": 16433,
+      "va": 3499288,
+      "size": 50,
+      "sha256": "cea4e7dbea49b8b313d3fd71e6337b815421dfa3b09f1334b68a1dfad722cb3d"
+    },
+    {
+      "slot": 33,
+      "opcode": 16434,
+      "va": 3499364,
+      "size": 50,
+      "sha256": "99a19cb0001d9f775deeba92fcaab49ea9740ed429068319cf948404783bb692"
+    },
+    {
+      "slot": 34,
+      "opcode": 16435,
+      "va": 3499808,
+      "size": 50,
+      "sha256": "0738333145bd1c57736b4c2ad8e064aee15a703dc1a6071995a0f097b105a6d3"
+    },
+    {
+      "slot": 35,
+      "opcode": 16436,
+      "va": 3499884,
+      "size": 50,
+      "sha256": "bccf0e513270b6b8911d3b24dda25599cf38db026684931c4561c678e750955d"
+    },
+    {
+      "slot": 36,
+      "opcode": 16442,
+      "va": 3494408,
+      "size": 48,
+      "sha256": "8e048c0d326087b89a190e942a98eb01c048ab061d4a7706656810d15e0ac0bb"
+    },
+    {
+      "slot": 37,
+      "opcode": 16449,
+      "va": 3498980,
+      "size": 48,
+      "sha256": "e38fe5d21a3448d691e17dfc13c4bb449f94d6d76794a661582bfdca3d225f56"
+    },
+    {
+      "slot": 38,
+      "opcode": 16452,
+      "va": 3499060,
+      "size": 48,
+      "sha256": "9433316a60c1a1e853949ee65a6a2fd5ab8209264cadd56f3500a0f920975d01"
+    },
+    {
+      "slot": 39,
+      "opcode": 16455,
+      "va": 3499956,
+      "size": 48,
+      "sha256": "ad9f43a285aebc7459332bebd4cd75fc5c27ced51585ebe386a594d8c2cbddd2"
+    },
+    {
+      "slot": 40,
+      "opcode": 16456,
+      "va": 3494312,
+      "size": 62,
+      "sha256": "11880e113781b7585f25e9866e434e97e4f4b540ffcd1a4452a5a06e334fb118"
+    },
+    {
+      "slot": 41,
+      "opcode": 16457,
+      "va": 3500300,
+      "size": 48,
+      "sha256": "3e28d177a615e87c5b54dfb92f341c48a4e444d16b36c065cf335aad032e212e"
+    },
+    {
+      "slot": 42,
+      "opcode": 16458,
+      "va": 3500372,
+      "size": 70,
+      "sha256": "346325555b3c44cdb05c424dd0167b9690056002c52671f97878cc51483142c3"
+    },
+    {
+      "slot": 43,
+      "opcode": 16460,
+      "va": 3500572,
+      "size": 48,
+      "sha256": "33f99dc3b2adf74a4731022caa500f8dabf58e9c98f6329e18d0e7eb6a58d94f"
+    },
+    {
+      "slot": 44,
+      "opcode": 16461,
+      "va": 3494476,
+      "size": 48,
+      "sha256": "d9876fc49906c6a6b8a198bfa42f02cf22c600ad876e2772581f51fc9f9dab21"
+    },
+    {
+      "slot": 45,
+      "opcode": 16463,
+      "va": 3494556,
+      "size": 48,
+      "sha256": "a1bdd386edb0d60a787ed7f6fdb7ed94a151dc2b3823620fcc2efc0952a44970"
+    },
+    {
+      "slot": 46,
+      "opcode": 16464,
+      "va": 3500820,
+      "size": 48,
+      "sha256": "c140383b8e6b3232cf840316325ff73c73ac29e301b14b0949bd7c644fd4637e"
+    },
+    {
+      "slot": 47,
+      "opcode": 16465,
+      "va": 3500976,
+      "size": 48,
+      "sha256": "1acc90aa64d6cf0af8b99c864b44e531032fc78fb29f6c65059c1b5ba5059671"
+    },
+    {
+      "slot": 48,
+      "opcode": 16466,
+      "va": 3501056,
+      "size": 48,
+      "sha256": "11c06a5900a77072451e3386acc68702fa9cbb91ef52dec0468499ff7636f186"
+    },
+    {
+      "slot": 49,
+      "opcode": 16470,
+      "va": 9285174,
+      "size": 654,
+      "sha256": "c0bfc910d2397daca0f7026db7556b0e17a793caf50da2b3b7c4a38cd262f19b"
+    },
+    {
+      "slot": 50,
+      "opcode": 16473,
+      "va": 3494748,
+      "size": 68,
+      "sha256": "566b5119af90d4c62e7080d6aaf03dadfd713952a51395d8b55b15658b75701a"
+    },
+    {
+      "slot": 51,
+      "opcode": 16474,
+      "va": 3494848,
+      "size": 48,
+      "sha256": "0a07bd03892897f644c4149d04f297f5b113d23a3e92a0df3fbc21e41cfe57cd"
+    },
+    {
+      "slot": 52,
+      "opcode": 16475,
+      "va": 3494924,
+      "size": 48,
+      "sha256": "16d744e2db435f68510889671b6e1593b2de131161834a0c63bbc3b56e769572"
+    },
+    {
+      "slot": 53,
+      "opcode": 16476,
+      "va": 3495000,
+      "size": 48,
+      "sha256": "578b29f2e88259bcae07e8aeed21db4aa64e68b9be41a94e9f2e8f2fcc20461a"
+    },
+    {
+      "slot": 54,
+      "opcode": 16477,
+      "va": 3500652,
+      "size": 48,
+      "sha256": "487401f5a65ffb64edbd9ef76f745c6ebea0c099831b149977818c01827cade2"
+    },
+    {
+      "slot": 55,
+      "opcode": 16478,
+      "va": 3500736,
+      "size": 48,
+      "sha256": "5caa8d6b94923411cc5b6d5929f314f614a029fc7e1cc7e475156b9702ae027c"
+    },
+    {
+      "slot": 56,
+      "opcode": 16479,
+      "va": 3501136,
+      "size": 48,
+      "sha256": "7ee2afadb1c76d1d3638ba002ec8e10e4e1733d6b2082d145bab2c0d60064c91"
+    },
+    {
+      "slot": 57,
+      "opcode": 16480,
+      "va": 9285120,
+      "size": 54,
+      "sha256": "69520181c5ddb8990d3f65ef274d599da8878a9ea3149cbbc70b47f8599b3a38"
+    },
+    {
+      "slot": 58,
+      "opcode": 16481,
+      "va": 3501304,
+      "size": 48,
+      "sha256": "0dfec493ff0bbf0696723b29beaba6f919b50cd5872f15c011fbbcd9f1426484"
+    },
+    {
+      "slot": 59,
+      "opcode": 16482,
+      "va": 3501216,
+      "size": 54,
+      "sha256": "75d51e7590e2f0fcfc27362898dc0a7cedf78e32b9ef2721563e06dc8150787e"
+    },
+    {
+      "slot": 60,
+      "opcode": 16484,
+      "va": 3501376,
+      "size": 48,
+      "sha256": "9dd4032fefd11b72d376f9e2fa48c4fe068de6b95a0bdd03f726a8dcdedcb341"
+    },
+    {
+      "slot": 61,
+      "opcode": 16486,
+      "va": 3501696,
+      "size": 48,
+      "sha256": "62d13d222a1bf7e901cf0132702124965e08410b99727a3a1609c2fae285ca10"
+    },
+    {
+      "slot": 62,
+      "opcode": 16487,
+      "va": 3501776,
+      "size": 48,
+      "sha256": "4586e9b13b4cf7a9cebb4f5a7bdd12396b00a621a8e6c796e186a740b571b1de"
+    },
+    {
+      "slot": 63,
+      "opcode": 16494,
+      "va": 3501928,
+      "size": 48,
+      "sha256": "769d955b3dec9f71c8faa6a7b1c92b8b4705e2c672cf90dc0340bce96e0067eb"
+    },
+    {
+      "slot": 64,
+      "opcode": 16504,
+      "va": 3504444,
+      "size": 54,
+      "sha256": "53dbc47018658301eb709278a5b90334b1778aa281496aefb24cf2c02c2364fc"
+    },
+    {
+      "slot": 65,
+      "opcode": 16505,
+      "va": 3504536,
+      "size": 48,
+      "sha256": "3dec35c0773db489be235f5191a828582ee6abad869e4fa41a4af265c6b48285"
+    },
+    {
+      "slot": 66,
+      "opcode": 16506,
+      "va": 3504612,
+      "size": 136,
+      "sha256": "443a1185201a1b636368921dbbb80502370063d6c8ef9fa42da83426d27ded1d"
+    },
+    {
+      "slot": 67,
+      "opcode": 16508,
+      "va": 3491796,
+      "size": 62,
+      "sha256": "bf810aef87f42adfa87bd5408587baace17c2d1d75afda81965cd379b8e593eb"
+    },
+    {
+      "slot": 68,
+      "opcode": 16509,
+      "va": 3504856,
+      "size": 48,
+      "sha256": "012921c1b76d30b55fea450e176b1dbf948167909247d73d03767193c6b2b7ac"
+    },
+    {
+      "slot": 69,
+      "opcode": 16510,
+      "va": 3504936,
+      "size": 52,
+      "sha256": "9b8e0befde00bcb47af2ef89e4971966d99885e86e4d55e4bcebdb57bf52513f"
+    },
+    {
+      "slot": 70,
+      "opcode": 16511,
+      "va": 3505020,
+      "size": 52,
+      "sha256": "8a4b07b6c62f4d827e15fc7030dda0449842a19c909130ab71de699044611368"
+    },
+    {
+      "slot": 71,
+      "opcode": 16512,
+      "va": 3505108,
+      "size": 52,
+      "sha256": "a25d6476eb785cd47b39766a2ec75a6d165115e0f6edb736e29a07e98354c481"
+    },
+    {
+      "slot": 72,
+      "opcode": 16514,
+      "va": 3505196,
+      "size": 48,
+      "sha256": "c9c8af910a6b0e53ea5c18b63f32d1fbf2c4079eadabde9ecd3ebda90613fc89"
+    },
+    {
+      "slot": 73,
+      "opcode": 16515,
+      "va": 3491884,
+      "size": 70,
+      "sha256": "e14a9aa0fceb436ac56395cbf97013812b16c4c6948d9f919774eec61013a7dd"
+    },
+    {
+      "slot": 74,
+      "opcode": 16516,
+      "va": 3505276,
+      "size": 48,
+      "sha256": "e55febc934a03c4c4186b3f1b99a20650f9b1b791f92c69b6d1de0ad07fb01d5"
+    },
+    {
+      "slot": 75,
+      "opcode": 16518,
+      "va": 3505592,
+      "size": 48,
+      "sha256": "3e2e2c41ce5094e6fc6911cbc1697c06cb51f63a1ed47bd08aff7713953bbb21"
+    },
+    {
+      "slot": 76,
+      "opcode": 16520,
+      "va": 3505752,
+      "size": 48,
+      "sha256": "1373e290ba9e487dfb5c78417d661f44278f54689495d1a2a34b0d027ca2fc82"
+    },
+    {
+      "slot": 77,
+      "opcode": 16521,
+      "va": 3491600,
+      "size": 62,
+      "sha256": "42f28e85f9e3a6111b0e33da807ce2c7fc17f1267bc852e85511aa60c9ac48aa"
+    },
+    {
+      "slot": 78,
+      "opcode": 16524,
+      "va": 3505976,
+      "size": 62,
+      "sha256": "4bcf646a4bc3e31874d1e4106be411141bd24c641a92ac46c5ecaf001fa30bd7"
+    },
+    {
+      "slot": 79,
+      "opcode": 16525,
+      "va": 3496920,
+      "size": 48,
+      "sha256": "93bfd340e40c95bb66aa09568c26bb06d0a613e69e67e404fa2e461ba45470ae"
+    },
+    {
+      "slot": 80,
+      "opcode": 16531,
+      "va": 3506152,
+      "size": 48,
+      "sha256": "9cba9eed2e3474e30253eae85e30ac06120bdfe6277ade6e2656c318d9b6d46a"
+    },
+    {
+      "slot": 81,
+      "opcode": 16535,
+      "va": 9286196,
+      "size": 34,
+      "sha256": "1eaedee455e4eed1166972327cf20f673728a12f0e399c3490758d4001308332"
+    },
+    {
+      "slot": 82,
+      "opcode": 16538,
+      "va": 3506808,
+      "size": 48,
+      "sha256": "f3851d75372f42eae4e3fa9d657742dbb20829169d57ef3cb12f3c1349047bef"
+    },
+    {
+      "slot": 83,
+      "opcode": 16545,
+      "va": 9286450,
+      "size": 54,
+      "sha256": "5a02cdf6374efebd9ab73cbcfaf5ffc8be7c67e764e81ece564dc05d24e6a195"
+    },
+    {
+      "slot": 84,
+      "opcode": 16546,
+      "va": 3507596,
+      "size": 162,
+      "sha256": "470dd387960390f8c8f94b162e85df474d8b883bd9bf0f600ec0fbfb2b5bd902"
+    },
+    {
+      "slot": 85,
+      "opcode": 16548,
+      "va": 3501444,
+      "size": 48,
+      "sha256": "922670f7a8770fca0d90625090399c95c5799e0f14ee993cb3584bfe0d74ee0c"
+    },
+    {
+      "slot": 86,
+      "opcode": 16550,
+      "va": 3507780,
+      "size": 48,
+      "sha256": "60c09545dbdd758733633fa6265bb26b505f2ed729b553b44811b52af5c33ba3"
+    },
+    {
+      "slot": 87,
+      "opcode": 16551,
+      "va": 3507868,
+      "size": 48,
+      "sha256": "fc59f889b8fcdf995742afd94f19a59e7d69ad54b4337f9706962debc365c072"
+    },
+    {
+      "slot": 88,
+      "opcode": 16553,
+      "va": 3501516,
+      "size": 48,
+      "sha256": "3bcbb00e49d5e89f41e84eb18cb2ca58acb7e194530af1a4225368c481ae8213"
+    },
+    {
+      "slot": 89,
+      "opcode": 16554,
+      "va": 3506884,
+      "size": 48,
+      "sha256": "6244549385b7c8a803e5c1a652a68585f21f421ef8b335f8695b78a250a50cda"
+    },
+    {
+      "slot": 90,
+      "opcode": 16555,
+      "va": 3506960,
+      "size": 60,
+      "sha256": "28c54a3ce0842c9cbd66b3d106b50178c16bce95d7971a71d9540f4dca81ce20"
+    },
+    {
+      "slot": 91,
+      "opcode": 16556,
+      "va": 3508248,
+      "size": 48,
+      "sha256": "bd0816d4f97f718153c9ebce4687d400314d6644a23876aa9d580a4efa56aef8"
+    },
+    {
+      "slot": 92,
+      "opcode": 16557,
+      "va": 3508324,
+      "size": 48,
+      "sha256": "5eb2c6fca1ac8421e4c8db5f8b64577a0fe88eef9e7e5c8f69082487a5f25e76"
+    },
+    {
+      "slot": 93,
+      "opcode": 16558,
+      "va": 3509248,
+      "size": 60,
+      "sha256": "9b4311d34e89cabb244c2aa771f7201f61b98b836911b12aa8aa5fb18c839f99"
+    },
+    {
+      "slot": 94,
+      "opcode": 16559,
+      "va": 3508408,
+      "size": 48,
+      "sha256": "79d47d7391d6033c052bdf9ba1c956a15984f230322f8152ff28777616f68037"
+    },
+    {
+      "slot": 95,
+      "opcode": 16560,
+      "va": 3508856,
+      "size": 48,
+      "sha256": "65841d8f2e702bac356452ec4c69e88165e4af09ac90f474cb25fc90e6fa7ade"
+    },
+    {
+      "slot": 96,
+      "opcode": 16561,
+      "va": 3508932,
+      "size": 48,
+      "sha256": "0764e84e019a11c26d47e70e802bced78e12bb1c317d72a5bc1f48c7efaee237"
+    },
+    {
+      "slot": 97,
+      "opcode": 16562,
+      "va": 9286504,
+      "size": 54,
+      "sha256": "f649efa224cbdf1f464f3efd2b21c655504dc9b175e19d5682917e5ebcfb24a3"
+    },
+    {
+      "slot": 98,
+      "opcode": 16563,
+      "va": 9286558,
+      "size": 54,
+      "sha256": "871da0a3c3053f4e53b11eb17a4c50e210c196e64fa9842488e1fe1e3830ba9f"
+    },
+    {
+      "slot": 99,
+      "opcode": 16564,
+      "va": 3509012,
+      "size": 48,
+      "sha256": "5023691e4de0e316057c28522479a3849cf186f3ced5d4d0f645fb5cd56f6f84"
+    },
+    {
+      "slot": 100,
+      "opcode": 16565,
+      "va": 3509076,
+      "size": 62,
+      "sha256": "4e7e1c40c03a0e5423c17c28d7dc546935a08bb522d75039057051648bc78481"
+    },
+    {
+      "slot": 101,
+      "opcode": 16566,
+      "va": 3509164,
+      "size": 48,
+      "sha256": "cc359d6603e675c3109c929563f6a4068fff7e30dff8d469436bf13206b074a4"
+    },
+    {
+      "slot": 102,
+      "opcode": 16578,
+      "va": 3511280,
+      "size": 48,
+      "sha256": "b1bfdc4cfa251da60f6ae71e7358993f4900bc40ae42f7afe9bf91fad8ca35f7"
+    },
+    {
+      "slot": 103,
+      "opcode": 16579,
+      "va": 3511356,
+      "size": 48,
+      "sha256": "9574b123e45a952022230d9df5184d476b6cfa4895fe10180d7e1b55a78b619d"
+    },
+    {
+      "slot": 104,
+      "opcode": 16580,
+      "va": 3510144,
+      "size": 48,
+      "sha256": "f5ad6f46ef14e529db39e53162f1c6756ec35f18c23cd8bc77cb5dd51ea97c23"
+    },
+    {
+      "slot": 105,
+      "opcode": 16581,
+      "va": 3510228,
+      "size": 48,
+      "sha256": "195366e573fcecaa881b18227919d4e2cead415e883b5110c3dec4e6b0160f46"
+    },
+    {
+      "slot": 106,
+      "opcode": 16582,
+      "va": 3511432,
+      "size": 48,
+      "sha256": "a5bcfbd5daa3a9412fd646e7c49a27f774cb788b2a18322205e4819c463f5cc4"
+    },
+    {
+      "slot": 107,
+      "opcode": 16583,
+      "va": 3511512,
+      "size": 48,
+      "sha256": "519f2e01ae38281487f880aea5e28ed8e8af7bf0af5ec2181d15e72abc6542b5"
+    },
+    {
+      "slot": 108,
+      "opcode": 16586,
+      "va": 3511592,
+      "size": 72,
+      "sha256": "fe759604ff8d1956725b5d9a65950f8fc50a87632a117da5641bc5ac99b02225"
+    },
+    {
+      "slot": 109,
+      "opcode": 16587,
+      "va": 3511712,
+      "size": 72,
+      "sha256": "236e432113077034101d87bf3aece8235cc2381e06493bec2328f7d60276ca4b"
+    },
+    {
+      "slot": 110,
+      "opcode": 16588,
+      "va": 3511832,
+      "size": 48,
+      "sha256": "f72bed6ca156050ab46db7bbe194e34e0ab01caa9a23f18cf70b69d59a258bdc"
+    },
+    {
+      "slot": 111,
+      "opcode": 16589,
+      "va": 3511908,
+      "size": 60,
+      "sha256": "20765dca0964c16bbd8d505efd010f493446b48cfdf827fdd000ea03eb7fab31"
+    },
+    {
+      "slot": 112,
+      "opcode": 16590,
+      "va": 3512012,
+      "size": 48,
+      "sha256": "3defb851cd5f3ee22dab84bbfe5d5924164afe475828f9f39c0a1ce72e09284b"
+    },
+    {
+      "slot": 113,
+      "opcode": 16594,
+      "va": 3512244,
+      "size": 48,
+      "sha256": "e4732b183b5f7d7694941f9b6c6301759789b02a802c701eeef8abdf23a0e79b"
+    },
+    {
+      "slot": 114,
+      "opcode": 16595,
+      "va": 3512316,
+      "size": 48,
+      "sha256": "9ce75f823b9fc2398df26d0af68e8b8292122e5c76d12320c389b7fb30aa01a9"
+    },
+    {
+      "slot": 115,
+      "opcode": 16596,
+      "va": 3508496,
+      "size": 48,
+      "sha256": "03af4f52cdb913b70e25aaeec0c1942bd89f51e0268c492458a06b0c857962d3"
+    },
+    {
+      "slot": 116,
+      "opcode": 16597,
+      "va": 3512400,
+      "size": 48,
+      "sha256": "87b01b51ff991d0785e08abaf52ba2776b4d36e264802facf97991639094b6c1"
+    },
+    {
+      "slot": 117,
+      "opcode": 16598,
+      "va": 3512484,
+      "size": 48,
+      "sha256": "3b2aafcf7802d870587af6e35a1843a783aee7cff7bd2f8529681a7f7a879048"
+    },
+    {
+      "slot": 118,
+      "opcode": 16599,
+      "va": 9286612,
+      "size": 18,
+      "sha256": "5f8c92983c2b1ca5b80a3e10f2aa2c04b7d316116fbe1d05512926c339d4ec42"
+    },
+    {
+      "slot": 119,
+      "opcode": 16600,
+      "va": 3512564,
+      "size": 48,
+      "sha256": "981476932925903a59a4a3ccd2b14ea019e1c2703d33637c6cc688e54acb160f"
+    },
+    {
+      "slot": 120,
+      "opcode": 16601,
+      "va": 3512644,
+      "size": 60,
+      "sha256": "973ecd009ba552c102aa006767d1b5073892213accadfff6680effa7197bd577"
+    },
+    {
+      "slot": 121,
+      "opcode": 16603,
+      "va": 3512832,
+      "size": 184,
+      "sha256": "c1ce185e8dd0780d3600dd58f736c60e17b2c567b67fadb42b5f396a94be3445"
+    },
+    {
+      "slot": 122,
+      "opcode": 16604,
+      "va": 3513152,
+      "size": 48,
+      "sha256": "2de2f6c8a8fa90a0387cdee5acfa294fcf046e4448e579d9268c6642528651cb"
+    },
+    {
+      "slot": 123,
+      "opcode": 16611,
+      "va": 3513920,
+      "size": 48,
+      "sha256": "85f0fba50780fe2d75aee79421bd9e2c9fea41a0ac08db23953064d024b7cd19"
+    },
+    {
+      "slot": 124,
+      "opcode": 16612,
+      "va": 3513668,
+      "size": 48,
+      "sha256": "30114653c225134776d4f12c60db39a8e4221feaf776879dfc8d8752511f8e0e"
+    },
+    {
+      "slot": 125,
+      "opcode": 16614,
+      "va": 3513760,
+      "size": 48,
+      "sha256": "24a11d86712166c9cbfb7d1be1d7477003406bbc3b2da6389cdc586c5cb97b24"
+    },
+    {
+      "slot": 126,
+      "opcode": 16615,
+      "va": 3513840,
+      "size": 48,
+      "sha256": "d0339b3d29c9a3ce61e2bc66043ed8b7afc2df07f4cf748d81bb037946e1198f"
+    },
+    {
+      "slot": 127,
+      "opcode": 16616,
+      "va": 3510396,
+      "size": 196,
+      "sha256": "9ac2076b04e8ce9ac75edafb8c71e29b30e63a07c8194850fa5cf6fbb1d8f534"
+    },
+    {
+      "slot": 128,
+      "opcode": 16617,
+      "va": 3510628,
+      "size": 62,
+      "sha256": "9dd22341dba9de7523455e030308fa6f3319306910f7d04951cfadf90e96faf7"
+    },
+    {
+      "slot": 129,
+      "opcode": 16618,
+      "va": 3510720,
+      "size": 58,
+      "sha256": "4c741bf63d3e560a2ce86d2f1a078a7f9b5426dcf7133d3b98abe3a68df9c2a7"
+    },
+    {
+      "slot": 130,
+      "opcode": 16619,
+      "va": 3510808,
+      "size": 62,
+      "sha256": "9ab783b0c9aaeb029f7b9b66743640e22e185f0866f9448deff6288cc6ff5d60"
+    },
+    {
+      "slot": 131,
+      "opcode": 16620,
+      "va": 3510908,
+      "size": 62,
+      "sha256": "51d1f6c692ded966ab402e806a17a6e75d558fba2e7536771120a4f5e8fdeddd"
+    },
+    {
+      "slot": 132,
+      "opcode": 16625,
+      "va": 3516384,
+      "size": 48,
+      "sha256": "a20d9f0dad34b4e3d18efb5c4ddbaa0560db30bab9f17355656719f4b6bb3f6c"
+    },
+    {
+      "slot": 133,
+      "opcode": 16627,
+      "va": 3499440,
+      "size": 50,
+      "sha256": "268f5cb1af4b7abcd01d765e8b816a1a41e7520e2cc888710fc902007732881b"
+    },
+    {
+      "slot": 134,
+      "opcode": 16628,
+      "va": 3499516,
+      "size": 50,
+      "sha256": "b17ccea112552a224cfe8081a0ece633f2d244b0a353b8d1175f8a59f6066812"
+    },
+    {
+      "slot": 135,
+      "opcode": 16629,
+      "va": 3499588,
+      "size": 50,
+      "sha256": "8222e1a24f2b594e216b381cf18fc950b193f631c4e08a7b184b38a552190343"
+    },
+    {
+      "slot": 136,
+      "opcode": 16630,
+      "va": 3499660,
+      "size": 50,
+      "sha256": "ea64f74935656064b9d9f4be0af2b86a9c6c57d051db8d77dee73f368b2c91de"
+    },
+    {
+      "slot": 137,
+      "opcode": 16631,
+      "va": 3499736,
+      "size": 50,
+      "sha256": "dfb0a9ed06ba3d7f5031578b28fdc1fc2b44403d2712e4851c434a22a0746b86"
+    },
+    {
+      "slot": 138,
+      "opcode": 16632,
+      "va": 3514172,
+      "size": 62,
+      "sha256": "0139f4da306955b93a4605064ef5c89d634b13dffde51e952eabcb01aa2663cb"
+    },
+    {
+      "slot": 139,
+      "opcode": 16635,
+      "va": 3514268,
+      "size": 48,
+      "sha256": "fbc9182a8887d01740ac0310f6e9cc0b4331c6bb6193156742f0e70ff39087c2"
+    },
+    {
+      "slot": 140,
+      "opcode": 16636,
+      "va": 3514344,
+      "size": 48,
+      "sha256": "f0c116172870e6798c768bfbbe8e493868c2419d7e0ac1455962fe240cd4b6da"
+    },
+    {
+      "slot": 141,
+      "opcode": 16637,
+      "va": 3514428,
+      "size": 48,
+      "sha256": "b603bde498012c4b0f4700c1044d75b4d36626adbb0a40c36e71a72645fad50e"
+    },
+    {
+      "slot": 142,
+      "opcode": 16639,
+      "va": 3514584,
+      "size": 48,
+      "sha256": "3f60009504791db3cbe8bd9a3e3497d606c72f92c5636505863401ff4493d0e1"
+    },
+    {
+      "slot": 143,
+      "opcode": 16640,
+      "va": 3514948,
+      "size": 48,
+      "sha256": "961aaa4f486a19a166af036d738e2f193747d711a4a18eafe86acd7f393f16d1"
+    },
+    {
+      "slot": 144,
+      "opcode": 16641,
+      "va": 3515036,
+      "size": 48,
+      "sha256": "95243d306eb74a41c62b4f32d0eef11d5cd5687ed3a5f39829f2e15acc67adf5"
+    },
+    {
+      "slot": 145,
+      "opcode": 16643,
+      "va": 3515124,
+      "size": 64,
+      "sha256": "582da4c4b9dda2f7d8ddf78d6b4806f4452789fd18bed8d4f423bbeefd7b4f61"
+    },
+    {
+      "slot": 146,
+      "opcode": 16644,
+      "va": 3515572,
+      "size": 46,
+      "sha256": "eee27570666f5da038ab083d0f3c4083104c90710568b4f684f2fbb21e432f9d"
+    },
+    {
+      "slot": 147,
+      "opcode": 16645,
+      "va": 3515656,
+      "size": 48,
+      "sha256": "4a156ff33fe68b5f8793b2d858740f3ad0d5ea9001f7d8b3938cdeb3d6d6cca3"
+    },
+    {
+      "slot": 148,
+      "opcode": 16695,
+      "va": 3521148,
+      "size": 48,
+      "sha256": "2ed3a0733002cc56df62f8381e1b4469edcd97314ce10e34029191ba0d830b40"
+    },
+    {
+      "slot": 149,
+      "opcode": 16696,
+      "va": 3516296,
+      "size": 48,
+      "sha256": "f7a28f405404e0299167cef876e4fdfe5e20e5eb8e25adf011e0ec6448f7e7d0"
+    },
+    {
+      "slot": 150,
+      "opcode": 16698,
+      "va": 3516576,
+      "size": 48,
+      "sha256": "38555bda1aeba972b06994e2e24469661b9cce1637b4027b924d3dde24179b2b"
+    },
+    {
+      "slot": 151,
+      "opcode": 16699,
+      "va": 3516740,
+      "size": 92,
+      "sha256": "c09ef8965d261b8c4e6b081d685219fc15d1effe3ce3aa1c5d5432806a9bb6fc"
+    },
+    {
+      "slot": 152,
+      "opcode": 16700,
+      "va": 3516656,
+      "size": 46,
+      "sha256": "c35ca6aff851b59e7a75285cc7433f176f6e88ed697a2a0c850f7028774c3170"
+    },
+    {
+      "slot": 153,
+      "opcode": 16701,
+      "va": 9286796,
+      "size": 52,
+      "sha256": "a9f4cace4e714e2f93e03ce88a81553510401aa1a04569fc8833fc87357af2d8"
+    },
+    {
+      "slot": 154,
+      "opcode": 16702,
+      "va": 3516472,
+      "size": 48,
+      "sha256": "3799096d86173eaafd8b0d16ba0299f5baed7ea227abaeac24a9dc692c74b2dd"
+    },
+    {
+      "slot": 155,
+      "opcode": 16703,
+      "va": 3516932,
+      "size": 58,
+      "sha256": "87f779539b72a88d038d4fb9bea6dac9c9c03f6862c7d307eb38fb05b030ad38"
+    },
+    {
+      "slot": 156,
+      "opcode": 16705,
+      "va": 3498816,
+      "size": 48,
+      "sha256": "f884cf1d083871f449dfac4c6dc5df0fcefe6a4f6000f3877d1592dc0eafb3b2"
+    },
+    {
+      "slot": 157,
+      "opcode": 16706,
+      "va": 3517116,
+      "size": 48,
+      "sha256": "29f728194afb31feff4dfde0d9aa6fd15a2b997abb8580ca0d1b1c22f86be91d"
+    },
+    {
+      "slot": 158,
+      "opcode": 16707,
+      "va": 3521920,
+      "size": 68,
+      "sha256": "48c881480eef5e66ffb4f249c81f418f2964be61955511d259538e907b4eb11f"
+    },
+    {
+      "slot": 159,
+      "opcode": 16709,
+      "va": 3522252,
+      "size": 48,
+      "sha256": "dc03478eacc239621aec9e158ceda17e62fc89fa412e576b225a4da7d55878c5"
+    },
+    {
+      "slot": 160,
+      "opcode": 16710,
+      "va": 3522336,
+      "size": 48,
+      "sha256": "91417b5835b1048d7d2afdce0699f4f403b2745ee383a5f41307794b20b75471"
+    },
+    {
+      "slot": 161,
+      "opcode": 16712,
+      "va": 3522420,
+      "size": 48,
+      "sha256": "8d79278120ab77434a29e93769c185e9146b10dfce3d59034685536ca1d12962"
+    },
+    {
+      "slot": 162,
+      "opcode": 16713,
+      "va": 3523348,
+      "size": 48,
+      "sha256": "f63c60c80ea293e944847f078b7a9c1e8b1fdc068e40a3c77ef88ab41c128f58"
+    },
+    {
+      "slot": 163,
+      "opcode": 16715,
+      "va": 3522496,
+      "size": 48,
+      "sha256": "feff012db09dba03fb2ea7c2cce7d7bfc39a3edd2995584adda18ddb3e079e1a"
+    },
+    {
+      "slot": 164,
+      "opcode": 16716,
+      "va": 3522572,
+      "size": 48,
+      "sha256": "d3c13c1d9f519191444f0e7bcd2436e5eb944c5c195af3e71f6411def0009d55"
+    },
+    {
+      "slot": 165,
+      "opcode": 16720,
+      "va": 3522656,
+      "size": 62,
+      "sha256": "5f7e52d4ba514d0406428c264d0a6c69d2b1f8bc6043603ffdc5cbee4b1ce092"
+    },
+    {
+      "slot": 166,
+      "opcode": 16721,
+      "va": 9286920,
+      "size": 102,
+      "sha256": "70aa8aee39f79faa8073e1dffd0a16eec00e312ee235057ff871309fa3d399c0"
+    },
+    {
+      "slot": 167,
+      "opcode": 16724,
+      "va": 3523748,
+      "size": 106,
+      "sha256": "b65442efa26a75b632c335d62e7492980ea35e77ef230cda66af76f71046dae1"
+    },
+    {
+      "slot": 168,
+      "opcode": 16725,
+      "va": 3523916,
+      "size": 328,
+      "sha256": "f2944a4fae6e8886f47db9e77979f73a10296dd8043a8fc5c178c17f70db030d"
+    },
+    {
+      "slot": 169,
+      "opcode": 16726,
+      "va": 3524264,
+      "size": 62,
+      "sha256": "540cd0c1d2a66083f56083151244f4753bae15f625e83f080d12577f9793d2ab"
+    },
+    {
+      "slot": 170,
+      "opcode": 16727,
+      "va": 9287022,
+      "size": 102,
+      "sha256": "9ec99194bff2bf942c29fc65f843463047e07d5518ef933fda76f4432a0139b3"
+    },
+    {
+      "slot": 171,
+      "opcode": 16728,
+      "va": 3497224,
+      "size": 54,
+      "sha256": "56176822c804e0bdb4184f2db995617cbdebcac5b8c9de26dece0405c2433bbb"
+    },
+    {
+      "slot": 172,
+      "opcode": 16729,
+      "va": 3524644,
+      "size": 54,
+      "sha256": "f63a022a3b16f1af300f54c4723e67aa8b15f334761de203b41ac0eabba403b0"
+    },
+    {
+      "slot": 173,
+      "opcode": 16731,
+      "va": 3524544,
+      "size": 62,
+      "sha256": "8a844cd41053dabd8056700a6aa45907dacad34048c3f31ee5c0feb4be349bb1"
+    },
+    {
+      "slot": 174,
+      "opcode": 16735,
+      "va": 3515224,
+      "size": 248,
+      "sha256": "03c21aa3f3e4a16a2eea1f44b31bd42619f444bf24d50a81b6941a8b295f2ece"
+    },
+    {
+      "slot": 175,
+      "opcode": 16737,
+      "va": 3524900,
+      "size": 48,
+      "sha256": "420b5fbc020392cd1b9af0b110d680eb9e47153317986ebda59851e92af2a97c"
+    },
+    {
+      "slot": 176,
+      "opcode": 16738,
+      "va": 3524988,
+      "size": 54,
+      "sha256": "987e9e904a9decb040e0a2f5f058c5dfd4b3eb199d94517e2f2e7c7d9969ae3a"
+    },
+    {
+      "slot": 177,
+      "opcode": 16739,
+      "va": 3525092,
+      "size": 48,
+      "sha256": "46f8a1d9be3fbd843796808fc2290dc7f78517ee20fd819eac3101dcb1193c7f"
+    },
+    {
+      "slot": 178,
+      "opcode": 16740,
+      "va": 9287124,
+      "size": 4,
+      "sha256": "64d23481cb6a254816fb9c4c9b22031f78ed0a6ece5a6b0f6849a3ee7f77a2bb"
+    },
+    {
+      "slot": 179,
+      "opcode": 16741,
+      "va": 9287128,
+      "size": 102,
+      "sha256": "2a123676bc78cbf19495bbecfb694ca782117abf22a934df29e550d1219e5bc1"
+    },
+    {
+      "slot": 180,
+      "opcode": 16742,
+      "va": 3525256,
+      "size": 48,
+      "sha256": "a43c7bbcf5fdd6915c75aa156f9dfc3be29b6c49a6f6e4c69454a4c32f443666"
+    },
+    {
+      "slot": 181,
+      "opcode": 16743,
+      "va": 3525328,
+      "size": 48,
+      "sha256": "e59b4c78a64d169ea258b6f56d3c91bc2f0cda13c0c10eb3e9a17081889055e4"
+    },
+    {
+      "slot": 182,
+      "opcode": 16745,
+      "va": 3525604,
+      "size": 48,
+      "sha256": "bb5f3b996db8cd2dabfa1878c631ef66a37d158c13760f619a3a3bbc71e2ce64"
+    },
+    {
+      "slot": 183,
+      "opcode": 16748,
+      "va": 3525696,
+      "size": 48,
+      "sha256": "369a8a1d1a6d8e3e0f0220702ac40770ab453448f66f88a51175e3185f6369db"
+    },
+    {
+      "slot": 184,
+      "opcode": 16752,
+      "va": 3496268,
+      "size": 48,
+      "sha256": "3b87319cee979ca136f783b4e260431753b96f228cda47d36e63b6ffc4f9c53e"
+    },
+    {
+      "slot": 185,
+      "opcode": 16754,
+      "va": 9284252,
+      "size": 4,
+      "sha256": "64d23481cb6a254816fb9c4c9b22031f78ed0a6ece5a6b0f6849a3ee7f77a2bb"
+    },
+    {
+      "slot": 186,
+      "opcode": 16755,
+      "va": 9284256,
+      "size": 4,
+      "sha256": "64d23481cb6a254816fb9c4c9b22031f78ed0a6ece5a6b0f6849a3ee7f77a2bb"
+    },
+    {
+      "slot": 187,
+      "opcode": 16756,
+      "va": 3525180,
+      "size": 48,
+      "sha256": "8c598055eab17033ab5ab8160b02e9a19c04e7fd043a9c2fcafd9016d20e67ef"
+    },
+    {
+      "slot": 188,
+      "opcode": 16758,
+      "va": 3525944,
+      "size": 88,
+      "sha256": "b32d225ad99f21ab6e99f0aa1e58a9f6c6208a14ab7d0ccb6d87793765ee6d25"
+    },
+    {
+      "slot": 189,
+      "opcode": 16759,
+      "va": 3526088,
+      "size": 48,
+      "sha256": "babfb03352ce51867c4421088d0534dbe877c614ba93353d20aec8821e49532d"
+    }
+  ]
+}

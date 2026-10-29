@@ -70,6 +70,13 @@ int main(int argc,char **argv){
     if(!strcmp(argv[1],"large") || !strcmp(argv[1],"bad-geometry"))image_bytes=128LL*1024*1024;
     if(!strcmp(argv[1],"large")){p16(boot+19,0);p32(boot+32,(unsigned int)(image_bytes/512));boot[13]=4;}
     if(!strcmp(argv[1],"oversize"))image_bytes=0x80001000LL;
+    if(!strcmp(argv[1],"sparse10g") || !strcmp(argv[1],"ten-gib-without-profile")) {
+        image_bytes=10LL*1024*1024*1024;memset(boot,0,sizeof boot);
+    }
+    if(!strcmp(argv[1],"sparse10g") || !strcmp(argv[1],"sparse-wrong-size"))setenv("MENU_RM_SPARSE","10g-empty",1);
+    if(!strcmp(argv[1],"sparse-bad-profile"))setenv("MENU_RM_SPARSE","anything",1);
+    if(!strcmp(argv[1],"block-refuse-regular"))setenv("A7C2_HOST_BLOCK_SD","1",1);
+    if(!strcmp(argv[1],"block-bad-profile"))setenv("A7C2_HOST_BLOCK_SD","anything",1);
     int fd=open("card",O_CREAT|O_EXCL|O_RDWR,0600);assert(fd>=0 && !ftruncate(fd,image_bytes) && pwrite(fd,boot,512,0)==512);close(fd);
     if(!strcmp(argv[1],"symlink")){assert(!rename("card","real"));assert(!symlink("real","card"));}
     struct full_imaging_io io={allocate,release,source,send,size,0,log_event};
@@ -78,6 +85,9 @@ int main(int argc,char **argv){
     if(!strcmp(argv[1],"slotbad"))setenv("MENU_RM_FILE_SLOT","7",1);
     int rc=native_rm_file_start("card","claim",&io,reg,unreg,statq);
     if(!strcmp(argv[1],"slotbad")){assert(rc);return 0;}
+    if(!strcmp(argv[1],"block-refuse-regular") || !strcmp(argv[1],"block-bad-profile")){assert(rc && !registered);return 0;}
+    if(!strcmp(argv[1],"ten-gib-without-profile") || !strcmp(argv[1],"sparse-wrong-size") ||
+       !strcmp(argv[1],"sparse-bad-profile")){assert(rc && !registered);return 0;}
     if(!strcmp(argv[1],"symlink") || !strcmp(argv[1],"bad-geometry") || !strcmp(argv[1],"oversize")){assert(rc && !registered);return 0;}
     if(unreg_fail){
         assert(rc && registered && callback);void *bad=request(9,112);callback(bad,0);wait_done(1);

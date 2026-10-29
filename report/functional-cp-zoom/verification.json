@@ -1,0 +1,21 @@
+{
+  "scope": "offline host C only",
+  "compiler": "GCC 16.2.1",
+  "command_from_native_camera_root": "python3 -m pytest runtime/analysis/test_functional_cp_zoom.py runtime/analysis/test_cp_parameter_state.py runtime/analysis/test_cp_parameter_batch.py runtime/analysis/test_cp_parameter_view.py --color=no -q",
+  "returncode": 0,
+  "stdout": "..........................................                               [100%]\n42 passed in 2.70s\n",
+  "stderr": "",
+  "owner_scenarios": 50,
+  "owner_modes": [
+    "strict-c11-Werror-pedantic",
+    "ASan+UBSan"
+  ],
+  "data_byte_domain": "all u8 values, independent four inputs, explicit u32 zero extension",
+  "full_regression": false,
+  "dso_build": false,
+  "dual_abi_build": false,
+  "vm": false,
+  "native_ap_send_integrated": false,
+  "physical_zoom_verified": false,
+  "capture_verified": false
+}

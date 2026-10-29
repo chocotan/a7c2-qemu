@@ -1,0 +1,15 @@
+{
+  "scope": "one original map1MiB/slot0 and CPU aperture bytes on explicit TESTPCI peer; no CP/DMA/CMOS/capture",
+  "status": "PASS",
+  "binary_sha256": "3fb9f757ae0890a8306379357c8a64f36cb6b8c8ad7b771f13a8f334d7963b86",
+  "module_sha256": "7a901c75d6aaf048065de652588eb45d11fb66b1e5569a8869dae085f341b34a",
+  "provider_sha256": "08c61d2d889f4fc8e7219ddc269fb8170a090ffb4e207cf52ed1afce6fb82c35",
+  "peer_page_sha256": "1ecc5711bb77b2d4500e9b800087eb3a59332b147d602bc58e7d30293ab875ac",
+  "slot": 0,
+  "aperture_physical": "0xc0000000",
+  "independent_full_page_and_guards": true,
+  "original_unmap_and_hardware_disable": true,
+  "cpu_resumed_and_normal_exit": true,
+  "cp_dma_or_capture_verified": false,
+  "source_result_sha256": "9cb5dcd76e7267c7e46e69f3a726cff7c49dca798b60db927fd0d192b5f9cc8f"
+}

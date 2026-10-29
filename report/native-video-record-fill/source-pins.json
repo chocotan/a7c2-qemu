@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "provenance": "Completed source3cd read-only handoff; finite CPU S88 writer and pure original 0x011c notification plan; no new lower-engine analysis",
+  "source_root": "../../runtime/analysis/menu-root",
+  "artifact": {
+    "path": "system/av-cam.bin",
+    "size": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "coordinate": "K = raw file offset; KVA = raw + 0xffffffc001000000"
+  },
+  "native_capture": false,
+  "native_gaps": 63,
+  "cpu_writer_closed": true,
+  "engine_input_closed": false,
+  "actual_notification_sent": false,
+  "window_count": 12,
+  "total_window_bytes": 5348,
+  "windows": [
+    {"id": "K2433e0", "file_offset": "0x2433e0", "length_bytes": 488, "sha256": "fa5852790142c61fb0e2ec80c821fb27479ecb6fb81dfa017019657169a3f443", "meaning": "Actual CPU writer of S88 from compact segment, selected metadata and resolved primary node"},
+    {"id": "K24b04c", "file_offset": "0x24b04c", "length_bytes": 1032, "sha256": "7c6ac9f2098e3189aa010fbf91b4c27a9bb108e6d33aed79828e573c6fa90645", "meaning": "action_dma330_callback: cumulative W32 lengths, first-segment ES cursor, AU end marker, CPU writer and original-index notification order; error paths may continue"},
+    {"id": "K2426a8", "file_offset": "0x2426a8", "length_bytes": 16, "sha256": "0227cf1ba0df248d03779b374806ff64384ea4c73c4588764cd981f3fe5d7e09", "meaning": "Completed handoff companion helper"},
+    {"id": "K2442a8", "file_offset": "0x2442a8", "length_bytes": 288, "sha256": "62840c483c80ff459be7387a8feefea07831dc2406e8030b5191887e1f91accf", "meaning": "Original 24-byte 0x011c notification assembly/send path"},
+    {"id": "K2471e8", "file_offset": "0x2471e8", "length_bytes": 252, "sha256": "9c6abc9bc894772b3b004ac602b053c0bde401a4ec53ba9d498ddae1089e8694", "meaning": "Copies actual 0x620 input and submits internal 0x0121 message"},
+    {"id": "K24a968", "file_offset": "0x24a968", "length_bytes": 1744, "sha256": "651ca805bf1e4419fc38758647b18bb0051c089c12a9165790a7d2dbbb64a578", "meaning": "Source compact-segment/work-item preparation; lower engine production not closed"},
+    {"id": "K244848", "file_offset": "0x244848", "length_bytes": 472, "sha256": "4fbc7ba387ecb53205f9b43a873be72a561782c62a649a1549db00cd629f263a", "meaning": "Copies whole 0xe90 work item to queue; K244994 is its read slot"},
+    {"id": "K243e84", "file_offset": "0x243e84", "length_bytes": 392, "sha256": "0dbfe48ed410e8b25382f235802dd2ac659541c4bb64f796d95244e6cbed0e4c", "meaning": "Primary node lookup using LE16(B+6); adapter requires caller-resolved whole 24-byte node"},
+    {"id": "K2440d0", "file_offset": "0x2440d0", "length_bytes": 472, "sha256": "ac57d18508f2c489083edf8389481751c96b6b52fd15bc995e50ae2a8a3a3d8f", "meaning": "Secondary lookup; caller supplies actual returned ID or explicit not-found UINT32_MAX"},
+    {"id": "K245a38", "file_offset": "0x245a38", "length_bytes": 144, "sha256": "a4513b2dcc1bba5a3965cd88c2c57f218479999fcd731a2b12f6bf92e9d1958d", "meaning": "Completed handoff companion path"},
+    {"id": "K24cf88", "file_offset": "0x24cf88", "length_bytes": 8, "sha256": "f3d34de90eb315be9d86bd5e4eaff290b0dbbb6d35c4d3918b906ff5ec83902f", "meaning": "Callback object's owner+8 thunk to K2471e8(O,input620)"},
+    {"id": "K37b098", "file_offset": "0x37b098", "length_bytes": 40, "sha256": "09898e59e300f79a3a2f0f3442b1e954a7a36c661e56c3715cef6cb53a265e45", "meaning": "Callback object O+0x2ac78 vptr KVA ffffffc00137b0a8, slot+0x10 to K24cf88"}
+  ],
+  "known_bindings": {
+    "T": "O+0x20",
+    "work_bytes": 3728,
+    "work_original_input": "B+0x000..0x61f, exactly 0x620 bytes",
+    "original_segments": "B+0x010..0x5af, 90 descriptors of 0x10 bytes",
+    "metadata": "B+0x5b0 and B+0x5e4, two 0x34-byte items",
+    "work_u32_fields": ["B+0x618", "B+0x61c"],
+    "compact_segments": "B+0x620..0xbbf, 90 descriptors of 0x10 bytes",
+    "parallel_u64_es_cursors": "B+0xbc0+j*8, 90 entries",
+    "record_pointer": "T+0x7b0",
+    "record_capacity": "T+0x7b8",
+    "notification_destination_u32": "T+0x734",
+    "notification_unit_u32": "T+0x8e4",
+    "notification_header_hex": "03211c0118000000"
+  },
+  "unverified": [
+    "who produces the actual 0x620 input",
+    "engine input binding, MMIO/IRQ and completion-event origin",
+    "original native callback receive M+0xc to E+0 relationship",
+    "pixels and actual encoded ES production",
+    "real ES mapping, lease, native ownership and retirement",
+    "actual CPU writes to guest source array and actual original notification send",
+    "end-to-end native capture and MPR global identity"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "run": "run-uyajukb_",
+  "console_sha256": "c26204fa1cc194b14a39f5ade529a1d8edba909b75749bd4c2f67e589de30078",
+  "evidence_scope": "passive-original-request",
+  "tid": 328,
+  "destination": "0x912f0335",
+  "source": "0x81cf61c5",
+  "bytes": 24,
+  "selector": 3,
+  "raw": "030000000000000000000000000000000000000000000000",
+  "remainder_zero": true,
+  "reply_implemented": false,
+  "consumer_semantics_verified": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

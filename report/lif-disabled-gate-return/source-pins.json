@@ -1,0 +1,27 @@
+{
+  "scope": "one conditional SELECT with explicit FLAGA1,FLAGB0,Q0; not runtime worker history",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "windows": [
+    {"CP_VA": "3e6850", "bytes": 88, "sha256": "4a8d7a950295065b10a22f1d29447f0205b04184bfe721371708d2ff6fb9c7de"},
+    {"CP_VA": "3e6a64", "bytes": 56, "sha256": "74047d3747a285a13211c32d85d16027f35feda00e56d0830e2bf9bd5ca3ce44"},
+    {"CP_VA": "3e6ad4", "bytes": 136, "sha256": "fe58e452b83fee85fc2080d7dc2c6f4885d656b4d5e5492ba4f159257230ef52"},
+    {"CP_VA": "a4dfd4", "bytes": 14, "sha256": "ff357c044f8c5238c3855600d8e57008b9f958c0c2ec70cdc49cd7de502434c1"},
+    {"CP_VA": "a4e2b4", "bytes": 120, "sha256": "a772f8c84d4f46146b4a764755e6572520df0a4afa1d4b77d23a6b7e9ade05f9"},
+    {"CP_VA": "a4e3c0", "bytes": 128, "sha256": "d549821714b5e6ea9aba28199d8ce16e35ff017f2b36efc4adc6c9f6e43c046a"},
+    {"CP_VA": "3e8aac", "bytes": 30, "sha256": "564ed8850d83bf5681bcf97511524da1c4e9724eeec70d5c3a1692892815438e"},
+    {"CP_VA": "9b71b2", "bytes": 54, "sha256": "71d3a1f29ccf96aa371714915a8852f2275c8149cf309ccb2ac47452fb43c03e"}
+  ],
+  "window_count": 8,
+  "window_bytes": 626,
+  "Q_CP_address": "1b18cd5",
+  "closed_default_Q_values": "0,9..255",
+  "FLAGB_zero_alone_sufficient": false,
+  "source_gate_at_return_zero_for_explicit_default_Q": true,
+  "Q_runtime_history_known": false,
+  "gate_at_worker_call_known": false,
+  "published_zero_projection_verified": false,
+  "capture_verified": false
+}

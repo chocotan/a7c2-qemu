@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "scope": "Public ALLLANG libmpr type-4 parameter-set consumer; no private/full-system source",
+  "coordinates": "ELF virtual address mapped through PT_LOAD; all eight windows are in the first load segment",
+  "artifacts": [
+    {
+      "path": "usr/lib/libmpr.so",
+      "size": 3528576,
+      "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "pt_load": [
+        {"file_offset": "0x0", "virtual_address": "0x0", "file_size": "0x2e4534"},
+        {"file_offset": "0x2e53a8", "virtual_address": "0x2f53a8", "file_size": "0x77c88"}
+      ]
+    }
+  ],
+  "windows": [
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x11bbc4",
+      "file_offset": "0x11bbc4",
+      "length": "0x30c",
+      "sha256": "ef75af0783ed3a10257efdcb37ce76c28f3e1061c0417bc2bcc7bb506f8f70a3",
+      "evidence": "E-001",
+      "role": "GetParameterSetPerInfo: four-byte DataCopy, REV BE32 length excludes prefix, advance 4+length; first NAL for non-PPS, count loop for PPS"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x11bed0",
+      "file_offset": "0x11bed0",
+      "length": "0x2a0",
+      "sha256": "63df58cf124cd9afb113275296dc4f54cba45775b9eee43a850777c6fa7385bb",
+      "evidence": "E-002",
+      "role": "Dispatcher: VPS/SPS/PPS sequential group spans, count/change gates and opaque-ID deduplication"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x11835c",
+      "file_offset": "0x11835c",
+      "length": "0x118",
+      "sha256": "f579ad488f0454ac630d966e68861ea520dbc7905fba9a8667718d6f835f280f",
+      "evidence": "E-003",
+      "role": "Writer parameter-set routing and consumer context"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x11661c",
+      "file_offset": "0x11661c",
+      "length": "0x50",
+      "sha256": "695741f549d13149cd80c4f0a650ec6d87e9d0accde7064bcfaeafc8f9d4b4c8",
+      "evidence": "E-003",
+      "role": "Writer's temporary copied NAL freed at M116650..11665c after container copy"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x21f54c",
+      "file_offset": "0x21f54c",
+      "length": "0x1c8",
+      "sha256": "7174d524e4b13beea0d03d2942eb4edf2d4928135c3126c5fac1f4f5bdd896b0",
+      "evidence": "E-004",
+      "role": "Original container parameter-set consumer supporting the pure-NAL contract"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x1d395c",
+      "file_offset": "0x1d395c",
+      "length": "0x210",
+      "sha256": "fef5ba34284466bd6a59c2d593c52a108aa9f3869d86e29544f022956fd299fd",
+      "evidence": "E-004",
+      "role": "Original container parameter-set consumer supporting the pure-NAL contract"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x20ad18",
+      "file_offset": "0x20ad18",
+      "length": "0x110",
+      "sha256": "f87307bfd55a9283e416e93443029d6fb0e8ff8704f753cf516b4f6586845b01",
+      "evidence": "E-004",
+      "role": "Container semantic FOURCC selection: avc1/hvc1, not outer PayloadMpr codec enum"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "virtual_address": "0x1f6004",
+      "file_offset": "0x1f6004",
+      "length": "0xe4",
+      "sha256": "af192c6b573649265da644046d8c5009317fd599787b625f96c35e59cb88f8c4",
+      "evidence": "E-004",
+      "role": "PPS cache 16-byte slot: length at +0, pointer at +8; later ownership lifecycle remains unresolved"
+    }
+  ],
+  "window_bytes": 3296,
+  "native_capture": false,
+  "limitations": [
+    "Consumer evidence does not locate the original encoder parameter-set producer",
+    "Parameter-set framing does not establish ordinary access-unit framing",
+    "Header validation and exact single-NAL span acceptance are adapter rules",
+    "The parser borrows ES slices and does not transfer the original copied heap-NAL ownership",
+    "The original later PPS cache lifecycle remains unknown"
+  ]
+}

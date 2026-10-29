@@ -1,10 +1,8 @@
-# 启动流程 10 · 媒体状态与容量：REC 提示链反查（未闭合）
+# 启动流程 10 · 媒体状态、容量与原拍摄保存前沿
 
-进入拍摄页面后按 REC，原固件会弹媒体提示。本篇记录这条链怎么逐层反查：
-从 LCD 一句话 → 最终选择规则 → 属性读数分层 → 容量对照实验。
-**"无空间"的完整根因还没找到，照片/录像没有恢复。**
+**2026-10-29：仍无原 JPG/MP4，`capture_verified=false`。** 最新 `run-qqu0q5oe` 的卡只有原数据库/XML；原 Fsys Flush=0 与两文件导出 SHA 读回通过，但原卷退休/格式化未通过。当前更早的阻塞是后台3006/local21与首启 readiness，不能继续用历史 REC 提示定位最新运行。
 
-变量见[索引](README.md)。数值来自历史报告，本次只读源码，未重跑实验。
+本文第1–8节保留此前从 LCD 提示、规则、分层属性到容量对照的调查；它们没有构成“无空间”的唯一根因。完整阶段与后续工作见[当前进度](2026-10-29-current-progress.md)。变量见[索引](README.md)，本次整理没有重跑实验。
 
 ## 1. 从提示反查"原固件选了哪条规则"
 
@@ -119,20 +117,19 @@ Sony 预留后实际可用约 1190024 KiB；QEMU `-m 24576` 不等于内核能�
 交付表示和簇大小与 128 MiB 参照不同，不是严格单因素因果；
 不能推出"容量全部无关"。
 
-## 9. 当前状态
+## 9. 当前状态：媒体可见与可拍摄分开验收
 
-已建立：最终规则、读数分层、一个有效大卡案例；已撤回：
-"挂载/剩余状态必为零"、"唯一根因是逻辑槽"等旧解释。
-未闭合：真实 setter 调用栈、shadow→current 提交、媒体消息 writer。
-没有通过写 remaining/recordable/ready、选槽或清错来消提示；
-`capture_verified` 仍为 `false`。
+旧容量调查已建立最终规则、读数分层及一个有效大卡案例；真实 setter 调用栈、shadow→current 与媒体消息 writer 仍未全部闭合。不能由旧属性零值推断新运行的挂载/可录状态，也不写 remaining/recordable/ready、选槽或清错来消提示。
+
+后续已实现原 MPR/Fsys 异步 still 请求的源 iovec、fileSize 截断、callback/worker、原 Open/Read/EOF/Close 读回和导出内容 checker。Movie 的同步 Fsys 观察也已加入。**这些是实现/组件证据，最新原生没有媒体作业或产物**；只有数据库不证明可拍摄。
+
+JPG 需把原 AP→实际 retained RGB→原 SDK Main/MainComp→编码输出 lease→原 MPR/Fsys→虚拟卡读回/独立解码连成同轮证据；仍缺 MainP/key104a 128B writer、ResizeEnc1500 cmd2 与1006/event9自然 producer。Movie 另缺实际初始 extent/source/ring、自然 Stop/Close、Combine 最终 MP4 及 FSYS_SYNC 内容。详见[成像前沿](11-imaging-frontier.md)和[存储证据分界](07-storage.md)。
 
 ## 证据入口
 
-- [规则、PT_LOAD 与历次更正](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/capacity-recordable-frontier.md)
-- [访问器纠正、1052 反证、合法输入/OOM/dd 及最终案例](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/media-producer-frontier/README.md)
-- [首写来源与七项强写删除](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/media-firstwrite-root-cause.md)
-- [本包只读诊断修订及发布局限](../../validation/README.md)
+- [功能矩阵、分阶段结果与下一缺口](2026-10-29-current-progress.md)。
+- [完整基线、最新原生负例与卡文件摘要](../../validation/2026-10-29-progress.json)。
+- [本包验证记录中的媒体访问器纠正与历史容量实验](../../validation/README.md#媒体只读诊断访问器层修正)。
 
 ## 如果你在做别的机型
 

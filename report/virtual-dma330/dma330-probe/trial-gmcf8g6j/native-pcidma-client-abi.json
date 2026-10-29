@@ -1,0 +1,17 @@
+{
+  "scope": "normal original PCI DMA APIs ABI only; not runtime or transfer proof",
+  "size": 6992,
+  "sha256": "103720c52f7829fce5ff997a7ed2d1467d52eb384bb6dbb31584d78b86a80fe9",
+  "imports": [
+    "arch_va_to_phys",
+    "get_zeroed_page",
+    "msleep",
+    "pci_bus_read_config_dword",
+    "pci_enable_device",
+    "pci_get_domain_bus_and_slot",
+    "pci_set_master",
+    "pcidma_connect",
+    "pcidma_transfer_async",
+    "printk"
+  ]
+}

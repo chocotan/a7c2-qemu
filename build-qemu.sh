@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Offline, isolated build from the pinned source archive and this directory's patch.
+# --stage-only retains build/synthetic-input checks but skips installation.
 set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+install_build=1
+if [[ "${1:-}" == --stage-only ]]; then
+  install_build=0
+  shift
+fi
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: ./build-qemu.sh [source/vendor/qemu-11.1.2.tar.xz]'
-  echo 'Offline build and install, including executable QEMU smoke tests. See README.md.'
+  echo 'Usage: ./build-qemu.sh [--stage-only] [source/vendor/qemu-11.1.2.tar.xz]'
+  echo 'Offline build, including executable QEMU smoke tests; --stage-only skips installation.'
+  echo 'Supply the pinned archive locally; no source or dependencies are downloaded. See README.md.'
   exit 0
 fi
+[[ $# -le 1 ]] || { echo 'Usage: ./build-qemu.sh [--stage-only] [SOURCE_ARCHIVE]' >&2; exit 2; }
 archive_input="${1:-$here/source/vendor/qemu-11.1.2.tar.xz}"
 [[ -f "$archive_input" ]] || {
   echo 'Missing QEMU source. Download https://download.qemu.org/qemu-11.1.2.tar.xz into source/vendor/; see source/vendor/README.md for SHA-256.' >&2
@@ -74,6 +82,27 @@ for name,record in usb['source_files'].items():
     if hashlib.sha256((root/name).read_bytes()).hexdigest()!=record['before']:
         raise SystemExit('USB patch input differs: '+name)
 PY
+python3 - "$here/source/qemu-directory-sd.json" "$src" "$here/source" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+manifest=json.loads(Path(sys.argv[1]).read_text());root=Path(sys.argv[2])
+assert hashlib.sha256((Path(sys.argv[3])/manifest['patch']).read_bytes()).hexdigest()==manifest['patch_sha256']
+for name,record in manifest['source_files'].items():
+    if hashlib.sha256((root/name).read_bytes()).hexdigest()!=record['before']:
+        raise SystemExit('Directory-SD patch input differs: '+name)
+PY
+patch --batch -p1 -d "$src" < "$here/source/qemu-directory-sd.patch"
+python3 - "$here/source/qemu-directory-sd.json" "$src" "$here/source" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+manifest=json.loads(Path(sys.argv[1]).read_text());root=Path(sys.argv[2])
+for name,record in manifest['source_files'].items():
+    if hashlib.sha256((root/name).read_bytes()).hexdigest()!=record['after']:
+        raise SystemExit('Directory-SD patched source differs: '+name)
+if hashlib.sha256((root/'block/vvfat.c').read_bytes()).hexdigest()!=hashlib.sha256((Path(sys.argv[3])/manifest['work_file']).read_bytes()).hexdigest():
+    raise SystemExit('Directory-SD project work copy differs from patched source')
+print('DIRECTORY_SD_PATCHED_SOURCE_IDENTITIES_PASS')
+PY
 patch --batch -p1 -d "$src" < "$here/source/qemu-sony-usb.patch"
 python3 - "$here/source/qemu-sony-usb.json" "$src" <<'PY'
 import hashlib,json,sys
@@ -84,6 +113,7 @@ for name,record in manifest['source_files'].items():
         raise SystemExit('USB patched source differs: '+name)
 print('USB_PATCHED_SOURCE_IDENTITIES_PASS')
 PY
+python3 -B "$here/report/virtual-pcidma/stage_hardware.py" "$src" > "$stage/pci-hardware-source.json"
 mkdir -p "$stage/build" "$stage/tmp" "$stage/cache"
 bwrap --unshare-net --die-with-parent --clearenv --ro-bind / / \
   --bind "$stage" "$stage" --dev /dev --proc /proc --chdir "$stage/build" \
@@ -95,7 +125,7 @@ bwrap --unshare-net --die-with-parent --clearenv --ro-bind / / \
     "$1/configure" --target-list=aarch64-softmmu,aarch64-linux-user \
       --without-default-features --enable-tcg --enable-gtk --enable-sdl --enable-pixman \
       --enable-seccomp --enable-fdt=internal --disable-opengl --disable-download \
-      --disable-docs --disable-containers --disable-werror --disable-tools
+      --disable-docs --disable-containers --disable-werror --disable-tools --enable-vvfat --enable-qcow1
     ninja -j8 qemu-system-aarch64 qemu-aarch64
     cc -shared -fPIC -O2 -I "$1/subprojects/dtc/libfdt" \
       "$1"/subprojects/dtc/libfdt/*.c -Wl,-soname,libfdt.so.1 -o libfdt.so.1
@@ -111,6 +141,20 @@ library=ctypes.CDLL(sys.argv[1])
 assert library.fdt_open_into and library.fdt_setprop
 print('HOST_LIBFDT_SYMBOLS_PASS')
 PY
+python3 - "$stage/pci-hardware-source.json" "$stage/build/qemu-system-aarch64" "$stage/pci-hardware-build.json" "$here" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+receipt=json.loads(Path(sys.argv[1]).read_text())
+with Path(sys.argv[2]).open('rb') as stream:
+    receipt['binary_sha256']=hashlib.file_digest(stream,'sha256').hexdigest()
+receipt['scope']='default-off PCI/ATU hardware in native GTK/USB/directory-SD build'
+receipt['build_directory']=str(Path(sys.argv[2]).resolve().parents[1].relative_to(Path(sys.argv[4]).resolve()))
+Path(sys.argv[3]).write_text(json.dumps(receipt,indent=2)+'\n')
+PY
+if [[ "$install_build" == 0 ]]; then
+  printf 'STAGED_QEMU_BINARY=%s\n' "$stage/build/qemu-system-aarch64"
+  exit 0
+fi
 base="$here/runtime/sources/qemu-11.1.2"
 mkdir -p "$base/build-sony-ui" "$base/build-user" "$here/runtime/sources/qemu-tools/usr/lib" \
   "$here/runtime/sources/qemu-tools/usr/bin" "$here/runtime/analysis/qemu-virt-board"
@@ -125,6 +169,7 @@ mv -f "$here/runtime/sources/qemu-tools/usr/lib/libfdt.so.1.new" "$here/runtime/
 mv -f "$here/runtime/sources/qemu-tools/usr/bin/dtc.new" "$here/runtime/sources/qemu-tools/usr/bin/dtc"
 mv -f "$here/runtime/analysis/qemu-virt-board/virt-packed.dtb.new" "$here/runtime/analysis/qemu-virt-board/virt-packed.dtb"
 "$base/build-sony-ui/qemu-system-aarch64" -display help
+install -m 0644 "$stage/pci-hardware-build.json" "$here/source/pci-hardware-build.json"
 (cd "$here" && sha256sum runtime/sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64 \
   runtime/sources/qemu-11.1.2/build-user/qemu-aarch64 \
   runtime/sources/qemu-tools/usr/lib/libfdt.so.1 runtime/sources/qemu-tools/usr/bin/dtc \

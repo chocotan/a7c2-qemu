@@ -1,0 +1,128 @@
+{
+  "schema": "unified-encopen-bank3-v1",
+  "scope": "single EncOpen/coherent parameter parsing plus explicit local config bank3/FLAGB source events in the actual owned bootstrap; not native camera capture",
+  "batch": "unified-camera-f3_eny7y",
+  "regression": {
+    "tests_passed": 3253,
+    "subtests_passed": 381,
+    "failed": 0,
+    "modules": 144,
+    "runtime_sources": 398,
+    "unique_frozen_inputs": 789,
+    "group_counts": {
+      "production": 398,
+      "host": 6,
+      "observer": 8,
+      "test": 380
+    },
+    "all_current_inputs_reread_equal": true,
+    "all_archive_members_reread_equal": true
+  },
+  "receipts": {
+    "cleanup": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/cleanup.json",
+      "sha256": "407faa617f1f656bee7d48f436fa1e94c5ff8b3dee5912677fcf14ae7784d012"
+    },
+    "inputs": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/inputs.json",
+      "sha256": "ae22ee14b202faf5e6f357c2777cb255c235db5c6bd399d76e1abd324f5bc688"
+    },
+    "all_input_archive": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/inputs.tar.gz",
+      "sha256": "819cdd9a9e6f04a6b866df252af9f8aba4e2c6eb564e8011410fd1c5273f1d07"
+    },
+    "regression": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/host-regression.json",
+      "sha256": "ca37ef56841457fa4f92a3c97a69c32fb2f25a9c7f39b63494942586bd88ea6c"
+    },
+    "abi": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/abi.json",
+      "sha256": "c2d419cf1bfb8d5d5552c290d8281cdeed4b050e0f0d3921d01761fa43e96098"
+    },
+    "ready": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/ready.json",
+      "sha256": "05309ee568e2100fbdcf4cc4a06778553df6fb393314e9c1d16490b287e67556"
+    }
+  },
+  "boundary_checks": {
+    "production_candidate_QEMU_unchanged": true,
+    "own_system_QEMU_absent": true,
+    "both_existing_locks_simultaneously_exclusive": true,
+    "script_sync_check_passed": true
+  },
+  "preserved_artifacts": {
+    "menu-observe.so": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/menu-observe.so",
+      "sha256": "a053f67efe3f0add30fa9642340b84c00b12b9fb37020598b139b41053a898d1"
+    },
+    "file-media-config.so": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/file-media-config.so",
+      "sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e"
+    },
+    "observer-build-sources.tar.gz": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/observer-build-sources.tar.gz",
+      "sha256": "35b05d5dde867593d0c5eab0ba4ee24d7f70b52274535113388fcc6a365bb73a"
+    },
+    "observer-build-inputs.json": {
+      "path": "runtime/analysis/scratch/unified-camera-f3_eny7y/observer-build-inputs.json",
+      "sha256": "1fade1cf7d04ffeb639087483c4d536e5fd03309f6c1b79ca50ae95cefbc810a"
+    }
+  },
+  "observer_sha256": "a053f67efe3f0add30fa9642340b84c00b12b9fb37020598b139b41053a898d1",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "runtime_source_archive_sha256": "35b05d5dde867593d0c5eab0ba4ee24d7f70b52274535113388fcc6a365bb73a",
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true,
+    "new_bootstrap_executed_in_system_vm": false
+  },
+  "implementation": {
+    "EncOpen_command": 0,
+    "EncOpen_parameter_bytes": 152,
+    "EncOpen_message_id_hex": "210",
+    "native_video_binding_tests_in_batch": 26,
+    "CP_parameter_view_tests_in_batch": 4,
+    "actual_extracted_bootstrap_test_in_batch": 1,
+    "bootstrap_scenarios": 4,
+    "bootstrap_config_event_sequences": {
+      "constructor": 8,
+      "copy": 10,
+      "bank3_binding": 12,
+      "getter_STRB": 14
+    },
+    "FLAGB_local_copied_word": 2,
+    "FLAGB_local_projected_value": 0,
+    "FLAGB_recopy_revokes_knownness": true,
+    "source_event_does_not_promote_CP3003": true,
+    "auxiliary_u16_units_kept_opaque": true,
+    "runtime_bootstrap_calls_real_new_consumers": true,
+    "native_video_parser_linked_into_runtime_observer": false
+  },
+  "new_source_contract": {
+    "report": "report/native-video-open-parameter-producer/README.md",
+    "source_pins_sha256": "62bc5b7c89243930cbce446339f085601338474a2669d61c0cc6288d7ed62f75",
+    "window_count": 12,
+    "window_bytes": 7086,
+    "byte88_explicit_store_ELF_VA_hex": "d2d60",
+    "single_path_value": 0,
+    "metadata_queue_lifetime_closed": true,
+    "live_producer_type0_selection_verified": false,
+    "per_frame_YC_SDS_lease_verified": false
+  },
+  "prior_accepted_batch": "report/2026-10-27-unified-camera/verification-with-vbb-normalization.json",
+  "last_actual_native_run": "run-nzx01uc3",
+  "new_system_vm_started": false,
+  "native_run_rewritten": false,
+  "CP3003_result_known_bytes": 0,
+  "CP3003_required_bytes": 4,
+  "native_video_gap_mask": 63,
+  "original_CMOS_consumption_verified": false,
+  "original_JPEG_MP4_written_verified": false,
+  "capture_verified": false,
+  "remaining": [
+    "CP3003 LIF/M-C/Q/history, worker publication and full76 source roots",
+    "native YC plane/packing, scan/restart and coherent frame lease",
+    "actual encoder ES production/completion and original MPR/Fsys JPEG/MP4 write/readback with independent decode"
+  ]
+}

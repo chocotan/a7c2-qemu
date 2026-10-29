@@ -1,0 +1,281 @@
+{
+  "scope": "offline read-only public source; new report/scratch only; bounded partial first-frame investigation",
+  "artifact": {
+    "path": "runtime/analysis/menu-root/system/av-cam.bin",
+    "bytes": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "coordinates": "raw K; KVA=0xffffffc001000000+K"
+  },
+  "inherited": [
+    "../native-video-open-parameter-producer/README.md",
+    "../native-video-type0-binding/README.md"
+  ],
+  "windows": [
+    {
+      "id": "E1",
+      "label": "receiver-start",
+      "raw_hex": "178064",
+      "bytes": 224,
+      "sha256": "3da22c8086c2605a9b3a4b7fc80c6b97e766cccc9b53c77a7d7de0247af4addc",
+      "condition": "MID0201/CID210/subtype1; incoming pointer nonzero controls 80-byte snapshot"
+    },
+    {
+      "id": "E2",
+      "label": "normal-start-dispatch",
+      "raw_hex": "17f83c",
+      "bytes": 588,
+      "sha256": "653de9e6cf875fc70cea617d51716b053db1a744ad192242e08f50275f6b85b6",
+      "condition": "state not15/16; idle or bounded deferred event; action only after guard"
+    },
+    {
+      "id": "E3",
+      "label": "normal-start-actions",
+      "raw_hex": "185850",
+      "bytes": 672,
+      "sha256": "1fc8abc2043aa122ac1c207e79e26979e6880316cfa8b69eb37b71dd2b29574f",
+      "condition": "state3/18 calls17e020 then17b8b0; state6/11 calls17b908"
+    },
+    {
+      "id": "E4",
+      "label": "normal-start-table",
+      "raw_hex": "369408",
+      "bytes": 504,
+      "sha256": "ee4eb6c48a618dd25c626fec51ae58710a8b059ac48072db861e5c3f845f47fc",
+      "condition": "rows indexed by original state, stride18; columns guard/action/next"
+    },
+    {
+      "id": "E5",
+      "label": "timing-virtuals",
+      "raw_hex": "36d4f0",
+      "bytes": 88,
+      "sha256": "067eaa5bfe0f220db1de99cd14182104566aceb51ecab7c9b9f38e7935dcb644",
+      "condition": "T vptr=36d500 inherited193c88; virtual20=193e6c,virtual28=193e74"
+    },
+    {
+      "id": "E6",
+      "label": "timing-start-wrappers",
+      "raw_hex": "193e6c",
+      "bytes": 68,
+      "sha256": "9adfa3e2d9ba5d465e0b0854eac06c295871e236ee87646fff94576bddb6eb6d",
+      "condition": "virtual20 unconditional; virtual28 records27bd88 result thendispatch"
+    },
+    {
+      "id": "E7",
+      "label": "timing-start-dispatch",
+      "raw_hex": "198570",
+      "bytes": 1760,
+      "sha256": "d5ba3bf567e8c13b967c3a95f22c01c81190648b7c76180e225aecd870428391",
+      "condition": "first phase state6; second phase state7/8/16; bounded deferred events"
+    },
+    {
+      "id": "E8",
+      "label": "timing-start-tables",
+      "raw_hex": "36e120",
+      "bytes": 1152,
+      "sha256": "423688fd1897bb52aa70baa74b14b1d57c826f6a989e1799331b25bd90cd45a2",
+      "condition": "first table36e120/state6; second36e360/state7/8/16"
+    },
+    {
+      "id": "E9",
+      "label": "timing-start-actions",
+      "raw_hex": "19dc00",
+      "bytes": 1040,
+      "sha256": "23f3eaad408a29db4a411d29cee52099296fa720b69c1a461ad25821de107892",
+      "condition": "first action19dc90; second19def8/19df20/19dff0; guard andnextstate retained"
+    },
+    {
+      "id": "E10",
+      "label": "timing-start-implementation",
+      "raw_hex": "194e04",
+      "bytes": 364,
+      "sha256": "e4177055549c1db25357748f03c1d062d902f7051cc6e7cb13b2a76054744238",
+      "condition": "first194e04\u2192194e34\u21921974e0 then145614; second194ee4\u2192194f70 then145550"
+    },
+    {
+      "id": "E11",
+      "label": "codec-start-implementation",
+      "raw_hex": "145550",
+      "bytes": 228,
+      "sha256": "745880e7de8617cddb548c27d3c343bad0bcdab5e2a034b706ac859a62f73dd9",
+      "condition": "conditional config bytes; synchronous134640 then14153c; prestart13460c then141584"
+    },
+    {
+      "id": "E12",
+      "label": "actual-next-start-entry",
+      "raw_hex": "134640",
+      "bytes": 104,
+      "sha256": "fd9eabbac10b750dbfbe6d2514da7d0078fb0ad32dc3030fb549756f590fd536",
+      "condition": "14f8a8 then1363a4 with six preserved args; tail12cf8c"
+    }
+  ],
+  "source_frame_handoff_closed": false,
+  "actual_frame_callback_identified": false,
+  "actual_pixel_byte_access_proven": false,
+  "hardware_job_with_frame_pointer_proven": false,
+  "frame_buffer_owner_identified": false,
+  "native_video_gaps": 63,
+  "capture_verified": false,
+  "regression_receipt_inherited": "parent: 3253 / 381 + 398 source build + dual original-libc ABI; not rerun",
+  "last_examined_start_call": {
+    "raw_call": "134688",
+    "target_raw": "1363a4",
+    "known_rejoin": "14fcd4 -> 15f414 yields the S88 encoded-output record array, already pinned in ../native-video-source-record/source-pins.json; not a YC input plane",
+    "missing": "actual frame acquisition/callback, YC/SDS owner and input byte consumer; other config helpers1395a0/139790 remain unclosed"
+  },
+  "branch_tables": [
+    {
+      "table_raw_hex": "369408",
+      "state": 3,
+      "row_raw_hex": "369450",
+      "kva_targets_hex": [
+        "ffffffc0011858a8",
+        "ffffffc0011858b0",
+        "ffffffc0011858e4"
+      ]
+    },
+    {
+      "table_raw_hex": "369408",
+      "state": 6,
+      "row_raw_hex": "369498",
+      "kva_targets_hex": [
+        "ffffffc00118592c",
+        "ffffffc001185934",
+        "ffffffc00118594c"
+      ]
+    },
+    {
+      "table_raw_hex": "369408",
+      "state": 11,
+      "row_raw_hex": "369510",
+      "kva_targets_hex": [
+        "ffffffc0011859b4",
+        "ffffffc0011859bc",
+        "ffffffc0011859d4"
+      ]
+    },
+    {
+      "table_raw_hex": "369408",
+      "state": 18,
+      "row_raw_hex": "3695b8",
+      "kva_targets_hex": [
+        "ffffffc001185a7c",
+        "ffffffc001185a84",
+        "ffffffc001185ab8"
+      ]
+    },
+    {
+      "table_raw_hex": "36e120",
+      "state": 6,
+      "row_raw_hex": "36e1b0",
+      "kva_targets_hex": [
+        "ffffffc00119dc88",
+        "ffffffc00119dc90",
+        "ffffffc00119dca8"
+      ]
+    },
+    {
+      "table_raw_hex": "36e360",
+      "state": 7,
+      "row_raw_hex": "36e408",
+      "kva_targets_hex": [
+        "ffffffc00119def0",
+        "ffffffc00119def8",
+        "ffffffc00119df10"
+      ]
+    },
+    {
+      "table_raw_hex": "36e360",
+      "state": 8,
+      "row_raw_hex": "36e420",
+      "kva_targets_hex": [
+        "ffffffc00119df18",
+        "ffffffc00119df20",
+        "ffffffc00119df38"
+      ]
+    },
+    {
+      "table_raw_hex": "36e360",
+      "state": 16,
+      "row_raw_hex": "36e4e0",
+      "kva_targets_hex": [
+        "ffffffc00119dfe8",
+        "ffffffc00119dff0",
+        "ffffffc00119e008"
+      ]
+    }
+  ],
+  "instruction_assertions": [
+    {
+      "raw_hex": "178098",
+      "bytes_hex": "c10a40f9",
+      "meaning": "Start source pointer packet+10"
+    },
+    {
+      "raw_hex": "1780ac",
+      "bytes_hex": "3523fa97",
+      "meaning": "copy80 parameter snapshot; not pixels"
+    },
+    {
+      "raw_hex": "17813c",
+      "bytes_hex": "c01d0094",
+      "meaning": "normal Start state dispatch"
+    },
+    {
+      "raw_hex": "17f8c4",
+      "bytes_hex": "570f00d0",
+      "meaning": "Start state table page"
+    },
+    {
+      "raw_hex": "1858d0",
+      "bytes_hex": "f8d7ff97",
+      "meaning": "state3 Start action17b8b0"
+    },
+    {
+      "raw_hex": "193e6c",
+      "bytes_hex": "003c42f9",
+      "meaning": "timing handle T+478"
+    },
+    {
+      "raw_hex": "193e70",
+      "bytes_hex": "c0110014",
+      "meaning": "first timing Start dispatch198570"
+    },
+    {
+      "raw_hex": "193eac",
+      "bytes_hex": "43120014",
+      "meaning": "second timing Start dispatch1987b8"
+    },
+    {
+      "raw_hex": "194e30",
+      "bytes_hex": "f9c1fe17",
+      "meaning": "first phase lower call145614"
+    },
+    {
+      "raw_hex": "194f00",
+      "bytes_hex": "a0aff997",
+      "meaning": "copy80 to T+140; not pixels"
+    },
+    {
+      "raw_hex": "194f58",
+      "bytes_hex": "06000094",
+      "meaning": "source event194f70"
+    },
+    {
+      "raw_hex": "194f6c",
+      "bytes_hex": "79c1fe17",
+      "meaning": "actual lower Start145550"
+    },
+    {
+      "raw_hex": "1455f0",
+      "bytes_hex": "14bcff97",
+      "meaning": "call134640 with original Start plus config"
+    },
+    {
+      "raw_hex": "134688",
+      "bytes_hex": "47070094",
+      "meaning": "next original Start body1363a4"
+    }
+  ],
+  "window_count": 12,
+  "window_bytes": 6792
+}

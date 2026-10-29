@@ -1,0 +1,94 @@
+{
+  "scope": "Immutable whole-startup code batch plus early native integration failure; current worktree may advance separately",
+  "profile": "virtual-functional-camera-v1",
+  "batch": "runtime/analysis/scratch/unified-camera-w2eo6xxj",
+  "regression": {
+    "returncode": 0,
+    "tests_passed": 4190,
+    "subtests_passed": 2499,
+    "modules": 165,
+    "production_sources": 435,
+    "unique_inputs": 888,
+    "changed": {
+      "production": [],
+      "host": [],
+      "observer": [],
+      "test": []
+    }
+  },
+  "ready_sha256": "d2e98bb145602c5f210181b0b17e2f20baa30473e2870f3cd6f528c79947db74",
+  "inputs_sha256": "e27f2306575714b016f4c5ebaaf3b718128bf3fea95d0057373cdfca7a95ef85",
+  "regression_sha256": "94ea332e6819db15a7558340d0f9522341c393f9d60c7060dc95b94be659f249",
+  "abi_sha256": "117472334e9b079337ef7e306004617dd9bcdf82c2d78b97b225266be311f669",
+  "all_input_archive_sha256": "a944b577958f66f44e32b3fcdf113dba8fb3ee758f4c7b8994f6777b0e890d1a",
+  "observer_sha256": "4fb157d622cc48c5d27e544d1360f8f1a052fb39a4b90b79d0193e3951099a98",
+  "observer_source_archive_sha256": "1aca164bdbfe4e8683478a2461360bb7ff690b660106c90bf4e90e57650cccd5",
+  "media_preload_sha256": "e720393d29baef38e4111eb6b5a2ca38de76fa27e7ad554cf95945fa614dbbd7",
+  "functional_model_sha256": "c45d718324f8743986f95624e93aa7494cc69ef77b9740f7f70300462a1d81c0",
+  "functional_model_source_archive_sha256": "6cbaf7c3aa466c48d2838516675e1baa4a84eb8abf11cc8d1b1329de099d8573",
+  "functional_model_build_receipt_sha256": "66b1bf52e7b0b56a1c2171b63264787d0fa900c11f1ac4d4284f69c66e836f92",
+  "original_libc_ABI": {
+    "returncode": 0,
+    "media_returncode": 0,
+    "media_LD_BIND_NOW": true
+  },
+  "implemented": [
+    "layout7 canonical32/actualRGB/result192",
+    "typed display8 disabled0152/off0162/0141 fullRGB refresh/result176",
+    "exact original ACK/actual original free/ticket lifecycle;legitimate fresh allocation may reuse retired request address",
+    "resource diagnostic classification and vvfat-only BB Get-to-nativefree actual-content joins"
+  ],
+  "static_inventory": [
+    "AP63calls/firsttwo sibling joins and mode1 source",
+    "CPinitial8 and BB-after7 contracts,ret-only leaves and conditional one-way identified",
+    "0148 future1148 versus210c four256B segments distinguished;numeric meaning and physical1204 ingress unverified",
+    "S2 through original4038/4039 and separate MPR Capture source frontier;unclosed notification/codec selection kept explicit"
+  ],
+  "native_attempt": {
+    "run": "runtime/analysis/menu-runs/run-ucxhc4xe",
+    "automation_returncode": 1,
+    "verdict": "FAIL before GTK ready/original JPEG encode",
+    "original_guest": "im.elf/SeqQueueCommon pid258/tid382 original abort/exception monitor",
+    "host_symptom": "VM control channel closed before GTK_INPUT_RUN",
+    "selected_initramfs_sha256": "965660aba8205a1eecc80f6620a2125bf61b9e932c03fd246c5ea9faa039f3a2",
+    "selected_initramfs_retained_outside_original_run": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/functional-early-startup-failure-ucxhc4xe/selected-initramfs.cpio",
+    "model_broker_started": false,
+    "mailbox_ever_attached": false,
+    "runner_phase": "closed",
+    "runner_cleanup": {
+      "broker_never_attached": true,
+      "errors": [],
+      "safe_to_close": true,
+      "worker_stopped": true
+    },
+    "model_frame_or_encoder_jobs": 0,
+    "startup_fault_evidence": {
+      "last_guard": "ALL13_READBACK accepted0/video0/OSD0/audio0",
+      "saved_FP_records": "scratch/functional-early-layout-crash-frame-records.json",
+      "appFw_return_VAs": [
+        "34e5778",
+        "34f170c",
+        "34c5f44",
+        "30ea500"
+      ],
+      "raw_crash_stack_bin_all_zero": true,
+      "not_a_claimed_complete_unwind": true
+    },
+    "original_host_disk_save_verified": false,
+    "original_retained_owner_marker_unchanged": true,
+    "owned_recorded_processes_absent": true,
+    "own_system_QEMU_absent": true,
+    "two_existing_locks_exclusive": true,
+    "main_sent_signal_or_QMP_recovery": false,
+    "exit_cause_independently_observed": false,
+    "cleanup_receipt": "runtime/analysis/scratch/functional-cleanup-run-ucxhc4xe.json",
+    "startup_refusal_receipt": "runtime/analysis/scratch/functional-early-startup-failure-ucxhc4xe/failure.json",
+    "card_must_not_be_reused": true
+  },
+  "next_repair_scope": "Separate explicit startup layout register staging/copy-readback from late active-route real RGB consumption;do not use legacy empty ACK or invent all13 readiness",
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_executed": false,
+  "original_CP_RAM_verified": false,
+  "original_RTOS_verified": false
+}

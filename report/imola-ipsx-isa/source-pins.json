@@ -1,0 +1,29 @@
+{
+  "scope": "decoder/semantic ambiguity, conditional standard-LDL invariant; not a CPU-model or runnability proof",
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "bytes": 10934476,
+  "sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "windows": [
+    {"bank": "ram1", "VA_hex": "80748298", "bytes": 512, "sha256": "8ce393f2e9b64862ff08986fcf91a4e230ed76e6605a6885e33239a52a66367b"},
+    {"bank": "rom0", "VA_hex": "9fc00040", "bytes": 512, "sha256": "62fa87481bbe332901e3e07c39a1bccf063299fa2b49286db3999903ec11a463"},
+    {"bank": "ram1", "VA_hex": "80714300", "bytes": 512, "sha256": "a6f8d2f6a941e87756bd126effe3c047b914bdb467de1cd2ad39bbb2f7a85a22"},
+    {"bank": "ram1", "VA_hex": "8074c3b8", "bytes": 288, "sha256": "2953e89de87843158636a47127389158550199ffb1e8da76d4766e218e21a3fd"},
+    {"bank": "rom0", "VA_hex": "9fc00400", "bytes": 1228, "sha256": "29ced0a641a55bd4f50f7a9703f6a3c8fa985201088e23d0da2bd260608ef332"},
+    {"bank": "ram1", "VA_hex": "80747d80", "bytes": 384, "sha256": "0f22ee09604bc1f0c52eaeafbf8268ed4107efc62aa555dda5c9924a46a6fd6b"},
+    {"bank": "rom1", "VA_hex": "9fc00400", "bytes": 436, "sha256": "ced0c5a2ed533bd47bc9dd7c709828f5a7477171be5b85bbdbe5461f239983d7"},
+    {"bank": "ram1", "VA_hex": "80745808", "bytes": 384, "sha256": "2cefb3d577a1766ef036dcfa35296a532c57d2f0739ea9aaf6a6f19e02c32875"}
+  ],
+  "window_count": 8,
+  "window_bytes": 4256,
+  "exact_function": {"VA_hex": "80748298", "end_VA_hex": "80748334", "bytes": 156, "sha256": "cc093e4089dddeb4e94eb9c8a9fa761a5bb6cc31bb4b2b0ab3bc115972a22289"},
+  "standard64_decode": {"68e50400": "ldl a1,0x400(a3)", "b0e20d00": "sdl v0,0xd00(a3)", "b0e20d01": "sdl v0,0xd01(a3)", "b0e20d03": "sdl v0,0xd03(a3)", "b0e20d04": "sdl v0,0xd04(a3)"},
+  "conditional_predecessor": {"a3_canonical_hex": "ffffffff80747e34", "a1_canonical_hex": "ffffffff807ae960", "EA_canonical_hex": "ffffffff80748234", "alignment": 4, "LDL_preserved_low_bits": 24, "old_a1_bit0": 0, "standard_LDL_cannot_change_bit0_on_this_branch": true, "field4_helpers_closed": false, "runtime_branch_observed": false},
+  "canonical_static_Kuna": {"target": "MIPS:LE:64:default", "base_hex": "ffffffff80714000", "function_hex": "ffffffff80748298", "returncode": 0, "RAM1_export_bytes": 1748992, "RAM1_export_sha256": "015030f15297ff345fcf9faa5246d0dc31a97664b6da504974293fd2a31edbf4", "local_receipt": "runtime/analysis/scratch/imola-static/canonical64-reproduction.json"},
+  "Status_KX_SX_UX_zero_proves_GPR32": false,
+  "GPR_width_known": false,
+  "custom_instruction_semantics_known": false,
+  "whole_firmware_standard_MIPS64_refuted": false,
+  "MIPS32_decoder_rejection_proves_custom_opcode": false,
+  "MCU_executed": false,
+  "capture_verified": false
+}

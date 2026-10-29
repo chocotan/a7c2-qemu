@@ -1,0 +1,306 @@
+{
+  "schema": 2,
+  "system_sound_config_verified": true,
+  "query_caller_tid": 326,
+  "query_address": "0x81d000000",
+  "evidence_kind": "native",
+  "whole_run_success_verified": false,
+  "system_sound_memory_verified": true,
+  "source_sha256": "5d94c660c48afde364fbb936105abdaf5c35f8bf8fc0bfd6945cd12146f6824a",
+  "backing_sha256": "d4d940aa686f53103b1baef800f60fc9cffd2d27cab36530bfbddca1afa2c918",
+  "pixels_consumed": false,
+  "observer_prefix_recoveries": 0,
+  "default_table_count": 25,
+  "enabled_kinds": [
+    1,
+    2,
+    3,
+    8,
+    7,
+    9,
+    17,
+    18,
+    4,
+    5,
+    6,
+    16,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "disabled_kinds": [],
+  "slices": [
+    {
+      "kind": 1,
+      "offset": 0,
+      "size": 128,
+      "fnv64": "e99ccaff7e2a3f31"
+    },
+    {
+      "kind": 2,
+      "offset": 128,
+      "size": 1216,
+      "fnv64": "44b3294e39fb3496"
+    },
+    {
+      "kind": 3,
+      "offset": 1344,
+      "size": 1216,
+      "fnv64": "44b3294e39fb3496"
+    },
+    {
+      "kind": 8,
+      "offset": 0,
+      "size": 0,
+      "fnv64": "cbf29ce484222325"
+    },
+    {
+      "kind": 7,
+      "offset": 0,
+      "size": 0,
+      "fnv64": "cbf29ce484222325"
+    },
+    {
+      "kind": 9,
+      "offset": 0,
+      "size": 0,
+      "fnv64": "cbf29ce484222325"
+    },
+    {
+      "kind": 17,
+      "offset": 0,
+      "size": 0,
+      "fnv64": "cbf29ce484222325"
+    },
+    {
+      "kind": 18,
+      "offset": 0,
+      "size": 0,
+      "fnv64": "cbf29ce484222325"
+    },
+    {
+      "kind": 4,
+      "offset": 2560,
+      "size": 3712,
+      "fnv64": "fcb8f500e2de24de"
+    },
+    {
+      "kind": 5,
+      "offset": 6272,
+      "size": 3456,
+      "fnv64": "6742eb7b3cc98552"
+    },
+    {
+      "kind": 6,
+      "offset": 9728,
+      "size": 9280,
+      "fnv64": "3a581cd56e0a5043"
+    },
+    {
+      "kind": 16,
+      "offset": 33344,
+      "size": 2752,
+      "fnv64": "9bb217ef791bdd9c"
+    },
+    {
+      "kind": 19,
+      "offset": 36096,
+      "size": 2752,
+      "fnv64": "9bb217ef791bdd9c"
+    },
+    {
+      "kind": 20,
+      "offset": 38848,
+      "size": 8192,
+      "fnv64": "c168b900b5de5976"
+    },
+    {
+      "kind": 21,
+      "offset": 47040,
+      "size": 12416,
+      "fnv64": "2d0dd933adc12579"
+    },
+    {
+      "kind": 22,
+      "offset": 59456,
+      "size": 6912,
+      "fnv64": "1e2a4d2aab5ae03d"
+    },
+    {
+      "kind": 23,
+      "offset": 1344,
+      "size": 1216,
+      "fnv64": "44b3294e39fb3496"
+    },
+    {
+      "kind": 24,
+      "offset": 2560,
+      "size": 3712,
+      "fnv64": "fcb8f500e2de24de"
+    },
+    {
+      "kind": 25,
+      "offset": 6272,
+      "size": 3456,
+      "fnv64": "6742eb7b3cc98552"
+    },
+    {
+      "kind": 10,
+      "offset": 24576,
+      "size": 1216,
+      "fnv64": "44b3294e39fb3496"
+    },
+    {
+      "kind": 11,
+      "offset": 25792,
+      "size": 1856,
+      "fnv64": "6879720f1f208058"
+    },
+    {
+      "kind": 12,
+      "offset": 27648,
+      "size": 1472,
+      "fnv64": "5642fcb8e3fc8286"
+    },
+    {
+      "kind": 13,
+      "offset": 29120,
+      "size": 896,
+      "fnv64": "d9ab45b115a0adb3"
+    },
+    {
+      "kind": 14,
+      "offset": 30016,
+      "size": 1856,
+      "fnv64": "6879720f1f208058"
+    },
+    {
+      "kind": 15,
+      "offset": 31872,
+      "size": 1472,
+      "fnv64": "5642fcb8e3fc8286"
+    }
+  ],
+  "per_kind_volume": [
+    {
+      "kind": 1,
+      "volume": 7
+    },
+    {
+      "kind": 2,
+      "volume": 7
+    },
+    {
+      "kind": 3,
+      "volume": 7
+    },
+    {
+      "kind": 8,
+      "volume": 7
+    },
+    {
+      "kind": 7,
+      "volume": 7
+    },
+    {
+      "kind": 9,
+      "volume": 7
+    },
+    {
+      "kind": 17,
+      "volume": 7
+    },
+    {
+      "kind": 18,
+      "volume": 7
+    },
+    {
+      "kind": 4,
+      "volume": 5
+    },
+    {
+      "kind": 5,
+      "volume": 6
+    },
+    {
+      "kind": 6,
+      "volume": 6
+    },
+    {
+      "kind": 16,
+      "volume": 6
+    },
+    {
+      "kind": 19,
+      "volume": 6
+    },
+    {
+      "kind": 20,
+      "volume": 7
+    },
+    {
+      "kind": 21,
+      "volume": 7
+    },
+    {
+      "kind": 22,
+      "volume": 6
+    },
+    {
+      "kind": 23,
+      "volume": 7
+    },
+    {
+      "kind": 24,
+      "volume": 5
+    },
+    {
+      "kind": 25,
+      "volume": 6
+    },
+    {
+      "kind": 10,
+      "volume": 7
+    },
+    {
+      "kind": 11,
+      "volume": 7
+    },
+    {
+      "kind": 12,
+      "volume": 7
+    },
+    {
+      "kind": 13,
+      "volume": 7
+    },
+    {
+      "kind": 14,
+      "volume": 7
+    },
+    {
+      "kind": 15,
+      "volume": 7
+    }
+  ],
+  "console_sha256": "a5d31ba75d1d8eb913dcdc56d6f26aa3e92aaf384f8a301f958b55e9081c4141",
+  "audio_output_verified": false,
+  "camera_startup_verified": false,
+  "run": "run-ypsslyoq",
+  "verification_scope": "native-sound-config-and-memory",
+  "next_request": {
+    "destination": "0x92840747",
+    "command": "0x032a",
+    "raw": "0d202a030a0001800700"
+  }
+}

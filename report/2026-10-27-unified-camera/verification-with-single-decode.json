@@ -1,0 +1,79 @@
+{
+  "schema": "unified-single-decode-v1",
+  "scope": "one real dynamic decode with atomic owned cache/handshake/bitmap commits; not original CP execution or capture",
+  "batch": "unified-camera-u298jyxc",
+  "regression": {
+    "tests_passed": 3141,
+    "subtests_passed": 381,
+    "failed": 0,
+    "modules": 139,
+    "runtime_sources": 398,
+    "unique_frozen_inputs": 713,
+    "group_counts": {"production": 398, "host": 6, "observer": 8, "test": 304},
+    "all_inputs_reread_equal": true,
+    "all_archive_members_reread_equal": true
+  },
+  "receipts": {
+    "inputs": {"path": "runtime/analysis/scratch/unified-camera-u298jyxc/inputs.json", "sha256": "edbf7deeab05ff3e947e3243877b7f0dfc70b93794483b568a4346838dedfe2e"},
+    "all_input_archive": {"path": "runtime/analysis/scratch/unified-camera-u298jyxc/inputs.tar.gz", "sha256": "a12f9992296e121f9bdcd03aaed5bae61baf604459c7bc9c4f0b857aa35142c4"},
+    "regression": {"path": "runtime/analysis/scratch/unified-camera-u298jyxc/host-regression.json", "sha256": "657f3494d93cf871e174405e675108db1d84f26764bd1b0b747c2cee899b70a7"},
+    "abi": {"path": "runtime/analysis/scratch/unified-camera-u298jyxc/abi.json", "sha256": "2d4e076f11bc7e09ebbdbeedd8c6105543f2b6159c86d8fe08ca70c64d0d235b"},
+    "ready": {"path": "runtime/analysis/scratch/unified-camera-u298jyxc/ready.json", "sha256": "1d6f020f725de1557b47fe9e1ed93828d007b52da623f741d8e9fc1d8c72aaef"}
+  },
+  "observer_sha256": "95db1a9d5b66f99a15bedc284727223b4ab4c39a5fbe0b8f0db607339a333b78",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "runtime_source_archive_sha256": "131d0b84a8e84cbe4a775a032db8dd78bc012d4442b12d82a78fba22102016be",
+  "accepted_binaries_and_archives_preserved_in_batch_directory": true,
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true,
+    "actual_public_stage_file_read_test": true,
+    "capability_handshake_C_cases_executed": 28,
+    "cache_combined_C_cases_executed": 34,
+    "video_metadata_C_groups_executed": 7,
+    "scope": "same HOST_TEST C scenarios under original AArch64 libc2.25, QEMU user mode"
+  },
+  "combined_receive": {
+    "API": "lif_cache_receive_with_handshake",
+    "path": "report/lif-cache-admission-contract/lif-cache.c",
+    "focused_checks": 37,
+    "one_shared_private_receive_helper": true,
+    "real_dynamic_decoder_calls_per_accepted_frame": 1,
+    "cache_result_derived_from_same_owned_handshake_decode": true,
+    "all_fallible_checks_before_owner_commits": true,
+    "failures_preserve_three_owners_backing_input_output": true,
+    "old_readonly_capability_API_behavior_preserved": true,
+    "conditional_state5_is_not_ready": true,
+    "original_cache_executed": false,
+    "original_event_delivery": false,
+    "original_worker_publication": false
+  },
+  "gate_input_source": {
+    "path": "report/lif-enable-input-contract/README.md",
+    "source_windows": 10,
+    "source_bytes": 4180,
+    "property_ID": "000d003a",
+    "same_public_stage_payload_bytes": 256,
+    "actual_payload_hex_b8": 255,
+    "initial_config_word_at_hex1c": 2,
+    "FLAGB_after_explicit_initial_collector_projection": 0,
+    "later_config_recopy_exists": true,
+    "gate_at_worker_call_known": false
+  },
+  "prior_accepted_batch": "report/2026-10-27-unified-camera/verification-with-cache-admission.json",
+  "last_actual_native_run": "run-nzx01uc3",
+  "new_system_vm_started": false,
+  "native_run_rewritten": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_written_verified": false,
+  "remaining": [
+    "Actual original LIF delivery, normal worker/publication and mutable gate/Q history remain unproved",
+    "ADJ M/C initial/current values and complete76 source roots remain incomplete; CP3003 provider remains0/4",
+    "Native YC byte/component order, restart hardware semantics and coherent image lease remain unresolved",
+    "Actual encoded source88 filling, async API parameter expansion, hardware completion and ES lease retirement remain unclosed",
+    "Original CMOS to original encoding to original MPR/Fsys to virtualSD with independent JPEG/MP4 decode still requires integrated native acceptance"
+  ]
+}

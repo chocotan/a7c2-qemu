@@ -1,0 +1,66 @@
+{
+  "scope": "Public ALLLANG source-derived JPEG header profile and bounded host device core; no native MMIO completion or capture claim",
+  "asset": {
+    "path": "runtime/analysis/menu-root/system/av-cam.bin",
+    "size": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "address_convention": "K is raw file offset; never apply CP raw+0x108000"
+  },
+  "survey": {
+    "format": "raw AArch64 av-cam module; inherited public identity and driver call graph",
+    "imports": "No ELF/PE dynamic-import table applies to this raw module; bounded callees are original local branches and module API indirection. No whole-module import/symbol survey claimed.",
+    "method": "Offline installed Python capstone; read-only bounded instruction/table pass; no original code execution"
+  },
+  "pins": [
+    {"label":"original-prefix-builder","raw_offset":2803616,"raw_hex":"0x2ac7a0","size":884,"sha256":"fea2991dc5fd3f2f7606faf4ba325ee7bc99bee99d99a9a4457c235345b4afd7"},
+    {"label":"configure-prefix-table-snapshots","raw_offset":2804644,"raw_hex":"0x2acba4","size":284,"sha256":"85a893292ca9ed4afd58c9f31bfeb3ad118f9e7d287e197d06d1ee51446120d8"},
+    {"label":"source-quant-scaling","raw_offset":2794356,"raw_hex":"0x2aa374","size":116,"sha256":"fb61e5a8f3c7c81e2ac7081ecaed9d8329159a162c6ee4d8ee0b5def59096b19"},
+    {"label":"quant-scale-and-zigzag","raw_offset":2809696,"raw_hex":"0x2adf60","size":532,"sha256":"bc5f57c2f3ba68ac244396e31646a7fcbe4f16108d2f88065a4eaccf4c16f52c"},
+    {"label":"source-address","raw_offset":2794472,"raw_hex":"0x2aa3e8","size":888,"sha256":"8507d0fee180fcac25b53004c4b004346f3325d29f17eb9bb751c365e1f7e036"},
+    {"label":"output-layout","raw_offset":2795360,"raw_hex":"0x2aa760","size":212,"sha256":"6a20a5c8aa855d9f97f9487d62a27b196fbdd2afa7de0a4adb2913ad09619475"},
+    {"label":"aif-conversion","raw_offset":2813652,"raw_hex":"0x2aeed4","size":124,"sha256":"4dadf0db57ccadc2a8e953162d7d9423eee8bf89c2f6ac47123d13a78b6165b4"},
+    {"label":"aif-range-table","raw_offset":3350744,"raw_hex":"0x3320d8","size":128,"sha256":"eeb894d39e39f825abd2f0e69d8e23536d89c9d9ee0c9a6d93321a4443568b2e"},
+    {"label":"immutable-huffman","raw_offset":4526829,"raw_hex":"0x4512ed","size":416,"sha256":"532fd667aa5541439e4fc89f189259b1b137993ca5dfcbb6970ab411aee79cdf"},
+    {"label":"immutable-sof-template","raw_offset":3186880,"raw_hex":"0x30a0c0","size":17,"sha256":"53ee98a7a1d9bd441626de9ecd6ac5b8376d2d5bab04df30f8ef75762e97a8f4"},
+    {"label":"output-register-stores","raw_offset":2770796,"raw_hex":"0x2a476c","size":340,"sha256":"3526d7de3e79506b81ec83c34878c7982b80281517a303a2e2ecb8e99596880f"},
+    {"label":"length-fifo","raw_offset":2771396,"raw_hex":"0x2a49c4","size":160,"sha256":"a942db50ee7ddd1c09d3ec2023382a2f476b48927ed699012b673e08c4c3589a"},
+    {"label":"native-status-and-start","raw_offset":2768456,"raw_hex":"0x2a3e48","size":488,"sha256":"a54522426f0d4c2592d1b8f92bcd9bfa2d6b3433620131cd27880b385e3aa319"},
+    {"label":"input-register-stores","raw_offset":2770512,"raw_hex":"0x2a4650","size":284,"sha256":"4db52facc17f269b5b14dd07dbbb5f0498e80aa636ee9a9d5b18fe234772bab3"},
+    {"label":"high-address-register-store","raw_offset":2773260,"raw_hex":"0x2a510c","size":16,"sha256":"5509bf19b005253b19f7a7281b02d4edbfb5cfa25183724aaab837949b92e5ce"},
+    {"label":"output-register-wrapper","raw_offset":2815640,"raw_hex":"0x2af698","size":232,"sha256":"05e0e99714f3dcd0057b8b3736374e6db0ea30755c380103a4317b0635973aef"},
+    {"label":"post-hardware-sos-check","raw_offset":2805180,"raw_hex":"0x2acdbc","size":176,"sha256":"9026c37e39a5d43640dc195f6ced3291efe50c7275a4bff7056a9394376f9459"}
+  ],
+  "instructions": [
+    {"raw_offset":2803840,"bytes":"61220091e0030091e2031a322a040094","meaning":"DQT0 from prefix snapshot +8, 64 bytes"},
+    {"raw_offset":2803900,"bytes":"61220191e0030091e2031a321b040094","meaning":"DQT1 from prefix snapshot +48, 64 bytes"},
+    {"raw_offset":2804064,"bytes":"340d00b094b60b91e0030091a2038052e10314aaf0030094","meaning":"immutable DC0 table K4512ed"},
+    {"raw_offset":2804100,"bytes":"350d00b0b59e0c91e003009162168052e10315aae7030094","meaning":"immutable AC0 table K451327"},
+    {"raw_offset":2804444,"bytes":"28048052e8730039","meaning":"write Y sampling 0x21"},
+    {"raw_offset":2804880,"bytes":"80ca0291a1a200910205009480ca0391a1a20191ff040094","meaning":"natural quant tables converted to stored prefix zigzag"},
+    {"raw_offset":2805312,"bytes":"e6534039dffc037141040054e84340391f690371e1030054","meaning":"require FF DA at hardware output"},
+    {"raw_offset":2805336,"bytes":"685640f969b240b9608200912101088b4efeff97","meaning":"prefix written only after SOS check"},
+    {"raw_offset":2770800,"bytes":"280040b908a012b9280440b908a412b9","meaning":"output low and capacity word stores"},
+    {"raw_offset":2773264,"bytes":"081c088b021912b9","meaning":"source/output high at 1218+index*80"},
+    {"raw_offset":2768712,"bytes":"084800d0014c01b8","meaning":"status acknowledgment at +14"}
+  ],
+  "source_closed": {
+    "header_without_soi_bytes": 573,
+    "header_order": ["DQT combined 0x84", "DHT combined 0x1a2", "SOF0 0x11"],
+    "quantization": "two caller snapshot arrays of 64 nonzero bytes, JPEG zigzag order",
+    "huffman_tables": "DC0 K4512ed/29, DC1 K45130a/29, AC0 K451327/179, AC1 K4513da/179",
+    "frame": "8-bit baseline, component IDs 1/2/3; sampling 21/11/11; Q selectors 0/1/1",
+    "restart": "no DRI in the bounded source prefix; this typed profile supports restart_interval=0 only",
+    "address_arithmetic": "K2aa3e8 memory branch and K2aa760 mode3; overflows and undersized output are rejected",
+    "completion": "native FIFO poll44&3f/read4c/pop40=1; status read10/ack14; native bit-to-event semantics remain unknown"
+  },
+  "first_unknown_components": [
+    "Native pixel interpretation at K2aa3e8/K2af9a8 memory input and parameter1054 producer: component order/plane layout and lease provenance remain unproved",
+    "Automatic original-register-to-coding resolver: bind live L+b0 quant tables and K2ae0a0 snapshot to native quant programming in K2af65c/K2af698 and K2a43a4; no decoder is invented",
+    "SOS scan/restart controls and native B+10 bit semantics are not proved by the prefix builder alone; typed baseline scan and virtual events are explicit host contracts"
+  ],
+  "irq_contract_reference": "../jpeg-irq-routing/README.md: PA f3020000, Linux/GIC 61, QEMU external 29, LIRO EOIR PA f13a2010; actual delivery/target/enable unverified",
+  "native_mmio_capture_usable": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false,
+  "qemu_built_or_run": false
+}

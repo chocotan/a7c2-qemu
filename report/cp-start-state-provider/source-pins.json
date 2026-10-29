@@ -1,0 +1,98 @@
+{
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_bytes": 18090880,
+  "CP_VA_equals_raw_plus": 1081344,
+  "file_backed_CP_VA": [
+    1081344,
+    19172224
+  ],
+  "pins": [
+    {
+      "name": "bk4-table-bootstrap",
+      "CP_VA": 5627804,
+      "raw_offset": 4546460,
+      "size": 114,
+      "sha256": "412251235f30aa5db87b67cbdf40d17658f71f8b189524d570a31c4b7adf27f4"
+    },
+    {
+      "name": "property-prefetch-list",
+      "CP_VA": 5619552,
+      "raw_offset": 4538208,
+      "size": 172,
+      "sha256": "d45882787079b77b8601cafdae3d5b341f6e21def12fa41d18fb490dde901609"
+    },
+    {
+      "name": "property-read-copy",
+      "CP_VA": 12489008,
+      "raw_offset": 11407664,
+      "size": 98,
+      "sha256": "5f14611866a0270babc8cbcd170de06ecb138541bb20b1d743ea9118321062cf"
+    },
+    {
+      "name": "full-property-id-index",
+      "CP_VA": 12490950,
+      "raw_offset": 11409606,
+      "size": 150,
+      "sha256": "71145fa36f3d014b36037338a6e94b1136448c6b19ec10733eb42297491c4b25"
+    },
+    {
+      "name": "property-length-and-data",
+      "CP_VA": 12491100,
+      "raw_offset": 11409756,
+      "size": 114,
+      "sha256": "c3f686f627746b444309606ae1c018daa161db69b0f09ab01b0b287b6839c76e"
+    },
+    {
+      "name": "property-registration-context",
+      "CP_VA": 10783650,
+      "raw_offset": 9702306,
+      "size": 114,
+      "sha256": "b2f108a162ddaeb79da51f5f996dd10a04b68a6ba08cfa95b47b6b993460bffb"
+    },
+    {
+      "name": "actual-property-ids-and-contexts",
+      "CP_VA": 17834108,
+      "raw_offset": 16752764,
+      "size": 32,
+      "sha256": "80fc123f15fab09c74d5b0f8e24b4baec3e779ab863045ec87d8866f2a74c547"
+    },
+    {
+      "name": "primary-root-pointer-bank",
+      "CP_VA": 11725774,
+      "raw_offset": 10644430,
+      "size": 12,
+      "sha256": "145fa04bfb374496c227a7f99edaae34de7cad2fca92b5d337df2a8b6994c343"
+    },
+    {
+      "name": "primary-root-published-copy",
+      "CP_VA": 11723072,
+      "raw_offset": 10641728,
+      "size": 40,
+      "sha256": "b1f3222e18488fae6a2c54c8e14840d208f5b68d2d76ac64fbcf1d14ffc8e7ce"
+    }
+  ],
+  "public_seed_sha256": "3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47",
+  "public_seed_bytes": 2390264,
+  "primary": {
+    "offset": 0,
+    "size": 968981,
+    "sha256": "b2c14c5ff68cdd5a0a0f6410fe9aa3e284fa4a09bd305742b60fd7e47b726395",
+    "property_01250006_present": false
+  },
+  "secondary_virtual": {
+    "policy": "public-secondary-virtual-property-v1",
+    "offset": 970752,
+    "size": 1419512,
+    "sha256": "a90b46ae1d0fa054daeba321c52dc9d44d6bf32ca6eefcd1efb84fab2116e977",
+    "property_id": 19202054,
+    "entry_file_offset": 1161742,
+    "entry_hex": "0800824f07ff",
+    "payload_file_offset": 1449860,
+    "payload_size": 256,
+    "payload_sha256": "9814ef4bd1a406fdee481bc1d47f8c616030922d52d7b5f02747fe61a0401d66",
+    "payload_prefix_hex": "00000000000000000500000000000009",
+    "profile": 0,
+    "native_repository_selected": false,
+    "runtime_consumed": false
+  }
+}

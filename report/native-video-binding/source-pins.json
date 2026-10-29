@@ -1,0 +1,239 @@
+{
+  "scope": "public ALLLANG; static only",
+  "windows": [
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2212680,
+      "file_offset": 2212680,
+      "length": 544,
+      "sha256": "ec8093c941eccebfe909fdc53a406a770f99c9173042e27ea2ff66b14349cbe5",
+      "assembly": "K-21c348-220.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2191132,
+      "file_offset": 2191132,
+      "length": 272,
+      "sha256": "23d77f3c227f707cb46d57873098414db175f53835919faef53688e4f76a2d91",
+      "assembly": "K-216f1c-110.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2265304,
+      "file_offset": 2265304,
+      "length": 220,
+      "sha256": "c2cbe437f056a58ac8c61da7e94b10ee10d6943967e93cab98101b452820368a",
+      "assembly": "K-2290d8-dc.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2265524,
+      "file_offset": 2265524,
+      "length": 384,
+      "sha256": "6e167cdb8e05d08ea48b0745fc51c3a61f40b85f50e68add6fd1d1b43b0dfd68",
+      "assembly": "K-2291b4-180.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2237404,
+      "file_offset": 2237404,
+      "length": 576,
+      "sha256": "94c1fa0e225bb10bf4793d6118302963101db94825c0aaed6b48e0c57c6dfe6a",
+      "assembly": "K-2223dc-240.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2221732,
+      "file_offset": 2221732,
+      "length": 688,
+      "sha256": "1a05c02b0be82d279e01c7b50353d7b9f5c8f018d027904f478ebdefb5d2bc85",
+      "assembly": "K-21e6a4-2b0.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2604600,
+      "file_offset": 2604600,
+      "length": 152,
+      "sha256": "cbc8afff44ed550dbec69af5bfae83439e70bea842fc8b70d371b60af701db96",
+      "assembly": "M-27be38-98.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2605144,
+      "file_offset": 2605144,
+      "length": 376,
+      "sha256": "a007573409a8cca35688502d4c1915a67d7d6ee5ebd41fe6fa9c4ced8ebf74c6",
+      "assembly": "M-27c058-178.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2613128,
+      "file_offset": 2613128,
+      "length": 388,
+      "sha256": "8dd8b2e11d143d674f07e8272fc0291effca3f9454e9f2ded189565efe4b2da6",
+      "assembly": "M-27df88-184.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2614140,
+      "file_offset": 2614140,
+      "length": 400,
+      "sha256": "8d525e3ecb06710e0b36506b4705dfe42edef10dfc13bfe9a1487b177050b55a",
+      "assembly": "M-27e37c-190.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2606500,
+      "file_offset": 2606500,
+      "length": 180,
+      "sha256": "444cc7c42b9f7dd5e561b95a213558e29a3f3ca1de771633036fbfbd11035860",
+      "assembly": "M-27c5a4-b4.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2629884,
+      "file_offset": 2629884,
+      "length": 1220,
+      "sha256": "ccfae6b02758f2ff315f121152ea61c639a62938fa3dbdd24253a1c949a470b1",
+      "assembly": "M-2820fc-4c4.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 1146364,
+      "file_offset": 1146364,
+      "length": 316,
+      "sha256": "07f2f294e75a0cef965b9ea94f3f55595400838d2389e21bbf68a6c6960f8df2",
+      "assembly": "M-117dfc-13c.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 1148112,
+      "file_offset": 1148112,
+      "length": 324,
+      "sha256": "0a7814a23046108f4a290b3b5307601e38df014f27e55a79e4747ca5026f913b",
+      "assembly": "M-1184d0-144.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2637428,
+      "file_offset": 2637428,
+      "length": 484,
+      "sha256": "7d79537cdc78d5b1d640c342ff8ed3135fadafa0cc6062d0bce83bc5ea545cd6",
+      "assembly": "M-283e74-1e4.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2611744,
+      "file_offset": 2611744,
+      "length": 252,
+      "sha256": "42361737e65b7dbddf87b82a6763d05970bb16ca06b58c9fd1aa6263b202c943",
+      "assembly": "M-27da20-fc.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 1444296,
+      "file_offset": 1444296,
+      "length": 2464,
+      "sha256": "6cc2eda740e0dbf66b0e992131a8d4847533457465977c7102cfeb9367a15624",
+      "assembly": "K-1609c8-9a0.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 1279776,
+      "file_offset": 1279776,
+      "length": 1028,
+      "sha256": "cf711142e9653ffefe190109dc4cf164ccf9b540cd4019e814d8cf1467fe61ef",
+      "assembly": "K-138720-404.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 3507680,
+      "file_offset": 3507680,
+      "length": 128,
+      "sha256": "f40f2f63c1e67ad308d07148240d84c2016464569bf3a2b21652af3d96e46ac6",
+      "assembly": "K-3585e0-80.asm"
+    },
+    {
+      "artifact": "system/av-cam.bin",
+      "artifact_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "address_kind": "raw",
+      "address": 2198632,
+      "file_offset": 2198632,
+      "length": 256,
+      "sha256": "060ab5f1bb99fb34f8bece92aec259aba5b53c4da97746b07fff4a3507a496b9",
+      "assembly": "K-218c68-100.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 2239936,
+      "file_offset": 2239936,
+      "length": 328,
+      "sha256": "b347eaa4aa3f7f25ddc0ca2599d4d96ac3155d27f59294421dfbe082d0dbbaf5",
+      "assembly": "M-222dc0-148.asm"
+    },
+    {
+      "artifact": "usr/lib/libmpr.so",
+      "artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "address_kind": "ELF VA",
+      "address": 833996,
+      "file_offset": 833996,
+      "length": 304,
+      "sha256": "b250f69c9bcf4d036473c7131a417bd0a8c0f9c209314294509d3d861043c095",
+      "assembly": "M-cb9cc-130.asm"
+    }
+  ],
+  "closed_contracts": [
+    "MPR -> Avbbc destination 0x8055001f, explicitly set MPR source 0x80c70047; 48B PayloadMpr; id 0x210 command 1/2/3 with 128/4/16B parameters",
+    "VideoInfo 96B: AU address +8 u64, length +16 u32, PTS +24 u64, DTS +32 u64, SPS/PPS offsets +44/+48",
+    "M1184d0 Sampletype64 fields and sync predicate infoType==0",
+    "K218c68 returns blob lease through K2290d8 to 0x2a8-entry free pool; it does not read blob contents"
+  ],
+  "unclosed_contracts": [
+    "RMC VIDEOENC request SID/header lengths and all completion fields",
+    "frame owner/sequence/SDS producer binding",
+    "YC component bytes/plane layout",
+    "native Annex-B vs length-prefixed access units",
+    "parameter set byte ranges and native mux config",
+    "native ES/PI ring publication and MPR/Fsys completion lease"
+  ]
+}

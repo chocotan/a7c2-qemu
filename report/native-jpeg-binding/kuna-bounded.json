@@ -1,0 +1,563 @@
+{
+  "binary": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/system/av-cam.bin",
+  "language": "c-language",
+  "count": 3,
+  "error": null,
+  "functions": [
+    {
+      "name": "sub_2a4164",
+      "address": 2769252,
+      "address_hex": "0x2a4164",
+      "aliases": [],
+      "object_location": null,
+      "size": 272,
+      "code": "void sub_2a4164(long a0,unsigned int a1,char *a2)\n{\n  long v1; // x10 | x12\n  long v2; // x9\n  unsigned int v3; // stack - 0x4 | w11 | w13\n  \n  v2 = 0;\n  v1 = a0 + a1 * 0x40UL;\n  *(unsigned int *)(v1 + 0xac) = 0;\n  v3._1_3_ = (undefined3)((unsigned int)*(unsigned int *)(v1 + 0xb4) >> 8);\n  v3 = CONCAT31(SUB43(v3,1),*a2);\n  *(unsigned int *)(v1 + 0xb4) = v3;\n  v3._1_3_ = (undefined3)((unsigned int)*(unsigned int *)(v1 + 0xb8) >> 8);\n  v3 = CONCAT31(SUB43(v3,1),a2[1]);\n  *(unsigned int *)(v1 + 0xb8) = v3;\n  do {\n    *(unsigned int *)(v1 + 0x200 + v2) = *(unsigned int *)&a2[v2 + 2];\n    v2 += 4;\n  } while ((int)v2 != 0x40);\n  v2 = 0;\n  do {\n    *(unsigned int *)(a0 + a1 * 0x40UL + 0x280 + v2) = *(unsigned int *)&a2[v2 + 0x42];\n    v2 += 4;\n  } while ((int)v2 != 0x40);\n  return;\n}",
+      "error": null,
+      "unstructured_gotos": 0,
+      "line_mappings": [
+        {
+          "line_number": 7,
+          "addresses": [
+            2769256
+          ]
+        },
+        {
+          "line_number": 8,
+          "addresses": [
+            2769260,
+            2769264
+          ]
+        },
+        {
+          "line_number": 9,
+          "addresses": [
+            2769272
+          ]
+        },
+        {
+          "line_number": 10,
+          "addresses": [
+            2769280,
+            2769288,
+            2769312
+          ]
+        },
+        {
+          "line_number": 11,
+          "addresses": [
+            2769308,
+            2769312
+          ]
+        },
+        {
+          "line_number": 12,
+          "addresses": [
+            2769280,
+            2769320
+          ]
+        },
+        {
+          "line_number": 13,
+          "addresses": [
+            2769324,
+            2769336,
+            2769360
+          ]
+        },
+        {
+          "line_number": 14,
+          "addresses": [
+            2769356,
+            2769360
+          ]
+        },
+        {
+          "line_number": 15,
+          "addresses": [
+            2769324,
+            2769376
+          ]
+        },
+        {
+          "line_number": 17,
+          "addresses": [
+            2769368,
+            2769380,
+            2769408,
+            2769420
+          ]
+        },
+        {
+          "line_number": 18,
+          "addresses": [
+            2769424
+          ]
+        },
+        {
+          "line_number": 19,
+          "addresses": [
+            2769428
+          ]
+        },
+        {
+          "line_number": 20,
+          "addresses": [
+            2769436
+          ]
+        },
+        {
+          "line_number": 22,
+          "addresses": [
+            2769260,
+            2769440,
+            2769444,
+            2769456,
+            2769484,
+            2769496
+          ]
+        },
+        {
+          "line_number": 23,
+          "addresses": [
+            2769500
+          ]
+        },
+        {
+          "line_number": 24,
+          "addresses": [
+            2769504
+          ]
+        },
+        {
+          "line_number": 25,
+          "addresses": [
+            2769520
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "name": "param_1",
+          "type": "long",
+          "kind": "arg",
+          "arg_index": 0,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            8,
+            22
+          ],
+          "addresses": [
+            2769260,
+            2769264,
+            2769440,
+            2769444,
+            2769456,
+            2769484,
+            2769496
+          ]
+        },
+        {
+          "name": "param_2",
+          "type": "unsigned int",
+          "kind": "arg",
+          "arg_index": 1,
+          "stack_offset": null,
+          "size": 4,
+          "line_numbers": [
+            8,
+            22
+          ],
+          "addresses": [
+            2769260,
+            2769264,
+            2769440,
+            2769444,
+            2769456,
+            2769484,
+            2769496
+          ]
+        },
+        {
+          "name": "param_3",
+          "type": "char *",
+          "kind": "arg",
+          "arg_index": 2,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            11,
+            14,
+            17,
+            22
+          ],
+          "addresses": [
+            2769260,
+            2769308,
+            2769312,
+            2769356,
+            2769360,
+            2769368,
+            2769380,
+            2769408,
+            2769420,
+            2769440,
+            2769444,
+            2769456,
+            2769484,
+            2769496
+          ]
+        },
+        {
+          "name": "v3",
+          "type": "unsigned int",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -4,
+          "size": 4,
+          "line_numbers": [
+            11,
+            12,
+            14,
+            15
+          ],
+          "addresses": [
+            2769280,
+            2769308,
+            2769312,
+            2769320,
+            2769324,
+            2769356,
+            2769360,
+            2769376
+          ]
+        },
+        {
+          "name": "local_3",
+          "type": "undefined1",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -3,
+          "size": 1,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "local_2",
+          "type": "undefined1",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -2,
+          "size": 1,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "local_1",
+          "type": "undefined1",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -1,
+          "size": 1,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "v1",
+          "type": "long",
+          "kind": "register",
+          "arg_index": null,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            8,
+            9,
+            10,
+            12,
+            13,
+            15,
+            17
+          ],
+          "addresses": [
+            2769260,
+            2769264,
+            2769272,
+            2769280,
+            2769288,
+            2769312,
+            2769320,
+            2769324,
+            2769336,
+            2769360,
+            2769368,
+            2769376,
+            2769380,
+            2769408,
+            2769420
+          ]
+        },
+        {
+          "name": "v2",
+          "type": "long",
+          "kind": "register",
+          "arg_index": null,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            7,
+            17,
+            18,
+            19,
+            20,
+            22,
+            23,
+            24
+          ],
+          "addresses": [
+            2769256,
+            2769260,
+            2769368,
+            2769380,
+            2769408,
+            2769420,
+            2769424,
+            2769428,
+            2769436,
+            2769440,
+            2769444,
+            2769456,
+            2769484,
+            2769496,
+            2769500,
+            2769504
+          ]
+        }
+      ],
+      "types": []
+    },
+    {
+      "name": "sub_2afcf8",
+      "address": 2817272,
+      "address_hex": "0x2afcf8",
+      "aliases": [],
+      "object_location": null,
+      "size": 56,
+      "code": "unsigned long sub_2afcf8(unsigned long a0)\n{\n  unsigned long v1; // x0 | x19\n  unsigned long v2; // x20\n  \n  v1 = sub_2a3e24(sub_2a3e34(a0));\n  v2 = sub_2a3f78(v1) & 0xffffffff;\n  sub_2a3f48(v1,v2);\n  return v2;\n}",
+      "error": null,
+      "unstructured_gotos": 0,
+      "line_mappings": [
+        {
+          "line_number": 6,
+          "addresses": [
+            2817280,
+            2817284
+          ]
+        },
+        {
+          "line_number": 7,
+          "addresses": [
+            2817292,
+            2817296
+          ]
+        },
+        {
+          "line_number": 8,
+          "addresses": [
+            2817308
+          ]
+        },
+        {
+          "line_number": 9,
+          "addresses": [
+            2817312,
+            2817324
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "name": "param_1",
+          "type": "unsigned long",
+          "kind": "arg",
+          "arg_index": 0,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            6
+          ],
+          "addresses": [
+            2817280,
+            2817284
+          ]
+        },
+        {
+          "name": "local_20",
+          "type": "undefined16",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -32,
+          "size": 16,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "local_10",
+          "type": "undefined8",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -16,
+          "size": 8,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "local_8",
+          "type": "undefined8",
+          "kind": "stack",
+          "arg_index": null,
+          "stack_offset": -8,
+          "size": 8,
+          "line_numbers": [],
+          "addresses": []
+        },
+        {
+          "name": "v1",
+          "type": "unsigned long",
+          "kind": "register",
+          "arg_index": null,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            6,
+            7,
+            8
+          ],
+          "addresses": [
+            2817280,
+            2817284,
+            2817292,
+            2817296,
+            2817308
+          ]
+        },
+        {
+          "name": "v2",
+          "type": "unsigned long",
+          "kind": "register",
+          "arg_index": null,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            7,
+            8,
+            9
+          ],
+          "addresses": [
+            2817292,
+            2817296,
+            2817308,
+            2817312,
+            2817324
+          ]
+        }
+      ],
+      "types": []
+    },
+    {
+      "name": "sub_2afd30",
+      "address": 2817328,
+      "address_hex": "0x2afd30",
+      "aliases": [],
+      "object_location": null,
+      "size": 56,
+      "code": "unsigned int sub_2afd30(unsigned int a0)\n{\n  long v1; // x8\n  \n  v1 = 0;\n  do {\n    if (*(unsigned int *)(v1 + 0x3ef058) & a0)\n      return *(unsigned int *)(v1 + 0x3ef054);\n    v1 += 8;\n  } while ((int)v1 != 0x58);\n  return 0;\n}",
+      "error": null,
+      "unstructured_gotos": 0,
+      "line_mappings": [
+        {
+          "line_number": 5,
+          "addresses": [
+            2817328
+          ]
+        },
+        {
+          "line_number": 7,
+          "addresses": [
+            2817344,
+            2817348
+          ]
+        },
+        {
+          "line_number": 8,
+          "addresses": [
+            2817340,
+            2817376,
+            2817380
+          ]
+        },
+        {
+          "line_number": 9,
+          "addresses": [
+            2817356
+          ]
+        },
+        {
+          "line_number": 10,
+          "addresses": [
+            2817360
+          ]
+        },
+        {
+          "line_number": 11,
+          "addresses": [
+            2817372
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "name": "param_1",
+          "type": "unsigned int",
+          "kind": "arg",
+          "arg_index": 0,
+          "stack_offset": null,
+          "size": 4,
+          "line_numbers": [
+            7
+          ],
+          "addresses": [
+            2817344,
+            2817348
+          ]
+        },
+        {
+          "name": "v1",
+          "type": "long",
+          "kind": "register",
+          "arg_index": null,
+          "stack_offset": null,
+          "size": 8,
+          "line_numbers": [
+            5,
+            7,
+            8,
+            9,
+            10
+          ],
+          "addresses": [
+            2817328,
+            2817340,
+            2817344,
+            2817348,
+            2817356,
+            2817360,
+            2817376,
+            2817380
+          ]
+        }
+      ],
+      "types": []
+    }
+  ],
+  "assertions": []
+}

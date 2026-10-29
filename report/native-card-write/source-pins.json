@@ -1,0 +1,102 @@
+{
+  "scope": "Public ALLLANG original MPR/Fsys asynchronous still-write contract; static evidence, not capture",
+  "capture_verified": false,
+  "artifacts": {
+    "libmpr.so": {"bytes": 3528576, "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"},
+    "libInfraFsys.so": {"bytes": 687960, "sha256": "33451a884b65f946ac8aca44b620cd3cec677d05752c52f2ff0e212a01824bfa"}
+  },
+  "request": {
+    "bytes": 1288,
+    "path_bytes": 1039,
+    "open_flags_offset": "0x410",
+    "file_size_offset": "0x42c",
+    "file_size_type": "u32",
+    "area_table_offset": "0x430",
+    "area_stride": 24,
+    "area_capacity": 8,
+    "area_members": ["u64 physical_address", "u64 virtual_address", "u64 submitted_length"],
+    "area_count_offset": "0x4f0",
+    "callback_offset": "0x4f8",
+    "cookie_offset": "0x500",
+    "address_selection": "First descriptor virtual address nonzero: all descriptors use virtual addresses, mode 1; otherwise all use physical addresses, mode 2",
+    "file_content": "Concatenate submitted spans in descriptor order, then truncate to u32 fileSize; descriptors have no file offset member",
+    "observer_policy": "Hash only file-contributing prefixes in virtual mode; physical mode unsupported; checked arithmetic, complete reads, 32 requests and 128 MiB per request; original execution unchanged",
+    "internal_iovec": {
+      "type_offset": "0x440 u32, 1=virtual and 2=physical",
+      "count_offset": "0x444 u32",
+      "size_offset": "0x448 u64 sum of submitted descriptor lengths",
+      "entries_offset": "0x450, inline {u64 selected_address,u64 length}",
+      "address_selection": "descriptor[0].virtual_address != 0 selects all virtual addresses; otherwise all physical addresses",
+      "virtual_validation": "selected addresses nonzero and 4096 aligned; each submitted length 4096 aligned",
+      "physical_validation": "lower drive physical-write capability required; virtual pointer checks do not establish physical contents",
+      "mapping": "stream mapper exposes synthetic concatenated source range; queue preserves descriptor order and splits sequential writes"
+    },
+    "mpr_builder": {
+      "function_va": "0xf183c",
+      "request_stack_offset": "x29+0x168",
+      "source_count": "libstill+0x11f0 u32",
+      "source_entry_stride": "0x30",
+      "source_entry_base": "libstill+0x1200",
+      "descriptor_sources": "physical=u64(entry+0x10), virtual=u64(entry+0x08)",
+      "submitted_length": "(u32(source_length)+0xfff)&0xfffff000",
+      "file_size": "u32 sum of original source lengths, independent from submitted rounded lengths",
+      "capacity_guard": "No eight-entry guard in examined MPR construction loop; observer records count>8 as unsupported without changing original execution",
+      "call": "0xf20e8 loads x0=request; 0xf20ec calls Fsys_WriteDirectFileAsyncV2@plt"
+    },
+    "writer": {
+      "core_va": "0x2ec58",
+      "semantics": "Reject zero fileSize or fileSize>sum(iovec lengths); write sequential vectors, append filesystem padding if needed, then ftruncate(fileSize)",
+      "max_chunk": "0x40000000",
+      "short_write_status": "0x80010003",
+      "open_flags": "MPR sets 0x206; create/write behavior includes existing-file fallback and later truncate; bit 0x200 is opaque and not reserved-zero"
+    }
+  },
+  "completion": {
+    "result_bytes": 1240,
+    "result_free_cluster_offset": "0x42c",
+    "result_byte_per_sector_offset": "0x440",
+    "result_sector_per_cluster_offset": "0x444",
+    "contains_written_byte_count": false,
+    "callback_abi": "void callback(void *cookie, int status, const FSYSWRITEDIRECTFILERES *result)",
+    "callback_status": "Synchronous worker error takes precedence; otherwise original I/O queue status",
+    "work_item_bytes": 32,
+    "work_item": {"cookie": "u64 +0x00", "status": "u32 +0x08", "free_bytes": "u64 +0x10", "function": "u64 +0x18"},
+    "free_bytes": "u64(u32(bytePerSector * sectorPerCluster)) * freeCluster; not encoded length",
+    "lifetime": "Copy callback result before forwarding. Copy work-item fields before forwarding; original _write_finished frees cookie. Callback return and worker return do not prove media contents."
+  },
+  "flush": {
+    "entry_va": "0x38c28",
+    "drain_helper_va": "0x2e15c",
+    "async_flush_va": "0x48110",
+    "waits_both_async_queue_levels": true,
+    "waits_io_callback_return": true,
+    "joins_mpr_write_finished_queue": false,
+    "closes_new_request_admission": false,
+    "proof_policy": "Preserve original flush result. Require callback-return, MPR worker-return and complete native readback for every token in the stopped-run log; new or missed requests invalidate proof. This observer is not a mutation admission lock."
+  },
+  "got": [
+    {"artifact": "libmpr.so", "va": "0x2fde90", "type": 1025, "symbol": "_ZN3mpr11stillrecord17fsys_callbackfuncEPviPK22FSYSWRITEDIRECTFILERES", "target_va": "0xe81ac"},
+    {"artifact": "libmpr.so", "va": "0x2fd718", "type": 1025, "symbol": "_ZN3mpr11stillrecord15_write_finishedEPv", "target_va": "0xf1494"}
+  ],
+  "windows": [
+    {"artifact": "libmpr.so", "start": "0xf183c", "end": "0xf22a0", "sha256": "b3ecb1dc8430ae1f61b7f38be90392f6980734c4932aef056b00974011210819", "role": "MPR original request builder and Fsys call"},
+    {"artifact": "libmpr.so", "start": "0xe81ac", "end": "0xe8284", "sha256": "26484438acc336cf49063b3502a9504ab6b1956d02bca954bf5ee26fb14c8e90", "role": "MPR actual callback and further work queue"},
+    {"artifact": "libmpr.so", "start": "0xf1494", "end": "0xf183c", "sha256": "afc50a3a848c9cea8a3ce582a0d0a563b8c30597acd65d9e96d422cc3102ff67", "role": "MPR original completion work and cookie free"},
+    {"artifact": "libInfraFsys.so", "start": "0x2f5ac", "end": "0x2f998", "sha256": "54d185b367b59ad79aa9ff21df59c2f728562d12b45f3a298a40a90084507c74", "role": "Virtual/physical selection, iovec conversion, asynchronous executor"},
+    {"artifact": "libInfraFsys.so", "start": "0x2ec58", "end": "0x2f5ac", "sha256": "08addf917054f3c332931cc357bfc14558a5a1feec21be9b02aa9d28888c2fdd", "role": "Original sequential writer, final truncate and result metadata"},
+    {"artifact": "libInfraFsys.so", "start": "0x2d1d8", "end": "0x2d2d8", "sha256": "0bd8e44b827b1b76ae1ded1454f84de7ed97f8f73534199888e5d0653b2563ef", "role": "Original queue status selection and real callback invocation"},
+    {"artifact": "libInfraFsys.so", "start": "0x32eac", "end": "0x32fd4", "sha256": "425815df5bb6dbc30ba8dd4cf6aafded2051a431738192f55688cfa6096d260c", "role": "Public asynchronous entry and queue request"},
+    {"artifact": "libInfraFsys.so", "start": "0x2ca64", "end": "0x2d1d8", "sha256": "f7755b019845668682233d288ba779eacb8a08ff33734e5b4ef9c7897bdc422f", "role": "Create/truncate/append open behavior"},
+    {"artifact": "libInfraFsys.so", "start": "0x4d728", "end": "0x4e8bc", "sha256": "4f463ef68b49f174437f4b774aebf9ba707e95b17af73d33a21707492058ebc6", "role": "Original mapper, alignment checks and queued vector metadata"},
+    {"artifact": "libInfraFsys.so", "start": "0x5084c", "end": "0x538f0", "sha256": "34368da726e6b27d1ad23c7af3dfab470e92f5f09935a3e58d8c9bc149b9da05", "role": "Mapper registration, sequential span slicing and callback context copy"},
+    {"artifact": "libInfraFsys.so", "start": "0x47484", "end": "0x47c2c", "sha256": "5557a4c89e0f45c2f703eb580729a1c2ac4fae8bd76d3034955d4a98f5ccfa8a", "role": "Original async queue and metadata copy"},
+    {"artifact": "libInfraFsys.so", "start": "0x4f1c8", "end": "0x4fce4", "sha256": "abbccca2d2877c2ed6747320b15631986bb10e3fbea288f2b26b80917957e719", "role": "Actual writev/writevphys dispatch and callback outside queue mutex"},
+    {"artifact": "libInfraFsys.so", "start": "0x38c28", "end": "0x38e2c", "sha256": "efc9701ffb87f8d63f4116f3d97c4cfeec0203e8b10b74d8d8c723d7ee264094", "role": "Public FlushVolume locks, drains, syncs, then unlocks before return"},
+    {"artifact": "libInfraFsys.so", "start": "0x2e104", "end": "0x2e1d8", "sha256": "0e59f91e04087fd9fc8aa5a3fd2f46ebd27d7dcb5f8693758d672b2ebecefc1d", "role": "Idle predicate and repeated async/I-O drain with device unlock/relock"},
+    {"artifact": "libInfraFsys.so", "start": "0x48110", "end": "0x48284", "sha256": "eb3dd9b538e5eeb75298855bdfda7cb23bdab4bd8b3ad9eb9cdb3eaf530d664c", "role": "Both async levels wait for execution and linked requests to retire"},
+    {"artifact": "libInfraFsys.so", "start": "0x4fb80", "end": "0x4fbe0", "sha256": "cbd45793ee4ede10d5d4ab7b4a216fce4a0f1f4a8581d51194aed3411e738fb1", "role": "Actual callback runs outside mutex; node unlinked only after return"},
+    {"artifact": "libmpr.so", "start": "0xe7fb8", "end": "0xe80c0", "sha256": "11a709c550bc71d79ade72af499696478d33ea2d3b4b9986e9bc27f812fc7483", "role": "MPR completion enqueues 32 bytes and signals; it does not join worker"},
+    {"artifact": "libInfraFsys.so", "start": "0x4ec88", "end": "0x4f2b0", "sha256": "5c2cf839372dff3757eaec9a88c2e04725d3ebd6209e000b3ca4404e70cc7cdb", "role": "I/O queue blocking wait and repeated FlushIOQueue checks"},
+    {"artifact": "libInfraFsys.so", "start": "0x47a84", "end": "0x47b78", "sha256": "66a5040f2c2dd9fddd1fa8b072f026c60c84583af337a402ee676fe342faf290", "role": "DriveQueueRequest appends under queue mutex without flush/admission-closed check"}
+  ]
+}

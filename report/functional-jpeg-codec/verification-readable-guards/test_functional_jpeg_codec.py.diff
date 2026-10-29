@@ -1,0 +1,20 @@
+--- before/test_functional_jpeg_codec.py
++++ after/test_functional_jpeg_codec.py
+@@ -296,6 +296,7 @@
+ @pytest.mark.parametrize("mode", ["normal", "sanitized"])
+ @pytest.mark.parametrize("scenario", [
+     "main-off", "main-fork", "main-short-object", "main-dmm-failed", "main-dmm-short",
++    "main-noaccess-object", "main-noaccess-trigger",
+     "main-bad-trigger", "main-vptr", "main-selector", "main-caller", "main-range",
+     "main-quality", "main-option", "main-option2", "main-soi", "main-zero", "main-primary",
+     "main-screen-zero", "main-screen-primary", "main-primary-mismatch",
+@@ -330,7 +331,8 @@
+ @pytest.mark.parametrize("mode", ["normal", "sanitized"])
+ @pytest.mark.parametrize("scenario", [
+     "main-stream", "main-thumb", "main-screen", "main-q0", "main-q1", "main-q2", "main-q6",
+-    "main-small-object", "main-reentry", "main-comp-duplicate", "main-expired", "main-free-duplicate",
++    "main-small-object", "main-readonly-object", "main-rx-object", "main-split-object",
++    "main-reentry", "main-comp-duplicate", "main-expired", "main-free-duplicate",
+     "main-free-reuse", "main-free-fork",
+ ])
+ def test_main_actual_bridge_bytes_original_config_store_and_independent_decode(builds, mode, scenario):

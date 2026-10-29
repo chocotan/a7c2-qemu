@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include "hdmi-device.h"
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -9,6 +10,7 @@
 
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static struct full_hdmi_snapshot state;
+static _Atomic int audio_marker_pid;
 static struct lease {
     void *pointer;
     unsigned int destination, command, bytes, status;
@@ -165,12 +167,28 @@ int full_hdmi_release_reply(unsigned int destination,void *reply,int (*release)(
     }
     pthread_mutex_unlock(&mutex);return found.pointer!=0;
 }
+int full_hdmi_audio_pin_connected_one(void) {
+    int pid=(int)getpid(),expected=0;
+    atomic_compare_exchange_strong(&audio_marker_pid,&expected,pid);
+    if (atomic_load(&audio_marker_pid)!=pid) return -1021;
+    pthread_mutex_lock(&mutex);
+    int rc=-1021;
+    if (!state.faults && !state.pending && !state.live_replies &&
+        !state.retained_request && !state.retained_reply && !state.audio_pin_connected_writes) {
+        /* All ten state vtables select one of three true branches: write1 only.
+         * The old byte is unknown, and return0 means no state transition. */
+        state.audio_pin_connected=1;state.audio_pin_connected_known=1;
+        state.audio_pin_connected_writes=1;state.audio_pin_connected_owner_pid=pid;rc=0;
+    }
+    pthread_mutex_unlock(&mutex);return rc;
+}
 void full_hdmi_snapshot(struct full_hdmi_snapshot *out) {
     pthread_mutex_lock(&mutex);*out=state;pthread_mutex_unlock(&mutex);
 }
 #ifdef FULL_HDMI_TEST
 void full_hdmi_test_reset(void) {
     pthread_mutex_lock(&mutex);state=(struct full_hdmi_snapshot){0};memset(replies,0,sizeof replies);
+    atomic_store(&audio_marker_pid,0);
     pthread_mutex_unlock(&mutex);
 }
 #endif

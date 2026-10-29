@@ -1,0 +1,45 @@
+{
+  "scope": "source producer association, not pixel order or executed native frame",
+  "images": {
+    "I": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5",
+    "K": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"
+  },
+  "pins": [
+    {
+      "image": "I",
+      "VA_or_raw": 1168312,
+      "bytes": 1044,
+      "label": "one-thumbnail-1054-allocation-and-resize-chain",
+      "sha256": "cad18bb6a335d001d0cb5b45730fad998dc2c9f9e9ae20d04e2170558691f73b"
+    },
+    {
+      "image": "I",
+      "VA_or_raw": 1214136,
+      "bytes": 580,
+      "label": "actual-DMM-allocation-result-to-1054",
+      "sha256": "802d5742407d70bb527ede4d93f603e29f18bf083a7d159030d6b9a3a2d7cad8"
+    },
+    {
+      "image": "K",
+      "VA_or_raw": 376172,
+      "bytes": 728,
+      "label": "resize-destination-pixel-descriptor",
+      "sha256": "b75146a42fb8913098d4dd76bdcaa38d3d085b56dc0174c9d20f7f7c8e81e617"
+    },
+    {
+      "image": "K",
+      "VA_or_raw": 2993964,
+      "bytes": 480,
+      "label": "RC-submit-boundary",
+      "sha256": "c00d4482f0343785df64be403e717661d44aa6a66c51fe4af4cf4900c92cb495"
+    }
+  ],
+  "I_VA_equal_fileoff_in_inspected_text": true,
+  "pixel_descriptor_parameter": 4180,
+  "metadata_descriptor_parameter": 4179,
+  "actual_producer_association": "DMMalloc->resize destination1054->Without_Pin reference",
+  "terminal_gap": "RC belowK2cff84; byte/plane/chroma order notproven",
+  "native_pixel_layout_known": false,
+  "native_generation_lease_complete": false,
+  "capture_verified": false
+}

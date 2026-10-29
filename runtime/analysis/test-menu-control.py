@@ -104,6 +104,25 @@ class ControlTests(unittest.TestCase):
         wait_for(lambda:any(event['kind']=='input' and 'MODE A' in event['message'] for event in self.vm.status()['events']))
         self.assertEqual(self.vm.status()['state'],'running')
 
+    def test_shutter_cycle_requires_natural_nonmock_profile(self):
+        vm = VM(natural_boot=True)
+        vm.state = 'running'
+        vm.enqueue({'action': 'shutter_cycle'})
+        self.assertEqual(vm.commands.get_nowait(), {'action': 'shutter_cycle'})
+        mock = VM([sys.executable, str(BASE/'mock_menu_vm.py')], natural_boot=True)
+        mock.state = 'running'
+        with self.assertRaisesRegex(ValueError, '未知按键或控制命令'):
+            mock.enqueue({'action': 'shutter_cycle'})
+
+    def test_natural_imaging_usb_conflict_fails_before_launch(self):
+        vm = VM([sys.executable, '-c', 'raise SystemExit("must not launch")'],
+                natural_boot=True, usb_net=True)
+        with patch.dict(os.environ, {'A7C2_NATURAL_IMAGING_PROFILE': '1'}, clear=False):
+            vm._run()
+        self.assertEqual(vm.state, 'error')
+        self.assertIn('without USB networking', vm.error)
+        self.assertIsNone(vm.owned_process)
+
     def test_bad_reply_and_exit_do_not_succeed(self):
         for mode in ('bad-reply', 'exit'):
             vm = mock_vm(mode)
@@ -340,6 +359,7 @@ class TransportTests(unittest.TestCase):
             console = Path(tmp) / 'console.log'
             console.write_bytes(b'command succeeded\nEntering exception monitor.\nException> ')
             process = Mock()
+            process._menu_serial_desynchronized = False
             with self.assertRaises(FirmwareFault):
                 serial_command(process, console, 'true')
             process.stdin.write.assert_not_called()

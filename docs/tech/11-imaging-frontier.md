@@ -1,15 +1,27 @@
-# 启动流程 11 · 成像与录像：拍摄页面之后未闭合的链路
+# 启动流程 11 · 成像与录像：功能模型及原固件成片前沿
 
-拍摄页面能画出来，但取景区域仍黑。本篇沿原消费者反追整条成像链：
-取景像素、镜头/AF/AE、编码、保存——**到目前没有原固件生成的有效
-JPG/MP4，成片闭环未形成**。
+**2026-10-29：尚无原固件生成的有效 JPG/MP4，`capture_verified=false`。** 已有实际软件像素、光学/对比度AF、JPEG/H.264核心、原SDK适配及多轮原生VDF消费；它们尚未与原AP→源帧→encoder→原MPR/Fsys→虚拟SD连成成片闭环。最新功能profile还需完整首启复验，不能由旧默认HUD/MENU短时通过推断当前稳定主界面。
 
-变量见[索引](README.md)。地址只用于阅读既有证据，不授权调用内部函数、
-写模型或注入完成包。native 与 full 是两条独立路线，动态通过不能互借。
+完整功能矩阵与分阶段时间线见[当前进度](2026-10-29-current-progress.md)。变量见[索引](README.md)；本页只整理已有源码/报告，没有新实验。native与完整dump路线分别记账，不互借动态结论。
 
 坐标约定：AppFw 用 ELF VA（按 PT_LOAD 换算）；`av-cam.bin` 记为 K，
 地址是 raw 文件偏移，运行 VA = `0xffffffc001000000 + raw`；
 CP 用 `CPVA = raw + 0x108000`。三套坐标不能混用。
+
+## 0. 当前实现与验收分层
+
+用户批准的 `virtual-functional-camera-v1` 明确采用软件 RGB888 总线，严格profile保留拒绝策略。实际Core经 acquire→render→consumer_read→retire，使用真实JPEG/H.264编码器；INIT只探测/渲染并退休一帧，不能当编码消费。**物理ASIC兼容、原CP模块/RAM/RTOS仍false**，不以host另造媒体冒充原拍摄。
+
+| 环节 | 当前证据 | 未完成 |
+| --- | --- | --- |
+| 原图连接/控制 | 13边曾在同轮由原AP消费；mode1 ACK与1748B通知已有原free证据 | 传输完成不是AP业务应用或像素就绪 |
+| VDF | run52的0141 exact global `80946189`绑定及独立1141 receive/free；六个真实RGB周期，每帧921600B源/sink读回一致 | 原取景UI消费未通过；该global是本run值，不是固定Sony队列 |
+| 时钟与BB初值 | 实际State128 FPS→20a6 `(fps,1)`，默认30/1；pgf已越过旧零pair fatal并完成六VDF+0111 | pgf停0166初值`0,0,8,7,1,1`误拒；精确identity已修，旧失败保留 |
+| 直方图 | core→guest组合268项；同sink RGB计算软件Y/R/G/B四段256个u8柱高，独立逐字节一致/peak255，三lease退休 | 仅首个enabled/mode1；原AP/UI、连续更新和物理bin语义未验 |
+| 原JPEG适配 | 独立Main/MainComp、原reply-free/长度读回、同文件EXIF Main/Thumb及普通可读VMA guard已组件验证 | 原MainP、key104a/P128 writer、ResizeEnc1500 cmd2、retained RGB及1006/event9自然producer未闭合 |
+| 原媒体保存 | MPR/Fsys源范围/回调/原读回/导出/解码checker已实现 | 没有本轮原媒体作业或最终JPG/MP4 |
+
+最近完整基线为`unified-camera-4b3kb4kd`：5568 tests /7057 subtests、host/guest构建和双原glibc2.25 ABI通过。后台3006、队列绑定/记录/checker及完整首启修复已纳新整批；原AP新运行与成片验收仍未完成。旧694个owner组件和其它定向结果保持各自范围，不相加作完整新总数。
 
 ## 1. HUD 和控制回复 ≠ 成像启动
 
@@ -18,9 +30,7 @@ HUD 上的 `AF-S` 是 `model+0` 的显示翻译，不是合焦反馈。
 24B、cmd `0x3003` 的请求，调用方读 16B 回复的 `+8` 并与 `0xf000` 比较——
 但这份回复没有像素地址、帧序号或帧消费证明。
 
-边界：**不预填 f000，不写 EE=1，不用 OSD 截图代替原像素。**
-原代码里 mode 2 且 EE=0 时会直接离开拍摄入口（`0x2688ef8`），
-所以 EE 状态是真实卡点之一，但它的合法前置和完成事件仍未闭合。
+边界：不预填 f000、不写EE=1、不以OSD截图代替原像素。严格物理profile的合法启动前置仍需源证据；功能profile仅在真实Core probe/数据读回及原消息生命周期后给出明示软件回复，不能提高物理ready。原代码里mode2且EE=0时会直接离开拍摄入口（`0x2688ef8`），但最新qqu还在更早的后台等待，本轮尚未到3003。
 
 ## 2. 镜头与曝光：从 4073 等待追到 2040 生产者
 
@@ -42,7 +52,7 @@ HUD 上的 `AF-S` 是 `model+0` 的显示翻译，不是合焦反馈。
 | ISO100 | CP 字节 `0x0b` → AP 枚举 5 → 数值 100 |
 
 `LensCommunicator` 的 op0/op1 是外部维护查询，不能代替正常初始化链。
-禁止发全零快照、强兑 promise、把 d018 控制动作当成 2040 已到达。
+严格源合同不允许全零快照、强兑promise或以d018控制动作代替2040消费。独立功能profile已定义76块软件快照：2012固定、201b/2044/20a6三块投影、72块明示零策略，完整1748B；20a6必须来自实际State128 FPS及原AP可接受的canonical pair。run52的零pair fatal与pgf的30/1实际推进分别保留，不能因模型政策而声称原CP writer/物理参数已恢复。
 
 ## 3. 像素：从编码消费者反推 YC 描述符
 
@@ -55,9 +65,9 @@ resize 请求发往 `0x82830752`（68B，`2000:0003`）；接收端定位在 AP 
 容量检查：按 CanvasX×CanvasY 和 YcCompress 算 required，再核段容量减
 offset——它不是位深公式，也推不出单 plane 或连续内存。
 
-仍缺：CMOS 原始源、字节/位顺序、planes/stride、最终 DMA 完成、
-帧 generation/lease 和新鲜度。接收端在 AP 不证明传感器生产者必在 AP。
-本包的 `cmos-source.c` 只生成确定性测试图样，**没有**接到原 YC 链。
+严格物理路径仍缺YC字节/位顺序、planes/stride、DMA完成及generation/lease。功能profile不再等待未知硅片packing，而是明确软件RGB888；真实VDF已消费921600B源/sink。下一缺口是原AP选择的retained RGB、SDK frame MainP、key104a的128B writer、真正ResizeEnc1500 cmd2与自然1006/event9 producer，不能由独立测试图样或metadata SDS替代这些绑定。接收端在AP也不证明原传感器生产者必在AP。
+
+原JPEG的Main `1226c4` 与Without_Pin `11b654` 是不同入口；Main ACK原Res `120e64` 返回0但不退租，独立MainComp `122dfc/122b44`完成DONE并由原代码写回长度后才退租。实际receive→真实free0→原Res的顺序、普通可读VMA、输出lease与完整内容均须验证。Main/Thumb目前各自render，跨selector同一sensor frame未证；Screen的原MPF/layout也未闭合。
 
 ## 4. "成功"路径要核原检查
 
@@ -86,11 +96,11 @@ AppFw 里搜不到不等于所有镜像都没有消费者。
 真正写出要 writer 取得可消费条目：`WaitForVideoInfoAccumulation`
 在空列表也能返回 0，条目存在、ES 有效、payload 非零、搬运完成都要另证。
 共享读索引受最慢消费者约束，不能简化成"消费一帧就 free"。
-原软件 MP4 封装已定位，不等于得到有效 MP4。
+原软件MP4封装已定位，不等于得到有效MP4。功能Core已能实际消费RGB并产出逐帧H.264与真实packet/PTS；组件成功不证明原writer消费。原Movie初始extent/source lease、ring、自然Stop→Close、Combine最终MP4贡献及FSYS_SYNC内容仍缺同轮证据。
 
 ## 7. 保存链终点
 
-Still：`libmpr` 构造 508B 参数，在 `libmpr+0xf20ec` 调
+Still：`libmpr` 构造 `0x508`（1288B）参数，在 `libmpr+0xf20ec` 调
 `Fsys_WriteDirectFileAsyncV2`，
 路径形如 `_:/DCIM/100MSDCF/DSC0<编号>.JPG`。Fsys 侧在打开前就拒
 总长度 0（`0x80000030`）；异步入队成功不算保存成功，完成状态经
@@ -104,41 +114,26 @@ Movie 走另一条 API（`Fsys_Write`/`Fsys_WriteAndFlush`），
 注意：full 早期"通知未到达"的说法已被后续挂载实证推翻，引用旧报告
 要保留时间和范围。
 
-## 8. 当前卡住的边：AP↔CP 传输
+## 8. 最新原生等待：后台3006先于local21
 
-full 的最新动态定位：本地查询进入 CameraBackground，状态 1 时向
-`0x90030001` 发 24B cmd3007，`send` 返回 0 后以 `ffffffff` 无限等回邮——
-但 **`pcie-if.ko` 没加载、`osal_reg_public` 没调用**，内核
-`osal_snd_msg` 对 CP 目的走"缺远端回调、打印 Skipto1 后仍返回 0"的分支：
-**消息没离开 AP**。`liro.ko` 也因缺符号无法加载。
+`run-qqu0q5oe` 的语言24步实际LCD消费通过，但温度确认模态误被标作shooting；原system error30c早于S2。两条完整保存FP链与原BL字节确认：原CameraBackground339等待更早24B `3006` / 动态source `810261c4` 的回复，串行本地21被挡，Common382在future等待。本轮未到3003、VDF或codec，不以更早run的成功为本轮补证。
 
-所以当前要补的是 AP↔CP 的真实传输与资源合同：send 返回 0 不能称送达，
-更不能用空 ACK、固定 30 或 f000 代替原消费。native 的有限 3007 控制模型
-（`cp-background-device.c`，默认关闭、日志保留 `hardware_ready=0`）
-是它自己的显式模型，不抵扣 full 的缺口。
+新功能owner实现原请求pending→同轮13边原free及debugger交接→实际Core INIT/STATE128→同实例缓存读回→原request free→独立12B回复→原sender receive/free。BEGIN/snapshot/ticket/cache与退休后新source绑定已通过完整5568/7057及构建/双ABI，尚无新原生证据证明该链已完成。裸send ENOTSUP会遗失原request/queue，不能作为修复或业务失败的合法回复。
 
-## 9. 总结边界
+完整dump路线曾定位的pcie-if/远端回调缺失是另一条历史传输边界，不用于解释本轮native等待，也不由功能owner抵扣。
 
-已有可追溯合同：输入、OSD、卡存储、部分快照/描述符、控制请求、
-编码/保存消费者。**没有成片闭环。** "MF + 手动曝光 + 单张 JPEG"只是
-缩小排查范围的假设，未证明足以拍照。
-最终验收必须逐边关联：原帧与 lease → 原编码实际消费 → 有效输出 →
-原封装/写入 → 完成回调 → 独立读回。任何一条边都不能用常量或宿主
-生成文件顶替。
+## 9. 成片验收终点
 
-```bash
-# 执行目录：$FULL；只读跳到合同中的纠正和保存边界
-cd "$FULL"
-rg -n '^## |重要更正|总长度 0|Fsys_Write|ValidState|MCODEC_2' IMAGING-CHAIN-CONTRACT.md
-```
+拍摄需要逐边关联原AP的实际源帧与lease→原SDK/encoder真实消费→当前输出内存→原MPR封装与Fsys请求/callback/worker→原文件读回→两次SD导出与宿主SHA/独立解码。JPEG适配不是单独保存API，也不直接写媒体文件。
+
+当前卡只有数据库/XML；Flush0不等于媒体写入，host成功编码/解码不等于原固件拍摄。新整批完成后用新空卡/intent做一次完整运行，旧失败不回填；没有确定完成时间。`capture_verified=false`。
 
 ## 证据入口
 
-- [成像链合同（重点 §8、§10–13 的纠正）](../../../a7c2-re/report/2026-10-17-qemu-full-system/IMAGING-CHAIN-CONTRACT.md)
-- [full 最新状态与传输边界](../../../a7c2-re/report/2026-10-17-qemu-full-system/STATUS.md)
-- [native 镜头/曝光生产合同](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/control-lens-exposure-frontiers.md)
-- [镜头初始化静态合同](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/lens-init-contract/README.md)与[像素几何/容量边界](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/imaging-pixel-contract/README.md)
-- [native 有限控制传输的独立验收范围](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/cp-background-contract/TRANSPORT.md)
+- [当前矩阵、阶段时间线与JPG下一缺口](2026-10-29-current-progress.md)。
+- [完整基线SHA与最新原生负例摘要](../../validation/2026-10-29-progress.json)。
+- [媒体前沿](10-media-frontier.md)、[存储分层](07-storage.md)与[调试/退出证据](12-debugging.md)。
+- [本包验证记录](../../validation/README.md)：历史实验与当前组件批次分别计数。
 
 ## 如果你在做别的机型
 

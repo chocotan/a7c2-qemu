@@ -1,0 +1,1016 @@
+{
+  "schema": 1,
+  "flavor": null,
+  "scope": {
+    "authorization": "User-authorized bounded offline upstream source producer investigation; current request is the scope record.",
+    "input": "public official ALLLANG av-cam raw image only",
+    "network": "none",
+    "writes": [
+      "report/cmos-isp-source-frame-owner/",
+      "runtime/analysis/scratch/cmos-isp-source-frame-owner/"
+    ],
+    "frozen": "all previous reports, runtime code and inputs read-only",
+    "excluded": [
+      "lower 2108d8/210bbc/210c3c investigation",
+      "VM",
+      "private full dump",
+      "device",
+      "physical SD",
+      "original execution or edit",
+      "full tests",
+      "extra agents",
+      "S88/EncOpen output queue"
+    ]
+  },
+  "artifact": {
+    "path": "runtime/analysis/menu-root/system/av-cam.bin",
+    "bytes": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "format": "flat raw AArch64 LE64, no ELF",
+    "kva_base": "0xffffffc001000000"
+  },
+  "tools": {
+    "python": "/usr/bin/python3",
+    "capstone": "5.0.7",
+    "decompiler_used": false
+  },
+  "windows": [
+    {
+      "id": "E1",
+      "raw_start": "0x1d10d0",
+      "raw_end_exclusive": "0x1d117c",
+      "kva_start": "0xffffffc0011d10d0",
+      "length": 172,
+      "role": "Original embedded P-record pool and free ring",
+      "sha256": "4d9e9f6f28ec7c2f6c434bd5522d2970807f617e10dca3967f536581826b1c8c",
+      "source_ref": "K-1d10d0-ac"
+    },
+    {
+      "id": "E2",
+      "raw_start": "0x1d13f4",
+      "raw_end_exclusive": "0x1d19dc",
+      "kva_start": "0xffffffc0011d13f4",
+      "length": 1512,
+      "role": "Inbound callback, metadata extraction, second query and SOURCE field publication",
+      "sha256": "20a795323ec582eb4f48a8d4541cd9e0584eb2d24090f73fde424738b103bfd4",
+      "source_ref": "K-1d13f4-5e8"
+    },
+    {
+      "id": "E3",
+      "raw_start": "0x1d298c",
+      "raw_end_exclusive": "0x1d2be0",
+      "kva_start": "0xffffffc0011d298c",
+      "length": 596,
+      "role": "Registered continuation and embedded-context adjustment",
+      "sha256": "e42223d2663194095dd56efe15e8bbe7f045162d1771079025b7378f0c935c22",
+      "source_ref": "K-1d298c-254"
+    },
+    {
+      "id": "E4",
+      "raw_start": "0x1d2e38",
+      "raw_end_exclusive": "0x1d2fd8",
+      "kva_start": "0xffffffc0011d2e38",
+      "length": 416,
+      "role": "P selection and same P argument to inherited consumer",
+      "sha256": "58f761001c57fddc6c8627f35962cb0a7dffe70c25ddee13157ce5921c28847f",
+      "source_ref": "K-1d2e38-1a0"
+    },
+    {
+      "id": "E5",
+      "raw_start": "0x1df2a0",
+      "raw_end_exclusive": "0x1df4b0",
+      "kva_start": "0xffffffc0011df2a0",
+      "length": 528,
+      "role": "Original resize callback owner constructor",
+      "sha256": "bccb457904fc9838bb774054a7afb7870c38af9d8a62feb9ff7179a4bdb4f1a4",
+      "source_ref": "K-1df2a0-210"
+    },
+    {
+      "id": "E6",
+      "raw_start": "0x1e1b10",
+      "raw_end_exclusive": "0x1e1b6c",
+      "kva_start": "0xffffffc0011e1b10",
+      "length": 92,
+      "role": "Inbound and continuation member adapters preserve incoming x1",
+      "sha256": "0235166f345e95f33aaaa74181eed0380048e52bf4b25867ad79339f21a3d759",
+      "source_ref": "K-1e1b10-5c"
+    },
+    {
+      "id": "E7",
+      "raw_start": "0x278940",
+      "raw_end_exclusive": "0x278c84",
+      "kva_start": "0xffffffc001278940",
+      "length": 836,
+      "role": "Opcode 24 first-segment writers and opcode 23 retirement request",
+      "sha256": "4725537a3a9ef37d9d03930923559aad11d4eb505d4f9e040a02756a88a6d96c",
+      "source_ref": "K-278940-344"
+    },
+    {
+      "id": "E8",
+      "raw_start": "0x278290",
+      "raw_end_exclusive": "0x278380",
+      "kva_start": "0xffffffc001278290",
+      "length": 240,
+      "role": "Synchronous request/reply helper and return conditions",
+      "sha256": "d07d78f560e3951b004a108c08c3f171e7d5aa135eea0df9e53d1268c43c462b",
+      "source_ref": "K-278290-f0"
+    },
+    {
+      "id": "E9",
+      "raw_start": "0x90488",
+      "raw_end_exclusive": "0x90530",
+      "kva_start": "0xffffffc001090488",
+      "length": 168,
+      "role": "Category-zero 48-byte metadata object and copy helper",
+      "sha256": "7170848e164cac1e935658b7c309a049a1b5cc1a9acd03586ba470d49a97d623",
+      "source_ref": "K-90488-a8"
+    },
+    {
+      "id": "E10",
+      "raw_start": "0x93208",
+      "raw_end_exclusive": "0x94318",
+      "kva_start": "0xffffffc001093208",
+      "length": 4368,
+      "role": "SSYC reader setup, category selection and payload copy",
+      "sha256": "4605704c828b117e3324baa2a3a3b92ca49dab1c342840c1cd7d8cccf89b3189",
+      "source_ref": "K-93208-1110"
+    },
+    {
+      "id": "E11",
+      "raw_start": "0x375770",
+      "raw_end_exclusive": "0x3757f8",
+      "kva_start": "0xffffffc001375770",
+      "length": 136,
+      "role": "Exact inbound and continuation callback vtable bindings",
+      "sha256": "199c7d0c115d80643195ca70bbfbac2727c3be9ab7c12fde6d43890661c4dd16",
+      "source_ref": "K-375770-88"
+    },
+    {
+      "id": "E12",
+      "raw_start": "0x3f1bbc",
+      "raw_end_exclusive": "0x3f1be0",
+      "kva_start": "0xffffffc0013f1bbc",
+      "length": 36,
+      "role": "Original ETRY and SSYC name literals",
+      "sha256": "8853b99ce79e381ed466175586ff0fd8d4443843d5371c06d6d62e55cb619888",
+      "source_ref": "K-3f1bbc-24"
+    }
+  ],
+  "instruction_pins": [
+    {
+      "raw": "0x1d10ec",
+      "bytes_hex": "f30300aa",
+      "mnemonic": "mov",
+      "operands": "x19, x0"
+    },
+    {
+      "raw": "0x1d112c",
+      "bytes_hex": "6b02088b",
+      "mnemonic": "add",
+      "operands": "x11, x19, x8"
+    },
+    {
+      "raw": "0x1d1134",
+      "bytes_hex": "734902f9",
+      "mnemonic": "str",
+      "operands": "x19, [x11, #0x490]"
+    },
+    {
+      "raw": "0x1d1144",
+      "bytes_hex": "6b211291",
+      "mnemonic": "add",
+      "operands": "x11, x11, #0x488"
+    },
+    {
+      "raw": "0x1d1154",
+      "bytes_hex": "8bcd09f9",
+      "mnemonic": "str",
+      "operands": "x11, [x12, #0x1398]"
+    },
+    {
+      "raw": "0x1d1170",
+      "bytes_hex": "08010391",
+      "mnemonic": "add",
+      "operands": "x8, x8, #0xc0"
+    },
+    {
+      "raw": "0x1d1174",
+      "bytes_hex": "1f013cf1",
+      "mnemonic": "cmp",
+      "operands": "x8, #0xf00"
+    },
+    {
+      "raw": "0x1d1418",
+      "bytes_hex": "f50301aa",
+      "mnemonic": "mov",
+      "operands": "x21, x1"
+    },
+    {
+      "raw": "0x1d1438",
+      "bytes_hex": "580940f9",
+      "mnemonic": "ldr",
+      "operands": "x24, [x10, #0x10]"
+    },
+    {
+      "raw": "0x1d1454",
+      "bytes_hex": "a80240b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x21]"
+    },
+    {
+      "raw": "0x1d1458",
+      "bytes_hex": "081300b9",
+      "mnemonic": "str",
+      "operands": "w8, [x24, #0x10]"
+    },
+    {
+      "raw": "0x1d145c",
+      "bytes_hex": "a90640b9",
+      "mnemonic": "ldr",
+      "operands": "w9, [x21, #4]"
+    },
+    {
+      "raw": "0x1d1460",
+      "bytes_hex": "74220791",
+      "mnemonic": "add",
+      "operands": "x20, x19, #0x1c8"
+    },
+    {
+      "raw": "0x1d1464",
+      "bytes_hex": "099b00b9",
+      "mnemonic": "str",
+      "operands": "w9, [x24, #0x98]"
+    },
+    {
+      "raw": "0x1d1468",
+      "bytes_hex": "68ca01b9",
+      "mnemonic": "str",
+      "operands": "w8, [x19, #0x1c8]"
+    },
+    {
+      "raw": "0x1d1488",
+      "bytes_hex": "09011f32",
+      "mnemonic": "orr",
+      "operands": "w9, w8, #2"
+    },
+    {
+      "raw": "0x1d148c",
+      "bytes_hex": "3f090071",
+      "mnemonic": "cmp",
+      "operands": "w9, #2"
+    },
+    {
+      "raw": "0x1d1494",
+      "bytes_hex": "68ea40f9",
+      "mnemonic": "ldr",
+      "operands": "x8, [x19, #0x1d0]"
+    },
+    {
+      "raw": "0x1d1498",
+      "bytes_hex": "080f00f9",
+      "mnemonic": "str",
+      "operands": "x8, [x24, #0x18]"
+    },
+    {
+      "raw": "0x1d1594",
+      "bytes_hex": "623242b9",
+      "mnemonic": "ldr",
+      "operands": "w2, [x19, #0x230]"
+    },
+    {
+      "raw": "0x1d1598",
+      "bytes_hex": "a30640b9",
+      "mnemonic": "ldr",
+      "operands": "w3, [x21, #4]"
+    },
+    {
+      "raw": "0x1d1608",
+      "bytes_hex": "00830091",
+      "mnemonic": "add",
+      "operands": "x0, x24, #0x20"
+    },
+    {
+      "raw": "0x1d160c",
+      "bytes_hex": "02098052",
+      "mnemonic": "mov",
+      "operands": "w2, #0x48"
+    },
+    {
+      "raw": "0x1d1618",
+      "bytes_hex": "686e43b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x19, #0x36c]"
+    },
+    {
+      "raw": "0x1d1620",
+      "bytes_hex": "086f00b9",
+      "mnemonic": "str",
+      "operands": "w8, [x24, #0x6c]"
+    },
+    {
+      "raw": "0x1d1924",
+      "bytes_hex": "686e43b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x19, #0x36c]"
+    },
+    {
+      "raw": "0x1d1928",
+      "bytes_hex": "68ca01b9",
+      "mnemonic": "str",
+      "operands": "w8, [x19, #0x1c8]"
+    },
+    {
+      "raw": "0x1d1948",
+      "bytes_hex": "09011f32",
+      "mnemonic": "orr",
+      "operands": "w9, w8, #2"
+    },
+    {
+      "raw": "0x1d194c",
+      "bytes_hex": "3f090071",
+      "mnemonic": "cmp",
+      "operands": "w9, #2"
+    },
+    {
+      "raw": "0x1d1954",
+      "bytes_hex": "68ea40f9",
+      "mnemonic": "ldr",
+      "operands": "x8, [x19, #0x1d0]"
+    },
+    {
+      "raw": "0x1d1958",
+      "bytes_hex": "083b00f9",
+      "mnemonic": "str",
+      "operands": "x8, [x24, #0x70]"
+    },
+    {
+      "raw": "0x1d195c",
+      "bytes_hex": "683242b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x19, #0x230]"
+    },
+    {
+      "raw": "0x1d1964",
+      "bytes_hex": "1faf00b9",
+      "mnemonic": "str",
+      "operands": "wzr, [x24, #0xac]"
+    },
+    {
+      "raw": "0x1d1968",
+      "bytes_hex": "087b00b9",
+      "mnemonic": "str",
+      "operands": "w8, [x24, #0x78]"
+    },
+    {
+      "raw": "0x1d1984",
+      "bytes_hex": "6a2640b9",
+      "mnemonic": "ldr",
+      "operands": "w10, [x19, #0x24]"
+    },
+    {
+      "raw": "0x1d198c",
+      "bytes_hex": "0ab300b9",
+      "mnemonic": "str",
+      "operands": "w10, [x24, #0xb0]"
+    },
+    {
+      "raw": "0x1d1994",
+      "bytes_hex": "684254b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x19, #0x1440]"
+    },
+    {
+      "raw": "0x1d19b8",
+      "bytes_hex": "580900f9",
+      "mnemonic": "str",
+      "operands": "x24, [x10, #0x10]"
+    },
+    {
+      "raw": "0x1d19c4",
+      "bytes_hex": "684214b9",
+      "mnemonic": "str",
+      "operands": "w8, [x19, #0x1440]"
+    },
+    {
+      "raw": "0x1d2998",
+      "bytes_hex": "f30300aa",
+      "mnemonic": "mov",
+      "operands": "x19, x0"
+    },
+    {
+      "raw": "0x1d29d8",
+      "bytes_hex": "60620391",
+      "mnemonic": "add",
+      "operands": "x0, x19, #0xd8"
+    },
+    {
+      "raw": "0x1d2b90",
+      "bytes_hex": "f30300aa",
+      "mnemonic": "mov",
+      "operands": "x19, x0"
+    },
+    {
+      "raw": "0x1d2bc0",
+      "bytes_hex": "0801098b",
+      "mnemonic": "add",
+      "operands": "x8, x8, x9"
+    },
+    {
+      "raw": "0x1d2e38",
+      "bytes_hex": "08838252",
+      "mnemonic": "mov",
+      "operands": "w8, #0x1418"
+    },
+    {
+      "raw": "0x1d2e40",
+      "bytes_hex": "140140f9",
+      "mnemonic": "ldr",
+      "operands": "x20, [x8]"
+    },
+    {
+      "raw": "0x1d2fcc",
+      "bytes_hex": "e00313aa",
+      "mnemonic": "mov",
+      "operands": "x0, x19"
+    },
+    {
+      "raw": "0x1d2fd0",
+      "bytes_hex": "e10314aa",
+      "mnemonic": "mov",
+      "operands": "x1, x20"
+    },
+    {
+      "raw": "0x1df418",
+      "bytes_hex": "735a0bf9",
+      "mnemonic": "str",
+      "operands": "x19, [x19, #0x16b0]"
+    },
+    {
+      "raw": "0x1df420",
+      "bytes_hex": "29d10f91",
+      "mnemonic": "add",
+      "operands": "x9, x9, #0x3f4"
+    },
+    {
+      "raw": "0x1df424",
+      "bytes_hex": "695e0bf9",
+      "mnemonic": "str",
+      "operands": "x9, [x19, #0x16b8]"
+    },
+    {
+      "raw": "0x1df428",
+      "bytes_hex": "7f620bf9",
+      "mnemonic": "str",
+      "operands": "xzr, [x19, #0x16c0]"
+    },
+    {
+      "raw": "0x1df42c",
+      "bytes_hex": "680a00f9",
+      "mnemonic": "str",
+      "operands": "x8, [x19, #0x10]"
+    },
+    {
+      "raw": "0x1df468",
+      "bytes_hex": "29312691",
+      "mnemonic": "add",
+      "operands": "x9, x9, #0x98c"
+    },
+    {
+      "raw": "0x1df46c",
+      "bytes_hex": "697e0bf9",
+      "mnemonic": "str",
+      "operands": "x9, [x19, #0x16f8]"
+    },
+    {
+      "raw": "0x1e1b10",
+      "bytes_hex": "022041a9",
+      "mnemonic": "ldp",
+      "operands": "x2, x8, [x0, #0x10]"
+    },
+    {
+      "raw": "0x1e1b18",
+      "bytes_hex": "2005888b",
+      "mnemonic": "add",
+      "operands": "x0, x9, x8, asr #1"
+    },
+    {
+      "raw": "0x1e1b28",
+      "bytes_hex": "40001fd6",
+      "mnemonic": "br",
+      "operands": "x2"
+    },
+    {
+      "raw": "0x1e1b68",
+      "bytes_hex": "40001fd6",
+      "mnemonic": "br",
+      "operands": "x2"
+    },
+    {
+      "raw": "0x278958",
+      "bytes_hex": "f30300aa",
+      "mnemonic": "mov",
+      "operands": "x19, x0"
+    },
+    {
+      "raw": "0x27897c",
+      "bytes_hex": "88048052",
+      "mnemonic": "mov",
+      "operands": "w8, #0x24"
+    },
+    {
+      "raw": "0x278984",
+      "bytes_hex": "e8b30179",
+      "mnemonic": "strh",
+      "operands": "w8, [sp, #0xd8]"
+    },
+    {
+      "raw": "0x278988",
+      "bytes_hex": "f7571c29",
+      "mnemonic": "stp",
+      "operands": "w23, w21, [sp, #0xe0]"
+    },
+    {
+      "raw": "0x278994",
+      "bytes_hex": "f6df0179",
+      "mnemonic": "strh",
+      "operands": "w22, [sp, #0xee]"
+    },
+    {
+      "raw": "0x2789c4",
+      "bytes_hex": "20020035",
+      "mnemonic": "cbnz",
+      "operands": "w0, #0x278a08"
+    },
+    {
+      "raw": "0x2789c8",
+      "bytes_hex": "e8134079",
+      "mnemonic": "ldrh",
+      "operands": "w8, [sp, #8]"
+    },
+    {
+      "raw": "0x2789cc",
+      "bytes_hex": "e80100b4",
+      "mnemonic": "cbz",
+      "operands": "x8, #0x278a08"
+    },
+    {
+      "raw": "0x2789e0",
+      "bytes_hex": "6c815ff8",
+      "mnemonic": "ldur",
+      "operands": "x12, [x11, #-8]"
+    },
+    {
+      "raw": "0x2789e8",
+      "bytes_hex": "ac011af8",
+      "mnemonic": "stur",
+      "operands": "x12, [x13, #-0x60]"
+    },
+    {
+      "raw": "0x2789ec",
+      "bytes_hex": "6c0541b8",
+      "mnemonic": "ldr",
+      "operands": "w12, [x11], #0x10"
+    },
+    {
+      "raw": "0x2789f0",
+      "bytes_hex": "4c7929b8",
+      "mnemonic": "str",
+      "operands": "w12, [x10, x9, lsl #2]"
+    },
+    {
+      "raw": "0x2782ec",
+      "bytes_hex": "00020035",
+      "mnemonic": "cbnz",
+      "operands": "w0, #0x27832c"
+    },
+    {
+      "raw": "0x278304",
+      "bytes_hex": "680e4079",
+      "mnemonic": "ldrh",
+      "operands": "w8, [x19, #6]"
+    },
+    {
+      "raw": "0x278314",
+      "bytes_hex": "6806c079",
+      "mnemonic": "ldrsh",
+      "operands": "w8, [x19, #2]"
+    },
+    {
+      "raw": "0x278320",
+      "bytes_hex": "e8031f32",
+      "mnemonic": "mov",
+      "operands": "w8, #2"
+    },
+    {
+      "raw": "0x278324",
+      "bytes_hex": "f303881a",
+      "mnemonic": "csel",
+      "operands": "w19, wzr, w8, eq"
+    },
+    {
+      "raw": "0x904c0",
+      "bytes_hex": "7fd200a9",
+      "mnemonic": "stp",
+      "operands": "xzr, x20, [x19, #8]"
+    },
+    {
+      "raw": "0x904c4",
+      "bytes_hex": "751a00b9",
+      "mnemonic": "str",
+      "operands": "w21, [x19, #0x18]"
+    },
+    {
+      "raw": "0x9051c",
+      "bytes_hex": "08800091",
+      "mnemonic": "add",
+      "operands": "x8, x0, #0x20"
+    },
+    {
+      "raw": "0x90520",
+      "bytes_hex": "02098052",
+      "mnemonic": "mov",
+      "operands": "w2, #0x48"
+    },
+    {
+      "raw": "0x93250",
+      "bytes_hex": "761600f9",
+      "mnemonic": "str",
+      "operands": "x22, [x19, #0x28]"
+    },
+    {
+      "raw": "0x93254",
+      "bytes_hex": "75520629",
+      "mnemonic": "stp",
+      "operands": "w21, w20, [x19, #0x30]"
+    },
+    {
+      "raw": "0x933d8",
+      "bytes_hex": "081440f9",
+      "mnemonic": "ldr",
+      "operands": "x8, [x0, #0x28]"
+    },
+    {
+      "raw": "0x933e4",
+      "bytes_hex": "093040b9",
+      "mnemonic": "ldr",
+      "operands": "w9, [x0, #0x30]"
+    },
+    {
+      "raw": "0x933ec",
+      "bytes_hex": "3501088b",
+      "mnemonic": "add",
+      "operands": "x21, x9, x8"
+    },
+    {
+      "raw": "0x93ef4",
+      "bytes_hex": "1f01156b",
+      "mnemonic": "cmp",
+      "operands": "w8, w21"
+    },
+    {
+      "raw": "0x93f34",
+      "bytes_hex": "e80e40b9",
+      "mnemonic": "ldr",
+      "operands": "w8, [x23, #0xc]"
+    },
+    {
+      "raw": "0x93f40",
+      "bytes_hex": "0801148b",
+      "mnemonic": "add",
+      "operands": "x8, x8, x20"
+    },
+    {
+      "raw": "0x94278",
+      "bytes_hex": "29692f91",
+      "mnemonic": "add",
+      "operands": "x9, x9, #0xbda"
+    },
+    {
+      "raw": "0x278c14",
+      "bytes_hex": "68048052",
+      "mnemonic": "mov",
+      "operands": "w8, #0x23"
+    },
+    {
+      "raw": "0x278c20",
+      "bytes_hex": "f5e300b9",
+      "mnemonic": "str",
+      "operands": "w21, [sp, #0xe0]"
+    },
+    {
+      "raw": "0x278c2c",
+      "bytes_hex": "f4df0179",
+      "mnemonic": "strh",
+      "operands": "w20, [sp, #0xee]"
+    }
+  ],
+  "direct_calls": [
+    {
+      "at": "0x1d1480",
+      "target": "0x278940"
+    },
+    {
+      "at": "0x1d158c",
+      "target": "0x2f514"
+    },
+    {
+      "at": "0x1d15a0",
+      "target": "0x94258"
+    },
+    {
+      "at": "0x1d15b0",
+      "target": "0x942f4"
+    },
+    {
+      "at": "0x1d1604",
+      "target": "0x9051c"
+    },
+    {
+      "at": "0x1d1614",
+      "target": "0xd80"
+    },
+    {
+      "at": "0x1d1940",
+      "target": "0x278940"
+    },
+    {
+      "at": "0x1d29dc",
+      "target": "0x1d2b74"
+    },
+    {
+      "at": "0x1d2fd4",
+      "target": "0x1d317c"
+    },
+    {
+      "at": "0x2789c0",
+      "target": "0x278290"
+    },
+    {
+      "at": "0x2782e8",
+      "target": "0x9763c"
+    },
+    {
+      "at": "0x2782fc",
+      "target": "0x94978"
+    },
+    {
+      "at": "0x933f4",
+      "target": "0x8d800"
+    },
+    {
+      "at": "0x93408",
+      "target": "0x93e70"
+    },
+    {
+      "at": "0x93418",
+      "target": "0x8d820"
+    },
+    {
+      "at": "0x94264",
+      "target": "0x93208"
+    },
+    {
+      "at": "0x9428c",
+      "target": "0x9338c"
+    },
+    {
+      "at": "0x278c58",
+      "target": "0x278290"
+    }
+  ],
+  "virtual_bindings": [
+    {
+      "word": "0x375790",
+      "target": "0x1e1b10",
+      "owner": "A+16a8",
+      "function_field": "A+16b8=K1d13f4",
+      "this_field": "A+16b0=A",
+      "adjustment_field": "A+16c0=0"
+    },
+    {
+      "word": "0x3757f0",
+      "target": "0x1e1b50",
+      "owner": "A+16e8",
+      "function_field": "A+16f8=K1d298c",
+      "this_field": "A+16f0=A",
+      "adjustment_field": "A+1700=0"
+    }
+  ],
+  "fields": [
+    {
+      "field": "P+70",
+      "width_bits": 64,
+      "writer": "0x1d1958",
+      "source": "u64[A+1d0] = query reply segment[0].address",
+      "condition": "callback path reaches 1d1910; second query return is 0 or 2; fresh reply copy additionally requires query helper return 0 and reply segment_count>0",
+      "evidence": [
+        "E2",
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "field": "P+78",
+      "width_bits": 32,
+      "writer": "0x1d1968",
+      "source": "u32[A+230] = query reply segment[0].length",
+      "condition": "same as P+70; not a proven total frame size",
+      "evidence": [
+        "E2",
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "field": "P+6c",
+      "width_bits": 32,
+      "writer": "0x1d1620",
+      "source": "category-zero 48-byte payload+04 via A+36c; reused as second query handle at 1d1928",
+      "condition": "category-zero parse success",
+      "evidence": [
+        "E2",
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "field": "P+20..67",
+      "width_bits": 576,
+      "writer": "0x1d1614",
+      "source": "48h-byte metadata body from A+368 after 1d1604 copies category-zero object payload",
+      "condition": "metadata query accepted, mapped metadata and category-zero parse succeed",
+      "evidence": [
+        "E2",
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "field": "P+40/P+41",
+      "width_bits": 8,
+      "writer": "0x1d1614",
+      "source": "category-zero payload+20/+21, separately two bytes in the 48h copy",
+      "condition": "same copy; source numeric values, producer enum and named packing/depth unknown",
+      "evidence": [
+        "E2",
+        "E9",
+        "E10"
+      ]
+    },
+    {
+      "field": "P+18",
+      "width_bits": 64,
+      "writer": "0x1d1498",
+      "source": "A+1d0 from first query using u32[incoming_x1+00]",
+      "condition": "first query accepted (0 or 2); freshness qualification as for second query",
+      "role": "metadata buffer address, distinct from P+70",
+      "evidence": [
+        "E2",
+        "E7"
+      ]
+    },
+    {
+      "field": "P+10/P+98",
+      "width_bits": 32,
+      "writer": "0x1d1458/0x1d1464",
+      "source": "incoming callback argument+00/+04",
+      "condition": "free P ring not empty",
+      "role": "metadata handle / reader byte offset, not proved frame generation",
+      "evidence": [
+        "E2"
+      ]
+    },
+    {
+      "field": "P+ac",
+      "width_bits": 32,
+      "writer": "0x1d1964",
+      "source": "literal zero",
+      "condition": "same accepted query branch as P+70",
+      "role": "numeric original scalar; no arbitrary unknown-to-zero closure",
+      "evidence": [
+        "E2"
+      ]
+    }
+  ],
+  "query_wire": {
+    "op": "0x24",
+    "request_bytes": "0xd8",
+    "handle": "u32 request+08",
+    "second_scalar": "u32 request+0c=0 in checked call",
+    "magic": "u16 request+14=1111",
+    "option": "u16 request+16=0 in checked call",
+    "destination": "8061003c or 9061003c selected by handle bit15",
+    "response_status": "signed16 reply+02; negative rejected; zero maps to 0; positive maps to 2",
+    "response_magic": "u16 reply+06 must equal1111",
+    "segment_count": "u16 reply+08",
+    "segment_i_address": "u64 reply+18+i*10",
+    "segment_i_length": "u32 reply+20+i*10",
+    "address_writer": "u64 query_arg+08+i*8 at2789e8",
+    "length_writer": "u32 query_arg+68+i*4 at2789f0",
+    "fresh_copy_condition": "helper returns0 and segment_count>0; caller accepts0 or2; no freshness conclusion otherwise"
+  },
+  "pool": {
+    "owner": "A = original vdt_flow_rc_resize_yuv object",
+    "P_base": "A+488+i*c0, 0<=i<20",
+    "free_ring": "A+1388; pointers A+1398",
+    "published_source_ring": "A+1440; pointers A+1450",
+    "consumer_context": "C=A+d8",
+    "conditional_fallback": "C+1418=A+14f0; origin not closed for arbitrary entry to1d2b74"
+  },
+  "paths": [
+    {
+      "id": "P1",
+      "path_type": "callflow",
+      "steps": [
+        "unknown callback invoker supplies metadata handle/offset",
+        "A+16a8 vtable+10=K1e1b10 forwards x1 unchanged toK1d13f4",
+        "K278940 first query supplies metadata address/range",
+        "SSYC category0 payload copied toP+20",
+        "payload+04 selects second K278940 query",
+        "segment0 address/range -> A+1d0/+230 -> P+70/+78",
+        "P enqueued in A+1440 source ring",
+        "registered continuation callback K1d298c calls K1d2b74 withC=A+d8",
+        "K1d2fd4 passes sameP to inherited K1d317c SOURCE consumer"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "n/a_re",
+      "confidence": "high-static",
+      "status": "closed primary-path descriptor owner and source field origin",
+      "evidence": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "E6",
+        "E7",
+        "E8",
+        "E9",
+        "E10",
+        "E11"
+      ]
+    },
+    {
+      "id": "F2",
+      "severity": "n/a_re",
+      "confidence": "high-static",
+      "status": "fresh address copy requires return0 and nonzero reply count; caller return2 is insufficient",
+      "evidence": [
+        "E2",
+        "E7",
+        "E8"
+      ]
+    },
+    {
+      "id": "F3",
+      "severity": "n/a_re",
+      "confidence": "bounded-negative",
+      "status": "true source producer, pixel writer, named layout and runtime lease remain unknown",
+      "evidence": [
+        "E2",
+        "E5",
+        "E6",
+        "E7",
+        "E9",
+        "E10",
+        "E11",
+        "E12"
+      ]
+    }
+  ],
+  "closure": {
+    "descriptor_P_owner": true,
+    "source_field_writer": true,
+    "true_source_owner": false,
+    "plane_format": false,
+    "runtime_lease": "unknown",
+    "guest_pixel_consumed": false,
+    "capture_verified": false,
+    "original_jpeg_mp4_produced": false,
+    "first_unknown": "Original invoker/argument writer for A+16a8 callback and the producer of SSYC category0 payload+04/+20/+21; opcode24 response supplier and actual source pointee pixel writer are not traced. A named incoming frame, freshness, generation and acquired lease are not proved."
+  },
+  "attempts": [
+    {
+      "action": "extract.py initial run",
+      "result": "failed",
+      "rc": 1,
+      "reason": "result-root calculation selected runtime/runtime; no windows written; corrected parents[3] to parents[4]"
+    },
+    {
+      "action": "extract.py corrected and final spans",
+      "result": "passed"
+    }
+  ],
+  "reproduce": "python3 -B report/cmos-isp-source-frame-owner/verify.py",
+  "limitations": [
+    "Aligned branch/literal index is not an enumeration of indirect callers.",
+    "No original packet-to-callback invocation binding or pixel write is proved.",
+    "P+40/+41 copy provenance is closed; named conversion functions not expanded because their producer enum and runtime values are not bound.",
+    "Opcode23/option2 is only an original retirement request shape; runtime lease is unknown.",
+    "No runtime code changed and no executable native closure claimed."
+  ]
+}

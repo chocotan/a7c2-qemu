@@ -4,7 +4,15 @@
 运行中的安全拔出/重插、以及第 9 步的关机保存导出。
 对象只是实验目录里的普通虚拟文件，不接物理 SD。
 
-变量见[索引](README.md)。历史运行结果来自文末报告，本次只回读源码，没有重跑。
+变量见[索引](README.md)。第1–8节保留已验的 FAT 文件后端与默认关机协议；**其成功不能借给最新功能 profile 的失败运行**。本次仅整理报告，没有重跑。
+
+## 0. 2026-10-29 当前结果与目录卡范围
+
+功能研究使用显式 **256,000,000,000B 虚拟容量的目录 SD**，不把256GB文件整体装入 guest，也不直通物理盘。下述128MiB FAT 镜像入口、4MiB单测和目录后端是不同表示，不能把第1节的2GiB镜像上限或整卡 fsck 判据直接套到目录卡。
+
+最新 `run-qqu0q5oe` 的原 Mount/Flush=0、两数据库文件导出及宿主实际 SHA 读回通过。卡只有 `PRIVATE/DATABASE/DATABASE.BIN`（9670656B）与 `PRIVATE/M4ROOT/MEDIAPRO.XML`（406B），**无 JPEG/MP4**；`original_volume_retirement=false`、`firmware_format_verified=false`。这只证明本轮有限存储通路，不证明原成片、卷退休或原格式化。
+
+原媒体写入检查必须另外关联源贡献范围、原 callback/worker 返回、原 Fsys 文件读回、两次一致导出、宿主 SHA 与独立解码；Flush0 本身不提供像素/编码来源。qqu 的 runner never-attached/safeclosed 与 QEMU 已无各有证据，但退出报错 `write to closed file` 仍保留，不能称普通 QMP quit 已通过。摘要见[进度记录](../../validation/2026-10-29-progress.json)，退出判据见[12-debugging](12-debugging.md#9-当前后台初始化与退出证据)。
 
 ## 1. 卡镜像：先证明来源合法
 
@@ -136,19 +144,18 @@ fsck.fat -n "$RUN/SD/card.img"
 
 ## 9. 当前边界
 
-已验：同一虚拟卡的安全拔出/重插多轮、原完整内容读回、在卡/退休导出、
+已验：既有默认 profile 同一 FAT 虚拟卡的安全拔出/重插多轮、原完整内容读回、在卡/退休导出、
 默认回载（本包独立两轮 GTK + 后续默认 profile 运行，整卡 SHA 一致、
-fsck 0、owner 恢复通过）。
+fsck 0、owner 恢复通过）。这些是历史限定结果，最新功能目录卡的卷退休未通过。
 
 未通过：REC 可记录状态、重插后的新拍摄写、照片、视频。
 数据库/XML 文件不是拍摄产物；文件后端不是 MMC 控制器。
 
 ## 证据入口
 
-- [原 Fsys 独立通路](../../../a7c2-re/report/2026-10-17-qemu-native-camera/STORAGE-PROOF.md)
-- [掩码、owner、generation 与实际周期](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/sd-hotplug-progress.md)
-- [原 API 诊断范围](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/sd-reinsert-api/README.md)
-- [本包两轮及默认回载](../../validation/README.md)
+- [当前目录卡、原媒体写入与剩余验收链](2026-10-29-current-progress.md)。
+- [两数据库及原 Flush/退出负例摘要](../../validation/2026-10-29-progress.json)。
+- [本包两轮热插拔、默认回载与原 Fsys 历史验证](../../validation/README.md#sd热插拔默认profile原通知及退休导出已通过)。
 
 ## 如果你在做别的机型
 

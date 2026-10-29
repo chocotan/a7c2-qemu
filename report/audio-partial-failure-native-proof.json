@@ -1,0 +1,16 @@
+{
+  "run": "run-vz1l2isu",
+  "console_sha256": "7a68e875106b7a6a8c16f84f766c6f63f77c2dc009ba6c87b491fa19cb6ce9a6",
+  "crash_stack_sha256": "712f52bfd5338743b62aa46ccc1833d6464a6c6ffc250b146a6e74d709a0c1e1",
+  "verification_scope": "partial-config-before-exception",
+  "whole_run_success_verified": false,
+  "volume": {"tid": 322, "request_raw": "0d2030030a0001800800", "wire": 8, "virtual_driver_level": 7, "control_op": 4, "driver_readback": 7, "reply_pointer": "0x7f8e33f440", "lease": 1, "original_waiter_free_rc": 0},
+  "capabilities": {"tid": 324, "request_raw": "0d20270308000180", "profile": "inputless", "valid_sources": 7, "flags": "80808080808080808180808080808080", "reply_pointer": "0x7f8e33f040", "lease": 2, "original_waiter_free_rc": 0},
+  "sound_address": {"tid": 323, "request_raw": "0d203f0308000180", "source": "0x81cf61c5", "result": "explicit transport rejection: sound-owner-not-ready-or-readback-failed"},
+  "guest_exception_monitor_observed": true,
+  "exception_thread": "SeqThreadPool2",
+  "unwound_elf_va": ["0x35aa4dc", "0x34e5778", "0x34ec204", "0x34c73c4", "0x3060a1c", "0x34b9568"],
+  "audio_output_verified": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

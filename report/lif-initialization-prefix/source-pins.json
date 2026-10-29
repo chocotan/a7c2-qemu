@@ -1,0 +1,68 @@
+{
+  "scope": "complete Init_LIF registration prefix and selected root/property paths; no M/C initialization value event established",
+  "artifact": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "bytes": 18090880,
+  "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "mapping": "raw=CPVA-108000, file-backed [108000,1248b80)",
+  "window_count": 8,
+  "window_bytes": 1090,
+  "windows": [
+    {"VA_hex": "a48f02", "raw_hex": "940f02", "bytes": 106, "sha256": "3ebf78f81ecc137e4b3267f0bdd94621c6d885abffb12b497e832af3907b3b14"},
+    {"VA_hex": "40c25c", "raw_hex": "30425c", "bytes": 292, "sha256": "c8a30b7859d4c65b195eb89d8f5a69facd790bf79098c80ebb7e8e60738220a5"},
+    {"VA_hex": "a93694", "raw_hex": "98b694", "bytes": 4, "sha256": "d4a19119829b3fcb4e17af23bae0eb6ea49b876cdf9acd49de85ab32ac6ef7c9"},
+    {"VA_hex": "a48472", "raw_hex": "940472", "bytes": 392, "sha256": "0352f712d927795ddab41149436eaebcce831b5f29c66b0322e0018611447449"},
+    {"VA_hex": "a48ba2", "raw_hex": "940ba2", "bytes": 102, "sha256": "75f27d1c61aff4954277aa4f3d04f9dd2bbe7e7a8ccde7ae3b7a780993a056ed"},
+    {"VA_hex": "110207c", "raw_hex": "ffa07c", "bytes": 32, "sha256": "80fc123f15fab09c74d5b0f8e24b4baec3e779ab863045ec87d8866f2a74c547"},
+    {"VA_hex": "be92ec", "raw_hex": "ae12ec", "bytes": 78, "sha256": "33b2c45c82f607d25aa74ac7e3c84998f8ef4340309ce58cb0125057a011bf48"},
+    {"VA_hex": "a9143c", "raw_hex": "98943c", "bytes": 84, "sha256": "de041435fa79f19db91d733ee5efced284d5d9ff7926d0f61af4aa8d6c71acb2"}
+  ],
+  "prefix_direct_call_targets_hex": ["40c25c", "a98a08", "a98a6c", "a98f06", "989d4a", "61ed00", "989d5c", "a98a20", "a98a38"],
+  "property_registrations": [
+    {"id_hex": "01250006", "context_hex": "1211300"},
+    {"id_hex": "01250005", "context_hex": "1fd87e0"},
+    {"id_hex": "0125000a", "context_hex": "1211400"}
+  ],
+  "generic_property_callback_VA_hex": "a48c08",
+  "new_alias_boundary": {"pointer_source_hex": "1a03cdc", "load_VA_hex": "a91450", "clear_call_VA_hex": "a91478", "skip_if_pointer_zero": true, "clear_intervals_hex_relative_to_P": [["0", "44"], ["139", "1bb"], ["1c3", "1ff"]], "P_before_clear_source_closed": false, "later_binding_call_VA_hex": "40c30a", "later_binding_callee_hex": "a901fc", "later_binding_retroactively_used": false, "intersection_with_M_C_proven_or_excluded": false},
+  "unclosed_indirect_call": {"call_VA_hex": "a48f54", "helper_hex": "989d5c", "input_r0_hex": "18aeb8c", "vtable_slot_hex": "1c", "positive_initialization_path_target_hex": "98cf9e", "runtime_object_history_closed": false, "M_C_value_initialization_by_proven_getter": false},
+  "M_init_source_closed": false,
+  "C_init_source_closed": false,
+  "whole_prefix_preserves_M_C_claimed": false,
+  "M_known": false,
+  "C_known": false,
+  "pointer_followup_windows": [
+    {"VA_hex": "3e164c", "bytes": 264, "sha256": "8a1062d192cfbe8d50a7fe7973b168c601396a6d5a176a10215dfc35fb6e442b"},
+    {"VA_hex": "a901fc", "bytes": 58, "sha256": "3248a3b26ed32224f7068ca70cd1b6bc075f04f52ffe7be6f0dcc04cdac2c5ee"},
+    {"VA_hex": "40c25c", "bytes": 292, "sha256": "c8a30b7859d4c65b195eb89d8f5a69facd790bf79098c80ebb7e8e60738220a5"},
+    {"VA_hex": "a9143c", "bytes": 128, "sha256": "b2620cda4364df58c16a99516a859fb20b6cde967d584546eeddea095e4a0aab"},
+    {"VA_hex": "df6470", "bytes": 4, "sha256": "bc3817c13bc4e6f192a840895fa937d252db153efb89bb14a6c2ddf1f9c55409"},
+    {"VA_hex": "4b6d46", "bytes": 82, "sha256": "92a75b54f3513ceed479d26d22bd6a0e73bcd54f1df1c06ebfe5c88c11162da8"}
+  ],
+  "pointer_function_normal_returns_hex": ["0", "1fd87e0"],
+  "P_explicit_store_VA_hex": "a90222",
+  "P_old_value_domain_closed": false,
+  "conditional_indexed_writer": {"VA_hex": "3e1746", "destination_hex": "19ee00c+4*i", "value_hex": "u32[19edee4]+i*u32[deeb5c] modulo2^32", "iterations": "0<=i<u32[deeb54]", "P_alias_index_hex": "5734", "runtime_count_bound_proven": false},
+  "getter_followup_windows": [
+    {"VA_hex": "989d4a", "bytes": 56, "sha256": "5b42c644ae94b179d5a307f02fa7c1b9e4e35bde1796e778475faec02acff594"},
+    {"VA_hex": "98a4b2", "bytes": 20, "sha256": "d993ae62ed4c81ccdcddc8b34a2f751aaeb74d40de05397cbcca00d147205796"},
+    {"VA_hex": "98bcb4", "bytes": 554, "sha256": "29dd70b72758903f5191527825a8b46f7dd6c2626abc5959c8071a4a0f1e9b14"},
+    {"VA_hex": "98cc7e", "bytes": 118, "sha256": "5be057fc91b0bd6d3852b36d7d2898533752734c3c1a9987a0481712fc891048"},
+    {"VA_hex": "98ce04", "bytes": 464, "sha256": "b950e69fcb751710bae4d6f15ba37e4047ab450e1fc70fc00b0164d16ef369ca"},
+    {"VA_hex": "de9898", "bytes": 40, "sha256": "6266c47c857dc2c5957c23f2b1fa6473aa376c9424631975938f4cecaf41cd85"},
+    {"VA_hex": "61e60c", "bytes": 184, "sha256": "89160707d40aeed2080117186e1529bda23b0aef9565e9cf6ab780226c91d383"},
+    {"VA_hex": "fff0d0", "bytes": 12, "sha256": "12fb557d19cc97e20c8fda10e0eb482b22f93cb99e61126e9ac84ff4c44bf582"}
+  ],
+  "lens_area_followup_windows": [
+    {"VA_hex": "3e2060", "bytes": 134, "sha256": "014c7b835e5cbb2c7679c8f430e00e3b3d16ec04f80a564b824cb9098856765f"},
+    {"VA_hex": "3e2140", "bytes": 156, "sha256": "d6b1ef8e04cebf838b549259be160fbfd476e7d31fe216222a6e5af02eaa2785"},
+    {"VA_hex": "3e22bc", "bytes": 216, "sha256": "0119eeec3cbe156200f6d6fef3083b70aaec4d7f18ddb900d343be34e9b93990"},
+    { "VA_hex": "5feb94", "bytes": 56, "sha256": "7e03686636148570f0633d1c04e24e2dd8e0807b9261cce741b0d86b3c215754" },
+    {"VA_hex": "deeb50", "bytes": 32, "sha256": "3bd09a6fed761c68ee54335afe5f5c545b8a5533a67579a865a9025b88473d14"},
+    {"VA_hex": "cee8b0", "bytes": 128, "sha256": "b0af655dc64f293ad64bedb5ad1a5c6c3eeaf42d88b700764c60ac30ac97f1f3"},
+    {"VA_hex": "ceedb0", "bytes": 128, "sha256": "da5d8628236086197085185ead6e438937f97b7d12259069b946ad902c68e6a1"}
+  ],
+  "address_filter_5feb94": "returns original input address only when query611ddc returns0 and outputbyte bit2=1; else0; runtime query unknown",
+  "total_phase_windows_including_overlap": 29,
+  "total_phase_bytes_including_overlap": 4216,
+  "capture_verified": false
+}

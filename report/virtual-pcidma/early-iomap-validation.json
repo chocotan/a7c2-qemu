@@ -1,0 +1,37 @@
+{
+  "status": "PASS_ORIGINAL_BOOT_NARROW_IOMAP_ONLY",
+  "module_sha256": "cbfef1041664bccadd7d6da74333bed41a1cf6da88eb6d3b31bbebd480392e32",
+  "final_dtb_sha256": "5e9e50337708c193a6785fabfee8bd3b0cfc4ca9a03aa11a86d0c24e8c670a44",
+  "console_sha256": "26c63e7eaa1c3021ed567e5744fce4806517d24c5461fce51c8e063a388082a7",
+  "windows": [
+    [
+      "0xf1056000",
+      "0x2000"
+    ],
+    [
+      "0xf11c0000",
+      "0x40000"
+    ],
+    [
+      "0xf7000000",
+      "0x1000"
+    ],
+    [
+      "0xf7300000",
+      "0x1000"
+    ],
+    [
+      "0xf7380000",
+      "0x2000"
+    ]
+  ],
+  "original_boot_map_logs_before_init": true,
+  "ten_existing_translations_at_par_verified": true,
+  "diagnostic_imports": [
+    "printk"
+  ],
+  "gic_alias_and_overlap_guard_preserved": true,
+  "cpu_resumed_and_owned_vm_exited": true,
+  "native_pcidma_or_pcie_init_executed": false,
+  "dma_or_capture_verified": false
+}

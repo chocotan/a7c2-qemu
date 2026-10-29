@@ -1,0 +1,80 @@
+{
+  "scope": "owned cold input constructor and actual Proc0323/control30 history, not SetInput0336 completion",
+  "run": "runtime/analysis/menu-runs/run-rujerqv8",
+  "evaluation": "runtime/analysis/menu-runs/run-rujerqv8/adf-input-cold-owner-native-evaluation.json",
+  "evaluation_sha256": "a4c63ea267d8e82393ab4f8b885d70cc3c58b8d70c3302c2f97d2968c34a7042",
+  "observer_sha256": "89628487c071dc84eb73d9b7fa08321c11f00ee5c0545e6fbdeac814686d9a0d",
+  "frozen_source_count": 240,
+  "frozen_archive_sha256": "02f3d1dafe6b113fd1ab657ac1d0603eda44f3ea4a8b654234726569fb051fae",
+  "candidate_qemu_sha256": "a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02",
+  "production_qemu_replaced": false,
+  "hotshoe_constructor_type_busy_fifo": [
+    0,
+    0,
+    0
+  ],
+  "glee_constructor_type_source_callback": [
+    0,
+    1,
+    0
+  ],
+  "glee_constructor_kind_cache": 0,
+  "glee_input_ring_count": 0,
+  "power_constructor_flags20_21_22": [
+    0,
+    0,
+    0
+  ],
+  "power_constructor_state14": 2,
+  "owner_constructor_initializations": 1,
+  "control30_notes": 1,
+  "actual_driver_parameter": 0,
+  "actual_driver_callback_empty": true,
+  "actual_control31_readbacks": 1,
+  "actual_control30_complete": true,
+  "same_initialized_owner": true,
+  "hotshoe_set_type_executed": false,
+  "glee_control0_executed": false,
+  "four_real_guest_timerfd_expiries": true,
+  "original_ap0323_reply_free_rc": 0,
+  "original_ap0323_reply_free_faults": 0,
+  "original_ap0323_consumed": true,
+  "ap_pid": 258,
+  "ap_tid": 381,
+  "worker_tid": 1037,
+  "foreign_speech_initial_provenance_verified": true,
+  "foreign_speech_freed_cleared_remapped": false,
+  "host_files_readback": [
+    {
+      "bytes": 406,
+      "path": "private/m4root/mediapro.xml",
+      "sha256": "cb7dfd1928ca8c635468103f74dd3942a12919e499d5ec55e973e50f72fbc9f8"
+    },
+    {
+      "bytes": 9670656,
+      "path": "private/database/database.bin",
+      "sha256": "843ca3f159684cdb06c608cdc2a6de1ec2ed44673076bb8bee5c458633de4bc0"
+    },
+    {
+      "bytes": 96,
+      "path": "INPUT.BIN",
+      "sha256": "5c60ef52ce0e3fc182c36d440cf75fdcdc314bf9e6f3893bca9e808b0f64b494"
+    }
+  ],
+  "directory_commit_clean": true,
+  "owned_process_group_and_qemu_exited": true,
+  "both_locks_available": true,
+  "sigkill_sent": false,
+  "host_tests_passed": 29,
+  "cold_owner_c_scenarios": 101,
+  "unit_review": "a908ecef: no verified P1-P3",
+  "integration_review": "b06ffe19: no verified P1-P3",
+  "next_request_hex": "0d2036030e000180000200000000",
+  "adf_set_input_verified": false,
+  "original_cp_executed": false,
+  "hardware_verified": false,
+  "native_frequency_verified": false,
+  "pcm_verified": false,
+  "frames_verified": false,
+  "capture_verified": false
+}

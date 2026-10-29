@@ -1,0 +1,9 @@
+{
+  "scope": "normal exported osal_reg_public ABI only; capture-only tap, not a real CP or runtime proof",
+  "size": 3976,
+  "sha256": "416e710eb678dbaba24e50483461b59666d74efbd3c4000cfa95f394310fd8b4",
+  "imports": [
+    "osal_reg_public",
+    "printk"
+  ]
+}

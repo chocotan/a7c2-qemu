@@ -1,0 +1,9 @@
+{
+  "scope": "host ABI only; no guest load",
+  "size": 3520,
+  "sha256": "205400ee989a7e1fccf932fb631cb1d1d90f7d118d6aa59c3dfd9c1115c90b6e",
+  "imports": [
+    "ioremap_page_range",
+    "printk"
+  ]
+}

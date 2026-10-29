@@ -86,7 +86,10 @@ int pin_registry_dispatch(struct pin_registry_owner *owner,unsigned int destinat
     for(unsigned int i=0;i<3;i++)put32(out+32+4*i,owner->type_only?pin->self[i]:keys[i]);
     put32(out+44,pin_state);put32(out+48,pin_owner);put32(out+52,0);
     io->set_source(reply,owner->source);unsigned long long serial=++state->next_lease;
-    *slot=(struct pin_registry_lease){reply,dst,serial,syscall(SYS_gettid)};state->live_replies++;
+    /* Legacy masked lookups echo aliases; only canonical returned keys prove a pin. */
+    unsigned int pin_index=FULL_PIN_REGISTRY_CAPACITY;
+    if(u32(out+32)==pin->self[0] && u32(out+36)==pin->self[1] && u32(out+40)==pin->self[2] && u32(out+48)==pin->self[3])pin_index=(unsigned int)index;
+    *slot=(struct pin_registry_lease){reply,dst,serial,syscall(SYS_gettid),pin_index};state->live_replies++;
     rc=io->send(dst,reply);
     if(rc){*state=before;state->pending=0;memset(slot,0,sizeof *slot);cleanup(owner,io,dst,reply);
         event(owner,io,"TRANSPORT_FAILURE ","send-failed-caller-owned-rollback");
@@ -109,7 +112,10 @@ int pin_registry_release(struct pin_registry_owner *owner,unsigned int destinati
         found=owner->replies[i];*result=destination==found.destination?release(destination,reply):-1021;
         if(*result)state->faults++;
         else{memset(&owner->replies[i],0,sizeof owner->replies[i]);state->live_replies--;state->native_freed++;
-            if(found.sender==syscall(SYS_gettid))state->waiter_freed++;}
+            if(found.sender==syscall(SYS_gettid)){
+                state->waiter_freed++;
+                if(found.pin_index<owner->count && found.pin_index<FULL_PIN_REGISTRY_CAPACITY)owner->retired_get[found.pin_index]=1;
+            }}
         break;
     }
     if(found.pointer && record){char tag[64],line[320];long tid=syscall(SYS_gettid);
@@ -120,6 +126,17 @@ int pin_registry_release(struct pin_registry_owner *owner,unsigned int destinati
 }
 void pin_registry_snapshot(struct pin_registry_owner *owner,struct full_vef_snapshot *out){
     pthread_mutex_lock(&mutex);*out=owner->state;pthread_mutex_unlock(&mutex);
+}
+int pin_registry_key_get_retired(struct pin_registry_owner *owner,const unsigned int key[4]){
+    if(!owner || !key)return 0;
+    pthread_mutex_lock(&mutex);int retired=0;
+    if(owner->count<=FULL_PIN_REGISTRY_CAPACITY && owner->state.initialized && !owner->state.faults &&
+       owner->state.owner_sid==owner->source && owner->state.registry_objects==owner->count && key[3]==owner->source){
+        for(unsigned int i=0;i<owner->count;i++)if(!memcmp(owner->state.pins[i].self,key,4*sizeof *key)){
+            retired=owner->retired_get[i]!=0;break;
+        }
+    }
+    pthread_mutex_unlock(&mutex);return retired;
 }
 static struct full_vef_pin *existing_pin(struct pin_registry_owner *owner,const unsigned int *key){
     if(!owner->state.initialized || owner->state.faults || key[3]!=owner->source)return 0;
@@ -132,7 +149,9 @@ int pin_registry_connect_step(struct pin_registry_owner *source,struct pin_regis
     pthread_mutex_lock(&mutex);struct full_vef_pin *a=existing_pin(source,s),*b=existing_pin(peer,p);int rc=-1;
     if(a && b){
         if(step==1 && a->state==1 && b->state==1 && !source->state.pending && !peer->state.pending &&
-           s[0]==p[0] && s[1]==2 && p[1]==1){
+           s[0]==p[0] && ((s[1]==2 && p[1]==1) ||
+            (s[0]==1 && s[1]==3 && s[2]==0 && s[3]==0x90590818u &&
+             p[1]==3 && p[2]==0 && p[3]==0x9080003bu))){
             memcpy(a->peer,p,4*sizeof *p);a->state=2;source->state.pending=1;rc=0;
         }else if(step==2 && a->state==2 && b->state==1 && source->state.pending && !memcmp(a->peer,p,4*sizeof *p)){
             memcpy(b->peer,s,4*sizeof *s);b->state=0;rc=0;
@@ -151,7 +170,8 @@ void pin_registry_connect_fault(struct pin_registry_owner *source,struct pin_reg
 }
 #ifdef FULL_VEF_TEST
 void pin_registry_test_reset(struct pin_registry_owner *owner){
-    pthread_mutex_lock(&mutex);owner->state=(struct full_vef_snapshot){0};memset(owner->replies,0,sizeof owner->replies);pthread_mutex_unlock(&mutex);
+    pthread_mutex_lock(&mutex);owner->state=(struct full_vef_snapshot){0};memset(owner->replies,0,sizeof owner->replies);
+    memset(owner->retired_get,0,sizeof owner->retired_get);pthread_mutex_unlock(&mutex);
 }
 void pin_registry_test_set_state(struct pin_registry_owner *owner,unsigned int i,unsigned int value){
     pthread_mutex_lock(&mutex);initialize(owner,0);if(i<owner->count)owner->state.pins[i].state=value;pthread_mutex_unlock(&mutex);

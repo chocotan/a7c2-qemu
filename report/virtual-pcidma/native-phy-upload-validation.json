@@ -1,0 +1,13 @@
+{
+  "status": "PASS_ORIGINAL_UPLOAD_UNDER_TEST_CLEAR_POLICY_EXPECTED_PROBE_FAILURE",
+  "binary_sha256": "7d840745418928282602762a795a664f4e806716a22824c7aabcfbc8a13fe3bb",
+  "actual_original_cpu_dword_writes": 4096,
+  "raw_readback_bytes": 8192,
+  "raw_sha256": "6133a8e7fb95e2ac83119517c00a306d485dcf3bf4afd814411317af64439f95",
+  "test_policy_not_original_silicon_producer": true,
+  "expected_lane_failure_and_unbound_driver": true,
+  "dma_engines_zero": true,
+  "trace_sha256": "1f797ac64cf7c916f9aeebfc5d28efdd23d39af42526fcfdfbee940101309d12",
+  "cpu_flatview_explicit_regions_and_no_validation_layer_rejections": true,
+  "original_phy_calibration_or_host_or_link_or_dma_or_frame_verified": false
+}

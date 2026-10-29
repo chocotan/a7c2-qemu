@@ -1,0 +1,638 @@
+{
+  "scope": "Bounded CP-side 3003 routing, START rejection and error producers; static research only",
+  "artifact": {
+    "path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+    "length": 18090880,
+    "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+    "mapping": "CPVA=raw+0x108000",
+    "file_backed_interval": [
+      "0x108000",
+      "0x1248b80"
+    ],
+    "kind": "raw ARM/Thumb; ELF imports/exports not applicable"
+  },
+  "window_count": 10,
+  "total_window_bytes": 7812,
+  "windows": [
+    {
+      "id": "router",
+      "CPVA": "0x4b3a7c",
+      "raw_offset": "0x3aba7c",
+      "length": 320,
+      "sha256": "1961c201daee99f1ce000cdd206b1ee3e8a1a4bec36c64ed5b3b42e229f97893",
+      "expected_hex": "f0b503af2de9000f81b0012440f2200bea460ff2d4080ff2ac09c9f20304c0f27a0b204651464ff0ff32b1f07ffc014619b1484690f263f5f3e740464ff17ceb009e304638f3b3f2054625f07040b0f55c0f0ada584510d02921c0f27a01884212d100986cf243f027e00ad040f69011c0f2c011884215d006e000986cf238f01be03078ff280dd026202ef156ec307818b105280ad002280cd13046294602f0a3fa07e030466cf224f006e030462946a9f620fa26202ef112ea00992046b1f0e1fbaee746573a2052656365697665725461736b46756e63206f73616c206572723a2564000000005359535f4556454e545f535441525400f0b503af4df8048d82b040f201080e46044601a91546c9f2030840465ef0c8ff014611b10ea090f2eef40198214638f33ff2019831462a466af12eed01994046b0f0c0ff04463cb1"
+    },
+    {
+      "id": "decoder",
+      "CPVA": "0x4b6064",
+      "raw_offset": "0x3ae064",
+      "length": 768,
+      "sha256": "f669529142eca8284a27e07bc4eb802b035c46a94f8b99b4ba95ce2d03ee228c",
+      "expected_hex": "f0b503af2de9000794b00c46054604a8202168f144ee6888a0f5405132293cd840f2d928c9f20308dfe811f033003500370044003700370046004800370037004a004c005a007000730076008e00a400b8003700bb00bd00370037003700bf00db003700e100e300e800ea00f700fe000101040107010a010d0119011b011d011f01270129012b012d013001360143014b01002018e1012016e100219ba201230126cde90001029190a040f21f1100f04bfa16e1022007e1032005e1042003e1052001e1062005902e7a002e18bf012625f040f080f8a569687a8df82000f4e06e680df130092021484668f1d8ed48f20220cde90d060f9469f258f641464a462023fff73dff4ff48070d4e040f20110dae04ff48170bbe0d5e9016a0df130092021484668f1baed48f20420cde90d06cde90f4a69f23af641464a462023fff71fff4ff48270a3e06e680df130092021484668f1a4ed48f20120cde90d060f9469f224f641464a462023fff709ff40f20310a9e02889adf820006889adf82200287b8df82400687b8df825000720059024f0e0f7012180f8e41b96e04ff4014092e0082090e009208ee0287a002800f08a800a20059024f0cdf7d0f8240badf82000287aadf822006889adf82400a889adf82600a87badf82800e87badf82a0073e0287a8df8200048f202106ce00c206ae0287a8df820000d2065e00e2063e00f2005902e7a24f0a5f780f8e0616e8924f0a0f7a0f8e26157e0287a1121012808bf1021059150e048f2013030e048f202302de048f2043046e048f2053043e048f2063040e048f20320059068680690a8680890e868099028690a9035e0122032e0132030e014202ee0287a012818bf00208df82000152026e0162024e0172022e01a2020e048f2073001e048f208300590a868089018e01d2005902e7a24f059f7c0f8f06c24f055f7002180f8f41c0be048f205200590a8680890e868099003e01f2000e00b200590002604966868cde9060469f26af504aa41462023fff74ffe304614b0bde80007f0bd6170692f636170636f6e5f6170695f627573696e"
+    },
+    {
+      "id": "event-handler",
+      "CPVA": "0x4b4060",
+      "raw_offset": "0x3ac060",
+      "length": 2952,
+      "sha256": "2d7d4654c908ffa89b6ad7088d6af2618be9e686f4a7fe752333ae78b0980dd9",
+      "expected_hex": "f0b503af2de9000b8cb088468146d8f800000d2804dc48b102280cd1022106e00e2818bf152806d16e2100e00821d9f80c006df237f74846414600f0c9fcd8f80000b0f5007f33da1f2800f23d83dfe810f02000b200c500d300e700f50008013401620170017c01d701e5013b03f30101020f0222022e0247025e02650285029b02a802b602c4023b03d102ec0203031103d9f80c006df261f7012840f02383d8f80410d9f810006ef201f200f03dbcb0f5014f23daa0f50071082900f20483dfe811f009000203020302035300600002036d007300d9f80c006df279f7002840f02384d8f80020d9f82000002101f091fbd9f80c006df27bf40646c9e300f0c78248f20211884200f0d782b0f5024f40f0da82d9f80c006ef20ef0d8f81000c8b1d9f80800d8f80c1020306df267f0d8f80c10d9f810006ef292f343f2a430c0f2a51090f8a70028b1d8f80c100ff6500090f2e2f1d8f81400002800f0e583d9f814006ef269f5dfe3d9f8200000214ff4017201f04efbd9f80c006df2d5f4064686e3d9f82000002140f2052201f041fbd9f80c006df2cdf4064679e3d9f80c0001216ef227f0bfe3d9f80c0000216ef221f0b9e3d9f80c006df2d3f630b9d9f80c006df2f0f6012840f04f83d8f80410d9f810006ef29af1a6e3d9f80c006df2b8f6012840f09082d8f80410d9f810006ef229f198e3d9f80c006df2def6012840f09182d9f80c00d9f818606ef250f0014630464ff470426ef287f384e3d9f80c006df2fef2012840f09f82d8f80410d9f818006ef28df376e3012000216bf251f1d8f80020d9f82000002101f0e1fad8f80410d9f80c006df243f2064617e3012001216bf23ef1d8f80020d9f82000002101f0cefad9f80c006df273f7d9f82860d9f80c00012e314618bf00216df208f3012807d1d9f80c0002f088fad9f814006ef2bbf498f80c10d9f80c00012940f06a82012168e2012001216bf212f1d9f808008069a8b9d9f80c006df275f680b9d9f80c006df2a4f258b9d9f80c006ef2a1f030b9d9f80c006df270f6012840f02383d8f80410d9f8100000224ff201036ef22df1d8f80010002000226cf23ef59ce1d9f820000021082201f079fad8f80410d9f80c006df2c4f20646afe2012000216bf2d6f0d8f80410d9f80c006df2ecf30646a3e2b8f80e00b8f81010b8f8142041ea0041b8f8120042ea004205206cf214f5d9f80c006df241f701284cd1d9f80c006df23af620b9d9f80800806b002842d026202df1e4efb8f80e6026f0e1f6c0f8186bb8f8106026f0dbf6a0f81c6bb8f8126026f0d5f6a0f81e6bb8f8146026f0cff6c0f8206bb8f80e00042840f0a88279f2c4f4406b90f84a6026f0c1f6012e40f090820121c0f8181b79f2b7f4406bb0f8706126f0b4f6a0f81c6b79f2aef4406bb0f8726187e2d9f80c006df2def5002840f08e82d8f80410d9f810006ef237f286e2d9f8200000210c2201f0f6f9d8f80410d9f80c006df252f106462ce2d9f80c006df213f6012840f0b181d8f80410d9f810006ef2e7f06ae2d9f8200000210f2201f0daf9d8f80410d9f80c006df290f4064610e2012000216bf237f0d8f80020d9f82000002101f0c7f9d8f80410d9f80c006df265f30646fde1d9f80c006df2b5f6d8f80410d9f8100001226ef210f13de2d9f820000021122201f0adf9d8f80410d9f80c006df264f10646701c40f0e281d8f80410d9f818004ff201026ef242f240e1d9f820000021132201f094f9d8f80410d9f80c006df29af10646701c40f0c981d8f80410d9f818006ef231f229e1d8f80410d9f818006ef231f206e298f80c10d9f80c00002918bf01216df2c7f5012840f04981d8f80020d9f82000002101f069f998f80c20d8f80410d9f80c00002a18bf01226df2cef306469ae1d9f80c006df2d1f5012840f03e81d8f80020d9f82000002101f04ef9d8f80410d9f80c006df2e2f3064684e1d9f820000021172201f040f9d8f80410d9f80c006df28ff6c3e1d9f80c006df2bff5012840f02281d8f80410d9f810006ef286f0b5e1d9f80c006df2b5f5012840f02381d8f80410d9f810006ef279f0a7e1d9f8200000211a2201f017f9d8f80410d9f80c006df270f69ae1d9f80c006df2b0f430b9d9f80c006df291f5012840f07081d8f80020d9f82000002101f0fdf8d8f80410d9f80c006df26ef6064633e1012000216af25af7d9f80c006df2dcf6002800f0f880d8f80410d9f81000062200236ef2aef001206af261f768e1d9f80c006df2e4f6012840f0f480d8f80410d9f810006ef2b3f05ae1d9f8200000211f2201f0caf8d8f80410d9f80c006df2adf6064600e1d9f80c006df268f2d9f814006ef2cdf204200821002200238ef288f7d8f80410d9f810006df26bf737e198f80c10d9f80c006df276f530e10021bda20123cde9000147f67930029140f2c521c0f2f40001f034ff21e1d8f80020d9f82000002101f090f8d8f80410d9f80c006df2aef00646d9f814000021c1e0d8f80020d9f82000002101f07ef8d8f80410d9f80c006df28af00646b4e0d8f80020d9f82000002101f06ff8d8f80410d9f80c006cf256f70646701c40f0a480d9f80c00d9f818606df2aef5014630464ff201026ef2e5f0484641466bf2e6f5b4e0d8f80020d9f82000002101f04df8d8f80410d9f80c006df25ff0064683e000216df226f5d8f80410d9f80c00012e18bf002632466df268f0064674e0d8f80020d9f82000002101f02ff8d8f80410d9f80c006df25df2064665e098f80c10d9f80c00002918bf01216df292f0d8f80410d9f810006df233f7a1e0d8f80410d9f810006df241f79ae0d8f80020d9f82000002101f009f8d8f80410d9f80c006df2e3f206463fe0d8f80020d9f82000002100f0faffd8f80410d9f80c006df2daf2064630e0d8f80020d9f82000002100f0ebffd8f80410d9f80c006df262f5064621e0d8f80020d9f82000002100f0dcffd8f80410d9f80c006df2d0f5064612e0d8f80020d9f82000002100f0cdffd8f80410d9f80c006cf2f1f70646d9f8140001216ef23af2b01c1ad1424604a958ca084658c092e8780078c01320049000200690d9f80000026a48469047d9f800004146026a484690470220c9f82c0004e0484641466bf231f536b1d8f80020d9f82000012100f098ff0cb0bde8000bf0bdd8f80410d9f8100000226df258f716e00321c0f8181b26f029f44ff4a071f026a0f81c1b26f022f4a0f81e6b26202df1eeead9f80800414620306cf271f4484641460cb0bde8000bbde8f0406bf2fdb498f81160b8f80e20b8f80c10d9f81c0098f81030002e18bf012600966ef223f0d9f82400d9f80c606bf2a0f5014630466df282f401280dd1d8f80020d9f82000002100f049ffd8f80410d9f81c006ef251f0cce7d8f80410d9f81c006ef2acf0c5e700bf46573a204e6f7469667945455374617274456e61626c65202825303858290000657865637574654576656e74000000000a68b2f5007f17da1f2a3ed8dfe802f01010102323231010101022222310101010102323501010101010103d10101010896800696df258b7b2f5004f0fdaa2f50070082821d8012101fa00f040f2b11108421ad07047896880696df27db748f2011082420bdd48f202108242f2d0b2f5024fefd048f203308242ebd005e0b2f5004fe7d0b2f5014fe4d080b56f4684b0002040f2e3310123cde90020029047f6793007a2c0f2f40001f068fd04b080bd806940f21f21c8f202116df24db700bf7365745265706c794f73616c49640000b0b502af84b00c4605462068162813dda0f50071052905d8012202fa01f111f0310f50d117282ed01a283ed1d4e9011228696df254f646e00f2811dc022828d00a2832d1a868816b012904d0616828696df2caf6a868203021466cf293f332e010281cd0122820d128462146fff760ffe868ad696df2cdf3014628464ff202026df21ff71fe0d4e9011228696df2fcf519e0d4e9011228696df289f413e06168286900226df2c2f50de000210aa20123cde9000147f6793002914ff44571c0f2f40001f0f3fc21680020002204b0bde8b0406cf20db100bf64657374726f794576656e7400000000"
+    },
+    {
+      "id": "start-wrapper",
+      "CPVA": "0xb21702",
+      "raw_offset": "0xa19702",
+      "length": 474,
+      "sha256": "29311aee041bf2a4b99e5eb92cc5095e879094bc152955a7a31dec40f286cef6",
+      "expected_hex": "f0b503af4df804bd15460c4695f523f170b92046012191f5def00646b9f54bfdc661b9f548fd05642046fff73ffb00205df804bbf0bd416043f228010022fff7dfbff0b503af4df804bd86b004466160ecf782f84bf24561002500220023c0f28d01cde90455cde9011545f23971c0f24701039101a9eef5d0f340f6450601a910220123c9f2a226304643f63af500281ad101980121c9f20301caf042fc019940f26210c0f29200c1e900053046c1e90255caf032fc10b10199002501e001994d68304643f69bf52846bcf56ffcb9f5f2fc02210022c0f8f01c204643f20e01fff78eff06b05df804bbf0bdf0b503af4df804bd82b040f64505044610220123c9f2a225616001a9284643f6faf40026d0b901980121c9f20301caf002fc019940f26210c0f29200c1e900062846c1e90266caf0f2fb10b10199002601e001994e68284643f65bf53046bcf52ffc0cf0b0fa806d807810b14ff0ff300de043f20700fdf787fb002843f23701204618bf43f206010022fff743ff02b05df804bbf0bd43f20700fdf775bb416043f238010022fff735bf416043f203010022fff72fbf416043f207010022fff729bf416043f22f010022fff723bf41604ff440510022fff71dbf416043f201010022fff717bfd0b502af04460023"
+    },
+    {
+      "id": "start-guard",
+      "CPVA": "0x4b6958",
+      "raw_offset": "0x3ae958",
+      "length": 688,
+      "sha256": "de9aa0a1fdfd64b6c04d7c5edd712d8d5d7ea8ede9e40294bc16b01e5a9fd143",
+      "expected_hex": "f0b503af4df804bd84b00c460546204668f205f308b1002642e0204668f2e4f360b968f2bdf47d2818bf772806d12ba021468df2f6f54ff0ff3631e0204668f2d3f310b968f294f408b1002618e043f23700201a022811d368f2b4f4064668f299f4cde90046029046f64e2026a240f24d410123c0f2fc00fff7ecfd4ff0ff36204668f2b1f358b968f272f4012807d1a86a50b1214668f2c1f330b16ff00106304604b05df804bbf0bd43f23700201a0228c0d368f286f4054668f26bf4cde90045029046f64e200fa240f25c410123c0f2fc00fff7befdade700bf46573a20496e76616c696420726571756573745b307825585d20696e20505245504152452073746174652e00436865636b5472616e73666572000000f0b503af4df804bd84b00e4615461c46307872887168012802d1b368012001e04ff470436af26ef103a920462a460123aef0b0fb40b100211aa2cde90001029113a040f2db111ce003980121c9f2030135f3b0f2039831462a4667f1a0ed03992046aef031f8054675b103992046aef00ffc00200ba24ff4f671cde90050029003a00123fff75afd04b05df804bbf0bd777261707065722f43616d557365722e6370700073656e644d657373616765546f43616d5573657200000000f0b503af2de9000b84b00446984616460d46606898b3304629466af225f1606803a90c2201234ff00109aef055fb38b100211da2cde90001029113a084211be003980121c9f2030135f356f2039981f800904d80c1e901686068adf0d7ff05466db160680399aef0b5fb00200ea29721cde90050029004a00123fff701fd04b0bde8000bf0bd00bf777261707065722f43616d6572614261636b47726f756e642e6370700000000043616d4261636b47726f756e64526573706f6e73655772617070657200000000f0b503af2de90007b2b00ff2bc604cf1d8ea54f2"
+    },
+    {
+      "id": "start-machine",
+      "CPVA": "0x4b28d8",
+      "raw_offset": "0x3aa8d8",
+      "length": 808,
+      "sha256": "0a0e41b6b83d93041dab209c014ffd644dc93d0210495a43d479b295cbae9818",
+      "expected_hex": "f0b503af4df8048d4df69a760446c0f2b1163078012811d10720214600226ef27bf204204ff202010022002390f28af642f6d820c0f2a510056843e0012909d142f6d820c0f2a51001684d1c056008bf012500e0002542f6d8282046c0f2a518c8f800506cf21bf301280cd14df69c700121c0f2b1103170017042f6dc20c0f2a51004601ee042f6d42545f658002246c0f2a515c0f2721029686cf251f548b1d8f8005042f6dc20c0f2a51004600120307007e0296805a0224691f2f2f50025c8f8005028465df8048bf0bd46573a204572726f72212043616e2774205472616e736665722052657175657374206375725f73746174655b25645d207265715b25645d0a0000000003464df69a70c0f2b1100078012875d142f6d820c0f2a510006818b11968c96988426bd1b0b502af4df69c70c0f2b110007800285ad14df69d70c0f2b110007800bb42f6dc2442f6e02545f65800c0f2a514c0f2a515c0f27210226829686cf20df520b92268296825a091f296f545f65800c0f272106cf23af542f6e421c0f2a511086042f6e82442f6e025c0f2a514c0f2a51520682968814217d145f65800c0f272106cf218f53f28206003d0082805d002280ad1042042f2010102e0042042f204010022002390f2b8f52268296891420bd042f68820c0f2a5106cf24df420b92268296816a091f257f54df69d700121c0f2b1100170bde8b040704700bf46573a204572726f722120735f706174685f73656c6563746f722053657475705461626c65206375725f73746174655b25645d207265715b25645d0a0000000046573a204572726f722120735f6d6f64655f73657175656e6365722053657475705461626c65205b25645d2d3e5b25645d0a000080b56f46017ae9b1c168426931f812e01ef4004f03d10ca091f205f512e000224ff0010c0cfa02f313ea0e0f05d000eb4203598e1b8b8b4204d101320d2af1d3012080bd002080bd46573a204572726f722120436865636b52657475726e416c6c4d6f646c7565526573706f6e73650a00000000f0b503af2de9000f8db040f6001042f60c390df12c0b00260ff65804c9f2a220c0f2a519a0f11505284659464ff0ff32b2f0d6fb014619b1"
+    },
+    {
+      "id": "completion",
+      "CPVA": "0xb224a8",
+      "raw_offset": "0xa1a4a8",
+      "length": 120,
+      "sha256": "0a6d645b3ad6ee8f10b64ddf2eccc07f9ed104d198c6e959ef6ce8a3e9a0c851",
+      "expected_hex": "426800f000b8d0b502af84b0012014468df8000043f20300adf802004ff47040019102900bf072fc406b90f846008df80c000bf06bfc406b90f847008df80d000bf064fc406b90f848008df80e0027f77dfa007a6946102223468df80f0094f5b3f204b0d0bdd0b502af84b0044601208df800004ff44050"
+    },
+    {
+      "id": "already-started-predicate",
+      "CPVA": "0xb21fb4",
+      "raw_offset": "0xa19fb4",
+      "length": 28,
+      "sha256": "f4585bcf5e40467ec1da4abf8554cc0a375245aedd511cf093e55dfe21275fc4",
+      "expected_hex": "43f20300fcf7ddbf4ff44050fcf7d9bf43f20100fcf7d5bf80b56f46"
+    },
+    {
+      "id": "outer-predicate",
+      "CPVA": "0xb20220",
+      "raw_offset": "0xa18220",
+      "length": 374,
+      "sha256": "9b93cdceda8c870ab80edb603451a22a64a23575626dadcb63adca752d0143c9",
+      "expected_hex": "d0b502af096804460020162929ddb1f5007f4fdb40f20522914253d0b1f5017f60d0b1f5007f40f09280606a00f05cf9002840f09180e06801f0eafe002840f08b80206a00f056fb012840f08580a0688069002840f08080e068bde8d04001f08abe0f2918dc022953d00a296fd143f23010c0f2a510c068002869d0606a00f033f9002868d1e06801f0c2fe002863d1206a00f02ffb58e010293fd0122956d1606a00f021f9002856d1e068bde8d04001f0aebe172945d01a2948d1e06802f02ef842e0606a00f00ff9002844d1e06801f09efe00283fd1a16a0020012918bf0120d0bde06801f093fea8bbe06801f085fe88bbe06801f055fe68bba06a0138042829d200f00f010020022908bf0120d0bda06a012818bf0020d0bde06801f077fec8b9e06801f08bfe012814d1206a00f0e0fa01280fd1a0688069002818bf0120d0bde06801f0e0ff80f00100d0bde06801f05dfe08b10120d0bd206a00f0c9fa08b10020d0bde06801f05cfeece77047806a7047"
+    },
+    {
+      "id": "failure-selector",
+      "CPVA": "0xb20396",
+      "raw_offset": "0xa18396",
+      "length": 1280,
+      "sha256": "af8f697172afb4ddf7b08e5ceb8f3f0cb1acb61015b93e3b666254ed05b5782a",
+      "expected_hex": "f0b503af4df804bd0446a66a94f521f40546012ea56205d1012d03d0e06801f007ffa56abaf5fdfec0f8545d5df804bbf0bdd0b502af0446fff775fe47f63830c0f2e70000f10801204640f80c1b1f21fef68ce42046d0bdfff76fbe80b56f46fff76bfebde8804093f68fb600f10c0c8ce80e0000998161019941600299c161039981607047b0b502af0d4604462868b0f5004f01db0120b0bdb0f5807f09d1e06801f0fafd012804d1e06801f089fa0128f0d1286840f20621884205d12068c16820468847012805d1206841682046bde8b04008470020b0bd806900f04fbab0b502af0d46044648f206312868884212d1206a28b3a06900f041fa012820d1e06801f0cafde0b9a0688069c8b9baf588fed0f834010ae0e06801f071fd80b9286840f20111884205d194f82a00002818bf0120b0bd94f8290010b994f82a0008b10120b0bde069fff758ff014601200a1f022a0cd359b1022908d143f23010c0f2a5100069012818bf0020b0bd0020b0bd006a002818bf01207047f0b503af2de9000704468846606902f015fce06801f0c2fed8f80c500646a6f10900012898bf112d20d801200621a840c0f20301084219d0d8f80490d4e9030a294601f055fe02465046494602f06cf9092e0bd1d8f80480d4e90306294601f047fe02463046414602f074f9e068294601f072fc0020bde80007f0bdf0b503af2de9000704468846606902f0d7fbe06801f084fed8f80c500646a6f10900012898bf112d20d801200621a840c0f20301084219d0d8f80490d4e9030a294601f017fe02465046494602f02ef9092e0bd1d8f80490d4e9030a294601f009fe02465046494602f036f9e069fff7c9fe022821d10a2e18bf0a2d1dd1d8f80020a069002195f52ef10a2d3fd1606902f06afbd8f80410206902f033f9d8f80410e06801f007fa0546e0680a2101f015fc2846bde80007f0bdbaf57ffbd0f888263046294671f62dfd0146e068012916d1294601f0c7fdd8f80020a069002195f501f1606902f03ffbd8f80410e06801f0e1f90646e068294601f0e0fb11e0294601f0ebfb0020bde80007f0bdd8f80410e0682a4696f55cf00646e068294601f0dcfb3046bde80007f0bdf0b503af4df804bd04460d46e06801f0b2fc0146e06801291fd101f0ccfa012854d1a06900f019f9012871d16968e06801f0c3fae068002101f0b9fc012840f086802a68a069002195f5b7f06968e068002201f0c2f906467ee0012101f089fc606902f0affa2b692a7b6968e06801f05afae06801f049fce8b9e06801f041fc012808bf287b08bf042814d0e069fff723fe022842d12a68a069002195f58df0e06801f087fc02466968e068012a6ad001f0a3f97de02a68a0690021002695f57cf06968e06801f098f94ce0e06801f057fc012814d1e06801f06cfc01280fd1a06900f0baf8012812d12a68a069002195f563f06968e06801f079f906462be06968e06801f079f9606902f05bfa03e060682946fff76efb002620e0e06801f04afa012823d1e068012101f040fc01281dd12a68a069002195f53ff06968e06801225df804bbbde8f04001f046b96968e06801f052f90026606902f033fae068012101f006fc30465df804bbf0bde06801f020fc01280cd12a68a069002195f51cf06968e0685df804bbbde8f04001f02eb96968e06801f030f9e06801f0b9fb38b9e06801f0bffb18b9e06801f0c5fb08b10026d7e72a68a069002194f5fdf76968e0685df804bbbde8f04001f0d7b87047f0b503af4df8048dbc68"
+    }
+  ],
+  "original_edges": [
+    {
+      "CPVA": "0x4b3b1a",
+      "target": "0x4b6064",
+      "mnemonic": "bl",
+      "original_hex": "02f0a3fa"
+    },
+    {
+      "CPVA": "0x4b611a",
+      "target": "0x4b632c",
+      "mnemonic": "b",
+      "original_hex": "07e1"
+    },
+    {
+      "CPVA": "0x4b6342",
+      "target": "0x4b5fe4",
+      "mnemonic": "bl",
+      "original_hex": "fff74ffe"
+    },
+    {
+      "CPVA": "0x4b4240",
+      "target": "0xb21fb4",
+      "mnemonic": "bl",
+      "original_hex": "6df2b8f6"
+    },
+    {
+      "CPVA": "0xb21fb8",
+      "target": "0xb1ef76",
+      "mnemonic": "b.w",
+      "original_hex": "fcf7ddbf"
+    },
+    {
+      "CPVA": "0x4b4780",
+      "target": "0xb21898",
+      "mnemonic": "bl",
+      "original_hex": "6df28af0"
+    },
+    {
+      "CPVA": "0xb218a0",
+      "target": "0xb21702",
+      "mnemonic": "b.w",
+      "original_hex": "fff72fbf"
+    },
+    {
+      "CPVA": "0xb2170e",
+      "target": "0x4b6958",
+      "mnemonic": "bl",
+      "original_hex": "95f523f1"
+    },
+    {
+      "CPVA": "0xb21718",
+      "target": "0x4b28d8",
+      "mnemonic": "bl",
+      "original_hex": "91f5def0"
+    },
+    {
+      "CPVA": "0x4b4786",
+      "target": "0x4b48f2",
+      "mnemonic": "b",
+      "original_hex": "b4e0"
+    },
+    {
+      "CPVA": "0x4b4930",
+      "target": "0xb20396",
+      "mnemonic": "bl",
+      "original_hex": "6bf231f5"
+    },
+    {
+      "CPVA": "0xb203a2",
+      "target": "0x4b4be8",
+      "mnemonic": "bl",
+      "original_hex": "94f521f4"
+    },
+    {
+      "CPVA": "0xb20288",
+      "target": "0xb20332",
+      "mnemonic": "beq",
+      "original_hex": "53d0"
+    },
+    {
+      "CPVA": "0x4b4b3e",
+      "target": "0x4b4b92",
+      "mnemonic": "beq",
+      "original_hex": "28d0"
+    },
+    {
+      "CPVA": "0x4b4b98",
+      "target": "0xb224ae",
+      "mnemonic": "bl",
+      "original_hex": "6df289f4"
+    },
+    {
+      "CPVA": "0xb224aa",
+      "target": "0xb224ae",
+      "mnemonic": "b.w",
+      "original_hex": "00f000b8"
+    },
+    {
+      "CPVA": "0xb22506",
+      "target": "0x4b6a70",
+      "mnemonic": "bl",
+      "original_hex": "94f5b3f2"
+    },
+    {
+      "CPVA": "0x4b6ac0",
+      "target": "0xbec024",
+      "mnemonic": "bl",
+      "original_hex": "35f3b0f2"
+    },
+    {
+      "CPVA": "0x4b6ad2",
+      "target": "0x564b38",
+      "mnemonic": "bl",
+      "original_hex": "aef031f8"
+    },
+    {
+      "CPVA": "0x4b6ade",
+      "target": "0x565300",
+      "mnemonic": "bl",
+      "original_hex": "aef00ffc"
+    }
+  ],
+  "cached_branch_index": {
+    "path": "runtime/analysis/scratch/cp-apply-next/thumb-branch-candidates.json.gz",
+    "sha256": "249778193d0d735463a1bdeb04b3956873f0a21c13291ee6f63d4df9b056a275",
+    "limitation": "encoded Thumb BL/B.W candidates, not complete indirect-call evidence"
+  },
+  "carried_original_pointer": {
+    "provenance": "report/cp-central-internal-start-source-pins.json",
+    "provenance_sha256": "cd5bbdb495442f23b3146226c6b2eaead7bc2f006572d5655b584d23506dc5f9",
+    "pin": {
+      "CPVA": "0xe77b10",
+      "raw": "0xd6fb10",
+      "length": 4,
+      "bytes": "61404b00",
+      "sha256": "bb7a11ae428ac73e6a5b6d7f4d3e192a951c0ff16e3dab0ade0772c531b24e7e"
+    },
+    "decoded_thumb_target": "0x4b4061"
+  },
+  "source_error_producer_found": false,
+  "source_authorized_error_packet": null,
+  "outer_event2_rejection": {
+    "predicate": "u32[handler+0x28]==1",
+    "predicate_code": "0xb20332",
+    "callback": "0x4b4b92",
+    "producer": "0xb224ae",
+    "result": "16-byte F000 completion; four actual data bytes still required"
+  },
+  "internal_guard_results": {
+    "minus_one": "internal rejection, no inspected wire-status store",
+    "minus_two": "event reordering via unresolved virtual +0x20, not a wire status"
+  },
+  "first_missing_functions": [
+    {
+      "address": "0xb1ef76",
+      "callsite": "0x4b6968",
+      "purpose": "first START guard predicate"
+    },
+    {
+      "address": "0x4b4be8",
+      "callsite": "0xb203a2",
+      "purpose": "producer of handler+0x28 outer predicate"
+    },
+    {
+      "address": null,
+      "callsite": "0x4b4916",
+      "purpose": "handler vtable+0x20 target for -2 ordering"
+    }
+  ],
+  "failure_wire_length": null,
+  "failure_type": null,
+  "failure_status": null,
+  "failure_source": null,
+  "failure_echo": null,
+  "failure_destination": null,
+  "virtual_failure_predicate_satisfied": false,
+  "implementation_authorized": false,
+  "diagnostic_profile_created": false,
+  "native_capture": false,
+  "native_execution": false,
+  "image_output_claim": false,
+  "ap_observation": "Parent-reported 3003/EE0; no fresh execution",
+  "tools": {
+    "kuna": "1.892",
+    "target": "ARM:LE:32:v7",
+    "isa": "thumb",
+    "base": "0x108000",
+    "max_function_seconds": 8,
+    "no_vars": true,
+    "corrected_runs": [
+      {
+        "id": "router",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b3a7c",
+          "--define-function",
+          "0x4b3a7c-0x4b3bbc",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.011670931009576
+      },
+      {
+        "id": "decoder",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b6064",
+          "--define-function",
+          "0x4b6064-0x4b6364",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.01188920205459
+      },
+      {
+        "id": "start-wrapper",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0xb21702",
+          "--define-function",
+          "0xb21702-0xb218dc",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.012039257911965
+      },
+      {
+        "id": "start-guard",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b6958",
+          "--define-function",
+          "0x4b6958-0x4b6c08",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.01174647687003
+      },
+      {
+        "id": "start-machine",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b28d8",
+          "--define-function",
+          "0x4b28d8-0x4b2c00",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.01147761195898
+      },
+      {
+        "id": "completion",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0xb224a8",
+          "--define-function",
+          "0xb224a8-0xb22520",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.011075810994953
+      },
+      {
+        "id": "failure-selector",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0xb20396",
+          "--define-function",
+          "0xb20396-0xb20896",
+          "--limit",
+          "1",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 124,
+        "elapsed_seconds": 8.01013612584211
+      }
+    ],
+    "initial_runs": [
+      {
+        "id": "router",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b3a7c",
+          "--define-function",
+          "0x4b3a7c-0x4b3bbc",
+          "--functions",
+          "0x4b3a7c",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.0018296970520168543
+      },
+      {
+        "id": "decoder",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b6064",
+          "--define-function",
+          "0x4b6064-0x4b6364",
+          "--functions",
+          "0x4b6064",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.0016220458783209324
+      },
+      {
+        "id": "start-wrapper",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0xb21702",
+          "--define-function",
+          "0xb21702-0xb218dc",
+          "--functions",
+          "0xb21702",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.0013051361311227083
+      },
+      {
+        "id": "start-guard",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b6958",
+          "--define-function",
+          "0x4b6958-0x4b6c08",
+          "--functions",
+          "0x4b6958",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.0012527150101959705
+      },
+      {
+        "id": "start-machine",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0x4b28d8",
+          "--define-function",
+          "0x4b28d8-0x4b2c00",
+          "--functions",
+          "0x4b28d8",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.0009912739042192698
+      },
+      {
+        "id": "completion",
+        "command": [
+          "kuna",
+          "decompile-all",
+          "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-root/cp/cpapp-b.bin",
+          "--raw-image",
+          "--target",
+          "ARM:LE:32:v7",
+          "--isa",
+          "thumb",
+          "--base",
+          "0x108000",
+          "--addr",
+          "0xb224a8",
+          "--define-function",
+          "0xb224a8-0xb22520",
+          "--functions",
+          "0xb224a8",
+          "--max-fn-seconds",
+          "8",
+          "--no-vars"
+        ],
+        "returncode": 2,
+        "elapsed_seconds": 0.001073213992640376
+      }
+    ]
+  },
+  "verification": {
+    "source_identity": true,
+    "window_hashes": true,
+    "original_edges": true,
+    "predicate_and_wire_instructions": true,
+    "VM": false,
+    "full_regression": false
+  }
+}

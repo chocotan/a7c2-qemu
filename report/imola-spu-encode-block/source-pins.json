@@ -1,0 +1,32 @@
+{
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "bytes": 10934476,
+  "sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "mapping": "explicit RAM0; VA=80000000+raw only inside raw[9000,714000)",
+  "window_count": 12,
+  "window_bytes": 3844,
+  "windows": [
+    {"name": "AVC-controller-constructor", "bank": "ram0", "va_hex": "0x8011007c", "raw_hex": "0x11007c", "bytes": 96, "sha256": "358cb4cf87b1859275d84d45cc9978e4f824949a46adbf3445e888bf2ed82190"},
+    {"name": "AVC-controller-vtable", "bank": "ram0", "va_hex": "0x80240974", "raw_hex": "0x240974", "bytes": 72, "sha256": "6b2f1bd3276949ecb6908e6547e3f25bebc73b69f43d414f1602c0ebc40645d4"},
+    {"name": "job-allocation-and-prepare-slots", "bank": "ram0", "va_hex": "0x80155970", "raw_hex": "0x155970", "bytes": 672, "sha256": "cbd45b700a57a82cb51e4e1ab5bc0184d7b47e24fae986c6a58dc3cd439f1b1d"},
+    {"name": "AVC-prepare-enters-command-builder", "bank": "ram0", "va_hex": "0x80110a08", "raw_hex": "0x110a08", "bytes": 96, "sha256": "ae5d5ec0669d46290d2a9c3df1e921a948659c97a8ff4fe9e809bb153c746612"},
+    {"name": "AVC-template-initialize-and-full-job-copy", "bank": "ram0", "va_hex": "0x80160a00", "raw_hex": "0x160a00", "bytes": 784, "sha256": "751fd46b70249423b4ad0756ce7c299e3aad0f2334c1fdd8b71734eaf9f49e51"},
+    {"name": "dimension-like-pair-setter", "bank": "ram0", "va_hex": "0x80163d78", "raw_hex": "0x163d78", "bytes": 136, "sha256": "ffc1833a6e966b86ac2e9b2a45480be979d0d773ca43b47f123072d6d49de9df"},
+    {"name": "AVC-named-LD-YC-values", "bank": "ram0", "va_hex": "0x801641d4", "raw_hex": "0x1641d4", "bytes": 1516, "sha256": "07c5f2db26752c99fcd55211fa992c9d1bdb495263a7016941b2089eb723db05"},
+    {"name": "LD-YC-original-assertion", "bank": "ram0", "va_hex": "0x802334b0", "raw_hex": "0x2334b0", "bytes": 68, "sha256": "f74def589fb5cfb89d08cc70bfa82b00aa894998259cdaab1c7dcf4100cc17c0"},
+    {"name": "encode-descriptor-serialization", "bank": "ram0", "va_hex": "0x801c6284", "raw_hex": "0x1c6284", "bytes": 128, "sha256": "23cb8b1ed2d4f168f718c21bade2de2794ce8bb5931c150cad2d506539e84394"},
+    {"name": "request-constructor-call", "bank": "ram0", "va_hex": "0x8016bce8", "raw_hex": "0x16bce8", "bytes": 32, "sha256": "d831532349ec13f083d5df3d556205b2e7a2e4b30ce559be44af43fdccc77476"},
+    {"name": "request-B-pointer-copy", "bank": "ram0", "va_hex": "0x80176758", "raw_hex": "0x176758", "bytes": 112, "sha256": "db67b48b2b5ed88a1e49a6990679826917a79f27ca6cd54d4607bae4fdb0dc6c"},
+    {"name": "B-cache-sync-command20", "bank": "ram0", "va_hex": "0x80176b30", "raw_hex": "0x176b30", "bytes": 132, "sha256": "dcb143176e102e88e5a0fe6b89121da3ded4a68dc3ddc64daea804194205347a"}
+  ],
+  "command_block_bytes": 11264,
+  "allocation_and_AVC_preparation_binding_closed": true,
+  "dimension_units_verified": false,
+  "LD_values_are_captured_source_planes_verified": false,
+  "runtime_scheduler_concrete_vptr_binding_verified": false,
+  "source_pixel_format_closed": false,
+  "ES_destination_capacity_closed": false,
+  "actual_ES_byte_writer_closed": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false
+}

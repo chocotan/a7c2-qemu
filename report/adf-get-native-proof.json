@@ -1,0 +1,21 @@
+{
+  "run": "run-iy_cqmmi",
+  "console_sha256": "b4094ff46ba6022be64d8b25ed7cb9315113b4b0b42be722348fc00a8516c9ed",
+  "runtime_manifest_sha256": "ed2aef883e7284847395a1bcf670717872e8f9ec7c3e758d993d854babd88b65",
+  "summary_sha256": "3df78b4a1159863b3800707a5da530b2b81631f6d9614144e8621b88ff261ce9",
+  "adf_get_verified": true,
+  "registry_objects": 10,
+  "keys": [0, 1, 0],
+  "pin_state": 1,
+  "owner_sid": "0x9058003f",
+  "caller_tid": 324,
+  "reply_destination": "0x81cf61c8",
+  "reply_pointer": "0x7fb5b65c80",
+  "lease": 1,
+  "request_free_rc": 0,
+  "original_waiter_free_rc": 0,
+  "connect_verified": false,
+  "pixels_consumed": false,
+  "camera_startup_verified": false,
+  "next_query": {"destination": "0x928d0783", "keys": [6, 1, 0]}
+}

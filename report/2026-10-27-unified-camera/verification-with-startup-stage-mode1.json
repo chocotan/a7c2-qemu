@@ -1,0 +1,139 @@
+{
+  "scope": "failed native whole-startup attempt with verified control prefix and separately user-approved discard;not capture acceptance",
+  "native_run": "runtime/analysis/menu-runs/run-rk07d71x",
+  "complete_batch": {
+    "name": "unified-camera-xeu3p1oq",
+    "ready_sha256": "436bbfb523d4e99937314c191dc210d132e0607d5a61ee816c87d08f7f3a313d",
+    "tests": 4231,
+    "subtests": 2699,
+    "observer_sha256": "ccb2214d7aeb2f8266f0f677e7de5c7b96f4f14e93a6a4026323a9833f17210a",
+    "host_guest_build_and_dual_original_ABI_passed": true
+  },
+  "console_sha256": "15e14116ddf89614be92a4b28f93b675b06d6138eff453c5ca1d964ae11a1bd2",
+  "original_startup_stage_AP_free_records": [
+    {
+      "line": 2051,
+      "record": "OBS FUNCTIONAL_LAYOUT_STAGE_AP_FREE pid=258 tid=382 cycle=1 stage_generation=1 requests=1 completed_cycles=1 busy=0 faults=0 source=0x81cf61c6 destination=0x92840747 command=0x14c bytes=40 original_fnv1a64=965c2abd4f26a9b1 bank_written=1 readback_verified=1 bank_fnv1a64=a453e280c5c66b5e readback_fnv1a64=a453e280c5c66b5e request_owned=1 request_retained=(nil) request_freed=1 request_free_rc=0 ack_retained=(nil) queued=1 received=1 AP_consumed=1 sender_tid=382 receiver_tid=382 free_tid=382 send_inflight=0 releasing=0 allocate_rc=0 send_rc=0 free_rc=0 validation_rc=0 allocation_returned=0x7f8d40b280 allocation_alias=0 stage_only=1 semantic_applied=0 frame_consumed=0 hardware_ready=0 capture_verified=0 physical_ASIC_verified=0 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 applied_receipt_verified=0 applied_stage_generation=0 applied_model_instance=0 applied_config_generation=0 applied_frame_generation=0 applied_result_fnv1a64=0000000000000000 raw=0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000 bank32=07010100000000008002e0010000000000000000000000000300000000000000 copied_readback32=07010100000000008002e0010000000000000000000000000300000000000000 ack_wire=0d204c110c00018000005900"
+    },
+    {
+      "line": 2059,
+      "record": "OBS FUNCTIONAL_LAYOUT_STAGE_AP_FREE pid=258 tid=382 cycle=2 stage_generation=2 requests=2 completed_cycles=2 busy=0 faults=0 source=0x81cf61c5 destination=0x92840747 command=0x14c bytes=40 original_fnv1a64=965c2abd4f26a9b1 bank_written=1 readback_verified=1 bank_fnv1a64=a453e280c5c66b5e readback_fnv1a64=a453e280c5c66b5e request_owned=1 request_retained=(nil) request_freed=1 request_free_rc=0 ack_retained=(nil) queued=1 received=1 AP_consumed=1 sender_tid=382 receiver_tid=382 free_tid=382 send_inflight=0 releasing=0 allocate_rc=0 send_rc=0 free_rc=0 validation_rc=0 allocation_returned=0x7f8d40b1c0 allocation_alias=0 stage_only=1 semantic_applied=0 frame_consumed=0 hardware_ready=0 capture_verified=0 physical_ASIC_verified=0 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 applied_receipt_verified=0 applied_stage_generation=0 applied_model_instance=0 applied_config_generation=0 applied_frame_generation=0 applied_result_fnv1a64=0000000000000000 raw=0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000 bank32=07010100000000008002e0010000000000000000000000000300000000000000 copied_readback32=07010100000000008002e0010000000000000000000000000300000000000000 ack_wire=0d204c110c00018000005900"
+    },
+    {
+      "line": 2067,
+      "record": "OBS FUNCTIONAL_LAYOUT_STAGE_AP_FREE pid=258 tid=382 cycle=3 stage_generation=3 requests=3 completed_cycles=3 busy=0 faults=0 source=0x81cf61c5 destination=0x92840747 command=0x14c bytes=40 original_fnv1a64=965c2abd4f26a9b1 bank_written=1 readback_verified=1 bank_fnv1a64=a453e280c5c66b5e readback_fnv1a64=a453e280c5c66b5e request_owned=1 request_retained=(nil) request_freed=1 request_free_rc=0 ack_retained=(nil) queued=1 received=1 AP_consumed=1 sender_tid=382 receiver_tid=382 free_tid=382 send_inflight=0 releasing=0 allocate_rc=0 send_rc=0 free_rc=0 validation_rc=0 allocation_returned=0x7f8d40b100 allocation_alias=0 stage_only=1 semantic_applied=0 frame_consumed=0 hardware_ready=0 capture_verified=0 physical_ASIC_verified=0 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 applied_receipt_verified=0 applied_stage_generation=0 applied_model_instance=0 applied_config_generation=0 applied_frame_generation=0 applied_result_fnv1a64=0000000000000000 raw=0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000 bank32=07010100000000008002e0010000000000000000000000000300000000000000 copied_readback32=07010100000000008002e0010000000000000000000000000300000000000000 ack_wire=0d204c110c00018000005900"
+    }
+  ],
+  "late_stage_apply": {
+    "line": 15420,
+    "record": "OBS FUNCTIONAL_LAYOUT_STAGE_APPLIED_RECEIPT pid=258 tid=381 cycle=3 stage_generation=3 requests=3 completed_cycles=3 busy=0 faults=0 source=0x81cf61c5 destination=0x92840747 command=0x14c bytes=40 original_fnv1a64=965c2abd4f26a9b1 bank_written=1 readback_verified=1 bank_fnv1a64=a453e280c5c66b5e readback_fnv1a64=a453e280c5c66b5e request_owned=1 request_retained=(nil) request_freed=1 request_free_rc=0 ack_retained=(nil) queued=1 received=1 AP_consumed=1 sender_tid=382 receiver_tid=382 free_tid=382 send_inflight=0 releasing=0 allocate_rc=0 send_rc=0 free_rc=0 validation_rc=0 allocation_returned=0x7f8d40b100 allocation_alias=0 stage_only=1 semantic_applied=0 frame_consumed=0 hardware_ready=0 capture_verified=0 physical_ASIC_verified=0 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 applied_receipt_verified=1 applied_stage_generation=3 applied_model_instance=6094100038253507023 applied_config_generation=3 applied_frame_generation=3 applied_result_fnv1a64=55fa6b2a2a0563bf raw=0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000 bank32=07010100000000008002e0010000000000000000000000000300000000000000 copied_readback32=07010100000000008002e0010000000000000000000000000300000000000000 ack_wire=0d204c110c00018000005900"
+  },
+  "verified_native_control_cycles": [
+    {
+      "line": 15377,
+      "original_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=1 requests=1 completed_cycles=1 busy=0 guard=0 faults=0 source=0x81cf61c4 destination=0x92840747 command=0x138 bytes=24 original_fnv1a=e39cfe6ede356b69 model_instance=6094100038253507023 config_generation=2 before_config_generation=1 frame_generation=2 before_frame_generation=1 lease_generation=2 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f8d395e80 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d2038011800018001050500000000000000000000000000 ack_wire=0d2038110c00018000005900 canonical_config=01050500000000000000000000000000 canonical_zebra8=0000000000000000 canonical_layout32=0000000000000000000000000000000000000000000000000000000000000000 canonical_display16=00000000000000000000000000000000 model_result_bytes=160 realresultbytes=160 model_result_fnv1a64=df0ba8da133df2ae model_result_hex=01000000a0000000cf71cb65b29792540200000000000000020000000000000002000000000000007eedd048d9ddc6d725d8b8043b81193025d8b8043b81193000100e000000000080020000e00100008007000019085990010000000100000001000000010000000100000001000000010000000100000000000000000000000105050000000000000000000000000001000000000000000100000000000000",
+      "command": "0x138",
+      "cycle": 1,
+      "source": "0x81cf61c4",
+      "wire_hex": "0d2038011800018001050500000000000000000000000000",
+      "reply_hex": "0d2038110c00018000005900",
+      "result_bytes": 160,
+      "source_sink_fnv1a64": "0x3019813b04b8d825",
+      "actual_RGB_bytes": 921600,
+      "config_frame_generation": 2,
+      "original_AP_free_verified": true
+    },
+    {
+      "line": 15431,
+      "original_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=2 requests=2 completed_cycles=2 busy=0 guard=0 faults=0 source=0x81cf61c6 destination=0x92840747 command=0x14c bytes=40 original_fnv1a=965c2abd4f26a9b1 model_instance=6094100038253507023 config_generation=3 before_config_generation=2 frame_generation=3 before_frame_generation=2 lease_generation=3 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f8d3951c0 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000 ack_wire=0d204c110c00018000005900 canonical_config=01050500000000000000000000000000 canonical_zebra8=0000000000000000 canonical_layout32=07010100000000008002e0010000000000000000000000000300000000000000 canonical_display16=00000000000000000000000000000000 model_result_bytes=192 realresultbytes=192 model_result_fnv1a64=55fa6b2a2a0563bf model_result_hex=01000000c0000000cf71cb65b29792540300000000000000030000000000000003000000000000005e6bc6c580e253a425d8b8043b81193025d8b8043b81193000100e000000000080020000e0010000800700001908599001000000010000000100000001000000010000000100000001000000010000000000000000000000010505000000000000000000000000000200000000000000020000000000000007010100000000008002e0010000000000000000000000000300000000000000",
+      "command": "0x14c",
+      "cycle": 2,
+      "source": "0x81cf61c6",
+      "wire_hex": "0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000",
+      "reply_hex": "0d204c110c00018000005900",
+      "result_bytes": 192,
+      "source_sink_fnv1a64": "0x3019813b04b8d825",
+      "actual_RGB_bytes": 921600,
+      "config_frame_generation": 3,
+      "original_AP_free_verified": true
+    },
+    {
+      "line": 15463,
+      "original_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=3 requests=3 completed_cycles=3 busy=0 guard=0 faults=0 source=0x81cf61c6 destination=0x92840747 command=0x153 bytes=14 original_fnv1a=cbc5e88240e416f4 model_instance=6094100038253507023 config_generation=4 before_config_generation=3 frame_generation=4 before_frame_generation=3 lease_generation=4 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f8d395140 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d2053010e0001800300204b4100 ack_wire=0d2053110c00018000000000 canonical_config=01050500000000000000000000000000 canonical_zebra8=0300204b41000000 canonical_layout32=07010100000000008002e0010000000000000000000000000300000000000000 canonical_display16=00000000000000000000000000000000 model_result_bytes=168 realresultbytes=168 model_result_fnv1a64=694b0975c5b83e8e model_result_hex=01000000a8000000cf71cb65b29792540400000000000000040000000000000004000000000000002abaee260503f9e825d8b8043b81193025d8b8043b81193000100e000000000080020000e001000080070000190859900100000001000000010000000100000001000000010000000100000001000000000000000000000001050500000000000000000000000000030000000000000003000000000000000300204b41000000",
+      "command": "0x153",
+      "cycle": 3,
+      "source": "0x81cf61c6",
+      "wire_hex": "0d2053010e0001800300204b4100",
+      "reply_hex": "0d2053110c00018000000000",
+      "result_bytes": 168,
+      "source_sink_fnv1a64": "0x3019813b04b8d825",
+      "actual_RGB_bytes": 921600,
+      "config_frame_generation": 4,
+      "original_AP_free_verified": true
+    },
+    {
+      "line": 15488,
+      "original_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=4 requests=4 completed_cycles=4 busy=0 guard=0 faults=0 source=0x81cf61c6 destination=0x92840747 command=0x152 bytes=16 original_fnv1a=e1b56c922a2b5cfb model_instance=6094100038253507023 config_generation=5 before_config_generation=4 frame_generation=5 before_frame_generation=4 lease_generation=5 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f8d3952c0 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d205201100001800300010000eb8080 ack_wire=0d2052110c00018000005900 canonical_config=01050500000000000000000000000000 canonical_zebra8=0300204b41000000 canonical_layout32=07010100000000008002e0010000000000000000000000000300000000000000 canonical_display16=52010000080000000300010000eb8080 model_result_bytes=176 realresultbytes=176 model_result_fnv1a64=607dbfd861d70198 model_result_hex=01000000b0000000cf71cb65b2979254050000000000000005000000000000000500000000000000bb4ec06e8400add325d8b8043b81193025d8b8043b81193000100e000000000080020000e0010000800700001908599001000000010000000100000001000000010000000100000001000000010000000000000000000000010505000000000000000000000000000400000000000000040000000000000052010000080000000300010000eb8080",
+      "command": "0x152",
+      "cycle": 4,
+      "source": "0x81cf61c6",
+      "wire_hex": "0d205201100001800300010000eb8080",
+      "reply_hex": "0d2052110c00018000005900",
+      "result_bytes": 176,
+      "source_sink_fnv1a64": "0x3019813b04b8d825",
+      "actual_RGB_bytes": 921600,
+      "config_frame_generation": 5,
+      "original_AP_free_verified": true
+    },
+    {
+      "line": 15506,
+      "original_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=5 requests=5 completed_cycles=5 busy=0 guard=0 faults=0 source=0x81cf61c6 destination=0x92840747 command=0x162 bytes=10 original_fnv1a=c78be6e83b17101e model_instance=6094100038253507023 config_generation=6 before_config_generation=5 frame_generation=6 before_frame_generation=5 lease_generation=6 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f8d3952c0 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d2062010a0001800000 ack_wire=0d2062110c00018000005900 canonical_config=01050500000000000000000000000000 canonical_zebra8=0300204b41000000 canonical_layout32=07010100000000008002e0010000000000000000000000000300000000000000 canonical_display16=62010000020000000000000000000000 model_result_bytes=176 realresultbytes=176 model_result_fnv1a64=00acaa72b11f2400 model_result_hex=01000000b0000000cf71cb65b29792540600000000000000060000000000000006000000000000002e92b26f5fd180ce25d8b8043b81193025d8b8043b81193000100e000000000080020000e0010000800700001908599001000000010000000100000001000000010000000100000001000000010000000000000000000000010505000000000000000000000000000500000000000000050000000000000062010000020000000000000000000000",
+      "command": "0x162",
+      "cycle": 5,
+      "source": "0x81cf61c6",
+      "wire_hex": "0d2062010a0001800000",
+      "reply_hex": "0d2062110c00018000005900",
+      "result_bytes": 176,
+      "source_sink_fnv1a64": "0x3019813b04b8d825",
+      "actual_RGB_bytes": 921600,
+      "config_frame_generation": 6,
+      "original_AP_free_verified": true
+    }
+  ],
+  "original_mode1_complete": {
+    "line": 15563,
+    "record": "OBS FUNCTIONAL_CAMERA_CONTROL_AP_FREE pid=258 tid=380 phase=9 index=3 role=2 bytes=12 destination=0x80020002 source=0x90030001 wire_fnv1a=2cb2ddc7f80642d8 queued=1 received=1 freed=1 consumed=1 send_inflight=0 releasing=0 lease_cycle_id=1 sender_tid=380 receiver_tid=354 free_tid=380 allocate_rc=0 send_rc=0 free_rc=0 retained=(nil) faults=0 busy=0 guard=0 probe_run_id=2 init_run_id=1 state_run_id=2 bridge_rc=0 probe_rc=0 native_source=0x80020002 native_destination=0x90030001 native_command=0x4073 native_bytes=12 native_fnv1a=4350f3420d811ebd model_initialized=1 probe_attempts=2 probe_successes=2 probe_refusals=0 model_instance=6094100038253507023 config_generation=6 rendered=6 frame_generation=6 start_complete=1 mode1_complete=1 defined_mask=15 full_layout_copied=1 model_defined=1 defined_blocks=76 projected_blocks=2 zero_policy_blocks=73 publication_copied=1 published_generation=6 shadow_generation=6 notification_queued=1 notification_received=1 notification_AP_consumed=1 cycle_id=1 cycle_generation=6 ack_only=0 mode1_requests=1 cycles_completed=1 ack_only_requests=0 ack_only_completed=0 full_queued=1 full_consumed=1 notification_mode=1 business_ready=1 functional_model=1 original_CP=0 physical_ASIC_verified=0 fixed_optics_policy=integrated-noneLIF LIF_tuple=0,0,0 cache4=0 original_getters_executed=0 original_source_proof=0 EE=0 frame=0 capture=0",
+    "verified": true
+  },
+  "failure": {
+    "command": "0141",
+    "kind": "original send nonzero / assert0x4a5",
+    "saved_LR": "appFw+0x34e4fcc",
+    "original_wire": "0d20410108000180",
+    "actual_global_queue_and_request_source": "0x80946189",
+    "fixed_81cf_gate_accepts": false,
+    "read_only_proof_sha256": "80876d1a884eaaeebdfde4f7133aa4d319c2c9d074965d680a9c9c2b18ae807b",
+    "original_queue_must_not_be_hardcoded": true
+  },
+  "storage": {
+    "original_Fsys_save_verified": false,
+    "host_visible_card_copy_verified": true,
+    "card_not_reusable": true,
+    "JPEG_MP4_produced": false
+  },
+  "shutdown": {
+    "original_runner_safe_to_close": false,
+    "original_error": "TimeoutError: Functional-camera broker phase lifetime expired",
+    "actual_CANCEL_DETACHED_physical_mode_debugger_steps_verified": true,
+    "user_approved_discard": true,
+    "QMP_quit_count": 1,
+    "QMP_SHUTDOWN_reason": "host-qmp-quit",
+    "QMP_ACK_received": true,
+    "receipt_sha256": "6f1cee65f65f17f724dd67ec21bbbbfe1101335f4e0d6ab4751004a6f2232221",
+    "does_not_relabel_save_or_failed_native_run": true
+  },
+  "overall_native_acceptance": false,
+  "capture_verified": false,
+  "physical_ASIC_compatibility_verified": false,
+  "new_0141_fix_requires_new_full_batch_and_new_native_run": true
+}

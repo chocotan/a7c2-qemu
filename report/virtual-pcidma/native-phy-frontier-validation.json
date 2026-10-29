@@ -1,0 +1,13 @@
+{
+  "status": "PASS_FRONTIER_EVIDENCE_ONLY",
+  "binary_sha256": "cfae03813d4eab238109fead41f07afe320b8339cc65cd3a8124e846e70364ae",
+  "original_cpu_dword_writes": 4096,
+  "raw_sha256": "6133a8e7fb95e2ac83119517c00a306d485dcf3bf4afd814411317af64439f95",
+  "lane_gate_passed_under_test_policy": true,
+  "fault_pc_raw": "0x245c90",
+  "abort_at_first_unmodeled_dbi_read": true,
+  "link_status_remained": 0,
+  "dma_engines_zero": true,
+  "trace_sha256": "a78d62e1965b26fd31427f19b1aafeb6309e813038eb3f99d1827a4283d3db32",
+  "host_bound_or_link_or_dma_or_silicon_calibration_verified": false
+}

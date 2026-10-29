@@ -1,0 +1,11 @@
+{
+  "status": "PASS_TEST_SCU_HARDWARE_ONLY",
+  "binary_sha256": "321ddc112e9868fd70a9891c3c7f36d64bd1b95501d245ea0f5f6c30711bd0d2",
+  "controllers_with_real_gated_write_and_readback": 5,
+  "invalid_writes_no_mutation": 22,
+  "actual_state_readbacks": 42,
+  "qmp_reset_effect_observed": true,
+  "trace_sha256": "375cc540bc2789931d97da8dce3a5a5778b84a9503a6ecc40e40acb68f5648c5",
+  "virtual_reset_policy_only": true,
+  "native_udif_or_soc_host_or_capture_verified": false
+}

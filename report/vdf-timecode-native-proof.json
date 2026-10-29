@@ -1,0 +1,29 @@
+{
+  "run": "run-fnp8hx_d",
+  "console_sha256": "efdc78eec3b88f1b642a1978e6e431652874913b4298cd4a117868ea7a33aeb6",
+  "runtime_manifest_sha256": "93f618907ae40c26cf792ad288e3436190af01f994848f2cbfcd7f8cdc7a3bee",
+  "summary_sha256": "95d63d20f5c6bd4a26dd93a3a71148ae083d13067b5013809e43cacb9741958b",
+  "verification": "2026-10-17-qemu-full-system/verify-vdf-timecode.py::verify(console)",
+  "vdf_timecode_config_verified": true,
+  "caller_tid": 324,
+  "reply_destination": "0x81cf61c7",
+  "reply_pointer": "0x7fa0f49080",
+  "lease": 1,
+  "cache_before": 1,
+  "cache_after": 0,
+  "original_waiter_free_rc": 0,
+  "subsequent_original_vdf_request_observed": true,
+  "camera_startup_verified": false,
+  "hdmi_output_verified": false,
+  "menu_event_consumed_verified": false,
+  "next_wait": {
+    "destination": "0x92840747",
+    "command": "0x0165",
+    "appfw_elf_stack": ["0x34e5788", "0x34e9960", "0x34c6844", "0x305dec0", "0x305e9e8"]
+  },
+  "shared_model_sha256": {
+    "vdf-device.c": "4ada22bdaa786785800df47ee08e531f60a05c54e8683565d1856418cd96592f",
+    "vdf-device.h": "714d8f11892530824bc208bb330c716be097edbd97f72e504f7d75c3444f27c8",
+    "imaging-device.h": "bb732848e03e4c60784220f2cfc5462d8c3518fd177f8fee7aefffd535a08f67"
+  }
+}

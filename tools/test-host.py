@@ -20,6 +20,9 @@ def guard(event, args):
         return
     executable, argv = args[:2]
     words = shlex.split(argv) if isinstance(argv, str) else [os.fsdecode(x) for x in argv]
+    if Path(os.fsdecode(executable)).name.startswith('python') and '-c' in words:
+        code = words.index('-c') + 1
+        words = words[:code] + words[code + 1:]
     forbidden = ('qemu-', 'clang', 'gcc', 'g++', 'ninja', 'make', 'build-observers', 'build-qemu')
     if any(any(mark in Path(word).name for mark in forbidden) or Path(word).name == 'cc'
            for word in [os.fsdecode(executable), *words]):

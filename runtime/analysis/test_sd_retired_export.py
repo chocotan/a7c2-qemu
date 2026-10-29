@@ -1,9 +1,11 @@
 import pytest
-from sd_flush_barrier import BarrierError,_reply
+
+from sd_flush_barrier import BarrierError, _reply
 
 
 def test_original_retirement_is_distinct_from_a_flush_result():
-    evidence=_reply(lambda *a,**kw:b'SD_FSYS_RETIRED seq=12 pid=217 drive=65 mask=0 unmount_rc=0\n','12',cleanup=False)
+    evidence=_reply(lambda *a,**kw: b'SD_FSYS_RETIRED seq=12 pid=217 drive=65 mask=0 unmount_rc=0\n',
+                    '12',cleanup=False)
     assert evidence=={'pid':217,'drive':65,'rc':0,'kind':'retired','mask':0}
 
 

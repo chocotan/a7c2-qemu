@@ -1,0 +1,50 @@
+{
+  "artifact": "libInfraFsys.so",
+  "bytes": 687960,
+  "sha256": "33451a884b65f946ac8aca44b620cd3cec677d05752c52f2ff0e212a01824bfa",
+  "scope": "Supplement to immutable a441 source-pins.json; mutation wrappers only invalidate, never model final MP4 extents",
+  "abi": {
+    "Fsys_Combine": "int (const char *first_path, const char *second_path)",
+    "Fsys_Rename": "int (const char *source_path, const char *new_name)",
+    "Fsys_Remove": "int (const char *path)"
+  },
+  "generation_source": {
+    "native": "rm-file-device.c::native_rm_file_media_generation forwards native_sd_hotplug_generation; sd-hotplug-runtime.c returns 0 unless enabled and owned by current pid",
+    "fallback": "file-media-config.c uses successful original validated card Mount/owned Unmount events only; FSYS_SYNC_MEDIA domain=observed_mount; no constructor, no epoch from filename, no substitution for native_hotplug",
+    "unknown": "No observed mount, inherited owner, invalidated drive or actual epoch 0 remains unknown and rejects verification"
+  },
+  "unclosed_boundaries": [
+    "Fsys_Open flags through backend fopen modes and initial extent/cursor",
+    "Source allocation/lease extent; count is not extent evidence",
+    "Combine final extent/path mapping, Fsys_CombineV2, RemoveAll and other unwrapped aliases",
+    "Runtime FSYS_SYNC checker ingestion and original movie/host commit/independent decode"
+  ],
+  "windows": [
+    {
+      "start": "0x35954",
+      "end": "0x35a48",
+      "role": "Fsys_Combine: saves x0/x1 only; lower helper w2=0; two original path arguments",
+      "sha256": "0b82df6e6bedddd01b255760aa8857bddbb2ff6060a6107a7e01a1be120a0c0a"
+    },
+    {
+      "start": "0x2e5e8",
+      "end": "0x2e6e0",
+      "role": "Combine lower helper: original x0/x1 each passed to fsys_CreatePathInfo",
+      "sha256": "770d9092ee090d2bab13ada1c5ea0ad49ca03f83ae0be3f3e8866ca79111dec4"
+    },
+    {
+      "start": "0x33e7c",
+      "end": "0x34114",
+      "role": "Fsys_Rename: x0 source path, x1 new name; PrFILE/TNtfs rename",
+      "sha256": "24c40a890e5e2efe63364b843d26f4d669b7afbad505f4cab3ef89f582c0db73"
+    },
+    {
+      "start": "0x33978",
+      "end": "0x33b44",
+      "role": "Fsys_Remove: original x0 path only; original x1 overwritten before use",
+      "sha256": "67be9f61e29cd443930691f71b9f0b9be0ad56a9edda0a8e9cc1d9091e6617e2"
+    }
+  ],
+  "capture_verified": false,
+  "media_origin_verified": false
+}

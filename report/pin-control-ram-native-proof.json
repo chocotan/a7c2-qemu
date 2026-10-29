@@ -1,0 +1,22 @@
+{
+  "run": "run-d294kdld",
+  "pin_control_backing_verified": true,
+  "physical": "0x500000000",
+  "cp_virtual": "0x80000000",
+  "capacity": 8192,
+  "unit": "0x404",
+  "lease_handle": "0x8000",
+  "allocated_bytes": 512,
+  "live_after_release": 0,
+  "releases": 1,
+  "qmp_sha256": "23edb99892f3ada277c0f4c3672106cd1080769e1120a5ceed1fc6c9cc83bacb",
+  "guest_qmp_fnv64": "779675b750ddac53",
+  "dtb_sha256": "f482eacc2e908dd2c2e2670729579c4cf6f05432894e12518253c6662f023d7f",
+  "console_sha256": "579dd530fc60016339707a8c1df6d18d9e004f2ec84ec14ec556a19d4ee6d245",
+  "final_artifact_hashes_rechecked": true,
+  "format_80B_verified": false,
+  "connect_verified": false,
+  "original_cp_tasks_running": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

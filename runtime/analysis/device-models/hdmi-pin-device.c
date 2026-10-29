@@ -16,6 +16,7 @@ int full_hdmi_pin_dispatch(unsigned int d,void *p,const struct full_imaging_io *
 }
 int full_hdmi_pin_release_reply(unsigned int d,void *p,int (*release)(unsigned int,void *),void (*record)(const char *,const char *),int *rc){return pin_registry_release(&registry,d,p,release,record,rc);}
 void full_hdmi_pin_snapshot(struct full_vef_snapshot *out){pin_registry_snapshot(&registry,out);}
+struct pin_registry_owner *full_hdmi_pin_registry(void){return &registry;}
 #ifdef FULL_VEF_TEST
 void full_hdmi_pin_test_reset(void){pin_registry_test_reset(&registry);}
 void full_hdmi_pin_test_set_state(unsigned int i,unsigned int value){pin_registry_test_set_state(&registry,i,value);}

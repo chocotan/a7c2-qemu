@@ -1,6 +1,46 @@
 # 本包验证记录
 
-## 本次发布的范围
+## 2026-10-29 当前验证边界
+
+**原固件 JPG/MP4 尚未完成，`capture_verified=false`。** [当前进度报告](../docs/tech/2026-10-29-current-progress.md)提供功能矩阵、阶段时间线、复现入口与下一缺口；[机器可读摘要](2026-10-29-progress.json)固定完整基线SHA和最新原生负例。本次实际执行了研究整批及公开包host/适配测试，未运行新的系统VM。
+
+| 验证层 | 最近已核结果 | 不能据此声明 |
+| --- | --- | --- |
+| 完整研究冻结批次 `unified-camera-4b3kb4kd` | **5568 tests /7057 subtests**，176模块、445运行源/945唯一输入，host/guest构建与双原glibc2.25 ABI通过 | 新原生AP/SDK/UI或原JPEG/MP4已通过；旧4693/5740是qqu运行的历史基线 |
+| 最新原生 `run-qqu0q5oe` | 24步语言选择实际LCD消费；FP/原BL双链核对后台3006/local21等待；原Flush0与两DB摘要实际读回 | shooting readiness、原3003/VDF/codec、JPEG/MP4、卷退休或原格式化成功 |
+| 新完整首启修复 | 75 tests /139 subtests，4个直接调用方；当前HUD/controller与LCD稳定才ready，错误时不按快门 | 新原生完整首启或稳定主界面已验 |
+| 新后台3006组件 | 已验版本694个实际Core测试（strict/SAN）；接线组249项（新143）、真实Core+Control6项、profile/HCI100项另有定向结果 | 这些数量可相加，或等同新整批/ABI/native通过 |
+| 后续记录/接线修补 | 退休后真实新source、BEGIN/snapshot ID/ticket/cache128及native checker已纳新整批；集中1051项通过 | 旧1KiB日志夹具与首轮strlen声明构建失败不回填；native完成仍待实证 |
+| 公开包host与包装适配 | 受限host **302 passed /34 skipped /76 subtests**；适配与NoVM guard **65 passed**；三段patch及DMA/ATU/PCI暂存身份实际通过 | 未运行真实相机、系统VM或公开包guest编译/成片 |
+| 公开包软件模型 | 176文件，**5553 passed /15 skipped /7057 subtests**，0 failed/0 errors，strict C11及ASan/UBSan | 9项原资产/前端集成按明确host scope排除，6项按原测试可选资产/本地证据条件跳过；不提升原生或capture |
+
+[本次公开包验证收据](2026-10-29-publication.json)与[独立研究源构建/ABI收据](2026-10-29-research-batch.json)分别固定范围；初始包路径/依赖/护栏失败作为失败保留，修后重新执行通过。
+
+qqu 原 proof 保留 `ok=false`。温度确认模态被旧脚本标作 shooting，原系统错误30c早于S2，首错误producer尚未唯一确定。runner never-attached/safeclosed 与本项目系统QEMU实际已无分别成立；`host-sd-quit-error` 的 `write to closed file` 仍在，**普通QMP quit方式未独立证明**。数据库/XML不作为照片或视频证据。
+
+功能profile为用户批准的 `virtual-functional-camera-v1` / 软件RGB888；物理ASIC、原CP模块/RAM/RTOS、直方图原UI/连续更新和完整capture均未验证。组件host实际编码/解码不得冒充原AP成片。
+
+本节是本仓库文档进度更新，完整研究批次与下方本包asset-free受限host测试分别记账。后续公开源码、source origins/摘要、移交回归与发布收据以实际导出检查为准；本节不声称已完成新导出后构建或新VM。无原固件、私有Setting、完整dump、原seed二进制或临时日志随本文加入。
+
+## 公开包自测范围
+
+```bash
+python3 tools/test-host.py
+python3 tools/test-public-models.py
+python3 -m pytest tools/test_package_adapters.py tools/test_public_models_runner.py -q
+python3 tools/check-source.py
+sha256sum -c SOURCE-SHA256SUMS
+```
+
+`test-host.py`不运行编译器或VM。`test-public-models.py`允许本包C模型的宿主编译与ASan/UBSan，需要pytest 9、Pillow、C编译器及libjpeg/FFmpeg开发库；模块清单在`tools/public-model-tests.json`。它使用0700的短`/var/tmp/a7m-*`测试目录以满足Unix socket长度，结束后清理；JUnit保留在被忽略的`validation/tmp/public-models/`。
+
+公开模型入口明确跳过9个固定的集成测试：7项需要原Sony glibc/QEMU-user的ARM执行，2项执行VM前端以验证拒绝。清单及逐项理由在`tools/test-public-models.py::OUTSIDE_HOST_SCOPE`，其它测试失败不会被自动跳过。需要官方原件/本地历史运行内容的少数源检查还会按原测试自己的条件跳过；实际数量见发布收据。完整研究5568/7057批次包含原资产/用户态ARM检查，其结果与公开host scope分开。审计hook继续拒绝真实QEMU、bubblewrap及启动/构建入口，host socket mock不是真相机或VM。
+
+## 历史记录的阅读顺序
+
+以下保留早期独立包与各轮验证原文。段落中的“最新”“待验”“本次发布”指各段当时状态；与上方当前摘要冲突时，以本页当前摘要及进度报告为准。后续成功不回填旧失败。
+
+## 早期发布的范围
 
 新增 `docs/tech/` 十篇启动与迁移笔记，入口见主README。媒体诊断当前为revision3：仅输出中性的`dispatch_<key>_value20/base08`，所有名字目录到分发表键的语义绑定均标记未验证；历史revision2样本保留，不能追溯赋予它们媒体语义。读取地址及宽度未因改名改变，原件绑定与双层测试仍独立检查。
 

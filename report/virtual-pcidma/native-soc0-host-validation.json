@@ -1,0 +1,16 @@
+{
+  "status": "PASS_SOC0_HOST_BOUND_AND_PEER_ENUMERATED",
+  "binary_sha256": "f3b91f79a503bac458e7311f571f2693dead5c56c5e0f06e5794e8f1da20afb0",
+  "original_cpu_dword_writes": 4096,
+  "raw_sha256": "6133a8e7fb95e2ac83119517c00a306d485dcf3bf4afd814411317af64439f95",
+  "root_port_ids": "104d:911d",
+  "peer_ids": "1b36:0005",
+  "engines_enabled_idle": [
+    1,
+    1
+  ],
+  "irq198_shared_with_host_msi": true,
+  "lane_link_under_explicit_test_policy": true,
+  "trace_sha256": "c462ab1d8af4d41dddc7fe59b0d1bb9a72b0c08f904d355cf5f449d47a798332",
+  "bar_assignment_or_dma_or_silicon_calibration_verified": false
+}

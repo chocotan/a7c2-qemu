@@ -42,3 +42,12 @@ __pycache__/
 *.pyc
 *.core
 runtime/analysis/camera-instances/
+/runtime/analysis/functional-camera-model.so
+/runtime/analysis/functional-camera-model-build.json
+/runtime/analysis/directory-sd-tests/
+/runtime/analysis/derived-settings/
+/runtime/analysis/derived-media/
+/runtime/analysis/host-sd-ui-build-receipt.json
+/runtime/analysis/qemu-virt-board/*-proof.json
+/runtime/analysis/*.log
+*.o

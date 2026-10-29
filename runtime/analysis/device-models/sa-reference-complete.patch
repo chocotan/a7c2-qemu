@@ -1,0 +1,48 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -1770,6 +1770,11 @@
+         int irq = vms->irqmap[VIRT_MMIO] + i;
+         hwaddr base = vms->memmap[VIRT_MMIO].base + i * size;
+ 
++        if (i == 0 && g_getenv("QEMU_SONY_SA_REFERENCE_COMPLETE")) {
++            /* SA2 INTID48 owns input16; leave this virtio transport unwired. */
++            sysbus_create_simple("virtio-mmio", base, NULL);
++            continue;
++        }
+         sysbus_create_simple("virtio-mmio", base,
+                              qdev_get_gpio_in(vms->gic, irq));
+     }
+@@ -1793,6 +1798,9 @@
+         qemu_fdt_add_subnode(ms->fdt, nodename);
+         qemu_fdt_setprop_string(ms->fdt, nodename,
+                                 "compatible", "virtio,mmio");
++        if (i == 0 && g_getenv("QEMU_SONY_SA_REFERENCE_COMPLETE")) {
++            qemu_fdt_setprop_string(ms->fdt, nodename, "status", "disabled");
++        }
+         qemu_fdt_setprop_sized_cells(ms->fdt, nodename, "reg",
+                                      2, base, 2, size);
+         qemu_fdt_setprop_cells(ms->fdt, nodename, "interrupts",
+@@ -3418,6 +3426,23 @@
+     }
+     create_cxl_host_reg_region(vms);
+ 
++    if (g_getenv("QEMU_SONY_SA_REFERENCE_COMPLETE") && g_getenv("QEMU_SONY_RC") &&
++        g_getenv("QEMU_SONY_PCIDMA")) {
++        if (g_getenv("QEMU_SONY_SA_DATA_ONLY")) {
++            error_report("SA data-only and reference-complete profiles are mutually exclusive");
++            exit(1);
++        }
++        fprintf(stderr, "SONY_SA_REFERENCE_COMPLETE_V1 virtual-group0-bit0\n");
++        DeviceState *sa = qdev_new("sony-sa-nv12-data-only");
++        SysBusDevice *sbd = SYS_BUS_DEVICE(sa);
++        object_property_add_child(OBJECT(vms), "sony-sa-nv12-completion-reference", OBJECT(sa));
++        qdev_prop_set_bit(sa, "reference-completion", true);
++        sysbus_realize_and_unref(sbd, &error_fatal);
++        memory_region_add_subregion_overlap(sysmem, 0xf3170000,
++            sysbus_mmio_get_region(sbd, 0), 9);
++        sysbus_connect_irq(sbd, 0, qdev_get_gpio_in(vms->gic, 16));
++    }
++
+     if (aarch64 && firmware_loaded && virt_is_acpi_enabled(vms)) {
+         vms->acpi_dev = create_acpi_ged(vms);
+         vms->generic_error_notifier.notify = virt_generic_error_req;

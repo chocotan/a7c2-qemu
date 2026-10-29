@@ -1,0 +1,45 @@
+{
+  "original_display_setup_sequence_observed": true,
+  "run": "run-yssumm1f",
+  "scope": "first natural request API, dedicated consumption thunk and run entry only",
+  "events": [
+    {
+      "line": 2048,
+      "stage": "REQUEST_API",
+      "n": "0",
+      "tid": "332",
+      "data": "0x7f7b7fcc90",
+      "flag": "1",
+      "callback": "0",
+      "caller": "appFw+0x25fbea0"
+    },
+    {
+      "line": 2049,
+      "stage": "CONSUME",
+      "n": "0",
+      "tid": "332",
+      "object": "0x7f7c0e0b10",
+      "bytes": "8",
+      "id": "0x4dc",
+      "flag": "1"
+    },
+    {
+      "line": 2050,
+      "stage": "RUN",
+      "n": "0",
+      "tid": "386",
+      "object": "0x7f7c0e0220"
+    }
+  ],
+  "console_sha256": "d7e99f86633a832e0803fce3f80a0eb7d04cdedf7d9161f86cf14a758f514ae6",
+  "observer_sha256": "3463237115caa192cc6d32cb73f29fd12b13afd2338b60c1c82a1604a3b7a77e",
+  "display_setup_completion_verified": false,
+  "liveview_pixels_consumed": false,
+  "capture_verified": false,
+  "movie_verified": false,
+  "verification": {
+    "host_regression": "29 passed, 34 subtests passed",
+    "script_sync_check": "passed",
+    "source_diff_whitespace_check": "passed"
+  }
+}

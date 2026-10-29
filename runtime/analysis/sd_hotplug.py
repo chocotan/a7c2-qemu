@@ -76,7 +76,10 @@ class SDHotplug:
         sequence = max(self.sequence + 1, before['sequence'] + 1, time.monotonic_ns())
         self.sequence = sequence
         operation = 1 if present else 0
+        # Set before the first possibly delivered command, including unknown
+        # serial outcomes. Old status cannot authorize a retry or an "already".
         self.pending_request = {'sequence': sequence, 'wanted': wanted}
+        # Both commands stay short, even with the transaction RC envelope.
         self.serial(f'echo "1 {sequence} {operation}" > /tmp/sd-hotplug.request.new')
         self.serial('mv /tmp/sd-hotplug.request.new /tmp/sd-hotplug.request')
         deadline = time.monotonic() + self.timeout

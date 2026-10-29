@@ -1,0 +1,29 @@
+{
+  "scope": "static post-upload control/link selection only",
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "pins": 93,
+  "complete_ranges": 6,
+  "original_ops": "0x45fed0",
+  "installed_link_callback": "0x249330",
+  "platform_link_predicate": "W+201b8 bit1",
+  "dbi72c_only_if_link_callback_null": true,
+  "sideband_enables_clear_then_reread_set": {
+    "W+20274": "0x78ffff",
+    "W+20278": "0x04000000"
+  },
+  "four_lane_control": {
+    "D+710": "(old&~0x3f0000)|0x70000",
+    "D+80c": "(old&~0x1f00)|0x400"
+  },
+  "core_control_write_contract": "W+201ac (old&~0xf0)|(mode<<4); allowed field bits 0xf0 plus 0x400/0x4",
+  "ro_wr_en_sequence": "wrapper W+20380 bit6 clear, then DBI+8bc |=1 (4B RMW); dis: DBI+8bc &=~1 then wrapper bit6 set",
+  "vid_did_writes": {
+    "D+0": "0x104d (16-bit)",
+    "D+2": "0x911d (16-bit)",
+    "helper_245f20_size_arg": "x3=2"
+  },
+  "axi_timeout_hook": "weak default -1, cmp 0x1ff skips DBI+8d4 write",
+  "notify_callback_2a2538": "domain<=4 gate; record+4 flags|=2; engine writes in order: +c=1,+58=0xffffffff,+2c=1,+ac=0xffffffff,+90=0xff0000,+c4=0xff0000,+54=0,+a8=0; engines ENABLED-but-idle after notify, not zero",
+  "sram_init_or_lane_or_link_producer_verified": false,
+  "native_host_or_runtime_verified": false
+}

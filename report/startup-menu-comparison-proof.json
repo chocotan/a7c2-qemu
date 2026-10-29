@@ -1,0 +1,21 @@
+{
+  "baseline": "run-cxj7qh2s",
+  "control": "run-sjspmvwk",
+  "identical_guest_image_and_recorded_profile": true,
+  "automatic_menu_removed": true,
+  "same_visible_rgba_frame": true,
+  "control_caution_models": {
+    "CAUTION_GROUP": 785,
+    "CAUTION_SELECTED_ID": 2845,
+    "CAUTION_SELECTOR": 1,
+    "CAUTION_B1C_INPUT": 1,
+    "CAUTION_B1D_INPUT": 1
+  },
+  "startup_list_semantics": "language availability, not storage-error predicates",
+  "baseline_console_sha256": "283c7ce731748fa1c591e38e83a4c860b1699587a761ab1107c4828a65b1496c",
+  "control_console_sha256": "b6fb07feb2eceaa77f7cde98e6ec5079f7a633b3b6dc12a0bfaabd355ff790e0",
+  "control_rgba_sha256": "3496a870d47c6019bd6f4068d9d518a6bbaab6878555ef820c04b278055bddf6",
+  "sd_or_mount_failure_proven": false,
+  "boot_record_correctness_proven": false,
+  "shooting_main_screen_verified": false
+}

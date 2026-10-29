@@ -1,0 +1,26 @@
+{
+  "scope": "explicit constructor first-byte stores and later enabling predicate; worker-time gate unknown",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "windows": [
+    {"CP_VA": "a5bc38", "bytes": 44, "sha256": "0f81b8b3d472fb56f3421343a9c19871b3689ae9f049ee7e90b80aed92124e67"},
+    {"CP_VA": "a59124", "bytes": 860, "sha256": "548a3df87e22b002f5524a8743da06da78badd1047112ee6fbc70c8450e19ba2"},
+    {"CP_VA": "a595d0", "bytes": 182, "sha256": "87bd9bc8f4abefa884d4dc03724eb7796ef63a4e09ce2f7052ef833694604eff"},
+    {"CP_VA": "3e6850", "bytes": 74, "sha256": "74402a0649bb6de2558d4e999bb3a5be3dbd191a3d078f4af4925640f829224e"},
+    {"CP_VA": "a4dfd4", "bytes": 14, "sha256": "ff357c044f8c5238c3855600d8e57008b9f958c0c2ec70cdc49cd7de502434c1"},
+    {"CP_VA": "a96d5c", "bytes": 12, "sha256": "041fbe65921204f54e623ed0f462f2552bfe03a37c2e87a447a0840d47116e52"},
+    {"CP_VA": "a59d78", "bytes": 232, "sha256": "0e3b81d41c0458de853b867ab6162e9b567e9557906eff2e7fd8c9a20e0c3c4c"},
+    {"CP_VA": "1388ec", "bytes": 32, "sha256": "b51471fe1a06eaae54082e964ec303eb29976bd8a82fc7036aaee7939e660eec"}
+  ],
+  "window_count": 8,
+  "window_bytes": 1450,
+  "object_CP_address": "169ec58",
+  "constructor_first_byte_zero_store": "a59134 STRH",
+  "enable_first_byte_one_store": "a595ea STRB",
+  "unclosed_enable_inputs": ["1ac0354 bit0", "169e018 nonzero", "post-selection 3e6ad4 history"],
+  "gate_at_worker_call_known": false,
+  "published_zero_projection_verified": false,
+  "capture_verified": false
+}

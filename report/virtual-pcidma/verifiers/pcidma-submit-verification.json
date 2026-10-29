@@ -1,0 +1,38 @@
+{
+  "scope": "static original submit-path pins; no runtime transfer proof",
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "pins": 61,
+  "validation": {
+    "controller_max": 4,
+    "channel_max": 7,
+    "callback_nonnull": true,
+    "lli_src_8byte_aligned_when_len0": true,
+    "metadata_written": "req+0x38/0x3a",
+    "driver_links": "req+0x28..0x37",
+    "returns": "0 accepted / -22 rejected"
+  },
+  "start_gates": {
+    "cur_null_dequeues": true,
+    "chan_state_required": true,
+    "chan_ready_required_ER9001359142": true,
+    "dequeue_writes_LIST_POISON": true,
+    "queue_count_at_chan_record_0x40": true
+  },
+  "direct_engine_writes_in_order": [
+    "PWR(0x128+4ch)=1",
+    "SIZE=req.len",
+    "CTRL1=8(LIE)",
+    "SRC_L",
+    "SRC_H",
+    "DST_L",
+    "DST_H",
+    "doorbell(+0x10 wr / +0x30 rd)=channel_id"
+  ],
+  "ll_engine_writes": [
+    "LLP_L(ctl+0x1c)=src.low",
+    "LLP_H(ctl+0x20)=src.high",
+    "CTRL1=0x300(LLE|CCS)"
+  ],
+  "channel_block": "engine+0x200+ch*0x200(+0x100 read dir)",
+  "runtime_verified": false
+}

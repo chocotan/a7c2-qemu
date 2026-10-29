@@ -1,0 +1,171 @@
+{
+  "schema": "unified-native-inputs-v1",
+  "scope": "Public-original input contracts, explicit local model consumption, frozen host regression/build and original libc2.25 ABI. Not native CMOS capture or complete hardware emulation.",
+  "batch": "unified-camera-9qz_swqz",
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_media_written_verified": false,
+  "regression": {
+    "tests_passed": 2923,
+    "subtests_passed": 356,
+    "failed": 0,
+    "frozen_runtime_sources": 383,
+    "unique_frozen_inputs": 608,
+    "group_counts": {
+      "production": 383,
+      "host": 6,
+      "observer": 8,
+      "test": 214
+    },
+    "all_inputs_reread_equal": true
+  },
+  "receipts": {
+    "inputs": {
+      "path": "runtime/analysis/scratch/unified-camera-9qz_swqz/inputs.json",
+      "sha256": "60461fbf79b9b803cf304dcb1ed66322031594b3d364c4579362bb1ed82c0ffa"
+    },
+    "host-regression": {
+      "path": "runtime/analysis/scratch/unified-camera-9qz_swqz/host-regression.json",
+      "sha256": "e08841ca4ef697cea3a968d610b5ff07d543f0bd973d1565ed2671f2b1af14b0"
+    },
+    "abi": {
+      "path": "runtime/analysis/scratch/unified-camera-9qz_swqz/abi.json",
+      "sha256": "1398869792f1bf4a76edb83228aa6626f1f963fcc3991c337e862e575e92f7b3"
+    },
+    "ready": {
+      "path": "runtime/analysis/scratch/unified-camera-9qz_swqz/ready.json",
+      "sha256": "55f0229ff13a25a7b256ff5d986313082f1d4a6d7a04f341ecfd8cd444568b83"
+    }
+  },
+  "observer_sha256": "63680dafd2edd98da0303839676fbc6333d45e4db1a797be8bea40c8de7761d6",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "source_archive_sha256": "d9426091cc2e2b673e47a003842fac469851f2e41cb77e3c4de4407a807f227c",
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true
+  },
+  "source_contracts": {
+    "native-jpeg-binding": {
+      "path": "report/native-jpeg-binding/source-pins.json",
+      "sha256": "ed4fa93d2cea65251c853e9cf3e0cb228eb71ff132adb988c02fa57fa4e6f224"
+    },
+    "lif-runtime-input-contract": {
+      "path": "report/lif-runtime-input-contract/source-pins.json",
+      "sha256": "38fe7f12be1dade629c102b339d05e2f11b16dda550c5b65a80abb6e2975dfce"
+    },
+    "rc-pixel-layout-contract": {
+      "path": "report/rc-pixel-layout-contract/source-pins.json",
+      "sha256": "357febc117c6d1439fa97c5624bc6ebbb0e64ee19ec980a83a1a373589019be0"
+    },
+    "rc-destination-layout": {
+      "path": "report/rc-destination-layout/source-pins.json",
+      "sha256": "824c2684faf742f42dc49930bd6a6bbc797844c00ba5b97639892beb13ef1262"
+    },
+    "cp-override-input-contract": {
+      "path": "report/cp-override-input-contract/source-pins.json",
+      "sha256": "e9db99911e07bfe1621e4f16b17857729d043ca5ba6331604d476bdde08fb801"
+    }
+  },
+  "property_source": {
+    "path": "report/2026-10-27-unified-camera/lif-mode-property-source.json",
+    "sha256": "281e2fdf59653e5290bdf0a7ca3879b4fb541fe56ce1d1c2791fe4b07783abb2"
+  },
+  "cleanup": {
+    "path": "runtime/analysis/scratch/native-input-batch/cleanup.json",
+    "sha256": "739c270f86c6099528fea32cc2fb9de08fafd6bf798556c51cc75af36cf167d5"
+  },
+  "intermediate_failures": {
+    "path": "runtime/analysis/scratch/native-input-batch/intermediate-check-failures.json",
+    "sha256": "15c9cbca7a19e238b4b29b44c93b0209350382dcd5a8e3bebd6c9d9aedb894e9"
+  },
+  "prior_source_input_batch": {
+    "path": "runtime/analysis/scratch/unified-camera-rgr70a9q/ready.json",
+    "sha256": "e4ccd913e107c611e2c28decf19423f79290cc4bbb5cda348fcf07f63d28c4cf"
+  },
+  "prior_reset_batch": {
+    "path": "runtime/analysis/scratch/unified-camera-2dqv87d1/ready.json",
+    "sha256": "46b55351e40c8e8c1aa3b98e732dde30db5cc2808556a11090ed7d1c9bf36aa9"
+  },
+  "source_windows": {
+    "native_jpeg": {
+      "count": 31,
+      "bytes": 7092
+    },
+    "lif": {
+      "count": 12,
+      "bytes": 5280,
+      "gate_count": 3,
+      "gate_bytes": 46
+    },
+    "rc_provider": {
+      "count": 7,
+      "bytes": 13868
+    },
+    "rc_destination": {
+      "count": 12,
+      "bytes": 13880
+    },
+    "parameter_reset": {
+      "count": 5,
+      "bytes": 446
+    }
+  },
+  "implemented": {
+    "lif_frame_decoder": {
+      "source_bitmap_required": true,
+      "commands": [
+        5,
+        6
+      ],
+      "copied_frame_and_offsets": true,
+      "type1_source_byte_required": true,
+      "actual_native_producer_bound": false,
+      "observer_linked": false,
+      "cp_status_promoted": false
+    },
+    "jpeg_geometry": {
+      "original_parameter_offsets": [
+        "0x28",
+        "0x2c"
+      ],
+      "original_save_and_sof_chain_verified": true,
+      "logical_dimensions_distinct_from_hardware_dimensions": true,
+      "strict_sanitized_component_tests": 15,
+      "independent_logical_crop_decode": true,
+      "native_start_still_need_data": true
+    },
+    "parameter_reset": {
+      "explicit_source_instruction": "CP8db6d6 STRD r5,r5,[r4,#1c8], r5=0",
+      "local_known_bytes": 8,
+      "ordinary_init_stays_unknown": true,
+      "owned_profile_calls_local_store_step": true,
+      "complete_constructor_applied": false,
+      "native_constructor_executed": false,
+      "published_override_verified": false,
+      "cp_reply_known_mask_promoted": false
+    },
+    "rc_destination": {
+      "conditional_original_jpeg_selector": 0,
+      "byte_stride_formula": "2*W",
+      "dma_register_offsets_verified": true,
+      "component_packing_verified": false,
+      "actual_dma_lease_verified": false
+    }
+  },
+  "remaining": [
+    "Actual LIF bitmap/type1/history/mode source delivery and six-field worker production still unclosed; CP3003 data provider remains0/4",
+    "Explicit parameter reset is only a local write step; complete initialization, later effects and publication order remain unverified",
+    "Full76 snapshot provider remains ENODATA",
+    "Native JPEG YC component/plane/chroma interpretation, scan/restart and coherent live lease remain unproved; original parameter mapping is ready but native submission binding remains unverified",
+    "Original video frame/SDS/AU/parameter-set/completion/MPR production remains unsupported",
+    "No original firmware JPEG/MP4 products, no new integrated systemVM, no final CMOS-to-card acceptance"
+  ],
+  "unchanged_policy": [
+    "No implicit primary-to-secondary property fallback",
+    "No arbitrary ready/ACK or state advancement from transport decode",
+    "No physical device or SD passthrough",
+    "No historical-run success backfill"
+  ],
+  "reproduce": "cd runtime/analysis && python3 -B scratch/validate-unified-camera.py"
+}

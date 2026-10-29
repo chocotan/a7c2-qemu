@@ -1,0 +1,18 @@
+{
+  "scope": "normal original CCF APIs ABI only; not runtime or SoC host proof",
+  "size": 5512,
+  "sha256": "057c296ae2064d5f15900d7a0d8136869f74fe078592a779462050d4b6b5976a",
+  "imports": [
+    "__clk_is_enabled",
+    "clk_disable",
+    "clk_enable",
+    "clk_get_rate",
+    "clk_prepare",
+    "clk_put",
+    "clk_unprepare",
+    "of_clk_get_by_name",
+    "of_find_node_opts_by_path",
+    "of_node_put",
+    "printk"
+  ]
+}

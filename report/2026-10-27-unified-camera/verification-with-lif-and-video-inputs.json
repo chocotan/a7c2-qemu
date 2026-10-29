@@ -1,0 +1,99 @@
+{
+  "schema": "unified-lif-and-video-inputs-v1",
+  "scope": "source-bound owned input consumers, frozen host regression and original libc2.25 checks; native capture remains incomplete",
+  "batch": "unified-camera-dpe5i2p7",
+  "regression": {
+    "tests_passed": 3055,
+    "subtests_passed": 381,
+    "failed": 0,
+    "modules": 134,
+    "runtime_sources": 398,
+    "unique_frozen_inputs": 674,
+    "group_counts": {"production": 398, "host": 6, "observer": 8, "test": 265},
+    "all_frozen_inputs_reread_equal": true
+  },
+  "receipts": {
+    "inputs": {"path": "runtime/analysis/scratch/unified-camera-dpe5i2p7/inputs.json", "sha256": "2eb865825b577b4344edba1beb941b6748ba9decc79a7e0553145ac26524322b"},
+    "regression": {"path": "runtime/analysis/scratch/unified-camera-dpe5i2p7/host-regression.json", "sha256": "1fa14b6cee99e408715cecaa97c53e0055da2340a1c7cdcd9940f20970bfd37b"},
+    "abi": {"path": "runtime/analysis/scratch/unified-camera-dpe5i2p7/abi.json", "sha256": "cdb49937893d3af762d500b71e3901cbd097930c769ece536ab006e5398b6303"},
+    "ready": {"path": "runtime/analysis/scratch/unified-camera-dpe5i2p7/ready.json", "sha256": "2a7b2334de44c4becdd1c7439a9ea088ddf3e760efc71f41095fff9467a7c926"},
+    "cleanup": {"path": "runtime/analysis/scratch/unified-camera-dpe5i2p7/cleanup.json", "sha256": "92df29ea5a600b23e15dcdd0181a224d16b5e08a926207bc39ddf5804693fccf"}
+  },
+  "observer_sha256": "95db1a9d5b66f99a15bedc284727223b4ab4c39a5fbe0b8f0db607339a333b78",
+  "source_archive_sha256": "bbca7e6c987c2866bddf31e34fb6b9893254208ddbb9c76a87cd380cc1193164",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "accepted_binaries_and_archive_preserved_in_batch_directory": true,
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true,
+    "public_stage_fd_loader_executed_with_original_aarch64_libc": true,
+    "fd_loader_evidence": "report/cp-property-repository-contract/check-original-abi.c",
+    "fd_loader_source_sha256": "8fb8d06f4af4b542ee17fceaaada6d68577cec777870ec8708d9b976ddfa70c9",
+    "fd_loader_test": "runtime/analysis/test_cp_property_stage_file.py::test_public_stage_file_loader_with_original_aarch64_libc",
+    "fd_loader_scope": "HOST_TEST in QEMU user mode; not original CP firmware or a new system VM"
+  },
+  "added_components": {
+    "lif_capability_owner": {
+      "path": "report/lif-capability-owner/README.md",
+      "source_pins_sha256": "76e2b989467667149f134e629d3ad19e37957797fcde8cbd2c8a669806eb2156",
+      "source_windows": 15,
+      "source_bytes": 7796,
+      "focused_tests": 24,
+      "received_fixed_commands": [1, 7, 8, 61],
+      "four_command_destination_known_bytes": 369,
+      "unmodified_public_stage_consumed": true,
+      "actual_context_hex20": 1,
+      "unknown_gate_propagated_per_support_bit": true,
+      "initial_K_store_is_separate_source_event": true,
+      "initial_K_store_maps_type1_to4_type2_to1": true,
+      "original_handler_history_verified": false,
+      "original_cache_admission_verified": false,
+      "original_publication_verified": false
+    },
+    "normal_AU_view": {
+      "path": "report/native-video-au-contract/README.md",
+      "source_pins_sha256": "0d801d837eb0ba6942b18d86286a96354af2bd12a7083eca4c002c2e4f397d98",
+      "source_windows": 14,
+      "source_bytes": 1652,
+      "focused_tests": 15,
+      "explicit_address_correction": true,
+      "original_96_bytes_preserved": true,
+      "one_or_two_borrowed_ES_spans": true,
+      "NAL_format_inferred": false,
+      "ES_lease_retired": false
+    },
+    "VideoInfo_consumer_ring": {
+      "path": "report/native-video-ring-contract/README.md",
+      "source_pins_sha256": "b35cab8df658535ab43a1df8888243573407a09694bccf1e11620d498c4ae73d",
+      "source_windows": 10,
+      "source_bytes": 4760,
+      "focused_tests": 21,
+      "slot_bytes": 96,
+      "last_processed_cursor_convention": true,
+      "slowest_active_user_limits_shared_cursor": true,
+      "zero_count_source_behavior_preserved": true,
+      "actual_hardware_index_written": false,
+      "native_producer_binding_complete": false
+    }
+  },
+  "prior_accepted_batch": "report/2026-10-27-unified-camera/verification-with-cp-stage-and-paramsets.json",
+  "last_actual_native_run": "run-nzx01uc3",
+  "native_run_rewritten": false,
+  "new_system_vm_started": false,
+  "production_and_candidate_qemu_unchanged": true,
+  "own_system_qemu_remaining": false,
+  "both_existing_locks_exclusive": true,
+  "script_sync_check_passed": true,
+  "native_video_gap_mask": 63,
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_written_verified": false,
+  "remaining": [
+    "Actual LIF handshake/history/worker publication and fourth-state initialization remain incomplete; CP3003 data provider is still0/4",
+    "Most full76 getters read roots outside the current d64 parameter copy; complete snapshot provider remains ENODATA",
+    "YC source-byte/component order, scan/restart and coherent native image lease are unproved",
+    "Video consumer views and index plans do not establish encoded producer, normalNAL format, ES/PI publication or hardware release",
+    "Actual CMOS to original encoder to original MPR/Fsys to virtualSD and independent media decoding still require integrated native acceptance"
+  ]
+}

@@ -1,0 +1,21 @@
+--- a/hw/misc/sony-pcidma/sony_regfile.c
++++ b/hw/misc/sony-pcidma/sony_regfile.c
+@@ -16,6 +16,7 @@
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
+ #include "qemu/module.h"
++#include "qemu/log.h"
+ #include "hw/core/sysbus.h"
+ #include "hw/core/qdev-properties.h"
+ #include <stdio.h>
+@@ -80,6 +81,10 @@
++    if (a >= 0xf3170000 && a < 0xf3180000 && g_getenv("QEMU_SONY_RC")) {
++        qemu_log_mask(LOG_GUEST_ERROR, "SONY_SA_MMIO_WR 0x%"PRIx64" = 0x%"PRIx64"\n",
++                      (uint64_t)a, value);
++    }
+     return MEMTX_OK;
+ }
+ 
+ static const MemoryRegionOps regfile_ops = {
+     .read_with_attrs = regfile_read,
+     .write_with_attrs = regfile_write,

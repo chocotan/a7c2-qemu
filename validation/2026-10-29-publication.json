@@ -1,0 +1,76 @@
+{
+  "schema": "a7c2-qemu-publication-validation-v1",
+  "date": "2026-10-29",
+  "scope": "Fresh tests of the relocated public source package; no firmware or camera VM distributed or run",
+  "public_host_suite": {
+    "command": "python3 -B tools/test-host.py",
+    "passed": 302,
+    "skipped": 34,
+    "subtests_passed": 76,
+    "warnings": 1,
+    "returncode": 0,
+    "compilers_or_VM_allowed": false
+  },
+  "package_adapter_and_runner_tests": {
+    "command": "python3 -B -m pytest tools/test_package_adapters.py tools/test_public_models_runner.py -q",
+    "passed": 65,
+    "returncode": 0,
+    "scope": "Package-relative ROOT, ALLLANG-only seed, profile rejection, patch order, real short private sockets and cleanup, actual audit-hook execution refusal"
+  },
+  "public_software_model_suite": {
+    "command": "python3 -B tools/test-public-models.py",
+    "module_files": 176,
+    "passed": 5553,
+    "skipped": 15,
+    "errors": 0,
+    "failed": 0,
+    "subtests_passed": 7057,
+    "warnings": 26,
+    "seconds": 456.42,
+    "returncode": 0,
+    "host_compiler_strict_C11_ASan_UBSan": true,
+    "VM_allowed": false,
+    "original_firmware_assets_required": false,
+    "explicit_host_scope_exclusions": 9,
+    "other_original_test_asset_or_local_evidence_conditional_skips": 6,
+    "scope_exclusion_definition": "tools/test-public-models.py::OUTSIDE_HOST_SCOPE",
+    "scope_exclusion_reasons": [
+      "Seven original Sony glibc/QEMU-user integration cases belong to the separate original-asset research validation",
+      "Two VM frontend invocation/rejection integration cases are outside this NoVM host model entrypoint"
+    ],
+    "log": "validation/tmp/public-models-release-final.log",
+    "junit": "validation/tmp/public-models/result.xml",
+    "logs_distributed": false
+  },
+  "offline_QEMU_source_check": {
+    "command": "python3 -B tools/check-source.py",
+    "all_before_and_after_hashes_verified": true,
+    "native_patch_files": 11,
+    "directory_SD_patch_files": 2,
+    "USB_patch_files": 2,
+    "DMA_patch_applied": true,
+    "ATU_staged_source_files": 3,
+    "PCI_staged_source_files": 25,
+    "actual_board_fragment_pins_verified": true,
+    "production_QEMU_rebuilt_or_replaced": false
+  },
+  "separate_authoritative_research_validation": {
+    "batch": "unified-camera-4b3kb4kd",
+    "passed": 5568,
+    "subtests_passed": 7057,
+    "host_and_guest_build_passed": true,
+    "both_original_glibc_2_25_ABI_passed": true,
+    "receipt": "validation/2026-10-29-research-batch.json"
+  },
+  "earlier_failures_preserved_as_failures": [
+    {"scope": "Initial public host test", "failed": 1, "reason": "Guard treated a Python -c source-inspection argument as a VM executable name; exact regression and real execution refusals now pass"},
+    {"scope": "Initial public models", "failed": 15, "errors": 21, "passed": 5527, "reason": "Long Unix test paths, three omitted public research dependencies, host-only adaptation pin and undeclared asset integration scope"},
+    {"scope": "Restored public dependencies and short paths", "failed": 7, "errors": 0, "passed": 5553, "reason": "Remaining original-glibc/QEMU-user and VM frontend cases correctly rejected by strict NoVM audit; exact host scope now declared"}
+  ],
+  "private_settings_or_original_firmware_included": false,
+  "raw_runs_virtual_cards_or_generated_binaries_included": false,
+  "new_original_AP_native_run": false,
+  "original_firmware_JPEG_MP4_verified": false,
+  "physical_ASIC_compatibility_verified": false,
+  "capture_verified": false
+}

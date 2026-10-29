@@ -1,0 +1,108 @@
+{
+  "schema": "unified-camera-card-write-v1",
+  "scope": "Static public-original contract, unified host/component regression and original libc2.25 observer/media ABI; no native system VM or capture acceptance",
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_media_written_verified": false,
+  "regression": {
+    "tests_passed": 2911,
+    "subtests_passed": 356,
+    "failed": 0,
+    "frozen_runtime_sources": 380,
+    "unique_frozen_inputs": 592,
+    "group_counts": {
+      "production": 380,
+      "host": 6,
+      "observer": 8,
+      "test": 201
+    },
+    "all_inputs_reread_equal": true
+  },
+  "source_contract": {
+    "source_verified": true,
+    "windows": 19,
+    "window_bytes": 34700,
+    "callback_got_bindings": 2,
+    "capture_verified": false
+  },
+  "observer_sha256": "e7e890dc2c4d48edd266f4ebbaf8a48b9157a72aab47da4e893369f1d45d8b97",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "source_archive_sha256": "28e1e64fdfd3a5378653a609d6678d37bdfef9f222fed5c207db291b730bc24b",
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true
+  },
+  "receipts": {
+    "inputs": {
+      "path": "runtime/analysis/scratch/unified-camera-woquvyjt/inputs.json",
+      "sha256": "33696acc4a5b6367a33345e51c286d3625bca78c391e4294261eea54d88d1514"
+    },
+    "host-regression": {
+      "path": "runtime/analysis/scratch/unified-camera-woquvyjt/host-regression.json",
+      "sha256": "92fb8e8bd64cc22b411ca15fe56730f657ebce9b4715c38108ec3fb91f7039a4"
+    },
+    "abi": {
+      "path": "runtime/analysis/scratch/unified-camera-woquvyjt/abi.json",
+      "sha256": "c9970eecdce981393182c79f485734159a638c36b7a4cfaf2f2297e436a611c1"
+    },
+    "ready": {
+      "path": "runtime/analysis/scratch/unified-camera-woquvyjt/ready.json",
+      "sha256": "f84b528fccddc5d4000166fc496105bcd5d93d024a1842d039eb983b57b02edf"
+    }
+  },
+  "source_pins": {
+    "path": "report/native-card-write/source-pins.json",
+    "sha256": "82a5b95fe6e2d91ec0070eff73f9e21d3c11c6c6972d6036931b79312a7ff209"
+  },
+  "historical_run_refusal": {
+    "path": "runtime/analysis/scratch/native-card-write/refusal-run-nzx01uc3.json",
+    "sha256": "677e252ade0b7a5cca88d974b1b940b7bca2f89013c02f6631f949553cd8dc4f"
+  },
+  "refusal_reason": "ValueError: no native original-write evidence; host media is not capture",
+  "intermediate_failure": {
+    "path": "runtime/analysis/scratch/native-card-write/intermediate-check-failure.json",
+    "sha256": "36f0bf47429033a3b6e06ba0bd9cbff1bdc626d2f69ee48ed9ce836f8255df3f"
+  },
+  "cleanup": {
+    "path": "runtime/analysis/scratch/native-card-write/cleanup.json",
+    "sha256": "b2b1e8085218c67dc07564078f4ddf0f876527c94aa4d75f1c680027be6c9ef2"
+  },
+  "prior_card_write_whole_batch": {
+    "path": "runtime/analysis/scratch/unified-camera-72luu9q0/ready.json",
+    "sha256": "986793b953f788f20f0d3957ae898e35e3d30daeb7761e6ed51bb6305b98a1af"
+  },
+  "implemented": [
+    "Exact 0x508 original area/address-domain/fileSize contract",
+    "Source contributing-prefix FNV read before original queue submission",
+    "Actual original MPR callback and work completion passthrough without request edits",
+    "Same-owner original Fsys Open/Read/EOF/Close followed by real volume flush",
+    "Two-export host SHA/FNV and source/native readback consistency checker",
+    "Independent JPEG pixel decode and MP4 frame-count plus full null decode",
+    "Missing, failed, ambiguous and beyond-limit observations explicitly refuse proof"
+  ],
+  "remaining": [
+    "Actual runtime CP start data provider 0/4; LIF/history/override/full-state providers unclosed",
+    "Native JPEG YC/lease/scan/restart/logical geometry unclosed",
+    "Original video frame/SDS/AU/parameter-set/completion/MPR producer route remains unsupported",
+    "No original firmware JPEG/MP4 products or final CMOS-to-card system VM acceptance"
+  ],
+  "limits": {
+    "request_records": 32,
+    "max_observed_file_bytes": 134217728,
+    "physical_source_mode_content_proof": false,
+    "flush_is_new_mutation_admission_lock": false,
+    "checksum_origin_authentication": false
+  },
+  "verification_entry": "cd runtime/analysis && python3 -B scratch/validate-unified-camera.py",
+  "reconciliation": {
+    "path": "runtime/analysis/scratch/native-card-write/reconciliation-issues.json",
+    "sha256": "114efefde2bbfc065a4dd09a56c31fcdcb9bc0008c4f031fbe206591939228c1"
+  },
+  "prior_complete_batch": {
+    "path": "runtime/analysis/scratch/unified-camera-45wa7f6c/ready.json",
+    "sha256": "eaea6901c7f37b9e990c3c4385d46da72ffe09be8fc1497e21537c7550ea4516"
+  },
+  "final_batch": "unified-camera-woquvyjt",
+  "source_contract_duplicate_keys_rejected": true
+}

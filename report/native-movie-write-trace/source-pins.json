@@ -1,0 +1,131 @@
+{
+  "abi": {
+    "Close": "int Fsys_Close(uint64_t handle)",
+    "Open": "int Fsys_Open(const char *path, uint64_t *handle, unsigned flags)",
+    "Read": "int Fsys_Read(uint64_t handle, void *virtual_destination, int count)",
+    "Seek": "int Fsys_Seek(uint64_t handle, int64_t offset, unsigned origin, uint64_t *position)",
+    "Write": "int Fsys_Write(uint64_t handle, const void *virtual_source, int count)",
+    "WriteAndFlush": "int Fsys_WriteAndFlush(uint64_t handle, const void *virtual_source, int count)",
+    "result": "Write/Read nonnegative actual byte count; Open/Close/Seek zero success. WriteAndFlush failure may follow data transfer: do not infer zero bytes changed from a negative status."
+  },
+  "artifacts": {
+    "libInfraFsys.so": {
+      "bytes": 687960,
+      "sha256": "33451a884b65f946ac8aca44b620cd3cec677d05752c52f2ff0e212a01824bfa"
+    },
+    "libmpr.so": {
+      "bytes": 3528576,
+      "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"
+    }
+  },
+  "capture_verified": false,
+  "movie_forward_evidence": {
+    "WriteAndFlush_call": "0x118eec -> PLT 0x7bc50",
+    "Write_call": "0x118fe0 -> PLT 0x7bee0",
+    "byte_count": "u32 request+0x18 -> w2; Fsys rejects negative signed counts",
+    "file_object": "request+0x10 -> object+0x10 u64 handle",
+    "helper": "0x118e48",
+    "result_check": "0x118ef4 sxtw x20,w0; 0x118f04..0x118f0c compare actual signed return against requested u32",
+    "retirement": "RingBuffer::FreeMemory occurs at 0x118fc0 after return/check; freeze source before original call",
+    "ring_pointer_call": "0x118e60",
+    "runtime": "Not observed here; no new VM or capture result"
+  },
+  "observer_boundary": {
+    "identity": "File lifetime token + original handle + externally observed generation + path snapshot; raw caller/context/producer tags and actual pid/tid",
+    "readback": "Only after original close and original flush success, direct original APIs; final byte image reconstructed in write order, bounded full coverage required; byte comparison, exact EOF, readback Close success",
+    "source": "Known extent + explicit virtual domain + exact /proc/self/mem reads before original call. No logical/physical dereference. Hash only original returned actual prefix from frozen source.",
+    "unmodelled": "FTruncate, Combine, Rename, unmount and any unobserved mutation must invalidate affected identities; this API does not infer their ABI or final movie mapping",
+    "wiring": "Not connected in this scope; wrapper owner must add calls in file-media-config.c; existing async symbols/logs unchanged"
+  },
+  "plt": [
+    {
+      "artifact": "libmpr.so",
+      "got": "0x2fe5c8",
+      "plt": "0x7bc50",
+      "symbol": "Fsys_WriteAndFlush"
+    },
+    {
+      "artifact": "libmpr.so",
+      "got": "0x2fe710",
+      "plt": "0x7bee0",
+      "symbol": "Fsys_Write"
+    },
+    {
+      "artifact": "libmpr.so",
+      "got": "0x2fee80",
+      "plt": null,
+      "symbol": "Fsys_Open"
+    },
+    {
+      "artifact": "libmpr.so",
+      "got": "0x2ff848",
+      "plt": null,
+      "symbol": "Fsys_Close"
+    },
+    {
+      "artifact": "libmpr.so",
+      "got": "0x300248",
+      "plt": null,
+      "symbol": "Fsys_Seek"
+    }
+  ],
+  "scope": "Public ALLLANG original synchronous movie write observation, separate from async still receipts",
+  "windows": [
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x3246c",
+      "role": "Fsys_Open: x0 path, x1 u64 output handle, w2 flags; signed status",
+      "sha256": "3a77ee87999bc40ca8e0386fa358a3ea33f577d862f2ee23aff915245837ed09",
+      "start": "0x322c0"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x325bc",
+      "role": "Fsys_Close: x0 u64 handle; signed status from lower close/sync",
+      "sha256": "2295a9ba3e9b1ffb8431ec0b48cc9916d484253eb4a6ef021a3cbb587f1adb71",
+      "start": "0x3246c"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x327d8",
+      "role": "Fsys_Read: x0 handle, x1 virtual destination, w2 signed count; actual count",
+      "sha256": "50b6dc720841d81903a13f6f64a9400c0a5475d5280fbb33fdd1ebb8b172ad7d",
+      "start": "0x325bc"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x32a0c",
+      "role": "Fsys_Write: x0 handle, x1 virtual source, w2 signed count; w0 count or negative status",
+      "sha256": "830061d192b9f3a13bf82834be855cf924fd7d761cf6fdc4629b72aeb8b7b240",
+      "start": "0x327d8"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x32c74",
+      "role": "Fsys_WriteAndFlush: same write ABI; flush errors can replace a nonnegative count",
+      "sha256": "1746cfa37de575a236a35d016cff20bef8c46eea64aa4ffb53a6708c9b07e14f",
+      "start": "0x32a0c"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x331ec",
+      "role": "Fsys_Seek: x0 handle, x1 s64 offset, w2 origin, x3 optional u64 result; signed status",
+      "sha256": "42f6b40f506839d4902b6808e4e6e20233cb011c478485daa56e4162a0a54fb2",
+      "start": "0x3307c"
+    },
+    {
+      "artifact": "libInfraFsys.so",
+      "end": "0x2ec58",
+      "role": "lower close/read/write: PrFILE and TNtfs paths, no async direct-file request",
+      "sha256": "ae9cceda4a612984d9bba39dd1f3857ceb6caa185e2f1579f3a60f78757986e2",
+      "start": "0x2e964"
+    },
+    {
+      "artifact": "libmpr.so",
+      "end": "0x118fe8",
+      "role": "movie ring consumer; direct sync branches; signed result compared with requested bytes",
+      "sha256": "0cda6dac1547bf19b35acb7ae4c45229adb807267e5749bc6ff13cdcec543875",
+      "start": "0x118e48"
+    }
+  ]
+}

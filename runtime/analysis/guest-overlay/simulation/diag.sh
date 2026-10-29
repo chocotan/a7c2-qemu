@@ -5,6 +5,12 @@ emit_count() {
   count=$(/bin/busybox grep -a -c -E "$2" /tmp/menu-load.log)
   printf '%s=%s\n' "$1" "$count"
 }
+echo NATIVE_CPU_ONLINE_BEGIN
+cat /sys/devices/system/cpu/online
+echo NATIVE_CPU_ONLINE_END
+echo NATIVE_IRQ_COUNTS_BEGIN
+cat /proc/interrupts
+echo NATIVE_IRQ_COUNTS_END
 cat /tmp/im.log
 /bin/busybox tail -c 131072 /tmp/menu-load.log
 echo FULL_LOG_LENS_VERSION
@@ -28,7 +34,7 @@ echo FULL_LOG_ENTER_RETURN
 echo FULL_LOG_CENSUS
 emit_count resolved_asi 'RESOLVED Application_System_Init'
 emit_count enter_asi 'ENTER Application_System_Init'
-emit_count return_asi 'RETURN_(ZERO|NONZERO) Application_System_Init'
+emit_count return_asi 'RETURN_(HANDLE|VOID|ZERO|NONZERO) Application_System_Init'
 emit_count ux2_enter 'ENTER uxengine_init2'
 emit_count ux2_return 'RETURN uxengine_init2'
 emit_count ux2_hook 'UX2_HOOK result=1'
@@ -37,12 +43,21 @@ emit_count gui_loaded 'LOADED gui.so'
 echo CENSUS_REPEAT
 emit_count resolved_asi 'RESOLVED Application_System_Init'
 emit_count enter_asi 'ENTER Application_System_Init'
-emit_count return_asi 'RETURN_(ZERO|NONZERO) Application_System_Init'
+emit_count return_asi 'RETURN_(HANDLE|VOID|ZERO|NONZERO) Application_System_Init'
 emit_count ux2_enter 'ENTER uxengine_init2'
 emit_count ux2_return 'RETURN uxengine_init2'
 emit_count ux2_hook 'UX2_HOOK result=1'
 emit_count appfw_loaded 'LOADED appFw.so'
 emit_count gui_loaded 'LOADED gui.so'
+emit_count natural_mode '^MODE_TRANSITION '
+emit_count natural_enter_still '^ENTER_REC_STILL '
+emit_count natural_run_i_ret '^RUN_I_RET '
+emit_count generic_jpeg_request '^JPEG_REQUEST '
+emit_count upm_model_error '^UPM_MODEL_ERROR '
+emit_count boot_fatal_409 '^BOOT_FATAL_409 '
+emit_count boot_fatal_common '^BOOT_FATAL_COMMON '
+emit_count crypt_lib_ok '^CRYPT_LIB .*=ok'
+emit_count cp_release_ok '^CP_RELEASE_SERVICE .* result=0'
 echo -n 'reg_55='; /bin/busybox grep -a -c '^REG_ASYNC id=0x55' /tmp/menu-load.log
 echo -n 'reg_sync_55='; /bin/busybox grep -a -c '^REG_SYNC id=0x55' /tmp/menu-load.log
 echo -n 'dynid_55='; /bin/busybox grep -a -c '^DYNAMIC_ID .* id=0x55' /tmp/menu-load.log

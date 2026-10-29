@@ -1,0 +1,82 @@
+{
+  "scope": "source byte anchors only, not runtime IRQ/capture proof",
+  "image_sha256": {
+    "av-cam.bin": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "liro.ko": "b4bd80cc614751e0092ee19e89cb90632db580bc01f23f1a1df23544e9b10186"
+  },
+  "pins": [
+    {
+      "image": "av-cam.bin",
+      "raw_offset": 194656,
+      "bytes": 1024,
+      "label": "registration-loop",
+      "sha256": "3ffb95ae8ff01f828d2b3ee05156e0f061747b16c5999efcb567a71fa0174294"
+    },
+    {
+      "image": "av-cam.bin",
+      "raw_offset": 12415832,
+      "bytes": 160,
+      "label": "five-JPEG-descriptors",
+      "sha256": "d01a6f5ee5552c3f01f3e42c3078510ce6c008cb75306405ad412edafd250942"
+    },
+    {
+      "image": "av-cam.bin",
+      "raw_offset": 192028,
+      "bytes": 20,
+      "label": "LIROdef_inh-trampoline",
+      "sha256": "e52807b06c835335dd7d0f780e26a3285263ab089e707f1c880754ce977ac418"
+    },
+    {
+      "image": "liro.ko",
+      "raw_offset": 41792,
+      "bytes": 24,
+      "label": "API-table-copy-offset48",
+      "sha256": "3fa136df8329b63c9ac921960a3f1dff1969b9bdc37b7c4e1252c410d37f33bb"
+    },
+    {
+      "image": "liro.ko",
+      "raw_offset": 6112,
+      "bytes": 468,
+      "label": "def_inh",
+      "sha256": "769ce26bc28e9f4bdc2a9b1aab0d3d11a1c17da0933292bf43f1d1e089509af7"
+    },
+    {
+      "image": "liro.ko",
+      "raw_offset": 5088,
+      "bytes": 64,
+      "label": "os_request_irq",
+      "sha256": "300d44b4dd87a3f3a7c7ffe96cf379dc5348e580b969631820fa02d48bb0d9fb"
+    },
+    {
+      "image": "liro.ko",
+      "raw_offset": 5976,
+      "bytes": 136,
+      "label": "wrapper-ack",
+      "sha256": "25c92a0433964de147aa0ad4a619d03ece37d2999e9efa9dca58e0b53b84e353"
+    },
+    {
+      "image": "liro.ko",
+      "raw_offset": 5704,
+      "bytes": 272,
+      "label": "handler-call",
+      "sha256": "5384e24a9151291cdff44a4f3c08a0ea462e5992cd875f03433cff6d7e16bac2"
+    }
+  ],
+  "GPL_mapper": {
+    "file": "linux-kernel/drivers/misc/subsystem.c",
+    "sha256": "07b3c54ff25f59b7222f084cb94e1d1c0375262bd760e8a56b06dfe1cb833acf",
+    "function": "subsys_request_irq",
+    "irq_to_desc_and_request_irq_use_original_number": true
+  },
+  "LIRO_IRQs": [
+    61,
+    62,
+    63,
+    64,
+    65
+  ],
+  "GIC_hwirq_proven": false,
+  "GIC_SPI_proven": false,
+  "guest_JPEG_verified": false,
+  "capture_verified": false
+}

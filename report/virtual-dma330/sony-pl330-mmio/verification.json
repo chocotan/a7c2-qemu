@@ -1,0 +1,12 @@
+{
+  "scope": "host ABI and imports; not loaded",
+  "sha256": "0fb552e57d21fe18d5fa0720c3825720bf0aca6feca44ff022f5c8e471e026e5",
+  "size": 4168,
+  "imports": [
+    "printk",
+    "udif_devices",
+    "udif_ioremap",
+    "udif_iounmap"
+  ],
+  "source_sha256": "3772cf652000ebda0ab7e0e80531b3a6de0815c7e02f48fff40238f65041b0e0"
+}

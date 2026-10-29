@@ -1,0 +1,83 @@
+{
+  "status": "PASS: host ELF checks only; never loaded",
+  "output": {
+    "file": "dma330_abi_diag.ko",
+    "bytes": 2976,
+    "sha256": "4c2c5e03faeaeb94a74a255648288ec972105de8260883c04b792a9b5bad0d43",
+    "init_bytes": 40,
+    "exit_bytes": 4,
+    "descriptor_bytes": 768,
+    "descriptor_alignment": 64,
+    "name_offset": 24,
+    "init_offset": 344,
+    "exit_offset": 696,
+    "modinfo": [
+      "license=GPL",
+      "description=Independent marker-only local QEMU diagnostic",
+      "depends=",
+      "vermagic=4.9.337-scel+ SMP preempt mod_unload aarch64"
+    ],
+    "relocations": [
+      {
+        "section": ".init.text",
+        "offset": 12,
+        "type": 283,
+        "symbol": "printk",
+        "symbol_index": 21,
+        "addend": 0
+      },
+      {
+        "section": ".init.text",
+        "offset": 32,
+        "type": 257,
+        "symbol": "",
+        "symbol_index": 6,
+        "addend": 0
+      },
+      {
+        "section": ".gnu.linkonce.this_module",
+        "offset": 344,
+        "type": 257,
+        "symbol": "init_module",
+        "symbol_index": 20,
+        "addend": 0
+      },
+      {
+        "section": ".gnu.linkonce.this_module",
+        "offset": 696,
+        "type": 257,
+        "symbol": "cleanup_module",
+        "symbol_index": 19,
+        "addend": 0
+      }
+    ],
+    "undefined_imports": [
+      "printk"
+    ]
+  },
+  "references": {
+    "dma330": {
+      "size": 607336,
+      "sha256": "9ba277f011b3ddcfbc3fa610d22b63ae3be1e0ded385b42ff2c7cf0a83e520ab",
+      "modinfo": [
+        "license=Proprietary",
+        "author=Sony Corporation",
+        "license=Proprietary",
+        "parmtype=test_profile:uint",
+        "parmtype=test_init_slp_ms:uint",
+        "parmtype=inst_area_size:ulong",
+        "parmtype=phy_inst_area:ulong",
+        "depends=",
+        "vermagic=4.9.337-scel+ SMP preempt mod_unload aarch64"
+      ]
+    },
+    "devno": {
+      "size": 6344,
+      "sha256": "cca1d9acd87a718c7742d168ea0de402b01a7c04cd40433ff2ca4071150dbc23",
+      "modinfo": [
+        "depends=",
+        "vermagic=4.9.337-scel+ SMP preempt mod_unload aarch64"
+      ]
+    }
+  }
+}

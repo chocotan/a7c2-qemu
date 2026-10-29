@@ -1,0 +1,116 @@
+{
+  "scope": "two actual original-kernel UPM message lifetimes only; HDMI edge11 still incomplete",
+  "run": "run-_vpkt22p",
+  "events_sha256": "b75ebad961abe8626618d0757a6ea7dedfb3210e158b48e65d52bd9a0b6319a8",
+  "result_sha256": "10e85dacd51d6c8f862f9e7d371310caab970e8d51bbb93ce9e60f6e996cfca9",
+  "coordinator_sha256": "24d89f7129b03912e18aa10d5d58a9018109e59654eed516b3fa827f3a8f97b2",
+  "original_kernel_consumer": "UPM_TSK_POWER_SAVE_SET/k_psave_api",
+  "native_kernel_tid": 205,
+  "raw_operations": [
+    0,
+    2
+  ],
+  "effective_operations": [
+    0,
+    3
+  ],
+  "native_allocation_retirements": [
+    {
+      "order": 1,
+      "bridge_seq": 1,
+      "u": 548492958144,
+      "k": 18446743803535321536,
+      "user_pool": 548491096064,
+      "kernel_pool": 18446743803533459456,
+      "fd_context": 18446743803932676864,
+      "producer_task": 18446743803490492800,
+      "producer_tid": 381,
+      "task": 18446743803530514240,
+      "tid": 205,
+      "frame": 18446743524106616208,
+      "raw_hex": "170192000000000000009a0000000000",
+      "effective_hex": "170192000000000000009a0000000000",
+      "source": 2426011994,
+      "allocator": "vpool_fallback",
+      "free_header_hex": "0000000000000000024101005a019a901000000055555555",
+      "allocator_header_hex": "0000000000000000024100005a019a901000000055555555",
+      "events": {
+        "bridge": 1,
+        "send": 2,
+        "receive": 3,
+        "load": 4,
+        "consumer": 5,
+        "branch": 6,
+        "handled": 7,
+        "free_entry": 8,
+        "vpool_fallback": 9,
+        "free_return": 10
+      },
+      "native_allocation_retired": true,
+      "module_texts": {
+        "upm": 18446743523963547648,
+        "osal_uipc": 18446743523958710272
+      },
+      "lease_serial": 4,
+      "a_lease_binding_verified": true
+    },
+    {
+      "order": 2,
+      "bridge_seq": 12,
+      "u": 548492958016,
+      "k": 18446743803535321408,
+      "user_pool": 548491096064,
+      "kernel_pool": 18446743803533459456,
+      "fd_context": 18446743803932676864,
+      "producer_task": 18446743803490492800,
+      "producer_tid": 381,
+      "task": 18446743803530514240,
+      "tid": 205,
+      "frame": 18446743524106616208,
+      "raw_hex": "170192000200000000009a0000000000",
+      "effective_hex": "170192000300000000009a0000000000",
+      "source": 2426011994,
+      "allocator": "vpool_fallback",
+      "free_header_hex": "0000000000000000024101005a019a901000000055555555",
+      "allocator_header_hex": "0000000000000000024100005a019a901000000055555555",
+      "events": {
+        "bridge": 12,
+        "send": 13,
+        "receive": 14,
+        "load": 15,
+        "consumer": 16,
+        "branch": 17,
+        "handled": 18,
+        "free_entry": 19,
+        "vpool_fallback": 20,
+        "free_return": 21
+      },
+      "native_allocation_retired": true,
+      "module_texts": {
+        "upm": 18446743523963547648,
+        "osal_uipc": 18446743523958710272
+      },
+      "lease_serial": 5,
+      "a_lease_binding_verified": true
+    }
+  ],
+  "dedicated_data_mailbox_deliveries": [
+    {
+      "bridge_seq": 1,
+      "lease_serial": 4,
+      "record_sha256": "8c30a59d0eaa29537f1eece61ad4fecbd8f9a9b4e1bca210b5e3d60653fb7afc"
+    },
+    {
+      "bridge_seq": 12,
+      "lease_serial": 5,
+      "record_sha256": "73433a3842aeafad2c517912bd247b4b9c50f6ae22df69c96eac122c5bf3d7a4"
+    }
+  ],
+  "debugger_detached": true,
+  "safe_to_close": true,
+  "original_UPM_messages_received_consumed_final_freed": true,
+  "provider_send_rc0_used_as_consumer_proof": false,
+  "second_user_free_called": false,
+  "native_verified_11": false,
+  "capture_verified": false
+}

@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 struct message { unsigned int owner, source, bytes, live;unsigned char data[32]; } pool[16];
@@ -274,8 +275,31 @@ static void interleaved_real_free(void) {
     }
     puts("HDMI_INTERLEAVED_REAL_FREE_ALLOCATE_SAME_ADDRESS_50_PASS");
 }
+static void audio_connected_marker(void) {
+    reset();struct full_hdmi_snapshot cold=snapshot();
+    assert(!cold.audio_pin_connected_known && !cold.audio_pin_connected_writes);
+    transaction(0x10a,3,0x81b10001);
+    const unsigned char fields[6]={3,4,5,6,7,8};
+    resolution_transaction(0x101,fields,0x81b10002);resolution_transaction(0x201,fields,0x81b10003);
+    rate_transaction(2,17,4,23);struct full_hdmi_snapshot before=snapshot();
+    assert(!full_hdmi_audio_pin_connected_one());struct full_hdmi_snapshot after=snapshot();
+    assert(after.audio_pin_connected_known==1 && after.audio_pin_connected==1 && after.audio_pin_connected_writes==1 && after.audio_pin_connected_owner_pid==getpid());
+    assert(full_hdmi_audio_pin_connected_one()==-1021);struct full_hdmi_snapshot same=snapshot();assert(!memcmp(&same,&after,sizeof same));
+    after.audio_pin_connected=before.audio_pin_connected;after.audio_pin_connected_known=before.audio_pin_connected_known;
+    after.audio_pin_connected_writes=before.audio_pin_connected_writes;after.audio_pin_connected_owner_pid=before.audio_pin_connected_owner_pid;
+    assert(!memcmp(&after,&before,sizeof before));
+    pid_t child=fork();assert(child>=0);if(!child){alarm(2);assert(full_hdmi_audio_pin_connected_one()==-1021);_exit(0);}
+    int status;assert(waitpid(child,&status,0)==child && WIFEXITED(status) && !WEXITSTATUS(status));
+    /* Later requests preserve the same marker in this existing owner. */
+    transaction(0x20a,3,0x81b10004);assert(snapshot().audio_pin_connected_writes==1);
+    reset();void *p=request(0x10a,1,0x81b10005);int rc=77;
+    assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,1,&rc) && !rc);
+    assert(full_hdmi_audio_pin_connected_one()==-1021 && !snapshot().audio_pin_connected_known);
+    finish(0x10a,1,0x81b10005);assert(!full_hdmi_audio_pin_connected_one());
+    puts("HDMI_SHARED_AUDIO_CONNECTED_ONE_OLD_UNKNOWN_CONFIG_PRESERVED_PASS");
+}
 int main(void) {
     alarm(15);
-    configuration();resolution_configuration();rate_configuration();errors_and_activation();reused_pool();reply_and_cleanup_faults();interleaved_real_free();
+    configuration();resolution_configuration();rate_configuration();errors_and_activation();reused_pool();reply_and_cleanup_faults();interleaved_real_free();audio_connected_marker();
     puts("HDMI_DEFINITION_STATE_NORMALIZATION_GETTER_OWNERSHIP_ABA_PASS");return 0;
 }

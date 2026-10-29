@@ -1,0 +1,62 @@
+{
+  "scope": "Original JPEG conversion selector and RC destination byte-address/stride/register contract; static branch evidence, not pixel packing or executed DMA",
+  "asset": {"path": "runtime/analysis/menu-root/system/av-cam.bin", "bytes": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"},
+  "address_convention": "K is raw ARM64 offset; KVA=raw+ffffffc001000000",
+  "selector": {
+    "value": 0,
+    "branch": "Original JPEG conversion branch, not all RC callers",
+    "origin": "K561b0/K561c4 write W+188/W+18c=0; K56268..56278 supplies target W+d8",
+    "propagation": "K5aa08/5be60/5be6c/59b44/597a4 preserve target compression/depth; K64938..6494c -> SetYcCompress K63128 -> K6315c stores0",
+    "request_alias": "K64a10 passes T=O+8, so O+100=T+f8; provider preserves it at J+100",
+    "component_order_name": null,
+    "descriptor_word": "J+98 is built from a buffer-range list retaining up to4 entries; it is not established as1 or as a plane count",
+    "opaque_uninitialized_field": "K63224(input0) returns without writing T+fc/J+104; not assumed zero"
+  },
+  "selected_destination": {
+    "conditions": "selector0; J+f8/fa=0; J+190=1; inherited X+10=0 gives J+114=0; builder sets J+188=0",
+    "labels": "A=K2cd23c translated destination; W=u16[J+e0]; Vx/Vy=u16[J+e4/e6]; rectangle x/y=s16+0/+2,w/h=u32+4/+8",
+    "address": "P=A+2*((y+Vy)*W+x+Vx), subject to original integer widths",
+    "record": {"M+08": "u64 P", "M+10": "u32 (P>>24)&ffffff00", "M+14": "u32 2*w", "M+18": "u32 2*(W-w)", "M+1c": "u16 (h-1)&ffff"},
+    "stride_relation": "M14+M18=2*W with original arithmetic widths; byte stride does not identify component order",
+    "auxiliary": "J108!=0 or J98==1 clears Z[0,28); J108==0/J98==2 calls2cd5d0; J98>=3 calls2cd7f4; no Cb/Cr-plane naming"
+  },
+  "dma_registers": {
+    "helpers": ["K20d54c", "K20db20", "K20db88"],
+    "channel_base": "u64[Kbd9728+channel*18h+8], physical range not bound here",
+    "stores": {"M10": "+18", "low32(M08)": "+20", "M14": "+24", "M18": "+28", "u16M1c": "+2c", "Z00": "+30", "u16Z04": "+34", "Z08_controls": "+50", "Z10/18/20_low": "+54/58/5c", "Z10/18/20_shifted": "+64/68/6c"}
+  },
+  "mode": {
+    "builder": "K2c91f0, R=sp+1d0",
+    "scale": "K2c9624 computes u64((w1<<12)+w2)*w5/u32(w3*w4); above20000h rejected, exactly20000h encoded0",
+    "rc_bank1": {"R+0": "+04", "R+4": "+0c", "R+8": "+10", "R+c": "+18", "R+10": "+1c"},
+    "selector_bit": "K2ccb20 sets bit8 for selector0; selectors1/7/9 clear it",
+    "other_control": "K2ce1e4 sets bits2:1 from J80 and whether R+c==1000h",
+    "packing_meaning_proved": false
+  },
+  "windows": [
+    {"start": "0x561a0", "end": "0x562d0", "sha256": "e253dc54685423bf2b85efe9a02dbcf85f33f38199c2296fab41f5e19b9b4901"},
+    {"start": "0x592b0", "end": "0x59cbc", "sha256": "2b44e9ad3eeff6c6e917719468831e0cbf9cdcb2b5494e99ad2a5c6c55140300"},
+    {"start": "0x5a9e8", "end": "0x5aa20", "sha256": "2262a475bd3e1a9c05f4ef97b66811a5c3ed7b28dadcfac39cb71138806db05d"},
+    {"start": "0x5bd6c", "end": "0x5bfa0", "sha256": "f7d8aa3a14a87df177ce9d689da56ae912a0e3faf42fbc5c2c00d0c645985e21"},
+    {"start": "0x63104", "end": "0x6372c", "sha256": "1e900f1692f0d97a5afa056f17a2e07e06f864f3549fb51d5d827465eb45d240"},
+    {"start": "0x647fc", "end": "0x64a1c", "sha256": "7fda3ae16615a419d48171d7180fb04a6b2e039b3ed616765a6d491ad23b2592"},
+    {"start": "0x2cdc94", "end": "0x2ce0c8", "sha256": "4dd7a9a5616fb10498118a772c07ed1e05be912e600f80343e8954d889847b58"},
+    {"start": "0x2d4588", "end": "0x2d4960", "sha256": "3953793fd45a91eac2711ef1408410fc692a8e3f797483d708b9b8bb7700d130"},
+    {"start": "0x2c91f0", "end": "0x2c9624", "sha256": "685b237c9c0d63b702711a77a46cf3a90fc74f6c557ec3b5b177ea53d20ed4fe"},
+    {"start": "0x2d76c0", "end": "0x2d7f74", "sha256": "69a6a2303b5a97e60b4b2a11d473548374f5970b7f579eedebc61bbd1e8d498c"},
+    {"start": "0x2d86fc", "end": "0x2d8b88", "sha256": "a84fb68ee3087cc8900b6c171895770d8b4bfdd44eadbd7d5b59f239a6a13df6"},
+    {"start": "0x20d54c", "end": "0x20dc14", "sha256": "2d29f75563d00b91db0e3466a0ae48fb25dade1d455c7dd7f2077a17a84138a1"}
+  ],
+  "table_witnesses": [
+    {"offset": "0x336468", "hex": "f4320601c0ffffff"},
+    {"offset": "0x38eb3c", "hex": "00000000000000000300000003000000"},
+    {"offset": "0x387e58", "hex": "44df2c01c0ffffff"},
+    {"offset": "0x387ea8", "hex": "a0df2c01c0ffffff"}
+  ],
+  "window_count": 12,
+  "window_bytes": 13880,
+  "native_pixel_layout_known": false,
+  "actual_dma_lease_verified": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false
+}

@@ -1,0 +1,12 @@
+{
+  "status": "PASS_REAL_PCIE_BAR_HARDWARE_ONLY",
+  "binary_sha256": "57bbbd1b624126cbebe596d31bff85c40e98539defa86be183bb2964cc7276c6",
+  "real_config_bar_and_bridge_consumed": true,
+  "bidirectional_dma_gic_and_guards": true,
+  "disabled_command_and_closed_bridge_abort": true,
+  "final_peer_sha256": "659bc1e18270733966bfa7e964c54093a99afbe6105809ad6e85cafec89d4371",
+  "trace_sha256": "198f69b865cbb921c0d401b90076c896fb5187a0481770ebb9248259ecd5e3fa",
+  "original_kernel_api_verified": false,
+  "sony_phy_or_cp_verified": false,
+  "capture_verified": false
+}

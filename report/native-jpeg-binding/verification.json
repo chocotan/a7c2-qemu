@@ -1,0 +1,43 @@
+{
+  "scope": "Offline bounded public av-cam native JPEG register/coding/completion implementation",
+  "command_from_native_camera_base": "PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider report/native-jpeg-binding/test_native_binding.py",
+  "tests_passed": 9,
+  "last_exit_status": 0,
+  "checks": [
+    "public original full SHA-256 and 26 bounded byte-window hashes",
+    "three exact raw-base-zero bounded Kuna functions, all without decompile errors",
+    "strict C11 warnings-as-errors compile and assertion-based callback tests",
+    "ASan and UBSan builds with leak/error detection",
+    "actual native pre-START 1008=10,1200=2000,1280=3 sequence and partial sequence rejection",
+    "actual quant natural-to-zigzag conversion and complete/default Huffman register uploads",
+    "partial reupload invalidates stale table coverage",
+    "AIF, alignment, span, capacity, overlap and unsupported-control rejection",
+    "original interrupt priority, verified host output import, W1C and FIFO pop in both orders",
+    "failed write/readback cannot import native-shaped success",
+    "actual source-prefix and SOS reconstruction decoded by Pillow in memory",
+    "source immutable Huffman bytes, exact natural DQT, 422 sampling and pixel-dependent entropy"
+  ],
+  "initial_failed_check": {
+    "kind": "test fixture assertion, SIGABRT",
+    "reason": "partial Huffman reupload fixture manually typed an incorrect first table word",
+    "fix": "reuse actual valid observed register word before testing incomplete coverage",
+    "full_strict_and_sanitized_retest_passed": true
+  },
+  "existing_files_edited": [],
+  "public_api": "native-jpeg.h",
+  "register_to_coding_converter_implemented": true,
+  "verified_host_completion_adapter_implemented": true,
+  "native_start_result_for_complete_supported_registers": "VJPEG_NEED_DATA",
+  "unresolved": [
+    "native YC component/plane ordering and immutable lease provenance",
+    "positive native scan/restart control semantics",
+    "original logical width/height before hardware W16/H8 rounding",
+    "native B18 enable polarity and actual guest GIC target/enable/EOIR consumption"
+  ],
+  "native_mmio_capture_usable": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false,
+  "qemu_built_or_run": false,
+  "generated_media_file_on_disk": false,
+  "parent_owns": "candidate integration, CP state, joint checks/fix/retest and single final end-to-end VM"
+}

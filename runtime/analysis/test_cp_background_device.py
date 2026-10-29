@@ -24,7 +24,8 @@ class CpBackgroundDevice(unittest.TestCase):
             for case in ('normal', 'fast-free', 'fast-reuse', 'allocfail', 'sendfail',
                          'request-free-fail', 'wrong-free', 'reply-free-fail', 'leases-full',
                          'observe-unhandled', 'real-backing-busy', 'bad-size', 'bad-source', 'bad-command',
-                         'unused-bytes', 'bad-type', 'legacy-40b8', 'fork-initialization'):
+                         'unused-bytes', 'bad-type', 'legacy-40b8', 'fork-initialization',
+                         'observe-normal', 'observe-fast-free', 'observe-sendfail', 'observe-reply-fail'):
                 with self.subTest(case=case):
                     result = subprocess.run([str(binary), case], cwd=directory, env=environment,
                                             capture_output=True, text=True, timeout=20)

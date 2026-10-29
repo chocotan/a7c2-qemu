@@ -43,15 +43,18 @@ def test_budget_prevents_any_further_position_or_wheel_input():
 
 
 def test_position_click_and_event_match_use_exact_selected_label():
-    action=next(node for node in ast.walk(ast.parse(SOURCE.read_text()))
+    tree=ast.parse(SOURCE.read_text())
+    action=next(node for node in ast.walk(tree)
                 if isinstance(node,ast.FunctionDef) and node.name=='action')
+    matcher=next(node for node in tree.body
+                 if isinstance(node,ast.FunctionDef) and node.name=='input_submission')
     state={'events':[{'id':5}],'mode_positions':{'MR2':[123,456]}};calls=[]
     def wait(check):
         assert not check({'events':[{'id':6,'kind':'input','message':'MODE MR1：位置输入已提交'}]})
         assert check({'events':[{'id':6,'kind':'input','message':'MODE MR2：位置输入已提交'}]})
     namespace=dict(idle=lambda:state,native='owned-window',new_ui=True,wait=wait,
                    xdo=lambda *a:calls.append(a))
-    exec(compile(ast.Module(body=[action],type_ignores=[]),str(SOURCE),'exec'),namespace)
+    exec(compile(ast.Module(body=[matcher,action],type_ignores=[]),str(SOURCE),'exec'),namespace)
     namespace['action']('MODE',True,position='MR2')
     assert ('mousemove','--window','owned-window',123,456) in calls
     assert calls.count(('click',1))==1

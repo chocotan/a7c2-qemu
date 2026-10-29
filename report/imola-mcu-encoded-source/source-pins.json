@@ -1,0 +1,31 @@
+{
+  "scope": "actual MCU8880/AVC record interface and byte-accounting CPU stores; hardware packet/pixel/ES production unclosed",
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "bytes": 10934476,
+  "sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "VA_equals_raw_plus_hex": "80000000, only in proven RAM banks",
+  "windows": [
+    {"raw_hex": "169bb8", "bytes": 132, "sha256": "52d860547104a09203cc48d37946a49d3c2f1b9d6756602ed632b5a4142fd72c"},
+    {"raw_hex": "169dd8", "bytes": 52, "sha256": "839c1553684ed98090c3cfdf480de427162034f7b0dadd5bb349c089dc7d52df"},
+    {"raw_hex": "110f3c", "bytes": 124, "sha256": "61c45f9f3f045812bb4e403c2aec16f9852d6b40da9895dc716d8c678ac8db7b"},
+    {"raw_hex": "1110b4", "bytes": 148, "sha256": "21f68bbc84cc67518363ea4e51e03cda513c1367d9903665becab36902642ec0"},
+    {"raw_hex": "111274", "bytes": 36, "sha256": "578af6b00e5bc0d4cdac7422576736bddc1f968744bf6f28f9c59cbe04ab32d9"},
+    {"raw_hex": "1ded2c", "bytes": 24, "sha256": "e24b630a316180558cfecedb26999c2c47486103dfe7e3eaad5795758d95c6a9"},
+    {"raw_hex": "1c5100", "bytes": 68, "sha256": "bf28800589b91dbaabee0bfabfc0093cd7118a801776396f59cbe6d0a501d848"},
+    {"raw_hex": "157964", "bytes": 112, "sha256": "06e5a70dc7757020252594f9284ecbac02bab1da8f0816d001c0a4acf85841bf"},
+    {"raw_hex": "158230", "bytes": 44, "sha256": "3d867e8c955202872b180b144b7a56bed856e5b71cd976107a943c653dcb6001"},
+    {"raw_hex": "81200", "bytes": 180, "sha256": "57e413a2175648871b67827dfed634a0f63998e3a016e2fa003c74bd84260da4"},
+    {"raw_hex": "87784", "bytes": 92, "sha256": "a5badefb61329a8cde8d355d6aac0350cba15c1d9f71b1a861db0879a6fb61fe"},
+    {"raw_hex": "2408bc", "bytes": 72, "sha256": "aa9851b4fdad1debbd82b6a9c70e43c7ae7f5eae86e4f0ada3759f4a201fef6a"}
+  ],
+  "window_count": 12,
+  "window_bytes": 1084,
+  "message_selector_hex": "8880",
+  "message_body_bytes": 296,
+  "AVC_callback_VA_hex": "80110f3c",
+  "record_bytes": 208,
+  "hardware_packet_producer_closed": false,
+  "source_pixel_format_closed": false,
+  "actual_ES_byte_writer_closed": false,
+  "capture_verified": false
+}

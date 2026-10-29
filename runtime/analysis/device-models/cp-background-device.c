@@ -13,6 +13,7 @@ static pthread_mutex_t state_mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t lease_mutex=PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int owner_pid;
 static _Atomic unsigned int faults;
+static _Atomic(native_cp_background_free_observer) free_observer;
 static unsigned int sending;
 static uint64_t next_ticket=1;
 static struct cp_sync_resources *resources;
@@ -56,6 +57,14 @@ struct cp_sync_resources *native_cp_background_resources(void) {
     pthread_mutex_lock(&state_mutex);
     struct cp_sync_resources *r=initialize()?NULL:resources;
     pthread_mutex_unlock(&state_mutex);return r;
+}
+int native_cp_background_bind_free_observer(native_cp_background_free_observer observer) {
+    int pid=getpid(),owner=atomic_load(&owner_pid);
+    if(!observer || (owner && owner!=pid))return -1021;
+    native_cp_background_free_observer prior=atomic_load(&free_observer);
+    if(prior==observer)return 0;
+    if(prior || owner)return -1021;
+    return atomic_compare_exchange_strong(&free_observer,&prior,observer) || prior==observer?0:-1021;
 }
 static void done_sending(void) {
     pthread_mutex_lock(&state_mutex);sending=0;pthread_mutex_unlock(&state_mutex);
@@ -103,6 +112,8 @@ int native_cp_background_release(unsigned int id,void *message,
         }
         return matched;
     }
+    native_cp_background_free_observer observer=atomic_load(&free_observer);
+    if(saved.ticket && !saved.sending && !*result && !atomic_load(&faults) && observer)observer(id,observed);
     if (saved.ticket && record) {
         char line[270],raw[25];
         for (unsigned int i=0;i<12;i++) snprintf(raw+2*i,3,"%02x",observed[i]);

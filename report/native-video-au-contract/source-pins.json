@@ -1,0 +1,145 @@
+{
+  "schema": 1,
+  "artifact": {
+    "path": "usr/lib/libmpr.so",
+    "origin": "Original public ALLLANG firmware extraction; runtime/analysis/menu-root",
+    "size": 3528576,
+    "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+    "coordinates": "ELF VA equals file offset inside first PT_LOAD [0,0x2e4534)"
+  },
+  "positive_only": true,
+  "total_window_bytes": 1652,
+  "native_capture": false,
+  "native_gaps": 63,
+  "normal_au_framing": "unknown",
+  "windows": [
+    {
+      "id": "E-au-list",
+      "virtual_address": "0x11b958",
+      "file_offset": 1161560,
+      "length": 320,
+      "sha256": "5a730e34177e130e37182c732c41126ef37e4efb8f2079549f60ff8601dfdeee",
+      "claim": "MakeVideoEsList skips infoType 4; adds explicit context+0x40 correction to VideoInfo+8; uses full VideoInfo+0x10 length; appends returned ES spans"
+    },
+    {
+      "id": "E-ring",
+      "virtual_address": "0x282fb8",
+      "file_offset": 2633656,
+      "length": 152,
+      "sha256": "3b53adc90c1ca59117b8c0b3131c4e92881a17e4663a4757ba357a52f7dfbf9e",
+      "claim": "GetEsAreaInfo checks inclusive address+length-1 against the ring end, yielding end part first and base remainder when wrapping"
+    },
+    {
+      "id": "E-copy-call",
+      "virtual_address": "0x118168",
+      "file_offset": 1147240,
+      "length": 60,
+      "sha256": "8cc3345b1ffa67d40344e1af7101cd10b1136a9957fa5faf98bae4a6d2021c91",
+      "claim": "CreateXferLinkedList callsite dispatches AddList through DmacLib vtable+0x10"
+    },
+    {
+      "id": "E-copy-list",
+      "virtual_address": "0x2b11bc",
+      "file_offset": 2822588,
+      "length": 188,
+      "sha256": "6be36511597a82d3ca06409b974cb426c2f7c694dc4334af1a5938b80c83bc8c",
+      "claim": "DmacLib::AddList builds 12-byte count/source/destination u32 records and splits at 8 MiB; no host address truncation is licensed"
+    },
+    {
+      "id": "E-copy-memcpy",
+      "virtual_address": "0x2b1500",
+      "file_offset": 2823424,
+      "length": 68,
+      "sha256": "4b335e69f070f14a79bfec0eacd07f93279a71b2359b92d19f9c3d44a38792ad",
+      "claim": "TransferByMemcpy copies each recorded count from recorded source to destination without NAL transformation; not Fsys completion evidence"
+    },
+    {
+      "id": "E-avc-config-entry",
+      "virtual_address": "0x22096c",
+      "file_offset": 2230636,
+      "length": 16,
+      "sha256": "e5e41259721ff6a4cd0c09833ddcfc48a36546f1ca0dbb198bc8ec23b694fc7b",
+      "claim": "Original AVC extension configuration fixed value; separate from normal AU producer/framing proof"
+    },
+    {
+      "id": "E-hevc-config-value",
+      "virtual_address": "0x220b1c",
+      "file_offset": 2231068,
+      "length": 8,
+      "sha256": "1c1554b50ee46fb47a5012fcf7233cabd4a63a8b1fb58c43d3fdf6c93bf34a75",
+      "claim": "Original HEVC extension configuration stores 3 at object+0x1d; not proof of bytes in normal AUs"
+    },
+    {
+      "id": "E-hevc-config-context",
+      "virtual_address": "0x220b90",
+      "file_offset": 2231184,
+      "length": 160,
+      "sha256": "6a046facf978fd3f336190b59092dcf9129be84a9a6455f9d39c03f6692cfff2",
+      "claim": "Original extension configuration context; no inferred stored-to-staged constructor mapping"
+    },
+    {
+      "id": "E-avc-stored-copy",
+      "virtual_address": "0x20ac84",
+      "file_offset": 2141316,
+      "length": 116,
+      "sha256": "8318722eeed76558a8b19e4404ad7f7dc1021ebc1ddf03986c6089ff6faafb6d",
+      "claim": "AVC configuration setter copies supplied fields into stored object at matching offsets"
+    },
+    {
+      "id": "E-hevc-stored-copy",
+      "virtual_address": "0x20afa8",
+      "file_offset": 2142120,
+      "length": 208,
+      "sha256": "0d4d8a36fbde443cefba7bcdf5b6b82092922cf2740c08f2b2be16f04d6831c2",
+      "claim": "HEVC configuration setter copies supplied fields into stored object at matching offsets"
+    },
+    {
+      "id": "E-avc-serializer",
+      "virtual_address": "0x20d85c",
+      "file_offset": 2152540,
+      "length": 120,
+      "sha256": "4177015e57e1bebb970bdc9792da3bf6ecd2bb5ee24570a0e0c4af917a0b4f5f",
+      "claim": "AVC serializer reads staged+0xc for avcC payload byte 4; stored-to-staged field transport remains unverified"
+    },
+    {
+      "id": "E-hevc-serializer",
+      "virtual_address": "0x20e074",
+      "file_offset": 2154612,
+      "length": 60,
+      "sha256": "c77d26a54e0ae9a50ee1a5f1f736685ec6b29aea4c492609b7ed6997b462ba60",
+      "claim": "HEVC serializer reads staged+0x25 for hvcC payload byte 21; stored-to-staged field transport remains unverified"
+    },
+    {
+      "id": "E-avc-array-writer",
+      "virtual_address": "0x20db20",
+      "file_offset": 2153248,
+      "length": 88,
+      "sha256": "5cc46dea7b69a5465c4e6aa47d78a769558f3ac05a4153044f57ca50d8649fb7",
+      "claim": "Original AVC configuration serializer context; does not inspect or establish ordinary AU NAL framing"
+    },
+    {
+      "id": "E-hevc-array-writer",
+      "virtual_address": "0x20e264",
+      "file_offset": 2155108,
+      "length": 88,
+      "sha256": "41d0c6da837dd8a670615943fd1185134b7406226cbf22d5d2307928b6eb64ba",
+      "claim": "Original HEVC configuration serializer context; does not inspect or establish ordinary AU NAL framing"
+    }
+  ],
+  "copy_path": [
+    "MakeVideoEsList M0x11b958",
+    "GetEncESBufferAreaInfo M0x283050",
+    "GetEsAreaInfo M0x282fb8",
+    "BaseListAdd",
+    "CreateXferLinkedList M0x11805c, callsite M0x118168",
+    "DmacLib::AddList M0x2b11bc via vtable+0x10",
+    "DmacLib::TransferByMemcpy M0x2b1500"
+  ],
+  "limitations": [
+    "MakeVideoEsList skips only type 4; supported sample filtering remains the existing stricter set {0,1,2,3,9}",
+    "Original GetEsAreaInfo does not prove complete source extent validity; adapter additionally enforces full mapping and arithmetic bounds",
+    "Normal AU NAL format and native producer are unknown; opaque byte transport alone is closed",
+    "Stored configuration to staged descriptor field transport is unverified; no inference from the apparent +8 offset difference",
+    "No evidence here establishes native lease retirement, PI publication, successful recording, or Fsys completion"
+  ]
+}

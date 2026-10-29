@@ -1,0 +1,22 @@
+{
+  "run": "run-typ0vn1q",
+  "console_sha256": "9cd08eea6cdba8c3e36108b74807c785f6e524a63ad787d4c17bd243517bce23",
+  "runtime_manifest_sha256": "f235a0777f44d6aef2e447c12647d010b1aa5b295974ae7ff6c174883c2d6a28",
+  "summary_sha256": "34bc2baff0b8026fc7bdd85a26592bf652d1cd05478665715d2b38934c1ab5f3",
+  "caller_tid": 324,
+  "pin_get_verified": true,
+  "owners": {
+    "INFRABB": {"sid": "0x9284074a", "objects": 21, "queries_verified": 2, "reply_envelope_sid": "0x9284074a"},
+    "VEF": {"sid": "0x905a0048", "objects": 16, "queries_verified": 5, "reply_envelope_sid": "0x0"},
+    "PINMEM": {"sid": "0x90590818", "objects": 13, "queries_verified": 4, "reply_envelope_sid": "0x0"}
+  },
+  "all_query_states": 1,
+  "all_request_free_rc": 0,
+  "all_original_waiter_free_rc": 0,
+  "connect_verified": false,
+  "pixels_consumed": false,
+  "original_cp_tasks_running": false,
+  "camera_startup_verified": false,
+  "menu_event_consumed_verified": false,
+  "next_query": {"destination": "0x91670464", "keys": [0, 1, 4]}
+}

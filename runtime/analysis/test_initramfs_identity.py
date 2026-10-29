@@ -58,6 +58,14 @@ class InitramfsIdentity(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     verify_image(image, expected)
 
+    def test_reject_stale_optional_yc_png_from_skipped_rebuild(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); expected = self.fixture(root)
+            stale = root / 'simulation/yc-input.gray'; stale.write_bytes(b'previous run PNG')
+            image = self.archive(root, list(expected) + ['simulation/yc-input.gray'])
+            with self.assertRaisesRegex(ValueError, 'unrequested file'):
+                verify_image(image, expected, forbidden=('simulation/yc-input.gray',))
+
 
 if __name__ == '__main__':
     unittest.main()

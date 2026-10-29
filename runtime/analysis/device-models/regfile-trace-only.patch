@@ -1,0 +1,26 @@
+--- a/hw/misc/sony-pcidma/sony_regfile.c
++++ b/hw/misc/sony-pcidma/sony_regfile.c
+@@ -53,6 +53,9 @@
+     }
+     uint64_t a = s->log_base + offset;
+-    if (a != g_last_rd) { fprintf(stderr, "REGFILE_RD 0x%lx\n", (unsigned long)a); g_last_rd = a; }
++    if (a != g_last_rd) {
++        if (!g_getenv("QEMU_SONY_RC")) fprintf(stderr, "REGFILE_RD 0x%lx\n", (unsigned long)a);
++        g_last_rd = a;
++    }
+     *value = v;
+     return MEMTX_OK;
+ }
+@@ -77,6 +80,11 @@
+     }
+     uint64_t a = s->log_base + offset;
+-    if (a != g_last_wr) { fprintf(stderr, "REGFILE_WR 0x%lx = 0x%llx\n", (unsigned long)a, (unsigned long long)value); g_last_wr = a; }
++    if (a != g_last_wr) {
++        if (g_getenv("QEMU_SONY_RC"))
++            qemu_log_mask(LOG_GUEST_ERROR, "REGFILE_WR 0x%"PRIx64" = 0x%"PRIx64"\n", (uint64_t)a, value);
++        else fprintf(stderr, "REGFILE_WR 0x%lx = 0x%llx\n", (unsigned long)a, (unsigned long long)value);
++        g_last_wr = a;
++    }
+     if (a >= 0xf3170000 && a < 0xf3180000 && g_getenv("QEMU_SONY_RC")) {
+         qemu_log_mask(LOG_GUEST_ERROR, "SONY_SA_MMIO_WR 0x%"PRIx64" = 0x%"PRIx64"\n",
+                       (uint64_t)a, value);

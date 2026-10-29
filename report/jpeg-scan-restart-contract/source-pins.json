@@ -1,0 +1,26 @@
+{
+  "scope": "public original JPEG decoder SOS and control-store boundary; ASIC restart semantics unknown",
+  "artifact": "runtime/analysis/menu-root/system/av-cam.bin",
+  "bytes": 13797088,
+  "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+  "address_kind": "raw offset; original KVA = 0xffffffc001000000 + raw",
+  "windows": [
+    {"name": "native-control-setters", "raw_hex": "2a4098", "bytes": 204, "sha256": "08025a6deffe9bd0e85d19ce9089759c7d9b79e340097821dd261d9fb45dba44"},
+    {"name": "selected-encode-callsite", "raw_hex": "2af780", "bytes": 164, "sha256": "ad2a85fc54bff671073aecc113cc8ff6757b6cd361005d7d2af38804133d9208"},
+    {"name": "marker-dispatch-generic-skip", "raw_hex": "2aac84", "bytes": 360, "sha256": "646a3d39567123714036539e1be2233ec85c946e99c4714664afc821b41fa715"},
+    {"name": "marker-dispatch-table", "raw_hex": "3862c8", "bytes": 256, "sha256": "cf577f37a4c20e1bff7f33e3b40479c406d22cb8cfec856f5d9dd06081e60411"},
+    {"name": "SOS-template-comparison", "raw_hex": "2aafe4", "bytes": 80, "sha256": "f90053a87f00b16ffa64eeece023d417b8a4a43c4f79ed029768286fbe2eaea7"},
+    {"name": "SOS-reject-success-resume", "raw_hex": "2ab140", "bytes": 136, "sha256": "0cd20d79cf8a5cff0cc7d671d105bf8f7e9b84581db77ac5d06bc0d607f55a87"},
+    {"name": "SOS-immutable-template", "raw_hex": "30a0e0", "bytes": 12, "sha256": "c22887a693882295ad59ee5cb3369fc1b016e4de6f401326ddfea23d00db6df2"},
+    {"name": "marker-length-big-endian", "raw_hex": "2abf54", "bytes": 104, "sha256": "61f1b349b7c0195b9d69754ac191868bb8848aeff7b54705ca9dcc01b13e07b3"},
+    {"name": "original-prefix-no-DRI", "raw_hex": "2ac7a0", "bytes": 884, "sha256": "fea2991dc5fd3f2f7606faf4ba325ee7bc99bee99d99a9a4457c235345b4afd7"},
+    {"name": "completion-checks-FFDA-only", "raw_hex": "2acdbc", "bytes": 176, "sha256": "9026c37e39a5d43640dc195f6ced3291efe50c7275a4bff7056a9394376f9459"}
+  ],
+  "window_count": 10,
+  "window_bytes": 2376,
+  "decoder_SOS_template_hex": "000c03010002110311003f00",
+  "whole_branch_closed": false,
+  "scan_restart_gap_retained": 2,
+  "native_capture": false,
+  "original_consumed": false
+}

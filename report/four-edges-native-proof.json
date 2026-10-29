@@ -1,0 +1,219 @@
+{
+  "scope": "four explicit source-equivalent virtual graph edges, two actual mapped control-format consumptions, original AP replies and this-run SD; not image capture",
+  "run": "run-6uf1qibg",
+  "evaluation": "../runtime/analysis/menu-runs/run-6uf1qibg/four-edges-native-evaluation.json",
+  "console_sha256": "3e188041e101195085f31c3d00fde3098f0e67b2f4acc135b4358bfbbee3f17f",
+  "observer_sha256": "1b089e606bb01b54d4412e157e54d651cd2810da37fe4743a84589ad96c01e4f",
+  "run_source_archive_sha256": "06881491591d6bf433c3ef1157ce824280d991b928ea74f6a5f05c121968a770",
+  "frozen_source_count": 283,
+  "candidate_QEMU_sha256": "a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02",
+  "original_AP_pid": 258,
+  "original_AP_tid": 381,
+  "edges": [
+    {
+      "source_pin": [
+        0,
+        2,
+        1,
+        2416246788
+      ],
+      "sink_pin": [
+        0,
+        1,
+        1,
+        2458126154
+      ],
+      "unique_reply_bytes": 56,
+      "request_bytes": 64,
+      "internal_message_bytes": [
+        64,
+        72
+      ],
+      "reply_free_rc": 0,
+      "reply_free_faults": 0,
+      "ap_consumed": true
+    },
+    {
+      "source_pin": [
+        8,
+        2,
+        0,
+        2416246788
+      ],
+      "sink_pin": [
+        8,
+        1,
+        0,
+        2458126154
+      ],
+      "unique_reply_bytes": 56,
+      "request_bytes": 64,
+      "internal_message_bytes": [
+        64,
+        72
+      ],
+      "reply_free_rc": 0,
+      "reply_free_faults": 0,
+      "ap_consumed": true
+    },
+    {
+      "source_pin": [
+        3,
+        2,
+        0,
+        2416246788
+      ],
+      "sink_pin": [
+        3,
+        1,
+        0,
+        2421686335
+      ],
+      "unique_reply_bytes": 56,
+      "request_bytes": 64,
+      "internal_message_bytes": [
+        64,
+        72
+      ],
+      "reply_free_rc": 0,
+      "reply_free_faults": 0,
+      "ap_consumed": true
+    },
+    {
+      "source_pin": [
+        0,
+        2,
+        1,
+        2458126154
+      ],
+      "sink_pin": [
+        0,
+        1,
+        1,
+        2421817416
+      ],
+      "unique_reply_bytes": 56,
+      "request_bytes": 64,
+      "internal_message_bytes": [
+        64,
+        72
+      ],
+      "reply_free_rc": 0,
+      "reply_free_faults": 0,
+      "ap_consumed": true
+    }
+  ],
+  "four_edges_native_verified": true,
+  "imaging_adf_connection_native_verified": true,
+  "infrabb_vef_connection_native_verified": true,
+  "third_edge_callback_selected": false,
+  "third_edge_PCM_or_B0_or_AVIO_or_source7_new_work": false,
+  "third_sink_registry_count": 10,
+  "fourth_command": "2002/f008",
+  "fourth_currentinfo_bytes": 20,
+  "fourth_command_prepared_context": 1,
+  "fourth_command_executed_context": 3,
+  "fourth_type_table_entry": 2,
+  "fourth_command_synchronous": true,
+  "fourth_command_and_currentinfo_FNV64": "3c3a32bb6809f4cc",
+  "mapped_formats": [
+    {
+      "edge": 1,
+      "header_word": "0x06000000",
+      "ETRY_type": 1,
+      "bytes": 80,
+      "handle": "0x8400",
+      "buffer_fnv64": "88d47938b00f682e",
+      "payload_fnv64": "1a3c540ebc5023bd",
+      "DMM_message_bytes": [
+        216,
+        216,
+        216,
+        216
+      ],
+      "DMM_operations": [
+        32,
+        37,
+        36,
+        35
+      ],
+      "Free_option": 2
+    },
+    {
+      "edge": 4,
+      "header_word": "0x02000000",
+      "ETRY_type": 0,
+      "bytes": 80,
+      "handle": "0x8800",
+      "buffer_fnv64": "472ea89986f7114b",
+      "payload_fnv64": "1a3c540ebc5023bd",
+      "DMM_message_bytes": [
+        152,
+        152,
+        216,
+        216,
+        216
+      ],
+      "DMM_operations": [
+        32,
+        37,
+        36,
+        37,
+        35
+      ],
+      "Free_option": 0
+    }
+  ],
+  "control_pool_reset_or_clone": false,
+  "shared_owner_extra_command21": false,
+  "fourth_early_requests_refused_without_requests_or_faults": 1,
+  "fourth_same_format_only": true,
+  "different_format_unknown_forward_refused": true,
+  "remaining_connections_refused": 9,
+  "302c_completed": false,
+  "original_sd_export_verified_this_run_only": true,
+  "SD_original_Fsys_flush_rc": [
+    0,
+    0
+  ],
+  "SD_flush_sequences": [
+    1457048636110919,
+    1457049569976710
+  ],
+  "SD_owner_STOP_and_resume": true,
+  "SD_host_tree_all_sizes_and_SHA256_match_both_exports": true,
+  "host_file_count": 3,
+  "SD_clean_commit": true,
+  "host_control_owner_pid": 257760,
+  "host_owner_group_and_QEMU_exited": true,
+  "both_locks_exclusive_acquired_and_released": true,
+  "sigkill_sent": false,
+  "host_combined_tests": 958,
+  "host_subtests": 139,
+  "third_host_scenarios": 117,
+  "fourth_host_tests": 104,
+  "original_libc225_ABI_verified": true,
+  "independent_backend_reviews": [
+    "1f2 third noP1-P3",
+    "8f4 fourth noP1-P3"
+  ],
+  "native_independent_review": {
+    "agent": "c9ecb14f-b248-46e2-b6ac-6f0831e1364f",
+    "result": "no P1-P3 within four explicit virtual graph edges, two control-format consumptions and this-run SD",
+    "archived_sources_checked": 283,
+    "strict_evaluator_replayed_without_writes_exact_match": true,
+    "four_original_AP_releases_checked": true,
+    "mapped_packets_and_DMM_reference_retirement_checked": true,
+    "host_tree_both_exports_and_dual_locks_independently_checked": true
+  },
+  "original_CP_executed": false,
+  "original_CP_page_tables_verified": false,
+  "original_RTOS_scheduler_verified": false,
+  "PCM_verified": false,
+  "hardware_verified": false,
+  "frames_verified": false,
+  "JPEG_files": 0,
+  "MP4_files": 0,
+  "EE_status": 0,
+  "capture_verified": false
+}

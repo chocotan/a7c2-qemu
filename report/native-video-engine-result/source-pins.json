@@ -1,0 +1,30 @@
+{
+  "scope": "real callback registration, BSO_DONE result CPU construction; actual engine bytes and completion producer unclosed",
+  "artifact": "runtime/analysis/menu-root/system/av-cam.bin",
+  "bytes": 13797088,
+  "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+  "windows": [
+    {"raw_hex": "37b098", "bytes": 40, "sha256": "09898e59e300f79a3a2f0f3442b1e954a7a36c661e56c3715cef6cb53a265e45"},
+    {"raw_hex": "245a78", "bytes": 80, "sha256": "10e7bde2e1e2c165870f407286ccd7a7a56c4d8b147b148d86fffab9a0c5b924"},
+    {"raw_hex": "247744", "bytes": 24, "sha256": "0c3a924c5368b9d8848809b1b15e3992d30cf0b338b4b937e6a4eae3b8666745"},
+    {"raw_hex": "22308c", "bytes": 24, "sha256": "15f2efe00e1e808921c7f49f08b38062e4dd787d27b4d66dee32e2d0db1f3ca7"},
+    {"raw_hex": "224ab0", "bytes": 684, "sha256": "ef9892b903b66b014b827119f7ec4c8e22d5cb3dc0c16bb4457c3f6475f80b41"},
+    {"raw_hex": "221630", "bytes": 664, "sha256": "1915fc017e117954e4482b5fcd740c49575efaac245a7d119ed5cfd12f71dc31"},
+    {"raw_hex": "2221c0", "bytes": 200, "sha256": "4962a2d42f58f58a6dcecbab7809a1d90fe31674cb0bcfbe861d0bb33c50822f"},
+    {"raw_hex": "221dc8", "bytes": 1016, "sha256": "fc36db43ea9275f609aa1419253e5ed4a8930165b12c12d7b1ce2f18427875c7"},
+    {"raw_hex": "21b780", "bytes": 92, "sha256": "d05b06cabe20012960780387f9e6a5e73db91b19c75bf67c842127529bb4006a"},
+    {"raw_hex": "22cb78", "bytes": 640, "sha256": "bb5ca7251e35bde0319d9d2c53d99110a1f2351174f8707cc698019ba278ae3d"},
+    {"raw_hex": "227a08", "bytes": 100, "sha256": "9ab41fd162765feb2f3f244c3def2945d30b15bb61fe08e49a78d0769fd26089"},
+    {"raw_hex": "2961bc", "bytes": 784, "sha256": "34b7aeef0c80fa3ff07c4c164be89debe2bcb6575c5163023930ea27eb98db88"}
+  ],
+  "window_count": 12,
+  "window_bytes": 4348,
+  "result_bytes": 1568,
+  "callback_registration_and_actual_virtual_caller_closed": true,
+  "result_parser_return_checked_before_callback": false,
+  "input_message_type_hex": "0500",
+  "input_message_sender_closed": false,
+  "actual_ES_byte_producer_closed": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false
+}

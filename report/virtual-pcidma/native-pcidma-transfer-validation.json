@@ -1,0 +1,21 @@
+{
+  "status": "PASS_ORIGINAL_PCI_DMA_WRITE_READBACK_256B",
+  "binary_sha256": "500f1e65ed26fb17da8ba1abcf3dc617f7338c53306b7fb70cf6576ba32c0849",
+  "client_sha256": "103720c52f7829fce5ff997a7ed2d1467d52eb384bb6dbb31584d78b86a80fe9",
+  "peer_bar0": "0xe0000000",
+  "irq198_counts": [
+    0,
+    2
+  ],
+  "engine_state_enabled_idle_status_cleared": [
+    1,
+    1,
+    0,
+    0
+  ],
+  "peer_ram_pattern_verified": true,
+  "guest_roundtrip_verified": true,
+  "engine_writes_in_trace": 28,
+  "doorbell_writes": 2,
+  "lli_or_concurrent_or_large_frame_or_camera_path_verified": false
+}

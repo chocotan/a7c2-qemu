@@ -1,0 +1,12 @@
+{
+  "scope": "explicit test PCI endpoint RAM only",
+  "status": "PASS hardware aperture, original provider untested",
+  "source_result_sha256": "81cb6b4291f9f524c374b02d7e0d83566d1b7ce67596694c4d470cd78e82378b",
+  "binary_sha256": "3fb9f757ae0890a8306379357c8a64f36cb6b8c8ad7b771f13a8f334d7963b86",
+  "eight_slot_bidirectional_peer_data_verified": true,
+  "guards_and_disabled_window_checked": true,
+  "high_target_not_truncated": true,
+  "original_driver_verified": false,
+  "cp_or_cmos_consumption_verified": false,
+  "capture_verified": false
+}

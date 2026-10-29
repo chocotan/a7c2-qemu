@@ -1,0 +1,21 @@
+{
+  "run": "run-adysi__6",
+  "console_sha256": "329decbf1ac2ba1971c8c43961e0312f961e781f13db37cdecbfac1b210fbef3",
+  "runtime_manifest_sha256": "ad7b47ef3cac0f918b4f7d5debb17c8f05ccd345f2781e166ca3fa20fc00cc27",
+  "summary_sha256": "6291602753f1cc3a7f940ff889fed2f598b5924f9243400a34880045be163a94",
+  "scalar_get_verified": true,
+  "registry_objects": 10,
+  "keys": [0, 1, 4],
+  "pin_state": 1,
+  "owner_sid": "0x91670464",
+  "caller_tid": 324,
+  "reply_destination": "0x81cf61c8",
+  "reply_pointer": "0x7fb00f4cc0",
+  "lease": 1,
+  "request_free_rc": 0,
+  "original_waiter_free_rc": 0,
+  "connect_verified": false,
+  "pixels_consumed": false,
+  "camera_startup_verified": false,
+  "next_query": {"destination": "0x9058003f", "keys": [0, 1, 0]}
+}

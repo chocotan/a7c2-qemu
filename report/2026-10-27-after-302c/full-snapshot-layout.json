@@ -1,0 +1,637 @@
+{
+  "scope": "nominal successful 76-getter full2040 wire layout, not semantic/default values or runtime publication",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "full_table_CP_VA": 14235232,
+  "full_table_sha256": "ea9a87ba0200e1dbe03212f02f8520c6e9dcfb00d3d57021d05e014d081d6962",
+  "full_table_count": 76,
+  "incremental_table_CP_VA": 17802212,
+  "incremental_table_count": 150,
+  "snapshot_bytes": 1748,
+  "semantic_domains_complete": false,
+  "runtime_provider_complete": false,
+  "capture_verified": false,
+  "blocks": [
+    {
+      "index": 0,
+      "command": 8192,
+      "offset": 8,
+      "bytes": 12,
+      "getter_CP_VA": 9259440,
+      "successful_getter_required": true
+    },
+    {
+      "index": 1,
+      "command": 8193,
+      "offset": 20,
+      "bytes": 12,
+      "getter_CP_VA": 9259520,
+      "successful_getter_required": true
+    },
+    {
+      "index": 2,
+      "command": 8194,
+      "offset": 32,
+      "bytes": 12,
+      "getter_CP_VA": 9259618,
+      "successful_getter_required": true
+    },
+    {
+      "index": 3,
+      "command": 8195,
+      "offset": 44,
+      "bytes": 52,
+      "getter_CP_VA": 9259686,
+      "successful_getter_required": true
+    },
+    {
+      "index": 4,
+      "command": 8196,
+      "offset": 96,
+      "bytes": 132,
+      "getter_CP_VA": 9260168,
+      "successful_getter_required": true
+    },
+    {
+      "index": 5,
+      "command": 8197,
+      "offset": 228,
+      "bytes": 12,
+      "getter_CP_VA": 9262910,
+      "successful_getter_required": true
+    },
+    {
+      "index": 6,
+      "command": 8198,
+      "offset": 240,
+      "bytes": 12,
+      "getter_CP_VA": 9262988,
+      "successful_getter_required": true
+    },
+    {
+      "index": 7,
+      "command": 8200,
+      "offset": 252,
+      "bytes": 16,
+      "getter_CP_VA": 9263038,
+      "successful_getter_required": true
+    },
+    {
+      "index": 8,
+      "command": 8201,
+      "offset": 268,
+      "bytes": 12,
+      "getter_CP_VA": 9263198,
+      "successful_getter_required": true
+    },
+    {
+      "index": 9,
+      "command": 8205,
+      "offset": 280,
+      "bytes": 12,
+      "getter_CP_VA": 9263320,
+      "successful_getter_required": true
+    },
+    {
+      "index": 10,
+      "command": 8206,
+      "offset": 292,
+      "bytes": 40,
+      "getter_CP_VA": 9263370,
+      "successful_getter_required": true
+    },
+    {
+      "index": 11,
+      "command": 8210,
+      "offset": 332,
+      "bytes": 12,
+      "getter_CP_VA": 9264378,
+      "successful_getter_required": true
+    },
+    {
+      "index": 12,
+      "command": 8211,
+      "offset": 344,
+      "bytes": 32,
+      "getter_CP_VA": 9264406,
+      "successful_getter_required": true
+    },
+    {
+      "index": 13,
+      "command": 8212,
+      "offset": 376,
+      "bytes": 16,
+      "getter_CP_VA": 9264686,
+      "successful_getter_required": true
+    },
+    {
+      "index": 14,
+      "command": 8214,
+      "offset": 392,
+      "bytes": 12,
+      "getter_CP_VA": 9264908,
+      "successful_getter_required": true
+    },
+    {
+      "index": 15,
+      "command": 8215,
+      "offset": 404,
+      "bytes": 12,
+      "getter_CP_VA": 9264992,
+      "successful_getter_required": true
+    },
+    {
+      "index": 16,
+      "command": 8216,
+      "offset": 416,
+      "bytes": 12,
+      "getter_CP_VA": 3488460,
+      "successful_getter_required": true
+    },
+    {
+      "index": 17,
+      "command": 8217,
+      "offset": 428,
+      "bytes": 12,
+      "getter_CP_VA": 9265042,
+      "successful_getter_required": true
+    },
+    {
+      "index": 18,
+      "command": 8218,
+      "offset": 440,
+      "bytes": 12,
+      "getter_CP_VA": 9265092,
+      "successful_getter_required": true
+    },
+    {
+      "index": 19,
+      "command": 8219,
+      "offset": 452,
+      "bytes": 20,
+      "getter_CP_VA": 9265142,
+      "successful_getter_required": true
+    },
+    {
+      "index": 20,
+      "command": 8221,
+      "offset": 472,
+      "bytes": 16,
+      "getter_CP_VA": 9265900,
+      "successful_getter_required": true
+    },
+    {
+      "index": 21,
+      "command": 8222,
+      "offset": 488,
+      "bytes": 48,
+      "getter_CP_VA": 9266080,
+      "successful_getter_required": true
+    },
+    {
+      "index": 22,
+      "command": 8224,
+      "offset": 536,
+      "bytes": 12,
+      "getter_CP_VA": 9266292,
+      "successful_getter_required": true
+    },
+    {
+      "index": 23,
+      "command": 8226,
+      "offset": 548,
+      "bytes": 12,
+      "getter_CP_VA": 9266388,
+      "successful_getter_required": true
+    },
+    {
+      "index": 24,
+      "command": 8237,
+      "offset": 560,
+      "bytes": 16,
+      "getter_CP_VA": 9266684,
+      "successful_getter_required": true
+    },
+    {
+      "index": 25,
+      "command": 8239,
+      "offset": 576,
+      "bytes": 24,
+      "getter_CP_VA": 9266818,
+      "successful_getter_required": true
+    },
+    {
+      "index": 26,
+      "command": 8240,
+      "offset": 600,
+      "bytes": 12,
+      "getter_CP_VA": 9267020,
+      "successful_getter_required": true
+    },
+    {
+      "index": 27,
+      "command": 8241,
+      "offset": 612,
+      "bytes": 12,
+      "getter_CP_VA": 9267070,
+      "successful_getter_required": true
+    },
+    {
+      "index": 28,
+      "command": 8242,
+      "offset": 624,
+      "bytes": 12,
+      "getter_CP_VA": 9267120,
+      "successful_getter_required": true
+    },
+    {
+      "index": 29,
+      "command": 8246,
+      "offset": 636,
+      "bytes": 12,
+      "getter_CP_VA": 9267410,
+      "successful_getter_required": true
+    },
+    {
+      "index": 30,
+      "command": 8257,
+      "offset": 648,
+      "bytes": 20,
+      "getter_CP_VA": 9268056,
+      "successful_getter_required": true
+    },
+    {
+      "index": 31,
+      "command": 8259,
+      "offset": 668,
+      "bytes": 12,
+      "getter_CP_VA": 9268324,
+      "successful_getter_required": true
+    },
+    {
+      "index": 32,
+      "command": 8260,
+      "offset": 680,
+      "bytes": 160,
+      "getter_CP_VA": 9268422,
+      "successful_getter_required": true
+    },
+    {
+      "index": 33,
+      "command": 8261,
+      "offset": 840,
+      "bytes": 12,
+      "getter_CP_VA": 9268872,
+      "successful_getter_required": true
+    },
+    {
+      "index": 34,
+      "command": 8266,
+      "offset": 852,
+      "bytes": 12,
+      "getter_CP_VA": 9269230,
+      "successful_getter_required": true
+    },
+    {
+      "index": 35,
+      "command": 8268,
+      "offset": 864,
+      "bytes": 12,
+      "getter_CP_VA": 9269330,
+      "successful_getter_required": true
+    },
+    {
+      "index": 36,
+      "command": 8271,
+      "offset": 876,
+      "bytes": 12,
+      "getter_CP_VA": 9269674,
+      "successful_getter_required": true
+    },
+    {
+      "index": 37,
+      "command": 8272,
+      "offset": 888,
+      "bytes": 12,
+      "getter_CP_VA": 9269742,
+      "successful_getter_required": true
+    },
+    {
+      "index": 38,
+      "command": 8275,
+      "offset": 900,
+      "bytes": 20,
+      "getter_CP_VA": 9270028,
+      "successful_getter_required": true
+    },
+    {
+      "index": 39,
+      "command": 8276,
+      "offset": 920,
+      "bytes": 12,
+      "getter_CP_VA": 9270150,
+      "successful_getter_required": true
+    },
+    {
+      "index": 40,
+      "command": 8279,
+      "offset": 932,
+      "bytes": 12,
+      "getter_CP_VA": 9270286,
+      "successful_getter_required": true
+    },
+    {
+      "index": 41,
+      "command": 8280,
+      "offset": 944,
+      "bytes": 12,
+      "getter_CP_VA": 9270336,
+      "successful_getter_required": true
+    },
+    {
+      "index": 42,
+      "command": 8281,
+      "offset": 956,
+      "bytes": 28,
+      "getter_CP_VA": 9270424,
+      "successful_getter_required": true
+    },
+    {
+      "index": 43,
+      "command": 8282,
+      "offset": 984,
+      "bytes": 64,
+      "getter_CP_VA": 9270560,
+      "successful_getter_required": true
+    },
+    {
+      "index": 44,
+      "command": 8284,
+      "offset": 1048,
+      "bytes": 12,
+      "getter_CP_VA": 9271764,
+      "successful_getter_required": true
+    },
+    {
+      "index": 45,
+      "command": 8285,
+      "offset": 1060,
+      "bytes": 12,
+      "getter_CP_VA": 9271814,
+      "successful_getter_required": true
+    },
+    {
+      "index": 46,
+      "command": 8286,
+      "offset": 1072,
+      "bytes": 12,
+      "getter_CP_VA": 9271882,
+      "successful_getter_required": true
+    },
+    {
+      "index": 47,
+      "command": 8289,
+      "offset": 1084,
+      "bytes": 12,
+      "getter_CP_VA": 9272072,
+      "successful_getter_required": true
+    },
+    {
+      "index": 48,
+      "command": 8290,
+      "offset": 1096,
+      "bytes": 12,
+      "getter_CP_VA": 9272122,
+      "successful_getter_required": true
+    },
+    {
+      "index": 49,
+      "command": 8293,
+      "offset": 1108,
+      "bytes": 12,
+      "getter_CP_VA": 9272304,
+      "successful_getter_required": true
+    },
+    {
+      "index": 50,
+      "command": 8294,
+      "offset": 1120,
+      "bytes": 12,
+      "getter_CP_VA": 9272354,
+      "successful_getter_required": true
+    },
+    {
+      "index": 51,
+      "command": 8295,
+      "offset": 1132,
+      "bytes": 36,
+      "getter_CP_VA": 9272398,
+      "successful_getter_required": true
+    },
+    {
+      "index": 52,
+      "command": 8296,
+      "offset": 1168,
+      "bytes": 12,
+      "getter_CP_VA": 9272618,
+      "successful_getter_required": true
+    },
+    {
+      "index": 53,
+      "command": 8297,
+      "offset": 1180,
+      "bytes": 12,
+      "getter_CP_VA": 9272734,
+      "successful_getter_required": true
+    },
+    {
+      "index": 54,
+      "command": 8298,
+      "offset": 1192,
+      "bytes": 12,
+      "getter_CP_VA": 9272784,
+      "successful_getter_required": true
+    },
+    {
+      "index": 55,
+      "command": 8299,
+      "offset": 1204,
+      "bytes": 12,
+      "getter_CP_VA": 9272852,
+      "successful_getter_required": true
+    },
+    {
+      "index": 56,
+      "command": 8300,
+      "offset": 1216,
+      "bytes": 12,
+      "getter_CP_VA": 9272902,
+      "successful_getter_required": true
+    },
+    {
+      "index": 57,
+      "command": 8301,
+      "offset": 1228,
+      "bytes": 12,
+      "getter_CP_VA": 9272952,
+      "successful_getter_required": true
+    },
+    {
+      "index": 58,
+      "command": 8302,
+      "offset": 1240,
+      "bytes": 12,
+      "getter_CP_VA": 9273002,
+      "successful_getter_required": true
+    },
+    {
+      "index": 59,
+      "command": 8303,
+      "offset": 1252,
+      "bytes": 12,
+      "getter_CP_VA": 9273052,
+      "successful_getter_required": true
+    },
+    {
+      "index": 60,
+      "command": 8304,
+      "offset": 1264,
+      "bytes": 12,
+      "getter_CP_VA": 9273102,
+      "successful_getter_required": true
+    },
+    {
+      "index": 61,
+      "command": 8305,
+      "offset": 1276,
+      "bytes": 12,
+      "getter_CP_VA": 9273152,
+      "successful_getter_required": true
+    },
+    {
+      "index": 62,
+      "command": 8350,
+      "offset": 1288,
+      "bytes": 12,
+      "getter_CP_VA": 9277410,
+      "successful_getter_required": true
+    },
+    {
+      "index": 63,
+      "command": 8351,
+      "offset": 1300,
+      "bytes": 132,
+      "getter_CP_VA": 9277460,
+      "successful_getter_required": true
+    },
+    {
+      "index": 64,
+      "command": 8352,
+      "offset": 1432,
+      "bytes": 156,
+      "getter_CP_VA": 9278302,
+      "successful_getter_required": true
+    },
+    {
+      "index": 65,
+      "command": 8353,
+      "offset": 1588,
+      "bytes": 12,
+      "getter_CP_VA": 9279954,
+      "successful_getter_required": true
+    },
+    {
+      "index": 66,
+      "command": 8354,
+      "offset": 1600,
+      "bytes": 12,
+      "getter_CP_VA": 9280004,
+      "successful_getter_required": true
+    },
+    {
+      "index": 67,
+      "command": 8356,
+      "offset": 1612,
+      "bytes": 12,
+      "getter_CP_VA": 9280054,
+      "successful_getter_required": true
+    },
+    {
+      "index": 68,
+      "command": 8357,
+      "offset": 1624,
+      "bytes": 12,
+      "getter_CP_VA": 9280104,
+      "successful_getter_required": true
+    },
+    {
+      "index": 69,
+      "command": 8358,
+      "offset": 1636,
+      "bytes": 16,
+      "getter_CP_VA": 9280154,
+      "successful_getter_required": true
+    },
+    {
+      "index": 70,
+      "command": 8360,
+      "offset": 1652,
+      "bytes": 12,
+      "getter_CP_VA": 9280296,
+      "successful_getter_required": true
+    },
+    {
+      "index": 71,
+      "command": 8364,
+      "offset": 1664,
+      "bytes": 16,
+      "getter_CP_VA": 9280670,
+      "successful_getter_required": true
+    },
+    {
+      "index": 72,
+      "command": 8365,
+      "offset": 1680,
+      "bytes": 12,
+      "getter_CP_VA": 9280818,
+      "successful_getter_required": true
+    },
+    {
+      "index": 73,
+      "command": 8367,
+      "offset": 1692,
+      "bytes": 28,
+      "getter_CP_VA": 9280902,
+      "successful_getter_required": true
+    },
+    {
+      "index": 74,
+      "command": 8368,
+      "offset": 1720,
+      "bytes": 12,
+      "getter_CP_VA": 9281094,
+      "successful_getter_required": true
+    },
+    {
+      "index": 75,
+      "command": 8369,
+      "offset": 1732,
+      "bytes": 16,
+      "getter_CP_VA": 9281258,
+      "successful_getter_required": true
+    }
+  ],
+  "manual_return_pins": [
+    {
+      "command": 8196,
+      "CP_VA": 9262066,
+      "bytes": "8424",
+      "instruction": "movs r4,#84; successful epilogue returnsr4 andcopies84 at8d5730"
+    },
+    {
+      "command": 8352,
+      "CP_VA": 9279944,
+      "bytes": "9c20",
+      "instruction": "movs r0,#9c;return"
+    }
+  ]
+}

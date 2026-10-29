@@ -1,0 +1,24 @@
+{
+  "status": "PASS_ORIGINAL_PCIE_UDIF_AND_PCIDMA_LIFECYCLE_ONLY",
+  "binary_sha256": "321ddc112e9868fd70a9891c3c7f36d64bd1b95501d245ea0f5f6c30711bd0d2",
+  "actual_irqs": [
+    198,
+    200,
+    202,
+    204,
+    206
+  ],
+  "native_proc_paths": 5,
+  "kernel_warnings": 0,
+  "native_scu_sequences": 5,
+  "scu_mmio_writes": 20,
+  "backend_state_matches_trace": true,
+  "trace_sha256": "a01d69d477113acc0c2a5cdaefdc2913248df0681ac8b345d61c6c9e96df1216",
+  "console_sha256": "d648d1cd25a1cc5b535d080720cebb16555844fc0245ca54b9ee77e55266572d",
+  "engines_remain_disabled": [
+    0,
+    0
+  ],
+  "cpu_resumed_and_owned_vm_exited": true,
+  "soc_host_link_or_original_dma_or_capture_verified": false
+}

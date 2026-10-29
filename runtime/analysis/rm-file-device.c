@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -34,7 +35,9 @@ static struct {
     char path[256];
     void *receiver;
     unsigned int subscriber;
-    unsigned int image_bytes;
+    uint64_t image_bytes;
+    int sparse;
+    int host_block;
     unsigned int slot;
     unsigned long long hash,serial,queries,types,subscriptions,notifications;
 } state={.fd=-1,.slot=1};
@@ -50,10 +53,22 @@ static int local_queue(unsigned int q){return q && (q&0x7fff) && !(q&0x70000000U
 static int backing(void){
     struct stat now,path;unsigned char boot[512];
     if(getpid()!=state.pid || syscall(SYS_fstat,state.fd,&now) ||
-       syscall(SYS_newfstatat,AT_FDCWD,state.path,&path,AT_SYMLINK_NOFOLLOW) || !S_ISREG(path.st_mode) ||
+       syscall(SYS_newfstatat,AT_FDCWD,state.path,&path,AT_SYMLINK_NOFOLLOW) ||
        now.st_dev!=state.identity.st_dev || now.st_ino!=state.identity.st_ino ||
-       path.st_dev!=now.st_dev || path.st_ino!=now.st_ino || now.st_size!=state.image_bytes ||
+       path.st_dev!=now.st_dev || path.st_ino!=now.st_ino)return -1;
+    if(state.host_block) {
+        uint64_t size=0;unsigned int sector=0;
+        return S_ISBLK(now.st_mode) && S_ISBLK(path.st_mode) &&
+               now.st_rdev==state.identity.st_rdev && path.st_rdev==now.st_rdev &&
+               !ioctl(state.fd,0x80081272UL,&size) && !ioctl(state.fd,0x1268UL,&sector) &&
+               size==state.image_bytes && sector==512?0:-1;
+    }
+    if(!S_ISREG(path.st_mode) || now.st_size<0 || (uint64_t)now.st_size!=state.image_bytes ||
        pread(state.fd,boot,sizeof boot,0)!=sizeof boot)return -1;
+    if(state.sparse) {
+        unsigned char last;
+        return pread(state.fd,&last,1,(off_t)(state.image_bytes-1))==1?0:-1;
+    }
     unsigned int sectors=u16(boot+19);if(!sectors)sectors=u32(boot+32);
     return boot[510]==0x55 && boot[511]==0xaa && u16(boot+11)==512 &&
            sectors==state.image_bytes/512 && boot[13] && !(boot[13]&(boot[13]-1))?0:-1;
@@ -161,8 +176,8 @@ static void dispatch(void *request,unsigned long arg){
         }
         pthread_mutex_lock(&mutex);if(state.faults){result=SYSTEM_ERROR;outbytes=0;notify=0;}pthread_mutex_unlock(&mutex);
         put16(reply+6,outbytes);put32(reply+12,result);
-        char line[320];snprintf(line,sizeof line,"tid=%ld request=%p bytes=%u opcode=%u payload=%u reply_queue=%#x result=%#x backing_bytes=%u queries=%llu types=%llu subscriptions=%llu",
-            syscall(SYS_gettid),request,n,opcode,payload,dst,result,state.image_bytes,state.queries,state.types,state.subscriptions);
+        char line[320];snprintf(line,sizeof line,"tid=%ld request=%p bytes=%u opcode=%u payload=%u reply_queue=%#x result=%#x backing_bytes=%llu queries=%llu types=%llu subscriptions=%llu",
+            syscall(SYS_gettid),request,n,opcode,payload,dst,result,(unsigned long long)state.image_bytes,state.queries,state.types,state.subscriptions);
         event("REQUEST ",line);
         if(local_queue(dst) && !emit(dst,dst,NATIVE_RM_FILE_SID,reply,24+outbytes,request,"REPLY_QUEUED ") && notify){
             unsigned char initial[7]={2,0,0,2,0,2,0};
@@ -222,6 +237,12 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
     state.attempted=1;if(io)state.io=*io;pthread_mutex_unlock(&mutex);
     const char *image_env=getenv("MENU_RM_FILE_IMAGE"),*claim_env=getenv("MENU_RM_FILE_CLAIM");
     const char *slot_env=getenv("MENU_RM_FILE_SLOT");
+    const char *sparse_env=getenv("MENU_RM_SPARSE");
+    const char *block_env=getenv("A7C2_HOST_BLOCK_SD");
+    if(sparse_env && strcmp(sparse_env,"10g-empty"))return -1;
+    if(block_env && (strcmp(block_env,"1") || sparse_env))return -1;
+    state.sparse=sparse_env!=0;
+    state.host_block=block_env!=0;
     state.slot=1;
     if(slot_env){
         if(!strcmp(slot_env,"0"))state.slot=0;
@@ -239,9 +260,15 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
         event("FAILED ","existing RM queue owner or pending data");return -1;
     }
     state.fd=open(path,O_RDWR|O_NOFOLLOW);
-    if(state.fd<0 || syscall(SYS_fstat,state.fd,&state.identity) || !S_ISREG(state.identity.st_mode) ||
-       state.identity.st_size<MIN_IMAGE_BYTES || state.identity.st_size>0x80000000LL || state.identity.st_size%4096)goto fail;
-    state.image_bytes=(unsigned int)state.identity.st_size;
+    if(state.fd<0 || syscall(SYS_fstat,state.fd,&state.identity))goto fail;
+    if(state.host_block) {
+        state.image_bytes=UINT64_C(256000000000);
+        if(!S_ISBLK(state.identity.st_mode))goto fail;
+    } else {
+        if(!S_ISREG(state.identity.st_mode) || state.identity.st_size<MIN_IMAGE_BYTES || state.identity.st_size%4096)goto fail;
+        if(state.sparse ? state.identity.st_size!=10LL*1024*1024*1024 : state.identity.st_size>0x80000000LL)goto fail;
+        state.image_bytes=(uint64_t)state.identity.st_size;
+    }
     if(backing())goto fail;
     {
         const struct native_sd_hotplug_io hot_io={&state,hot_backing,hot_flush,hot_notify};
@@ -250,8 +277,10 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
         if(native_sd_hotplug_enabled() && state.slot!=1)goto fail;
     }
     unsigned char bytes[4096];state.hash=0xcbf29ce484222325ULL;
-    for(unsigned int offset=0;offset<state.image_bytes;offset+=sizeof bytes){
-        if(pread(state.fd,bytes,sizeof bytes,offset)!=sizeof bytes)goto fail;
+    int sampled=state.sparse || state.host_block;
+    for(uint64_t offset=0;offset<(sampled?2*sizeof bytes:state.image_bytes);offset+=sizeof bytes){
+        off_t position=sampled && offset?(off_t)(state.image_bytes-sizeof bytes):(off_t)offset;
+        if(pread(state.fd,bytes,sizeof bytes,position)!=sizeof bytes)goto fail;
         for(unsigned int i=0;i<sizeof bytes;i++)state.hash=(state.hash^bytes[i])*0x100000001b3ULL;
     }
     if(backing())goto fail;
@@ -268,8 +297,9 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
         event("FAILED ","real callback stat verification failed");goto fail;
     }
     pthread_mutex_lock(&mutex);state.started=1;pthread_mutex_unlock(&mutex);char line[260];
-    snprintf(line,sizeof line,"pid=%ld receiver=%p callback_count=%u image_bytes=%u initial_fnv64=%016llx virtual_rm=2 virtual_mmc_selector=0x20 global_dummy_nand_unsupported=1 original_cp_task=0",
-             (long)state.pid,state.receiver,stats[1],state.image_bytes,state.hash);event("STARTED ",line);return 0;
+    snprintf(line,sizeof line,"pid=%ld receiver=%p callback_count=%u image_bytes=%llu %s=%016llx virtual_rm=2 virtual_mmc_selector=0x20 global_dummy_nand_unsupported=1 original_cp_task=0",
+             (long)state.pid,state.receiver,stats[1],(unsigned long long)state.image_bytes,
+             sampled?"boundary_sample_fnv64":"initial_fnv64",state.hash);event("STARTED ",line);return 0;
 fail:
     stop_worker();
     if(state.fd>=0){close(state.fd);state.fd=-1;}event("FAILED ","backing or original queue startup validation failed");return -1;

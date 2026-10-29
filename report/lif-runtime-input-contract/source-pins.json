@@ -1,0 +1,129 @@
+{
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_bytes": 18090880,
+  "mapping": "CP_VA = raw_offset + 0x108000",
+  "file_backed_CP_VA": [
+    1081344,
+    19172224
+  ],
+  "BSS_read_as_file": false,
+  "completed_source": "e2e83196",
+  "constructor_bitmap_known_mask": 0,
+  "native_producer_wired": false,
+  "source_event": "explicit a923d0 bitmap snapshot, not original outgoing 0a verification",
+  "type1_gate": "1b1aa10 full u8 != 0; a92580 xor1, 4055c6 xor1, 404d18 rejects only zero",
+  "schema_bitmap_bit": "byte=(field_id >> 3)&15; bit=1<<(field_id&7)",
+  "flavor": null,
+  "pins": [
+    {
+      "label": "wire-validator",
+      "CP_VA": 4213832,
+      "raw_offset": 3132488,
+      "bytes": 292,
+      "sha256": "a73e14f1a83310cf6083696ab23e5a560e3c13be4004046ecf351874d8b67079"
+    },
+    {
+      "label": "checksum-loop",
+      "CP_VA": 10781274,
+      "raw_offset": 9699930,
+      "bytes": 20,
+      "sha256": "045c8471be00da65975ced84d08773f5af15c5967f5aefa2300046f4d0710dc0"
+    },
+    {
+      "label": "command-and-schema-pointers",
+      "CP_VA": 17854512,
+      "raw_offset": 16773168,
+      "bytes": 332,
+      "sha256": "b890f12eb45319ab4ac076c4ad29444fddbbb11312b1bc7412a76e12234cc8b6"
+    },
+    {
+      "label": "top-command-rows",
+      "CP_VA": 18896218,
+      "raw_offset": 17814874,
+      "bytes": 30,
+      "sha256": "c5d00b1626d1ba3fe775cef3ef5aca3c5ac29ee8fc5eeac7e70dd94c88df9d62"
+    },
+    {
+      "label": "dynamic-schemas-and-terminators",
+      "CP_VA": 18902525,
+      "raw_offset": 17821181,
+      "bytes": 154,
+      "sha256": "94542d2f4ed13a9f0da83d8859925b8d185a1cffc318c2ea3b8e5c5385bd2765"
+    },
+    {
+      "label": "bitmap-snapshot-and-dynamic-decode",
+      "CP_VA": 11084752,
+      "raw_offset": 10003408,
+      "bytes": 422,
+      "sha256": "78bbcd00210dd2736cb089963840393649d79e546da2c2003b547b10ff061f93"
+    },
+    {
+      "label": "cache-layout-and-getters",
+      "CP_VA": 10777672,
+      "raw_offset": 9696328,
+      "bytes": 1152,
+      "sha256": "18be13f59d692688de6e0626c8289455e3bc71808bf7dfc8aa8fbb072b122ad1"
+    },
+    {
+      "label": "cache-commit-state-guards",
+      "CP_VA": 4217634,
+      "raw_offset": 3136290,
+      "bytes": 566,
+      "sha256": "1d265888eed7cda2bfdff45bf68e09a062490a1318c812f74080977a6c58351c"
+    },
+    {
+      "label": "worker-consumer-boundary",
+      "CP_VA": 4242148,
+      "raw_offset": 3160804,
+      "bytes": 1988,
+      "sha256": "da97fcd8eb0cb5ec0eb9c91528192704493e34fda30f98301d45be487c0aad87"
+    },
+    {
+      "label": "state3-source-event",
+      "CP_VA": 11097562,
+      "raw_offset": 10016218,
+      "bytes": 116,
+      "sha256": "ee00e5d90de2811af6bb583242a6223790d8c4d591ddb7d802f69399204f133d"
+    },
+    {
+      "label": "state-store",
+      "CP_VA": 11077866,
+      "raw_offset": 9996522,
+      "bytes": 68,
+      "sha256": "7deec3809367ae29ccdb756c09999dda39c97056f1c243f08c9e0cc9c7f64ef5"
+    },
+    {
+      "label": "mode-property-delivery",
+      "CP_VA": 3963612,
+      "raw_offset": 2882268,
+      "bytes": 140,
+      "sha256": "c531999f4d04527ce8d044045f21c9eed3d2a977ccb51fd939a52bdb8f97dc2a"
+    }
+  ],
+  "type1_gate_evidence": [
+    {
+      "label": "type1-source-byte-getter",
+      "CP_VA": 11085184,
+      "raw_offset": 10003840,
+      "bytes": 16,
+      "sha256": "555c3ea5c1520cd07409a8b8aaf352e0fe7bf1d4673cc19808a9eba0a2dc9c67",
+      "expected_hex": "4af61020c0f2b110007880f001007047"
+    },
+    {
+      "label": "receive-captures-gate-before-bitmap-snapshot",
+      "CP_VA": 4216208,
+      "raw_offset": 3134864,
+      "bytes": 10,
+      "sha256": "ebdb85becc034a5255beb860736a05c1f58970bdd9292061c41ad8bd244a240b",
+      "expected_hex": "8cf2f6f706468cf21bf7"
+    },
+    {
+      "label": "receive-passes-second-xor-to-validator",
+      "CP_VA": 4216260,
+      "raw_offset": 3134916,
+      "bytes": 20,
+      "sha256": "e6d1bfa85e0ffb00998d79d32063d5beea49b6d392810f09ff49ec7d743c3663",
+      "expected_hex": "012086f0010341462a4600900aae3046fff738fb"
+    }
+  ]
+}

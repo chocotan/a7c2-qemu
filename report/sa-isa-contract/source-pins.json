@@ -1,0 +1,22 @@
+{
+  "scope": "public SA registry and entry parsing only; ISA and pixel lanes unknown",
+  "artifacts": [
+    {"path": "system/av-cam.bin", "size": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"},
+    {"path": "usr/sabin/sa_sabin_mp_cam_post.bin", "size": 53504, "sha256": "38a99704591ce1706a0b77645f71d1b2f50750419672d1bd2280c448f2d09a12"}
+  ],
+  "windows": [
+    {"artifact": "system/av-cam.bin", "raw_offset_hex": "2fe644", "bytes": 260, "sha256": "f0cebc0757639f70dc18de8a199f5351cab261efe1bf07e2c95ab1837f9777e4"},
+    {"artifact": "system/av-cam.bin", "raw_offset_hex": "304c44", "bytes": 52, "sha256": "7f41c5d67ca62bd71bd4235c7edcb463d34bd59cf7e71651b412c1c1b77eab21"},
+    {"artifact": "system/av-cam.bin", "raw_offset_hex": "304ac0", "bytes": 192, "sha256": "7e5ea99e59938631417efa9a403ab720999d5ca562c9f22a0c2adceba5fdf77d"},
+    {"artifact": "system/av-cam.bin", "raw_offset_hex": "304b80", "bytes": 1536, "sha256": "445b8c5555b7c1ac535c88daf0bd3c0257fe9bded8b32b6699756040fbd73970"},
+    {"artifact": "usr/sabin/sa_sabin_mp_cam_post.bin", "raw_offset_hex": "8800", "bytes": 80, "sha256": "57f9183b043cbe4b6742fab7c9e2ba958debcc344eb5ef78cb4d72bc6115055d"},
+    {"artifact": "usr/sabin/sa_sabin_mp_cam_post.bin", "raw_offset_hex": "8900", "bytes": 5120, "sha256": "75c481ee17961521fd5cb2c41ab49fec79228839e47faba5d97f8ef59a5a8822"}
+  ],
+  "window_count": 6,
+  "window_bytes": 7240,
+  "known_entry": {"header_raw_hex": "8800", "payload_relative_offset_hex": "100", "resolved_payload_raw_hex": "8900", "metadata_flags": 0, "payload_length_from_parser": false},
+  "isa_known": false,
+  "native_pixel_layout_known": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false
+}

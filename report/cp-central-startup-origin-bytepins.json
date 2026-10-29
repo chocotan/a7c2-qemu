@@ -1,0 +1,52 @@
+{
+  "scope": "original source explicit current-zero edge and constructor traversal only; no runtime startup completion",
+  "cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "cp_bytes": 18090880,
+  "raw_base": "0x108000",
+  "pin_columns": ["cpva", "length", "sha256"],
+  "pins": [
+    ["0x108000",112,"770268c8c56070f6fd93cebb37464ad1fd0b715cdf717c40b5c91f5f0f108dad"],
+    ["0x108398",40,"a9a0dae8336a8f6549d5d4a80b17d497a0b6bc3fd2ec7d3fe544fb8153aaa232"],
+    ["0x10850c",40,"71746267c183e049a68b8581a0ef575693134d31f592398da2795214beae67be"],
+    ["0x108728",56,"be1bf46fb7275d5cc3c537d689e8e5e1fc50ee07e7db9a685bdbc9cb2e34c9ac"],
+    ["0x128000",4,"e00f5502dad09a7e53769397be1000d4193e4a0d423373be83de66671175efb8"],
+    ["0x128148",52,"5fd72944415186ef2c61d7b329d02d03dd0604726cb931209333e8df48d5b81b"],
+    ["0x619ea0",180,"cbfef4d37f36a81d3106f70d2484afcb2891cdb5d283b0ff0ebf66b37157cdee"],
+    ["0x60d324",336,"d60d92c4437314f4ac0c5f683526c7b50cbdee0b3ba4232b4faa3e0e50b6c56b"],
+    ["0x61ed00",312,"08db00a35b3411ecffd440d6af222556dbb9f6f386d0fabac7be91a5b6d9281b"],
+    ["0x60d220",48,"c9556eebc86a737d14dfc889b5da5df4e754b031aabe4b4920d021cf00397f5e"],
+    ["0x601db8",28,"f19606707032c74c046e2b0e9c9efd4b8cdaf3890047b82968861394320e3f47"],
+    ["0xffe444",4,"9ecf2242feeb08713c7cd889d2f1aee0700ebbdd400acf5133789b93779cce36"],
+    ["0xfff418",4,"67f502bc060931436e2ea6f8d06da977e1e8bb9d33f477637a620e7f10c35553"],
+    ["0xfff598",12,"83a9677e8bdfeae1690f36376b81f2199f065e416e71900c633dc7f26931e08a"],
+    ["0x739a2a",400,"5c1d46349913920d601b7082437679c2885f169b0619226b1d983057c3893b09"],
+    ["0xb1f2b0",12,"2057db6f7c48a9902fd6aec37caa1dc23e253de0b9215f5fe9817daf2df4d69b"],
+    ["0xb23396",118,"4747f8854ac57f30b781ad32b754ca19f033def90ce0100fd5764750f5d68078"],
+    ["0xffe434",16,"9f03bfaf30041478157bacc96d16bd58c7e2328e093bb8168589e4aa176ec1ab"],
+    ["0x61ccbc",32,"78e4cfa1bc06d826b55e8b01836f22fdcf91ab3725ef93aaa0f640d3ac7aa08c"],
+    ["0x61dbb8",36,"96cb6e0aa8f28c2955481b5ed6eb767b942ae2dc8f099186a87bfbbdf2fdb7e3"]
+  ],
+  "explicit_clear": {
+    "source_call_cpva": "0x60d354",
+    "clear_routine_cpva": "0x61ed00",
+    "start": "0x120a418",
+    "end_exclusive": "0x1b85f5c",
+    "bytes": "0x97bb44",
+    "current_address": "0x1a52ad4",
+    "source_initial_current_at_clear_return": 0
+  },
+  "constructors": {
+    "executor_ARM_cpva": "0x60d220",
+    "array_cpva": "0xffe444",
+    "nonzero_entries": 1111,
+    "first_zero_cpva": "0xfff5a0",
+    "central_index": 1013,
+    "central_pointer": "0xb1f329",
+    "array_including_zero_sha256": "82ca4bafcd65a0ab5932ca847eb55032e78cb324ab53f11ea36024b520ffd6c0"
+  },
+  "source_post_constructor_current_known": false,
+  "first_internal_start_history_complete": false,
+  "runtime_current_before_302c_known": false,
+  "302c_native_verified": false,
+  "capture_verified": false
+}

@@ -1,0 +1,14 @@
+{
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "instruction_pins": 52,
+  "root_of_msi_null_node_subpaths_verified": true,
+  "wildcard_early_fixup": "0x573fb8 -> 0x249578",
+  "trigger_pcie_type": 4,
+  "reads_bus_sysdata": true,
+  "ctrl_from_sysdata_delta": -32,
+  "wrapper_pointer_offset_in_ctrl": 352,
+  "dbi_pointer_offset_in_ctrl": 8,
+  "opaque_adapter_gate": "BLOCKED: root port wildcard fixup needs actual compatible context/MMIO",
+  "global_context_safety_verified": false,
+  "runtime_verified": false
+}

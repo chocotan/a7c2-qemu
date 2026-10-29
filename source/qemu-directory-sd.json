@@ -1,0 +1,26 @@
+{
+  "scope": "Explicit host-directory FAT32 block device, not physical-disk passthrough",
+  "patch": "qemu-directory-sd.patch",
+  "patch_sha256": "11bdc54d4ba81d57d33e7a2c7644d2ac596bed4133dcea5a48ee416e0f71772d",
+  "base_archive": "vendor/qemu-11.1.2.tar.xz",
+  "source_files": {
+    "block/vvfat.c": {
+      "before": "65cb758faa36036eb10d9afe3b53eaa772ced44a8b45a16eca20acccac3af9c2",
+      "after": "454aa19fdf667582bc1667d5bb9f4181df98a4f4d4a350370862866ee12663f9"
+    },
+    "qapi/block-core.json": {
+      "before": "22b1d036051344b7d3d13efe6d10da249e36c10ac31139f01a5635b80a001e98",
+      "after": "934b818bb65eb31a040dea4f3f291ef2467326de2ebe7fd645e13e1a72ed9eae"
+    }
+  },
+  "required_configure_option": "--enable-vvfat",
+  "work_file": "directory-sd/vvfat.c",
+  "fixed_profile": {
+    "fat_type": 32,
+    "total_sectors": 500000000,
+    "bytes": 256000000000,
+    "logical_sector_bytes": 512
+  },
+  "original_io_verified": false,
+  "firmware_format_verified": false
+}

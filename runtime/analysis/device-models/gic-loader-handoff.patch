@@ -1,0 +1,42 @@
+--- a/include/hw/intc/arm_gic_common.h
++++ b/include/hw/intc/arm_gic_common.h
+@@ -162,6 +162,7 @@
+     bool security_extn;
+     bool virt_extn;
+     bool irq_reset_nonsecure; /* configure IRQs as group 1 (NS) on reset? */
++    bool sony_loader_spi_targets; /* cold-boot handoff to a takeover kernel */
+     int dev_fd; /* kvm device fd if backed by kvm vgic support */
+     Error *migration_blocker;
+ };
+--- a/hw/intc/arm_gic_common.c
++++ b/hw/intc/arm_gic_common.c
+@@ -307,6 +307,7 @@
+     for (i = 0; i < GIC_MAXIRQ; i++) {
+         /* For uniprocessor GICs all interrupts always target the sole CPU */
+-        if (s->num_cpu == 1) {
++        if (s->num_cpu == 1 || (s->sony_loader_spi_targets &&
++            i >= GIC_INTERNAL && i < s->num_irq)) {
+             s->irq_target[i] = 1;
+         } else {
+             s->irq_target[i] = 0;
+@@ -361,6 +362,7 @@
+     DEFINE_PROP_BOOL("has-security-extensions", GICState, security_extn, 0),
+     /* True if the GIC should implement the virtualization extensions */
+     DEFINE_PROP_BOOL("has-virtualization-extensions", GICState, virt_extn, 0),
++    DEFINE_PROP_BOOL("sony-loader-spi-targets", GICState, sony_loader_spi_targets, false),
+     DEFINE_PROP_UINT32("num-priority-bits", GICState, n_prio_bits, 8),
+ };
+ 
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -1360,6 +1360,10 @@
+     vms->gic = qdev_new(gic_class_name());
+     qdev_prop_set_uint32(vms->gic, "revision", 2);
+     qdev_prop_set_uint32(vms->gic, "num-cpu", smp_cpus);
++    if (g_getenv("QEMU_SONY_GIC_HANDOFF") && !kvm_irqchip_in_kernel()) {
++        qdev_prop_set_bit(vms->gic, "sony-loader-spi-targets", true);
++        fprintf(stderr, "SONY_GIC_HANDOFF_V1 spi-default=cpu0\n");
++    }
+     /*
+      * Note that the num-irq property counts both internal and external
+      * interrupts; there are always 32 of the former (mandated by GIC spec).

@@ -1,0 +1,566 @@
+{
+  "schema": 1,
+  "address_coordinates": {
+    "I": "libInfraAvbbc.so ELF VA",
+    "D": "dataflowInfraFramework.so ELF VA",
+    "K": "av-cam.bin raw file offset; KVA = raw + 0xffffffc001000000"
+  },
+  "assets": {
+    "I": {
+      "path": "usr/lib/libInfraAvbbc.so",
+      "size": 1738760,
+      "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5",
+      "kind": "ELF64-AArch64",
+      "undefined_dynsym_count": 197,
+      "defined_dynsym_count": 5313,
+      "needed": [
+        "libMWF.so",
+        "dataflowInfraFramework.so",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libdl.so.2",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "librt.so.1"
+      ],
+      "symbols": {
+        "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin18MakeInputYcStdDataEv": [
+          1160072,
+          716
+        ],
+        "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinC2EP20InfraAvbbcMsgManagerPN14AvbbcParamCtrl16ParameterControlEjjhtt": [
+          1158200,
+          108
+        ],
+        "_ZN24ExcludionEnvironmentUtil21ClearCommonMemFmtDataEPN14AvbbcParamCtrl16ParameterControlEj": [
+          1209232,
+          4
+        ],
+        "_ZTVN14AvbbcParamCtrl16ParameterControlE": [
+          1736720,
+          208
+        ],
+        "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin7ExecCmdEPKh": [
+          1160788,
+          756
+        ],
+        "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin19makeParamEncodeJpegERN3SDF25ENCODE_JPEG_COMMAND_PARAME": [
+          1159564,
+          508
+        ],
+        "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinC1EP20InfraAvbbcMsgManagerPN14AvbbcParamCtrl16ParameterControlEjjhtt": [
+          1158200,
+          108
+        ]
+      }
+    },
+    "D": {
+      "path": "usr/lib/dataflowInfraFramework.so",
+      "size": 306496,
+      "sha256": "620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47",
+      "kind": "ELF64-AArch64",
+      "undefined_dynsym_count": 27,
+      "defined_dynsym_count": 1822,
+      "needed": [
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libdl.so.2",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "librt.so.1"
+      ],
+      "symbols": {
+        "_ZN33C_DataflowInfra_Entry_YcStateInfo11SetData_AllEPN19DataflowInfra_StdYc20PIN_YC_YC_STATE_INFOE": [
+          228348,
+          12
+        ],
+        "_ZN35C_DataflowInfra_Entry_ImageSizeInfo11SetData_AllEPN19DataflowInfra_StdYc22PIN_YC_IMAGE_SIZE_INFOE": [
+          222224,
+          12
+        ]
+      }
+    },
+    "K": {
+      "path": "system/av-cam.bin",
+      "size": 13797088,
+      "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "kind": "raw"
+    }
+  },
+  "windows": [
+    {
+      "asset": "I",
+      "name": "Without_Pin constructor",
+      "start": 1158200,
+      "size": 108,
+      "sha256": "90d4c60e90f5dec9c175ff1141ee554bedbedf24366c3ec64dbd0a7c2147aa13"
+    },
+    {
+      "asset": "I",
+      "name": "YC metadata builder",
+      "start": 1160072,
+      "size": 716,
+      "sha256": "0afdd831d641ea0b07dfb2b3ee004b4a1c923451014550cf4e5a2a88620eb219"
+    },
+    {
+      "asset": "I",
+      "name": "80B JPEG parameter builder",
+      "start": 1159564,
+      "size": 508,
+      "sha256": "5e85ab99b9d079069ce51b65fe7a9bbf30df56237a08f1f001678a1faf35629f"
+    },
+    {
+      "asset": "I",
+      "name": "original SDF submitter",
+      "start": 1160788,
+      "size": 756,
+      "sha256": "e760c6bd94daca8402ea2857f49c0fe6100b2100843ae807497fe6ed2ac21c12"
+    },
+    {
+      "asset": "I",
+      "name": "clear-common-memory compatibility no-op",
+      "start": 1209232,
+      "size": 4,
+      "sha256": "110f46b5b35c069160560c6ad6786f647dd44e8760a52a46fc22dbbcd7630b91"
+    },
+    {
+      "asset": "D",
+      "name": "ImageSizeInfo 72B payload copy",
+      "start": 222224,
+      "size": 12,
+      "sha256": "f3831455f8fa28ee6de9ccaa5d55d04e8d627b3837d3422a9334128fbe940c0f"
+    },
+    {
+      "asset": "D",
+      "name": "YcStateInfo 8B payload copy",
+      "start": 228348,
+      "size": 12,
+      "sha256": "f7d95acbdbe353cb9d166f5b9ec188989645d12d2905f29e5a1424e384c2a2b6"
+    },
+    {
+      "asset": "K",
+      "name": "SDF wrapper calls original JPEG driver",
+      "start": 404092,
+      "size": 96,
+      "sha256": "e4560669ece0bef4bcea046e2f04c40dce1db82278c57a39edad9840abb56d8f"
+    },
+    {
+      "asset": "K",
+      "name": "driver dispatch to original encoder configuration",
+      "start": 2775280,
+      "size": 172,
+      "sha256": "d4baefa4cd14b073886302cc09aae51045d610ca88df636de760d3c321d6cc96"
+    },
+    {
+      "asset": "K",
+      "name": "encoder configuration to register writer and scheduler",
+      "start": 2804500,
+      "size": 472,
+      "sha256": "cb579d5766d0e0f12a279a6d09f83524f5251335110a989c68911e29deae8cb9"
+    },
+    {
+      "asset": "K",
+      "name": "device register programming wrapper",
+      "start": 2815580,
+      "size": 296,
+      "sha256": "fbee1e9d539f2efab4827489eca79ba48d18cd929ee7620d344ad0bd386a3883"
+    },
+    {
+      "asset": "K",
+      "name": "concrete device register stores",
+      "start": 2770796,
+      "size": 24,
+      "sha256": "6b23dd420f60f0517fad0a681c1540179b9bb2d34e87f184b21a5858669fcfda"
+    }
+  ],
+  "instructions": [
+    {
+      "asset": "I",
+      "address": 1158216,
+      "expected": [
+        "mov",
+        "w2, w3"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1158248,
+      "expected": [
+        "bl",
+        "#0xa0fd0"
+      ],
+      "call_symbol": "_ZN12ExecCmd_BaseC2EP20InfraAvbbcMsgManagerj"
+    },
+    {
+      "asset": "I",
+      "address": 1158252,
+      "expected": [
+        "strb",
+        "w22, [x19, #0x24]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1158260,
+      "expected": [
+        "strh",
+        "w21, [x19, #0x26]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1158264,
+      "expected": [
+        "strh",
+        "w20, [x19, #0x28]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1158272,
+      "expected": [
+        "str",
+        "x24, [x19, #0x18]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1158280,
+      "expected": [
+        "str",
+        "w23, [x19, #0x20]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160116,
+      "expected": [
+        "mov",
+        "w1, #0x1049"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160128,
+      "expected": [
+        "cmp",
+        "w0, #0x40"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160132,
+      "expected": [
+        "b.ne",
+        "#0x11b5e8"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160200,
+      "expected": [
+        "mov",
+        "w1, #0x1054"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160268,
+      "expected": [
+        "strh",
+        "w1, [x29, #0x160]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160316,
+      "expected": [
+        "strb",
+        "w1, [x29, #0x154]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160488,
+      "expected": [
+        "mov",
+        "w1, #0x1053"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160520,
+      "expected": [
+        "ldr",
+        "x0, [x0, #0x10]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160532,
+      "expected": [
+        "bl",
+        "#0xa21e0"
+      ],
+      "call_symbol": "_ZN12AvbbcPhycMemC1EmjNS_10CACHE_MODEEj"
+    },
+    {
+      "asset": "I",
+      "address": 1160544,
+      "expected": [
+        "stp",
+        "xzr, xzr, [x0]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160580,
+      "expected": [
+        "bl",
+        "#0xa1530"
+      ],
+      "call_symbol": "_ZN26C_DataflowInfra_StdData_YCC1Emjj"
+    },
+    {
+      "asset": "I",
+      "address": 1160592,
+      "expected": [
+        "bl",
+        "#0xa11b0"
+      ],
+      "call_symbol": "_ZN26C_DataflowInfra_StdData_YC22SetEntry_ImageSizeInfoEP35C_DataflowInfra_Entry_ImageSizeInfo"
+    },
+    {
+      "asset": "I",
+      "address": 1160636,
+      "expected": [
+        "bl",
+        "#0x9e5e0"
+      ],
+      "call_symbol": "_ZN28C_DataflowInfra_StdData_Base11SetAddrInfoEmjj"
+    },
+    {
+      "asset": "I",
+      "address": 1159736,
+      "expected": [
+        "mov",
+        "w1, #0x1053"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1159624,
+      "expected": [
+        "ldr",
+        "w1, [x20, #0x20]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1159784,
+      "expected": [
+        "ldr",
+        "w0, [x21, #0x54]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160028,
+      "expected": [
+        "ldr",
+        "w0, [x21, #0x60]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161056,
+      "expected": [
+        "mov",
+        "w0, #0x50"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161212,
+      "expected": [
+        "bl",
+        "#0x9f830"
+      ],
+      "call_symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin18MakeInputYcStdDataEv"
+    },
+    {
+      "asset": "I",
+      "address": 1161272,
+      "expected": [
+        "bl",
+        "#0x9fb60"
+      ],
+      "call_symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin19makeParamEncodeJpegERN3SDF25ENCODE_JPEG_COMMAND_PARAME"
+    },
+    {
+      "asset": "I",
+      "address": 1161508,
+      "expected": [
+        "mov",
+        "x2, #0x48"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161528,
+      "expected": [
+        "mov",
+        "w1, #0x752"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161532,
+      "expected": [
+        "movk",
+        "w1, #0x8283, lsl #16"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161536,
+      "expected": [
+        "bl",
+        "#0x9e770"
+      ],
+      "call_symbol": "_ZN20InfraAvbbcMsgManager10OsalSndMsgEjPKhj"
+    },
+    {
+      "asset": "I",
+      "address": 1209232,
+      "expected": [
+        "ret",
+        ""
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 222224,
+      "expected": [
+        "add",
+        "x0, x0, #0x20"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 222228,
+      "expected": [
+        "mov",
+        "x2, #0x48"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 222232,
+      "expected": [
+        "b",
+        "#0x30720"
+      ],
+      "call_symbol": "memcpy"
+    },
+    {
+      "asset": "D",
+      "address": 228348,
+      "expected": [
+        "ldr",
+        "x1, [x1]"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 228352,
+      "expected": [
+        "stur",
+        "x1, [x0, #0x1c]"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 404172,
+      "expected": [
+        "bl",
+        "#0x2a58f0"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 404248,
+      "expected": [
+        "bl",
+        "#0x2e9a8"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2775424,
+      "expected": [
+        "bl",
+        "#0x2acb14"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2804920,
+      "expected": [
+        "bl",
+        "#0x2af65c"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2804928,
+      "expected": [
+        "bl",
+        "#0x2ac140"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2815608,
+      "expected": [
+        "bl",
+        "#0x2af698"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2815696,
+      "expected": [
+        "bl",
+        "#0x2a43a4"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2815796,
+      "expected": [
+        "bl",
+        "#0x2a476c"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2770804,
+      "expected": [
+        "str",
+        "w8, [x0, #0x12a0]"
+      ]
+    },
+    {
+      "asset": "K",
+      "address": 2770812,
+      "expected": [
+        "str",
+        "w8, [x0, #0x12a4]"
+      ]
+    }
+  ],
+  "capture_verified": false
+}

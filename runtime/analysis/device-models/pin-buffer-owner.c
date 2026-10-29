@@ -7,7 +7,7 @@
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int owner_pid;
 static volatile unsigned char *backing;
-static struct {unsigned int live,uses,handle,creator,consumer,consumer_open;} slots[PIN_CONTROL_SLOTS];
+static struct {unsigned int live,uses,handle,creator,creator_open,consumer,consumer_open;} slots[PIN_CONTROL_SLOTS];
 static struct pin_control_snapshot state;
 static int current_process(void){
     int pid=(int)getpid(),expected=0;
@@ -46,7 +46,7 @@ int pin_control_allocate(unsigned int unit,struct pin_control_lease *out){
     if(!state.bound || state.faults){pthread_mutex_unlock(&mutex);return -2;}
     for(unsigned int i=0;i<PIN_CONTROL_SLOTS;i++)if(!slots[i].live && slots[i].uses<32){
         unsigned int handle=0x8000u|(slots[i].uses<<10)|i;
-        slots[i].uses++;slots[i].live=1;slots[i].handle=handle;slots[i].creator=1;
+        slots[i].uses++;slots[i].live=1;slots[i].handle=handle;slots[i].creator=slots[i].creator_open=1;
         slots[i].consumer=slots[i].consumer_open=0;state.live++;state.allocations++;
         describe(i,out);
         pthread_mutex_unlock(&mutex);return 0;
@@ -57,7 +57,7 @@ int pin_control_write_ssyn(unsigned int handle,unsigned long long *digest){
     static const unsigned char header[32]={0x53,0x53,0x59,0x4e,0,0,0,1};
     if(!current_process())return -4;
     pthread_mutex_lock(&mutex);int index=slot_for(handle);
-    if(index<0 || !state.bound || state.faults || !slots[index].creator || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
+    if(index<0 || !state.bound || state.faults || !slots[index].creator || !slots[index].creator_open || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
     volatile unsigned char *destination=backing+(unsigned int)index*PIN_CONTROL_SLOT_BYTES;
     for(unsigned int i=0;i<sizeof header;i++)destination[i]=header[i];
     unsigned long long hash=0xcbf29ce484222325ULL;
@@ -72,7 +72,7 @@ int pin_control_write_payload(unsigned int handle,const unsigned char *data,unsi
     if(!data || !bytes || bytes>PIN_CONTROL_SLOT_BYTES)return -1;
     if(!current_process())return -4;
     pthread_mutex_lock(&mutex);int index=slot_for(handle);
-    if(index<0 || !state.bound || state.faults || !slots[index].creator || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
+    if(index<0 || !state.bound || state.faults || !slots[index].creator || !slots[index].creator_open || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
     volatile unsigned char *destination=backing+(unsigned int)index*PIN_CONTROL_SLOT_BYTES;
     for(unsigned int i=0;i<bytes;i++)destination[i]=data[i];
     unsigned long long hash=0xcbf29ce484222325ULL;
@@ -83,11 +83,24 @@ int pin_control_write_payload(unsigned int handle,const unsigned char *data,unsi
     }
     state.payload_writes++;if(digest)*digest=hash;pthread_mutex_unlock(&mutex);return 0;
 }
+int pin_control_close_creator(unsigned int handle){
+    if(!current_process())return -4;
+    pthread_mutex_lock(&mutex);int index=slot_for(handle);
+    if(index<0 || !state.bound || state.faults || !slots[index].creator || !slots[index].creator_open || slots[index].consumer || slots[index].consumer_open){pthread_mutex_unlock(&mutex);return -1;}
+    slots[index].creator_open=0;state.creator_closes++;pthread_mutex_unlock(&mutex);return 0;
+}
+int pin_control_transfer_creator(unsigned int handle,unsigned int unit){
+    if(unit!=PIN_CONTROL_UNIT)return -1;
+    if(!current_process())return -4;
+    pthread_mutex_lock(&mutex);int index=slot_for(handle);
+    if(index<0 || !state.bound || state.faults || !slots[index].creator || slots[index].creator_open || slots[index].consumer || slots[index].consumer_open){pthread_mutex_unlock(&mutex);return -1;}
+    slots[index].creator=0;slots[index].consumer=1;state.creator_transfers++;pthread_mutex_unlock(&mutex);return 0;
+}
 int pin_control_share(unsigned int handle,unsigned int unit){
     if(unit!=PIN_CONTROL_UNIT)return -1;
     if(!current_process())return -4;
     pthread_mutex_lock(&mutex);int index=slot_for(handle);
-    if(index<0 || !state.bound || state.faults || !slots[index].creator || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
+    if(index<0 || !state.bound || state.faults || !slots[index].creator || !slots[index].creator_open || slots[index].consumer){pthread_mutex_unlock(&mutex);return -1;}
     slots[index].consumer=1;state.shares++;pthread_mutex_unlock(&mutex);return 0;
 }
 int pin_control_open_consumer(unsigned int handle,unsigned int unit,struct pin_control_lease *out){
@@ -120,20 +133,27 @@ int pin_control_release_consumer(unsigned int handle){
     slots[index].consumer_open=slots[index].consumer=0;state.consumer_closes++;state.consumer_releases++;
     retire_if_unused((unsigned int)index);pthread_mutex_unlock(&mutex);return 0;
 }
+int pin_control_release_closed_consumer(unsigned int handle){
+    if(!current_process())return -4;
+    pthread_mutex_lock(&mutex);int index=slot_for(handle);
+    if(index<0 || !state.bound || state.faults || slots[index].creator || !slots[index].consumer || slots[index].consumer_open){pthread_mutex_unlock(&mutex);return -1;}
+    slots[index].consumer=0;state.consumer_releases++;
+    retire_if_unused((unsigned int)index);pthread_mutex_unlock(&mutex);return 0;
+}
 int pin_control_references(unsigned int handle,struct pin_control_references *out){
     if(!out)return -1;
     if(!current_process())return -4;
     pthread_mutex_lock(&mutex);int index=slot_for(handle);
     if(index<0 || !state.bound || state.faults){pthread_mutex_unlock(&mutex);return -1;}
     *out=(struct pin_control_references){handle,slots[index].creator+slots[index].consumer,
-        slots[index].creator+slots[index].consumer_open,slots[index].creator,slots[index].consumer,slots[index].consumer_open};
+        slots[index].creator_open+slots[index].consumer_open,slots[index].creator,slots[index].consumer,slots[index].consumer_open};
     pthread_mutex_unlock(&mutex);return 0;
 }
 int pin_control_release(unsigned int handle){
     if(!current_process())return -4;
     pthread_mutex_lock(&mutex);int index=slot_for(handle);
     if(index<0 || !state.bound || state.faults || !slots[index].creator){pthread_mutex_unlock(&mutex);return -1;}
-    slots[index].creator=0;state.creator_releases++;retire_if_unused((unsigned int)index);
+    slots[index].creator=slots[index].creator_open=0;state.creator_releases++;retire_if_unused((unsigned int)index);
     pthread_mutex_unlock(&mutex);return 0;
 }
 void pin_control_snapshot(struct pin_control_snapshot *out){

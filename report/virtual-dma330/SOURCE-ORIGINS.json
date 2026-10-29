@@ -1,0 +1,21 @@
+{
+  "scope": "opt-in DMA hardware and original-provider diagnostic; no camera capture",
+  "source_archive_sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+  "native_patch_sha256": "29a84ae7a23897af25279f3c438bef387a01d59137767e0362631d4c294f78f8",
+  "usb_patch_sha256": "589873aab03e3655745d26b3756e93b044148ccaf453ac22fd0fd9b01e90ff96",
+  "delta_patch_sha256": "5f8defcfc20d8fb683ce540a5fdb6f59216f0ce62b5dbe5087ee572a797ccf9e",
+  "source_files": {
+    "hw/arm/virt.c": {
+      "before": "254f9621e21c2ff2290bc469a4e324511f7f0c6ed8ee464c6daa602d6896d2c0",
+      "after": "9e1b87688bcd1bda248d3c68dc9bc5362f3f78942ae07885439b8e398a04a7d2"
+    },
+    "hw/dma/pl330.c": {
+      "before": "e34d68bd9a30854c8b616a3b6fc582ca6db8498a250096e11d0b61dd3f017cba",
+      "after": "a044544b7737d963a00e248be736f051d2bcacee3feecb4eb4cb3d1e18c5f0de"
+    }
+  },
+  "tested_binary_sha256": "1090c789364700fd9b0c977688acae6f401d1a25caa334d43fc245d5b1e3b799",
+  "provider_sha256": "9ba277f011b3ddcfbc3fa610d22b63ae3be1e0ded385b42ff2c7cf0a83e520ab",
+  "module_client_sha256": "a7c97c96ec09f902e168d64a4ee1f801abacdecc551fae4d0ab2b64831d46fc9",
+  "mmio_adapter_sha256": "0fb552e57d21fe18d5fa0720c3825720bf0aca6feca44ff022f5c8e471e026e5"
+}

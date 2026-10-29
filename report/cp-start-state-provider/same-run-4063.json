@@ -1,0 +1,1157 @@
+{
+  "run": "run-nzx01uc3",
+  "audit_file": "ee-passive-rbr0m85a/threads.txt",
+  "audit_sha256": "0aac5e16963a415cece95adf386a731b70b17f1ee22d7ad2c1e2c95ad5184d80",
+  "pid": 258,
+  "tid": 381,
+  "sequence": 49,
+  "source": "80020002",
+  "destination": "90030001",
+  "chunks": 21,
+  "bytes": 2564,
+  "sha256": "ff6d35854ffeed873650d77ac8b7646b555883b338762306eb6d1120aacf7b74",
+  "slots": [
+    {
+      "opcode": "4002",
+      "offset": 8,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4006",
+      "offset": 20,
+      "size": 52,
+      "payload_hex": "0000000000000000370000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "opcode": "4007",
+      "offset": 72,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4008",
+      "offset": 84,
+      "size": 16,
+      "payload_hex": "0000000001000000"
+    },
+    {
+      "opcode": "400a",
+      "offset": 100,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "400b",
+      "offset": 112,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "400c",
+      "offset": 124,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "400d",
+      "offset": 136,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "400e",
+      "offset": 148,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "400f",
+      "offset": 160,
+      "size": 12,
+      "payload_hex": "02040000"
+    },
+    {
+      "opcode": "4010",
+      "offset": 172,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4011",
+      "offset": 184,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4012",
+      "offset": 196,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "4013",
+      "offset": 208,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4015",
+      "offset": 220,
+      "size": 20,
+      "payload_hex": "010005000004000000000000"
+    },
+    {
+      "opcode": "4016",
+      "offset": 240,
+      "size": 12,
+      "payload_hex": "05000000"
+    },
+    {
+      "opcode": "4017",
+      "offset": 252,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4019",
+      "offset": 264,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "401a",
+      "offset": 276,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "401d",
+      "offset": 288,
+      "size": 12,
+      "payload_hex": "00010000"
+    },
+    {
+      "opcode": "401e",
+      "offset": 300,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "4021",
+      "offset": 312,
+      "size": 12,
+      "payload_hex": "05000000"
+    },
+    {
+      "opcode": "4022",
+      "offset": 324,
+      "size": 32,
+      "payload_hex": "00004001f000000000000100000000000000000000000000"
+    },
+    {
+      "opcode": "4023",
+      "offset": 356,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "4024",
+      "offset": 368,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4025",
+      "offset": 380,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4026",
+      "offset": 392,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4029",
+      "offset": 404,
+      "size": 16,
+      "payload_hex": "0000000000000214"
+    },
+    {
+      "opcode": "402a",
+      "offset": 420,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "402e",
+      "offset": 432,
+      "size": 12,
+      "payload_hex": "00010000"
+    },
+    {
+      "opcode": "402f",
+      "offset": 444,
+      "size": 12,
+      "payload_hex": "ff000000"
+    },
+    {
+      "opcode": "4030",
+      "offset": 456,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4031",
+      "offset": 468,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4032",
+      "offset": 480,
+      "size": 12,
+      "payload_hex": "04000000"
+    },
+    {
+      "opcode": "4033",
+      "offset": 492,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4034",
+      "offset": 504,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "403a",
+      "offset": 516,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4041",
+      "offset": 528,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4044",
+      "offset": 540,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4047",
+      "offset": 552,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4048",
+      "offset": 564,
+      "size": 12,
+      "payload_hex": "00010100"
+    },
+    {
+      "opcode": "4049",
+      "offset": 576,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "404a",
+      "offset": 588,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "404c",
+      "offset": 600,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "404d",
+      "offset": 612,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "404f",
+      "offset": 624,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4050",
+      "offset": 636,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4051",
+      "offset": 648,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4052",
+      "offset": 660,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4056",
+      "offset": 672,
+      "size": 56,
+      "payload_hex": "000800000000000000000000000000000100000004010800000000020700000000000000000000000000000000000000"
+    },
+    {
+      "opcode": "4059",
+      "offset": 728,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405a",
+      "offset": 740,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405b",
+      "offset": 752,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405c",
+      "offset": 764,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405d",
+      "offset": 776,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405e",
+      "offset": 788,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "405f",
+      "offset": 800,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4060",
+      "offset": 812,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4061",
+      "offset": 824,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4062",
+      "offset": 836,
+      "size": 12,
+      "payload_hex": "02020000"
+    },
+    {
+      "opcode": "4064",
+      "offset": 848,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4066",
+      "offset": 860,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4067",
+      "offset": 872,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "406e",
+      "offset": 884,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4078",
+      "offset": 896,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4079",
+      "offset": 908,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "407a",
+      "offset": 920,
+      "size": 20,
+      "payload_hex": "000000000000000000000000"
+    },
+    {
+      "opcode": "407c",
+      "offset": 940,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "407d",
+      "offset": 952,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "407e",
+      "offset": 964,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "407f",
+      "offset": 976,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4080",
+      "offset": 988,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4082",
+      "offset": 1000,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4083",
+      "offset": 1012,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4084",
+      "offset": 1024,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4086",
+      "offset": 1036,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4088",
+      "offset": 1048,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4089",
+      "offset": 1060,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "408c",
+      "offset": 1072,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "408d",
+      "offset": 1084,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4093",
+      "offset": 1096,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4097",
+      "offset": 1108,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "409a",
+      "offset": 1120,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "40a1",
+      "offset": 1132,
+      "size": 12,
+      "payload_hex": "03000000"
+    },
+    {
+      "opcode": "40a2",
+      "offset": 1144,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40a4",
+      "offset": 1156,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "40a6",
+      "offset": 1168,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "40a7",
+      "offset": 1180,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40a9",
+      "offset": 1192,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40aa",
+      "offset": 1204,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ab",
+      "offset": 1216,
+      "size": 20,
+      "payload_hex": "000000000000000000000000"
+    },
+    {
+      "opcode": "40ac",
+      "offset": 1236,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ad",
+      "offset": 1248,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ae",
+      "offset": 1260,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40af",
+      "offset": 1272,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40b0",
+      "offset": 1284,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40b1",
+      "offset": 1296,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40b2",
+      "offset": 1308,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40b3",
+      "offset": 1320,
+      "size": 12,
+      "payload_hex": "02000000"
+    },
+    {
+      "opcode": "40b4",
+      "offset": 1332,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40b5",
+      "offset": 1344,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40b6",
+      "offset": 1356,
+      "size": 12,
+      "payload_hex": "05000000"
+    },
+    {
+      "opcode": "40c2",
+      "offset": 1368,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40c3",
+      "offset": 1380,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40c4",
+      "offset": 1392,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40c5",
+      "offset": 1404,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40c6",
+      "offset": 1416,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40c7",
+      "offset": 1428,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ca",
+      "offset": 1440,
+      "size": 12,
+      "payload_hex": "00000800"
+    },
+    {
+      "opcode": "40cb",
+      "offset": 1452,
+      "size": 12,
+      "payload_hex": "00000800"
+    },
+    {
+      "opcode": "40cc",
+      "offset": 1464,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40cd",
+      "offset": 1476,
+      "size": 20,
+      "payload_hex": "010000000000000000000000"
+    },
+    {
+      "opcode": "40ce",
+      "offset": 1496,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40d2",
+      "offset": 1508,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d3",
+      "offset": 1520,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40d4",
+      "offset": 1532,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d5",
+      "offset": 1544,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d6",
+      "offset": 1556,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d7",
+      "offset": 1568,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d8",
+      "offset": 1580,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40d9",
+      "offset": 1592,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40db",
+      "offset": 1604,
+      "size": 16,
+      "payload_hex": "0000000000000000"
+    },
+    {
+      "opcode": "40dc",
+      "offset": 1620,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40e3",
+      "offset": 1632,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40e4",
+      "offset": 1644,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40e6",
+      "offset": 1656,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40e7",
+      "offset": 1668,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40e8",
+      "offset": 1680,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40e9",
+      "offset": 1692,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40ea",
+      "offset": 1704,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40eb",
+      "offset": 1716,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ec",
+      "offset": 1728,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40f1",
+      "offset": 1740,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40f3",
+      "offset": 1752,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40f4",
+      "offset": 1764,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40f5",
+      "offset": 1776,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40f6",
+      "offset": 1788,
+      "size": 12,
+      "payload_hex": "03000000"
+    },
+    {
+      "opcode": "40f7",
+      "offset": 1800,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "40f8",
+      "offset": 1812,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40fb",
+      "offset": 1824,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40fc",
+      "offset": 1836,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40fd",
+      "offset": 1848,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "40ff",
+      "offset": 1860,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4100",
+      "offset": 1872,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4101",
+      "offset": 1884,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4103",
+      "offset": 1896,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4104",
+      "offset": 1908,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4105",
+      "offset": 1920,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4137",
+      "offset": 1932,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "4138",
+      "offset": 1944,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "413a",
+      "offset": 1956,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "413b",
+      "offset": 1968,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "413c",
+      "offset": 1980,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "413d",
+      "offset": 1992,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "413e",
+      "offset": 2004,
+      "size": 12,
+      "payload_hex": "01000000"
+    },
+    {
+      "opcode": "413f",
+      "offset": 2016,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4141",
+      "offset": 2028,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4142",
+      "offset": 2040,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4143",
+      "offset": 2052,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4145",
+      "offset": 2064,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4146",
+      "offset": 2076,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4148",
+      "offset": 2088,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4149",
+      "offset": 2100,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "414b",
+      "offset": 2112,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "414c",
+      "offset": 2124,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4150",
+      "offset": 2136,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4151",
+      "offset": 2148,
+      "size": 24,
+      "payload_hex": "3c000000010000000100000001000100"
+    },
+    {
+      "opcode": "4154",
+      "offset": 2172,
+      "size": 16,
+      "payload_hex": "0000000000000000"
+    },
+    {
+      "opcode": "4155",
+      "offset": 2188,
+      "size": 96,
+      "payload_hex": "2a060000ffffffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "opcode": "4156",
+      "offset": 2284,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4157",
+      "offset": 2296,
+      "size": 16,
+      "payload_hex": "0b03010100000000"
+    },
+    {
+      "opcode": "4158",
+      "offset": 2312,
+      "size": 16,
+      "payload_hex": "0000000003000000"
+    },
+    {
+      "opcode": "4159",
+      "offset": 2328,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "415b",
+      "offset": 2340,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "415f",
+      "offset": 2352,
+      "size": 20,
+      "payload_hex": "010000030303000000030303"
+    },
+    {
+      "opcode": "4161",
+      "offset": 2372,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4162",
+      "offset": 2384,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4163",
+      "offset": 2396,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4164",
+      "offset": 2408,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4165",
+      "offset": 2420,
+      "size": 16,
+      "payload_hex": "0001000102000100"
+    },
+    {
+      "opcode": "4166",
+      "offset": 2436,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4167",
+      "offset": 2448,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4169",
+      "offset": 2460,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "416c",
+      "offset": 2472,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4170",
+      "offset": 2484,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4172",
+      "offset": 2496,
+      "size": 16,
+      "payload_hex": "0000000000000000"
+    },
+    {
+      "opcode": "4173",
+      "offset": 2512,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4174",
+      "offset": 2524,
+      "size": 12,
+      "payload_hex": "00000000"
+    },
+    {
+      "opcode": "4176",
+      "offset": 2536,
+      "size": 16,
+      "payload_hex": "0101010101010000"
+    },
+    {
+      "opcode": "4177",
+      "offset": 2552,
+      "size": 12,
+      "payload_hex": "00000000"
+    }
+  ],
+  "semantic_consumed_claimed": false,
+  "override_setter_closed": false
+}

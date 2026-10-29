@@ -1,0 +1,13 @@
+{
+  "status": "PASS_EXPLICIT_TEST_CLEAR_POLICY_ONLY",
+  "test_clear_policy_verified": true,
+  "binary_sha256": "500f1e65ed26fb17da8ba1abcf3dc617f7338c53306b7fb70cf6576ba32c0849",
+  "actual_partial_and_full_storage_clear_verified": true,
+  "actual_original_table_writes": 4096,
+  "mid_job_bypass_apb_reset_device_reset_and_early_apply_negatives": true,
+  "raw_sha256": "6133a8e7fb95e2ac83119517c00a306d485dcf3bf4afd814411317af64439f95",
+  "test_functional_lane_status_after_calib": 0,
+  "test_functional_link_status_after_ltssm": 2,
+  "trace_sha256": "81738ab27168a890ea92c11ef3eeb27cebd5365fbb18a2a92cfc7a29dd96524e",
+  "silicon_calibration_or_training_or_native_probe_or_host_verified": false
+}

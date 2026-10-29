@@ -4,7 +4,7 @@ from pathlib import PurePosixPath
 import stat
 
 
-def verify_image(image, expected):
+def verify_image(image, expected, *, forbidden=()):
     found = {}
     entries, parents = {}, set()
     with image.open('rb') as stream:
@@ -28,6 +28,8 @@ def verify_image(image, expected):
             if path.is_absolute() or '..' in path.parts:
                 raise ValueError('Selected initramfs contains a nonlocal path')
             name = str(path)
+            if name in forbidden:
+                raise ValueError(f'Selected initramfs contains an unrequested file: {name}')
             if name == 'TRAILER!!!':
                 if length or any(stream.read()):
                     raise ValueError('Selected initramfs trailer is ambiguous')

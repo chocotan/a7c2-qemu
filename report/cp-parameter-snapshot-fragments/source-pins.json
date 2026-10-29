@@ -1,0 +1,19 @@
+{
+  "scope": "public CP root binding and one constant fragment; no runtime publication",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "existing_context": ["../cp-full-state-snapshot/source-pins.json", "../cp-parameter-publication-contract/source-pins.json"],
+  "windows": [
+    {"CP_VA": "b2ebce", "bytes": 36, "sha256": "96f6121c67a1c0ec21fd4c4a0167e462b5f2aa0879501f159238603c45c9cd21", "meaning": "T[0]=S and T[4]=S+2950"},
+    {"CP_VA": "b2ec2e", "bytes": 6, "sha256": "b09e9c88729d9028b7acc9a9b9f40ddd7e508806a3c715d94596b91b63434aaa", "meaning": "T[13]=S+3e80"},
+    {"CP_VA": "8d5cfa", "bytes": 28, "sha256": "cf075c3886552f5419fe20e8fd2ad90f89249fa2af17baf7caaa36bb544a3483", "meaning": "force=1 loads and writes twelve constant bytes"},
+    {"CP_VA": "cf5a68", "bytes": 12, "sha256": "0a9bce60ce79dae24d164fcdce7262e21b4f519ad7ebb68b38b06773e4f0afca", "meaning": "2012 constant source", "hex": "000000000000000000007700"}
+  ],
+  "window_count": 4,
+  "window_bytes": 82,
+  "constant_fragment": {"command": "2012", "hex": "060012200000000000007700", "all_twelve_bytes_known": true, "runtime_published": false},
+  "full_provider_complete": false,
+  "capture_verified": false
+}

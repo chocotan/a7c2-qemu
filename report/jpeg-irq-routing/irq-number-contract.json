@@ -1,0 +1,73 @@
+{
+  "scope": "public kernel/DTS IRQ-number contract, not runtime IRQ delivery",
+  "vmlinux_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "device_Linux_IRQ_to_GIC_INTID": [
+    [
+      61,
+      61
+    ],
+    [
+      62,
+      62
+    ],
+    [
+      63,
+      63
+    ],
+    [
+      64,
+      64
+    ],
+    [
+      65,
+      65
+    ]
+  ],
+  "QEMU_external_inputs": [
+    29,
+    30,
+    31,
+    32,
+    33
+  ],
+  "mapping_basis": "UDIF fixed Linux IRQ32..87 reservation translates SPI0..55 through GICv2 domain; allocation failure is initialization error, not shifted numbering",
+  "GICD_physical": 4047114240,
+  "GICC_physical": 4047118336,
+  "LIRO_EOIR_physical": 4047118352,
+  "source_numbering_verified": true,
+  "guest_IRQ_delivery_verified": false,
+  "JPEG_hardware_verified": false,
+  "capture_verified": false,
+  "pins": [
+    {
+      "raw_offset": 6155168,
+      "bytes": 208,
+      "label": "GIC400-OF-binding",
+      "sha256": "f0b46c73f5c9a8c698d91174eac15adbcaee0cac6a5a97ce1b1d29b6f8b228c3"
+    },
+    {
+      "raw_offset": 6094920,
+      "bytes": 12,
+      "label": "reserve-32-87",
+      "sha256": "5ab86ee1db87d795485a988a22cae1879f5665c2e301bc6d3b8ec88766a66f08"
+    },
+    {
+      "raw_offset": 4315588,
+      "bytes": 128,
+      "label": "UDIF-fixed-IRQ-allocation",
+      "sha256": "ed88034e2b9c5cd71c3ad3e350c0b79250a47c68449e23944f7083505588e6f8"
+    },
+    {
+      "raw_offset": 2228472,
+      "bytes": 160,
+      "label": "GICv2-domain-translator",
+      "sha256": "179fa90c3b5a6b4809e3e3793401be0090c616de848f7d376407d69145714976"
+    },
+    {
+      "raw_offset": 2228632,
+      "bytes": 160,
+      "label": "GICv2-domain-allocator",
+      "sha256": "c0105472e2220a215a38e2879a454f718052d51128df464fa4e50cf98584fd4f"
+    }
+  ]
+}

@@ -123,7 +123,7 @@ def check_space(parent, needed):
         raise ValueError(f'insufficient free space: available={available} required={needed}')
 
 
-def export_card(run_dir, expected_total, *, serial_command, qmp, expected_old_sha256=None,quiesce=None):
+def export_card(run_dir, expected_total, *, serial_command, qmp, expected_old_sha256=None,quiesce=None,sparse=False):
     """Return export.json content; ok only after fsck and atomic publication.
 
     run_dir must already exist and be owned; SD is created mode 0700 if absent.
@@ -150,7 +150,7 @@ def export_card(run_dir, expected_total, *, serial_command, qmp, expected_old_sh
                 try:
                     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     _export_locked(parent, expected_total, serial_command, qmp,
-                                   expected_old_sha256, result,quiesce)
+                                   expected_old_sha256, result,quiesce,sparse)
                 finally:
                     os.close(lock)
             finally:
@@ -160,7 +160,7 @@ def export_card(run_dir, expected_total, *, serial_command, qmp, expected_old_sh
     return result
 
 
-def _export_locked(parent, total, serial_command, qmp, expected_old, result,quiesce=None):
+def _export_locked(parent, total, serial_command, qmp, expected_old, result,quiesce=None,sparse=False):
     # Invalidate old success before checking inputs or calling guest/QMP.
     report(parent, result)
     evidence = candidate = old = None
@@ -185,6 +185,7 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
         result['evidence'] = name
         evidence = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
         candidate = regular(evidence, 'candidate.img', os.O_RDWR | os.O_CREAT | os.O_EXCL)
+        os.ftruncate(candidate,total)
         stamp = None
         first_hash = None
         sequence = 0
@@ -211,8 +212,28 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
             result['guest_identity'] = current
             return values[7].decode('ascii')
 
-        for offset in range(0, total, CAP):
-            length = min(CAP, total-offset)
+        def extent_map(name):
+            from sd_sparse import parse_map
+            raw=serial_command('/simulation/sd-sparse map')
+            if type(raw) is not bytes or len(raw)>RESERVE:
+                raise ValueError('Sparse map callback must return bounded bytes')
+            write_file(evidence,name,raw)
+            return parse_map(raw,total)
+
+        mapped=None
+        if sparse:
+            if sparse is not True:
+                raise ValueError('Sparse export flag must be bool')
+            mapped=extent_map('sparse-before.txt')
+            result['sparse_map']=mapped
+            expected=guest(0,min(CAP,total))
+            if result['guest_identity']!=mapped['identity']:
+                raise ValueError('Sparse map and window identity differ')
+            first_hash=expected
+            windows=mapped['ranges']
+        else:
+            windows=((offset,min(CAP,total-offset)) for offset in range(0,total,CAP))
+        for offset,length in windows:
             check_space(parent, (total-offset) * 2 + CAP + RESERVE)
             expected_fnv = guest(offset, length)
             if first_hash is None:
@@ -240,9 +261,9 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
                     raise ValueError('guest bytes changed after QMP read')
                 if identity(before) != identity(os.fstat(chunk)):
                     raise ValueError('QMP chunk changed during read')
-                # File.write handles short writes; no host-generated camera bytes.
-                with os.fdopen(os.dup(candidate), 'ab') as stream:
-                    stream.write(raw)
+                # Sparse holes are zero only because the guest kernel attested them.
+                if os.pwrite(candidate,raw,offset)!=len(raw):
+                    raise ValueError('Short candidate write')
             finally:
                 os.close(chunk)
         os.fsync(candidate)
@@ -267,6 +288,8 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
             raise ValueError('fsck.fat -n failed')
         if guest(0, min(CAP, total)) != first_hash:
             raise ValueError('guest bytes changed before publication')
+        if mapped is not None and extent_map('sparse-after.txt')!=mapped:
+            raise ValueError('Sparse map/identity changed before publication')
         if digest_fd(candidate) != result['sha256']:
             raise ValueError('candidate changed during fsck')
         if old is None:

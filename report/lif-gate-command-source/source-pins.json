@@ -1,0 +1,26 @@
+{
+  "scope": "positive key2 request writer for Q, no runtime initial value or last-write history",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "windows": [
+    {"CP_VA": "a75814", "bytes": 208, "sha256": "1da3ac505c947aaa23c54e3c7fc5487919aa384d69d36fbc862ef3b3932ef14b"},
+    {"CP_VA": "a75994", "bytes": 156, "sha256": "d81253779aaa853e708adf698cc4b218aedea18537994067d75f7e6c5c5d853b"},
+    {"CP_VA": "df27c0", "bytes": 56, "sha256": "79848875e711ed5b229a51ac10ed422a8696442e57c42ed789ad4eb910a75784"},
+    {"CP_VA": "1105e58", "bytes": 1024, "sha256": "cebdb671c4727b14804df2cd6523e239f1ccd9a5c56606b2dd14b107f038c98c"}
+  ],
+  "window_count": 4,
+  "window_bytes": 1444,
+  "Q_CP_address": "1b18cd5",
+  "key": 2,
+  "direct_index": 171,
+  "direct_entry_CP_VA": "1106104",
+  "direct_entry_hex": "d58cb101",
+  "request_offsets": {"op_le16_low_u8": 38, "index_le16": 40, "key_le16": 42, "length_le32": 44, "write_payload": 48},
+  "pointer_table_entries": 256,
+  "wide_writes_are_contiguous_not_per_table_item": true,
+  "Q_runtime_initial_known": false,
+  "published_zero_projection_verified": false,
+  "capture_verified": false
+}

@@ -18,7 +18,7 @@ import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from menu_live import KEYS, FirmwareFault,FirmwareMonitor, control_catalog, receive_message, send_message
+from menu_live import KEYS, FirmwareFault,FirmwareMonitor, camera_input_module, control_catalog, receive_message, send_message
 
 BASE = Path(__file__).resolve().parent
 ROOT = BASE.parents[1]
@@ -61,12 +61,33 @@ def terminate_owned(process):
     process.wait(timeout=3)
 
 
+def terminate_host_disk_owner(process):
+    """No SIGKILL while a persistent host disk may be owned by descendants."""
+    try:os.killpg(process.pid,signal.SIGTERM)
+    except ProcessLookupError:pass
+    process.wait(timeout=15)
+    try:os.killpg(process.pid,0)
+    except ProcessLookupError:return
+    raise RuntimeError('宿主磁盘VM进程组未退出；保留磁盘租约，不强杀')
+
+
+def wait_functional_camera_owner(process):
+    """Control-socket EOF enters the launcher's broker guard; never signal its VM group."""
+    process.wait(timeout=65)
+    try:os.killpg(process.pid, 0)
+    except ProcessLookupError:return
+    raise RuntimeError('功能相机进程组尚未退出；保留VM与租约，不发送TERM/KILL')
+
+
 class VM:
     def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
             raise ValueError('不支持的原生显示后端')
         self.command = command or ['bash', str(BASE / 'run-menu-probe.sh')]
         self.mock = command is not None
+        self.supports_input_lifecycle = not self.mock
+        self.input_lifecycle = False
+        self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
         self.native_display = native_display
         # The isolated USB-Ethernet switch only exists when this run launched with
         # the candidate build and the derived launcher/DTB.
@@ -79,12 +100,15 @@ class VM:
         self.custom_firmware=False
         self.sd_export=None
         self.card_seed=None
+        self.host_sd_lease=None
+        self.host_sd_context=None
         self.shutdown_done=threading.Event()
         self.lock = threading.RLock()
         self.state = 'disconnected'
         self.error = ''
         self.firmware_fault=''
         self.cleanup_error=''
+        self.functional_camera=False
         self.owned_process=None
         self.snapshot = None
         self.png = None
@@ -119,6 +143,18 @@ class VM:
                 raise RuntimeError('实例进程组仍未退出；保留生命周期租约')
         self.instance_lease.__exit__(None, None, None)
         self.instance_lease = None
+
+    def _release_host_sd_lease(self,process=None):
+        if self.host_sd_context is None:return
+        if process is not None:
+            if process.poll() is None:raise RuntimeError('宿主磁盘VM仍运行；保留租约')
+            try:os.killpg(process.pid,0)
+            except ProcessLookupError:pass
+            else:raise RuntimeError('宿主磁盘VM子进程仍运行；保留租约')
+        inherited=self.host_sd_lease.pop('inherited_fd',None)
+        if inherited is not None:os.close(inherited)
+        self.host_sd_context.__exit__(None,None,None)
+        self.host_sd_context=self.host_sd_lease=None
 
     def reset_instance(self, expected_generation, *, confirmed):
         """Host-only logical reset; guest Backup export/restore is separate."""
@@ -157,8 +193,10 @@ class VM:
             return dict(state=self.state, error=self.error, snapshot=self.snapshot, stale=self.stale,
                         busy=self.busy, pending=self.commands.qsize(), events=list(self.events),
                         keys=list(KEYS), controls=control_catalog(),
+                        input_lifecycle=self.input_lifecycle, input_state=self.input_state,
                         power_state='disconnected' if self.state == 'exited' else self.state,
-                        can_start=not (self.thread and self.thread.is_alive()) and not (self.owned_process and self.owned_process.poll() is None),
+                        can_start=not (self.thread and self.thread.is_alive()) and not (self.owned_process and self.owned_process.poll() is None)
+                            and not self.cleanup_error and self.host_sd_context is None and self.instance_lease is None,
                         can_stop=self.state in ('starting','running','faulted'),
                         native_display=self.native_display, mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         wifi=self.wifi, usb_net=self.usb_net,
@@ -171,6 +209,8 @@ class VM:
             if self.thread and self.thread.is_alive():
                 raise ValueError('已有 VM 正在启动、运行或停止')
             if self.owned_process and self.owned_process.poll() is None:raise ValueError('上一VM尚未清理，请先重试关闭')
+            if self.host_sd_context is not None or self.cleanup_error:
+                raise ValueError('上一VM磁盘租约或清理尚未完成；请先重试关闭，不得重启')
             if self.instance_lease is not None:
                 raise ValueError('上次实例生命周期尚未结束；请先清理')
             if self.instance is not None:
@@ -178,6 +218,10 @@ class VM:
                 token.__enter__()
                 self.instance_lease = token
             self.firmware_fault=self.cleanup_error=''
+            from backup_profile import FUNCTIONAL_CAMERA_PROFILE
+            self.functional_camera = not self.mock and os.environ.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
+            self.input_lifecycle = False
+            self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
             self.wifi = None
             self.sd_card = None
             self.sd_pending = 0
@@ -198,23 +242,31 @@ class VM:
                 raise
 
     def _admit_queued(self, command):
+        releasing = command.get('action') == 'camera_input' and command.get('op') in ('release', 'cleanup')
         if (self.sd_pending or (self.sd_card or {}).get('state') in ('ejecting','inserting','uncertain')) and (
-                command.get('action') not in ('snapshot','export_sd','sd_card')):
+                command.get('action') not in ('snapshot','export_sd','sd_card')) and not releasing:
             self.event('SD 介质变化未收敛；已拒绝排队的 '+str(command.get('action')),kind='storage')
             return False
         return True
 
     def enqueue(self, command):
         with self.lock:
-            if self.state != 'running' and not (self.state=='faulted' and command=={'action':'export_sd'}):
+            releasing = isinstance(command, dict) and command.get('action') == 'camera_input' and command.get('op') in ('release', 'cleanup')
+            if self.state != 'running' and not (self.state=='faulted' and (command=={'action':'export_sd'} or releasing)):
                 raise ValueError('VM 尚未运行')
             card_state=(self.sd_card or {}).get('state')
             if (self.sd_pending or self.busy=='sd_card' or card_state in ('ejecting','inserting','uncertain')) and (
-                    not isinstance(command,dict) or command.get('action') not in ('snapshot','export_sd')):
+                    not isinstance(command,dict) or command.get('action') not in ('snapshot','export_sd')) and not releasing:
                 raise ValueError('SD 介质变化未收敛；暂停新的机身输入')
-            if command == {'action': 'snapshot'}:
+            if isinstance(command, dict) and command.get('action') == 'camera_input':
+                if not self.input_lifecycle:
+                    raise ValueError('当前输入通道不支持按下/释放生命周期')
+                camera_input_module().validate_request(command)
+            elif command == {'action': 'snapshot'}:
                 pass
             elif command=={'action':'export_sd'} and self.natural_boot and not self.mock:
+                pass
+            elif command=={'action':'shutter_cycle'} and self.natural_boot and not self.mock:
                 pass
             elif (isinstance(command,dict) and set(command)=={'action','present'}
                   and command['action']=='sd_card' and type(command['present']) is bool):
@@ -239,7 +291,7 @@ class VM:
             else:
                 raise ValueError('未知按键或控制命令')
             try:
-                self.commands.put_nowait(command)
+                self.commands.put_nowait(dict(command))
                 if command['action']=='sd_card':self.sd_pending+=1
             except queue.Full:
                 raise ValueError('命令队列已满，请稍后重试') from None
@@ -249,7 +301,7 @@ class VM:
             if self.state not in ('starting','running','faulted','stopping'):
                 raise ValueError('没有本控制台正在运行的 VM')
             if self.state=='stopping':return
-            if self.state in ('running','faulted') and self.natural_boot and not self.mock:
+            if (self.state in ('running','faulted') or self.state == 'starting' and self.functional_camera) and self.natural_boot and not self.mock:
                 try:self.commands.put_nowait({'action':'export_sd','_shutdown':True})
                 except queue.Full:raise ValueError('命令队列已满；尚未关机，请稍后重试') from None
                 self.shutdown_done.clear()
@@ -266,8 +318,13 @@ class VM:
             owned=self.owned_process
         if retry_cleanup:
             try:
-                if owned is not None:terminate_owned(owned)
+                if owned is not None:
+                    if self.host_sd_context is not None and owned.poll() is None and not self.cancel.is_set():
+                        raise RuntimeError('宿主磁盘尚未通过保存；保留VM与租约，须先验证后正常QMP关闭')
+                    (wait_functional_camera_owner if self.functional_camera else
+                     terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(owned)
                 with self.lock:self._release_instance_lease(owned)
+                with self.lock:self._release_host_sd_lease(owned)
             except (OSError,subprocess.TimeoutExpired) as error:
                 raise RuntimeError('VM清理仍失败：'+str(error)) from error
             with self.lock:
@@ -275,7 +332,8 @@ class VM:
                 self.event('本控制台的VM重试清理完成')
             return
         with self.lock:
-            save=self.natural_boot and not self.mock and self.state in ('running','faulted','stopping')
+            save=self.natural_boot and not self.mock and (self.state in ('running','faulted','stopping') or
+                                                        self.state == 'starting' and self.functional_camera)
         if save:
             self.stop()
             if not self.shutdown_done.wait(timeout=180):
@@ -310,6 +368,10 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            from backup_profile import FUNCTIONAL_CAMERA_PROFILE
+            self.functional_camera = not self.mock and env.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
+            if self.usb_net and env.get('A7C2_NATURAL_IMAGING_PROFILE') == '1':
+                raise ValueError('Natural imaging requires the isolated PCI DMA profile without USB networking')
             # These are controller-derived capabilities, never inherited input.
             for name in ('A7C2_SETTINGS_PERSIST','A7C2_SETTINGS_RESTORE','A7C2_SETTINGS_RESTORE_SHA'):
                 env.pop(name,None)
@@ -321,24 +383,55 @@ class VM:
                 if current['state']=='backup':
                     env['A7C2_SETTINGS_RESTORE']=str(Path(self.instance.path)/('generation-'+current['generation'])/'backup.bin')
                     env['A7C2_SETTINGS_RESTORE_SHA']=current['sha256']
-            if self.usb_net and not self.mock and env.get('MENU_USB_NET') != '1':
+            host_sd=env.get('A7C2_HOST_SD')=='256gb'
+            directory_sd=bool(env.get('A7C2_DIRECTORY_SD'))
+            if host_sd and directory_sd:raise ValueError('两种SD后端不能同时使用')
+            if directory_sd:
+                if self.mock or not self.natural_boot:raise ValueError('目录SD仅真实自然启动可用')
+                from directory_sd import directory_lease
+                from directory_sd_profile import prepare_profile
+                context=directory_lease(env['A7C2_DIRECTORY_SD'])
+                lease=context.__enter__()
+                self.host_sd_context=context;self.host_sd_lease=lease
+                disk_fd=fcntl.fcntl(lease['fd'],fcntl.F_DUPFD_CLOEXEC,40)
+                self.host_sd_lease['inherited_fd']=disk_fd
+                env.update(prepare_profile(BASE,{**lease,'fd':disk_fd}))
+                env['A7C2_DIRECTORY_SD_FD']=str(disk_fd)
+            elif host_sd:
+                if self.mock or not self.natural_boot:raise ValueError('宿主SD仅真实自然启动可用')
+                from host_sd import card_lease
+                from host_sd_profile import prepare_profile
+                context=card_lease(BASE/'host-sd')
+                lease=context.__enter__()
+                self.host_sd_context=context;self.host_sd_lease=lease
+                disk_fd=fcntl.fcntl(lease['fd'],fcntl.F_DUPFD_CLOEXEC,40)
+                self.host_sd_lease['inherited_fd']=disk_fd
+                env.update(prepare_profile(BASE,{**lease,'fd':disk_fd}))
+                env['A7C2_HOST_SD_FD']=str(disk_fd)
+            elif self.usb_net and not self.mock and env.get('MENU_USB_NET') != '1':
                 from usb_network import prepare_profile
                 env.pop('A7C2_USB_NET_SELFTEST', None)
                 env.update(prepare_profile(BASE))
-            if self.card_seed:env['A7C2_SD_IMAGE']=str(self.card_seed)
+            if env.get('A7C2_BACKUP_SYNC'):
+                from backup_profile import prepare_profile as prepare_backup_profile
+                env.update(prepare_backup_profile(BASE,env))
+            if self.card_seed and not host_sd and not directory_sd:env['A7C2_SD_IMAGE']=str(self.card_seed)
             if self.native_display is not None:
                 native_display_environment(env, self.native_display)
             env['MENU_CONTROL_FD'] = str(child.fileno())
             env['MENU_CONTROL_OWNER_PID']=str(os.getpid())
             process = subprocess.Popen(self.command, env=env, cwd=BASE.parent,
                                        stdout=log, stderr=subprocess.STDOUT,
-                                       start_new_session=True, pass_fds=(child.fileno(),))
+                                       start_new_session=True, pass_fds=(child.fileno(),)+((disk_fd,) if host_sd or directory_sd else ()))
             with self.lock:self.owned_process=process
             child.close()
             reply = receive_message(parent, timeout=300, cancelled=self.cancel.is_set)
             if reply.get('type') != 'ready':
                 raise RuntimeError('VM 初始化确认无效')
             self.sd_card = reply.get('sd_card')
+            self.input_lifecycle = not self.mock and reply.get('input_lifecycle') is True
+            if self.input_lifecycle:
+                self.input_state = reply['input_state']
             if not self.mock:
                 run = Path(reply.get('run', '')).resolve()
                 if run.parent != (BASE / 'menu-runs').resolve():
@@ -364,7 +457,8 @@ class VM:
             with self.lock:
                 if self.cancel.is_set():
                     return
-                self.state = 'faulted' if self.firmware_fault else 'running'
+                if self.state != 'stopping':
+                    self.state = 'faulted' if self.firmware_fault else 'running'
                 self.run_dir = reply.get('run', '')
                 self.event('串口初始化已完成；' + ('等待本次已校验快照' if self.native_display is None else '原生画面由 ramfb 更新'))
                 if self.native_display is None:
@@ -386,9 +480,17 @@ class VM:
                         continue
                     self.busy = command['action']
                 shutdown=bool(command.pop('_shutdown',False))
-                send_message(parent, command)
                 saving=command['action']=='export_sd'
-                reply=receive_message(parent,timeout=None if saving else 120,cancelled=None if saving else cancelled)
+                close_error = None
+                if shutdown and self.functional_camera:
+                    from functional_camera_runner import require_capture_closed
+                    try:require_capture_closed(self.run_dir)
+                    except (OSError,ValueError) as error:close_error = str(error)
+                if close_error is not None:
+                    reply = {'type':'sd_export','ok':False,'error':close_error}
+                else:
+                    send_message(parent, command)
+                    reply=receive_message(parent,timeout=None if saving else 120,cancelled=None if saving else cancelled)
                 with self.lock:
                     if reply.get('type') == 'error':
                         self.error = str(reply.get('error', 'VM 操作失败'))
@@ -410,6 +512,18 @@ class VM:
                         if 'source' in info:self.snapshot['source']=info['source']
                         self.stale, self.error = False, ''
                         self.event(f'快照 #{self.snapshot["number"]} 已校验；事务 {info["sequence"]}')
+                    elif command['action'] == 'camera_input' and reply.get('type') == 'camera_input' and reply.get('request') == command:
+                        self.input_state = reply['input_state']
+                        if reply.get('ok') is True:
+                            if self.error.startswith('机身输入未完成：') and not self.input_state.get('error'):
+                                self.error = ''
+                            self.event(str(command['op']) + '：输入已提交；消费结果以固件为准', kind='input')
+                        else:
+                            self.error = '机身输入未完成：' + str(self.input_state.get('error', 'unknown'))
+                            self.stale = True
+                            self.event(self.error, kind='input')
+                    elif command['action'] == 'shutter_cycle' and reply == {'type': 'shutter_cycle'}:
+                        self.event('自然快门序列已提交；消费者与拍照结果待独立证据', kind='input')
                     elif command['action'] == 'key' and reply == {'type': 'key', 'key': command['key']}:
                         self.event(command['key'] + '：输入已提交', kind='input')
                     elif command['action']=='position' and reply=={'type':'position','key':command['key'],'position':command['position']}:
@@ -428,6 +542,7 @@ class VM:
                             self.error = str(reply.get('error', 'unknown'))
                             self.event('Wi-Fi 切换未完成：' + self.error, kind='network')
                     elif command['action']=='export_sd' and reply.get('type')=='sd_export':
+                        if 'input_state' in reply:self.input_state=reply['input_state']
                         if reply.get('ok') and self.instance_lease is not None and not self.mock:
                             try:
                                 from settings_instance import publish_snapshot
@@ -437,7 +552,7 @@ class VM:
                             except (OSError,ValueError,RuntimeError) as error:
                                 reply={**reply,'ok':False,'error':'配置发布失败；VM保留：'+str(error)}
                         self.sd_export=reply
-                        if reply.get('ok'):self.card_seed=Path(self.run_dir)/'SD/card.img'
+                        if reply.get('ok') and self.host_sd_context is None:self.card_seed=Path(self.run_dir)/'SD/card.img'
                         self.event('虚拟SD已保存' if reply.get('ok') else '虚拟SD导出失败：'+str(reply.get('error','unknown')),
                                    kind='storage')
                     else:
@@ -468,14 +583,19 @@ class VM:
             cleanup_error = None
             if process is not None:
                 try:
-                    terminate_owned(process)
+                    if self.host_sd_context is not None and process.poll() is None and not self.cancel.is_set():
+                        raise RuntimeError('宿主磁盘未完成保存；错误退出时保留VM与租约，不发送TERM')
+                    (wait_functional_camera_owner if self.functional_camera else
+                     terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(process)
                     with self.lock:self._release_instance_lease(process)
+                    with self.lock:self._release_host_sd_lease(process)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     cleanup_error = str(error)
                 except RuntimeError as error:
                     cleanup_error = str(error)
             else:
                 with self.lock:self._release_instance_lease()
+                with self.lock:self._release_host_sd_lease()
             if log is not None:
                 log.close()
             with self.lock:

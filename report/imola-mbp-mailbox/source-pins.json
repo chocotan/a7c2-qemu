@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "scope": "public ALLLANG source; read-only static bytes and HOST_TEST only",
+  "component": {
+    "diagnostic_only": true,
+    "owned_data_transport": true,
+    "original_MCU_executed": false,
+    "capture_verified": false,
+    "scalar_CPU_MMIO_enabled": false
+  },
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "artifact_bytes": 10934476,
+  "artifact_sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "bank_loader": "../imola-mcu-firmware-contract/image.py",
+  "window_count": 6,
+  "window_bytes": 880,
+  "windows": [
+    {
+      "id": "spu_submit",
+      "bank": "ram0",
+      "VA_hex": "80175c2c",
+      "raw_hex": "175c2c",
+      "bytes": 156,
+      "sha256": "477f33b0d563e002a1b6e4b384c84b077b24c6e2abc9d1c37da349a386166935",
+      "evidence": "u8-truncated index then <2; LW +10, AND 2, BNEZ; 0x100 poll bound; command SW +0, argument SW +4, final 1 SW +10"
+    },
+    {
+      "id": "spu_receive",
+      "bank": "ram0",
+      "VA_hex": "8000b26c",
+      "raw_hex": "b26c",
+      "bytes": 232,
+      "sha256": "726611dc5809d2e25dcaa091d45f2a66481b6295449f47720e1387261a7cf30d",
+      "evidence": "bf062000 status AND 8, branch on empty, LW +8/+c; dispatch path precedes 4 SW +10"
+    },
+    {
+      "id": "ram1_receive",
+      "bank": "ram1",
+      "VA_hex": "80746fbc",
+      "raw_hex": "746fbc",
+      "bytes": 104,
+      "sha256": "c364196fda39276b3439abde1f0e9a311151d0795647705512e48726afa275bd",
+      "evidence": "be000010 AND 8; LW +8/+c copied to actual two-u32 output; 4 SW +10 in JR delay slot"
+    },
+    {
+      "id": "spu_port_table",
+      "bank": "ram0",
+      "VA_hex": "802485c8",
+      "raw_hex": "2485c8",
+      "bytes": 8,
+      "sha256": "9f0ab44e8afc443d18657a3b0123a3af4fdbdd1d8cfa8638d4704caf980de3a4",
+      "evidence": "two little-endian u32 linked addresses: bf062000, bf072000"
+    },
+    {
+      "id": "ram1_send",
+      "bank": "ram1",
+      "VA_hex": "807470f4",
+      "raw_hex": "7470f4",
+      "bytes": 156,
+      "sha256": "7f82850f25156e2e748218f561783af955a0b8836088eec7d48224628b4dbfd0",
+      "evidence": "be000010 AND 2, BNEZ; command SW +0, argument SW +4, final 1 SW +10 in JAL delay slot"
+    },
+    {
+      "id": "spu_submit_full",
+      "bank": "ram0",
+      "VA_hex": "80175c2c",
+      "raw_hex": "175c2c",
+      "bytes": 224,
+      "sha256": "48f76b31c53873b96a3fedcb6b4538975cc445ba4556dc3be8040147e96a8c36",
+      "evidence": "poll-bound assertion JAL 8000ae50 can return; J 80175ca4 and delay-slot value 1 continue the actual writes"
+    }
+  ],
+  "source_contract": {
+    "command_offset": 0,
+    "argument_offset": 4,
+    "receive_command_offset": 8,
+    "receive_argument_offset": 12,
+    "status_doorbell_offset": 16,
+    "transmit_capacity_mask": 2,
+    "receive_pending_mask": 8,
+    "submit_value": 1,
+    "ack_value": 4,
+    "SPU_linked_bases_hex": ["bf062000", "bf072000"],
+    "RAM1_linked_base_hex": "be000000"
+  },
+  "explicit_virtual_policy": {
+    "channels": 2,
+    "endpoint_roles": ["SPU", "MBP"],
+    "pairing": "logical same-channel endpoints; physical cross-alias unproved",
+    "slots_per_direction": 1,
+    "constructor": "owned model starts empty; not a hardware POR claim",
+    "fresh_staging_required": "both u32 written since last successful submit",
+    "ack_guard": "both pending RX words must have been read; not a silicon guard claim",
+    "unknown_status_poison_hex": "a5a5a5a5",
+    "status_known_bits_hex": "0000000a",
+    "out_of_range_index": "reject full unsigned input, never truncate to u8"
+  },
+  "unclosed": [
+    "physical cross-alias and RAM core mapping",
+    "IRQ line and delivery semantics",
+    "hardware POR, FIFO depth and hardware ACK enforcement",
+    "all status bits outside mask 0xA and whole-CPU consumption of unknown bits",
+    "full IPSX/MIPS execution target",
+    "command 0x20 shared-block execution, CMOS/YC pixel consumption and actual codec ES writer",
+    "native recording, PCPU 0x40a result production and capture"
+  ]
+}

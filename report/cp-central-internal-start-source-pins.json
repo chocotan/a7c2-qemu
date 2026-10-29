@@ -1,0 +1,158 @@
+{
+  "scope": "central internal START conditional consumers and proven input routes; no autonomous pre302c producer proof",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "pins": [
+    {
+      "CPVA": "0xb22de8",
+      "raw": "0xa1ade8",
+      "length": 32,
+      "bytes": "40f2d71043f2742147f2317200230024c9f20300c0f2a511c0f24b0241f678f5",
+      "sha256": "cfe84dbfb06a368f8dfeceab865b8d979438923807fd1fc9fecb47e66489229d"
+    },
+    {
+      "CPVA": "0x110f74c",
+      "raw": "0x100774c",
+      "length": 40,
+      "bytes": "787fe7005886e700388de700508de700688de700a88de700e88de700908ee700388fe700d08fe700",
+      "sha256": "16062f51aad0793a5c488f78f896ed80d39b14bd5e6514555d502d6763ae6008"
+    },
+    {
+      "CPVA": "0xe77f78",
+      "raw": "0xd6ff78",
+      "length": 8,
+      "bytes": "000000009733b200",
+      "sha256": "20fb51cad57185e5853355e45235d81191dcfd466a0b2addcbaa64000680915a"
+    },
+    {
+      "CPVA": "0xe78f38",
+      "raw": "0xd70f38",
+      "length": 8,
+      "bytes": "020000001d44b200",
+      "sha256": "e0f98e45c21ff95ed90243e8689fa26f5ac6044ee7aaab1d315de123958407b7"
+    },
+    {
+      "CPVA": "0xe78fc8",
+      "raw": "0xd70fc8",
+      "length": 8,
+      "bytes": "ff000000293cb200",
+      "sha256": "7280ab88124527ce9e64aa126192f6dd3cca5d90e9d10920574567b50c22aad6"
+    },
+    {
+      "CPVA": "0xb1fbd0",
+      "raw": "0xa17bd0",
+      "length": 10,
+      "bytes": "04f58470039601f015fd",
+      "sha256": "d9d2d742571b4d27a5fc93981400f799ad6b45fe13937e35373c0403a40014c0"
+    },
+    {
+      "CPVA": "0xb21604",
+      "raw": "0xa19604",
+      "length": 68,
+      "bytes": "47f600710122c0f2e70108310160002181740182c1608183c0e905118277024680f82c1080f82d10016380f8241080f8231080f8201080f8251002f81f1fd17091707047",
+      "sha256": "c512ca2e9a0659fbd75de997d287d2c3d8183f59fe6708d5a15ee4f2b4ba944e"
+    },
+    {
+      "CPVA": "0x4b6744",
+      "raw": "0x3ae744",
+      "length": 18,
+      "bytes": "00f13001a82003a30422c0f2030059f0e9bf",
+      "sha256": "cfe5184d7ab62a1e20d4fb10c42d5e3f65accddb313887b21f3f96c847a35532"
+    },
+    {
+      "CPVA": "0xe77b10",
+      "raw": "0xd6fb10",
+      "length": 4,
+      "bytes": "61404b00",
+      "sha256": "bb7a11ae428ac73e6a5b6d7f4d3e192a951c0ff16e3dab0ade0772c531b24e7e"
+    },
+    {
+      "CPVA": "0x4b40ae",
+      "raw": "0x3ac0ae",
+      "length": 12,
+      "bytes": "dfe810f02000b200c500d300",
+      "sha256": "ec88119d1af5f76a6d1fd698bf4b81ab7cf43eb5bc77ce2e1857cfeeed7eac6c"
+    },
+    {
+      "CPVA": "0x4b4746",
+      "raw": "0x3ac746",
+      "length": 28,
+      "bytes": "d8f80020d9f82000002101f090f8d8f80410d9f80c006df2aef00646",
+      "sha256": "5fccb93616d5df972e3cb6390842939962bf0c738e9b1fb0b01f6c50ef2f909c"
+    },
+    {
+      "CPVA": "0x4b476a",
+      "raw": "0x3ac76a",
+      "length": 30,
+      "bytes": "d8f80020d9f82000002101f07ef8d8f80410d9f80c006df28af00646b4e0",
+      "sha256": "6e825745f8227cd095c0528a05912476e9a0fe2b0dc655e71ae5014f5d86754e"
+    },
+    {
+      "CPVA": "0xb21898",
+      "raw": "0xa19898",
+      "length": 12,
+      "bytes": "416043f203010022fff72fbf",
+      "sha256": "08d845ee7645b8f89d7dd33e061085f9622dbd2904bde6ca5d284010e7a5dd97"
+    },
+    {
+      "CPVA": "0xb218bc",
+      "raw": "0xa198bc",
+      "length": 12,
+      "bytes": "41604ff440510022fff71dbf",
+      "sha256": "aa873866137dc0111adfe641b019466f39f3860aa68172f2a5566ce442efb628"
+    },
+    {
+      "CPVA": "0x4b608c",
+      "raw": "0x3ae08c",
+      "length": 12,
+      "bytes": "dfe811f03300350037004400",
+      "sha256": "d975674668388d352017c8c988dac90e8e44e7e77f4d7e65eb8ff24ce1e3b7e9"
+    },
+    {
+      "CPVA": "0x4b60f6",
+      "raw": "0x3ae0f6",
+      "length": 6,
+      "bytes": "002018e10120",
+      "sha256": "0ae8e7a82ba4f9e441dab7b2429b341538217201f625feeadc1cc60d7f896c14"
+    },
+    {
+      "CPVA": "0x4b6118",
+      "raw": "0x3ae118",
+      "length": 4,
+      "bytes": "022007e1",
+      "sha256": "bb30ce350ba3c8f66ec22a7fd3102f474cf7e4ec11b11735ed820615bdfb590d"
+    },
+    {
+      "CPVA": "0x4b632c",
+      "raw": "0x3ae32c",
+      "length": 26,
+      "bytes": "0590002604966868cde9060469f26af504aa41462023fff74ffe",
+      "sha256": "7df0823f7b488df3948d9dc275c43ba4672a94391d708ee63eb2993476e89580"
+    },
+    {
+      "CPVA": "0x4b66e4",
+      "raw": "0x3ae6e4",
+      "length": 28,
+      "bytes": "13a04cf166ed049e484669f28ef33146fdf7ccfb04992046aef000fe",
+      "sha256": "80bcfd8b692c414d9d912ce648d1ad0a461eb739494198c165fe4f028c1eb99c"
+    },
+    {
+      "CPVA": "0xb21702",
+      "raw": "0xa19702",
+      "length": 26,
+      "bytes": "f0b503af4df804bd15460c4695f523f170b92046012191f5def0",
+      "sha256": "707d31b6192de6ac980e9446b4de4f5b0519e10ebfe9b42dbce4cf924a68e0ee"
+    }
+  ],
+  "ADJ_MAIN_endpoint": "0x900301d7",
+  "adjustment_record_bytes": "0x150",
+  "native_mode_endpoint": "0x900302d9",
+  "native_mode_envelope_bytes": "0x20",
+  "CamMain_address": "0x1a52c40",
+  "setup_key": "000300a8",
+  "setup_member_offset": "0x30",
+  "setup_key_actual_public_CP_u32": 6,
+  "setup_is_global_current": false,
+  "autonomous_START_before_302c_proven": false,
+  "302c_native_verified": false,
+  "capture_verified": false
+}

@@ -1,0 +1,29 @@
+{
+  "scope": "internal self-defined RGB888 optical component only",
+  "host_asan_ubsan_tests_passed": true,
+  "added_null_odd_size_guard_and_scale_tests_passed": true,
+  "aarch64_original_libc_libm_225_tests_passed": true,
+  "guest_dynamic_dependency_gate": "EM_AARCH64; libm/libc/loader only; GLIBC_2.17 symbols",
+  "shutter_brightness_ratio": 2.0,
+  "f4_to_f8_brightness_ratio": 0.253521,
+  "near_gradient_focus1m_focus4m": [
+    12.75,
+    0.25
+  ],
+  "far_gradient_focus1m_focus4m": [
+    0.25,
+    12.75
+  ],
+  "source_sha256": {
+    "optics.c": "eb64c7fcd2ff7bca5567dd71fd34ccb018fcfd2ff61175b2dbffb8d4d54db926",
+    "optics.h": "3082049f90dea7352ea514a3fb1fbed242229001d1c6ac79b63c460c21c0fd64",
+    "test_optics.c": "0e336393bcc565ff263a8848c2111e26c6e3df4438f40b891fdc82d7fbd7a4f6",
+    "verify.sh": "e766874023811c8c9c713b60609798d8c953fae24ae371d44cd4cfba6df33042",
+    "guest_entry.c": "11a6b3d2509a4d8f19c2d582f11c01bb80103480b534cd362f86f2bf862f6092",
+    "verify_guest_abi.sh": "48d29ac214212a6a84a2e5ff826a2fa14c9b6702ec0019811f537bde6853554a",
+    "README.md": "e624c9ce708ab6c80cfc885e0a057c3ed5e3fcbe6bec6613a02a394049ab0264"
+  },
+  "sony_pixel_format_or_electrical_fidelity_verified": false,
+  "original_firmware_frame_consumption_verified": false,
+  "capture_verified": false
+}

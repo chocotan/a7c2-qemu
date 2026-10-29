@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "provenance": "Source-closed handoff for original MPR VideoInfo consumer slots; no new producer research",
+  "source_root": "../../runtime/analysis/menu-root",
+  "native_gaps": 63,
+  "native_execution": "unsupported",
+  "artifacts": {
+    "usr/lib/libmpr.so": {
+      "size": 3528576,
+      "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+      "coordinate": "M = ELF virtual address; first PT_LOAD has VA=file offset in [0, 0x2e4534)"
+    },
+    "system/av-cam.bin": {
+      "size": 13797088,
+      "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "coordinate": "K = raw file offset; KVA = raw + 0xffffffc001000000"
+    }
+  },
+  "windows": [
+    {
+      "id": "M2820fc",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x2820fc",
+      "length": "0x4c4",
+      "sha256": "ccfae6b02758f2ff315f121152ea61c639a62938fa3dbdd24253a1c949a470b1",
+      "meaning": "GetVideoInfoReadList: 96-byte entries, last-processed user cursor, next slot R+1, full entry copies"
+    },
+    {
+      "id": "M27f4a8",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x27f4a8",
+      "length": "0xf8",
+      "sha256": "1f8af07ef0127ebb1d63df1421eb385e7b642ec18d7f1bed352175051566ad3a",
+      "meaning": "Index helpers including CalcRingIndex at M27f540; subtract N once, not general modulo"
+    },
+    {
+      "id": "M27f5a0",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x27f5a0",
+      "length": "0x1c4",
+      "sha256": "b67137e419262dbb2f40e81eaa498828cc5db88ccc9d473629e110230c6c5685",
+      "meaning": "SetVideoInfoReadIndexCount: user cursor then minimum active-user distance; DSB SY before shared store; success 0, invalid stream/user 3"
+    },
+    {
+      "id": "M11b54c",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x11b54c",
+      "length": "0x1c0",
+      "sha256": "2dcfbc7c114c8026ea631bec5a2a7e7b958fa2eb8f1a421fa5ec4068d57bcb93",
+      "meaning": "Actual read-list call M11b57c via PLT M7dae0; slot-count return M11b6e0 via PLT M7d680"
+    },
+    {
+      "id": "M120224",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x120224",
+      "length": "0x90",
+      "sha256": "e214eb435cd18819d2500a96589bd9a475783cd98add44c148e02dbd3454d125",
+      "meaning": "Another setter caller M120230..23c stores return code and checks zero at M120240/244"
+    },
+    {
+      "id": "M282fb8",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x282fb8",
+      "length": "0x124",
+      "sha256": "60e1744a4226fa28c7e3483cec1788e5333c9cef4ef56d027de21b2e580322b6",
+      "meaning": "Companion original VideoInfo consumer context; no producer contract inferred"
+    },
+    {
+      "id": "M11bed0",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x11bed0",
+      "length": "0xc0",
+      "sha256": "df10b6add69854ce268f5fcb1afd77a5b65471e3556b13202b2bc7be331d55bf",
+      "meaning": "Companion original movie-consumer context; metadata filtering and ES interpretation remain outside this helper"
+    },
+    {
+      "id": "M283e74",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x283e74",
+      "length": "0x1e4",
+      "sha256": "7d79537cdc78d5b1d640c342ff8ed3135fadafa0cc6062d0bce83bc5ea545cd6",
+      "meaning": "Actual CallbackFromAvbbc; not an index loop or evidence of native producer completion"
+    },
+    {
+      "id": "M27da20",
+      "artifact": "usr/lib/libmpr.so",
+      "file_offset": "0x27da20",
+      "length": "0xfc",
+      "sha256": "42361737e65b7dbddf87b82a6763d05970bb16ca06b58c9fd1aa6263b202c943",
+      "meaning": "Actual GetMessage; not an index loop"
+    },
+    {
+      "id": "K138720",
+      "artifact": "system/av-cam.bin",
+      "file_offset": "0x138720",
+      "length": "0x404",
+      "sha256": "cf711142e9653ffefe190109dc4cf164ccf9b540cd4019e814d8cf1467fe61ef",
+      "meaning": "Existing RMC dispatch boundary; complete external completion and lease binding still unresolved"
+    }
+  ],
+  "window_count": 10,
+  "total_window_bytes": 4760,
+  "stream_globals_library_relative": [
+    {
+      "stream": 0,
+      "slot_base_pointer": "0x3b7f70",
+      "slot_count_u32": "0x3b80b0",
+      "shared_read_pointer": "0x3b7e58",
+      "write_pointer": "0x3b7e68",
+      "user_vector": "0x3b8148"
+    },
+    {
+      "stream": 1,
+      "slot_base_pointer": "0x3b7ef0",
+      "slot_count_u32": "0x3b8080",
+      "shared_read_pointer": "0x3b7e08",
+      "write_pointer": "0x3b7e18",
+      "user_vector": "0x3b8108"
+    }
+  ],
+  "original_user_record": {
+    "stride": "0x24",
+    "id_u32_offset": "0x0",
+    "read_index_u32_offset": "0x4",
+    "status_u32_offset": "0x1c",
+    "active_statuses": [1, 2, 3]
+  },
+  "excluded_producer_candidates": {
+    "M27fc9c": "PiWrite belongs to the handoff's separate 40B/580-stride object; not a 96-byte VideoInfo producer",
+    "M27fd6c": "InfoWrite belongs to that other object; neither proves a 96-byte VideoInfo producer"
+  }
+}

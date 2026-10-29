@@ -1,0 +1,53 @@
+{
+  "scope": "complete functional camera code batch and original-libc ABI; original AP media acceptance remains unverified",
+  "profile": "virtual-functional-camera-v1",
+  "batch": "runtime/analysis/scratch/unified-camera-2pzge829",
+  "regression": {
+    "returncode": 0,
+    "tests_passed": 3715,
+    "subtests_passed": 503,
+    "modules": 156,
+    "production_inputs": 426,
+    "all_unique_inputs": 857,
+    "changed": {
+      "production": [],
+      "host": [],
+      "observer": [],
+      "test": []
+    }
+  },
+  "ready_sha256": "962ffb18b9e4ead1ce8411302638c05d592d0258527015aafd60af5bc4a66827",
+  "ready": {
+    "scope": "host-tested frozen batch; native end-to-end acceptance still required",
+    "inputs_sha256": "c38da2379522b475decfde06a2bded77fdfa9947dc5f39dd7624828f8b9fcb40",
+    "regression_sha256": "858b6c11f7230fb5540d8555349994e4cac813c6cac7dcc548e28fb54edfc4ce",
+    "abi_sha256": "eafa7591d175097ac9a0981d16582d78906e81731829f1ecc3b888b148592241",
+    "all_input_archive_sha256": "9a3fc41ac28dedf251461d79affabda1f708e0b4e9d1a0682fc62a00e4669dc3",
+    "functional_model_library_sha256": "93834a9576bac45ad9b29b12e9a7edd412a581f7b7aefa9615212507fdf58756",
+    "functional_model_source_archive_sha256": "682b435ddccf3ec45cd18138797ee330476c27d5895b44f1931077161154bc33",
+    "functional_model_build_receipt_sha256": "458d267760d6c48fcb1d68e40a8a448f1d5a3952ad46ff208a1e764a1e273ac0",
+    "capture_verified": false
+  },
+  "observer_sha256": "a1a9f13b8fdde835d63fb492e60fbc49382a1bcf753926d0638ade8d4a4cd93c",
+  "observer_source_archive_sha256": "a6de08bd9a4a307f474fb859d155c226db260a197ba8424d77d545d03de9ffa6",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "original_libc_ABI": {
+    "returncode": 0,
+    "marker": "PASS: constructor thread and application-init wrapper preserved behavior",
+    "media_returncode": 0,
+    "media_LD_BIND_NOW": true
+  },
+  "failed_first_batch": "runtime/analysis/scratch/unified-camera-2sxwmmdp",
+  "first_native_attempt": {
+    "run": "runtime/analysis/menu-runs/run-vs3nvfqy",
+    "result": "firstboot DOWN submission wait timed out; original key press/release observed; no encoded media",
+    "selected_image_sha256": "4480e1958ee99352d3ca728a5c307eb565fcf9ecba3dc93a4e9d0ea230fb05ba",
+    "negative_receipt": "runtime/analysis/scratch/functional-refusal-run-vs3nvfqy.json",
+    "cleanup_receipt": "runtime/analysis/scratch/functional-cleanup-run-vs3nvfqy.json"
+  },
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_executed": false,
+  "original_CP_RAM_verified": false,
+  "original_RTOS_verified": false
+}

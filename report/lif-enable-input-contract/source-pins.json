@@ -1,0 +1,43 @@
+{
+  "scope": "source-bound initial enable inputs only; mutable history at worker call unproved",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "windows": [
+    {"CP_VA": "b2a374", "bytes": 1248, "sha256": "576b006fda3845045c0db81311ae26ad3ef78be6b590893300d190a9a4cc10ab"},
+    {"CP_VA": "4c1078", "bytes": 72, "sha256": "efa571cbf7ae80f87b884ad44d9afc8d464ccb43f574e32c4e84966a76df0547"},
+    {"CP_VA": "b2e140", "bytes": 1368, "sha256": "e3f8df2890faa006d39c03b82bf1c77b6daca1f555646bacc4ccb38aab56b8f9"},
+    {"CP_VA": "b2ed24", "bytes": 242, "sha256": "95b3dc4e39072500408335d152c6261b22e2d35a324b2bb3f198287045f1f052"},
+    {"CP_VA": "99b86e", "bytes": 66, "sha256": "c0a60550364e8b55604d8859d7abc9d61e35010219f8526a6efd074b1dd139b7"},
+    {"CP_VA": "a4dfc6", "bytes": 14, "sha256": "ca423102bbab7b7f7dcf605f915b1601a2c915fb5fced89250e61722a5f41c21"},
+    {"CP_VA": "3a9d48", "bytes": 8, "sha256": "a4fc4ce698bf3bc0aa440dd053edaa6a47d1b5fd0803759680764895a460eebd"},
+    {"CP_VA": "a75b68", "bytes": 436, "sha256": "2202c1223661a721d9bb7b74adf46affd8d56b6b07a0f74c403f8278eb4ccd63"},
+    {"CP_VA": "1106a5c", "bytes": 488, "sha256": "5489a1aeeb92dd354a2d1e741239692c4f4e9ecd95ce6327baf012ed71d4f686"},
+    {"CP_VA": "be9d98", "bytes": 238, "sha256": "2cbbd104060be58563b13cb07a0ef7d7ad8a0e5c0ce5a229ecddf20e6e6b9181"}
+  ],
+  "window_count": 10,
+  "window_bytes": 4180,
+  "public_property": {
+    "seed_path": "runtime/analysis/menu-root/seed-backup.bin",
+    "seed_bytes": 2390264,
+    "seed_sha256": "3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47",
+    "stage_offset_hex": "ed000",
+    "stage_bytes": 1419512,
+    "stage_sha256": "a90b46ae1d0fa054daeba321c52dc9d44d6bf32ca6eefcd1efb84fab2116e977",
+    "full_ID_hex": "000d003a",
+    "entry_stage_offset_hex": "78e2",
+    "entry_hex": "08009ad503ff",
+    "payload_stage_offset_hex": "3d59c",
+    "payload_bytes": 256,
+    "payload_sha256": "b3dcc9455b88ff528026e892fab01a54c0c1ce80e4ccb9fd370b71d02a5c4c0c",
+    "gate_byte_offset_hex": "b8",
+    "gate_byte_value": 255,
+    "target_CP_address": "1ac029c"
+  },
+  "initial_config_word": {"offset_hex": "1c", "value": 2, "published_address": "17312b4", "collector_predicate": "word == 0", "FLAGB_after_collector_projection": 0},
+  "later_recopy_CP_VA": "b2ee12",
+  "worker_call_gate_known": false,
+  "published_zero_projection_verified": false,
+  "capture_verified": false
+}

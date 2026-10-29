@@ -1,0 +1,20 @@
+{
+  "scope": "registration metadata and following byte clear; no M/C initialization source",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "windows": [
+    {"CP_VA": "b22f1e", "bytes": 44, "sha256": "52c1e933bd1cd1878348761697f3ba404eadb05011d0303bfd67017d709f4ac1", "meaning": "complete register-only helper"},
+    {"CP_VA": "110f7a4", "bytes": 132, "sha256": "14b79ce6199832f376988ce4a038d85b762c0722d4988c22cc71e7b856083133", "meaning": "eleven compiled group records; not item values"},
+    {"CP_VA": "a48f6c", "bytes": 26, "sha256": "bd6f5b266f128493bea9a940f58a0b1bd6f860f696501639a7d781d5522b2314", "meaning": "register group9 then clear neighbor byte and return"},
+    {"CP_VA": "a48dea", "bytes": 14, "sha256": "63b469057fd155b75dd7fb0218b6a37e5fc20e5e6ea50cd1f6feb74accbe7344", "meaning": "single STRB zero to 1b18336, not M or C"}
+  ],
+  "window_count": 4,
+  "window_bytes": 216,
+  "group9": {"CP_VA": "110f810", "hex": "090000000000000000000000", "registration_pointer_target": "110f814", "registration_count_target": "110f818"},
+  "M": {"CP_address": "1b18337", "initial_value_known": false},
+  "C": {"CP_address": "1b18359", "initial_value_known": false},
+  "whole_program_writer_absence_claimed": false,
+  "capture_verified": false
+}

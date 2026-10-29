@@ -1,0 +1,110 @@
+{
+  "scope": {
+    "task": "Bounded RC SOURCE input producer investigation; exclude encoder START/S88 and destination geometry",
+    "authorization": "User-authorized offline public ALLLANG image analysis",
+    "flavor": null,
+    "allowed_asset": "runtime/analysis/menu-root/system/av-cam.bin",
+    "writes": ["report/cmos-isp-resize-input-source/README.md", "report/cmos-isp-resize-input-source/source-pins.json", "runtime/analysis/scratch/cmos-isp-resize-input-source/"],
+    "original_execution": false,
+    "network_or_device_access": false,
+    "private_full_dump_access": false,
+    "existing_inputs_modified": false
+  },
+  "asset": {
+    "path": "runtime/analysis/menu-root/system/av-cam.bin",
+    "bytes": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "format": "flat AArch64 image; no ELF import table",
+    "import_equivalent": "Original vtable entries plus direct B/BL instructions; no external API absence inferred"
+  },
+  "address_convention": {"K": "raw file offset", "kva_base": "0xffffffc001000000", "kva_formula": "kva_base + K", "cp_mapping_used": false},
+  "result": {
+    "rc_source_descriptor_side_identified": true,
+    "rc_source_descriptor_to_hardware_parameter_path_identified": true,
+    "source_input_owner_closed": false,
+    "same_frame_raw_yc_identity_closed": false,
+    "source_acquire_release_closed": false,
+    "source_plane_format_closed": false,
+    "named_input_format_or_isp_mode_closed": false,
+    "literal_software_pixel_write_found": false,
+    "source_pixel_bytes_consumed_verified": false,
+    "native_pixel_layout_known": false,
+    "guest_pixel_consumed": false,
+    "capture_verified": false,
+    "original_jpeg_or_mp4_produced": false,
+    "executable_native_closure": "none; source descriptor/parameter programming is not source-frame production or byte consumption"
+  },
+  "labels": {
+    "P": "Second argument to K1d317c; an upstream parameter/record object, not a proved frame lease",
+    "T": "RC builder input x2 at K2d835c; for K1d317c caller, T=sp+0x70",
+    "J": "RC command output passed to K2d836c as x6",
+    "B": "Prepared backing output of K2d86fc",
+    "H": "Hardware object supplied as x1 to K2d8c60",
+    "M": "SOURCE record at B+i*0x88, not destination at +0x20",
+    "Z": "SOURCE auxiliary record passed at B+i*0x30+0x7200",
+    "S": "Temporary K2d45b4 parameter at sp+0x48, passed to K2108d8"
+  },
+  "source_fields": [
+    {"from": "P+0x70 u64", "at": "0x1d3208..0x1d320c", "to": "T+0x10 u64", "role": "Raw SOURCE address value; pointee producer and generation not identified", "evidence": "E2"},
+    {"from": "P+0x78 u32", "at": "0x1d3210..0x1d3214", "to": "T+0x18 u32", "role": "Descriptor range value; not a plane offset or proven complete frame length", "evidence": "E2"},
+    {"from": "literal 1", "at": "0x1d3200..0x1d3204", "to": "T+0x08 u32", "role": "Descriptor first word; no plane-count interpretation", "evidence": "E2"},
+    {"from": "T+0x08, 0x60 bytes", "at": "0x2d8418..0x2d843c; 0x2d71b8..0x2d71c4", "to": "J+0x10", "role": "SOURCE descriptor validation/copy through provider slot+0x28=K2d6dd8", "evidence": ["E7", "E8", "E12"]},
+    {"from": "T+0x7c u32, T+0x84 u32", "at": "0x2d841c..0x2d843c", "to": "K2d6dd8 args x2/x3", "role": "SOURCE selector and mode argument used for validation; no named packing enum", "evidence": "E8"},
+    {"from": "T+0x84/0x88/0x8c u32", "at": "0x2d8638..0x2d864c", "to": "J+0x8c/0x90/0x94 u32", "role": "Mode-related scalar fields; not established as an SDS type/handle/offset triplet", "evidence": "E8"},
+    {"from": "J+0x8c/0x90/0x94 and J+0x18", "at": "0x2d8950..0x2d8964", "to": "K2cd23c args x1/x2/x3; result saved at sp+0x40", "role": "SOURCE address translation; independent destination result saved at sp+0x38", "evidence": ["E8", "E9"]},
+    {"from": "Translated SOURCE address at sp+0x40", "at": "0x2d8ae4..0x2d8b00", "to": "K2cd2b0 arg x4", "role": "Input record construction, distinct from K2cdc94 destination", "evidence": "E9"},
+    {"from": "M+0x08 low32 / M+0x10 / M+0x14", "at": "0x2d4620..0x2d4634", "to": "S+0x08 / S+0x0c / S+0x10", "role": "Original hardware parameter programming, not a read of pixels at the source address", "evidence": "E6"}
+  ],
+  "callgraph": [
+    {"from": "0x1d2fd4", "to": "0x1d317c", "kind": "bl", "evidence": "E2", "condition": "Preceding K27817c result is zero; allocation-like output written to P+0x80, not SOURCE P+0x70"},
+    {"from": "0x1d332c", "to": "0x2daf2c", "kind": "bl", "evidence": "E2", "arguments": "w0=P.a4, x1=T=sp+70, x2=K1d3138, x3=0"},
+    {"from": "0x1cdc20", "to": "0x2daf2c", "kind": "bl", "evidence": "E1", "arguments": "x1=T=sp+80, x2=K1ce74c, x3=0; SOURCE address=P.70 if P.b0==0 else0"},
+    {"from": "0x1fabf8", "to": "0x2daf2c", "kind": "bl", "evidence": "E3", "arguments": "x1=original x2; x2=original x3; upstream object only forwarded"},
+    {"from": "0x2db004", "to": "0x2cff84", "kind": "bl", "evidence": "E11", "arguments": "T from original x1 forwarded as x2"},
+    {"from": "0x2d01c0", "to": "0x2d835c", "kind": "indirect_provider_slot_0x18", "evidence": ["E5", "E12"], "arguments": "T is original K2cff84 x2"},
+    {"from": "0x2d843c", "to": "0x2d6dd8", "kind": "indirect_provider_slot_0x28", "evidence": ["E8", "E12"], "arguments": "T+8, T.7c, T.84, J+10"},
+    {"from": "0x2d8964", "to": "0x2cd23c", "kind": "bl_source", "evidence": "E8", "arguments": "mode fields J.8c/.90/.94; address J.18"},
+    {"from": "0x2d8b00", "to": "0x2cd2b0", "kind": "bl_source", "evidence": "E9", "arguments": "x4=SOURCE translation, x5=local main record, x6=local SOURCE auxiliary"},
+    {"from": "0x2d8ef8", "to": "0x2d4960", "kind": "bl_source", "evidence": "E10", "arguments": "H, M, SOURCE auxiliary, J.8c, J.94"},
+    {"from": "0x2d4988", "to": "0x2d45b4", "kind": "b", "evidence": "E6", "arguments": "H, H.3c, H.34, M, Z, J.8c, J.94"},
+    {"from": "0x2d464c", "to": "0x2108d8", "kind": "bl", "evidence": "E6", "arguments": "w0=H.34, x1=S"},
+    {"from": "0x2d4744", "to": "0x210bbc", "kind": "bl_if_previous_success", "evidence": "E6"},
+    {"from": "0x2d4818", "to": "0x210c3c", "kind": "bl_if_previous_success", "evidence": "E6"}
+  ],
+  "memory_and_modes": {
+    "source_descriptor": "T+8 -> J+10; input address J+18. T+90 -> J+98 is destination.",
+    "source_extra_fields": "J+8c/+90/+94 are mode-related scalars; do not reinterpret as SDS",
+    "source_translation": "K2cd23c: if low32(x1)!=0, return x3 unchanged; else search four records at K3320d8 and return address-E[0]+E[0x10] if E[0]<=address<E[0]+E[0x18]; failed lookup returns0 after diagnostic",
+    "source_input_dispatch": "K2cd2b0: J.84==2 or (J.84==9 and J.8c!=0) returns without entering main input address writer; J.84==9/J.8c==0 calls K2cda48; remaining path calls K2cd470",
+    "source_writer": "K2cd470 writes main record address at +8, upper bits at +10, transfer/step fields +14/+18, count +1c; selector table K387ca8 and alternate table K3ef2d4 not interpreted as named formats",
+    "source_record_copy": "K2d8b58..68 copies0x88 local record bytes to B+i*0x88, including SOURCE at +0 and destination at +20; no pixel bytes copied",
+    "source_auxiliary_submission": "K2d8ef8 supplies B+i*0x30+0x7200; the intervening publication of this auxiliary area was not recovered here, so no full Z identity/lease closure",
+    "hardware_control": "K2d45b4 extracts S bytes from M flags; S.7=(J.8c==1?3:(J.8c==2?4:0)); S.4=u16[J.94]. Numeric hardware mode only, no named ISP/input-format binding",
+    "mmio_store": "After three helper successes K2d4924/K2d4940 update bits13/0 of *(u32 *)((u32[H+14]|ffffffff00000000)+(u32[H+3c]<<7)+200h) from M flags; these are control stores, not pixel writes"
+  },
+  "first_unclosed_boundaries": [
+    {"kind": "upstream_source_owner", "location": "P+0x70/P+0x78 read by K1d3208/K1d3210", "missing": "Writer of SOURCE data address; original source pin/SDS identity; frame callback/acquire/release/generation; same-frame CMOS/raw/YC binding", "next_specific_site": "Continue backward before K1d2f00, where P is already live; K1d2fb8..1d2fc8 only fills destination-related P+7c/+80/+88"},
+    {"kind": "source_format_alias", "location": "T+0x7c validator input versus J+0x84 input-writer selector", "missing": "K2d77dc scalar propagation plus producer enum names; no named format or component/plane layout in pinned path"},
+    {"kind": "hardware_input_consumption", "location": "K2108d8/K210bbc/K210c3c called by SOURCE submission", "missing": "Named input engine/mode and exact pixel interpretation; proved fresh live-frame registration; hardware transfer/completion consuming bytes"}
+  ],
+  "windows": [
+    {"id": "E1", "source_ref": "K-1cda00-240", "start": "0x1cda00", "end_exclusive": "0x1cdc40", "length": 576, "sha256": "ed5dcd11846bdd4b2bfd5df2c0541c83913173c6194b856c52d4681092b50c02", "role": "Upstream SOURCE address suppression and descriptor construction"},
+    {"id": "E2", "source_ref": "K-1d2f00-450", "start": "0x1d2f00", "end_exclusive": "0x1d3350", "length": 1104, "sha256": "4a23f761b7ff29c132eecc06fb9a02050bf0bdcd1f346396e8e00f0ceb75ab71", "role": "Direct upstream caller and exact SOURCE P+70/P+78 fields"},
+    {"id": "E3", "source_ref": "K-1faa00-240", "start": "0x1faa00", "end_exclusive": "0x1fac40", "length": 576, "sha256": "cd36f285243286a528bf29e9e2dd519e8d0ea89b99b6d6588c0b22459ed65920", "role": "Independent original caller forwards input record, not a pixel writer"},
+    {"id": "E4", "source_ref": "K-2cd23c-394", "start": "0x2cd23c", "end_exclusive": "0x2cd5d0", "length": 916, "sha256": "f158611f49fc578709b73e80e7c853be0c154ab789cb202930d81abeb93b16f6", "role": "SOURCE translation, selector-specific main record and non-address-writing branches"},
+    {"id": "E5", "source_ref": "K-2cff84-400", "start": "0x2cff84", "end_exclusive": "0x2d0384", "length": 1024, "sha256": "c289299f054c60f1e02c97e37c51c1d5d7a70b51dba59617b8db16f7acce3dd1", "role": "Original argument forwarding through RC command builder"},
+    {"id": "E6", "source_ref": "K-2d45b4-3d8", "start": "0x2d45b4", "end_exclusive": "0x2d498c", "length": 984, "sha256": "802c33ac62425cd65fa76a722c3bccf071ba28931fbd2d11cb3a032a1ac90086", "role": "SOURCE hardware channel binding, parameter copies, numeric control MMIO"},
+    {"id": "E7", "source_ref": "K-2d6dd8-3f8", "start": "0x2d6dd8", "end_exclusive": "0x2d71d0", "length": 1016, "sha256": "18ad8fa0479233b3b179937c8383f4f029645fd559891efd5ab7017e26cf8d6a", "role": "SOURCE validation and exact60h descriptor copy"},
+    {"id": "E8", "source_ref": "K-2d835c-60c", "start": "0x2d835c", "end_exclusive": "0x2d8968", "length": 1548, "sha256": "d1335ba92084e570f009198532646805d73a290003d3b1cbf1645ac4255523f8", "role": "SOURCE/destination role separation and SOURCE translation call"},
+    {"id": "E9", "source_ref": "K-2d8968-220", "start": "0x2d8968", "end_exclusive": "0x2d8b88", "length": 544, "sha256": "05c767bee2a71ede16b267964b28c9c351e8c88025233cab89c7575a48bc0d51", "role": "Separate SOURCE and destination record builder arguments"},
+    {"id": "E10", "source_ref": "K-2d8c60-37c", "start": "0x2d8c60", "end_exclusive": "0x2d8fdc", "length": 892, "sha256": "bb786c54d76440dbdc37587d219c9dedc49e4e6b865836db146fc3365ce4b2c0", "role": "Independent SOURCE submission K2d8ef8, after destination submission"},
+    {"id": "E11", "source_ref": "K-2daed0-290", "start": "0x2daed0", "end_exclusive": "0x2db160", "length": 656, "sha256": "eb126eccdb2f9f841defcac0c8dc7d0561c959a83d253b2c1283bc9b3dd8fc52", "role": "Original upstream argument forwarding into RC wrapper"},
+    {"id": "E12", "source_ref": "K-3883c8-60", "start": "0x3883c8", "end_exclusive": "0x388428", "length": 96, "sha256": "6d027d14e704ca54962da7c88be6be7cb22544108a5b06d776b498009e314fe2", "role": "Original provider vtable, especially SOURCE slot28=K2d6dd8"}
+  ],
+  "window_count": 12,
+  "window_bytes": 9932,
+  "scratch": "runtime/analysis/scratch/cmos-isp-resize-input-source/",
+  "verification": "python3 -B runtime/analysis/scratch/cmos-isp-resize-input-source/verify.py",
+  "verification_kind": "Static original-byte, exact call and field checks only; no target execution, build, ABI or full regression rerun",
+  "inherited_validation": "Parent's3253/381 frozen batch/build/ABI unchanged; not rerun or claimed here"
+}

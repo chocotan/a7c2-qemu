@@ -1,0 +1,12 @@
+{
+  "status": "PASS_TEST_DBI_HARDWARE_ONLY",
+  "binary_sha256": "f2ec9a2723e49756c2a052cf68b9df1315a0bba769da265d812c606985b0cbf2",
+  "root_pcie_capability": "0x54",
+  "actual_ecam_slot_flags_and_capabilities_changed": true,
+  "locked_or_wrong_sequence_prevents_change": true,
+  "original_values_restored_and_locked": true,
+  "trace_sha256": "0de0bd46a4a8ef8da410ce36370c12f8974d4cf46c468357616ec03ca10f526f",
+  "silicon_reset_phy_semantics_verified": false,
+  "kernel_context_or_api_verified": false,
+  "capture_verified": false
+}

@@ -1,0 +1,22 @@
+{
+  "scope": "public ALLLANG static source, independently reread; no VM or native pixel consumption",
+  "artifacts": [
+    {"path": "usr/lib/libObj.so", "size": 2997608, "sha256": "c0897d72a40bf0a161fa7f89e9a34eef4d19e0506c7817a5c11a6f53897cdbbc"},
+    {"path": "system/av-cam.bin", "size": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"},
+    {"path": "usr/sabin/sa_sabin_mp_cam_post.bin", "size": 53504, "sha256": "38a99704591ce1706a0b77645f71d1b2f50750419672d1bd2280c448f2d09a12"}
+  ],
+  "windows": [
+    {"artifact": "usr/lib/libObj.so", "file_offset": 1019924, "length": 80, "sha256": "929545dc4f90ccef932795642787ad42c0a00cc51727b711093990af5f6ee93e", "meaning": "GRM YUV entry points return zero without pixel consumption"},
+    {"artifact": "system/av-cam.bin", "file_offset": 1918124, "length": 728, "sha256": "de6832191a2c4184d0e8cd384a9e2b426d4eb4afbeb6bbf9da440319c71126b9", "meaning": "ImageSizeInfo callback copy and geometry fields"},
+    {"artifact": "system/av-cam.bin", "file_offset": 1919988, "length": 248, "sha256": "fccd4a980d87838f124737c6d4408e705031aa60304d1701f0aa501bb06b44a0", "meaning": "make-MMU request and service submission"},
+    {"artifact": "system/av-cam.bin", "file_offset": 1921764, "length": 888, "sha256": "2f9506af35f25321db1eb1790437bc23985769998f06d025c41b480ad9f460ca", "meaning": "SA program 0x1564e arguments, converted buffer addresses and service submission"},
+    {"artifact": "usr/sabin/sa_sabin_mp_cam_post.bin", "file_offset": 34816, "length": 80, "sha256": "57f9183b043cbe4b6742fab7c9e2ba958debcc344eb5ef78cb4d72bc6115055d", "meaning": "SA program metadata identity only"},
+    {"artifact": "usr/sabin/sa_sabin_mp_cam_post.bin", "file_offset": 35072, "length": 5120, "sha256": "75c481ee17961521fd5cb2c41ab49fec79228839e47faba5d97f8ef59a5a8822", "meaning": "SA payload identity; instruction and lane semantics not proved"}
+  ],
+  "window_count": 6,
+  "window_bytes": 7144,
+  "native_pixel_layout_known": false,
+  "same_rc_jpeg_sds_binding_proved": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false
+}

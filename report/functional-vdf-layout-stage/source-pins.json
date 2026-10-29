@@ -1,0 +1,66 @@
+{
+  "scope": "Bounded public ALLLANG producer/status/reply anchors reused from functional-bb014c-source; independent guest-local software register stage and late result192 receipt validation. No new binary survey, VM, full build/regression or private dump.",
+  "flavor": null,
+  "research_source": "analysis/scratch/functional-bb014c-source/{RESULT.md,source-pins.json}",
+  "artifacts": {
+    "ap": {
+      "runtime_relative_path": "menu-root/usr/lib/appFw.so",
+      "size": 99960744,
+      "sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+      "pt_load": [
+        {"offset": 0, "va": 0, "filesz": 85617919, "memsz": 85617919, "flags": 5},
+        {"offset": 85620504, "va": 85686040, "filesz": 14338208, "memsz": 74360248, "flags": 6}
+      ]
+    },
+    "cp": {
+      "runtime_relative_path": "menu-root/cp/cpapp-b.bin",
+      "size": 18090880,
+      "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+      "address_rule": "Thumb VA = raw + 0x108000"
+    }
+  },
+  "ranges": [
+    {"artifact":"ap","name":"layout-producer-case0","va_start":"0x34f135c","raw_start":"0x34f135c","bytes":60,"sha256":"8d42e8bc360997545b5e8599046f5a739fcf330916702a7fb8a4b17f060176ad","raw_hex":"620240b9bf5700f91f7c00a9a00184525f0c0071a013017980298052a017017900058052a01b0179c0ff8f12a01f0179a84d0054a1bb00b020008052"},
+    {"artifact":"ap","name":"layout-case0-and-send","va_start":"0x34f16e8","raw_start":"0x34f16e8","bytes":44,"sha256":"b4778460a3301db139f9a272360e2d96a858ce701dc1961701db9274bf666f48","raw_hex":"e30314aaa1230291e0e8805284018052020580528050b272bf3f00f9bf8300b989cfff97a08340b963c7ff97"},
+    {"artifact":"ap","name":"exact-layout-producer-full","va_start":"0x34f1b84","raw_start":"0x34f1b84","bytes":44,"sha256":"999184440211688a7b0e08abdea76d271735ee71802ba95eeee42acc98b9ca41","raw_hex":"a0470239e1008052a04b023900508052a1430239a0330179003c8052a037017960008052a0a30239c1feff17"},
+    {"artifact":"ap","name":"layout-producer-switch","va_start":"0x4c66db4","raw_start":"0x4c66db4","bytes":8,"sha256":"353a0e59eabae2053b6f7f6f31b4a11a80f0b3da8b28d3a6c55fa225c2db4589","raw_hex":"f60100006f010102"},
+    {"artifact":"ap","name":"shared-send-wait-free","va_start":"0x34e56c8","raw_start":"0x34e56c8","bytes":40,"sha256":"b4eabe9fee4bf9c39b332899ed8b93d0ccd1dbf0eb809379866d64188147afbc","raw_hex":"e00304aa45df8597a17340b9a03f40f9cadf8597a13f40f9e003192afbe485978004003414bc00d0"},
+    {"artifact":"ap","name":"status-parser","va_start":"0x34e35b8","raw_start":"0x34e35b8","bytes":28,"sha256":"735289c7d6f5656b52a55869fe8e752b7db0f0c53d1a616afd101b7bfea5af21","raw_hex":"21fc3f7120fdff541f40567101fbff5413008052e003132af35341a9"},
+    {"artifact":"cp","name":"completion-neighborhood","va_start":"0x69c946","raw_start":"0x594946","bytes":82,"sha256":"3129f710e65153f033e41bd8926ad67b439cefb9848317054e8cfb953a52015e","raw_hex":"f0b503af4df804bd84b00d4614460646042040f2b51100232a4611f01afc41f24c100c222346adf806000c20adf8080042f20d00adf8040048f20100adf80a00039501a930462af7a8f704b05df804bbf0bd"},
+    {"artifact":"cp","name":"completion1305-result-word","va_start":"0x1c6688","raw_start":"0xbe688","bytes":34,"sha256":"c2e2789453437bd1d7b39d44dc10ecfa0d13cfd945f92e54cec7ec36999452a3","raw_hex":"806808e000694ff4b00206e04ff4b202002002e040694ff4b2021043c86001207047"},
+    {"artifact":"cp","name":"source-fifo-send","va_start":"0x1c791e","raw_start":"0xbf91e","bytes":74,"sha256":"8848cdc43d0e41f6fa6e08842002bdc53a556ffa89c43fc00d3def142f469e9a","raw_hex":"9df371fc034623b148f2de0041f2760224e0039840f24771c9f2842124f273db039841462a4656f062e613a04ff4217100220423cde900040820e6f0f9f3039920469df3eaf8054695b1"}
+  ],
+  "software_policy": {
+    "profile": "virtual-functional-camera-v1",
+    "startup_layout_policy": "guest-local-canonical-initial-register-stage-before-active-route",
+    "startup_layout_stage_only": true,
+    "startup_layout_frame_completion": false,
+    "request40_hex": "0d204c012800018007010100000000008002e0010000000000000000000000000300000000000000",
+    "bank32_hex": "07010100000000008002e0010000000000000000000000000300000000000000",
+    "ack12_hex": "0d204c110c00018000005900",
+    "actual_source_family": "0x81cf0000/0xffff0000",
+    "destination_and_reply_source": "0x92840747",
+    "stage_only": 1,
+    "semantic_applied": 0,
+    "frame_consumed": 0,
+    "hardware_ready": 0,
+    "capture_verified": false,
+    "physical_asic_verified": false,
+    "original_cp_fifo_verified": false,
+    "ack_meaning": "Explicit virtual register bank write/copy-readback and original request free succeeded; no model/frame completion.",
+    "late_apply": "Main supplies the actual validated op7 result192 and metadata after full RGB consumption/retirement; binding revalidates exact32, same PID, actual instance, generations, byte count, hashes and flags, retaining a separate applied receipt. Host tests use fixtures, not actual frames."
+  },
+  "inherited_root_evidence": {
+    "path": "runtime/analysis/scratch/functional-early-layout-crash-frame-records.json",
+    "scope": "Main-provided original exception-monitor saved FP records; not rerun or treated as this module's native validation.",
+    "appfw_lr_va": ["0x34e5778", "0x34f170c", "0x34c5f44", "0x30ea500"],
+    "preceding_bl_hex": ["50130394", "89cfff97", "fbac0094", "876e0f94"]
+  },
+  "validation": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_functional_vdf_layout_stage.py -q",
+    "scope": "Only new module C11/Werror/pedantic, ASan/UBSan, production undefined symbols and nine inherited public ranges; no fullreg/build/VM.",
+    "host_scenarios_per_build": 30,
+    "source_range_count": 9,
+    "source_bytes": 414
+  }
+}

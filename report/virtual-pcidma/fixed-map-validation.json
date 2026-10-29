@@ -1,0 +1,11 @@
+{
+  "status": "PASS_FIXED_IO_MAPPING_ONLY",
+  "scope": "two fixed PCI DMA IOVA pages, original export and PAR PA proof, no connection/data",
+  "module_sha256": "116d7b1ed73669082ff588d3a3c4e41324a5e74403614ea3119e8a9e537b0a2a",
+  "binary_sha256": "57bbbd1b624126cbebe596d31bff85c40e98539defa86be183bb2964cc7276c6",
+  "normal_load_and_root_verified": true,
+  "two_page_physical_translation_verified": true,
+  "normal_vm_exit": true,
+  "pci_enum_or_dma_or_capture_verified": false,
+  "source_result_sha256": "75c0ae446c7365f510b52d3157ef5fc5aa1d5b69a667b4dd171c48ae0f3147b3"
+}

@@ -1,0 +1,17 @@
+{
+  "run": "run-7t6lu6an",
+  "system_sound_path_verified": true,
+  "scope": "cold-idle-route-control",
+  "caller_tid": 328,
+  "route": 7,
+  "control_op": "0x127",
+  "control_argument": 0,
+  "virtual_register_bit0": 1,
+  "source_memory_verified": true,
+  "console_sha256": "ce93b21560c1ad8b5a5022427f616a9d54c3d18f8fcc16af316193faeaf256bb",
+  "hardware_mmio_executed": false,
+  "active_request_deferred_callback_verified": false,
+  "audio_output_verified": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

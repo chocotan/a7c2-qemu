@@ -9,6 +9,9 @@ from capture_gate_readback import _task
 
 CELLS = (('EE_START_ENABLE', 0x7e5c240), ('EE_ENTRY_SOURCE', 0x7e5dd40),
          ('EE_STATUS', 0x7e67700))
+# Original 2f3aa00 sets this byte before event 0x12; 2ff0cd4 clears it
+# only after Backup_sync_all returns. Passive reads never alter either path.
+PASSIVE_BYTE_CELLS = (('BACKUP_SYNC_PENDING', 0x8838af8),)
 
 
 def status_fields(raw):
@@ -68,20 +71,26 @@ def syscall_state(raw):
             'sp': sp, 'pc': pc}
 
 
-def stack_candidates(raw, expected_sp, app_base):
-    """Raw stack words are candidates, not authenticated return frames."""
+def memory_bytes(raw, expected_address):
+    """Validate one bounded readmem result before interpreting any field."""
     header = re.findall(rb'^READMEM \S+ address=([0-9a-f]+) bytes=(\d+)\r?$', raw, re.M)
-    if len(header) != 1 or int(header[0][0], 16) != expected_sp:
-        raise ValueError('Stack dump identity mismatch')
+    if len(header) != 1 or int(header[0][0], 16) != expected_address:
+        raise ValueError('Memory dump identity mismatch')
     expected_bytes = int(header[0][1])
     rows = re.findall(rb'^([0-9a-f]{16}):((?: [0-9a-f]{2}){1,16})\r?$', raw, re.M)
     data = bytearray()
     for address, octets in rows:
-        if int(address, 16) != expected_sp + len(data):
-            raise ValueError('Stack dump is discontinuous')
+        if int(address, 16) != expected_address + len(data):
+            raise ValueError('Memory dump is discontinuous')
         data.extend(bytes.fromhex(octets.decode()))
     if not data or len(data) != expected_bytes or len(data) > 4096:
-        raise ValueError('Stack dump byte count mismatch')
+        raise ValueError('Memory dump byte count mismatch')
+    return bytes(data)
+
+
+def stack_candidates(raw, expected_sp, app_base):
+    """Raw stack words are candidates, not authenticated return frames."""
+    data = memory_bytes(raw, expected_sp)
     result = []
     for offset in range(0, len(data)-7, 8):
         value, = struct.unpack_from('<Q', data, offset)
@@ -191,3 +200,111 @@ def collect(serial, console, run):
               'atomic_snapshot': False, 'current_blocker_proven': False, 'capture_verified': False}
     (output/'summary.json').write_text(json.dumps(report, indent=2)+'\n')
     return report
+
+
+def collect_group0(serial, run, snapshot):
+    """Re-read the same run's observed scheduler manager; never invoke a getter."""
+    result={'available':False,'atomic_snapshot':False,'current_blocker_proven':False}
+    if not snapshot.get('available'):return {**result,'reason':'AP unavailable'}
+    rows=re.findall(rb'^(?:/ # )?OBS MODE_SCHEDULE [^\r\n]*\bgroup=0\b[^\r\n]*\bmanager=(0x[0-9a-f]+)[^\r\n]*\bgroup_base=(0x[0-9a-f]+)[^\r\n]*reads=4/8/4/8/(?:8/4|-1/-1)[^\r\n]*$',
+                    (Path(run)/'console.log').read_bytes().replace(b'\r\n',b'\n'),re.M)
+    if not rows:return {**result,'reason':'no same-run validated group0 scheduler observation'}
+    manager,group=map(lambda value:int(value,16),rows[-1])
+    base=int(snapshot['app_base'],16);pid=snapshot['app_pid']
+    if group!=manager+0x310 or not base<=manager<base+0x10000000:
+        return {**result,'reason':'manager address outside observed AP image data bounds'}
+    output=Path(snapshot['snapshot_dir'])
+    def read(name,address,size):
+        if not 0x10000<address<0x800000000000-size or address&3:
+            raise ValueError('Group0 pointer outside userspace bounds')
+        raw=serial(f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} {size}')
+        (output/name).write_bytes(raw)
+        data=memory_bytes(raw,address)
+        if len(data)!=size:raise ValueError('Group0 read length differs')
+        return data
+    try:
+        before=read('group0-before.txt',group,0x90)
+        current=struct.unpack_from('<Q',before,0x88)[0]
+        if not current:return {**result,'reason':'group0 has no current object'}
+        control=int.from_bytes(read('group0-control.txt',current+8,8),'little')
+        sequence=int.from_bytes(read('group0-id.txt',control+8,4),'little')
+        after=read('group0-after.txt',group,0x90)
+        result.update(available=True,manager=hex(manager),group_base=hex(group),current=hex(current),
+                      control=hex(control),current_id=hex(sequence),stop=struct.unpack_from('<I',before,8)[0],
+                      queued=struct.unpack_from('<Q',before,0x20)[0],group_bytes_unchanged=before==after,
+                      source='last same-run MODE_SCHEDULE manager, sequential readback, no lock held')
+    except ValueError as error:result['reason']=str(error)
+    return result
+
+
+def collect_passive(serial,run,*,common_only=False):
+    """Read current proc boundaries/stack bytes without ptrace or SIGSTOP."""
+    output=Path(tempfile.mkdtemp(prefix='ee-passive-',dir=Path(run)))
+
+    def read(name,command):
+        if any(len(line.encode('ascii'))>120 for line in command.splitlines()):
+            raise ValueError('Passive EE command exceeds the bounded physical line length')
+        raw=serial(command);(output/name).write_bytes(raw);return raw
+
+    discovery=read('discovery.txt','for p in /proc/[0-9]*/maps; do\n'
+        'if /bin/busybox grep -q /usr/lib/appFw.so "$p" 2>/dev/null; then\n'
+        'echo EE_AP_MAP=${p%/maps}; fi\ndone; true')
+    pids=set(int(value) for value in re.findall(rb'^EE_AP_MAP=/proc/(\d+)\r?$',discovery,re.M))
+    if not pids:
+        result=dict(observations_only=True,threads_not_stopped=True,available=False,snapshot_dir=str(output),
+            reason='no original AP mapping at sampling time',current_blocker_proven=False,capture_verified=False)
+        (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+        return result
+    if len(pids)!=1:raise ValueError('Ambiguous original AP mappings for passive snapshot')
+    pid=next(iter(pids))
+    if not 1<pid<2**31:raise ValueError('Passive AP process ID outside bounds')
+    base=map_base(read('maps.txt',f'cat /proc/{pid}/maps'))
+    threads=thread_list(read('threads.txt',f'for t in /proc/{pid}/task/[0-9]*; do\n'
+        'c=$(cat "$t/comm"); echo EE_THREAD=${t##*/}:$c; done; true'))
+    eligible=[(tid,name) for tid,name in threads if name in ('AppFw','SeqQueueCommon','SeqQueueStillCa',
+        'CameraBackgroun','AppBackupDaemon','THREAD_INFRA1','InfraNotify','ExternalOSDIF','grm_result','grm_gpe',
+        'UDATE_ASYNCSET','mwf_monitor_inp','IWrapperMwfInh')
+        or name.startswith('SeqThreadPool')]
+    if common_only and sum(name=='SeqQueueCommon' for _,name in eligible)!=1:
+        raise ValueError('No unique Common thread for bounded Still-entry observation')
+    sample_limit=1 if common_only else 16
+    priority={'SeqQueueCommon':0,'CameraBackgroun':1,'AppBackupDaemon':2,
+              'UDATE_ASYNCSET':3,'mwf_monitor_inp':4,'IWrapperMwfInh':5}
+    selected=sorted(eligible,key=lambda item:(priority.get(item[1],16),item[0]))[:sample_limit]
+    records=[]
+    for tid,name in selected:
+        item=dict(tid=tid,name=name,sample_method='proc-syscall-and-stack',current_blocker_proven=False)
+        status=read(f'thread-{tid}-status.txt',f'cat /proc/{pid}/task/{tid}/status')
+        item['status']=status_fields(status)
+        boundary=read(f'thread-{tid}-syscall.txt',f'cat /proc/{pid}/task/{tid}/syscall; true')
+        read(f'thread-{tid}-wchan.txt',f'cat /proc/{pid}/task/{tid}/wchan; echo; true')
+        read(f'thread-{tid}-kernel-stack.txt',f'cat /proc/{pid}/task/{tid}/stack; true')
+        try:
+            state=syscall_state(boundary);item['syscall']=state
+            memory=read(f'thread-{tid}-stack.txt',
+                f'/simulation/menu-readmem /proc/{pid}/mem {state["sp"]:#x} 4096')
+            item['stack']=stack_candidates(memory,state['sp'],base)
+            repeated=read(f'thread-{tid}-syscall-after.txt',f'cat /proc/{pid}/task/{tid}/syscall; true')
+            item['syscall_boundary_unchanged']=state==syscall_state(repeated)
+        except ValueError as error:item['observation_error']=str(error)
+        records.append(item)
+    read('kernel-udate-symbols.txt',
+         "/bin/busybox grep -E 'udate|distribution' /proc/kallsyms 2>/dev/null; true")
+    cells=[]
+    for name,address in CELLS:
+        raw=read(name.lower()+'.txt',f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} 4 appFw.so')
+        match=re.search(rb'^[0-9a-fA-F]+:\s*((?:[0-9a-fA-F]{2} ){3}[0-9a-fA-F]{2})',raw,re.M)
+        cells.append(dict(name=name,elf_va=hex(address),value=int.from_bytes(bytes.fromhex(match[1].decode()),'little') if match else None))
+    for name,address in PASSIVE_BYTE_CELLS:
+        raw=read(name.lower()+'.txt',f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} 1 appFw.so')
+        match=re.search(rb'^[0-9a-fA-F]+:\s*([0-9a-fA-F]{2})',raw,re.M)
+        cells.append(dict(name=name,elf_va=hex(address),read_bytes=1,
+                          value=int(match[1],16) if match else None))
+    selected_set=set(selected)
+    result=dict(observations_only=True,threads_not_stopped=True,available=True,app_pid=pid,app_base=hex(base),
+        snapshot_dir=str(output),sampling_scope='Common only' if common_only else 'bounded eligible threads',
+        cells=cells,threads=records,eligible_threads=len(eligible),sampled_threads=len(records),
+        skipped_eligible_threads=[dict(tid=tid,name=name) for tid,name in eligible if (tid,name) not in selected_set],
+        current_blocker_proven=False,capture_verified=False)
+    (output/'result.json').write_text(json.dumps(result,indent=2)+'\n')
+    return result

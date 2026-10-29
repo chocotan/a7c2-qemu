@@ -1,0 +1,111 @@
+{
+  "source_investigation": "completed09source",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_bytes": 18090880,
+  "CP_VA_mapping": "CP_VA = raw_offset + 0x108000",
+  "file_backed_CP_VA": [1081344, 19172224],
+  "BSS_read_as_file": false,
+  "constructor_bitmap_known_mask": 0,
+  "native_producer_wired": false,
+  "owned_virtual_data": true,
+  "native_DMA_delivery_claimed": false,
+  "logical_wire_bytes": 25,
+  "dma_span": 32,
+  "dma_known_bytes": 25,
+  "dma_padding": "7 unknown bytes; neither exposed nor fabricated",
+  "selector_2": "ENOTSUP; source copies 1719ee8 without configured bitmap/gate commit",
+  "receive_policy": "conservative owner: require configured generation and data-producer sequence to match last compared 25-byte receipt; original receiver snapshots current configured bitmap even when newer/unsent",
+  "unclosed_original_constraints": [
+    "top-command 0a support/admission beyond selected table metadata and length",
+    "original transport queue admission and callback scheduling",
+    "original DMA error-clobber behavior and native delivery"
+  ],
+  "runtime_sources_not_file_offsets": {
+    "K": "u32[1a03ac0 + 0x10] through a909b0",
+    "P": "object pointer at 1a03cdc; P51, P52, P161, u32 P15a, u32 P15e",
+    "Z": "u8[1b1ad1d] through a9902a, coherent across both source reads",
+    "S43_S5a": "actual a981f4 helper results using support source 1719e40",
+    "mode": "u32[1107178]",
+    "configured": "1b1aa12..1b1aa21",
+    "type1_gate": "full u8[1b1aa10]",
+    "receive_snapshot": "a923d0 copies configured to 1b1aa23..1b1aa32"
+  },
+  "command_table_row": {
+    "CP_VA": 18896248,
+    "raw_offset": 17814904,
+    "expected_hex": "0a0011001100",
+    "interpretation": "u16 command 0a, metadata 0x11, length 0x11; metadata alone is not proven queue admission"
+  },
+  "pins": [
+    {
+      "label": "configured-builder-clear-snapshot",
+      "CP_VA": 11083414,
+      "raw_offset": 10002070,
+      "bytes": 1800,
+      "sha256": "8f88eb4b67dab13ca937002d3ae8306cdff872a52bec5c576ad201139a3fb3bf"
+    },
+    {
+      "label": "selector-dispatch",
+      "CP_VA": 11093758,
+      "raw_offset": 10012414,
+      "bytes": 238,
+      "sha256": "ef5f8da45b5a0b03421895cff42d7ea9ad1b79603cf6d02fb1dfe89a3146308c"
+    },
+    {
+      "label": "builder-k-helper",
+      "CP_VA": 11077408,
+      "raw_offset": 9996064,
+      "bytes": 154,
+      "sha256": "d266732d4c2649d0fc426226d0ec82f422c30a35a8b0a7c0e4f74d218e2ca68e"
+    },
+    {
+      "label": "runtime-k-getter",
+      "CP_VA": 11078052,
+      "raw_offset": 9996708,
+      "bytes": 24,
+      "sha256": "4c065bd9de8947592187f110d91505ad8fb2f6401d3647b775164a1b3291d94b"
+    },
+    {
+      "label": "actual-support-helper",
+      "CP_VA": 11108852,
+      "raw_offset": 10027508,
+      "bytes": 72,
+      "sha256": "c2c64463747c9b2e2183f468533de5eb02fbef8b77841d4a233208fec7a8c4c6"
+    },
+    {
+      "label": "coherent-z-getter",
+      "CP_VA": 11112490,
+      "raw_offset": 10031146,
+      "bytes": 12,
+      "sha256": "cd996fd3426736d00f7e1466e16e4f268c229f3c2b6d89dd945131d8a2dcf349"
+    },
+    {
+      "label": "logical-wire-dma-builder",
+      "CP_VA": 4219728,
+      "raw_offset": 3138384,
+      "bytes": 1354,
+      "sha256": "67a653c9b882710911f2baecd0691679a1fc462f325fb34ed1765696deab9124"
+    },
+    {
+      "label": "command-table-helper",
+      "CP_VA": 11080164,
+      "raw_offset": 9998820,
+      "bytes": 112,
+      "sha256": "b895dde8d52798c85b088e75def1dae267a5be536fa0429e9b58512c82cd6664"
+    },
+    {
+      "label": "top-0a-row",
+      "CP_VA": 18896248,
+      "raw_offset": 17814904,
+      "bytes": 6,
+      "sha256": "7df13fb7f92a1f8e4895e46dec89a4b6cec9ddd07e01f54560eb49ab4ce74589"
+    },
+    {
+      "label": "receive-snapshot-boundary",
+      "CP_VA": 4216166,
+      "raw_offset": 3134822,
+      "bytes": 114,
+      "sha256": "8340f8bc4ae2d86e56023b5075c10667c7a4d873ddc5e36f9cc943d47902dfe6"
+    }
+  ]
+}

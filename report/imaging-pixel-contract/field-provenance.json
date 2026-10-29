@@ -1,0 +1,339 @@
+{
+  "payload_names": {
+    "0x0": "UnitType",
+    "0x4": "UnitHandle",
+    "0x8": "UnitAddressPhy64",
+    "0x10": "UnitSize",
+    "0x18": "UnitDataOffset",
+    "0x1c": "ImageAttach",
+    "0x1d": "DataSite",
+    "0x1e": "Aspect",
+    "0x1f": "IibNumber",
+    "0x20": "YcCompress",
+    "0x21": "YcBitDepth",
+    "0x22": "DataTransfer",
+    "0x23": "DataPlacement",
+    "0x24": "DataContent",
+    "0x25": "DataScan",
+    "0x26": "ExposureTime",
+    "0x27": "ExposePicDelay",
+    "0x28": "ScenarioEnd",
+    "0x29": "Mirror",
+    "0x2a": "RecordSizeX",
+    "0x2c": "RecordSizeY",
+    "0x2e": "CanvasSizeX",
+    "0x30": "CanvasSizeY",
+    "0x32": "ValidOffsetX",
+    "0x34": "ValidOffsetY",
+    "0x36": "ValidSizeX",
+    "0x38": "ValidSizeY",
+    "0x3a": "TargetOffsetX",
+    "0x3c": "TargetOffsetY",
+    "0x3e": "TargetSizeX",
+    "0x40": "TargetSizeY",
+    "0x42": "StripWidth",
+    "0x44": "CamFreqCharH",
+    "0x46": "ChasingDisplay",
+    "0x47": "CpDfsMode"
+  },
+  "decoded": {
+    "0x4": {
+      "payload_offset": "0x0",
+      "name": "UnitType",
+      "load": "0x31ec4",
+      "store": "0x31ec8"
+    },
+    "0x8": {
+      "payload_offset": "0x4",
+      "name": "UnitHandle",
+      "load": "0x31ecc",
+      "store": "0x31ed0"
+    },
+    "0xc": {
+      "payload_offset": "0x18",
+      "name": "UnitDataOffset",
+      "load": "0x31ed4",
+      "store": "0x31ed8"
+    },
+    "0x14": {
+      "payload_offset": "0x2a",
+      "name": "RecordSizeX",
+      "load": "0x31edc",
+      "store": "0x31ee0"
+    },
+    "0x16": {
+      "payload_offset": "0x2c",
+      "name": "RecordSizeY",
+      "load": "0x31ee4",
+      "store": "0x31ee8"
+    },
+    "0x18": {
+      "payload_offset": "0x2e",
+      "name": "CanvasSizeX",
+      "load": "0x31eec",
+      "store": "0x31ef0"
+    },
+    "0x1a": {
+      "payload_offset": "0x30",
+      "name": "CanvasSizeY",
+      "load": "0x31ef4",
+      "store": "0x31ef8"
+    },
+    "0x1c": {
+      "payload_offset": "0x32",
+      "name": "ValidOffsetX",
+      "load": "0x31efc",
+      "store": "0x31f00"
+    },
+    "0x1e": {
+      "payload_offset": "0x34",
+      "name": "ValidOffsetY",
+      "load": "0x31f04",
+      "store": "0x31f08"
+    },
+    "0x20": {
+      "payload_offset": "0x36",
+      "name": "ValidSizeX",
+      "load": "0x31f0c",
+      "store": "0x31f10"
+    },
+    "0x22": {
+      "payload_offset": "0x38",
+      "name": "ValidSizeY",
+      "load": "0x31f14",
+      "store": "0x31f18"
+    },
+    "0x24": {
+      "payload_offset": "0x3a",
+      "name": "TargetOffsetX",
+      "load": "0x31f1c",
+      "store": "0x31f20"
+    },
+    "0x26": {
+      "payload_offset": "0x3c",
+      "name": "TargetOffsetY",
+      "load": "0x31f24",
+      "store": "0x31f28"
+    },
+    "0x28": {
+      "payload_offset": "0x3e",
+      "name": "TargetSizeX",
+      "load": "0x31f2c",
+      "store": "0x31f30"
+    },
+    "0x2a": {
+      "payload_offset": "0x40",
+      "name": "TargetSizeY",
+      "load": "0x31f34",
+      "store": "0x31f38"
+    },
+    "0x2c": {
+      "payload_offset": "0x1d",
+      "name": "DataSite",
+      "load": "0x31f3c",
+      "store": "0x31f40"
+    },
+    "0x2d": {
+      "payload_offset": "0x1f",
+      "name": "IibNumber",
+      "load": "0x31f44",
+      "store": "0x31f48"
+    },
+    "0x2e": {
+      "payload_offset": "0x1e",
+      "name": "Aspect",
+      "load": "0x31f4c",
+      "store": "0x31f50"
+    },
+    "0x2f": {
+      "payload_offset": "0x20",
+      "name": "YcCompress",
+      "load": "0x31f54",
+      "store": "0x31f58"
+    },
+    "0x30": {
+      "payload_offset": "0x21",
+      "name": "YcBitDepth",
+      "load": "0x31f5c",
+      "store": "0x31f60"
+    },
+    "0x31": {
+      "payload_offset": "0x22",
+      "name": "DataTransfer",
+      "load": "0x31f64",
+      "store": "0x31f68"
+    },
+    "0x32": {
+      "payload_offset": "0x23",
+      "name": "DataPlacement",
+      "load": "0x31f6c",
+      "store": "0x31f70"
+    },
+    "0x33": {
+      "payload_offset": "0x24",
+      "name": "DataContent",
+      "load": "0x31f74",
+      "store": "0x31f78"
+    }
+  },
+  "G": [
+    {
+      "code": "0x41cd8",
+      "api_offset": "0xd4",
+      "G_offset": "0xa8",
+      "source": {
+        "payload_offset": "0x1d",
+        "name": "DataSite",
+        "load": "0x31f3c",
+        "store": "0x31f40"
+      },
+      "instructions": [
+        "41cd8 c1524339 ldrb w1, [x22, #0xd4]",
+        "41cdc e0230091 add x0, sp, #8",
+        "41ce0 d8bfff97 bl #0x31c40",
+        "41ce4 a0aa00b9 str w0, [x21, #0xa8]"
+      ]
+    },
+    {
+      "code": "0x41ce8",
+      "api_offset": "0xd5",
+      "G_offset": "0xac",
+      "source": {
+        "payload_offset": "0x1f",
+        "name": "IibNumber",
+        "load": "0x31f44",
+        "store": "0x31f48"
+      },
+      "instructions": [
+        "41ce8 c1564339 ldrb w1, [x22, #0xd5]",
+        "41cec e0230091 add x0, sp, #8",
+        "41cf0 dcbfff97 bl #0x31c60",
+        "41cf4 a0ae00b9 str w0, [x21, #0xac]"
+      ]
+    },
+    {
+      "code": "0x41cf8",
+      "api_offset": "0xd7",
+      "G_offset": "0xb0",
+      "source": {
+        "payload_offset": "0x20",
+        "name": "YcCompress",
+        "load": "0x31f54",
+        "store": "0x31f58"
+      },
+      "instructions": [
+        "41cf8 c15e4339 ldrb w1, [x22, #0xd7]",
+        "41cfc e0230091 add x0, sp, #8",
+        "41d00 ebbfff97 bl #0x31cac",
+        "41d04 a0b200b9 str w0, [x21, #0xb0]"
+      ]
+    },
+    {
+      "code": "0x41d08",
+      "api_offset": "0xd8",
+      "G_offset": "0xb4",
+      "source": {
+        "payload_offset": "0x21",
+        "name": "YcBitDepth",
+        "load": "0x31f5c",
+        "store": "0x31f60"
+      },
+      "instructions": [
+        "41d08 c1624339 ldrb w1, [x22, #0xd8]",
+        "41d0c e0230091 add x0, sp, #8",
+        "41d10 efbfff97 bl #0x31ccc",
+        "41d14 a0b600b9 str w0, [x21, #0xb4]"
+      ]
+    },
+    {
+      "code": "0x41d18",
+      "api_offset": "0xe0",
+      "G_offset": "0xb8",
+      "source": {
+        "name": "Y+0"
+      },
+      "instructions": [
+        "41d18 c1824339 ldrb w1, [x22, #0xe0]",
+        "41d1c e0230091 add x0, sp, #8",
+        "41d20 d8bfff97 bl #0x31c80",
+        "41d24 a0ba00b9 str w0, [x21, #0xb8]"
+      ]
+    },
+    {
+      "code": "0x41d28",
+      "api_offset": "0xe1",
+      "G_offset": "0xbc",
+      "source": {
+        "name": "Y+1"
+      },
+      "instructions": [
+        "41d28 c1864339 ldrb w1, [x22, #0xe1]",
+        "41d2c e0230091 add x0, sp, #8",
+        "41d30 d7bfff97 bl #0x31c8c",
+        "41d34 a0be00b9 str w0, [x21, #0xbc]"
+      ]
+    },
+    {
+      "code": "0x41d38",
+      "api_offset": "0xe2",
+      "G_offset": "0xc0",
+      "source": {
+        "name": "Y+2"
+      },
+      "instructions": [
+        "41d38 c18a4339 ldrb w1, [x22, #0xe2]",
+        "41d3c e0230091 add x0, sp, #8",
+        "41d40 f6bfff97 bl #0x31d18",
+        "41d44 a0c200b9 str w0, [x21, #0xc0]"
+      ]
+    },
+    {
+      "code": "0x41d48",
+      "api_offset": "0xdb",
+      "G_offset": "0xc4",
+      "source": {
+        "payload_offset": "0x24",
+        "name": "DataContent",
+        "load": "0x31f74",
+        "store": "0x31f78"
+      },
+      "instructions": [
+        "41d48 c16e4339 ldrb w1, [x22, #0xdb]",
+        "41d4c e0230091 add x0, sp, #8",
+        "41d50 f5bfff97 bl #0x31d24",
+        "41d54 a0c600b9 str w0, [x21, #0xc4]"
+      ]
+    },
+    {
+      "code": "0x41d58",
+      "api_offset": "0xda",
+      "G_offset": "0xc8",
+      "source": {
+        "payload_offset": "0x23",
+        "name": "DataPlacement",
+        "load": "0x31f6c",
+        "store": "0x31f70"
+      },
+      "instructions": [
+        "41d58 c16a4339 ldrb w1, [x22, #0xda]",
+        "41d5c e0230091 add x0, sp, #8",
+        "41d60 f8bfff97 bl #0x31d40",
+        "41d64 a0ca00b9 str w0, [x21, #0xc8]"
+      ]
+    },
+    {
+      "code": "0x41d68",
+      "api_offset": "0xe6",
+      "G_offset": "0xcc",
+      "source": {
+        "name": "Y+6"
+      },
+      "instructions": [
+        "41d68 c19a4339 ldrb w1, [x22, #0xe6]",
+        "41d6c e0230091 add x0, sp, #8",
+        "41d70 debfff97 bl #0x31ce8",
+        "41d74 a0ce00b9 str w0, [x21, #0xcc]"
+      ]
+    }
+  ]
+}

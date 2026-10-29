@@ -1,0 +1,46 @@
+{
+  "run": "run-lnws27vu",
+  "console_sha256": "309e06a5ebd9c6307f19e2a3b013c7676fc56b492448e57aa17e5c613a0d210a",
+  "original_rm_queue_transport_verified": true,
+  "queue": "0x80d9016e",
+  "registration_rc": 0,
+  "real_stat_before": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "real_stat_registered": [
+    0,
+    1,
+    0,
+    0
+  ],
+  "real_stat_next_process": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "allocated_and_consumed_bytes": 32,
+  "callback_count": 1,
+  "full_payload_match": true,
+  "consumer_free_rc": 0,
+  "unregister_rc": 0,
+  "selected_helper_and_six_original_providers_verified": true,
+  "rm_commands_or_media_state_tested": false,
+  "card_ready_reported": false,
+  "fsys_0x100_regression": {
+    "check": "ORIGINAL_FSYS_DISK_PASS",
+    "disk_sha256": "d2490baadea79eabbfda9e23bea5f70c2f821e41915d172d8603ed96fd5a7acf",
+    "camera_mount_flags_0x100_verified": true,
+    "file_sha256": "c5d2097fa1cd94e31b5aeb3e30ddad3b49194826436c11fdf91f27090e8f9e9a",
+    "bytes": 4096,
+    "files": {
+      "/SEED.TXT": 32,
+      "/QTEST/PROBE.BIN": 4096
+    },
+    "scope": "original Fsys write/flush/remount/read and host disk export; not a photograph or video"
+  },
+  "camera_startup_verified": false
+}

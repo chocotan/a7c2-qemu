@@ -1,0 +1,39 @@
+{
+  "scope": "final unified frozen code/component regression incl native-video binding, not original firmware media acceptance",
+  "batch": "unified-camera-h8l9gn31",
+  "tests_passed": 2819,
+  "subtests_passed": 304,
+  "failures": 0,
+  "all_frozen_input_digests_still_match": true,
+  "frozen_input_entries": 582,
+  "inputs_sha256": "e6cd9cc49c95b7ab3908496bdc41e45234b4df3f5baf3f037c45ce9cb27d1265",
+  "regression_sha256": "4b8493896ee89bd512844dc6c5bf1659ec56fec99ab25a288a33a781ddaf9511",
+  "ABI_sha256": "b329d000e6fc179f1ae8d7c47d5b3f3ec8786296204a93829cdd1a7b5c6bb6bb",
+  "ready_sha256": "628c8ee1856072a706a0fd03855466c7a9d6ec5e3764cacdd232c85ca66d9170",
+  "observer_sha256": "e7e890dc2c4d48edd266f4ebbaf8a48b9157a72aab47da4e893369f1d45d8b97",
+  "source_archive_sha256": "fdb279c7c981f4b292bb4d71e545284ad179fdf161f6fd588031f5a07e062115",
+  "runtime_source_count": 378,
+  "original_libc_ABI_passed": true,
+  "native_video_binding_tests": 23,
+  "native_video_request_supported": false,
+  "native_video_gap_mask": 63,
+  "no_project_system_QEMU_running": true,
+  "other_workspace_system_QEMU": [
+    {
+      "pid": 3275568,
+      "executable": "/home/choco/Downloads/zve10-qemu/work/qemu-src/build-zve10/qemu-system-arm"
+    }
+  ],
+  "new_system_VM_started": false,
+  "native_LIF_action_conditional_zero_store_proven": true,
+  "native_LIF_boot_inputs_complete": false,
+  "native_CP_state_provider_fields_ready": 0,
+  "native_JPEG_YC_layout_known": false,
+  "native_JPEG_START_usable": false,
+  "original_MPR_Fsys_media_verified": false,
+  "capture_verified": false,
+  "prior_validation_evidence_preserved": [
+    "unified-camera-8hz949o1",
+    "unified-camera-o702xix2"
+  ]
+}

@@ -1,0 +1,363 @@
+{
+  "scope": "Public libmpr.so static original EncOpen parameter producer, queue metadata ownership, and bounded DMM source/release; no native frame or completion proof",
+  "artifacts": {
+    "M": {
+      "path": "runtime/analysis/menu-root/usr/lib/libmpr.so",
+      "bytes": 3528576,
+      "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"
+    }
+  },
+  "elf_loads": [
+    {
+      "p_offset": "0x0",
+      "p_vaddr": "0x0",
+      "p_filesz": "0x2e4534",
+      "p_memsz": "0x2e4534",
+      "p_flags": "0x5"
+    },
+    {
+      "p_offset": "0x2e53a8",
+      "p_vaddr": "0x2f53a8",
+      "p_filesz": "0x77c88",
+      "p_memsz": "0x163e18",
+      "p_flags": "0x6"
+    }
+  ],
+  "mapping_rule": "ELF VA maps only through its file-backed PT_LOAD: p_offset+(VA-p_vaddr); all selected windows happen to be in first LOAD",
+  "windows": [
+    {
+      "id": "E1",
+      "purpose": "single-open parameter writer",
+      "artifact": "M",
+      "elf_va_hex": "0xd2b28",
+      "file_offset_hex": "0xd2b28",
+      "bytes": 728,
+      "sha256": "dc6fe445c198fbe9adb5043467341b746df85f0a0fa51f5d1e1a0d5042e9761a",
+      "scratch": "set-open-param.asm"
+    },
+    {
+      "id": "E2",
+      "purpose": "worker stack initialization and exact Codec::EncOpen caller",
+      "artifact": "M",
+      "elf_va_hex": "0xd30d4",
+      "file_offset_hex": "0xd30d4",
+      "bytes": 1088,
+      "sha256": "cc373af1309f6658224877c1c792a32cb44c45778f262bc6c1a202b0785f2b71",
+      "scratch": "exec-open.asm"
+    },
+    {
+      "id": "E3",
+      "purpose": "MovieRecInfo to queued execution snapshot",
+      "artifact": "M",
+      "elf_va_hex": "0xd7e90",
+      "file_offset_hex": "0xd7e90",
+      "bytes": 376,
+      "sha256": "db944c8974f9a42e88dc3a3c4b1a0541fdbd1f98b0998f0931870196f467474f",
+      "scratch": "enqueue-open.asm"
+    },
+    {
+      "id": "E4",
+      "purpose": "DMM table writer and allocation entry (adjacent functions)",
+      "artifact": "M",
+      "elf_va_hex": "0x2b2be0",
+      "file_offset_hex": "0x2b2be0",
+      "bytes": 2308,
+      "sha256": "e2479114e00495d2896986ec6e6d983b4dc11d8d4aa2400148a39b63735bccb2",
+      "scratch": "dmm-set-mem-table.asm + dmm-alloc.asm"
+    },
+    {
+      "id": "E5",
+      "purpose": "MprIf public EncOpen stub (negative route)",
+      "artifact": "M",
+      "elf_va_hex": "0x2c9d00",
+      "file_offset_hex": "0x2c9d00",
+      "bytes": 8,
+      "sha256": "2f6110664dbd16b514a0c2c7c8326932a36e85d2f15b91e57ca76efd2c7a625a",
+      "scratch": "mprif-open-entry.asm"
+    },
+    {
+      "id": "E6",
+      "purpose": "queue owns a by-value execution snapshot",
+      "artifact": "M",
+      "elf_va_hex": "0xd7b9c",
+      "file_offset_hex": "0xd7b9c",
+      "bytes": 520,
+      "sha256": "c239d9fb3bac0ae9ce26815d889f99e857a35a42a0b4f0085771c38a4a928741",
+      "scratch": "queue-enqueue.asm"
+    },
+    {
+      "id": "E7",
+      "purpose": "queue callback and post-return pop/free",
+      "artifact": "M",
+      "elf_va_hex": "0xdd830",
+      "file_offset_hex": "0xdd830",
+      "bytes": 264,
+      "sha256": "2757c0acf9c1d436c41f3fc2c929cae3779e441657abcd9b6b8fad7de1898d3c",
+      "scratch": "queue-worker.asm"
+    },
+    {
+      "id": "E8",
+      "purpose": "DMM unit-type switch table",
+      "artifact": "M",
+      "elf_va_hex": "0x2e0ed8",
+      "file_offset_hex": "0x2e0ed8",
+      "bytes": 46,
+      "sha256": "aa3125b5847cf972c6f88c3ba93ed3ffc7ff0715b0ad58089cba9487199aca16",
+      "scratch": "dmm-table-switch.json"
+    },
+    {
+      "id": "E9",
+      "purpose": "DMM group acquisition metadata producer",
+      "artifact": "M",
+      "elf_va_hex": "0x2b259c",
+      "file_offset_hex": "0x2b259c",
+      "bytes": 416,
+      "sha256": "aa39a295484da2024934a34d62e6a2d6bd8416e5affabe3e9c29d31ff219b7f7",
+      "scratch": "dmm-acquire-list.asm"
+    },
+    {
+      "id": "E10",
+      "purpose": "DMM release paths",
+      "artifact": "M",
+      "elf_va_hex": "0x2b2970",
+      "file_offset_hex": "0x2b2970",
+      "bytes": 508,
+      "sha256": "4fbc6eeb120718afda3971a3268eb1880b8a047aabfa06d6230f7dcf196e7117",
+      "scratch": "dmm-free-paths.asm"
+    },
+    {
+      "id": "E11",
+      "purpose": "EnterRec allocation owner and queued open",
+      "artifact": "M",
+      "elf_va_hex": "0xd9474",
+      "file_offset_hex": "0xd9474",
+      "bytes": 808,
+      "sha256": "3dd3e05a9808a474a67fd305f79c76254a1dde71c9fd71d18225cdadba1cad38",
+      "scratch": "enter-record.asm"
+    },
+    {
+      "id": "E12",
+      "purpose": "actual AArch64 EncOpen PLT stub",
+      "artifact": "M",
+      "elf_va_hex": "0x7be20",
+      "file_offset_hex": "0x7be20",
+      "bytes": 16,
+      "sha256": "7e54d4964cb269199f4a4927829ad3b1b184891339585167411a8ab1a0b61924",
+      "scratch": "enc-open-plt.asm"
+    }
+  ],
+  "window_count": 12,
+  "window_bytes": 7086,
+  "instruction_assertions": [
+    {
+      "elf_va_hex": "0xd2d60",
+      "bytes_hex": "7f220239",
+      "instruction": "strb wzr, [x19, #0x88]",
+      "meaning": "A+0x88 is explicitly zeroed"
+    },
+    {
+      "elf_va_hex": "0xd3388",
+      "bytes_hex": "021380d2",
+      "instruction": "mov x2, #0x98",
+      "meaning": "single open memset length 0x98"
+    },
+    {
+      "elf_va_hex": "0xd3390",
+      "bytes_hex": "a4a7fe97",
+      "instruction": "bl #0x7d220",
+      "meaning": "single open memset call"
+    },
+    {
+      "elf_va_hex": "0xd339c",
+      "bytes_hex": "8db6fe97",
+      "instruction": "bl #0x80dd0",
+      "meaning": "single open setter call"
+    },
+    {
+      "elf_va_hex": "0xd33b0",
+      "bytes_hex": "23008052",
+      "instruction": "mov w3, #1",
+      "meaning": "single open count w3=1"
+    },
+    {
+      "elf_va_hex": "0xd33ac",
+      "bytes_hex": "04008052",
+      "instruction": "mov w4, #0",
+      "meaning": "single open view w4=0"
+    },
+    {
+      "elf_va_hex": "0xd33b4",
+      "bytes_hex": "01048052",
+      "instruction": "mov w1, #0x20",
+      "meaning": "single open CodecType w1=0x20"
+    },
+    {
+      "elf_va_hex": "0xd33b8",
+      "bytes_hex": "9aa2fe97",
+      "instruction": "bl #0x7be20",
+      "meaning": "exact call to original Codec::EncOpen via PLT"
+    },
+    {
+      "elf_va_hex": "0xd7ef4",
+      "bytes_hex": "200000f9",
+      "instruction": "str x0, [x1]",
+      "meaning": "queued callback pointer store"
+    },
+    {
+      "elf_va_hex": "0xd7f00",
+      "bytes_hex": "2c8dfe97",
+      "instruction": "bl #0x7b3b0",
+      "meaning": "0x760 BufferTable snapshot copy"
+    },
+    {
+      "elf_va_hex": "0xd7bf8",
+      "bytes_hex": "ee8dfe97",
+      "instruction": "bl #0x7b3b0",
+      "meaning": "0x8ea0 queue-owned copy"
+    },
+    {
+      "elf_va_hex": "0xdd8b4",
+      "bytes_hex": "20003fd6",
+      "instruction": "blr x1",
+      "meaning": "worker invokes queued callback"
+    },
+    {
+      "elf_va_hex": "0x2b2d68",
+      "bytes_hex": "440c00a9",
+      "instruction": "stp x4, x3, [x2]",
+      "meaning": "unit3 BufferTable entry0 address pair"
+    },
+    {
+      "elf_va_hex": "0x2b2d78",
+      "bytes_hex": "440c02a9",
+      "instruction": "stp x4, x3, [x2, #0x20]",
+      "meaning": "unit4 BufferTable entry0x20 address pair"
+    }
+  ],
+  "elf_relocation_bindings": [
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fc3a8",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr16g_audioParamCombE",
+      "symbol_value_hex": "0x2cdac8",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fc4f0",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr11ExecEncOpenEPv",
+      "symbol_value_hex": "0xd30d4",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fc648",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr14s_movieRecInfoE",
+      "symbol_value_hex": "0x377ff0",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fca50",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr16g_videoParamCombE",
+      "symbol_value_hex": "0x2cdb08",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fcc28",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr10DmmMemInfo19mp_AreaExtListStartE",
+      "symbol_value_hex": "0x3d82f8",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fd340",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr15sp_execRecMovieE",
+      "symbol_value_hex": "0x378ba0",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.dyn",
+      "relocation_target_va_hex": "0x2fd670",
+      "relocation_type": 1025,
+      "symbol": "_ZN3mpr22s_integRecordMovieLockE",
+      "symbol_value_hex": "0x3811d8",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.plt",
+      "relocation_target_va_hex": "0x2fe6b0",
+      "relocation_type": 1026,
+      "symbol": "_ZN3mpr5Codec7EncOpenEP16AvbbcApi_EncOpenNS0_9CodecTypeENS0_10FileFormatEjNS0_6ViewIdEP12PayloadCodec",
+      "symbol_value_hex": "0x280bc8",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.plt",
+      "relocation_target_va_hex": "0x300328",
+      "relocation_type": 1026,
+      "symbol": "_ZN3mpr18EnqueueExecEncOpenERNS_12MovieRecInfoE",
+      "symbol_value_hex": "0xd7e90",
+      "addend": 0
+    },
+    {
+      "relocation_section": ".rela.plt",
+      "relocation_target_va_hex": "0x300e88",
+      "relocation_type": 1026,
+      "symbol": "_ZN3mpr15SetEncOpenParamERNS_13execEncOpen_tEP16AvbbcApi_EncOpen",
+      "symbol_value_hex": "0xd2b28",
+      "addend": 0
+    }
+  ],
+  "carried_forward": [
+    "../native-video-packet-coordinates/README.md",
+    "../native-video-type0-binding/README.md",
+    "../native-video-pointer-conversion/README.md",
+    "../native-video-shared-binding/README.md"
+  ],
+  "single_open": {
+    "producer_va_hex": "0xd2b28",
+    "caller_va_hex": "0xd33b8",
+    "api_bytes": 152,
+    "api_stack_base": "ExecEncOpen FP+0x90",
+    "guard": "u8[execEncOpen_t+0x760]==0",
+    "codec_type_w1_hex": "0x20",
+    "file_format_w2": "u32[execEncOpen_t+0x780]",
+    "parameter_count_w3": 1,
+    "view_id_w4": 0,
+    "byte88_value": 0,
+    "byte88_basis": "unconditional strb wzr at 0xd2d60; not an assumed default",
+    "native_type0_route_observed": false,
+    "type0_if_same_parameter_reaches_prior_wrapper": "zero: Z calls 0x13dd50; common H selects +0x18/0x177840, 0201/210/subtype0 copy action 0x1779a0"
+  },
+  "backing_identity": {
+    "buffer_table_owner": "mpr::s_movieRecInfo ELF VA 0x377ff0 +0x290",
+    "A00": "BufferTable+0x00, DMM unit_type3 node+0x20",
+    "A08": "BufferTable+0x10, DMM unit_type3 node+0x28",
+    "A10": "BufferTable+0x20, DMM unit_type4 node+0x20",
+    "A18": "BufferTable+0x30, DMM unit_type4 node+0x28",
+    "VideoInfo_A30": "BufferTable+0x40, derived from unit_type6 node; count A38=0x4b0",
+    "read_control_A50": "BufferTable+0x140, derived from unit_type6 node, non-mode6/17 branch",
+    "write_control_A58": "BufferTable+0x160, derived from unit_type6 node, non-mode6/17 branch",
+    "queue_copy_is_deep_pixel_copy": false,
+    "physical_extent_contiguity_proven": false,
+    "pixel_frame_or_SDS_YC_identity_proven": false
+  },
+  "lease": {
+    "execution_parameter_snapshot_owned_until_callback_returns": true,
+    "caller_stack_A_owned_until_EncOpen_returns": true,
+    "DMM_release_source_found": true,
+    "per_frame_completion_release_proven": false,
+    "fixed_area_0x98_lease_proven": false
+  },
+  "selfcheck_only": true,
+  "native_gap_mask": 63,
+  "capture_verified": false
+}

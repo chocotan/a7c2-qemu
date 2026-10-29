@@ -1,0 +1,25 @@
+{
+  "scope": "new input-conditioned byte writer can target M/C; no finite initialization value or startup execution established",
+  "artifact": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "bytes": 18090880,
+  "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "mapping": "CPVA=raw+108000, file-backed [108000,1248b80)",
+  "windows": [
+    {"VA_hex": "a3c50e", "bytes": 12, "sha256": "e0ddd826d75e262f0c788bfded98ad5bc43ae12b5f075688043eac5b9815a093"},
+    {"VA_hex": "3de7fc", "bytes": 222, "sha256": "d08d133b40c33263f965b6cdad3fade9a5d8617b815f5ee56009d7ecf28d948e"},
+    {"VA_hex": "a3c6c2", "bytes": 144, "sha256": "229ae2e192440a49274eae6f71e193e67fd620dfe16d5b2904514b7f2690a3dc"},
+    {"VA_hex": "10ff130", "bytes": 64, "sha256": "5f2572c9bc479d642786070686616358411451db3adeb178f2f1473491853200"}
+  ],
+  "window_count": 4,
+  "window_bytes": 442,
+  "writer": {"VA_hex": "a3c516", "width": 1, "destination_hex": "1b1830b + full r0", "value": "low8(r1)", "M_index_hex": "2c", "C_index_hex": "4e"},
+  "input_caller": {"VA_hex": "3de7fc", "r4_hex": "1b16271", "selector_offset_hex": "8", "index_offset_hex": "9", "value_offset_hex": "a", "selected_case": 6, "compare_function_hex": "61e53c", "compare_previous_record_hex": "10e3b80", "compare_bytes": 16, "requires_compare_return_nonzero": true, "source_input_producer_closed": false, "startup_execution_proven": false},
+  "ordinary_caller": {"VA_hex": "a3c6c2", "indices": [0,1,2,3,4,5], "overlaps_M_C": false},
+  "input_pointer_table": {"base_hex": "10fedf0", "indices_hex": ["d0","df"], "pointees_hex_inclusive": ["1b16279","1b16288"], "registry_type": 4, "adjustment_request_selector": 5, "previous_verified_contract": "report/cp-release-callback-selection/README.md", "registration_or_adjustment_write_observed": false, "ordinary_AP_type5_equivalence": false},
+  "search_coverage": {"paired_candidates_1b18000_1b18400": 578, "paired_candidates_1b18300_1b18380": 261, "complete_writer_set_proven": false},
+  "M_init_source_closed": false,
+  "C_init_source_closed": false,
+  "stored_value_chosen_or_payload_generated": false,
+  "firmware_executed": false,
+  "capture_verified": false
+}

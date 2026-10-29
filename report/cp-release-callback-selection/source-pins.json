@@ -1,0 +1,301 @@
+{
+  "scope": "static callback selection, software job producer/28B message-buffer consumer and one adjustment-writer binding; no runtime or first-order proof",
+  "cp_bytes": 18090880,
+  "cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "raw_base": "0x108000",
+  "pins": [
+    {
+      "name": "selector-and-synchronous-table-walk",
+      "cpva": "0x3af500",
+      "length": 208,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000fadf5617d4ff21848814646f22f101546c0f2b110c0f20f180170d8f8000090f8a40140b1052808d1f8f157f50226002808bf012613e0002611e046f24811c0f2b111097809b1032609e00138c1b2032904d840b2aea151f8206000e0082646f22d1049f6d43a46f24714c0f2b110c0f2b114c0f28b1a06709af88b00217881420ad041f20e01002241ea0041022008f2aff19af88b00207046f2351a4bf6bc0445f21d410120c0f2b11ac0f2de04c0f29a018af800003019007908b12846884754f8101f0029f6d1",
+      "sha256": "4ee335b4bc99d69d3b5315a43ff44441258e8d8f6fdc888a17eaf80883cefe6d"
+    },
+    {
+      "name": "reset-callback-record8",
+      "cpva": "0xdeb93c",
+      "length": 16,
+      "isa": "data",
+      "bytes": "75063b00000101000100000000000000",
+      "sha256": "0f90d2a6ed9ddede4d091a512a6b6037a74e1fd9d7103cc94d12d251166d075f"
+    },
+    {
+      "name": "selector-map",
+      "cpva": "0x3af818",
+      "length": 16,
+      "isa": "data",
+      "bytes": "05000000040000000600000007000000",
+      "sha256": "6d7f3b774b5cf3cce67876f07515d7048800909e224c13e68eb4d8982255f847"
+    },
+    {
+      "name": "first-driver-calls",
+      "cpva": "0x99247c",
+      "length": 252,
+      "isa": "thumb",
+      "bytes": "f0b503af4df8048d40f20218202206460c460320c0f63008cff20002414625f02dfaf16847f66870c0f28b10006891f828130d02022841d001287bd1304600f0c5f8002818bf012007f010fdb8f01dfd08f570210320142225f010fa07f0effc3068008907f0d6fc4bf25850c0f2ab1090f83c0018b140f4007007f0cbfc08f5d0110320162225f0f9f9306e0df6ccf008f5f8110320172225f0f0f945f6fd703246c0f2b110017828461cf6ebf705f15df9012844d1cff0b3f84ce0b8f0e5fc07f0bdfc3068008907f0a4fc4bf25850c0f2ab1090f83c0018b140f4007007f099fc306e0df6a0f045f6fd703246c0f2b110017828461cf6c5f7c2f0",
+      "sha256": "1fe0b426c70b6714690143fd7741e397be8e40300edf80938422d6533abd8b4a"
+    },
+    {
+      "name": "alternate-driver-call",
+      "cpva": "0x993db2",
+      "length": 74,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000b054643f045f8002021f066ff19f0a1f845f6f47940f2021820220320c0f2b119c0f2c718cff2000299f80060414623f086fdb7f08bf809f050fb00212a461bf682f3",
+      "sha256": "a767b92b7f22ed86104c71a2de354126b8a38f2695d641ed2415f857e9826e57"
+    },
+    {
+      "name": "conditional-state-ff-reset",
+      "cpva": "0x3b09c2",
+      "length": 66,
+      "isa": "thumb",
+      "bytes": "46f27020c0f2b1100078f0b1072820d14bf644100924c0f2ab10048009209af2caf24bf64210c0f2ab10048009209af2b1f24ff21840ff21c0f20f10006880f87c11",
+      "sha256": "c3d8213ecfe788232ea1039e460f5391142bbf984ad089aaf778371c193c93e8"
+    },
+    {
+      "name": "adjustment-registry-initializer",
+      "cpva": "0x131bd0",
+      "length": 248,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000b88b0894685f034de85f037df49f26051c0f28b11086041f6d170c0f2990024f105db41f6e170c0f2990024f105db41f6f170c0f2990024f105db6ef07edf49f2645140f23a184ef2a8524ff0000c0023c0f28b11c0f28f08c0f2b11208604ef6b041c0f2ce01d1e90046151b7ceb060507d3d1e906502d197041561b7ceb00000ed320310133042bedd34ef2a85090a200210c230026c0f2b11021f0e5fb06e04ef2a850c0f2b110ccf0d6e7064649f25050c0f28b10066062f0bcdf6bf0c8dafff7fefe63f000d80026cde90466069604a835f39ef622f187dd9df055db4ef6f05104204ff48072c0f20f11f1f12bd9",
+      "sha256": "da1ed0e307c5305f1ef4d6c278a32adbcc67c3513bc2ab148b29539d46aa8733"
+    },
+    {
+      "name": "registry-bind-type",
+      "cpva": "0xb22f1e",
+      "length": 44,
+      "isa": "thumb",
+      "bytes": "80b56f464ff2a47c4ff0000ec0f2101c3cf80e30834203d10ceb0e03c3e901120ef10c0ebef1840ff2d180bd",
+      "sha256": "52c1e933bd1cd1878348761697f3ba404eadb05011d0303bfd67017d709f4ac1"
+    },
+    {
+      "name": "registered-destination-slot",
+      "cpva": "0x10ff170",
+      "length": 4,
+      "isa": "data",
+      "bytes": "7062b101",
+      "sha256": "0caf39e18a1239517e2402ae7b210ce91f929080fced3174f70987d24dec1140"
+    },
+    {
+      "name": "adjustment-copy-handler",
+      "cpva": "0xb2491e",
+      "length": 136,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000badf5806d04464ff2a470bd68c0f21010866b5319b34212d945f6e8100621ff22c0f272100172002141728272c2720820207088206070c4e90411a16135e0406bb4f80290ff2950f8226018d1e84604f130012a464046f9f646e6304641462a46f9f642e608202070012060700020a4f80290c4e90400a0616ff6aafd15e0e846",
+      "sha256": "9c03774b38282af1d80bcafbfefb7db7c6218b5d5e8161119bf9763a034a8a32"
+    },
+    {
+      "name": "adjustment-handler-record",
+      "cpva": "0xe795b0",
+      "length": 8,
+      "isa": "data",
+      "bytes": "050000001f49b200",
+      "sha256": "c22d7a56260e2b662bf16b37ec4655d7e530b4a14dec83c93f7003bf8d8147f7"
+    },
+    {
+      "name": "adjustment-dispatcher",
+      "cpva": "0x4b76e0",
+      "length": 676,
+      "isa": "thumb",
+      "bytes": "f8d3c4f8405102b05df8048bf0bd00bf496e697469616c697a65000046573a20464154414c212025733a256400000000496e697469616c697a652f537461746963536574496e666f2e63707000000000f0b503af2de9000f8bb0044645f6e81a94f82b00c0f2721a069094f8280094f82c6094f82db094f82f9094f82e8094f82650059094f82900049094f82a0003900420cff6ff70caf808006df277f3e08c0795aaf80800aaf80a506df26ff3206acaf808006df26af3a08c0025aaf808004fea0840aaf80a5040ea096040ea0b2006436df25bf3069803990296caf8086041ea00266df252f3aaf808605ffa86f8dde9041040ea012baaf80ab06df246f3aaf80880aaf80a504fea16296df23ef38af808908af809508af80a508af80b506df234f3e28c4ef22e0ac0f2b11a012a02d19af8000028b9a38c04204ff470418bf2fcf6079d05f0fe00fe282bd1029b284631465a466ef237f149f2885144f223660020c0f2e701c0f2b20631f83020424500f08c80b8f10c0f00f28b800c2800f0888001300d28f0d34cf61c6046f6b74140f2e272c0f2f500c0f2fc018cf27cf600257ee0a08cadf820009af80000adf822508df8240020788df82500206a0a9008a86ef27cf0052045f6e818cff6ff70c0f27218c8f808006df2d7f24ef231004ef230014ef22f029af80030c0f2b110c0f2b111c0f2b11200780978127888f8083088f8092088f80a1088f80b006df2bcf22078002588f8080088f8095088f80a5088f80b506df2b0f2e08ca8f80800a8f80a506df2a9f2206ac8f808006df2a4f2a08ca8f80800a8f80a506df29df2e08cb0f5807f06d39af8001043f62945c0f2b20585e0a18cb1f5946f1edab1f58e6f2bdb40d0b1f5906f42d0b1f5926f58d14ff27472c0f2101257e001ebc0004668029829465a464b4600902046b0470546",
+      "sha256": "7b58655bb46ea9fbf55f4726298aec7575c71300f3e8f28ea4f88cab0fa45bff"
+    },
+    {
+      "name": "callback-table-first-pointer",
+      "cpva": "0xdeb8bc",
+      "length": 4,
+      "isa": "data",
+      "bytes": "1d549a00",
+      "sha256": "a6771ed36636c9d0c293424cf9b1f281b2c9d2eb858671fbb48c5a8807eea580"
+    },
+    {
+      "name": "type4-registry-record",
+      "cpva": "0x110f7d4",
+      "length": 12,
+      "isa": "data",
+      "bytes": "040000000000000000000000",
+      "sha256": "1acd855e4657b0c3f4e203d3452dbfd1cf66eff0101b0ac539f0570f06990f9c"
+    },
+    {
+      "name": "reset-callback-entry",
+      "cpva": "0x3b0674",
+      "length": 16,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000f87b0814646f22f10",
+      "sha256": "918148fefc6270bd390be9784e42120c0cbab5d30661a94fe0e3dc5cc6ef689f"
+    },
+    {
+      "name": "first-job-context-copy",
+      "cpva": "0x991e12",
+      "length": 46,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000786b04cf6d829804692460d46c822c0f26519414648468cf4eceb95e85e0009f1c8005ec0c9f8",
+      "sha256": "d4c7b97440b9fe06df0f7c22214c5debcac4751ddc645a624e622587a9aa284f"
+    },
+    {
+      "name": "first-job-descriptor-submit",
+      "cpva": "0x991efe",
+      "length": 38,
+      "isa": "thumb",
+      "bytes": "43f6ed6200210023c0f29902cde90411cde901214ef299414246c0f23901039101a97df7fcf7",
+      "sha256": "872c1e19e14a8d84006122b9ce3c9a37d808ee097bdc3dd7c55b27fdb1694281"
+    },
+    {
+      "name": "second-job-context-entry",
+      "cpva": "0x39e360",
+      "length": 22,
+      "isa": "thumb",
+      "bytes": "f0b503af4df804bd86b050220d4640f2021104460320",
+      "sha256": "81c1a212b59fc36e587e45b327e0eacf40e77cd38ceee52639908b182f625fd9"
+    },
+    {
+      "name": "second-job-descriptor-submit",
+      "cpva": "0x39e454",
+      "length": 42,
+      "isa": "thumb",
+      "bytes": "f5f104f745f6cd5200210023c0f28002cde90411cde9012143f6b3512246c0f29901039101a971f14ffd",
+      "sha256": "8334e19aa297e3c2e582c850b310a502183167f74de64c9ab742dc9125769288"
+    },
+    {
+      "name": "event-task-object-getters",
+      "cpva": "0x99424c",
+      "length": 30,
+      "isa": "thumb",
+      "bytes": "48f21800c0f28b10704747f6f870c0f28b10704748f23800c0f28b107047",
+      "sha256": "1bfa431b5be5dcfe1d31d3d27e4b86f8450cd2be42ea9d950b071edb325b1d00"
+    },
+    {
+      "name": "first-job-callback-context",
+      "cpva": "0x39e498",
+      "length": 14,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000fd1b0834618f0",
+      "sha256": "5336830f76ded76b3898448537bfdb67d952c462575e4eec5778dea430203101"
+    },
+    {
+      "name": "first-driver-call",
+      "cpva": "0x39e5a0",
+      "length": 6,
+      "isa": "thumb",
+      "bytes": "5846f3f16bf7",
+      "sha256": "d9bcc4717165e02d9fb978d1fcaa6422a11294dbab68d8f0ad63b297b2535016"
+    },
+    {
+      "name": "alternate-first-driver-call",
+      "cpva": "0x39ec92",
+      "length": 6,
+      "isa": "thumb",
+      "bytes": "5846f3f1f2f3",
+      "sha256": "c4def9b5bf5dc2618dea3f5cfa897ce2c84610ece451bd2329ae13e973a2c647"
+    },
+    {
+      "name": "software-context-wrappers",
+      "cpva": "0x991d6e",
+      "length": 28,
+      "isa": "thumb",
+      "bytes": "4cf6d8200221c0f265100cf6f2b24cf6d8200321c0f265100cf6ebb2",
+      "sha256": "e63bf62dec26fa35ae0c82c85499323f61ea0131c86208392279c38cf89f65da"
+    },
+    {
+      "name": "work-record-send",
+      "cpva": "0x50ff1c",
+      "length": 46,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000f8bb08b46924604a9984681465a468c4692e879001c228ce87900cde909a8d9f81800dcf01eee",
+      "sha256": "cbf1d1715828870da75bbfbdb99f95ebc88252562139fa3935f893de511febfb"
+    },
+    {
+      "name": "work-record-consumer",
+      "cpva": "0x510020",
+      "length": 120,
+      "isa": "thumb",
+      "bytes": "f0b503af2de9000788b04ef2466a044600200ff274090ff26008cde90300059001adc0f2b11aa06929464ff0ff32ddf0a4ec207f10b14046f3f0ace861699af80000814203d09af80100814206d1039adde906300090484634f27ff2dde90136dde9061205eb660016f0010f18bf066818bff3589847d6e7",
+      "sha256": "1efba8fadb5e9fc18bd7210227e0ee28979a91ad10c28b23bddc650d72ae6b38"
+    },
+    {
+      "name": "single-argument-thunk",
+      "cpva": "0x993eec",
+      "length": 6,
+      "isa": "thumb",
+      "bytes": "826808461047",
+      "sha256": "7488dd9385c33bd002824486f586342b80d5b768f227fe3bdea5b88173c97da3"
+    },
+    {
+      "name": "two-argument-thunk",
+      "cpva": "0x805dcc",
+      "length": 8,
+      "isa": "thumb",
+      "bytes": "8368084611461847",
+      "sha256": "518423c773e4f7e076c49ada0318096ed785d35aaab23650241521a99925abbc"
+    },
+    {
+      "name": "os-send-arguments",
+      "cpva": "0x5ecb84",
+      "length": 24,
+      "isa": "arm",
+      "bytes": "f04f2de934d04de20190a0e100100fe102b0a0e1088700e3",
+      "sha256": "442fcbd6c42aaea6940d9c2cfe948f4576aabd5c44cbbf2deaf352e631b6c576"
+    },
+    {
+      "name": "os-direct-waiter-copy",
+      "cpva": "0x5ecd10",
+      "length": 28,
+      "isa": "arm",
+      "bytes": "0b20a0e1000081e5000097e5041080e50910a0e1480097e537c600eb",
+      "sha256": "f97b4cf11c5fda1f460cf92fea4a095367e79c8356fa8238efadfef106426553"
+    },
+    {
+      "name": "os-send-ring-copy",
+      "cpva": "0x5ece38",
+      "length": 156,
+      "isa": "arm",
+      "bytes": "0a20a0e107508be21810b2e51f50c1e7010055e13200008a0a70a0e1043012e50c208de500209ce50040a0e32000b7e500b083e7000097e5040080e2000087e5081092e508208de5010050e10400a021000087e5081092e5002041e00b0052e10900002a000083e00910a0e10c008de8d7c500eb00109de504309de50000a0e3000087e501b04be0019089e0000083e00910a0e10b20a0e1cdc500eb",
+      "sha256": "555086fe981df162f59d25751d14bc7111c69c78c47cdc7fa873b1fb4113cd4f"
+    },
+    {
+      "name": "os-receive-ring-call",
+      "cpva": "0x5edbc8",
+      "length": 12,
+      "isa": "arm",
+      "bytes": "0a00a0e10810a0e12afaffeb",
+      "sha256": "45b7080fa521aaa28ce8e0ee8790943403b71a100e0c44ee04279882354f942f"
+    },
+    {
+      "name": "os-receive-ring-wrap-copy",
+      "cpva": "0x5ec480",
+      "length": 120,
+      "isa": "arm",
+      "bytes": "f0472de928d04de20040a0e10190a0e1240094e514a094e5000050e31600000a1c0094e50060a0e300809ae7040080e21c0084e5081094e5082091e5020050e10600a0211c0084e5081091e5005041e0050058e11600009a00108ae00900a0e10520a0e148c800eb057048e0059089e00000a0e31c6084e5",
+      "sha256": "c2654c9103ac7d92eed939357172f17ecc122516f9a7fe30c237c31f729a2f34"
+    },
+    {
+      "name": "os-receive-ring-copy",
+      "cpva": "0x5ec534",
+      "length": 20,
+      "isa": "arm",
+      "bytes": "0870a0e100108ae00900a0e10720a0e130c800eb",
+      "sha256": "d0e2315321c113102691c04bbc8810cfcbd4dc27315cab65d27a65f0cb8b056e"
+    },
+    {
+      "name": "os-receive-waiter-copy",
+      "cpva": "0x5edc08",
+      "length": 20,
+      "isa": "arm",
+      "bytes": "0800a0e14c5097e5481097e50520a0e17bc200eb",
+      "sha256": "334f5b21c83cc81c33d178aa470377624ed1e6efb3dc29e357d3295b2ae0de26"
+    },
+    {
+      "name": "first-job-upstream-context",
+      "cpva": "0x4d9a74",
+      "length": 144,
+      "isa": "thumb",
+      "bytes": "4af65c013046c0f2a61154f22ff741f6ac14285910f0040f1cd14af61c0001210222c0f2a610816047f275010020c0f26301cde94100cde93e104ef29110c0f24d0040904af65c003ea9c0f2a610eff3c0fe285981071ed44af61c0001210122c0f2a610416047f275010020c0f26301cde94100cde93e104ef29110c0f24d0040904af65c003ea9c0f2a610b8f087f1",
+      "sha256": "d8af716aed11fa65e9947cbf5538156c46e631f682933b4762ffcba729b7130e"
+    }
+  ],
+  "runtime_root_binding_verified": false,
+  "first_callback_execution_known": false,
+  "first_reset_byte_write_known": false,
+  "history_complete": false,
+  "capture_verified": false
+}

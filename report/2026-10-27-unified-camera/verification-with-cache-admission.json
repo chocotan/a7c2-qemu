@@ -1,0 +1,73 @@
+{
+  "schema": "unified-cache-admission-v1",
+  "scope": "owned LIF cache input/lifetime contract plus prior source consumers; not original CP execution or camera capture",
+  "batch": "unified-camera-scn8kfgp",
+  "regression": {
+    "tests_passed": 3136,
+    "subtests_passed": 381,
+    "failed": 0,
+    "modules": 139,
+    "runtime_sources": 398,
+    "unique_frozen_inputs": 711,
+    "group_counts": {"production": 398, "host": 6, "observer": 8, "test": 302},
+    "all_inputs_reread_equal": true,
+    "full_input_archive_every_member_reread_equal": true
+  },
+  "receipts": {
+    "inputs": {"path": "runtime/analysis/scratch/unified-camera-scn8kfgp/inputs.json", "sha256": "6e1492517ce42f033ed132daa657b5e17270991e8002937998918a5dbf4c9b45"},
+    "all_input_archive": {"path": "runtime/analysis/scratch/unified-camera-scn8kfgp/inputs.tar.gz", "sha256": "773c9698120918b23fdd34711cb2ff93a0d362187cbb0c882247e77d804f17b0"},
+    "regression": {"path": "runtime/analysis/scratch/unified-camera-scn8kfgp/host-regression.json", "sha256": "eeecc4d840fbe784f73f04063f0804d1dcca80ed2c0f7dcba68cac3a4202d783"},
+    "abi": {"path": "runtime/analysis/scratch/unified-camera-scn8kfgp/abi.json", "sha256": "01b2cba9697bd84d269603fb3af7143ca89a524e80eaa16e80625a6ecf28ef84"},
+    "ready": {"path": "runtime/analysis/scratch/unified-camera-scn8kfgp/ready.json", "sha256": "1e4410beb0849df1d1f9a74555ded0dd69d2c31b9cb90cd67c87aae4bf7d170e"}
+  },
+  "observer_sha256": "95db1a9d5b66f99a15bedc284727223b4ab4c39a5fbe0b8f0db607339a333b78",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "runtime_source_archive_sha256": "87fba99f256e5980a06b7886c6ff76b01b4d7bd756a3af3db0e98deb74f40d1c",
+  "accepted_binaries_and_archives_preserved_in_batch_directory": true,
+  "original_abi": {
+    "observer_returncode": 0,
+    "media_preload_returncode": 0,
+    "media_bind_now": true,
+    "cache_30_C_scenarios_executed_with_original_aarch64_libc": true,
+    "capability_handshake_28_C_scenarios_executed_with_original_aarch64_libc": true,
+    "execution_scope": "HOST_TEST cases in QEMU user mode; not original CP firmware"
+  },
+  "cache": {
+    "path": "report/lif-cache-admission-contract/README.md",
+    "focused_tests": 33,
+    "source_windows": 16,
+    "source_bytes": 7386,
+    "metadata_slots": 64,
+    "whole_rx_extent_limit": 544,
+    "actual_capability_support_and_Z_snapshot_required": true,
+    "single_real_live_bitmap_decode_per_owned_receive": true,
+    "whole_frame_copy_to_caller_owned_pool": true,
+    "monotonic_slot_incarnations_and_byte_overlap_eviction": true,
+    "top_command_refs_independent_from_shared_last_nonempty_field_projection": true,
+    "token_and_opaque_histories_separate": true,
+    "all_empty_field_table_remains_unknown": true,
+    "stale_handles_rejected": true,
+    "original_pool_B_S_known": false,
+    "original_cache_executed": false,
+    "worker_published": false,
+    "ready": false,
+    "ack": false
+  },
+  "later_combined_cache_and_handshake_receive_included": false,
+  "later_combined_entry_reason": "Separate existing APIs each decode dynamic input; next integration will provide a single decode with atomic cache/handshake commits, preserving this accepted read-only cache path",
+  "prior_accepted_batch": "report/2026-10-27-unified-camera/verification-with-handshake-and-producer.json",
+  "last_actual_native_run": "run-nzx01uc3",
+  "new_system_vm_started": false,
+  "native_run_rewritten": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_written_verified": false,
+  "remaining": [
+    "Actual LIF delivery, normal-worker invocation/publication and startup M/C values still unproved; CP3003 remains0/4",
+    "Complete76 provider reads unbound roots outside current parameter image",
+    "YC byte order, restart hardware semantics and coherent native pixel lease unresolved",
+    "Async API parameter expansion and valid88B encoded source-record fill remain unproved",
+    "Actual original encoding and MPR/Fsys virtualSD media output still require native integrated acceptance"
+  ]
+}

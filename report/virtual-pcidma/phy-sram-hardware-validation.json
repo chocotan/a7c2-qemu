@@ -1,0 +1,11 @@
+{
+  "status": "PASS_TEST_PHY_SRAM_DATA_ONLY",
+  "binary_sha256": "7267e27da5f121ef89d840155e6d4eef4fa5bc14c38f2360d847f7fdbeb0c01a",
+  "actual_ordered_dword_writes": 4096,
+  "actual_readback_bytes": 16384,
+  "raw_sha256": "6133a8e7fb95e2ac83119517c00a306d485dcf3bf4afd814411317af64439f95",
+  "stream_sha256": "963669fdc92d57141fa41095ecd7c5a1b972162d2e699a702ebfc8b6c1ef64dc",
+  "empty_apply_and_missing_zero_and_changed_payload_and_late_write_rejected": true,
+  "trace_sha256": "7fd3c00cc280a29421b9af96a40fae27710b44bf16958633163c632fd5459c7e",
+  "phy_init_done_or_lane_or_link_or_native_host_verified": false
+}

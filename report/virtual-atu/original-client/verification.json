@@ -1,0 +1,29 @@
+{
+  "status": "PASS_HOST_ONLY_UNLOADED",
+  "scope": "ELF ABI/import/relocation checks; no VM or hardware execution",
+  "file": "sony_atu_client.ko",
+  "size": 6784,
+  "sha256": "7a901c75d6aaf048065de652588eb45d11fb66b1e5569a8869dae085f341b34a",
+  "imports": [
+    "pciatu_map",
+    "pciatu_unmap",
+    "printk",
+    "udif_ioremap",
+    "udif_iounmap"
+  ],
+  "relocation_types": [
+    257,
+    283
+  ],
+  "descriptor": {
+    "size": 768,
+    "alignment": 64,
+    "name_offset": 24,
+    "init_offset": 344,
+    "exit": "absent"
+  },
+  "abi_tool": "virtual-dma330/dma330-kernel-client-abi/check_elf.py",
+  "abi_tool_sha256": "38c5e42a0bf9895ffc9db29e5f132fb9664f5ff6b0c771dab2caaa652fb990f6",
+  "source_sha256": "8f0c0fa01012a6e8df835c60bb9bef52935956d0db93bfccb7d8c4062938caa7",
+  "runtime_gate": "UNLOADED: original map/data/unmap markers not observed"
+}

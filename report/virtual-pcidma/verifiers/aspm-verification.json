@@ -1,0 +1,74 @@
+{
+  "status": "PASS_RAW_PINS_AND_PARAMETER_IDENTITY_ONLY",
+  "activation": "UNRESOLVED",
+  "size": 6610952,
+  "sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "pins": {
+    "0x2a253c": "1f100071",
+    "0x2a2558": "81000035",
+    "0x2a2574": "42001f32",
+    "0x2a257c": "020400b9",
+    "0x31c6e0": "40504039",
+    "0x31c6ec": "200800b9",
+    "0x31c788": "21190090",
+    "0x31c78c": "21203b91",
+    "0x31c790": "20d860b8",
+    "0x31c884": "135000f9",
+    "0x31c8c8": "40003fd6",
+    "0x31d7ec": "331040f9",
+    "0x31d7f0": "730202cb",
+    "0x31d7f4": "73fe4293",
+    "0x31d808": "04b6fb97",
+    "0x31d828": "547dfc97",
+    "0x23cdd4": "ff830394",
+    "0x31ddf0": "417820b8",
+    "0x31de58": "34d833b8",
+    "0x31de68": "40003fd6",
+    "0x249504": "43520394",
+    "0x24a59c": "21008052",
+    "0x24a5a0": "1c4e0394",
+    "0x5cbeac": "6742f597"
+  },
+  "aspm_policy_initial": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "parameters": [
+    "pcie.aspm0",
+    "pcie.aspm1",
+    "pcie.aspm2",
+    "pcie.aspm3",
+    "pcie.aspm4"
+  ],
+  "exact_writer": "0x31ddf0",
+  "normal_api": "pcie_aspm_set_domain_policy@0x23cd78",
+  "selected_function_scopes": [
+    [
+      "0x2a2538",
+      "0x2a25f4"
+    ],
+    [
+      "0x31c440",
+      "0x31c744"
+    ],
+    [
+      "0x31c848",
+      "0x31c8e8"
+    ],
+    [
+      "0x31d7d8",
+      "0x31d86c"
+    ],
+    [
+      "0x31ddd0",
+      "0x31de10"
+    ],
+    [
+      "0x31de10",
+      "0x31de88"
+    ]
+  ]
+}

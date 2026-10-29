@@ -1,0 +1,578 @@
+{
+  "status": "PASS",
+  "kind": "static original Image ABI pins only",
+  "kernel_size": 6610952,
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "base": "0xffffff8008080000",
+  "export_count": 21,
+  "instruction_pin_count": 75,
+  "exports": {
+    "pci_scan_root_bus": {
+      "record": "0x57fd10",
+      "name": "0x59b790",
+      "target": "0x229148"
+    },
+    "pci_create_root_bus": {
+      "record": "0x58a190",
+      "name": "0x59b7a2",
+      "target": "0x228448"
+    },
+    "pci_scan_child_bus": {
+      "record": "0x58a610",
+      "name": "0x59b7b6",
+      "target": "0x228dd8"
+    },
+    "pci_add_resource": {
+      "record": "0x57f730",
+      "name": "0x59b71b",
+      "target": "0x225ab0"
+    },
+    "pci_add_resource_offset": {
+      "record": "0x57f740",
+      "name": "0x59b72c",
+      "target": "0x225a10"
+    },
+    "pci_free_resource_list": {
+      "record": "0x57faa0",
+      "name": "0x59b704",
+      "target": "0x225ac8"
+    },
+    "pci_bus_size_bridges": {
+      "record": "0x57f850",
+      "name": "0x59c269",
+      "target": "0x235b10"
+    },
+    "pci_bus_assign_resources": {
+      "record": "0x57f7b0",
+      "name": "0x59c250",
+      "target": "0x235d38"
+    },
+    "pci_bus_add_devices": {
+      "record": "0x57f790",
+      "name": "0x59b694",
+      "target": "0x226250"
+    },
+    "pci_stop_root_bus": {
+      "record": "0x58a670",
+      "name": "0x59b8e8",
+      "target": "0x229620"
+    },
+    "pci_remove_root_bus": {
+      "record": "0x58a5a0",
+      "name": "0x59b8d4",
+      "target": "0x229688"
+    },
+    "pci_bus_put": {
+      "record": "0x57f7f0",
+      "name": "0x59b66f",
+      "target": "0x225c78"
+    },
+    "pci_dev_get": {
+      "record": "0x57f8f0",
+      "name": "0x59c04c",
+      "target": "0x22fe10"
+    },
+    "pci_dev_put": {
+      "record": "0x57f910",
+      "name": "0x59c040",
+      "target": "0x22fe40"
+    },
+    "pci_find_bus": {
+      "record": "0x57fa10",
+      "name": "0x59c125",
+      "target": "0x231180"
+    },
+    "pci_get_domain_bus_and_slot": {
+      "record": "0x57fad0",
+      "name": "0x59c0ea",
+      "target": "0x231350"
+    },
+    "pcidma_connect": {
+      "record": "0x57fe40",
+      "name": "0x5a02e7",
+      "target": "0x2a2230"
+    },
+    "pcidma_transfer_async": {
+      "record": "0x57fe50",
+      "name": "0x5a02f6",
+      "target": "0x2a20c8"
+    },
+    "resource_list_create_entry": {
+      "record": "0x580cd0",
+      "name": "0x58e8e0",
+      "target": "0x26320"
+    },
+    "iomem_resource": {
+      "record": "0x57ccc0",
+      "name": "0x58e9f7",
+      "target": "0x613d58"
+    },
+    "ioport_resource": {
+      "record": "0x57cd10",
+      "name": "0x58ea06",
+      "target": "0x613d98"
+    }
+  },
+  "pins": {
+    "0x225a1c": {
+      "bytes": "f40300aa",
+      "meaning": "resource list argument x0 saved in x20"
+    },
+    "0x225a20": {
+      "bytes": "f30301aa",
+      "meaning": "resource argument x1 saved in x19"
+    },
+    "0x225a30": {
+      "bytes": "f50302aa",
+      "meaning": "offset argument x2 saved in x21"
+    },
+    "0x225a34": {
+      "bytes": "3b02f897",
+      "meaning": "call exported resource_list_create_entry"
+    },
+    "0x225a38": {
+      "bytes": "000300b4",
+      "meaning": "allocation failure branches to log, no status result"
+    },
+    "0x225a3c": {
+      "bytes": "610e40f9",
+      "meaning": "resource flags at +0x18"
+    },
+    "0x225a40": {
+      "bytes": "8101f037",
+      "meaning": "flag bit30 selects embedded 64-byte resource copy"
+    },
+    "0x225a44": {
+      "bytes": "130800f9",
+      "meaning": "entry res pointer at +0x10"
+    },
+    "0x225a48": {
+      "bytes": "150c00f9",
+      "meaning": "entry offset at +0x18"
+    },
+    "0x225a4c": {
+      "bytes": "810640f9",
+      "meaning": "list head prev at +8"
+    },
+    "0x225a50": {
+      "bytes": "800600f9",
+      "meaning": "append updates head prev"
+    },
+    "0x225a54": {
+      "bytes": "140400a9",
+      "meaning": "entry next=head and prev=old tail"
+    },
+    "0x225a58": {
+      "bytes": "200000f9",
+      "meaning": "old tail next=entry"
+    },
+    "0x225a74": {
+      "bytes": "620e40a9",
+      "meaning": "copy resource bytes 0x00..0x0f"
+    },
+    "0x225a7c": {
+      "bytes": "620e41a9",
+      "meaning": "copy resource bytes 0x10..0x1f"
+    },
+    "0x225a84": {
+      "bytes": "620e42a9",
+      "meaning": "copy resource bytes 0x20..0x2f"
+    },
+    "0x225a8c": {
+      "bytes": "620e43a9",
+      "meaning": "copy resource bytes 0x30..0x3f"
+    },
+    "0x228454": {
+      "bytes": "fa0300aa",
+      "meaning": "create parent x0 saved in x26"
+    },
+    "0x228464": {
+      "bytes": "f40302aa",
+      "meaning": "create ops x2 saved in x20"
+    },
+    "0x22846c": {
+      "bytes": "f503012a",
+      "meaning": "create bus number w1 saved in w21"
+    },
+    "0x228474": {
+      "bytes": "f70303aa",
+      "meaning": "create sysdata x3 saved in x23"
+    },
+    "0x228478": {
+      "bytes": "f60304aa",
+      "meaning": "create resource list x4 saved in x22"
+    },
+    "0x228488": {
+      "bytes": "a47e4093",
+      "meaning": "signed bus number widened for bus resource start"
+    },
+    "0x22848c": {
+      "bytes": "e1031aaa",
+      "meaning": "parent forwarded as x1 to domain helper"
+    },
+    "0x228490": {
+      "bytes": "64820339",
+      "meaning": "bus number byte at +0xe0"
+    },
+    "0x228494": {
+      "bytes": "644200f9",
+      "meaning": "bus-number resource start at +0x80"
+    },
+    "0x228498": {
+      "bytes": "146000f9",
+      "meaning": "bus ops pointer at +0xc0"
+    },
+    "0x22849c": {
+      "bytes": "176800f9",
+      "meaning": "bus sysdata pointer at +0xd0"
+    },
+    "0x2284a0": {
+      "bytes": "7c1d0094",
+      "meaning": "internal domain helper at Image+0x22fa90"
+    },
+    "0x2284a4": {
+      "bytes": "60e600b9",
+      "meaning": "domain result stored as 32-bit value at bus+0xe4"
+    },
+    "0x2284ac": {
+      "bytes": "35230094",
+      "meaning": "duplicate domain/bus checked by exported pci_find_bus"
+    },
+    "0x2284e0": {
+      "bytes": "14030b91",
+      "meaning": "host bridge owns window list at +0x2c0"
+    },
+    "0x228500": {
+      "bytes": "004f01f9",
+      "meaning": "host bridge release callback installed at +0x298"
+    },
+    "0x228508": {
+      "bytes": "1a0300f9",
+      "meaning": "host bridge device parent may be NULL"
+    },
+    "0x22850c": {
+      "bytes": "135f01f9",
+      "meaning": "host bridge bus pointer at +0x2b8"
+    },
+    "0x228538": {
+      "bytes": "609200f9",
+      "meaning": "bus host bridge device at +0x120"
+    },
+    "0x2285a0": {
+      "bytes": "7a0e00b4",
+      "meaning": "root creation logging separately handles NULL parent"
+    },
+    "0x22865c": {
+      "bytes": "670440f9",
+      "meaning": "window prev at +8"
+    },
+    "0x22866c": {
+      "bytes": "c70400f9",
+      "meaning": "unlink window from caller resource list"
+    },
+    "0x228670": {
+      "bytes": "e60000f9",
+      "meaning": "unlink previous next"
+    },
+    "0x228674": {
+      "bytes": "860640f9",
+      "meaning": "host bridge window-list tail"
+    },
+    "0x228678": {
+      "bytes": "840600f9",
+      "meaning": "append window to host bridge list"
+    },
+    "0x22867c": {
+      "bytes": "741800a9",
+      "meaning": "set moved window next and prev"
+    },
+    "0x228680": {
+      "bytes": "c40000f9",
+      "meaning": "set host bridge old tail next"
+    },
+    "0x228684": {
+      "bytes": "7c6841a9",
+      "meaning": "entry resource +0x10 and translation offset +0x18"
+    },
+    "0x228688": {
+      "bytes": "840f40f9",
+      "meaning": "resource flags consumed at +0x18"
+    },
+    "0x22868c": {
+      "bytes": "64fb6737",
+      "meaning": "resource flag bit12 selects bus-number resource path"
+    },
+    "0x229068": {
+      "bytes": "860040f9",
+      "meaning": "scan requires a valid non-NULL list head x4"
+    },
+    "0x229084": {
+      "bytes": "c10840f9",
+      "meaning": "scan reads entry resource at +0x10"
+    },
+    "0x229088": {
+      "bytes": "210c40f9",
+      "meaning": "scan reads resource flags at +0x18"
+    },
+    "0x2290b8": {
+      "bytes": "e4fcff97",
+      "meaning": "scan delegate calls exported create_root_bus internally"
+    },
+    "0x2290d4": {
+      "bytes": "756600f9",
+      "meaning": "bus MSI pointer at +0xc8 set from wrapper x5=0"
+    },
+    "0x2290e4": {
+      "bytes": "e21f8052",
+      "meaning": "default bus-number upper bound 255"
+    },
+    "0x2290f0": {
+      "bytes": "3affff97",
+      "meaning": "scan delegate calls exported pci_scan_child_bus"
+    },
+    "0x229118": {
+      "bytes": "e103142a",
+      "meaning": "caller-supplied bus resource path retains bus number"
+    },
+    "0x22911c": {
+      "bytes": "cbfcff97",
+      "meaning": "bus-resource path calls create_root_bus"
+    },
+    "0x22912c": {
+      "bytes": "2bffff97",
+      "meaning": "bus-resource path scans child bus"
+    },
+    "0x22914c": {
+      "bytes": "050080d2",
+      "meaning": "public scan wrapper sets optional x5 to NULL"
+    },
+    "0x229154": {
+      "bytes": "c3ffff97",
+      "meaning": "public wrapper delegates to unexported Image+0x229060"
+    },
+    "0x22fa9c": {
+      "bytes": "210300b4",
+      "meaning": "NULL parent branches around parent dereference"
+    },
+    "0x22faa0": {
+      "bytes": "201c41f9",
+      "meaning": "non-NULL parent OF node at +0x238"
+    },
+    "0x22fb04": {
+      "bytes": "01000591",
+      "meaning": "domain-global base Image+0x627140"
+    },
+    "0x22fb08": {
+      "bytes": "210c41b9",
+      "meaning": "domain mode read at base+0x10c = 0x62724c"
+    },
+    "0x22fb0c": {
+      "bytes": "3f040071",
+      "meaning": "DT-assigned mode compared with 1"
+    },
+    "0x22fb10": {
+      "bytes": "00feff54",
+      "meaning": "mixed DT mode takes failure/log path"
+    },
+    "0x22fb18": {
+      "bytes": "21200491",
+      "meaning": "domain counter at base+0x108 = 0x627248"
+    },
+    "0x22fb1c": {
+      "bytes": "3f0400b9",
+      "meaning": "automatic mode set to zero"
+    },
+    "0x22fb24": {
+      "bytes": "207c5f88",
+      "meaning": "atomic counter load"
+    },
+    "0x22fb28": {
+      "bytes": "00040011",
+      "meaning": "increment counter, return allocated domain"
+    },
+    "0x22fb2c": {
+      "bytes": "20fc0288",
+      "meaning": "atomic counter store"
+    },
+    "0x229688": {
+      "bytes": "010840f9",
+      "meaning": "remove root checks bus parent at +0x10"
+    },
+    "0x22968c": {
+      "bytes": "610000b4",
+      "meaning": "only actual root enters removal"
+    },
+    "0x2296b4": {
+      "bytes": "969240f9",
+      "meaning": "remove retains host bridge from bus+0x120"
+    },
+    "0x2296e4": {
+      "bytes": "df5e01f9",
+      "meaning": "remove clears host bridge bus at +0x2b8"
+    },
+    "0x2296ec": {
+      "bytes": "094a0194",
+      "meaning": "remove invokes device-release path internally"
+    }
+  },
+  "windows": [
+    {
+      "name": "pci_add_resource_offset",
+      "start": "0x225a10",
+      "end": "0x225ab0",
+      "sha256": "9c89f1052798dca6b1f7a361f04b429256b273c0301e813fb66a5bb40f218f39"
+    },
+    {
+      "name": "pci_create_root_bus",
+      "start": "0x228448",
+      "end": "0x228788",
+      "sha256": "666ec89842400d0fa911c2417c7fbce8768a36be50eda348f2fb7af5fb26e28e"
+    },
+    {
+      "name": "pci_scan_root_bus",
+      "start": "0x229148",
+      "end": "0x229160",
+      "sha256": "72b062ab278de9d2a8f1a66cd880a06042c4209789d8945b32eed618e852bbf8"
+    },
+    {
+      "name": "internal_scan_delegate",
+      "start": "0x229060",
+      "end": "0x229148",
+      "sha256": "41fa94070c5549292f0a044367cb4de5231027e6e83d6726f1084c92366b9afc"
+    },
+    {
+      "name": "internal_domain_helper",
+      "start": "0x22fa90",
+      "end": "0x22fb60",
+      "sha256": "7ed7bf3350929c301e69855b429dd9651012a9c31506739802d66f01bd70bc93"
+    },
+    {
+      "name": "pci_remove_root_bus",
+      "start": "0x229688",
+      "end": "0x229700",
+      "sha256": "d06d659ed86d8868b6d3e9153987b93e64eb500356363682b5c487c132682b3d"
+    }
+  ],
+  "initial_domain_counter": -1,
+  "initial_domain_mode": -1,
+  "pci_ops_table": [
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xffffff80082c76a8",
+    "0xffffff80082c7518"
+  ],
+  "resources": {
+    "iomem_resource": {
+      "offset": "0x613d58",
+      "u64_fields": [
+        "0x0",
+        "0xffffffffffffffff",
+        "0xffffff80085a9270",
+        "0x200",
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ]
+    },
+    "ioport_resource": {
+      "offset": "0x613d98",
+      "u64_fields": [
+        "0x0",
+        "0xffffff",
+        "0xffffff80085a9278",
+        "0x100",
+        "0x0",
+        "0x0",
+        "0x0",
+        "0x0"
+      ]
+    }
+  },
+  "additional_lifetime_export_records": {
+    "pci_find_host_bridge": [],
+    "pci_set_host_bridge_release": [
+      [
+        "0x58a630",
+        "0x59b8b8",
+        "0x2291a8"
+      ]
+    ],
+    "pci_lock_rescan_remove": [
+      [
+        "0x58a530",
+        "0x59b75d",
+        "0x2266e0"
+      ]
+    ],
+    "pci_unlock_rescan_remove": [
+      [
+        "0x58a6c0",
+        "0x59b744",
+        "0x226700"
+      ]
+    ],
+    "pci_bus_get": [
+      [
+        "0x57f7e0",
+        "0x59b67b",
+        "0x225c48"
+      ]
+    ]
+  },
+  "remaining_gates": [
+    "No runtime/module loading, callback invocation or live domain state check.",
+    "Stop-root, host-release callback and synchronization bodies were not expanded.",
+    "Resource tail fields +0x20..+0x3f are zeroed opaque storage; their individual labels are not recovered.",
+    "No complete host-bridge deferred-release/module-unload proof.",
+    "Export class, license and module-version CRC compatibility not established here.",
+    "No claim that every internal platform hook accepts arbitrary own sysdata."
+  ],
+  "existing_callback_prologues": {
+    "table_read": [
+      "0x2476a8: fd7bbba9 stp x29, x30, [sp, #-0x50]!",
+      "0x2476ac: fd030091 mov x29, sp",
+      "0x2476b0: f55b02a9 stp x21, x22, [sp, #0x20]",
+      "0x2476b4: f603012a mov w22, w1",
+      "0x2476b8: f76303a9 stp x23, x24, [sp, #0x30]",
+      "0x2476bc: 01800391 add x1, x0, #0xe0",
+      "0x2476c0: f35301a9 stp x19, x20, [sp, #0x10]",
+      "0x2476c4: f803022a mov w24, w2",
+      "0x2476c8: f92300f9 str x25, [sp, #0x40]",
+      "0x2476cc: d57e0353 lsr w21, w22, #3",
+      "0x2476d0: f30300aa mov x19, x0",
+      "0x2476d4: a2120012 and w2, w21, #0x1f",
+      "0x2476d8: 146840f9 ldr x20, [x0, #0xd0]",
+      "0x2476dc: f70304aa mov x23, x4",
+      "0x2476e0: f903032a mov w25, w3",
+      "0x2476e4: e00314aa mov x0, x20",
+      "0x2476e8: 72ffff97 bl #0x2474b0",
+      "0x2476ec: 60010035 cbnz w0, #0x247718",
+      "0x2476f0: 00008012 mov w0, #-1",
+      "0x2476f4: d3108052 mov w19, #0x86"
+    ],
+    "table_write": [
+      "0x247518: fd7bbba9 stp x29, x30, [sp, #-0x50]!",
+      "0x24751c: fd030091 mov x29, sp",
+      "0x247520: f55b02a9 stp x21, x22, [sp, #0x20]",
+      "0x247524: f603012a mov w22, w1",
+      "0x247528: f76303a9 stp x23, x24, [sp, #0x30]",
+      "0x24752c: 01800391 add x1, x0, #0xe0",
+      "0x247530: f35301a9 stp x19, x20, [sp, #0x10]",
+      "0x247534: f703022a mov w23, w2",
+      "0x247538: f92300f9 str x25, [sp, #0x40]",
+      "0x24753c: d57e0353 lsr w21, w22, #3",
+      "0x247540: f30300aa mov x19, x0",
+      "0x247544: a2120012 and w2, w21, #0x1f",
+      "0x247548: 146840f9 ldr x20, [x0, #0xd0]",
+      "0x24754c: f803032a mov w24, w3",
+      "0x247550: f903042a mov w25, w4",
+      "0x247554: e00314aa mov x0, x20",
+      "0x247558: d6ffff97 bl #0x2474b0",
+      "0x24755c: 20010035 cbnz w0, #0x247580",
+      "0x247560: d3108052 mov w19, #0x86",
+      "0x247564: e003132a mov w0, w19"
+    ]
+  }
+}

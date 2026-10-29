@@ -12,7 +12,8 @@
 #define SOURCE 0x810261c7u
 struct message { unsigned int owner,source,bytes,live; unsigned char body[64]; };
 static struct message messages[80];
-static unsigned int allocations,releases,sends,accepts,unhandled;
+static unsigned int allocations,releases,sends,accepts,unhandled,free_observations;
+static int observer_bound;
 static int fail_allocate,fail_send,fast_free,reuse_address;
 static void *fail_free;
 static void *last_reply;
@@ -79,6 +80,13 @@ static int send(unsigned int destination,void *p) {
     }
     return 0;
 }
+static void observe_free(unsigned int destination,const unsigned char wire[12]) {
+    assert(destination==SOURCE && wire[0]==1 && wire[2]==7 && wire[3]==0x30);
+    assert(wire[8]==0 && wire[9]==0xf0 && wire[10]==0 && wire[11]==0);
+    struct cp_sync_resources *r=native_cp_background_resources();assert(r);
+    struct cp_sync_snapshot view;assert(!cp_sync_snapshot(r,&view));
+    free_observations++;
+}
 static const struct full_imaging_io io={allocate,release,set_source,send,size,source,record};
 static void *request(void) {
     unsigned char *p=make(NATIVE_CP_BACKGROUND_SID,24,SOURCE);
@@ -106,8 +114,12 @@ int main(int argc,char **argv) {
                !close(window_release[0]) && !close(window_release[1]));
         return 0;
     }
+    if(!strcmp(argv[1],"observe-normal") || !strcmp(argv[1],"observe-fast-free") ||
+       !strcmp(argv[1],"observe-sendfail") || !strcmp(argv[1],"observe-reply-fail")) {
+        assert(!native_cp_background_bind_free_observer(observe_free));observer_bound=1;
+    }
     void *p=request();int rc=123;
-    if (!strcmp(argv[1],"normal")) {
+    if (!strcmp(argv[1],"normal") || !strcmp(argv[1],"observe-normal")) {
         assert(!dispatch(p));assert(!lookup(p)->live && accepts==1);
         assert(sends==1 && captured_source==NATIVE_CP_BACKGROUND_SID);
         assert(captured[0]==1 && captured[1]==0 && captured[2]==7 && captured[3]==0x30);
@@ -153,13 +165,13 @@ int main(int argc,char **argv) {
         assert(!native_cp_background_dispatch(NATIVE_CP_BACKGROUND_SID,p,&io,1,&rc));
         assert(rc==123 && lookup(p)->live && !allocations && !sends && !releases);
         assert(!release(NATIVE_CP_BACKGROUND_SID,p));
-    } else if (!strcmp(argv[1],"fast-free") || !strcmp(argv[1],"fast-reuse")) {
+    } else if (!strcmp(argv[1],"fast-free") || !strcmp(argv[1],"fast-reuse") || !strcmp(argv[1],"observe-fast-free")) {
         fast_free=1;reuse_address=!strcmp(argv[1],"fast-reuse");
         assert(!dispatch(p) && accepts==1 && releases==(reuse_address?3u:2u));
     } else if (!strcmp(argv[1],"allocfail")) {
         fail_allocate=1;assert(dispatch(p)==-12 && lookup(p)->live && !sends && !releases);
         fail_allocate=0;assert(!dispatch(p));free_reply(last_reply);
-    } else if (!strcmp(argv[1],"sendfail")) {
+    } else if (!strcmp(argv[1],"sendfail") || !strcmp(argv[1],"observe-sendfail")) {
         fail_send=1;assert(dispatch(p)==-7 && lookup(p)->live && releases==1 && !accepts);
         assert(dispatch(p)==-1021 && allocations==1);assert(!release(NATIVE_CP_BACKGROUND_SID,p));
     } else if (!strcmp(argv[1],"request-free-fail")) {
@@ -172,7 +184,7 @@ int main(int argc,char **argv) {
         assert(!dispatch(p));
         assert(native_cp_background_release(SOURCE+1,last_reply,release,record,&rc)==1 && rc==-1021);
         assert(lookup(last_reply)->live);free_reply(last_reply);
-    } else if (!strcmp(argv[1],"reply-free-fail")) {
+    } else if (!strcmp(argv[1],"reply-free-fail") || !strcmp(argv[1],"observe-reply-fail")) {
         assert(!dispatch(p));fail_free=last_reply;
         assert(native_cp_background_release(SOURCE,last_reply,release,record,&rc)==1 && rc==-9);
         assert(lookup(last_reply)->live);fail_free=NULL;free_reply(last_reply);
@@ -198,6 +210,8 @@ int main(int argc,char **argv) {
         assert(dispatch(p)==-1021 && lookup(p)->live && !allocations && !sends);
         assert(!release(NATIVE_CP_BACKGROUND_SID,p));
     }
+    if(observer_bound)assert(free_observations==(!strcmp(argv[1],"observe-normal")?1u:0u));
+    else assert(!free_observations);
     for (unsigned int i=0;i<80;i++) assert(!messages[i].live);
     return 0;
 }

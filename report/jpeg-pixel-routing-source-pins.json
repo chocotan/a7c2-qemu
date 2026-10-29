@@ -1,0 +1,37 @@
+{
+  "scope": "source routing fields only; no pixel packing proof",
+  "av_cam_sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+  "pins": [
+    {
+      "raw_offset": 2794116,
+      "bytes": 240,
+      "label": "routing-control-branch",
+      "sha256": "b446d81e107096cb82cea77387ab730278fb52f3b9b5095146dfc2ec64ca4591"
+    },
+    {
+      "raw_offset": 2773756,
+      "bytes": 496,
+      "label": "source-route-register",
+      "sha256": "a7284403f2c142175432e451ded472b6517a85d426e49854feaffc8831f417ae"
+    },
+    {
+      "raw_offset": 401128,
+      "bytes": 344,
+      "label": "DataSite-IibNumber-conversion",
+      "sha256": "a2e04ce6af11f9d6ffadfa3dc143032819dbe353f8e526cef9a423c0ce01238e"
+    },
+    {
+      "raw_offset": 3367520,
+      "bytes": 72,
+      "label": "IibNumber-jump-table",
+      "sha256": "6ffb144b063c5bc66cd31e883dcf86b2eff558ef208b30a8224b688a40ff495a"
+    }
+  ],
+  "P50_P58_meaning": "DataSite/IibNumber-derived routing, not proven byte/component order",
+  "memory_branch_L68_explicit_zero": true,
+  "memory_branch_L69_L6a_initial_value_known": false,
+  "pixel_component_order_verified": false,
+  "plane_layout_verified": false,
+  "guest_pixels_consumed": false,
+  "capture_verified": false
+}

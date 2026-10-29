@@ -1,0 +1,36 @@
+{
+  "base_sha256": "bb1248f5b1338b37ba125a0033a378ad1b319f912405bac34fee859f3c64a20c",
+  "derived_sha256": "dd8c770fb282a0dd67ad91166b1486b7dfd2d0a54f1285d9cbb2bdedd780be61",
+  "only_added_nodes": [
+    "/sony-test-iomap-0",
+    "/sony-test-iomap-1",
+    "/sony-test-iomap-2",
+    "/sony-test-iomap-3",
+    "/sony-test-iomap-4"
+  ],
+  "schema_and_memtype_from_official": true,
+  "narrow_test_windows": [
+    [
+      "0xf1056000",
+      "0x2000"
+    ],
+    [
+      "0xf11c0000",
+      "0x40000"
+    ],
+    [
+      "0xf7000000",
+      "0x1000"
+    ],
+    [
+      "0xf7300000",
+      "0x1000"
+    ],
+    [
+      "0xf7380000",
+      "0x2000"
+    ]
+  ],
+  "driver_initcalls_changed": false,
+  "overlap_guard_unchanged": true
+}

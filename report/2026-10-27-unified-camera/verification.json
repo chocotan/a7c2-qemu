@@ -1,0 +1,42 @@
+{
+  "scope": "unified frozen host component/runtime regression and original libc2.25 observer ABI; not firmware capture",
+  "batch": "unified-camera-o702xix2",
+  "test_round_1": {
+    "batch": "unified-camera-8hz949o1",
+    "passed": 2795,
+    "subtests_passed": 304,
+    "failed": 1,
+    "failure": "old actual-receive C fixture omitted new publication hook dependencies",
+    "evidence_preserved": true
+  },
+  "central_fix": "fixture dependency/order coverage plus actual shared receive hook errno preservation",
+  "test_round_2": {
+    "passed": 2796,
+    "subtests_passed": 304,
+    "failed": 0,
+    "all_input_digests_still_match": true,
+    "inputs_sha256": "edee966b162a993cad379e7b85bacc97caefdc3f1d7f102cf3d2c78654efa8ca",
+    "regression_sha256": "b202006818e07fd5eeae1c614fd84aedc9957ab35d52415e928fa7fdf185b013",
+    "ABI_sha256": "2ed2e51b1c57fb809bc42367d94458c4c41ba1c78bfd95393af35488ecac24d4",
+    "ready_sha256": "ea5a8b8810c48232e8c5de0702c57ae1c316bf3140c3b45d7c1f91fd12ca4fca"
+  },
+  "observer_sha256": "e7e890dc2c4d48edd266f4ebbaf8a48b9157a72aab47da4e893369f1d45d8b97",
+  "source_archive_sha256": "cb62dfc11494a2debf1fff4b32c5694780234c5ad85fa4126ef400f59a5ffae8",
+  "source_count": 378,
+  "original_libc_ABI_passed": true,
+  "no_project_system_QEMU_running": true,
+  "other_workspace_system_QEMU": [
+    {
+      "pid": 3275568,
+      "executable": "/home/choco/Downloads/zve10-qemu/work/qemu-src/build-zve10/qemu-system-arm"
+    }
+  ],
+  "new_system_VM_started": false,
+  "native_acceptance": "blocked by mandatory source-data and native pixel contracts; no per-opcode VM rerun",
+  "native_CP_start_provider_known_fields": 0,
+  "native_CP_start_provider_required_fields": 4,
+  "native_full_snapshot_provider_complete": false,
+  "native_JPEG_START_usable": false,
+  "original_MPR_Fsys_media_verified": false,
+  "capture_verified": false
+}

@@ -1,0 +1,100 @@
+{
+  "schema": "a7c2-native-functional-refusal-v1",
+  "scope": "Original ALLLANG UI native attempt; no camera capture acceptance",
+  "run": "run-qqu0q5oe",
+  "tested_batch": "unified-camera-3lbiw8e9",
+  "ready_sha256": "3f2a0fed1f98eb6beb74794ef0d4d00a3f8f8a82cf6313b29b7f070a7b0bb836",
+  "tested_observer_sha256": "d9e919d7b741330a4c21ac1ba33024de55da7d4a50f2c72cd10f1cb691c278bc",
+  "tested_model_sha256": "23bc227da384a18dc62f2ad34bb24400925d8ec66111046665a9f75b00a86c93",
+  "selected_initramfs_sha256": "54b6851d289b4ded612a96c65fc526bbcad90f7f3a4f2d5d8b24ea0128758583",
+  "automation_returncode": 0,
+  "original_proof_ok": false,
+  "language": {
+    "original_simplified_chinese_selection": true,
+    "down_steps": 24,
+    "selected_pixel_sha256": "b51c4da5c04e7e1fb7f7ea1026cb18a52d126147aca2f9a1aa7201360d803fb7"
+  },
+  "shooting_readiness": {
+    "verified": false,
+    "original_shooting_label_is_false_positive": true,
+    "actual_setup_image": "temperature-setting confirmation modal; lower cancel option highlighted",
+    "setup_pixel_sha256": "38c1cd889606c0cd81b4ad59325943afd64e58a7c81e864e5484777a960d8c9d",
+    "actual_post_shutter_image": "system error",
+    "post_shutter_pixel_sha256": "0f791b47818c3fd024f88b1064ba86e4528251e23680b9daf31ea843fe0bdd58",
+    "system_error_created_console_line": 19329,
+    "first_natural_shutter_submission_console_line": 19474,
+    "shutter_caused_system_error_proven": false,
+    "first_system_error_producer_uniquely_identified": false
+  },
+  "natural_shutter": {
+    "input_submission_event_verified": true,
+    "consumer_verified": false,
+    "still_capture_verified": false
+  },
+  "original_wait_frontier": {
+    "evidence": "Both saved syscall SP-anchored FP chains and all original LR-4 BL bytes independently verified",
+    "common_thread_tid": 382,
+    "local_request": "type10/command21/20B to 8102021f",
+    "common_wait_chain": "339fa08 -> 34d1788 -> 3548c20 -> 3548adc -> 35358b8 -> future wait",
+    "background_thread_tid": 339,
+    "background_wait_chain": "ed9c4 returneda8c <- ee6fc <- ee82c",
+    "earlier_cp_request": {
+      "destination": "90030001",
+      "source": "810261c4",
+      "command": "3006",
+      "bytes": 24,
+      "wire_hex": "007706307f00000090dd12317f000000c361918055555555"
+    },
+    "local21_response_blocked_by_serial_background_wait": true,
+    "normal_cp3006_business_completion_verified": false,
+    "bare_send_refusal_deployable": false,
+    "bare_refusal_reason": "Original nonzero-send path returns1 without request-free or dynamic-queue destroy; local21 may remain deferred without a cancellation path",
+    "native_vdf_requests_observed": 0,
+    "native_jpeg_events_observed": 0
+  },
+  "virtual_card": {
+    "card": "functional-language-consume-xh8wo9m0",
+    "reusable_as_empty_card": false,
+    "capacity_bytes": 256000000000,
+    "original_Fsys_FlushVolume_rc": 0,
+    "original_mount_verified": true,
+    "original_volume_retirement": false,
+    "firmware_format_verified": false,
+    "current_files_readback_matches_original_export": true,
+    "files": [
+      {"path": "private/m4root/mediapro.xml", "bytes": 406, "sha256": "9781f9727eb1a9321c1ab2f095de18bffdfbdcec0b8b9453e93f5d6752a288d7"},
+      {"path": "private/database/database.bin", "bytes": 9670656, "sha256": "59ade9e92eb32b8a3c462b5c9e8acba951178ba681655174eb8c017e00cb5c7d"}
+    ],
+    "jpeg_mp4_files": 0
+  },
+  "cleanup": {
+    "runner_phase": "closed",
+    "runner_error": null,
+    "broker_never_attached": true,
+    "worker_stopped": true,
+    "runner_cleanup_safe_to_close": true,
+    "runner_cleanup_errors": [],
+    "controller_1504009_absent": true,
+    "runner_1504238_absent": true,
+    "owned_project_system_QEMU_absent_at_independent_inspection": true,
+    "other_project_QEMU_3275568_untouched": true,
+    "host_sd_quit_error": "write to closed file",
+    "force_kill_authorized": false,
+    "ordinary_QMP_quit_verified": false,
+    "QEMU_exit_method": "not independently proven by retained receipt"
+  },
+  "raw_evidence_sha256": {
+    "console.log": "8b444d9f3412e5d82b89868b279818d4313195812478efdfa8bcd803bb0fa4f4",
+    "gtk-input-proof.json": "4bfe6c46c89e4218bc23e7a164291b17a3ff134d5176da60716ef06bf61fd3d2",
+    "functional-camera-runner.json": "dd967c0fd9a0f44007cecce0c12397e5250af7ea7d521ce7dac0a05b6db94cb0",
+    "SD/export.json": "043d4fb7b400e1bc3fbfce1a774cc5020e2099cfd48dfb11bd5f40ffe4a14664",
+    "gtk-shooting-after-setup.png": "aade61c46cb8d8ab10c7741fb091a7aef8012636393301d380540b32f53a5deb",
+    "gtk-natural-shutter-after.png": "bfcda72bc4b03021ffff9c26ab2850a7a82feb21e98c9d4e1da5dcdbea34d793",
+    "host-sd-quit-error.json": "1447fb5cdc88fe655e5853445e51f19ca00781d195dfae03cb1e466919e88f41"
+  },
+  "old_evidence_unchanged": true,
+  "capture_verified": false,
+  "histogram_UI_applied_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_modules_verified": false
+}

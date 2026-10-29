@@ -1,0 +1,7 @@
+{
+  "base_sha256": "bb1248f5b1338b37ba125a0033a378ad1b319f912405bac34fee859f3c64a20c",
+  "derived_sha256": "bb2da9e945a2c1660791828c6103bb4dfaf72b30e13a6ba431669aef49480304",
+  "only_added_node": "/sony-test-iomap",
+  "original_iomap_properties_equal": true,
+  "driver_initcalls_changed": false
+}

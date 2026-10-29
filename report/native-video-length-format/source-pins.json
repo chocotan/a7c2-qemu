@@ -1,0 +1,177 @@
+{
+  "schema": 1,
+  "artifact": {
+    "path": "usr/lib/libmpr.so",
+    "origin": "Original public ALLLANG firmware extraction; runtime/analysis/menu-root",
+    "size": 3528576,
+    "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"
+  },
+  "positive_only": true,
+  "native_capture": false,
+  "native_gaps": 63,
+  "expected_container_format": {
+    "avc1": "BE32 length + NAL",
+    "hvc1": "BE32 length + NAL",
+    "length_size_minus_one": 3,
+    "length_bytes": 4,
+    "source_expectation_closed": true,
+    "original_encoder_producer_closed": false,
+    "original_lifecycle_closed": false
+  },
+  "load_segments": [
+    {
+      "virtual_address": "0x0",
+      "file_offset": 0,
+      "file_size": 3032372
+    },
+    {
+      "virtual_address": "0x2f53a8",
+      "file_offset": 3036072,
+      "file_size": 490632
+    }
+  ],
+  "prior_pins": {
+    "path": "../native-video-au-contract/source-pins.json",
+    "manifest_sha256": "0d801d837eb0ba6942b18d86286a96354af2bd12a7083eca4c002c2e4f397d98",
+    "same_artifact_sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+    "verify_all_windows": true,
+    "window_count": 14,
+    "total_window_bytes": 1652,
+    "needed_configuration_ids": [
+      "E-avc-config-entry",
+      "E-hevc-config-value",
+      "E-avc-stored-copy",
+      "E-hevc-stored-copy",
+      "E-avc-serializer",
+      "E-hevc-serializer",
+      "E-avc-array-writer",
+      "E-hevc-array-writer"
+    ],
+    "transport_ids": [
+      "E-au-list",
+      "E-ring",
+      "E-copy-call",
+      "E-copy-list",
+      "E-copy-memcpy"
+    ],
+    "interpretation": "Reuse exact source identity/windows; old unverified-staging limitation is superseded only by the new positive staging/callback pins here, not by editing the frozen prior report."
+  },
+  "windows": [
+    {
+      "id": "E-stored-descriptors",
+      "virtual_address": "0x210078",
+      "file_offset": 2162808,
+      "length": 84,
+      "sha256": "12fddcefd5d2a9eb372e3244fc86603e1ab36e9ed0d6263e6a6e9a830c279740",
+      "claim": "Validated sample description exposes C_AVC from Desc+0x48 and C_HEVC from Desc+0x58"
+    },
+    {
+      "id": "E-stage-allocation",
+      "virtual_address": "0x2101f8",
+      "file_offset": 2163192,
+      "length": 144,
+      "sha256": "171307f79be754989e0eb43b06284b5f9b3a4a86f19a787c49dd0b3232ad2ed3",
+      "claim": "Allocate 0x48/0x38-byte staging records; constructors receive stored C and staged S; retain S at boxrec+0x50/+0x60"
+    },
+    {
+      "id": "E-stage-type-gate",
+      "virtual_address": "0x2101b0",
+      "file_offset": 2163120,
+      "length": 68,
+      "sha256": "2f8220242acb776a7ce13fb5fad4116983934451d689bb4a6536b74b02f070bd",
+      "claim": "Sample-description staging dispatch for validated AVC type 2 / HEVC type 0xb"
+    },
+    {
+      "id": "E-avc-stage-copy",
+      "virtual_address": "0x20da84",
+      "file_offset": 2153092,
+      "length": 32,
+      "sha256": "555db06345d1d75c49f3423766d086bc57fd4ae2fc5a714052389ce5e015496b",
+      "claim": "Actual callback copy from C to S+8 with destination/source lengths 0x40; C+4 reaches S+0xc"
+    },
+    {
+      "id": "E-hevc-stage-copy",
+      "virtual_address": "0x20e1c8",
+      "file_offset": 2154952,
+      "length": 32,
+      "sha256": "d82e19f7b79a17dd32ea37e42bc06b3fac05d5a9e0d76c73cb88c5a1f557647a",
+      "claim": "Actual callback copy from C to S+8 with destination/source lengths 0x30; C+0x1d reaches S+0x25"
+    },
+    {
+      "id": "E-copy-dispatch",
+      "virtual_address": "0x1d9e80",
+      "file_offset": 1941120,
+      "length": 12,
+      "sha256": "2c9d55e2dc5db419dc1569f3bf82bc422f50272126ef09dc9116c430b0de6412",
+      "claim": "Load callback at context+0x58, load userdata at context+0, branch to callback"
+    },
+    {
+      "id": "E-default-memcpy",
+      "virtual_address": "0x21e8a4",
+      "file_offset": 2222244,
+      "length": 20,
+      "sha256": "6feff7fce064476433f472088bb548368a27b9d1522a41a21267c5abe249c41c",
+      "claim": "ff4_mpr_memcpy copies min(destination_length,source_length) bytes via memcpy PLT 0x7b3b0"
+    },
+    {
+      "id": "E-default-table",
+      "virtual_address": "0x21feb4",
+      "file_offset": 2227892,
+      "length": 12,
+      "sha256": "a5ef7e84f1e7b20b5d591896aed2d3dcb2b9dbdbc8eda7d0843ba057b97088b1",
+      "claim": "Default callback builder loads GOT VA 0x2fd3c8 and stores at callback-table+0x58"
+    },
+    {
+      "id": "E-default-context",
+      "virtual_address": "0x1c3aa0",
+      "file_offset": 1850016,
+      "length": 148,
+      "sha256": "aaba3fa00574407cf002f42624e6375d25a076c5a73c3527bcb447c185b6e6d7",
+      "claim": "Allocate/zero 0x98-byte context then copy 0x70-byte callback table through its own callback+0x58"
+    },
+    {
+      "id": "E-mpr-default-factory",
+      "virtual_address": "0x225378",
+      "file_offset": 2249592,
+      "length": 92,
+      "sha256": "16a7ad99238502099626ec1253d6853dc6d26319832e9b014dee1f3c1e463a70",
+      "claim": "MPR factory builds default callback table and passes it as x0 to context constructor 0x1c3aa0"
+    },
+    {
+      "id": "E-mpr-alternate-factory",
+      "virtual_address": "0x226a34",
+      "file_offset": 2255412,
+      "length": 52,
+      "sha256": "60bd5f928bb4a90da2434b1e052bd055c7bfa06534a6ba07a8b5f634e6548266",
+      "claim": "Other MPR constructor builds the same default table before context creation"
+    }
+  ],
+  "total_window_bytes": 696,
+  "relocation": {
+    "section": ".rela.dyn",
+    "virtual_address": "0x2fd3c8",
+    "file_offset": 3068872,
+    "type": "R_AARCH64_GLOB_DAT",
+    "type_number": 1025,
+    "addend": 0,
+    "symbol": "_Z14ff4_mpr_memcpyPvS_mPKvm",
+    "symbol_value": "0x21e8a4",
+    "symbol_size": 20,
+    "meaning": "Resolve dynamic binding via ELF symbol/relocation; raw GOT bytes are not the target address."
+  },
+  "staging_path": [
+    "RecAttr stores 3 at external AVC+4 / HEVC+0x1d",
+    "Setters 0x20ac08 / 0x20aee8 retain C in SampleDesc+0x48 / +0x58",
+    "Stager 0x210010 obtains C and allocates S",
+    "Constructors 0x20da50 / 0x20e194 invoke actual copy(C,S+8,0x40/0x30)",
+    "Default context callback+0x58 resolves to ff4_mpr_memcpy",
+    "Parent writer 0x20fd24 selects boxrec+0x50/+0x60; wrappers 0x20daf4 / 0x20e238 pass whole S",
+    "Serializers 0x20d768 / 0x20de4c read S+0xc / S+0x25, emit avcC/hvcC lengthSizeMinusOne 3"
+  ],
+  "limitations": [
+    "Container configuration declares four-byte NAL lengths; this is not a configured real-run observation or proof of encoder payload correctness.",
+    "Normal AU byte-preserving transport does not close the original producer or lifecycle.",
+    "AVC/HEVC header checks are adapter validation, not original parser behavior; no RBSP or full HEVC decode claim.",
+    "No ACK/reply, PI push, lease free, native completion, capture or Fsys file-written claim."
+  ]
+}

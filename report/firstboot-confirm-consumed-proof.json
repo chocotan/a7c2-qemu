@@ -1,0 +1,270 @@
+{
+  "run": "run-k3xyvyuz",
+  "console_sha256": "b1fb5252ea73b3481c85e3a7e3d4ad62bbeb3be3815e05a96f17a8b02d95cf27",
+  "original_app_and_observer_selected_image_verified": true,
+  "date_time_set_status": 0,
+  "extern_param_clock_force_settled": 1,
+  "current_first_setup_branch_condition_true": true,
+  "first_setup_completion_verified": false,
+  "confirm_method": "original App::input_infra_callback, 32 bytes",
+  "confirm_key": "0x1ac",
+  "confirm_app_queue_statuses": [
+    1,
+    0
+  ],
+  "confirm_after_original_card_resource_observed": true,
+  "confirm_ui_business_action_verified": false,
+  "final_rgba_sha256": "3496a870d47c6019bd6f4068d9d518a6bbaab6878555ef820c04b278055bddf6",
+  "card_error_frame_unchanged": true,
+  "diagnostic_structure_bytes": 576,
+  "diagnostic_items": [
+    {
+      "category": "0x0",
+      "code": "0x2000",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9201",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x3100",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9101",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9102",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9103",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6100",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6110",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6111",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6130",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6131",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6140",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6141",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6142",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6143",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6144",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6230",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6202",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6203",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6222",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6210",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6211",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6212",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6220",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6200",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6201",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x6204",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9400",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9401",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9402",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9700",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9500",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9501",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9502",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9600",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x4100",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x4101",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x4110",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x400",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x600",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x601",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x1302",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x1301",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x1304",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x1303",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x3260",
+      "status": 0
+    },
+    {
+      "category": "0x1",
+      "code": "0x3201",
+      "status": 0
+    },
+    {
+      "category": "0x0",
+      "code": "0x9200",
+      "status": 0
+    }
+  ],
+  "diagnostic_all_status_zero": true,
+  "diagnostic_zero_is_success_proof": false,
+  "shutter_selfcheck_success_verified": false,
+  "mechanical_shutter_failure_proven": false,
+  "camera_startup_verified": false,
+  "diagnostic_equals_original_initialization_template": true,
+  "diagnostic_template_elf_va": "0x48b28f8",
+  "diagnostic_template_sha256": "e3945a45ba990d41ed338b305693d09447fa7bed2beca27cab9aa26091196777"
+}

@@ -1,0 +1,117 @@
+{
+  "scope": "twelve virtual metadata/control connections 1..10,12,13; OSD persistent SSOS consumption",
+  "run": "run-1xdwxzgj",
+  "native_verified_edge_numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    12,
+    13
+  ],
+  "native_verified_12": true,
+  "native_verified_11": false,
+  "all_13_graph_edges_complete": false,
+  "302c_completed": false,
+  "capture_verified": false,
+  "evaluation": "../runtime/analysis/menu-runs/run-1xdwxzgj/osd-edge-native-evaluation.json",
+  "evaluation_sha256": "7fcdd989dd1ceec7d4798a41df71e61f6be44f73fad0d27060cb5ae91fd15cf3",
+  "observer_sha256": "29980f047d9dfe2432ec860be99e4073f55879057e38ab2ccba705a18d5cbedd",
+  "source_count": 317,
+  "source_archive_sha256": "d696fc1ebf188ddf4c13b0e4fc432cdfad1764aaef0eeeb4d3cecbb7bb93a591",
+  "host_tests_passed": 2021,
+  "host_subtests_passed": 139,
+  "offline_OSD_verifier_tests_passed": 67,
+  "console_sha256": "a67291863427a9dc19e85e5059b182d12ff5d1dbf2bd6eeb09f1110d087a2e7b",
+  "parsed_console_sha256": "51ebe2c0fc1afb8980c7e049bcf5870aecb3e3a6e16d6bda9d8a12fac2675e83",
+  "transport_interleavings": [
+    {
+      "raw_warning_start": 1085085,
+      "raw_warning_end": 1085153,
+      "raw_record_line": 12434,
+      "record_prefix": "OBS FULL_IMAGING_PIN_CONNECT_REQUEST ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit complete",
+      "guest_bytes_invented": false,
+      "scope": "run-1xdwxzgj exact pinned raw console and fixed host-stderr insertion"
+    },
+    {
+      "raw_warning_start": 1235341,
+      "raw_warning_end": 1235409,
+      "raw_record_line": 13211,
+      "record_prefix": "OBS FULL_PINMEM_OSD_CONNECT_DMM_REPLY ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit complete",
+      "guest_bytes_invented": false,
+      "scope": "run-1xdwxzgj exact pinned raw console and fixed host-stderr insertion"
+    }
+  ],
+  "selected_initramfs_retention": {
+    "selected_initramfs_sha256": "bc159bda6e31d0f263168a6b1c6b156f75b7d2309550e3d6e7f9ae30db2b878d",
+    "bytes": 552371712,
+    "source_path": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-initramfs.cpio",
+    "retained_path": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-runs/run-1xdwxzgj/selected-initramfs.cpio",
+    "same_run_manifest_sha256": "8db6c6fbe097594d4b106861f448b083fbd572c6a54eece13476478c51451ba0",
+    "capture_verified": false
+  },
+  "original_AP_pid": "259",
+  "original_AP_tid": "382",
+  "OSD_resources_live": 16,
+  "OSD_owners_each": 2,
+  "OSD_opens_each": 2,
+  "OSD_DMM_requests": 48,
+  "OSD_notifications_consumed": 16,
+  "selected_tag100_backing_count": 0,
+  "selected_tag100_cached_count": 1,
+  "SD_original_flushes_same_run": true,
+  "SD_clean_commit": true,
+  "SD_host_tree_readback": [
+    {
+      "path": "INPUT.BIN",
+      "bytes": 56,
+      "sha256": "55a81aa1ba43a059de81f71abe0e5c56eee8b35eb5976705b4bf1897ba6fa3bc"
+    },
+    {
+      "path": "private/database/database.bin",
+      "bytes": 9670656,
+      "sha256": "25beaea8d941795b92d54eae46d92cc07be938fc0e05fb502e523dc5318e8a30"
+    },
+    {
+      "path": "private/m4root/mediapro.xml",
+      "bytes": 406,
+      "sha256": "84a948337890bd40a7016e9a24ad90fde4b695b87defb7bbc5748c296fbea781"
+    }
+  ],
+  "cleanup": {
+    "owner_pid": 1743157,
+    "owner_exited": true,
+    "owner_process_group_exited": true,
+    "group_check": "os.getpgid for live /proc processes",
+    "QEMU_absent": true,
+    "processes_inspected": 930,
+    "evaluator_signals_sent": false,
+    "locks_exclusive_acquired_and_released": [
+      ".menu-probe.lock",
+      "directory-sd-tests/.osd-retained-image-bmadequ9.lock"
+    ]
+  },
+  "EE": {
+    "file": "ee-passive-lfvfe7q2/ee_status.txt",
+    "sha256": "8b303f919d3795ce75167e1cf142fff6a4bf6d1bd18ac5ccf3c14c60a60e366e",
+    "raw_readback": "READMEM /proc/259/mem address=7f4823e700 bytes=4\r\n0000007f4823e700: 00 00 00 00",
+    "EE_state": 0,
+    "atomic_snapshot": false
+  },
+  "independent_native_review": "prior run-rhvtidg2 content review complete; fresh retained-image run review pending",
+  "original_CP_executed": false,
+  "original_CP_pages_verified": false,
+  "original_allocator_capacity_verified": false,
+  "hardware_verified": false,
+  "frames_verified": false,
+  "JPEG_verified": false,
+  "MP4_verified": false
+}

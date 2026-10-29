@@ -1,0 +1,39 @@
+{
+  "scope": "static linked banks, MIPS instructions and actual MCU result publish stores; no MCU execution or external-loader extent claim",
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "bytes": 10934476,
+  "sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "windows": [
+    {"name": "ROM0", "raw_hex": "0", "bytes": 1528, "sha256": "0b6ce226ecaac6acfbdee67d0810b79824d9478595385aed42455ca34d231ff3"},
+    {"name": "RAM0-entry", "raw_hex": "9300", "bytes": 52, "sha256": "f887df8f1f246c81bab9d500286c4ca28a4c39911a0d8d8efa9e3cf8a6ee8bf3"},
+    {"name": "ROM1-handoff", "raw_hex": "a6a5a4", "bytes": 16, "sha256": "6b3accfd4577675b87d086019452563eeb83cf8984a5ecb11b9080a732e1b7c8"},
+    {"name": "ROM2-handoff", "raw_hex": "a6d5a4", "bytes": 16, "sha256": "4b121bd97e9a0780ec1dec0f2247b2a337ae84e73271070e0187064a8a35efe8"},
+    {"name": "RAM1-entry", "raw_hex": "714300", "bytes": 112, "sha256": "aeda14fa932d97c8b2fe78cd1128459f531fedc1467024ec501d7ccded2f837c"},
+    {"name": "RAM2-entry", "raw_hex": "8bf300", "bytes": 112, "sha256": "edfbe8ae2db14cbf1b91d53d26e39db7ea6c34b537954bf8e2d6fc680625af07"},
+    {"name": "id2-constructor", "raw_hex": "16a204", "bytes": 364, "sha256": "f2560301f37c8254a4b7238fbf2f876641904059251ef8373da60c543aefa198"},
+    {"name": "P-writer", "raw_hex": "16a62c", "bytes": 1668, "sha256": "abe06e5831d33892dc1d20871914f5f9a6ee0b1817585f1ef121cd10e7658b25"},
+    {"name": "MCU-address-conversion", "raw_hex": "16b6cc", "bytes": 100, "sha256": "c451a70554bbc5b8fb255a921557a340188c6a592acbb53e68c165d2a9051c34"},
+    {"name": "ring-transfer", "raw_hex": "17d608", "bytes": 884, "sha256": "757577cbe444cbdf0caa4fc138d96c7d436bc361a6406f9829aa2365ffc880dc"},
+    {"name": "producer-index-publication", "raw_hex": "17dda8", "bytes": 404, "sha256": "af5ec0d9a15a0ef0239d96aa244f30f777281ffc917d22e28a24434df9969853"},
+    {"name": "MCU-MMIO-table", "raw_hex": "235cc4", "bytes": 192, "sha256": "2d25db93b7b3764ec8ba8eff8858645215938e93e59dadfe18f28945c64850ea"}
+  ],
+  "window_count": 12,
+  "window_bytes": 5448,
+  "regions": {
+    "rom0": [0, 2252, 2680160256],
+    "ram0": [36864, 7421952, 2147520512],
+    "ram1": [7421952, 9170944, 2154905600],
+    "ram2": [9170944, 10919936, 2156654592],
+    "rom1": [10919936, 10922188, 2680160256],
+    "rom2": [10932224, 10934476, 2680160256]
+  },
+  "entry_VA_hex": {"ram0": "80009300", "ram1": "80714300", "ram2": "808bf300"},
+  "ISA": "MIPS-like little-endian scalar code; GPR width and some opcode semantics unknown; MIPS32/64 tool targets are analysis hypotheses",
+  "MCU_publish_register_base_hex": "bf044060",
+  "MCU_publish_value": "20000000 | producer_index",
+  "ARM_alias_and_IRQ_generation_fully_verified": false,
+  "external_loader_copy_lengths_verified": false,
+  "MCU_executed": false,
+  "actual_ES_byte_writer_closed": false,
+  "capture_verified": false
+}

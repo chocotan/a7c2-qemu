@@ -1,0 +1,16 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -2174,7 +2174,12 @@
+     hwaddr base_ecam, size_ecam;
+     hwaddr base = base_mmio;
+     int nr_pcie_buses;
+-    int irq = vms->irqmap[VIRT_PCIE];
++    /* Original RC/SA handlers own low SPIs; isolate GPEX in this profile.
++     * The fixed-address DTB must use the same 244..247 allocation. */
++    int irq = g_getenv("QEMU_SONY_RC") ? 244 : vms->irqmap[VIRT_PCIE];
++    if (g_getenv("QEMU_SONY_RC")) {
++        fprintf(stderr, "SONY_RC_BOARD_V2 gpex_spi_base=244\n");
++    }
+     MemoryRegion *mmio_alias;
+     MemoryRegion *mmio_reg;
+     MemoryRegion *ecam_alias;

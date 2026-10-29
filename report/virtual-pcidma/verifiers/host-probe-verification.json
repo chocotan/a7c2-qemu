@@ -1,0 +1,20 @@
+{
+  "scope": "original static registration/order and OF gate; not current enumeration or device activation",
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "instruction_pins": 42,
+  "export_names": [
+    "__platform_driver_register",
+    "pci_bus_size_bridges",
+    "pci_bus_assign_resources",
+    "pci_bus_add_devices",
+    "of_device_is_available",
+    "pcidma_connect"
+  ],
+  "probe": "0x249770",
+  "host_init_hook": "0x24a508",
+  "notification_precedes_scan": true,
+  "link_timeout_return_unchecked_in_hook": true,
+  "disabled_node_skips_platform_device": true,
+  "host_enable_producer_verified": false,
+  "runtime_verified": false
+}

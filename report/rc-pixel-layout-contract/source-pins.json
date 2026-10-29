@@ -1,0 +1,45 @@
+{
+  "scope": "Public RC provider and destination descriptor path; static source evidence, no pixel layout or completed frame claim",
+  "asset": {
+    "path": "runtime/analysis/menu-root/system/av-cam.bin",
+    "bytes": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"
+  },
+  "address_convention": "All K addresses are raw ARM64 file offsets, KVA=raw+ffffffc001000000; never CP+108000",
+  "provider": {
+    "object": "0xbfbcc8",
+    "vtable": "0x3883c8",
+    "slots": [
+      {"offset": "0x0", "function": "0x2d8c60", "role": "submission"},
+      {"offset": "0x18", "function": "0x2d835c", "role": "command builder"},
+      {"offset": "0x20", "function": "0x2d86fc", "role": "preparation"},
+      {"offset": "0x40", "function": "0x2d7958", "role": "destination descriptor validation/copy"}
+    ]
+  },
+  "destination": {
+    "labels": "T=builder input x2, J=command output, B=prepared backing; these are local names, not original structure types",
+    "descriptor": "0x2d84cc..0x2d851c passes T+0x90, u32[T+0xf8], u32[T+0x100], J+0x98 to 0x2d7958",
+    "copy": "0x2d7de0..0x2d7dec copies 0x60 descriptor bytes T+0x90 -> J+0x98; no image pixels are copied",
+    "selector": "Mask 0x282 separates {1,7,9} for alignment checks; actual inherited 1054 selector and byte-order meaning remain unknown",
+    "fields": "T+0x100/104/108/10c -> J+0x108/10c/110/114",
+    "preparation": "0x2d8968..0x2d8984 calls 0x2cd23c; its returned value later becomes x4 of 0x2cdc94",
+    "records": "0x2d8b40..0x2d8b84 copies destination records to B+i*0x88+0x20 and B+i*0x30+0x8a00",
+    "submission": "0x2d8eb4..0x2d8ed0 calls 0x2d4588 with hardware object, both destination records, u32[J+0x108], u32[J+0x110]"
+  },
+  "next_boundaries": ["0x2cdc94 destination record construction", "0x2d4588 hardware register submission", "0x2c91f0 mode record provenance"],
+  "windows": [
+    {"start": "0x2cff84", "end": "0x2d0784", "sha256": "7c77c8222d91816299b0da9bee71614020b27d8cea2c8dbc19dbd98767dd228f"},
+    {"start": "0xbfbcc8", "end": "0xbfbcf0", "sha256": "8569a726e6714ff0b081e121b44973de7736af1292bf3bb9479f4bde48c57f7c"},
+    {"start": "0x3883c8", "end": "0x388428", "sha256": "6d027d14e704ca54962da7c88be6be7cb22544108a5b06d776b498009e314fe2"},
+    {"start": "0x2d835c", "end": "0x2d86fc", "sha256": "8d8e55abfb17961b7b15af750df23e1f702cab9f1e7d1420b41eba4e4ab3d267"},
+    {"start": "0x2d7958", "end": "0x2d7df8", "sha256": "4df3e11a332bad54503e23d4be199e3dc11061fc0fb542da62b8f43373e9c9b4"},
+    {"start": "0x2d629c", "end": "0x2d6800", "sha256": "8e98e2cb619bc436f48dbc998ce4d9f48bd652b9a504bcc3ff86af198ed6afb9"},
+    {"start": "0x2d86fc", "end": "0x2da6fc", "sha256": "77d525161a77d431ea87e7852311aa8070c17aa3beafc4aa99ac62821d198d5a"}
+  ],
+  "principal_window_count": 7,
+  "principal_window_bytes": 13868,
+  "native_pixel_layout_known": false,
+  "native_generation_lease_complete": false,
+  "guest_pixel_consumed": false,
+  "capture_verified": false
+}

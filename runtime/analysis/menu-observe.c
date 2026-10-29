@@ -5,6 +5,32 @@
 #include "headless-osd.h"
 #include "gui-model-store.h"
 #include "device-models/vdf-device.h"
+#include "device-models/touch-panel-device.h"
+#include "device-models/tcin-device.h"
+#include "device-models/vef-path-device.h"
+#include "device-models/adf-proc-device.h"
+#include "device-models/adf-set-input-device.h"
+#include "device-models/adf-set-output-device.h"
+#include "device-models/bb-set-mode-device.h"
+#include "device-models/imaging-pin-connection.h"
+#include "device-models/imaging-control-connection.h"
+#include "device-models/imaging-adf-connection.h"
+#include "device-models/infrabb-vef-connection.h"
+#include "device-models/infrabb-vef-control-connection.h"
+#include "device-models/vef-pinmem-input-connection.h"
+#include "device-models/vef-pinmem-control-connection.h"
+#include "device-models/scalar-connection.h"
+#include "device-models/adf-connection.h"
+#include "device-models/pinmem-drawinfo-connection.h"
+#include "device-models/adf-hdmi-audio-connection.h"
+#include "device-models/hdmi-video-state.h"
+#include "device-models/hdmi-public-backup.h"
+#include "device-models/hdmi-upm-receipt.h"
+#include "device-models/pinmem-hdmi-video-connection.h"
+#include "device-models/osd-buffer-owner.h"
+#include "device-models/osd-pin-format.h"
+#include "device-models/pinmem-osd-connection.h"
+#include "device-models/vef-resource-guard.h"
 #include "device-models/hdmi-device.h"
 #include "device-models/hdmi-pin-device.h"
 #include "device-models/audio-device.h"
@@ -25,6 +51,30 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "device-models/pin-connection.h"
 #include "device-models/pin-buffer-owner.h"
 #include "device-models/cp-background-device.h"
+#include "device-models/cp302c-no-transition.h"
+#include "device-models/cp-notification-control.h"
+#include "device-models/cp-parameter-batch.h"
+#include "device-models/cp-capture-format.h"
+#include "device-models/cp-output-policy.h"
+#include "device-models/cp-startup-controls-diagnostic.h"
+#include "device-models/cp-ee-controls-diagnostic.h"
+#include "device-models/cp-movie-format-diagnostic.h"
+#include "device-models/cp-start-state-provider.h"
+#include "device-models/cp-parameter-state.h"
+#include "device-models/cp-parameter-view.h"
+#include "device-models/cp-property-stage-file.h"
+#include "device-models/cp-state-publication.h"
+#include "device-models/functional-camera-control.h"
+#include "functional-camera-bridge.h"
+#include "functional-camera-events.h"
+#include "functional-mpr-codec.h"
+#include "functional-mpr-memory.h"
+#include "functional-jpeg-codec.h"
+#include "device-models/functional-vdf-path.h"
+#include "device-models/functional-histogram.h"
+#include "device-models/functional-background-start.h"
+#include "device-models/functional-vdf-layout-stage.h"
+#include "device-models/functional-cp-zoom.h"
 typedef unsigned long size_t;
 typedef unsigned long pthread_t;
 static int (*sd_ack_create)(pthread_t *,const void *,void *(*)(void *),void *);
@@ -41,6 +91,7 @@ extern int close(int);
 extern int getpid(void);
 extern char *getenv(const char *);
 extern char *strstr(const char *, const char *);
+extern int memcmp(const void *, const void *, size_t);
 extern int snprintf(char *, size_t, const char *, ...);
 extern int sscanf(const char *, const char *, ...);
 extern void *mmap(void *, size_t, int, int, int, unsigned long);
@@ -57,6 +108,78 @@ static void *(*real_application_init)(void *);
 static void *(*real_uxengine_init2)(void *);
 static unsigned long appfw_base;
 static unsigned int vdf_config_used;
+static unsigned int touch_config_used;
+static unsigned int tcin_config_used;
+static unsigned int vef_path_used;
+static int vef_path_enabled;
+static unsigned int adf_proc_used;
+static int adf_proc_enabled;
+static unsigned int adf_set_input_used;
+static int adf_set_input_enabled;
+static unsigned int adf_set_output_used;
+static int full_adf_set_output_enabled;
+static unsigned int bb_set_mode_used;
+static int full_bb_set_mode_enabled;
+static unsigned int imaging_pin_connection_used;
+static int imaging_pin_connection_enabled;
+static unsigned int imaging_control_connection_used;
+static int imaging_control_connection_enabled;
+static unsigned int imaging_adf_connection_used;
+static int imaging_adf_connection_enabled;
+static unsigned int infrabb_vef_connection_used;
+static int infrabb_vef_connection_enabled;
+static unsigned int infrabb_vef_control_connection_used;
+static int infrabb_vef_control_connection_enabled;
+static unsigned int vef_pinmem_input_connection_used;
+static int vef_pinmem_input_connection_enabled;
+static unsigned int vef_pinmem_control_connection_used,pinmem_peer_connections_used,adf_hdmi_audio_connection_used;
+static int vef_pinmem_control_connection_enabled,pinmem_peer_connections_enabled,adf_hdmi_audio_connection_enabled;
+static unsigned int pinmem_hdmi_video_connection_used,pinmem_osd_connection_used;
+static int pinmem_hdmi_video_connection_enabled,pinmem_osd_connection_enabled;
+static int cp302c_no_transition_enabled,cp302c_diagnostic_enabled;
+static unsigned int cp302c_no_transition_used;
+static int cp_notification_control_enabled;
+static unsigned int cp_notification_control_used;
+static struct cp_parameter_batch cp_parameter_batch_state;
+static struct cp_output_policy cp_output_policy_state;
+static unsigned long cp_parameter_batch_mutex[6];
+static void *cp_parameter_batch_retained_request;
+static int cp_capture_format_enabled;
+static unsigned int cp_capture_format_used;
+static int cp_startup_controls_enabled;
+static unsigned int cp_startup_controls_used;
+static int cp_ee_controls_enabled;
+static unsigned int cp_ee_controls_used;
+static int cp_movie_format_enabled;
+static unsigned int cp_movie_format_used;
+static int cp_owned_state_enabled;
+static unsigned int cp_owned_state_used;
+static int functional_camera_enabled,functional_camera_setup_error;
+static unsigned int functional_camera_control_used,functional_mpr_codec_used,functional_vdf_path_used;
+static unsigned int functional_mpr_binding,functional_vdf_binding;
+static unsigned int functional_histogram_binding,functional_histogram_used;
+static int functional_histogram_owner_pid;
+static unsigned int functional_background_start_binding,functional_background_start_used;
+static int functional_background_start_owner_pid;
+static _Thread_local struct { void *pointer; unsigned int destination; uint64_t cycle; } functional_background_start_ticket;
+struct functional_histogram_receive_ticket { void *pointer; unsigned int destination; uint64_t cycle; unsigned int ready; };
+static struct functional_histogram_receive_ticket functional_histogram_tickets[2];
+static unsigned int functional_layout_stage_binding,functional_layout_stage_used;
+static int functional_layout_stage_error;
+static _Thread_local struct { void *pointer; unsigned int destination; uint64_t cycle; } functional_layout_stage_ticket;
+static unsigned int functional_cp_zoom_used,functional_cp_zoom_binding;
+static int functional_cp_zoom_setup_error;
+static uint64_t functional_cp_zoom_sequence;
+static _Thread_local struct { void *pointer; unsigned int destination; uint64_t cycle; } functional_vdf_ticket;
+static void *functional_mpr_library_handle;
+static struct cp_start_state_provider cp_owned_start_state;
+static struct cp_parameter_state cp_owned_parameters;
+static struct cp_parameter_view cp_owned_parameter_view;
+static struct cp_property_stage cp_owned_property_stage;
+static struct cp_parameter_import cp_owned_parameter_import;
+static int cp_owned_bootstrap_inputs(void);
+static unsigned long cp_owned_state_mutex[6];
+static void observe_cp302c_3007_free(unsigned int,const unsigned char [12]);
 static unsigned int hdmi_config_used;
 static unsigned int audio_config_used;
 static unsigned int dig_level_used;
@@ -97,6 +220,11 @@ static unsigned int (*real_get_source)(void *);
 static void (*real_set_source)(void *, unsigned int);
 static unsigned int (*real_msg_size)(void *);
 static int (*real_rcv_msg_tmo)(unsigned int, void **, long);
+static int (*real_u_rcv_msg_tmo)(unsigned int, void **, long);
+static __thread unsigned int native_receive_depth;
+static int (*real_backup_get_datasize)(unsigned int);
+static int (*real_backup_nread)(unsigned int, void *, int);
+static int hdmi_video_backup_read(unsigned int,void *,unsigned int,unsigned int *);
 typedef struct { const char *dli_fname; void *dli_fbase; const char *dli_sname; void *dli_saddr; } Dl_info;
 static int (*real_dladdr)(void *, Dl_info *);
 extern int pthread_mutex_lock(void *);
@@ -614,6 +742,7 @@ static void initialize(void) {
     real_set_source = real_dlsym((void *)-1, "osal_set_msg_src");
     real_msg_size = real_dlsym((void *)-1, "osal_msg_size");
     real_rcv_msg_tmo = real_dlsym((void *)-1, "osal_rcv_msg_tmo");
+    real_u_rcv_msg_tmo = real_dlsym((void *)-1, "u_osal_rcv_msg_tmo");
     real_dladdr = real_dlsym((void *)-1, "dladdr");
     capid_enabled = getenv("QEMU_CAPID_SERVICE") && !getenv("MENU_OBSERVE_SELFTEST");
     (void)0;
@@ -647,6 +776,367 @@ static void initialize(void) {
         record("DISPLAY_INFO_GEOMETRY ", text);
     }
     dmm_enabled = getenv("QEMU_DMM_SERVICE") && !getenv("MENU_OBSERVE_SELFTEST");
+    const char *vef_profile=getenv("MENU_VEF_PATH");
+    vef_path_enabled=vef_profile && same_name(vef_profile,"virtual-nomem-v1");
+    if(vef_path_enabled) {
+        int resource_owner=full_vef_resources_owner_init(),path_owner=full_vef_path_owner_init();
+        if(resource_owner || path_owner)
+            record("FULL_VEF_RESOURCES_FAULT ","process-owner-inherited; resource entry will refuse before locks");
+    }
+    const char *adf_profile=getenv("MENU_ADF_PROC_PATH");
+    adf_proc_enabled=vef_path_enabled && adf_profile && same_name(adf_profile,"virtual-source7-idle-v1");
+    if(adf_proc_enabled && full_adf_proc_owner_init())
+        record("FULL_ADF_PROC_FAULT ","process-owner-inherited; resource entry will refuse before locks");
+    const char *input_profile=getenv("MENU_ADF_SET_INPUT");
+    adf_set_input_enabled=adf_proc_enabled && input_profile && same_name(input_profile,"virtual-input-s0-v1");
+    if(adf_set_input_enabled && full_adf_set_input_owner_init())
+        record("FULL_ADF_SET_INPUT_FAULT ","process-owner-inherited; resource entry will refuse before locks");
+    const char *output_profile=getenv("MENU_ADF_SET_OUTPUT");
+    full_adf_set_output_enabled=adf_set_input_enabled && output_profile &&
+        same_name(output_profile,"virtual-output-nochange-v1") &&
+        !getenv("MENU_OBSERVE_SELFTEST");
+    const char *const output_prerequisites[][2]={
+        {"MENU_BACKUP_SYNC","virtual-primary-v1"},{"MENU_CP_BACKGROUND","virtual-mode3-cold-v1"},
+        {"MENU_UDATE_DISTRIBUTION","virtual-roundtrip-v1"},{"MENU_TOUCH_PANEL","virtual-config-v1"},
+        {"MENU_TCIN_DETECT","virtual-inactive-v1"},{"MENU_DFS_SELECTOR","virtual-selector-v1"},
+        {"MENU_AUDIO_BOOT_CONFIG","1"},{"MENU_PIN_REGISTRY","1"},
+        {"MENU_PIN_CONTROL_MEMORY","1"},{"MENU_PIN_CONNECTION","cold"}};
+    const char *output_missing=full_adf_set_output_enabled?"none":"input-profile-or-selftest";
+    for(unsigned int i=0;full_adf_set_output_enabled && i<sizeof output_prerequisites/sizeof *output_prerequisites;i++) {
+        if(!same_name(getenv(output_prerequisites[i][0]),output_prerequisites[i][1])) {
+            full_adf_set_output_enabled=0;output_missing=output_prerequisites[i][0];
+        }
+    }
+    if(full_adf_set_output_enabled && full_adf_set_output_owner_init()) {
+        full_adf_set_output_enabled=0;output_missing="owner-init";
+        record("FULL_ADF_SET_OUTPUT_FAULT ","process-owner-inherited; output profile refused before locks");
+    }
+    if(output_profile) {
+        char text[260];snprintf(text,sizeof text,"requested=%s enabled=%u first_missing=%s pid=%d before_fork=1 ap_consumed=0 capture_verified=0",
+            output_profile,(unsigned int)full_adf_set_output_enabled,output_missing,getpid());
+        record("FULL_ADF_SET_OUTPUT_PROFILE ",text);
+    }
+    const char *bb_profile=getenv("MENU_BB_SET_MODE");
+    full_bb_set_mode_enabled=full_adf_set_output_enabled && bb_profile &&
+        same_name(bb_profile,FULL_BB_SET_MODE_PROFILE) && !getenv("MENU_OBSERVE_SELFTEST");
+    const char *bb_missing=full_bb_set_mode_enabled?"none":"output-profile-or-selftest";
+    if(full_bb_set_mode_enabled && full_bb_set_mode_owner_init()) {
+        full_bb_set_mode_enabled=0;bb_missing="owner-init";
+    }
+    if(full_bb_set_mode_enabled) {
+        struct full_bb_set_mode_snapshot bb_initial={0};full_bb_set_mode_snapshot(&bb_initial);
+        char text[340];snprintf(text,sizeof text,
+            "pid=%d owner_pid=%d initialized=%u state_word=%u state_epoch=%u prefix_messages=%u config_initialized=%u source_initialization_count=1 before_any_BB_input=1 original_cp_executed=0 live_CP_RAM_read=0 capture_verified=0",
+            getpid(),bb_initial.owner_pid,bb_initial.initialized,bb_initial.state_word,bb_initial.state_epoch,
+            bb_initial.prefix_messages,bb_initial.config_initialized);
+        record("FULL_BB_SET_MODE_OWNER_INIT ",text);
+    }
+    if(bb_profile) {
+        char text[280];snprintf(text,sizeof text,"requested=%s enabled=%u first_missing=%s pid=%d before_fork=1 source_state_policy=public_CP_data_initializer1 not_live_CP_RAM_read=1 capture_verified=0",
+            bb_profile,(unsigned int)full_bb_set_mode_enabled,bb_missing,getpid());
+        record("FULL_BB_SET_MODE_PROFILE ",text);
+    }
+    const char *imaging_connect_profile=getenv("MENU_IMAGING_CONNECT");
+    imaging_pin_connection_enabled=full_bb_set_mode_enabled && imaging_connect_profile &&
+        same_name(imaging_connect_profile,FULL_IMAGING_PIN_CONNECTION_PROFILE);
+    const char *imaging_missing=imaging_pin_connection_enabled?"none":"BB-profile-or-profile-value";
+    if(imaging_pin_connection_enabled && full_imaging_pin_connection_owner_init()) {
+        imaging_pin_connection_enabled=0;imaging_missing="owner-init";
+    }
+    if(imaging_connect_profile) {
+        struct full_imaging_pin_connection_snapshot initial={0};full_imaging_pin_connection_snapshot(&initial);
+        char text[400];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u cache=%u,%u,%u,%u,%u before_any_input=1 connection_verified=0 capture_verified=0",
+            imaging_connect_profile,(unsigned int)imaging_pin_connection_enabled,imaging_missing,getpid(),initial.owner_pid,initial.initialized,
+            initial.format.cache[0],initial.format.cache[1],initial.format.cache[2],initial.format.cache[3],initial.format.cache[4]);
+        record("FULL_IMAGING_PIN_CONNECT_PROFILE ",text);
+    }
+    const char *imaging_control_profile=getenv("MENU_IMAGING_CONTROL_CONNECT");
+    imaging_control_connection_enabled=imaging_pin_connection_enabled && imaging_control_profile &&
+        same_name(imaging_control_profile,FULL_IMAGING_CONTROL_CONNECTION_PROFILE);
+    const char *control_missing=imaging_control_connection_enabled?"none":"first-edge-profile-or-profile-value";
+    if(imaging_control_connection_enabled && full_imaging_control_connection_owner_init()) {
+        imaging_control_connection_enabled=0;control_missing="owner-init";
+    }
+    if(imaging_control_profile) {
+        struct full_imaging_control_connection_snapshot initial={0};full_imaging_control_connection_snapshot(&initial);
+        char text[360];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u marker_known=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            imaging_control_profile,(unsigned int)imaging_control_connection_enabled,control_missing,getpid(),initial.owner_pid,initial.initialized,initial.peer_marker_known);
+        record("FULL_IMAGING_CONTROL_CONNECT_PROFILE ",text);
+    }
+    const char *imaging_adf_profile=getenv("MENU_IMAGING_ADF_CONNECT");
+    imaging_adf_connection_enabled=imaging_control_connection_enabled && imaging_adf_profile &&
+        same_name(imaging_adf_profile,FULL_IMAGING_ADF_CONNECTION_PROFILE);
+    const char *adf_connection_missing=imaging_adf_connection_enabled?"none":"control-edge-profile-or-profile-value";
+    if(imaging_adf_connection_enabled && full_imaging_adf_connection_owner_init()) {
+        imaging_adf_connection_enabled=0;adf_connection_missing="owner-init";
+    }
+    if(imaging_adf_profile) {
+        struct full_imaging_adf_connection_snapshot initial={0};full_imaging_adf_connection_snapshot(&initial);
+        char text[360];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u no_format_checked=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            imaging_adf_profile,(unsigned int)imaging_adf_connection_enabled,adf_connection_missing,getpid(),initial.owner_pid,initial.initialized,initial.no_format_checked);
+        record("FULL_IMAGING_ADF_CONNECT_PROFILE ",text);
+    }
+    const char *infrabb_vef_profile=getenv("MENU_INFRABB_VEF_CONNECT");
+    infrabb_vef_connection_enabled=imaging_adf_connection_enabled && infrabb_vef_profile &&
+        same_name(infrabb_vef_profile,FULL_INFRABB_VEF_CONNECTION_PROFILE);
+    const char *infrabb_vef_missing=infrabb_vef_connection_enabled?"none":"ADF-edge-profile-or-profile-value";
+    if(infrabb_vef_connection_enabled && full_infrabb_vef_connection_owner_init()) {
+        infrabb_vef_connection_enabled=0;infrabb_vef_missing="owner-init";
+    }
+    if(infrabb_vef_profile) {
+        struct full_infrabb_vef_connection_snapshot initial={0};full_infrabb_vef_connection_snapshot(&initial);
+        char text[360];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u unadmitted_count=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            infrabb_vef_profile,(unsigned int)infrabb_vef_connection_enabled,infrabb_vef_missing,getpid(),initial.owner_pid,initial.initialized,initial.unadmitted_count);
+        record("FULL_INFRABB_VEF_CONNECT_PROFILE ",text);
+    }
+    const char *infrabb_vef_control_profile=getenv("MENU_INFRABB_VEF_CONTROL_CONNECT");
+    infrabb_vef_control_connection_enabled=infrabb_vef_connection_enabled && infrabb_vef_control_profile &&
+        same_name(infrabb_vef_control_profile,FULL_INFRABB_VEF_CONTROL_CONNECTION_PROFILE);
+    const char *infrabb_vef_control_missing=infrabb_vef_control_connection_enabled?"none":"VEF-data-edge-profile-or-profile-value";
+    if(infrabb_vef_control_connection_enabled && full_infrabb_vef_control_connection_owner_init()) {
+        infrabb_vef_control_connection_enabled=0;infrabb_vef_control_missing="owner-init";
+    }
+    if(infrabb_vef_control_profile) {
+        struct full_infrabb_vef_control_connection_snapshot initial={0};full_infrabb_vef_control_connection_snapshot(&initial);
+        char text[400];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u unadmitted_count=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            infrabb_vef_control_profile,(unsigned int)infrabb_vef_control_connection_enabled,infrabb_vef_control_missing,getpid(),initial.owner_pid,initial.initialized,initial.unadmitted_count);
+        record("FULL_INFRABB_VEF_CONTROL_CONNECT_PROFILE ",text);
+    }
+    const char *vef_pinmem_input_profile=getenv("MENU_VEF_PINMEM_INPUT_CONNECT");
+    vef_pinmem_input_connection_enabled=infrabb_vef_control_connection_enabled && vef_pinmem_input_profile &&
+        same_name(vef_pinmem_input_profile,FULL_VEF_PINMEM_INPUT_CONNECTION_PROFILE);
+    const char *vef_pinmem_input_missing=vef_pinmem_input_connection_enabled?"none":"VEF-control-edge-profile-or-profile-value";
+    if(vef_pinmem_input_connection_enabled && full_vef_pinmem_input_connection_owner_init()) {
+        vef_pinmem_input_connection_enabled=0;vef_pinmem_input_missing="owner-init";
+    }
+    if(vef_pinmem_input_profile) {
+        struct full_vef_pinmem_input_connection_snapshot initial={0};full_vef_pinmem_input_connection_snapshot(&initial);
+        char text[420];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u unadmitted_count=%u record_bound=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            vef_pinmem_input_profile,(unsigned int)vef_pinmem_input_connection_enabled,vef_pinmem_input_missing,getpid(),initial.owner_pid,initial.initialized,initial.unadmitted_count,initial.record_bound);
+        record("FULL_VEF_PINMEM_INPUT_CONNECT_PROFILE ",text);
+    }
+    const char *vef_pinmem_control_profile=getenv("MENU_VEF_PINMEM_CONTROL_CONNECT");
+    vef_pinmem_control_connection_enabled=vef_pinmem_input_connection_enabled && vef_pinmem_control_profile &&
+        same_name(vef_pinmem_control_profile,FULL_VEF_PINMEM_CONTROL_CONNECTION_PROFILE);
+    const char *vef_pinmem_control_missing=vef_pinmem_control_connection_enabled?"none":"sixth-edge-profile-or-profile-value";
+    if(vef_pinmem_control_connection_enabled && full_vef_pinmem_control_connection_owner_init()) {
+        vef_pinmem_control_connection_enabled=0;vef_pinmem_control_missing="owner-init";
+    }
+    if(vef_pinmem_control_profile) {
+        struct full_vef_pinmem_control_connection_snapshot initial={0};full_vef_pinmem_control_connection_snapshot(&initial);
+        char text[420];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            vef_pinmem_control_profile,(unsigned int)vef_pinmem_control_connection_enabled,vef_pinmem_control_missing,getpid(),initial.owner_pid,initial.initialized);
+        record("FULL_VEF_PINMEM_CONTROL_CONNECT_PROFILE ",text);
+    }
+    const char *pinmem_peer_profile=getenv("MENU_PINMEM_PEER_CONNECT");
+    pinmem_peer_connections_enabled=vef_pinmem_control_connection_enabled && pinmem_peer_profile &&
+        same_name(pinmem_peer_profile,FULL_PINMEM_PEER_CONNECTIONS_PROFILE);
+    const char *pinmem_peer_missing=pinmem_peer_connections_enabled?"none":"seventh-edge-profile-or-profile-value";
+    if(pinmem_peer_connections_enabled && (full_scalar_connection_owner_init() ||
+            full_adf_connection_owner_init() || full_pinmem_drawinfo_connection_owner_init())) {
+        pinmem_peer_connections_enabled=0;pinmem_peer_missing="owner-init";
+    }
+    if(pinmem_peer_profile) {
+        struct scalar_connection_snapshot scalar={0},adf={0},drawinfo={0};
+        full_scalar_connection_snapshot(&scalar);full_adf_connection_snapshot(&adf);full_pinmem_drawinfo_connection_snapshot(&drawinfo);
+        char text[500];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pids=%d,%d,%d initialized=%u,%u,%u before_any_input=1 connections_verified=0 capture_verified=0",
+            pinmem_peer_profile,(unsigned int)pinmem_peer_connections_enabled,pinmem_peer_missing,getpid(),
+            scalar.owner_pid,adf.owner_pid,drawinfo.owner_pid,scalar.initialized,adf.initialized,drawinfo.initialized);
+        record("FULL_PINMEM_PEER_CONNECT_PROFILE ",text);
+    }
+    const char *pinmem_hdmi_video_profile=getenv("MENU_PINMEM_HDMI_VIDEO_CONNECT");
+    pinmem_hdmi_video_connection_enabled=pinmem_peer_connections_enabled && pinmem_hdmi_video_profile &&
+        same_name(pinmem_hdmi_video_profile,FULL_PINMEM_HDMI_VIDEO_CONNECTION_PROFILE);
+    const char *pinmem_hdmi_video_missing=pinmem_hdmi_video_connection_enabled?"none":"PinMem-peer-chain-profile-or-profile-value";
+    if(pinmem_hdmi_video_connection_enabled && (full_hdmi_video_state_owner_init() ||
+            full_pinmem_hdmi_video_connection_owner_init())) {
+        pinmem_hdmi_video_connection_enabled=0;pinmem_hdmi_video_missing="owner-init";
+    }
+    if(pinmem_hdmi_video_profile) {
+        struct full_pinmem_hdmi_video_connection_snapshot initial={0};
+        struct full_hdmi_video_state_snapshot hdmi_initial={0};
+        full_pinmem_hdmi_video_connection_snapshot(&initial);full_hdmi_video_state_snapshot(&hdmi_initial);
+        char text[640];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u hdmi_owner_pid=%d hdmi_initialized=%u hdmi_state=%u initializing=%u hdmi_history_known=%u source_gate_known=%u source_gate=%u source_history_known=%u before_any_input=1 original_cp_executed=0 hardware_verified=0 frames_verified=0 connection_verified=0 capture_verified=0",
+            pinmem_hdmi_video_profile,(unsigned int)pinmem_hdmi_video_connection_enabled,pinmem_hdmi_video_missing,getpid(),
+            initial.connection.owner_pid,initial.connection.initialized,hdmi_initial.owner_pid,hdmi_initial.initialized,
+            hdmi_initial.state_id,hdmi_initial.current_initializing,hdmi_initial.history_known,
+            initial.source_gate_known,initial.source_gate,initial.source_history_known);
+        record("FULL_PINMEM_HDMI_VIDEO_CONNECT_PROFILE ",text);
+    }
+    const char *pinmem_osd_profile=getenv("MENU_PINMEM_OSD_CONNECT");
+    pinmem_osd_connection_enabled=pinmem_peer_connections_enabled && pinmem_osd_profile &&
+        same_name(pinmem_osd_profile,FULL_PINMEM_OSD_CONNECTION_PROFILE);
+    const char *pinmem_osd_missing=pinmem_osd_connection_enabled?"none":"PinMem-peer-chain-profile-or-profile-value";
+    if(pinmem_osd_connection_enabled && full_pinmem_osd_connection_owner_init()) {
+        pinmem_osd_connection_enabled=0;pinmem_osd_missing="owner-init";
+    }
+    if(pinmem_osd_profile) {
+        struct full_pinmem_osd_connection_snapshot initial={0};full_pinmem_osd_connection_snapshot(&initial);
+        char text[460];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u before_any_input=1 original_cp_executed=0 hardware_verified=0 metadata_ready=0 gpe_ready=0 frames_verified=0 connection_verified=0 capture_verified=0",
+            pinmem_osd_profile,(unsigned int)pinmem_osd_connection_enabled,pinmem_osd_missing,getpid(),initial.owner_pid,initial.initialized);
+        record("FULL_PINMEM_OSD_CONNECT_PROFILE ",text);
+    }
+    const char *adf_hdmi_audio_profile=getenv("MENU_ADF_HDMI_AUDIO_CONNECT");
+    adf_hdmi_audio_connection_enabled=pinmem_peer_connections_enabled && adf_hdmi_audio_profile &&
+        same_name(adf_hdmi_audio_profile,FULL_ADF_HDMI_AUDIO_CONNECTION_PROFILE);
+    const char *adf_hdmi_audio_missing=adf_hdmi_audio_connection_enabled?"none":"PinMem-peer-chain-profile-or-profile-value";
+    if(adf_hdmi_audio_connection_enabled && full_adf_hdmi_audio_connection_owner_init()) {
+        adf_hdmi_audio_connection_enabled=0;adf_hdmi_audio_missing="owner-init";
+    }
+    if(adf_hdmi_audio_profile) {
+        struct full_adf_hdmi_audio_connection_snapshot initial={0};full_adf_hdmi_audio_connection_snapshot(&initial);
+        char text[420];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u before_any_input=1 connection_verified=0 capture_verified=0",
+            adf_hdmi_audio_profile,(unsigned int)adf_hdmi_audio_connection_enabled,adf_hdmi_audio_missing,getpid(),initial.owner_pid,initial.initialized);
+        record("FULL_ADF_HDMI_AUDIO_CONNECT_PROFILE ",text);
+    }
+    if(pinmem_hdmi_video_connection_enabled) {
+        real_backup_get_datasize=real_dlsym((void *)-1,"Backup_get_datasize");
+        real_backup_nread=real_dlsym((void *)-1,"Backup_nread");
+        int rc=real_backup_get_datasize && real_backup_nread?
+            full_hdmi_video_state_bind_backup(hdmi_video_backup_read):-1021;
+        if(!rc)rc=full_hdmi_video_state_bind_kernel_observer(full_hdmi_upm_receipt);
+        if(rc)pinmem_hdmi_video_connection_enabled=0;
+        char text[240];snprintf(text,sizeof text,
+            "pid=%d size_api=%u bounded_read_api=%u bind_rc=%d enabled=%u before_any_input=1 reads=0 original_cp_executed=0 capture_verified=0",
+            getpid(),(unsigned int)(real_backup_get_datasize!=0),(unsigned int)(real_backup_nread!=0),rc,
+            (unsigned int)pinmem_hdmi_video_connection_enabled);
+        record("FULL_HDMI_VIDEO_BACKUP_BIND ",text);
+    }
+    const char *cp302c_profile=getenv("MENU_CP302C_NO_TRANSITION");
+    const char *cp302c_diagnostic_profile=getenv("MENU_CP302C_DIAGNOSTIC");
+    int cp302c_strict_requested=cp302c_profile && *cp302c_profile;
+    int cp302c_diagnostic_requested=cp302c_diagnostic_profile && *cp302c_diagnostic_profile;
+    cp302c_diagnostic_enabled=!cp302c_strict_requested &&
+        same_name(cp302c_diagnostic_profile,FULL_CP302C_DIAGNOSTIC_PROFILE);
+    cp302c_no_transition_enabled=pinmem_hdmi_video_connection_enabled && pinmem_osd_connection_enabled &&
+        adf_hdmi_audio_connection_enabled && same_name(getenv("MENU_CP_BACKGROUND"),"virtual-mode3-cold-v1") &&
+        ((!cp302c_diagnostic_requested && same_name(cp302c_profile,FULL_CP302C_NO_TRANSITION_PROFILE)) ||
+         cp302c_diagnostic_enabled);
+    cp302c_diagnostic_enabled=cp302c_diagnostic_enabled && cp302c_no_transition_enabled;
+    const char *cp302c_missing=cp302c_no_transition_enabled?"none":"all13-public-background-chain-or-profile";
+    if(cp302c_no_transition_enabled && ((cp302c_diagnostic_enabled?
+            native_cp302c_diagnostic_owner_init():native_cp302c_owner_init()) ||
+            native_cp_background_bind_free_observer(observe_cp302c_3007_free))) {
+        cp302c_no_transition_enabled=cp302c_diagnostic_enabled=0;cp302c_missing="owner-or-observer-init";
+    }
+    if(cp302c_profile || cp302c_diagnostic_profile) {
+        struct native_cp302c_snapshot initial={0};native_cp302c_snapshot(&initial);
+        char text[640];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u history_valid=%u current_known=%u current=%u before_any_input=1 diagnostic_only=%u no_transition_only=%u normal_3041_supported=0 mode_transition_verified=0 module_completion_verified=0 original_cp_executed=0 capture_verified=0",
+            cp302c_diagnostic_requested?cp302c_diagnostic_profile:(cp302c_profile?cp302c_profile:""),
+            (unsigned int)cp302c_no_transition_enabled,cp302c_missing,getpid(),initial.owner_pid,
+            initial.initialized,initial.history_valid,initial.current_known,initial.current,
+            (unsigned int)cp302c_diagnostic_enabled,(unsigned int)(cp302c_no_transition_enabled && !cp302c_diagnostic_enabled));
+        record(cp302c_diagnostic_requested?"NATIVE_CP302C_DIAGNOSTIC_PROFILE ":"NATIVE_CP302C_NOCONVERT_PROFILE ",text);
+    }
+    const char *cp_notification_profile=getenv("MENU_CP_NOTIFICATION_CONTROL");
+    cp_notification_control_enabled=cp302c_diagnostic_enabled &&
+        same_name(cp_notification_profile,FULL_CP_NOTIFICATION_MODE0_PROFILE);
+    const char *cp_notification_missing=cp_notification_control_enabled?"none":"diagnostic-302c-chain-or-profile";
+    if(cp_notification_control_enabled && (native_cp_notification_owner_init() ||
+            cp_parameter_batch_init(&cp_parameter_batch_state,true) ||
+            cp_output_policy_init(&cp_output_policy_state,true))) {
+        cp_notification_control_enabled=0;cp_notification_missing="owner-init";
+    }
+    if(cp_notification_profile) {
+        struct native_cp_notification_snapshot initial={0};native_cp_notification_snapshot(&initial);
+        char text[440];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u virtual_mode_policy=%u notification_mode=%u before_any_input=1 source_CP_RAM_read=0 native_verified=0 EE_verified=0 capture_verified=0",
+            cp_notification_profile,(unsigned int)cp_notification_control_enabled,cp_notification_missing,getpid(),
+            initial.owner_pid,initial.initialized,initial.virtual_mode_policy,initial.notification_mode);
+        record("NATIVE_CP_NOTIFICATION_PROFILE ",text);
+    }
+    const char *capture_format_profile=getenv("MENU_CP_CAPTURE_FORMAT");
+    int owned_state_requested=same_name(capture_format_profile,"virtual-cp-owned-state-v1");
+    cp_capture_format_enabled=cp_notification_control_enabled &&
+        (same_name(capture_format_profile,FULL_CP_CAPTURE_FORMAT_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_STARTUP_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_EE_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested);
+    const char *capture_format_missing=cp_capture_format_enabled?"none":"notification-predecessor-or-profile";
+    if(cp_capture_format_enabled && native_cp_capture_format_diagnostic_owner_init()) {
+        cp_capture_format_enabled=0;capture_format_missing="owner-init";
+    }
+    if(capture_format_profile) {
+        struct native_cp_capture_format_diagnostic_snapshot initial={0};
+        native_cp_capture_format_diagnostic_snapshot(&initial);
+        char text[400];snprintf(text,sizeof text,
+            "requested=%s enabled=%u first_missing=%s pid=%d owner_pid=%d initialized=%u diagnostic_only=%u no_publication=%u before_any_input=1 business_applied=0 source_dependency_closed=0 native_verified=0 EE_verified=0 capture_verified=0",
+            capture_format_profile,(unsigned int)cp_capture_format_enabled,capture_format_missing,getpid(),
+            initial.owner_pid,initial.initialized,initial.diagnostic_only,initial.no_publication);
+        record("NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_PROFILE ",text);
+    }
+    cp_startup_controls_enabled=cp_capture_format_enabled &&
+        (same_name(capture_format_profile,FULL_CP_STARTUP_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_EE_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested);
+    if(cp_startup_controls_enabled && native_cp_startup_controls_diagnostic_owner_init())
+        cp_startup_controls_enabled=0;
+    if(same_name(capture_format_profile,FULL_CP_STARTUP_DIAGNOSTIC_PROFILE) ||
+       same_name(capture_format_profile,FULL_CP_EE_DIAGNOSTIC_PROFILE) ||
+       same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested) {
+        char text[300];snprintf(text,sizeof text,
+            "requested=%s enabled=%u pid=%d before_any_input=1 diagnostic_only=1 command_count=3 business_applied=0 published=0 generation=0 native_verified=0 EE_verified=0 capture_verified=0",
+            capture_format_profile,(unsigned int)cp_startup_controls_enabled,getpid());
+        record("NATIVE_CP_STARTUP_DIAGNOSTIC_PROFILE ",text);
+    }
+    cp_ee_controls_enabled=cp_startup_controls_enabled &&
+        (same_name(capture_format_profile,FULL_CP_EE_DIAGNOSTIC_PROFILE) ||
+         same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested);
+    if(cp_ee_controls_enabled && native_cp_ee_controls_diagnostic_owner_init())cp_ee_controls_enabled=0;
+    if(same_name(capture_format_profile,FULL_CP_EE_DIAGNOSTIC_PROFILE) ||
+       same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested) {
+        char text[320];snprintf(text,sizeof text,
+            "requested=%s enabled=%u pid=%d before_any_input=1 diagnostic_only=1 command_count=3 oneway_4072=1 data_3003_supported=0 business_applied=0 published=0 generation=0 native_verified=0 EE_verified=0 capture_verified=0",
+            capture_format_profile,(unsigned int)cp_ee_controls_enabled,getpid());
+        record("NATIVE_CP_EE_DIAGNOSTIC_PROFILE ",text);
+    }
+    cp_movie_format_enabled=cp_ee_controls_enabled &&
+        (same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested);
+    if(cp_movie_format_enabled && native_cp_movie_format_diagnostic_owner_init()) {
+        cp_movie_format_enabled=cp_ee_controls_enabled=0;
+    }
+    if(same_name(capture_format_profile,FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE) || owned_state_requested) {
+        char text[320];snprintf(text,sizeof text,
+            "requested=%s enabled=%u EE_controls_enabled=%u pid=%d before_any_input=1 diagnostic_only=1 request_bytes=20 data_3003_supported=0 business_applied=0 published=0 generation=0 native_verified=0 EE_verified=0 capture_verified=0",
+            capture_format_profile,(unsigned int)cp_movie_format_enabled,(unsigned int)cp_ee_controls_enabled,getpid());
+        record("NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE ",text);
+    }
+    cp_owned_state_enabled=owned_state_requested && cp_movie_format_enabled;
+    int owned_parameter_reset_rc=-ENODATA;
+    if(cp_owned_state_enabled && (cp_start_state_provider_init(&cp_owned_start_state) ||
+       cp_parameter_state_init(&cp_owned_parameters,true) ||
+       (owned_parameter_reset_rc=cp_parameter_state_consume_common_stores(&cp_owned_parameters)) ||
+       cp_owned_bootstrap_inputs() || native_cp_state_publication_owner_init()))
+        cp_owned_state_enabled=0;
+    if(owned_state_requested) {
+        char text[512];snprintf(text,sizeof text,
+            "requested=%s enabled=%u pid=%d before_any_input=1 constructor_data_known=0 parameter_reset_store_consumed=%u parameter_reset_bytes=%u parameter_common_local_bytes=%u initialization_complete=0 provider_policy=actual-source-inputs-only repository_fallback=0 full_state_blocks=76 business_applied=0 published=0 EE=0 frame=0 capture=0",
+            capture_format_profile,(unsigned int)cp_owned_state_enabled,getpid(),
+            (unsigned int)(owned_parameter_reset_rc==0),owned_parameter_reset_rc==0?8u:0u,
+            owned_parameter_reset_rc==0?CP_PARAMETER_STATE_COMMON_LOCAL_BYTES:0u);
+        record("NATIVE_CP_OWNED_STATE_PROFILE ",text);
+    }
+    const char *functional_profile=getenv("MENU_FUNCTIONAL_CAMERA");
+    functional_camera_enabled=same_name(functional_profile,FCAM_PROFILE) && cp_owned_state_enabled;
+    if(functional_camera_enabled && native_functional_camera_control_owner_init())functional_camera_enabled=0;
+    if(functional_profile){
+        char text[360];snprintf(text,sizeof text,
+            "requested=%s enabled=%u pid=%d abi=1 functional_model=1 image_bus=RGB888 before_any_input=1 backend_initialized=0 constructor_RPC=0 physical_ASIC_verified=0 original_CP=0 capture_verified=0",
+            functional_profile,(unsigned int)functional_camera_enabled,getpid());
+        record("FUNCTIONAL_CAMERA_PROFILE ",text);
+    }
     software_gpe = getenv("QEMU_SOFTWARE_GPE") && !getenv("MENU_OBSERVE_SELFTEST");
     software_rgba4444 = software_gpe && getenv("QEMU_GPE_RGBA4444");
     headless_osd_enabled = getenv("MENU_HEADLESS_OSD") &&
@@ -699,10 +1189,11 @@ static void record(const char *prefix, const char *name) {
         static const char *mirrored[] = {
             "FULL_HDMIPIN_",
             "FULL_OSDPIN_",
-            "FULL_AUDIO_",
+            "FULL_AUDIO_", "FULL_BB_SET_MODE_", "FULL_BB_MODE_",
+            "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_",
             "FULL_DMM_UNIT_",
-            "NATIVE_CP_BACKGROUND_",
+            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
             "GUI_PROPERTY_",
@@ -710,21 +1201,24 @@ static void record(const char *prefix, const char *name) {
             "BT_ERROR_",
             "POWER_", "SHUTDOWN_", "SD_ACK_",
             "INPUT_EVENT32 ",
+            "SHUTTER_ROUTE", "SHUTTER_DETAIL_", "SHUTTER_DISPATCH ", "SHUTTER_TARGET ", "SHUTTER_HANDLER ", "SHUTTER_FLOW ", "SHUTTER_API ", "SHUTTER_MODE ", "SYSTEM_MODE ", "EE_SEQUENCE ", "SEQUENCE_QUEUE ", "SEQUENCE_CREATE ", "MODE_FACTORY ", "MODE_DEPENDENCY ", "MODE_WORKER ", "MODE_SCHEDULE ", "CLOCK_SEQUENCE ",
+            "LIVEVIEW_",
+            "JPEG_",
             "OSD_SUBMIT_MODE ",
             "MODE_ICON_VALUE ", "MODE_ICON_CONSUMER ",
             "FULL_DRAWINFO_",
             "FULL_PIN_",
-            "SEQ_FINISH_LIMIT ", "PIN_QUERY ", "PIN_CONTROL_REQUEST ", "FULL_INFRABB_", "FULL_VEF_", "FULL_PINMEM_", "FULL_SCALAR_", "FULL_ADF_",
-            "FULL_HDMI_", "FULL_VDF_", "PIPELINE_REQ ", "PIPELINE_REPLY ", "PIPELINE_VREQ ", "PIPELINE_VREPLY ", "PIPELINE_VFAIL ", "PIPELINE_ARM ", "PIPELINE_ARM_FAILED ", "PIPELINE_FAILED ", "PIPELINE_NO_REPLY ", "APPLOG ", "APPFW_LOG ", "DATE_ADD_CALL ", "OPT_WORKER_ENTER ", "OPT_SEND_ENTER ", "OPT_READY ", "ASSERT_CALLER ", "NULL_OBJ_SITE ", "BOOT_FACTOR_BRANCH ", "BOOT_POST_EE ", "HONEST_HOOK ", "HONEST_HOOK_FAILED ", "HONEST_ROUTE ", "HONEST_ROUTE_SYNC ", "REG_747 ", "SHOOTING_ENTER ", "RUN_I_RET ", "RUN_I_GATE ", "SEQ4BD_CREATE ", "SEQ4BD_STAGE ", "SEQ4BD_MADE ", "KEY_INJECT ", "OBJ_DISPATCH ", "BOOT_FULFIL ", "SYNC_CALL ", "SYNC_MSG ", "AVBBC ", "BUSPOWER ", "CRYPT_LIB ", "CP_TIME_SERVICE ", "CP_RELEASE_SERVICE ", "XFer_REQ ", "ASYNC_SEND ", "SEQ_BOOT_RUN_ENTER ", "SEQ_QUEUE_LOOP ", "SEQ_DEP_WAIT ", "SEQ_DEQUEUE ", "BOOT_SEQ_STEP ", "SEQ_FACTORY ", "SEQ_BOOT_CTOR ", "SEQ_FINISH ", "POOL_WORKER ", "ENTRY_PROBE_", "SYNC_DIRECT ", "MENU_CONTROLLER_SEEN ", "MENU_CTOR_PROBE", "BUILD2_", "MENU_INIT_SKIPPED ", "MODE_SENTINELS", "MODE_SLOT ", "MODE_SLOT4 ", "POINTER_SCAN ", "MODE_ACTIVATE", "FORCE_OPEN_", "FORCE_OPEN_FIELDS ", "FORCE_OPEN_SKIPPED ", "OBSERVER_READY ", "FORCE_SET_ENTER ", "MENU_BUILD_", "MENU_OPEN_", "MENU_INIT_", "MENU_APPLY_", "MANAGER_", "FORCE_SET_BEGIN ", "FORCE_SET ", "CREATE_SCREEN_", "VIEW_SLOT_CALLED ", "FACTORY_CALL ", "CTOR_", "BLIT", "OPEN_SET", "SCREEN_REGISTRY", "OSD_", "FRAME_", "VIEW_CONTENT", "RESOURCE_", "GPE_RGBA_" };
+            "SEQ_FINISH_LIMIT ", "HDMI_PHOTO_REQUEST ", "HDMI_PHOTO_SERVICE ", "PIN_HDMI_SERVICE ", "PIN_QUERY ", "PIN_CONTROL_REQUEST ", "FULL_INFRABB_", "FULL_INFRAIMAGING_", "FULL_IMAGING_PIN_CONNECT_", "FULL_IMAGING_CONTROL_CONNECT_", "FULL_IMAGING_ADF_CONNECT_", "FULL_INFRABB_VEF_CONNECT_", "FULL_INFRABB_VEF_FORWARD_", "FULL_INFRABB_VEF_CONTROL_CONNECT_", "FULL_VEF_PINMEM_INPUT_CONNECT_", "FULL_VEF_", "FULL_PINMEM_", "FULL_SCALAR_", "FULL_ADF_",
+            "FULL_HDMI_", "FULL_VDF_", "PIPELINE_REQ ", "PIPELINE_REPLY ", "PIPELINE_VREQ ", "PIPELINE_VREPLY ", "PIPELINE_VFAIL ", "PIPELINE_ARM ", "PIPELINE_ARM_FAILED ", "PIPELINE_FAILED ", "PIPELINE_NO_REPLY ", "APPLOG ", "APPFW_LOG ", "DATE_ADD_CALL ", "OPT_WORKER_ENTER ", "OPT_SEND_ENTER ", "OPT_READY ", "ASSERT_CALLER ", "NULL_OBJ_SITE ", "BOOT_FACTOR_BRANCH ", "BOOT_POST_EE ", "HONEST_HOOK ", "HONEST_HOOK_FAILED ", "HONEST_ROUTE ", "HONEST_ROUTE_SYNC ", "REG_747 ", "SHOOTING_ENTER ", "RUN_I_RET ", "RUN_I_GATE ", "MODE_TRANSITION ", "ENTER_REC_STILL ", "UPM_MODEL_ERROR ", "BOOT_FATAL_409 ", "BOOT_FATAL_COMMON ", "RETURN_HANDLE ", "SEQ4BD_CREATE ", "SEQ4BD_STAGE ", "SEQ4BD_MADE ", "KEY_INJECT ", "OBJ_DISPATCH ", "BOOT_FULFIL ", "SYNC_CALL ", "SYNC_MSG ", "AVBBC ", "BUSPOWER ", "CRYPT_LIB ", "CP_TIME_SERVICE ", "CP_RELEASE_SERVICE ", "XFer_REQ ", "ASYNC_SEND ", "SEQ_BOOT_RUN_ENTER ", "SEQ_QUEUE_LOOP ", "SEQ_DEP_WAIT ", "SEQ_DEQUEUE ", "BOOT_SEQ_STEP ", "SEQ_FACTORY ", "SEQ_BOOT_CTOR ", "SEQ_FINISH ", "POOL_WORKER ", "ENTRY_PROBE_", "SYNC_DIRECT ", "MENU_CONTROLLER_SEEN ", "MENU_CTOR_PROBE", "BUILD2_", "MENU_INIT_SKIPPED ", "MODE_SENTINELS", "MODE_SLOT ", "MODE_SLOT4 ", "POINTER_SCAN ", "MODE_ACTIVATE", "FORCE_OPEN_", "FORCE_OPEN_FIELDS ", "FORCE_OPEN_SKIPPED ", "OBSERVER_READY ", "FORCE_SET_ENTER ", "MENU_BUILD_", "MENU_OPEN_", "MENU_INIT_", "MENU_APPLY_", "MANAGER_", "FORCE_SET_BEGIN ", "FORCE_SET ", "CREATE_SCREEN_", "VIEW_SLOT_CALLED ", "FACTORY_CALL ", "CTOR_", "BLIT", "OPEN_SET", "SCREEN_REGISTRY", "OSD_", "FRAME_", "VIEW_CONTENT", "RESOURCE_", "GPE_RGBA_" };
         for (unsigned int i = 0; i < sizeof mirrored / sizeof mirrored[0]; ++i) {
             const char *want = mirrored[i];
             unsigned int k = 0;
             while (want[k] && prefix[k] == want[k]) ++k;
             if (!want[k]) {
-                char line[768];
+                char line[4096];
                 int n = snprintf(line, sizeof line, "OBS %s%s\n", prefix, name ? name : "");
                 if (n > 0) {
-                    if ((unsigned int)n >= sizeof line) n = sizeof line - 1;
+                    if ((unsigned int)n >= sizeof line) { n = sizeof line - 1;line[n-1]='\n'; }
                     /* stderr is redirected into /tmp/im.log by the launcher, so mirror into the kernel
                        log instead: /dev/kmsg lines land in the console capture even if the guest aborts. */
                     static int kmsg = -2;
@@ -1301,6 +1795,37 @@ PROBE_RESTORE_ARGS
 );
 extern void bootseq_probe_trampoline(void), bootfactory_probe_trampoline(void), bootctor_probe_trampoline(void);
 static unsigned int queue_loop_seen, dep_wait_seen;
+void capture_mode_worker(unsigned long control) {
+    int saved_errno = *__errno_location();
+    unsigned int id = 0, first = 0xffffffffU, second = 0xffffffffU;
+    unsigned long begin = 0, end = 0;
+    int fd = open("/proc/self/mem", 0);
+    long id_bytes = fd < 0 ? -1 : pread(fd, &id, 4, (long)(control + 0x8));
+    long begin_bytes = -1, end_bytes = -1, first_bytes = -1, second_bytes = -1;
+    if (fd >= 0 && (id == 0x2f || id == 0x83)) {
+        begin_bytes = pread(fd, &begin, 8, (long)(control + 0x1a0));
+        end_bytes = pread(fd, &end, 8, (long)(control + 0x1a8));
+        if (begin_bytes == 8 && end_bytes == 8 && begin && end >= begin + 0x18)
+            first_bytes = pread(fd, &first, 4, (long)(begin + 0x10));
+        if (begin_bytes == 8 && end_bytes == 8 && begin && end >= begin + 0x30)
+            second_bytes = pread(fd, &second, 4, (long)(begin + 0x28));
+    }
+    if (fd >= 0) close(fd);
+    if (id == 0x2f || id == 0x83) {
+        static unsigned int seen;
+        unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+        if (n <= 16) {
+            unsigned long deps = begin && end >= begin ? (end - begin) / 0x18 : 0;
+            char text[360];
+            snprintf(text, sizeof text,
+                     "n=%u tid=%ld sequence_id=%#x deps=%lu first_dep=%#x second_dep=%#x control=%#lx reads=%ld/%ld/%ld/%ld/%ld observation_only=1",
+                     n, syscall(178), id, deps, first, second, control,
+                     id_bytes, begin_bytes, end_bytes, first_bytes, second_bytes);
+            record("MODE_WORKER ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
 void capture_queue_loop(unsigned long manager, unsigned long group_struct, unsigned long unused) {
     if (queue_loop_seen < 12) {
         char text[176];
@@ -1311,6 +1836,7 @@ void capture_queue_loop(unsigned long manager, unsigned long group_struct, unsig
     } else ++queue_loop_seen;
 }
 void capture_dep_wait(unsigned long descriptor, unsigned long unused1, unsigned long unused2) {
+    if (descriptor) capture_mode_worker(descriptor);
     if (descriptor && dep_wait_seen < 24) {
         char text[176];
         unsigned long deps = descriptor;
@@ -1353,6 +1879,16 @@ PROBE_RESTORE_ARGS
 "    br x16\n"
 );
 extern void queue_loop_probe_trampoline(void), dep_wait_probe_trampoline(void);
+static void arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
+                            void *continue_address, const char *label);
+static int dep_wait_probe_armed;
+static void install_dep_wait_probe(unsigned long base) {
+    if (dep_wait_probe_armed) return;
+    dep_wait_probe_armed = 1;
+    dep_wait_continue = (void *)(base + 0x303cb84UL + 16);
+    arm_entry_probe(base + 0x303cb84UL, (const unsigned int[4]){0xa9bd7bfd, 0xb201f3e2, 0xf2955562, 0x910003fd},
+                    (void *)dep_wait_probe_trampoline, dep_wait_continue, "predecessor wait 0x303cb84");
+}
 /* 0x3599b68(payload_ptr, payload, w2=destination SID, w3=source id) is the "allocate an async message
    for a destination, then send it" helper. The group-0 sequence worker blocks on the future of one such
    request, so logging the destination here names the subsystem that never answers. Read-only. */
@@ -1726,6 +2262,2053 @@ static void arm_entry_probe(unsigned long target, const unsigned int expected[4]
     if (mprotect((void *)page, 4096, 5) != 0) record("ENTRY_PROBE_REPROTECT_FAILED ", label);
     record("ENTRY_PROBE_ARMED ", label);
 }
+/* Original request objects are observed only during their owning call. */
+static unsigned int liveview_request_count, liveview_consume_count, liveview_run_count;
+static void *liveview_request_continue, *liveview_consume_continue, *liveview_run_continue;
+void capture_liveview_request(unsigned long data, unsigned int flag, unsigned long callback,
+                              unsigned long caller) {
+    unsigned int count = __atomic_fetch_add(&liveview_request_count, 1, __ATOMIC_RELAXED);
+    if (count >= 8) return;
+    int saved_errno = *__errno_location();
+    char text[192];
+    snprintf(text, sizeof text, "n=%u tid=%ld data=%#lx flag=%u callback=%#lx caller=appFw+%#lx",
+             count, syscall(178), data, flag, callback, caller-appfw_base);
+    record("LIVEVIEW_REQUEST_API ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_liveview_consume(unsigned long object) {
+    unsigned int count = __atomic_fetch_add(&liveview_consume_count, 1, __ATOMIC_RELAXED);
+    if (count >= 8) return;
+    int saved_errno = *__errno_location();
+    unsigned int words[2] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long bytes = fd < 0 ? -1 : pread(fd, words, sizeof words, (long)object);
+    if (fd >= 0) close(fd);
+    char text[160];
+    snprintf(text, sizeof text, "n=%u tid=%ld object=%#lx bytes=%ld id=%#x flag=%u",
+             count, syscall(178), object, bytes, words[0], words[1]);
+    record("LIVEVIEW_CONSUME ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_liveview_run(unsigned long object) {
+    unsigned int count = __atomic_fetch_add(&liveview_run_count, 1, __ATOMIC_RELAXED);
+    if (count >= 8) return;
+    int saved_errno = *__errno_location();
+    char text[128];
+    snprintf(text, sizeof text, "n=%u tid=%ld object=%#lx", count, syscall(178), object);
+    record("LIVEVIEW_RUN ", text);
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl liveview_request_trampoline\n"
+".type liveview_request_trampoline, %function\n"
+"liveview_request_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x30\n"
+"    bl capture_liveview_request\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f4\n"
+"    adrp x16, liveview_request_continue\n"
+"    ldr x16, [x16, #:lo12:liveview_request_continue]\n"
+"    br x16\n"
+".globl liveview_consume_trampoline\n"
+".type liveview_consume_trampoline, %function\n"
+"liveview_consume_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl capture_liveview_consume\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, liveview_consume_continue\n"
+"    ldr x16, [x16, #:lo12:liveview_consume_continue]\n"
+"    br x16\n"
+".globl liveview_run_trampoline\n"
+".type liveview_run_trampoline, %function\n"
+"liveview_run_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl capture_liveview_run\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b97bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, liveview_run_continue\n"
+"    ldr x16, [x16, #:lo12:liveview_run_continue]\n"
+"    br x16\n"
+);
+extern void liveview_request_trampoline(void), liveview_consume_trampoline(void), liveview_run_trampoline(void);
+static void install_liveview_trace(unsigned long base) {
+    liveview_request_continue = (void *)(base + 0x2502e34UL);
+    liveview_consume_continue = (void *)(base + 0x2483198UL);
+    liveview_run_continue = (void *)(base + 0x309b83cUL);
+    /* Validate every target before changing any entry. */
+    const unsigned long offsets[3] = {0x2502e24UL,0x2483188UL,0x309b82cUL};
+    const unsigned int expected[3][4] = {
+        {0xa9ba7bfd,0x910003fd,0xa90153f3,0xaa0003f4},
+        {0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},
+        {0xa9b97bfd,0x910003fd,0xa90153f3,0xaa0003f3}};
+    for (unsigned int i=0; i<3; ++i)
+        for (unsigned int j=0; j<4; ++j)
+            if (((const unsigned int *)(base+offsets[i]))[j] != expected[i][j]) {
+                record("LIVEVIEW_TRACE_REFUSED ", "original entry bytes differ; no probes enabled");
+                return;
+            }
+    arm_entry_probe(base + 0x2502e24UL,
+                    (const unsigned int[4]){0xa9ba7bfd,0x910003fd,0xa90153f3,0xaa0003f4},
+                    liveview_request_trampoline, liveview_request_continue, "liveview request 0x2502e24");
+    arm_entry_probe(base + 0x2483188UL,
+                    (const unsigned int[4]){0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},
+                    liveview_consume_trampoline, liveview_consume_continue, "liveview consume 0x2483188");
+    arm_entry_probe(base + 0x309b82cUL,
+                    (const unsigned int[4]){0xa9b97bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+                    liveview_run_trampoline, liveview_run_continue, "liveview run 0x309b82c");
+}
+/* This generic JPEG service also serves trimming/movie extraction, not necessarily shutter. */
+static unsigned int jpeg_request_count;
+static void *jpeg_request_continue;
+void capture_jpeg_request(unsigned long input, unsigned long output, unsigned long caller,
+                          unsigned long frame) {
+    unsigned int count = __atomic_fetch_add(&jpeg_request_count, 1, __ATOMIC_RELAXED);
+    if (count >= 8) return;
+    int saved_errno = *__errno_location();
+    unsigned char bytes[0x90] = {0};
+    unsigned long parent[2] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long size = fd < 0 ? -1 : pread(fd, bytes, sizeof bytes, (long)input);
+    long parent_size = fd < 0 ? -1 : pread(fd, parent, sizeof parent, (long)frame);
+    if (fd >= 0) close(fd);
+    char text[448];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld input=%#lx output=%#lx caller=appFw+%#lx frame_bytes=%ld parent_lr=%#lx bytes=%ld",
+             count, syscall(178), input, output, caller-appfw_base, parent_size, parent[1], size);
+    record("JPEG_REQUEST ", text);
+    if (size == (long)sizeof bytes) {
+        static const char digits[] = "0123456789abcdef";
+        char hex[sizeof bytes * 2 + 1];
+        for (unsigned int i=0; i<sizeof bytes; ++i) {
+            hex[i*2]=digits[bytes[i]>>4]; hex[i*2+1]=digits[bytes[i]&15];
+        }
+        hex[sizeof bytes*2]=0;
+        snprintf(text, sizeof text, "n=%u input=%s", count, hex);
+        record("JPEG_INPUT ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl jpeg_request_trampoline\n"
+".type jpeg_request_trampoline, %function\n"
+"jpeg_request_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x30\n"
+"    mov x3, x29\n"
+"    bl capture_jpeg_request\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd10703ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, jpeg_request_continue\n"
+"    ldr x16, [x16, #:lo12:jpeg_request_continue]\n"
+"    br x16\n"
+);
+extern void jpeg_request_trampoline(void);
+static void install_jpeg_request_trace(unsigned long base) {
+    jpeg_request_continue = (void *)(base + 0x34f6fe0UL);
+    arm_entry_probe(base + 0x34f6fd0UL,
+                    (const unsigned int[4]){0xd10703ff,0xa9ba7bfd,0x910003fd,0xa90153f3},
+                    jpeg_request_trampoline, jpeg_request_continue, "generic JPEG request 0x34f6fd0");
+}
+/* Read-only shutter routing: no suppression/manager/event writes or completion calls. */
+static void *shutter_key_return_continue, *shutter_route_continue;
+static void *shutter_convert_continue, *shutter_event_continue;
+void capture_shutter_route(unsigned long stage, unsigned long manager, unsigned long event,
+                           unsigned long flag3, unsigned long flag2) {
+    int saved_errno = *__errno_location();
+    unsigned int words[8] = {0}, state = 0;
+    int fd = open("/proc/self/mem", 0);
+    long bytes = fd < 0 ? -1 : pread(fd, words, sizeof words, (long)event);
+    unsigned int code = stage == 3 ? words[2] : words[0];
+    int shutter = stage == 3 ?
+        (code == 0x02060000 || code == 0x02060001 || code == 0x02070000 || code == 0x020f0007) :
+        (code == 0xf || code == 0x1d || code == 0xa7 || code == 0x1f1);
+    if (bytes == sizeof words && shutter && stage < 4) {
+        static unsigned int counts[4];
+        unsigned int n = __atomic_add_fetch(&counts[stage], 1, __ATOMIC_RELAXED);
+        long state_bytes = manager && fd >= 0 ? pread(fd, &state, 4, (long)(manager + 0x3ac)) : -1;
+        if (n <= 32) {
+            char text[420];
+            snprintf(text, sizeof text,
+                "stage=%lu n=%u tid=%ld manager=%#lx event=%#lx flags=%#lx/%#lx manager_3ac=%u state_bytes=%ld words=[%#x,%#x,%#x,%#x,%#x,%#x,%#x,%#x]",
+                stage, n, syscall(178), manager, event, flag3, flag2, state, state_bytes,
+                words[0],words[1],words[2],words[3],words[4],words[5],words[6],words[7]);
+            record("SHUTTER_ROUTE ", text);
+        }
+    }
+    if (fd >= 0) close(fd);
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl shutter_key_return_trampoline\n"
+".type shutter_key_return_trampoline, %function\n"
+"shutter_key_return_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x0, #0\n"
+"    mov x1, #0\n"
+"    mov x2, x20\n"
+"    mov x3, x21\n"
+"    mov x4, #0\n"
+"    bl capture_shutter_route\n"
+PROBE_RESTORE_ARGS
+"    .inst 0x2a1503e0\n"
+"    .inst 0xa94153f3\n"
+"    .inst 0xa9425bf5\n"
+"    .inst 0xa8c87bfd\n"
+"    adrp x16, shutter_key_return_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_key_return_continue]\n"
+"    br x16\n"
+".globl shutter_route_trampoline\n"
+".type shutter_route_trampoline, %function\n"
+"shutter_route_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_route\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd111c3ff\n"
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, shutter_route_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_route_continue]\n"
+"    br x16\n"
+".globl shutter_convert_trampoline\n"
+".type shutter_convert_trampoline, %function\n"
+"shutter_convert_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x4\n"
+"    sub x1, x0, #0x58\n"
+"    mov x0, #2\n"
+"    mov x3, #0\n"
+"    mov x4, #0\n"
+"    bl capture_shutter_route\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0103f3\n"
+"    adrp x16, shutter_convert_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_convert_continue]\n"
+"    br x16\n"
+".globl shutter_event_trampoline\n"
+".type shutter_event_trampoline, %function\n"
+"shutter_event_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #3\n"
+"    bl capture_shutter_route\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd11203ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, shutter_event_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_event_continue]\n"
+"    br x16\n"
+);
+extern void shutter_key_return_trampoline(void), shutter_route_trampoline(void);
+extern void shutter_convert_trampoline(void), shutter_event_trampoline(void);
+static void install_shutter_detail_trace(unsigned long base);
+static void install_shutter_route_trace(unsigned long base) {
+    const unsigned long offsets[4] = {0x1794fa8,0x1e7a054,0x1792338,0x1e79d64};
+    const unsigned int expected[4][4] = {
+        {0x2a1503e0,0xa94153f3,0xa9425bf5,0xa8c87bfd},
+        {0xd111c3ff,0xa9bb7bfd,0x910003fd,0xa90153f3},
+        {0xa9bb7bfd,0x910003fd,0xa90153f3,0xaa0103f3},
+        {0xd11203ff,0xa9ba7bfd,0x910003fd,0xa90153f3}};
+    for (unsigned int i=0;i<4;i++) for (unsigned int j=0;j<4;j++)
+        if (((const unsigned int *)(base+offsets[i]))[j] != expected[i][j]) {
+            record("SHUTTER_ROUTE_REFUSED ", "original bytes differ; no routing probes enabled");
+            return;
+        }
+    shutter_key_return_continue=(void *)(base+0x1794fb8);
+    shutter_route_continue=(void *)(base+0x1e7a064);
+    shutter_convert_continue=(void *)(base+0x1792348);
+    shutter_event_continue=(void *)(base+0x1e79d74);
+    arm_entry_probe(base+offsets[0],expected[0],shutter_key_return_trampoline,
+                    shutter_key_return_continue,"shutter key status return 0x1794fa8");
+    arm_entry_probe(base+offsets[1],expected[1],shutter_route_trampoline,
+                    shutter_route_continue,"shutter route 0x1e7a054");
+    arm_entry_probe(base+offsets[2],expected[2],shutter_convert_trampoline,
+                    shutter_convert_continue,"shutter conversion 0x1792338");
+    arm_entry_probe(base+offsets[3],expected[3],shutter_event_trampoline,
+                    shutter_event_continue,"shutter business event 0x1e79d64");
+    install_shutter_detail_trace(base);
+}
+/* Read-only shutter detail probes.  The receiver-return probe at 0x1e79158
+   was retired after an isolated AppFw instruction fault; final handlers are
+   observed only at their original function entries.  No event, return value or
+   manager field is changed. */
+static void *shutter_detail_canonical_continue, *shutter_detail_target_continue;
+static void *shutter_detail_half_continue, *shutter_detail_release_continue;
+static void *shutter_detail_full_continue, *shutter_detail_extra_continue;
+static void *shutter_flow_core_continue, *shutter_flow_final_continue, *shutter_flow_send_continue;
+static void *shutter_api_call_continue, *shutter_api_wrapper_continue, *shutter_api_execute_continue;
+static void *shutter_mode0_continue, *shutter_mode1_continue, *shutter_mode2_continue;
+static void *shutter_mode_exec_continue;
+static void *shutter_mode_model_continue;
+static void *shutter_mode_rep_continue, *shutter_mode_scr_continue, *shutter_mode_exposure_continue;
+static void *shutter_mode_feature_continue, *shutter_mode_feature_join_continue;
+static void *system_mode_gate_continue, *system_mode_start_continue, *system_mode_write_continue;
+static void *system_mode_still_continue, *system_mode_movie_continue;
+static void *system_mode_api_start_ee_continue, *system_mode_api_forced_continue;
+static void *ee_sequence_request_continue, *ee_sequence_factory_continue, *ee_sequence_run_continue;
+static void *ee_sequence_enqueue_continue;
+static void *feature_detail_map_continue, *feature_detail_lookup_continue, *feature_detail_check_continue;
+static void *ee_sequence_restart_run_continue, *ee_sequence_resume_run_continue;
+static void *ee_sequence_still_lower_continue, *ee_sequence_movie_lower_continue;
+static void *ee_sequence_still_send_continue, *ee_sequence_movie_send_continue;
+static void *sequence_create_continue, *mode_factory_table_continue, *mode_factory_direct_continue;
+static void *mode_dependency_continue, *mode_schedule_continue, *clock_sequence_continue;
+static int shutter_detail_code(unsigned int code) {
+    return code == 0x02060000 || code == 0x02060001 ||
+           code == 0x02070000 || code == 0x020f0007;
+}
+static int shutter_detail_mode_code(unsigned int code) {
+    return code >= 0x02240000 && code <= 0x02240006;
+}
+void capture_shutter_detail_dispatch(unsigned long canonical, unsigned long controller,
+                                     unsigned long frame) {
+    int saved_errno = *__errno_location();
+    unsigned int raw = 0;
+    int fd = open("/proc/self/mem", 0);
+    long bytes = fd < 0 ? -1 : pread(fd, &raw, sizeof raw, (long)(frame + 44));
+    if (fd >= 0) close(fd);
+    if (bytes == sizeof raw && (shutter_detail_code(raw) || shutter_detail_mode_code(raw))) {
+        static unsigned int count;
+        unsigned int n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            char text[256];
+            snprintf(text, sizeof text,
+                     "n=%u tid=%ld raw=%#x canonical=%#lx controller=%#lx frame=%#lx raw_bytes=%ld",
+                     n, syscall(178), raw, canonical, controller, frame, bytes);
+            record("SHUTTER_DISPATCH ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_detail_target(unsigned long object, unsigned long event,
+                                   unsigned long frame, unsigned long controller) {
+    int saved_errno = *__errno_location();
+    unsigned int raw = 0;
+    unsigned long vtable = 0, target = 0;
+    int fd = open("/proc/self/mem", 0);
+    long raw_bytes = fd < 0 ? -1 : pread(fd, &raw, sizeof raw, (long)(frame + 44));
+    long vtable_bytes = fd < 0 ? -1 : pread(fd, &vtable, sizeof vtable, (long)object);
+    long target_bytes = fd < 0 || vtable_bytes != sizeof vtable ? -1 :
+        pread(fd, &target, sizeof target, (long)(vtable + 16));
+    if (fd >= 0) close(fd);
+    if (raw_bytes == sizeof raw && (shutter_detail_code(raw) || shutter_detail_mode_code(raw))) {
+        static unsigned int count;
+        unsigned int n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            long offset = target >= appfw_base && target < appfw_base + 0x6000000UL ?
+                (long)(target - appfw_base) : -1;
+            char text[384];
+            snprintf(text, sizeof text,
+                     "n=%u tid=%ld raw=%#x object=%#lx event=%#lx controller=%#lx vtable=%#lx target=%#lx target_appfw_offset=%#lx reads=%ld/%ld/%ld",
+                     n, syscall(178), raw, object, event, controller, vtable, target,
+                     offset, raw_bytes, vtable_bytes, target_bytes);
+            record("SHUTTER_TARGET ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_detail_handler(unsigned long object, unsigned long event,
+                                    unsigned long handler) {
+    int saved_errno = *__errno_location();
+    unsigned int words[4] = {0}, state[4] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long event_bytes = fd < 0 ? -1 : pread(fd, words, sizeof words, (long)event);
+    long state0 = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5c408UL));
+    long state1 = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d428UL));
+    long state2 = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e71f00UL));
+    long state3 = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e5d498UL));
+    if (fd >= 0) close(fd);
+    if (event_bytes == sizeof words &&
+        (shutter_detail_code(words[3]) || words[3] == 0x020f0000)) {
+        static unsigned int count;
+        unsigned int n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            char text[448];
+            snprintf(text, sizeof text,
+                     "n=%u tid=%ld handler=appFw+%#lx object=%#lx event=%#lx code=%#x state_c408=%#x state_d428=%#x state_71f00=%#x state_d498=%#x reads=%ld/%ld/%ld/%ld/%ld",
+                     n, syscall(178), handler, object, event, words[3], state[0], state[1],
+                     state[2], state[3], event_bytes, state0, state1, state2, state3);
+            record("SHUTTER_HANDLER ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1,
+                          unsigned long a2, unsigned long a3) {
+    int saved_errno = *__errno_location();
+    if (site > 2) { *__errno_location() = saved_errno; return; }
+    unsigned int code = 0, id = 0, state[3] = {0};
+    long code_bytes = -1, id_bytes = -1, state0 = -1, state1 = -1, state2 = -1;
+    int fd = open("/proc/self/mem", 0);
+    if (site == 0) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 + 12));
+    if (site == 1) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 - 0x10));
+    if (site == 2) id_bytes = fd < 0 ? -1 : pread(fd, &id, 4, (long)a1);
+    if (site < 2) {
+        state0 = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
+        state1 = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d498UL));
+        state2 = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e5c408UL));
+    }
+    if (fd >= 0) close(fd);
+    int match = site < 2 ? code_bytes == 4 &&
+        (shutter_detail_code(code) || code == 0x020f0000) :
+        id_bytes == 4 && (id == 0x347 || id == 0x40a || id == 0x37f || id == 0x3d80);
+    if (match) {
+        static unsigned int counts[3];
+        unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            const char *name = site == 0 ? "core" : site == 1 ? "final" : "send";
+            char text[512];
+            snprintf(text, sizeof text,
+                     "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx code=%#x id=%#x state_d428=%#x state_d498=%#x state_c408=%#x reads=%ld/%ld/%ld/%ld/%ld",
+                     name, n, syscall(178), a0, a1, a2, a3, code, id,
+                     state[0], state[1], state[2], code_bytes, id_bytes, state0, state1, state2);
+            record("SHUTTER_FLOW ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_api(unsigned long site, unsigned long a0, unsigned long a1,
+                         unsigned long a2, unsigned long a3, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (site > 2) { *__errno_location() = saved_errno; return; }
+    unsigned int state[4] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long option = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d498UL));
+    long mode = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d428UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e67fc8UL));
+    if (fd >= 0) close(fd);
+    static unsigned int counts[3];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    if (n <= 32) {
+        const char *name = site == 0 ? "call" : site == 1 ? "wrapper" : "execute";
+        long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+            (long)(caller - appfw_base) : -1;
+        char text[512];
+        snprintf(text, sizeof text,
+                 "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx caller=appFw+%#lx option_d498=%#x mode_d428=%#x ee_67700=%#x transition_67fc8=%#x reads=%ld/%ld/%ld/%ld",
+                 name, n, syscall(178), a0, a1, a2, a3, caller_offset,
+                 state[0], state[1], state[2], state[3], option, mode, ee, transition);
+        record("SHUTTER_API ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_mode(unsigned long site, unsigned long event,
+                          unsigned long a1, unsigned long a2) {
+    int saved_errno = *__errno_location();
+    if (site > 2) { *__errno_location() = saved_errno; return; }
+    unsigned int code = 0, state[8] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(event + 12));
+    long sw = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7ee4778UL));
+    long dial = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7ee4750UL));
+    long raw = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7ecad30UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+4, 4, (long)(appfw_base + 0x7e67fc8UL));
+    long gate0 = fd < 0 ? -1 : pread(fd, state+5, 4, (long)(appfw_base + 0x7e5c050UL));
+    long gate1 = fd < 0 ? -1 : pread(fd, state+6, 4, (long)(appfw_base + 0x7eddbc8UL));
+    long gate2 = fd < 0 ? -1 : pread(fd, state+7, 4, (long)(appfw_base + 0x7e71a70UL));
+    if (fd >= 0) close(fd);
+    if (code_bytes == 4 && code >= 0x02240000 && code <= 0x02240006) {
+        static unsigned int counts[3];
+        unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            char text[448];
+            snprintf(text, sizeof text,
+                     "site=mode%lu n=%u tid=%ld event=%#lx a1=%#lx a2=%#lx code=%#x switch=%#x dial=%#x raw_main=%#x ee_67700=%#x transition_67fc8=%#x gate_c050=%#x gate_dbc8=%#x gate_71a70=%#x reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld",
+                     site, n, syscall(178), event, a1, a2, code, state[0], state[1],
+                     state[2], state[3], state[4], state[5], state[6], state[7],
+                     code_bytes, sw, dial, raw, ee, transition, gate0, gate1, gate2);
+            record("SHUTTER_MODE ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_mode_exec(unsigned long event, unsigned long mode,
+                               unsigned long flag, unsigned long gate) {
+    int saved_errno = *__errno_location();
+    unsigned int code = 0, state[3] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(event + 12));
+    long mode_bytes = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
+    long ee_bytes = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition_bytes = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e67fc8UL));
+    if (fd >= 0) close(fd);
+    static unsigned int count;
+    unsigned int n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+    if (n <= 32) {
+        char text[384];
+        snprintf(text, sizeof text,
+                 "site=exec n=%u tid=%ld event=%#lx mode=%#lx flag=%#lx gate=%#lx code=%#x current_d428=%#x ee_67700=%#x transition_67fc8=%#x reads=%ld/%ld/%ld/%ld",
+                 n, syscall(178), event, mode, flag, gate, code, state[0], state[1], state[2],
+                 code_bytes, mode_bytes, ee_bytes, transition_bytes);
+        record("SHUTTER_MODE ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_mode_model(unsigned long object, unsigned long event,
+                                unsigned long caller) {
+    int saved_errno = *__errno_location();
+    unsigned int code = 0, argument = 0, state[7] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(event + 12));
+    long argument_bytes = fd < 0 ? -1 : pread(fd, &argument, 4, (long)(event + 16));
+    long gate0 = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5c050UL));
+    long gate1 = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7eddbc8UL));
+    long gate2 = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e71a70UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+4, 4, (long)(appfw_base + 0x7e67fc8UL));
+    long sw = fd < 0 ? -1 : pread(fd, state+5, 4, (long)(appfw_base + 0x7ee4778UL));
+    long dial = fd < 0 ? -1 : pread(fd, state+6, 4, (long)(appfw_base + 0x7ee4750UL));
+    if (fd >= 0) close(fd);
+    if (code_bytes == 4 && (shutter_detail_mode_code(code) ||
+                            code == 0x04000005 || code == 0x04000032)) {
+        static unsigned int count;
+        unsigned int n = __atomic_add_fetch(&count, 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+                (long)(caller - appfw_base) : -1;
+            char text[512];
+            snprintf(text, sizeof text,
+                     "site=model n=%u tid=%ld object=%#lx event=%#lx code=%#x argument=%#x switch=%#x dial=%#x gate_c050=%#x gate_dbc8=%#x gate_71a70=%#x ee_67700=%#x transition_67fc8=%#x reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld caller=appFw+%#lx",
+                     n, syscall(178), object, event, code, argument, state[5], state[6],
+                     state[0], state[1], state[2], state[3], state[4], code_bytes,
+                     argument_bytes, gate0, gate1, gate2, ee, transition, sw, dial, caller_offset);
+            record("SHUTTER_MODE ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_mode_change(unsigned long site, unsigned long a0, unsigned long a1,
+                                 unsigned long a2, unsigned long a3, unsigned long a4,
+                                 unsigned long a5, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (site > 2) { *__errno_location() = saved_errno; return; }
+    unsigned int state[5] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long sw = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7ee4778UL));
+    long dial = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7ee4750UL));
+    long raw = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7ecad30UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+4, 4, (long)(appfw_base + 0x7e67fc8UL));
+    if (fd >= 0) close(fd);
+    static unsigned int counts[3];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    if (n <= 32) {
+        const char *name = site == 0 ? "rep_boot" : site == 1 ? "scr0039" : "exposure";
+        long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+            (long)(caller - appfw_base) : -1;
+        char text[512];
+        snprintf(text, sizeof text,
+                 "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx a4=%#lx a5=%#lx switch=%#x dial=%#x raw_main=%#x ee_67700=%#x transition_67fc8=%#x reads=%ld/%ld/%ld/%ld/%ld caller=appFw+%#lx",
+                 name, n, syscall(178), a0, a1, a2, a3, a4, a5, state[0], state[1],
+                 state[2], state[3], state[4], sw, dial, raw, ee, transition, caller_offset);
+        record("SHUTTER_MODE ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_shutter_mode_feature(unsigned long site, unsigned long result,
+                                  unsigned long prior, unsigned long changed,
+                                  unsigned long event) {
+    int saved_errno = *__errno_location();
+    if (site > 1) { *__errno_location() = saved_errno; return; }
+    unsigned int code = 0;
+    int fd = open("/proc/self/mem", 0);
+    long code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(event + 12));
+    if (fd >= 0) close(fd);
+    if (code_bytes == 4 && (shutter_detail_mode_code(code) ||
+                            code == 0x04000005 || code == 0x04000032)) {
+        static unsigned int counts[2];
+        unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+        if (n <= 32) {
+            char text[320];
+            snprintf(text, sizeof text,
+                     "site=%s n=%u tid=%ld event=%#lx code=%#x result=%#lx prior=%#lx changed=%#lx reads=%ld",
+                     site ? "feature_or_exec_join" : "feature_available",
+                     n, syscall(178), event, code, result, prior, changed, code_bytes);
+            record("SHUTTER_MODE ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_system_mode(unsigned long site, unsigned long a0,
+                         unsigned long a1, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (site > 6) { *__errno_location() = saved_errno; return; }
+    unsigned int state[7] = {0}, queue_ready = 0;
+    int fd = open("/proc/self/mem", 0);
+    long sys = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
+    long option = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d498UL));
+    long sw = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7ee4778UL));
+    long dial = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7ee4750UL));
+    long remote = fd < 0 ? -1 : pread(fd, state+4, 4, (long)(appfw_base + 0x7e825f0UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+5, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+6, 4, (long)(appfw_base + 0x7e67fc8UL));
+    long queue = fd < 0 ? -1 : pread(fd, &queue_ready, 1, (long)(appfw_base + 0x7e4e608UL));
+    if (fd >= 0) close(fd);
+    static unsigned int counts[7];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    unsigned int limit = site == 2 ? 64 : 24;
+    if (n <= limit) {
+        const char *names[7] = {"gate", "start", "write", "still", "movie", "api_start_ee", "api_forced"};
+        long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+            (long)(caller - appfw_base) : -1;
+        char text[512];
+        snprintf(text, sizeof text,
+                 "site=%s n=%u tid=%ld a0=%#lx a1=%#lx system_mode=%#x option=%#x switch=%#x dial=%#x remote=%#x ee_67700=%#x transition_67fc8=%#x queue_ready=%u reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld caller=appFw+%#lx",
+                 names[site], n, syscall(178), a0, a1, state[0], state[1], state[2],
+                 state[3], state[4], state[5], state[6], queue_ready, sys, option, sw, dial,
+                 remote, ee, transition, queue, caller_offset);
+        record("SYSTEM_MODE ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_ee_sequence(unsigned long site, unsigned long a0, unsigned long a1,
+                         unsigned long a2, unsigned long a3, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (site > 9) { *__errno_location() = saved_errno; return; }
+    unsigned int state[5] = {0}, object_id = 0, type = 0, argument = 0, queue_ready = 0;
+    unsigned long control = 0;
+    int fd = open("/proc/self/mem", 0);
+    long sys = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
+    long option = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d498UL));
+    long sw = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7ee4778UL));
+    long ee = fd < 0 ? -1 : pread(fd, state+3, 4, (long)(appfw_base + 0x7e67700UL));
+    long transition = fd < 0 ? -1 : pread(fd, state+4, 4, (long)(appfw_base + 0x7e67fc8UL));
+    long queue = fd < 0 ? -1 : pread(fd, &queue_ready, 1, (long)(appfw_base + 0x7e4e608UL));
+    long control_bytes = -1, id_bytes = -1, type_bytes = -1, argument_bytes = -1;
+    if (site == 2) {
+        control_bytes = fd < 0 ? -1 : pread(fd, &control, 8, (long)(a0 + 0x8));
+        if (fd >= 0 && control_bytes == 8)
+            id_bytes = pread(fd, &object_id, 4, (long)(control + 0x8));
+        type_bytes = fd < 0 ? -1 : pread(fd, &type, 4, (long)(a0 + 0x18));
+        argument_bytes = fd < 0 ? -1 : pread(fd, &argument, 4, (long)(a0 + 0x20));
+    }
+    if (fd >= 0) close(fd);
+    static unsigned int counts[10];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    if (n <= 24) {
+        const char *names[10] = {"request", "factory", "run", "enqueue", "restart_run", "resume_run",
+                                 "still_lower", "movie_lower", "still_send", "movie_send"};
+        long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+            (long)(caller - appfw_base) : -1;
+        char text[512];
+        snprintf(text, sizeof text,
+                 "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx object_id=%#x type=%#x argument=%#x system_mode=%#x option=%#x switch=%#x ee_67700=%#x transition_67fc8=%#x queue_ready=%u reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld/%ld caller=appFw+%#lx",
+                 names[site], n, syscall(178), a0, a1, a2, a3, object_id, type,
+                 argument, state[0], state[1], state[2], state[3], state[4], queue_ready, sys,
+                 option, sw, ee, transition, queue, control_bytes, id_bytes, type_bytes, argument_bytes, caller_offset);
+        record("EE_SEQUENCE ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_sequence_create(unsigned long caller) {
+    int saved_errno = *__errno_location();
+    static unsigned int seen;
+    unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+    if (n > 64) { *__errno_location() = saved_errno; return; }
+    unsigned long head = 0;
+    int fd = open("/proc/self/mem", 0);
+    long bytes = fd < 0 ? -1 : pread(fd, &head, 8, (long)(appfw_base + 0x7e4e5d0UL));
+    if (fd >= 0) close(fd);
+    char text[256];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld queue_head=%#lx caller=appFw+%#lx reads=%ld observation_only=1",
+             n, syscall(178), head, caller - appfw_base, bytes);
+    record("SEQUENCE_CREATE ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_mode_factory(unsigned long site, unsigned long a0,
+                          unsigned long a1, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (site > 1) { *__errno_location() = saved_errno; return; }
+    unsigned int id = site ? (unsigned int)a1 : 0;
+    int fd = open("/proc/self/mem", 0);
+    long bytes = site ? 0 : (fd < 0 ? -1 : pread(fd, &id, 4, (long)a0));
+    if (fd >= 0) close(fd);
+    static unsigned int counts[2];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    if (n <= 24) {
+        char text[320];
+        snprintf(text, sizeof text,
+                 "site=%s n=%u tid=%ld request_id=%#x a0=%#lx a1=%#lx caller=appFw+%#lx id_read=%ld observation_only=1",
+                 site ? "direct" : "table", n, syscall(178), id, a0, a1,
+                 caller - appfw_base, bytes);
+        record("MODE_FACTORY ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_mode_dependency(unsigned long object, unsigned long predecessor,
+                             unsigned long caller) {
+    int saved_errno = *__errno_location();
+    unsigned int id = 0, predecessor_id = 0;
+    unsigned long control = 0, predecessor_control = 0;
+    int fd = open("/proc/self/mem", 0);
+    long control_bytes = fd < 0 ? -1 : pread(fd, &control, 8, (long)(object + 0x8));
+    long id_bytes = -1, predecessor_control_bytes = -1, predecessor_bytes = -1;
+    if (fd >= 0 && control_bytes == 8)
+        id_bytes = pread(fd, &id, 4, (long)(control + 0x8));
+    if (fd >= 0)
+        predecessor_control_bytes = pread(fd, &predecessor_control, 8, (long)(predecessor + 0x8));
+    if (fd >= 0 && predecessor_control_bytes == 8)
+        predecessor_bytes = pread(fd, &predecessor_id, 4, (long)(predecessor_control + 0x8));
+    if (fd >= 0) close(fd);
+    if (id == 0x2f) {
+        static unsigned int seen;
+        unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+        if (n <= 16) {
+            char text[320];
+            snprintf(text, sizeof text,
+                     "n=%u tid=%ld new_id=%#x predecessor_id=%#x object=%#lx predecessor=%#lx caller=appFw+%#lx reads=%ld/%ld/%ld/%ld observation_only=1",
+                     n, syscall(178), id, predecessor_id, object, predecessor,
+                     caller - appfw_base, control_bytes, id_bytes,
+                     predecessor_control_bytes, predecessor_bytes);
+            record("MODE_DEPENDENCY ", text);
+        }
+    }
+    *__errno_location() = saved_errno;
+}
+void capture_mode_schedule(unsigned long manager, unsigned long object,
+                           unsigned int id, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (id != 0x2f) { *__errno_location() = saved_errno; return; }
+    static unsigned int seen;
+    unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+    if (n > 16) { *__errno_location() = saved_errno; return; }
+    int group = -1;
+    unsigned long current = 0, queued = 0, control = 0;
+    unsigned int stop = 0xffffffffU, current_id = 0xffffffffU;
+    int fd = open("/proc/self/mem", 0);
+    long group_bytes = fd < 0 ? -1 : pread(fd, &group, 4,
+        (long)(appfw_base + 0x4c020c8UL + (unsigned long)id * 4UL));
+    long current_bytes = -1, stop_bytes = -1, queued_bytes = -1;
+    long control_bytes = -1, current_id_bytes = -1;
+    unsigned long group_base = 0;
+    if (fd >= 0 && group_bytes == 4 && group >= 0 && group < 64) {
+        group_base = manager + 0x310UL + (unsigned long)group * 0x90UL;
+        current_bytes = pread(fd, &current, 8, (long)(group_base + 0x88));
+        stop_bytes = pread(fd, &stop, 4, (long)(group_base + 0x8));
+        queued_bytes = pread(fd, &queued, 8, (long)(group_base + 0x20));
+    }
+    if (fd >= 0 && current_bytes == 8 && current) {
+        control_bytes = pread(fd, &control, 8, (long)(current + 0x8));
+        if (control_bytes == 8)
+            current_id_bytes = pread(fd, &current_id, 4, (long)(control + 0x8));
+    }
+    if (fd >= 0) close(fd);
+    char text[448];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld sequence_id=%#x group=%d current_id=%#x queued=%lu stop=%#x manager=%#lx object=%#lx group_base=%#lx caller=appFw+%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1",
+             n, syscall(178), id, group, current_id, queued, stop, manager, object,
+             group_base, caller - appfw_base, group_bytes, current_bytes, stop_bytes,
+             queued_bytes, control_bytes, current_id_bytes);
+    record("MODE_SCHEDULE ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_clock_sequence(unsigned long object, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    static unsigned int seen;
+    unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+    if (n > 16) { *__errno_location() = saved_errno; return; }
+    unsigned int id = 0, selector = 0xffffffffU, flag = 0xffffffffU;
+    unsigned long control = 0;
+    int fd = open("/proc/self/mem", 0);
+    long control_bytes = fd < 0 ? -1 : pread(fd, &control, 8, (long)(object + 0x8));
+    long id_bytes = -1, selector_bytes = -1, flag_bytes = -1;
+    if (fd >= 0 && control_bytes == 8)
+        id_bytes = pread(fd, &id, 4, (long)(control + 0x8));
+    if (fd >= 0) {
+        selector_bytes = pread(fd, &selector, 4, (long)(object + 0x10));
+        flag_bytes = pread(fd, &flag, 4, (long)(object + 0x44));
+    }
+    if (fd >= 0) close(fd);
+    char text[320];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld sequence_id=%#x case=%#x flag_44=%#x object=%#lx caller=appFw+%#lx reads=%ld/%ld/%ld/%ld observation_only=1",
+             n, syscall(178), id, selector, flag, object, caller - appfw_base,
+             control_bytes, id_bytes, selector_bytes, flag_bytes);
+    record("CLOCK_SEQUENCE ", text);
+    *__errno_location() = saved_errno;
+}
+static unsigned long feature_watch_tid;
+void capture_feature_detail(unsigned long site, unsigned long a0,
+                            unsigned long a1, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    long tid = syscall(178);
+    if (site > 2 || (site == 0 && a1 != 0x8d) ||
+        (site > 0 && __atomic_load_n(&feature_watch_tid, __ATOMIC_RELAXED) != (unsigned long)tid)) {
+        *__errno_location() = saved_errno;
+        return;
+    }
+    if (site == 0) __atomic_store_n(&feature_watch_tid, (unsigned long)tid, __ATOMIC_RELAXED);
+    static unsigned int counts[3];
+    unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
+    if (n > 32) { *__errno_location() = saved_errno; return; }
+    const char *names[3] = {"map", "lookup", "check"};
+    long caller_offset = caller >= appfw_base && caller < appfw_base + 0x6000000UL ?
+        (long)(caller - appfw_base) : -1;
+    char text[384];
+    if (site < 2) {
+        snprintf(text, sizeof text,
+                 "site=feature_%s n=%u tid=%ld object=%#lx feature=%#lx caller=appFw+%#lx",
+                 names[site], n, tid, a0, a1, caller_offset);
+    } else {
+        unsigned int product_index = 0, product_id = 0, desc_id = 0;
+        unsigned char group = 0x12;
+        unsigned short available = 0;
+        int fd = open("/proc/self/mem", 0);
+        long product_bytes = fd < 0 ? -1 : pread(fd, &product_index, 4, (long)(appfw_base + 0x5bc35b0UL));
+        long id_bytes = -1, group_bytes = -1;
+        if (fd >= 0 && product_bytes == 4 && product_index < 26)
+            id_bytes = pread(fd, &product_id, 4, (long)(appfw_base + 0x370ce60UL + product_index * 4UL));
+        if (fd >= 0 && id_bytes == 4) {
+            if (product_id >= 1 && product_id <= 26)
+                group_bytes = pread(fd, &group, 1, (long)(appfw_base + 0x3dcf200UL + product_id - 1));
+            else
+                group_bytes = 1; /* Original out-of-range fallback is group 0x12. */
+        }
+        long desc_bytes = fd < 0 ? -1 : pread(fd, &desc_id, 4, (long)a0);
+        long avail_bytes = fd < 0 || group_bytes != 1 ? -1 :
+            pread(fd, &available, 2, (long)(a0 + 0x20UL + group * 2UL));
+        if (fd >= 0) close(fd);
+        snprintf(text, sizeof text,
+                 "site=feature_check n=%u tid=%ld desc=%#lx desc_id=%#x product_index=%u product_id=%u group=%u available=%u reads=%ld/%ld/%ld/%ld/%ld caller=appFw+%#lx",
+                 n, tid, a0, desc_id, product_index, product_id, group, available,
+                 product_bytes, id_bytes, group_bytes, desc_bytes, avail_bytes, caller_offset);
+    }
+    record("SHUTTER_MODE ", text);
+    *__errno_location() = saved_errno;
+}
+#define SYSTEM_MODE_CAPTURE(site) \
+"    mov x3, x30\n" \
+"    mov x2, x1\n" \
+"    mov x1, x0\n" \
+"    mov x0, #" #site "\n" \
+"    bl capture_system_mode\n"
+#define EE_SEQUENCE_CAPTURE(site) \
+"    mov x5, x30\n" \
+"    mov x4, x3\n" \
+"    mov x3, x2\n" \
+"    mov x2, x1\n" \
+"    mov x1, x0\n" \
+"    mov x0, #" #site "\n" \
+"    bl capture_ee_sequence\n"
+#define FEATURE_DETAIL_CAPTURE(site) \
+"    mov x3, x30\n" \
+"    mov x2, x1\n" \
+"    mov x1, x0\n" \
+"    mov x0, #" #site "\n" \
+"    bl capture_feature_detail\n"
+#define MODE_FACTORY_CAPTURE(site) \
+"    mov x3, x30\n" \
+"    mov x2, x1\n" \
+"    mov x1, x0\n" \
+"    mov x0, #" #site "\n" \
+"    bl capture_mode_factory\n"
+__asm__(
+".text\n"
+".globl shutter_detail_canonical_trampoline\n"
+".type shutter_detail_canonical_trampoline, %function\n"
+"shutter_detail_canonical_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x29\n"
+"    mov x1, x19\n"
+"    bl capture_shutter_detail_dispatch\n"
+PROBE_RESTORE_ARGS
+"    .inst 0x52a04223\n"
+"    .inst 0xb9402fa2\n"
+"    .inst 0x6b03001f\n"
+"    .inst 0xf94013a1\n"
+"    adrp x16, shutter_detail_canonical_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_canonical_continue]\n"
+"    br x16\n"
+".globl shutter_detail_target_trampoline\n"
+".type shutter_detail_target_trampoline, %function\n"
+"shutter_detail_target_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x19\n"
+"    mov x2, x29\n"
+"    bl capture_shutter_detail_target\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xf9400003\n"
+"    .inst 0xf9400bf3\n"
+"    .inst 0xf9400863\n"
+"    .inst 0xa8c37bfd\n"
+"    adrp x16, shutter_detail_target_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_target_continue]\n"
+"    br x16\n"
+".globl shutter_detail_half_trampoline\n"
+".type shutter_detail_half_trampoline, %function\n"
+"shutter_detail_half_trampoline:\n"
+PROBE_SAVE_ARGS
+"    movz x2, #0xa818\n"
+"    movk x2, #0x1b3, lsl #16\n"
+"    bl capture_shutter_detail_handler\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b77bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9101c3b3\n"
+"    adrp x16, shutter_detail_half_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_half_continue]\n"
+"    br x16\n"
+".globl shutter_detail_release_trampoline\n"
+".type shutter_detail_release_trampoline, %function\n"
+"shutter_detail_release_trampoline:\n"
+PROBE_SAVE_ARGS
+"    movz x2, #0xf508\n"
+"    movk x2, #0x1af, lsl #16\n"
+"    bl capture_shutter_detail_handler\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9100e3b3\n"
+"    adrp x16, shutter_detail_release_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_release_continue]\n"
+"    br x16\n"
+".globl shutter_detail_full_trampoline\n"
+".type shutter_detail_full_trampoline, %function\n"
+"shutter_detail_full_trampoline:\n"
+PROBE_SAVE_ARGS
+"    movz x2, #0x4dc0\n"
+"    movk x2, #0x1b5, lsl #16\n"
+"    bl capture_shutter_detail_handler\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9100e3b4\n"
+"    adrp x16, shutter_detail_full_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_full_continue]\n"
+"    br x16\n"
+".globl shutter_detail_extra_trampoline\n"
+".type shutter_detail_extra_trampoline, %function\n"
+"shutter_detail_extra_trampoline:\n"
+PROBE_SAVE_ARGS
+"    movz x2, #0x3a6c\n"
+"    movk x2, #0x1b2, lsl #16\n"
+"    bl capture_shutter_detail_handler\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b87bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0x910123b5\n"
+"    adrp x16, shutter_detail_extra_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_detail_extra_continue]\n"
+"    br x16\n"
+".globl shutter_flow_core_trampoline\n"
+".type shutter_flow_core_trampoline, %function\n"
+"shutter_flow_core_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #0\n"
+"    bl capture_shutter_flow\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b67bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90363f7\n"
+"    .inst 0xaa0003f8\n"
+"    adrp x16, shutter_flow_core_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_flow_core_continue]\n"
+"    br x16\n"
+".globl shutter_flow_final_trampoline\n"
+".type shutter_flow_final_trampoline, %function\n"
+"shutter_flow_final_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_flow\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0x2a0103f6\n"
+"    adrp x16, shutter_flow_final_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_flow_final_continue]\n"
+"    br x16\n"
+".globl shutter_flow_send_trampoline\n"
+".type shutter_flow_send_trampoline, %function\n"
+"shutter_flow_send_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #2\n"
+"    bl capture_shutter_flow\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, shutter_flow_send_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_flow_send_continue]\n"
+"    br x16\n"
+".globl shutter_api_call_trampoline\n"
+".type shutter_api_call_trampoline, %function\n"
+"shutter_api_call_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x5, x30\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #0\n"
+"    bl capture_shutter_api\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b97bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, shutter_api_call_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_api_call_continue]\n"
+"    br x16\n"
+".globl shutter_api_wrapper_trampoline\n"
+".type shutter_api_wrapper_trampoline, %function\n"
+"shutter_api_wrapper_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x5, x30\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_api\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9100e3b3\n"
+"    adrp x16, shutter_api_wrapper_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_api_wrapper_continue]\n"
+"    br x16\n"
+".globl shutter_api_execute_trampoline\n"
+".type shutter_api_execute_trampoline, %function\n"
+"shutter_api_execute_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x5, x30\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #2\n"
+"    bl capture_shutter_api\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b77bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x910183b4\n"
+"    adrp x16, shutter_api_execute_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_api_execute_continue]\n"
+"    br x16\n"
+".globl shutter_mode0_trampoline\n"
+".type shutter_mode0_trampoline, %function\n"
+"shutter_mode0_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #0\n"
+"    bl capture_shutter_mode\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd10403ff\n"
+"    .inst 0xa9037bfd\n"
+"    .inst 0x9100c3fd\n"
+"    .inst 0x910343a4\n"
+"    adrp x16, shutter_mode0_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode0_continue]\n"
+"    br x16\n"
+".globl shutter_mode1_trampoline\n"
+".type shutter_mode1_trampoline, %function\n"
+"shutter_mode1_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_mode\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd10403ff\n"
+"    .inst 0xa9037bfd\n"
+"    .inst 0x9100c3fd\n"
+"    .inst 0x910343a4\n"
+"    adrp x16, shutter_mode1_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode1_continue]\n"
+"    br x16\n"
+".globl shutter_mode2_trampoline\n"
+".type shutter_mode2_trampoline, %function\n"
+"shutter_mode2_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #2\n"
+"    bl capture_shutter_mode\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd10403ff\n"
+"    .inst 0xa9037bfd\n"
+"    .inst 0x9100c3fd\n"
+"    .inst 0x910343a4\n"
+"    adrp x16, shutter_mode2_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode2_continue]\n"
+"    br x16\n"
+".globl shutter_mode_exec_trampoline\n"
+".type shutter_mode_exec_trampoline, %function\n"
+"shutter_mode_exec_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl capture_shutter_mode_exec\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b87bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, shutter_mode_exec_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_exec_continue]\n"
+"    br x16\n"
+".globl shutter_mode_model_trampoline\n"
+".type shutter_mode_model_trampoline, %function\n"
+"shutter_mode_model_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x30\n"
+"    bl capture_shutter_mode_model\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd103c3ff\n"
+"    .inst 0xa9037bfd\n"
+"    .inst 0x9100c3fd\n"
+"    .inst 0x910303a4\n"
+"    adrp x16, shutter_mode_model_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_model_continue]\n"
+"    br x16\n"
+".globl shutter_mode_rep_trampoline\n"
+".type shutter_mode_rep_trampoline, %function\n"
+"shutter_mode_rep_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x7, x30\n"
+"    mov x6, x5\n"
+"    mov x5, x4\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #0\n"
+"    bl capture_shutter_mode_change\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b57bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0x910203b5\n"
+"    adrp x16, shutter_mode_rep_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_rep_continue]\n"
+"    br x16\n"
+".globl shutter_mode_scr_trampoline\n"
+".type shutter_mode_scr_trampoline, %function\n"
+"shutter_mode_scr_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x7, x30\n"
+"    mov x6, x5\n"
+"    mov x5, x4\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_mode_change\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd11203ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, shutter_mode_scr_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_scr_continue]\n"
+"    br x16\n"
+".globl shutter_mode_exposure_trampoline\n"
+".type shutter_mode_exposure_trampoline, %function\n"
+"shutter_mode_exposure_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x7, x30\n"
+"    mov x6, x5\n"
+"    mov x5, x4\n"
+"    mov x4, x3\n"
+"    mov x3, x2\n"
+"    mov x2, x1\n"
+"    mov x1, x0\n"
+"    mov x0, #2\n"
+"    bl capture_shutter_mode_change\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b57bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, shutter_mode_exposure_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_exposure_continue]\n"
+"    br x16\n"
+".globl shutter_mode_feature_trampoline\n"
+".type shutter_mode_feature_trampoline, %function\n"
+"shutter_mode_feature_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x24\n"
+"    mov x3, x25\n"
+"    mov x2, x23\n"
+"    mov x1, x22\n"
+"    mov x0, #0\n"
+"    bl capture_shutter_mode_feature\n"
+PROBE_RESTORE_ARGS
+"    .inst 0x52800061\n"
+"    .inst 0xb9400f00\n"
+"    .inst 0x72a04481\n"
+"    .inst 0x6b01001f\n"
+"    adrp x16, shutter_mode_feature_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_feature_continue]\n"
+"    br x16\n"
+".globl shutter_mode_feature_join_trampoline\n"
+".type shutter_mode_feature_join_trampoline, %function\n"
+"shutter_mode_feature_join_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x4, x24\n"
+"    mov x3, x25\n"
+"    mov x2, x23\n"
+"    mov x1, x22\n"
+"    mov x0, #1\n"
+"    bl capture_shutter_mode_feature\n"
+PROBE_RESTORE_ARGS
+"    .inst 0x2a1503f6\n"
+"    .inst 0x52800017\n"
+"    .inst 0xb9400f00\n"
+"    .inst 0x528000a1\n"
+"    adrp x16, shutter_mode_feature_join_continue\n"
+"    ldr x16, [x16, #:lo12:shutter_mode_feature_join_continue]\n"
+"    br x16\n"
+".globl system_mode_gate_trampoline\n"
+".type system_mode_gate_trampoline, %function\n"
+"system_mode_gate_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(0)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b87bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0x910123b6\n"
+"    adrp x16, system_mode_gate_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_gate_continue]\n"
+"    br x16\n"
+".globl system_mode_start_trampoline\n"
+".type system_mode_start_trampoline, %function\n"
+"system_mode_start_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(1)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b97bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x910103b4\n"
+"    adrp x16, system_mode_start_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_start_continue]\n"
+"    br x16\n"
+".globl system_mode_write_trampoline\n"
+".type system_mode_write_trampoline, %function\n"
+"system_mode_write_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(2)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b57bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x910243b3\n"
+"    adrp x16, system_mode_write_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_write_continue]\n"
+"    br x16\n"
+".globl system_mode_still_trampoline\n"
+".type system_mode_still_trampoline, %function\n"
+"system_mode_still_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(3)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b67bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x910203b3\n"
+"    adrp x16, system_mode_still_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_still_continue]\n"
+"    br x16\n"
+".globl system_mode_movie_trampoline\n"
+".type system_mode_movie_trampoline, %function\n"
+"system_mode_movie_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(4)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b77bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9101c3b3\n"
+"    adrp x16, system_mode_movie_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_movie_continue]\n"
+"    br x16\n"
+".globl system_mode_api_start_ee_trampoline\n"
+".type system_mode_api_start_ee_trampoline, %function\n"
+"system_mode_api_start_ee_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(5)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0xd2800002\n"
+"    .inst 0xd2800001\n"
+"    .inst 0x910003fd\n"
+"    adrp x16, system_mode_api_start_ee_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_api_start_ee_continue]\n"
+"    br x16\n"
+".globl system_mode_api_forced_trampoline\n"
+".type system_mode_api_forced_trampoline, %function\n"
+"system_mode_api_forced_trampoline:\n"
+PROBE_SAVE_ARGS
+SYSTEM_MODE_CAPTURE(6)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0xd2800002\n"
+"    .inst 0xd2800001\n"
+"    .inst 0x910003fd\n"
+"    adrp x16, system_mode_api_forced_continue\n"
+"    ldr x16, [x16, #:lo12:system_mode_api_forced_continue]\n"
+"    br x16\n"
+".globl ee_sequence_request_trampoline\n"
+".type ee_sequence_request_trampoline, %function\n"
+"ee_sequence_request_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(0)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, ee_sequence_request_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_request_continue]\n"
+"    br x16\n"
+".globl ee_sequence_enqueue_trampoline\n"
+".type ee_sequence_enqueue_trampoline, %function\n"
+"ee_sequence_enqueue_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(3)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f4\n"
+"    adrp x16, ee_sequence_enqueue_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_enqueue_continue]\n"
+"    br x16\n"
+".globl ee_sequence_factory_trampoline\n"
+".type ee_sequence_factory_trampoline, %function\n"
+"ee_sequence_factory_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(1)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, ee_sequence_factory_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_factory_continue]\n"
+"    br x16\n"
+".globl ee_sequence_run_trampoline\n"
+".type ee_sequence_run_trampoline, %function\n"
+"ee_sequence_run_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(2)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, ee_sequence_run_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_run_continue]\n"
+"    br x16\n"
+".globl ee_sequence_restart_run_trampoline\n"
+".type ee_sequence_restart_run_trampoline, %function\n"
+"ee_sequence_restart_run_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(4)
+PROBE_RESTORE_ARGS
+"    .inst 0xd10bc3ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    adrp x16, ee_sequence_restart_run_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_restart_run_continue]\n"
+"    br x16\n"
+".globl ee_sequence_resume_run_trampoline\n"
+".type ee_sequence_resume_run_trampoline, %function\n"
+"ee_sequence_resume_run_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(5)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xb9401c01\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, ee_sequence_resume_run_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_resume_run_continue]\n"
+"    br x16\n"
+".globl ee_sequence_still_lower_trampoline\n"
+".type ee_sequence_still_lower_trampoline, %function\n"
+"ee_sequence_still_lower_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(6)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, ee_sequence_still_lower_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_still_lower_continue]\n"
+"    br x16\n"
+".globl ee_sequence_movie_lower_trampoline\n"
+".type ee_sequence_movie_lower_trampoline, %function\n"
+"ee_sequence_movie_lower_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(7)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, ee_sequence_movie_lower_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_movie_lower_continue]\n"
+"    br x16\n"
+".globl ee_sequence_still_send_trampoline\n"
+".type ee_sequence_still_send_trampoline, %function\n"
+"ee_sequence_still_send_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(8)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0xd2800202\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, ee_sequence_still_send_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_still_send_continue]\n"
+"    br x16\n"
+".globl ee_sequence_movie_send_trampoline\n"
+".type ee_sequence_movie_send_trampoline, %function\n"
+"ee_sequence_movie_send_trampoline:\n"
+PROBE_SAVE_ARGS
+EE_SEQUENCE_CAPTURE(9)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xb9400000\n"
+"    .inst 0xf9000bf3\n"
+"    adrp x16, ee_sequence_movie_send_continue\n"
+"    ldr x16, [x16, #:lo12:ee_sequence_movie_send_continue]\n"
+"    br x16\n"
+".globl sequence_create_trampoline\n"
+".type sequence_create_trampoline, %function\n"
+"sequence_create_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x0, x30\n"
+"    bl capture_sequence_create\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd10343ff\n"
+"    .inst 0x528005e0\n"
+"    .inst 0xa9037bfd\n"
+"    .inst 0x9100c3fd\n"
+"    adrp x16, sequence_create_continue\n"
+"    ldr x16, [x16, #:lo12:sequence_create_continue]\n"
+"    br x16\n"
+".globl mode_factory_table_trampoline\n"
+".type mode_factory_table_trampoline, %function\n"
+"mode_factory_table_trampoline:\n"
+PROBE_SAVE_ARGS
+MODE_FACTORY_CAPTURE(0)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, mode_factory_table_continue\n"
+"    ldr x16, [x16, #:lo12:mode_factory_table_continue]\n"
+"    br x16\n"
+".globl mode_factory_direct_trampoline\n"
+".type mode_factory_direct_trampoline, %function\n"
+"mode_factory_direct_trampoline:\n"
+PROBE_SAVE_ARGS
+MODE_FACTORY_CAPTURE(1)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, mode_factory_direct_continue\n"
+"    ldr x16, [x16, #:lo12:mode_factory_direct_continue]\n"
+"    br x16\n"
+".globl mode_dependency_trampoline\n"
+".type mode_dependency_trampoline, %function\n"
+"mode_dependency_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x30\n"
+"    bl capture_mode_dependency\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b87bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x910143b4\n"
+"    adrp x16, mode_dependency_continue\n"
+"    ldr x16, [x16, #:lo12:mode_dependency_continue]\n"
+"    br x16\n"
+".globl mode_schedule_trampoline\n"
+".type mode_schedule_trampoline, %function\n"
+"mode_schedule_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x3, x30\n"
+"    bl capture_mode_schedule\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b77bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0x910243b6\n"
+"    adrp x16, mode_schedule_continue\n"
+"    ldr x16, [x16, #:lo12:mode_schedule_continue]\n"
+"    br x16\n"
+".globl clock_sequence_trampoline\n"
+".type clock_sequence_trampoline, %function\n"
+"clock_sequence_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x30\n"
+"    bl capture_clock_sequence\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xb9401001\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, clock_sequence_continue\n"
+"    ldr x16, [x16, #:lo12:clock_sequence_continue]\n"
+"    br x16\n"
+".globl feature_detail_map_trampoline\n"
+".type feature_detail_map_trampoline, %function\n"
+"feature_detail_map_trampoline:\n"
+PROBE_SAVE_ARGS
+FEATURE_DETAIL_CAPTURE(0)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9400002\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, feature_detail_map_continue\n"
+"    ldr x16, [x16, #:lo12:feature_detail_map_continue]\n"
+"    br x16\n"
+".globl feature_detail_lookup_trampoline\n"
+".type feature_detail_lookup_trampoline, %function\n"
+"feature_detail_lookup_trampoline:\n"
+PROBE_SAVE_ARGS
+FEATURE_DETAIL_CAPTURE(1)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0x9100c3b4\n"
+"    adrp x16, feature_detail_lookup_continue\n"
+"    ldr x16, [x16, #:lo12:feature_detail_lookup_continue]\n"
+"    br x16\n"
+".globl feature_detail_check_trampoline\n"
+".type feature_detail_check_trampoline, %function\n"
+"feature_detail_check_trampoline:\n"
+PROBE_SAVE_ARGS
+FEATURE_DETAIL_CAPTURE(2)
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, feature_detail_check_continue\n"
+"    ldr x16, [x16, #:lo12:feature_detail_check_continue]\n"
+"    br x16\n"
+);
+extern void shutter_detail_canonical_trampoline(void), shutter_detail_target_trampoline(void);
+extern void shutter_detail_half_trampoline(void), shutter_detail_release_trampoline(void);
+extern void shutter_detail_full_trampoline(void), shutter_detail_extra_trampoline(void);
+extern void shutter_flow_core_trampoline(void), shutter_flow_final_trampoline(void), shutter_flow_send_trampoline(void);
+extern void shutter_api_call_trampoline(void), shutter_api_wrapper_trampoline(void), shutter_api_execute_trampoline(void);
+extern void shutter_mode0_trampoline(void), shutter_mode1_trampoline(void), shutter_mode2_trampoline(void);
+extern void shutter_mode_exec_trampoline(void);
+extern void shutter_mode_model_trampoline(void);
+extern void shutter_mode_rep_trampoline(void), shutter_mode_scr_trampoline(void);
+extern void shutter_mode_exposure_trampoline(void);
+extern void shutter_mode_feature_trampoline(void), shutter_mode_feature_join_trampoline(void);
+extern void system_mode_gate_trampoline(void), system_mode_start_trampoline(void);
+extern void system_mode_write_trampoline(void), system_mode_still_trampoline(void), system_mode_movie_trampoline(void);
+extern void system_mode_api_start_ee_trampoline(void), system_mode_api_forced_trampoline(void);
+extern void ee_sequence_request_trampoline(void), ee_sequence_factory_trampoline(void), ee_sequence_run_trampoline(void);
+extern void ee_sequence_enqueue_trampoline(void);
+extern void feature_detail_map_trampoline(void), feature_detail_lookup_trampoline(void);
+extern void feature_detail_check_trampoline(void);
+extern void ee_sequence_restart_run_trampoline(void), ee_sequence_resume_run_trampoline(void);
+extern void ee_sequence_still_lower_trampoline(void), ee_sequence_movie_lower_trampoline(void);
+extern void ee_sequence_still_send_trampoline(void), ee_sequence_movie_send_trampoline(void);
+extern void sequence_create_trampoline(void), mode_factory_table_trampoline(void), mode_factory_direct_trampoline(void);
+extern void mode_dependency_trampoline(void), mode_schedule_trampoline(void), clock_sequence_trampoline(void);
+static void enable_sequence_queue_observer(unsigned long base);
+static void install_shutter_detail_trace(unsigned long base) {
+    const char *mode = getenv("MENU_INPUT_ROUTE_DETAIL");
+    if (!mode) return; /* Experimental detail probes are independently opt-in. */
+    int all = same_name(mode, "1");
+    int handlers = all || same_name(mode, "handlers");
+    int flows = all || same_name(mode, "flow");
+    int selected[49] = {all || same_name(mode, "canonical"),
+                       all || same_name(mode, "target"), handlers, handlers, handlers, handlers,
+                       flows, flows, flows, flows, flows, flows, flows, flows, flows, flows, flows,
+                       flows, flows, flows, flows, flows, flows, flows, flows, flows, flows,
+                       flows, flows, flows, flows, flows, flows, flows, flows, flows, flows, flows,
+                       flows, flows, flows, flows, flows, flows, flows, flows, flows, flows, flows};
+    if (!selected[0] && !selected[1] && !handlers && !flows) {
+        record("SHUTTER_DETAIL_REFUSED ", "unknown detail selection; no detail probes enabled");
+        return;
+    }
+    const unsigned long offsets[49] = {0x1ac6710,0x1ac67d4,0x1b3a818,0x1aff508,0x1b54dc0,0x1b23a6c,
+                                      0x1b54444,0x1af16dc,0x1af1584,0x2688f44,0x2688eac,0x2688a08,
+                                      0x1b489f4,0x1b496e8,0x1b4a000,0x26b8428,0x1b25cb0,
+                                      0x205fcd0,0x209dd68,0x26cb0ec,0x1b4987c,0x1b49a34,
+                                      0x26c96b0,0x26c9534,0x25d38d0,0x26c8ed4,0x26c91d8,
+                                      0x2489564,0x3274f90,0x347618c,0x24e9eb4,
+                                      0x1b5a09c,0x1b6f8f4,0x1b76980,0x26c9848,0x26c915c,
+                                      0x3418e58,0x30aba88,0x24cc968,0x248ff44,0x32c6edc,
+                                      0x34cb808,0x34cb948,0x3546040,0x35461e8,0x303d93c,0x303cb84,0x3222ad0,0x306f494};
+    const unsigned int expected[49][4] = {
+        {0x52a04223,0xb9402fa2,0x6b03001f,0xf94013a1},
+        {0xf9400003,0xf9400bf3,0xf9400863,0xa8c37bfd},
+        {0xa9b77bfd,0x910003fd,0xa90153f3,0x9101c3b3},
+        {0xa9bc7bfd,0x910003fd,0xa90153f3,0x9100e3b3},
+        {0xa9bc7bfd,0x910003fd,0xa90153f3,0x9100e3b4},
+        {0xa9b87bfd,0x910003fd,0xa9025bf5,0x910123b5},
+        {0xa9b67bfd,0x910003fd,0xa90363f7,0xaa0003f8},
+        {0xa9bb7bfd,0x910003fd,0xa9025bf5,0x2a0103f6},
+        {0xa9bb7bfd,0x910003fd,0xa9025bf5,0xaa0003f5},
+        {0xa9b97bfd,0x910003fd,0xf90013f5,0xaa0003f5},
+        {0xa9bc7bfd,0x910003fd,0xa90153f3,0x9100e3b3},
+        {0xa9b77bfd,0x910003fd,0xa90153f3,0x910183b4},
+        {0xd10403ff,0xa9037bfd,0x9100c3fd,0x910343a4},
+        {0xd10403ff,0xa9037bfd,0x9100c3fd,0x910343a4},
+        {0xd10403ff,0xa9037bfd,0x9100c3fd,0x910343a4},
+        {0xa9b87bfd,0x910003fd,0xf90013f5,0xaa0003f5},
+        {0xd103c3ff,0xa9037bfd,0x9100c3fd,0x910303a4},
+        {0xa9b57bfd,0x910003fd,0xa9025bf5,0x910203b5},
+        {0xd11203ff,0xa9ba7bfd,0x910003fd,0xa90153f3},
+        {0xa9b57bfd,0x910003fd,0xf90013f5,0xaa0003f5},
+        {0x52800061,0xb9400f00,0x72a04481,0x6b01001f},
+        {0x2a1503f6,0x52800017,0xb9400f00,0x528000a1},
+        {0xa9b87bfd,0x910003fd,0xa9025bf5,0x910123b6},
+        {0xa9b97bfd,0x910003fd,0xa90153f3,0x910103b4},
+        {0xa9b57bfd,0x910003fd,0xa90153f3,0x910243b3},
+        {0xa9b67bfd,0x910003fd,0xa90153f3,0x910203b3},
+        {0xa9b77bfd,0x910003fd,0xa90153f3,0x9101c3b3},
+        {0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},
+        {0xa9bc7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+        {0xa9bc7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+        {0xa9ba7bfd,0x910003fd,0xa90153f3,0xaa0003f4},
+        {0xa9be7bfd,0x910003fd,0xf9400002,0xa90153f3},
+        {0xa9bd7bfd,0x910003fd,0xa90153f3,0x9100c3b4},
+        {0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},
+        {0xa9bc7bfd,0xd2800002,0xd2800001,0x910003fd},
+        {0xa9bc7bfd,0xd2800002,0xd2800001,0x910003fd},
+        {0xd10bc3ff,0xa9ba7bfd,0x910003fd,0xa9025bf5},
+        {0xa9bc7bfd,0x910003fd,0xb9401c01,0xa90153f3},
+        {0xd10343ff,0x528005e0,0xa9037bfd,0x9100c3fd},
+        {0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},
+        {0xa9bc7bfd,0x910003fd,0xa9025bf5,0xaa0003f5},
+        {0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+        {0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+        {0xa9bb7bfd,0xd2800202,0x910003fd,0xa90153f3},
+        {0xa9bb7bfd,0x910003fd,0xb9400000,0xf9000bf3},
+        {0xa9b87bfd,0x910003fd,0xa90153f3,0x910143b4},
+        {0xa9bd7bfd,0xb201f3e2,0xf2955562,0x910003fd},
+        {0xa9b77bfd,0x910003fd,0xa9025bf5,0x910243b6},
+        {0xa9bb7bfd,0x910003fd,0xb9401001,0xa90153f3}};
+    for (unsigned int i=0;i<49;i++) if (selected[i]) for (unsigned int j=0;j<4;j++)
+        if (((const unsigned int *)(base+offsets[i]))[j] != expected[i][j]) {
+            record("SHUTTER_DETAIL_REFUSED ", "original bytes differ; detail probes disabled");
+            return;
+        }
+    shutter_detail_canonical_continue=(void *)(base+0x1ac6720);
+    shutter_detail_target_continue=(void *)(base+0x1ac67e4);
+    shutter_detail_half_continue=(void *)(base+0x1b3a828);
+    shutter_detail_release_continue=(void *)(base+0x1aff518);
+    shutter_detail_full_continue=(void *)(base+0x1b54dd0);
+    shutter_detail_extra_continue=(void *)(base+0x1b23a7c);
+    shutter_flow_core_continue=(void *)(base+0x1b54454);
+    shutter_flow_final_continue=(void *)(base+0x1af16ec);
+    shutter_flow_send_continue=(void *)(base+0x1af1594);
+    shutter_api_call_continue=(void *)(base+0x2688f54);
+    shutter_api_wrapper_continue=(void *)(base+0x2688ebc);
+    shutter_api_execute_continue=(void *)(base+0x2688a18);
+    shutter_mode0_continue=(void *)(base+0x1b48a04);
+    shutter_mode1_continue=(void *)(base+0x1b496f8);
+    shutter_mode2_continue=(void *)(base+0x1b4a010);
+    shutter_mode_exec_continue=(void *)(base+0x26b8438);
+    shutter_mode_model_continue=(void *)(base+0x1b25cc0);
+    shutter_mode_rep_continue=(void *)(base+0x205fce0);
+    shutter_mode_scr_continue=(void *)(base+0x209dd78);
+    shutter_mode_exposure_continue=(void *)(base+0x26cb0fc);
+    shutter_mode_feature_continue=(void *)(base+0x1b4988c);
+    shutter_mode_feature_join_continue=(void *)(base+0x1b49a44);
+    system_mode_gate_continue=(void *)(base+0x26c96c0);
+    system_mode_start_continue=(void *)(base+0x26c9544);
+    system_mode_write_continue=(void *)(base+0x25d38e0);
+    system_mode_still_continue=(void *)(base+0x26c8ee4);
+    system_mode_movie_continue=(void *)(base+0x26c91e8);
+    system_mode_api_start_ee_continue=(void *)(base+0x26c9858);
+    system_mode_api_forced_continue=(void *)(base+0x26c916c);
+    ee_sequence_request_continue=(void *)(base+0x2489574);
+    ee_sequence_enqueue_continue=(void *)(base+0x24e9ec4);
+    feature_detail_map_continue=(void *)(base+0x1b5a0ac);
+    feature_detail_lookup_continue=(void *)(base+0x1b6f904);
+    feature_detail_check_continue=(void *)(base+0x1b76990);
+    ee_sequence_restart_run_continue=(void *)(base+0x3418e68);
+    ee_sequence_resume_run_continue=(void *)(base+0x30aba98);
+    sequence_create_continue=(void *)(base+0x24cc978);
+    mode_factory_table_continue=(void *)(base+0x248ff54);
+    mode_factory_direct_continue=(void *)(base+0x32c6eec);
+    mode_dependency_continue=(void *)(base+0x303d94c);
+    mode_schedule_continue=(void *)(base+0x3222ae0);
+    clock_sequence_continue=(void *)(base+0x306f4a4);
+    ee_sequence_still_lower_continue=(void *)(base+0x34cb818);
+    ee_sequence_movie_lower_continue=(void *)(base+0x34cb958);
+    ee_sequence_still_send_continue=(void *)(base+0x3546050);
+    ee_sequence_movie_send_continue=(void *)(base+0x35461f8);
+    ee_sequence_factory_continue=(void *)(base+0x3274fa0);
+    ee_sequence_run_continue=(void *)(base+0x347619c);
+    if (selected[0]) arm_entry_probe(base+offsets[0],expected[0],shutter_detail_canonical_trampoline,
+                    shutter_detail_canonical_continue,"shutter canonical event 0x1ac6710");
+    if (selected[1]) arm_entry_probe(base+offsets[1],expected[1],shutter_detail_target_trampoline,
+                    shutter_detail_target_continue,"shutter selected target 0x1ac67d4");
+    if (selected[2]) arm_entry_probe(base+offsets[2],expected[2],shutter_detail_half_trampoline,
+                    shutter_detail_half_continue,"shutter half handler 0x1b3a818");
+    if (selected[3]) arm_entry_probe(base+offsets[3],expected[3],shutter_detail_release_trampoline,
+                    shutter_detail_release_continue,"shutter release handler 0x1aff508");
+    if (selected[4]) arm_entry_probe(base+offsets[4],expected[4],shutter_detail_full_trampoline,
+                    shutter_detail_full_continue,"shutter full handler 0x1b54dc0");
+    if (selected[5]) arm_entry_probe(base+offsets[5],expected[5],shutter_detail_extra_trampoline,
+                    shutter_detail_extra_continue,"shutter extra handler 0x1b23a6c");
+    if (selected[6]) arm_entry_probe(base+offsets[6],expected[6],shutter_flow_core_trampoline,
+                    shutter_flow_core_continue,"shutter full core 0x1b54444");
+    if (selected[7]) arm_entry_probe(base+offsets[7],expected[7],shutter_flow_final_trampoline,
+                    shutter_flow_final_continue,"shutter final event 0x1af16dc");
+    if (selected[8]) arm_entry_probe(base+offsets[8],expected[8],shutter_flow_send_trampoline,
+                    shutter_flow_send_continue,"shutter screen event send 0x1af1584");
+    if (selected[9]) arm_entry_probe(base+offsets[9],expected[9],shutter_api_call_trampoline,
+                    shutter_api_call_continue,"shutter capture API call 0x2688f44");
+    if (selected[10]) arm_entry_probe(base+offsets[10],expected[10],shutter_api_wrapper_trampoline,
+                    shutter_api_wrapper_continue,"shutter capture API wrapper 0x2688eac");
+    if (selected[11]) arm_entry_probe(base+offsets[11],expected[11],shutter_api_execute_trampoline,
+                    shutter_api_execute_continue,"shutter execute cap seq 0x2688a08");
+    if (selected[12]) arm_entry_probe(base+offsets[12],expected[12],shutter_mode0_trampoline,
+                    shutter_mode0_continue,"mode handler 0x1b489f4");
+    if (selected[13]) arm_entry_probe(base+offsets[13],expected[13],shutter_mode1_trampoline,
+                    shutter_mode1_continue,"mode handler 0x1b496e8");
+    if (selected[14]) arm_entry_probe(base+offsets[14],expected[14],shutter_mode2_trampoline,
+                    shutter_mode2_continue,"mode handler 0x1b4a000");
+    if (selected[15]) arm_entry_probe(base+offsets[15],expected[15],shutter_mode_exec_trampoline,
+                    shutter_mode_exec_continue,"mode executor 0x26b8428");
+    if (selected[16]) arm_entry_probe(base+offsets[16],expected[16],shutter_mode_model_trampoline,
+                    shutter_mode_model_continue,"mode model handler 0x1b25cb0");
+    if (selected[17]) arm_entry_probe(base+offsets[17],expected[17],shutter_mode_rep_trampoline,
+                    shutter_mode_rep_continue,"rep_boot mode change 0x205fcd0");
+    if (selected[18]) arm_entry_probe(base+offsets[18],expected[18],shutter_mode_scr_trampoline,
+                    shutter_mode_scr_continue,"scr0039 mode change 0x209dd68");
+    if (selected[19]) arm_entry_probe(base+offsets[19],expected[19],shutter_mode_exposure_trampoline,
+                    shutter_mode_exposure_continue,"mode exposure change 0x26cb0ec");
+    if (selected[20]) arm_entry_probe(base+offsets[20],expected[20],shutter_mode_feature_trampoline,
+                    shutter_mode_feature_continue,"mode feature available 0x1b4987c");
+    if (selected[21]) arm_entry_probe(base+offsets[21],expected[21],shutter_mode_feature_join_trampoline,
+                    shutter_mode_feature_join_continue,"mode feature/executor join 0x1b49a34");
+    if (selected[22]) arm_entry_probe(base+offsets[22],expected[22],system_mode_gate_trampoline,
+                    system_mode_gate_continue,"system mode gate 0x26c96b0");
+    if (selected[23]) arm_entry_probe(base+offsets[23],expected[23],system_mode_start_trampoline,
+                    system_mode_start_continue,"system mode start 0x26c9534");
+    if (selected[24]) arm_entry_probe(base+offsets[24],expected[24],system_mode_write_trampoline,
+                    system_mode_write_continue,"system mode write 0x25d38d0");
+    if (selected[25]) arm_entry_probe(base+offsets[25],expected[25],system_mode_still_trampoline,
+                    system_mode_still_continue,"system mode still 0x26c8ed4");
+    if (selected[26]) arm_entry_probe(base+offsets[26],expected[26],system_mode_movie_trampoline,
+                    system_mode_movie_continue,"system mode movie 0x26c91d8");
+    if (selected[27]) arm_entry_probe(base+offsets[27],expected[27],ee_sequence_request_trampoline,
+                    ee_sequence_request_continue,"EE sequence request 0x2489564");
+    if (selected[28]) arm_entry_probe(base+offsets[28],expected[28],ee_sequence_factory_trampoline,
+                    ee_sequence_factory_continue,"EE sequence factory 0x3274f90");
+    if (selected[29]) arm_entry_probe(base+offsets[29],expected[29],ee_sequence_run_trampoline,
+                    ee_sequence_run_continue,"EE sequence run 0x347618c");
+    if (selected[30]) arm_entry_probe(base+offsets[30],expected[30],ee_sequence_enqueue_trampoline,
+                    ee_sequence_enqueue_continue,"EE sequence enqueue 0x24e9eb4");
+    if (selected[31]) arm_entry_probe(base+offsets[31],expected[31],feature_detail_map_trampoline,
+                    feature_detail_map_continue,"feature map 0x1b5a09c");
+    if (selected[32]) arm_entry_probe(base+offsets[32],expected[32],feature_detail_lookup_trampoline,
+                    feature_detail_lookup_continue,"feature descriptor lookup 0x1b6f8f4");
+    if (selected[33]) arm_entry_probe(base+offsets[33],expected[33],feature_detail_check_trampoline,
+                    feature_detail_check_continue,"feature descriptor check 0x1b76980");
+    if (selected[34]) arm_entry_probe(base+offsets[34],expected[34],system_mode_api_start_ee_trampoline,
+                    system_mode_api_start_ee_continue,"start EE API 0x26c9848");
+    if (selected[35]) arm_entry_probe(base+offsets[35],expected[35],system_mode_api_forced_trampoline,
+                    system_mode_api_forced_continue,"start EE forced API 0x26c915c");
+    if (selected[36]) arm_entry_probe(base+offsets[36],expected[36],ee_sequence_restart_run_trampoline,
+                    ee_sequence_restart_run_continue,"EE restart run 0x3418e58");
+    if (selected[37]) arm_entry_probe(base+offsets[37],expected[37],ee_sequence_resume_run_trampoline,
+                    ee_sequence_resume_run_continue,"EE resume run 0x30aba88");
+    if (selected[38]) arm_entry_probe(base+offsets[38],expected[38],sequence_create_trampoline,
+                    sequence_create_continue,"model create_sequence 0x24cc968");
+    if (selected[39]) arm_entry_probe(base+offsets[39],expected[39],mode_factory_table_trampoline,
+                    mode_factory_table_continue,"mode transition table factory 0x248ff44");
+    if (selected[40]) arm_entry_probe(base+offsets[40],expected[40],mode_factory_direct_trampoline,
+                    mode_factory_direct_continue,"mode transition direct factory 0x32c6edc");
+    if (selected[41]) arm_entry_probe(base+offsets[41],expected[41],ee_sequence_still_lower_trampoline,
+                    ee_sequence_still_lower_continue,"EE still lower 0x34cb808");
+    if (selected[42]) arm_entry_probe(base+offsets[42],expected[42],ee_sequence_movie_lower_trampoline,
+                    ee_sequence_movie_lower_continue,"EE movie lower 0x34cb948");
+    if (selected[43]) arm_entry_probe(base+offsets[43],expected[43],ee_sequence_still_send_trampoline,
+                    ee_sequence_still_send_continue,"EE still send 0x3546040");
+    if (selected[44]) arm_entry_probe(base+offsets[44],expected[44],ee_sequence_movie_send_trampoline,
+                    ee_sequence_movie_send_continue,"EE movie send 0x35461e8");
+    if (selected[45]) arm_entry_probe(base+offsets[45],expected[45],mode_dependency_trampoline,
+                    mode_dependency_continue,"mode transition dependency 0x303d93c");
+    if (selected[46]) install_dep_wait_probe(base);
+    if (selected[47]) arm_entry_probe(base+offsets[47],expected[47],mode_schedule_trampoline,
+                    mode_schedule_continue,"mode transition schedule 0x3222ad0");
+    if (selected[48]) arm_entry_probe(base+offsets[48],expected[48],clock_sequence_trampoline,
+                    clock_sequence_continue,"sequence clock run 0x306f494");
+    if (flows) enable_sequence_queue_observer(base);
+}
+/* Natural startup frontier: mode transition, enter-rec-still and boot run_i return.
+   Separate from MENU_ENTRY_PROBES so the known BOOT_FULFIL +8 continuation hazard is not enabled.
+   Every site replays its exact original 16-byte prologue and preserves NZCV/errno/args. */
+static unsigned int mode_transition_seen, enter_rec_still_seen;
+void capture_mode_transition(unsigned long object, unsigned long caller) {
+    if (mode_transition_seen++ >= 8) return;
+    int saved_errno = *__errno_location();
+    unsigned int selector[2] = {0}, previous[2] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long have_selector = fd < 0 ? -1 : pread(fd, selector, sizeof selector, (long)(object + 0xf724UL));
+    long have_previous = fd < 0 ? -1 : pread(fd, previous, 4, (long)(appfw_base + 0x7e5d450UL));
+    have_previous |= fd < 0 ? -1 : pread(fd, previous+1, 4, (long)(appfw_base + 0x7e5d4c8UL));
+    if (fd >= 0) close(fd);
+    char text[320];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld object=%#lx mode=%#x source=%#x prev=%#x/%#x reads=%ld/%ld caller=appFw+%#lx",
+             mode_transition_seen, syscall(178), object, selector[0], selector[1],
+             previous[0], previous[1], have_selector, have_previous, caller-appfw_base);
+    record("MODE_TRANSITION ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_enter_rec_still(unsigned long object, unsigned long caller) {
+    if (enter_rec_still_seen++ >= 8) return;
+    int saved_errno = *__errno_location();
+    unsigned int ee[3] = {0};
+    int fd = open("/proc/self/mem", 0);
+    long have_ee = fd < 0 ? -1 : pread(fd, ee, 4, (long)(appfw_base + 0x7e5c240UL));
+    have_ee |= fd < 0 ? -1 : pread(fd, ee+1, 4, (long)(appfw_base + 0x7e5dd40UL));
+    have_ee |= fd < 0 ? -1 : pread(fd, ee+2, 4, (long)(appfw_base + 0x7e67700UL));
+    if (fd >= 0) close(fd);
+    char text[288];
+    snprintf(text, sizeof text, "n=%u tid=%ld object=%#lx ee_enable=%u source=%u ee_status=%u reads=%ld caller=appFw+%#lx",
+             enter_rec_still_seen, syscall(178), object, ee[0], ee[1], ee[2], have_ee, caller-appfw_base);
+    record("ENTER_REC_STILL ", text);
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl mode_transition_trampoline\n"
+".type mode_transition_trampoline, %function\n"
+"mode_transition_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x30\n"
+"    bl capture_mode_transition\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b67bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90363f7\n"
+"    .inst 0x9101c3b7\n"
+"    adrp x16, mode_transition_continue\n"
+"    ldr x16, [x16, #:lo12:mode_transition_continue]\n"
+"    br x16\n"
+);
+extern void mode_transition_trampoline(void);
+static void *mode_transition_continue;
+__asm__(
+".text\n"
+".globl enter_rec_still_trampoline\n"
+".type enter_rec_still_trampoline, %function\n"
+"enter_rec_still_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x30\n"
+"    bl capture_enter_rec_still\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd13a03ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, enter_rec_still_continue\n"
+"    ldr x16, [x16, #:lo12:enter_rec_still_continue]\n"
+"    br x16\n"
+);
+extern void enter_rec_still_trampoline(void);
+static void *enter_rec_still_continue;
+static unsigned int upm_model_error_seen, boot_fatal_409_seen, boot_fatal_common_seen;
+void capture_upm_model_error(unsigned long error, unsigned long output, unsigned long frame) {
+    if (upm_model_error_seen++ >= 16) return;
+    int saved_errno = *__errno_location();
+    unsigned long caller = 0;
+    unsigned int previous = 0;
+    int fd = open("/proc/self/mem", 0);
+    long have_caller = fd < 0 ? -1 : pread(fd, &caller, sizeof caller, (long)(frame + 8));
+    long have_previous = fd < 0 ? -1 : pread(fd, &previous, sizeof previous, (long)output);
+    if (fd >= 0) close(fd);
+    char text[320];
+    snprintf(text, sizeof text,
+             "n=%u tid=%ld error=%#lx output=%#lx previous=%#x frame=%#lx caller=appFw+%#lx reads=%ld/%ld",
+             upm_model_error_seen, syscall(178), error, output, previous, frame,
+             caller - appfw_base, have_caller, have_previous);
+    record("UPM_MODEL_ERROR ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_boot_fatal_409(unsigned long frame) {
+    if (boot_fatal_409_seen++ >= 4) return;
+    int saved_errno = *__errno_location();
+    unsigned int error = 0;
+    int fd = open("/proc/self/mem", 0);
+    long have_error = fd < 0 ? -1 : pread(fd, &error, sizeof error, (long)(frame + 240));
+    if (fd >= 0) close(fd);
+    char text[192];
+    snprintf(text, sizeof text, "n=%u tid=%ld line=409 error=%#x frame=%#lx read=%ld",
+             boot_fatal_409_seen, syscall(178), error, frame, have_error);
+    record("BOOT_FATAL_409 ", text);
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl upm_model_error_trampoline\n"
+".type upm_model_error_trampoline, %function\n"
+"upm_model_error_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x21\n"
+"    mov x2, x29\n"
+"    bl capture_upm_model_error\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xf9401bf7\n"
+"    .inst 0xa94153f3\n"
+"    .inst 0xb90002a0\n"
+"    .inst 0xa9425bf5\n"
+"    adrp x16, upm_model_error_continue\n"
+"    ldr x16, [x16, #:lo12:upm_model_error_continue]\n"
+"    br x16\n"
+);
+extern void upm_model_error_trampoline(void);
+static void *upm_model_error_continue;
+__asm__(
+".text\n"
+".globl boot_fatal_409_trampoline\n"
+".type boot_fatal_409_trampoline, %function\n"
+"boot_fatal_409_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x0, x29\n"
+"    bl capture_boot_fatal_409\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xb940f3a3\n"
+"    .inst 0x52803322\n"
+"    .inst 0xaa1403e1\n"
+"    adrp x16, boot_fatal_409_continue\n"
+"    ldr x16, [x16, #:lo12:boot_fatal_409_continue]\n"
+"    br x16\n"
+);
+extern void boot_fatal_409_trampoline(void);
+static void *boot_fatal_409_continue;
+void capture_boot_fatal_common(unsigned long line, unsigned long error, unsigned long frame) {
+    if (boot_fatal_common_seen++ >= 8) return;
+    int saved_errno = *__errno_location();
+    char text[192];
+    snprintf(text, sizeof text, "n=%u tid=%ld line=%lu error=%#lx frame=%#lx",
+             boot_fatal_common_seen, syscall(178), line, error, frame);
+    record("BOOT_FATAL_COMMON ", text);
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl boot_fatal_common_trampoline\n"
+".type boot_fatal_common_trampoline, %function\n"
+"boot_fatal_common_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x0, x2\n"
+"    mov x1, x3\n"
+"    mov x2, x29\n"
+"    bl capture_boot_fatal_common\n"
+PROBE_RESTORE_ARGS
+"    mov x1, x21\n"
+"    adrp x16, boot_fatal_format_page\n"
+"    ldr x16, [x16, #:lo12:boot_fatal_format_page]\n"
+"    mov x0, x16\n"
+"    add x0, x0, #0xba3\n"
+"    adrp x16, boot_fatal_common_continue\n"
+"    ldr x30, [x16, #:lo12:boot_fatal_common_continue]\n"
+"    adrp x16, boot_fatal_logger\n"
+"    ldr x16, [x16, #:lo12:boot_fatal_logger]\n"
+"    br x16\n"
+);
+extern void boot_fatal_common_trampoline(void);
+static void *boot_fatal_common_continue, *boot_fatal_format_page, *boot_fatal_logger;
+static void install_natural_start_trace(unsigned long base) {
+    mode_transition_continue = (void *)(base + 0x33aa0e0UL);
+    enter_rec_still_continue = (void *)(base + 0x339d45cUL);
+    upm_model_error_continue = (void *)(base + 0x359e8c8UL);
+    boot_fatal_409_continue = (void *)(base + 0x305b974UL);
+    boot_fatal_common_continue = (void *)(base + 0x305b980UL);
+    boot_fatal_format_page = (void *)(base + 0x48bf000UL);
+    boot_fatal_logger = (void *)(base + 0x36804c8UL);
+    arm_entry_probe(base + 0x33aa0d0UL,
+                    (const unsigned int[4]){0xa9b67bfd,0x910003fd,0xa90363f7,0x9101c3b7},
+                    (void *)mode_transition_trampoline, mode_transition_continue, "mode transition 0x33aa0d0");
+    arm_entry_probe(base + 0x339d44cUL,
+                    (const unsigned int[4]){0xd13a03ff,0xa9ba7bfd,0x910003fd,0xa90153f3},
+                    (void *)enter_rec_still_trampoline, enter_rec_still_continue, "enter rec still 0x339d44c");
+    arm_entry_probe(base + 0x359e8b8UL,
+                    (const unsigned int[4]){0xf9401bf7,0xa94153f3,0xb90002a0,0xa9425bf5},
+                    (void *)upm_model_error_trampoline, upm_model_error_continue, "UPM model error 0x359e8b8");
+    /* Equivalent branch-target continuation, not a literal replay of the original B at 0x305be30. */
+    arm_entry_probe(base + 0x305be24UL,
+                    (const unsigned int[4]){0xb940f3a3,0x52803322,0xaa1403e1,0x17fffed1},
+                    (void *)boot_fatal_409_trampoline, boot_fatal_409_continue, "boot fatal line 409 0x305be24");
+    /* Preserve the original logger, format pointer and LR=0x305b980 exactly. */
+    arm_entry_probe(base + 0x305b970UL,
+                    (const unsigned int[4]){0xaa1503e1,0x9000c320,0x912e8c00,0x941892d3},
+                    (void *)boot_fatal_common_trampoline, boot_fatal_common_continue, "boot fatal common 0x305b970");
+}
 /* sequence_boot::run (0x305e9b8) calls run_i (0x305e730? no: 0x305b730) and, immediately after it
    returns, fulfils the promise the UI thread is blocked on:
        305e9e4  bl  run_i
@@ -2022,6 +4605,51 @@ void capture_power_queue_enter(const unsigned char *queue,const unsigned long *h
         n,syscall(178),(unsigned long)queue-appfw_base,*holder);
     record("POWER_QUEUE_ENTER ",text);
 }
+static unsigned int sequence_queue_observer_enabled;
+void capture_sequence_queue_enter(const unsigned char *queue,const unsigned long *holder,unsigned long caller) {
+    int saved_errno=*__errno_location();
+    if(!__atomic_load_n(&sequence_queue_observer_enabled,__ATOMIC_RELAXED)) {
+        *__errno_location()=saved_errno;
+        return;
+    }
+    unsigned long vector=0,items=0,request=0,predicate=0;
+    unsigned int id=0;
+    unsigned char request_flag=0;
+    int fd=open("/proc/self/mem",0);
+    long hv=fd<0?-1:pread(fd,&vector,8,(long)holder);
+    long iv=-1,ri=-1,ib=-1,pb=-1,fb=-1;
+    if(fd>=0 && hv==8)iv=pread(fd,&items,8,(long)vector);
+    if(fd>=0 && iv==8)ri=pread(fd,&request,8,(long)items);
+    if(fd>=0 && ri==8)ib=pread(fd,&id,4,(long)request);
+    if(fd>=0 && ib==4) {
+        pb=pread(fd,&predicate,8,(long)(request+8));
+        fb=pread(fd,&request_flag,1,(long)(request+0x10));
+    }
+    if(fd>=0)close(fd);
+    if(ib!=4) {
+        static unsigned int unresolved;
+        unsigned int n=__atomic_add_fetch(&unresolved,1,__ATOMIC_RELAXED);
+        if(n<=4) {
+            char text[320];
+            snprintf(text,sizeof text,"site=enqueue_unresolved n=%u tid=%ld queue_app=%#lx holder=%#lx vector=%#lx items=%#lx request=%#lx caller_app=%#lx reads=%ld/%ld/%ld/%ld observation_only=1",
+                n,syscall(178),(unsigned long)queue-appfw_base,(unsigned long)holder,
+                vector,items,request,caller-appfw_base,hv,iv,ri,ib);
+            record("SEQUENCE_QUEUE ",text);
+        }
+    }
+    else if(id==0x2f || id==0x12a || id==0x297 || id==0x2b7) {
+        static unsigned int seen;
+        unsigned int n=__atomic_add_fetch(&seen,1,__ATOMIC_RELAXED);
+        if(n<=32) {
+            char text[448];
+            snprintf(text,sizeof text,"site=enqueue n=%u tid=%ld request_id=%#x queue_app=%#lx vector=%#lx request=%#lx predicate=%#lx request_flag=%#x caller_app=%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1",
+                n,syscall(178),id,(unsigned long)queue-appfw_base,vector,request,predicate,
+                request_flag,caller-appfw_base,hv,iv,ri,ib,pb,fb);
+            record("SEQUENCE_QUEUE ",text);
+        }
+    }
+    *__errno_location()=saved_errno;
+}
 __asm__(".text\n"
 ".globl power_request_trampoline\n.type power_request_trampoline, %function\npower_request_trampoline:\n"
 PROBE_SAVE_ARGS
@@ -2034,10 +4662,25 @@ PROBE_RESTORE_ARGS
 PROBE_SAVE_ARGS
 "    mov x2, x30\n    bl capture_power_queue_enter\n"
 PROBE_RESTORE_ARGS
+PROBE_SAVE_ARGS
+"    mov x2, x30\n    bl capture_sequence_queue_enter\n"
+PROBE_RESTORE_ARGS
 "    .inst 0xa9be7bfd\n    .inst 0x910003fd\n    .inst 0xa90153f3\n    .inst 0xaa0003f3\n"
 "    adrp x16, power_queue_continue\n    ldr x16, [x16, #:lo12:power_queue_continue]\n    br x16\n"
 );
 extern void power_request_trampoline(void),power_queue_trampoline(void);
+static int request_queue_probe_armed;
+static void install_request_queue_probe(unsigned long base) {
+    if(request_queue_probe_armed)return;
+    request_queue_probe_armed=1;
+    power_queue_continue=(void *)(base+0x24cba2cUL);
+    arm_entry_probe(base+0x24cba1cUL,(const unsigned int[4]){0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
+        (void *)power_queue_trampoline,power_queue_continue,"original shared request queue insertion 0x24cba1c");
+}
+static void enable_sequence_queue_observer(unsigned long base) {
+    __atomic_store_n(&sequence_queue_observer_enabled,1,__ATOMIC_RELAXED);
+    install_request_queue_probe(base);
+}
 static void *osd_submit_continue;
 static unsigned long observed_mode_view_params[3];
 static unsigned int observed_mode_model_values[3];
@@ -2219,9 +4862,7 @@ static void install_power_notice_probe(unsigned long base) {
     power_request_skip=(void *)(base+0x24d8780UL);
     arm_entry_probe(base+0x24d8728UL,(const unsigned int[4]){0x340002d7,0xaa1603e2,0x2a1503e1,0xaa1403e0},
         (void *)power_request_trampoline,power_request_continue,"original request100 gate (both CBZ outcomes replayed)");
-    power_queue_continue=(void *)(base+0x24cba2cUL);
-    arm_entry_probe(base+0x24cba1cUL,(const unsigned int[4]){0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},
-        (void *)power_queue_trampoline,power_queue_continue,"original request100 queue insertion entry");
+    install_request_queue_probe(base);
 }
 
 static void install_boot_entry_probes(unsigned long base) {
@@ -2247,9 +4888,8 @@ static void install_boot_entry_probes(unsigned long base) {
     arm_entry_probe(base + 0x2490020UL, (const unsigned int[4]){0xa9be7bfd, 0x910003fd, 0xf9000bf3, 0xaa0003f3}, (void *)bootfactory_probe_trampoline, bootfactory_continue, "0x2a factory 0x2490020");
     arm_entry_probe(base + 0x31c7c94UL, (const unsigned int[4]){0xd101c3ff, 0xa9017bfd, 0x910043fd, 0xa90253f3}, (void *)bootctor_probe_trampoline, bootctor_continue, "sequence_boot ctor 0x31c7c94");
     queue_loop_continue = (void *)(base + 0x3209d48UL + 16);
-    dep_wait_continue = (void *)(base + 0x303cb84UL + 16);
+    install_dep_wait_probe(base);
     arm_entry_probe(base + 0x3209d48UL, (const unsigned int[4]){0xa9b87bfd, 0xd2888002, 0x910003fd, 0xa9046bf9}, (void *)queue_loop_probe_trampoline, queue_loop_continue, "group queue loop 0x3209d48");
-    arm_entry_probe(base + 0x303cb84UL, (const unsigned int[4]){0xa9bd7bfd, 0xb201f3e2, 0xf2955562, 0x910003fd}, (void *)dep_wait_probe_trampoline, dep_wait_continue, "predecessor wait 0x303cb84");
     /* 0x305e9e8 is `ldr x0,[x19,#16]` right after run_i returns; replacing it with a call into the
        trampoline keeps the two original instructions and adds the observation. */
     obj_dispatch_continue = (void *)(base + 0x34caa48UL + 16);
@@ -2680,6 +5320,7 @@ static unsigned int live_key_code,live_key_status;
 static volatile unsigned int live_key_pending;
 static volatile unsigned int live_key_stop;
 extern int strcmp(const char *, const char *);
+extern size_t strlen(const char *);
 extern int usleep(unsigned int);
 static unsigned int sd_ack_worker_started,sd_ack_start_failures;
 static void *sd_ack_retry_worker(void *unused) {
@@ -3398,8 +6039,16 @@ static void install_create_screen_sentinel(unsigned long base) {
     if (getenv("MENU_OPTION_PROBES")) install_option_probes();
     if (getenv("MENU_ENTRY_PROBES")) install_run_i_return_probe(appfw_base);
     if (getenv("MENU_ENTRY_PROBES")) install_shooting_probe(appfw_base);
+    if (getenv("MENU_NATURAL_START_TRACE")) {
+        install_natural_start_trace(appfw_base);
+        install_run_i_return_probe(appfw_base);
+        install_shooting_probe(appfw_base);
+    }
     if (getenv("MENU_SYNC_MSG_HOOK")) install_sync_msg_probe(appfw_base);
     if (getenv("MENU_SYNC_CALL_PROBE")) install_sync_call_probe(appfw_base);
+    if (getenv("MENU_LIVEVIEW_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_liveview_trace(base);
+    if (getenv("MENU_JPEG_REQUEST_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_jpeg_request_trace(base);
+    if (getenv("MENU_INPUT_ROUTE_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_shutter_route_trace(base);
     /* Only now are appFw and its dependencies (libMWF, libosal_*) mapped, so the module can
        resolve them. Starting it earlier crashed bootin.elf with SIGTRAP inside dlopen. */
     if (getenv("MENU_BUSPOWER") && !getenv("MENU_OBSERVE_SELFTEST")) start_bus_power_module();
@@ -3418,6 +6067,14 @@ static void install_create_screen_sentinel(unsigned long base) {
 }
 static void *observe_application_init(void *argument) {
     record("ENTER ", "Application_System_Init");
+    if(functional_camera_enabled){
+        int rc=functional_mpr_memory_enable(record);
+        if(!rc)rc=functional_jpeg_codec_enable(record);
+        char text[180];snprintf(text,sizeof text,
+            "pid=%d device_setup_rc=%d constructor_RPC=0 physical_ASIC_verified=0 capture_verified=0",getpid(),rc);
+        record("FUNCTIONAL_CAMERA_APPLICATION_SETUP ",text);
+        if(rc)functional_camera_setup_error=rc;
+    }
     if (getenv("MENU_MEDIA_INIT_WATCH") && !getenv("MENU_OBSERVE_SELFTEST") &&
         appfw_base && !(appfw_base & 4095UL)) {
         static volatile unsigned int media_init_gate_active;
@@ -3435,14 +6092,17 @@ static void *observe_application_init(void *argument) {
         media_init_gate_active = 0;
     }
     void *result = real_application_init(argument);
-    record(result ? "RETURN_NONZERO " : "RETURN_ZERO ", "Application_System_Init");
+    /* Original 0x1796918 returns an OSAL thread handle, not an error pointer. */
+    char init_result[96];
+    snprintf(init_result, sizeof init_result, "Application_System_Init handle=%p", result);
+    record("RETURN_HANDLE ", init_result);
     /* Post-init view-object walk: Application global [appfw+0x5f645e8] -> object;
        find the qword in object[0..0x2000) whose pointee starts with the view
        vtable (appfw+0x58cbf38, slot0=create_screen). In-process reads, no OOM.
        Temporarily disabled: binary-size shift correlates with a deterministic
        init-time UIPC ioctl abort (libc+0xc1cbc) under icount. */
 #if 0
-    if (result && appfw_base && !getenv("MENU_OBSERVE_SELFTEST")) {
+    if (appfw_base && !getenv("MENU_OBSERVE_SELFTEST")) {
         unsigned long *root = (unsigned long *)(appfw_base + 0x5f645e8);
         unsigned long object = *root;
         char text[140];
@@ -3469,7 +6129,7 @@ static void *observe_application_init(void *argument) {
     /* Resident-page heap scan for the view object: read /proc/self/maps, scan
        only RESIDENT pages (mincore) of small anonymous rw- mappings for qwords
        equal to the view vtable (appfw+0x58dbf38/0x58cbf38). No page-in, no OOM. */
-    if (result && appfw_base && !getenv("MENU_OBSERVE_SELFTEST")) {
+    if (appfw_base && !getenv("MENU_OBSERVE_SELFTEST")) {
         static const char maps_path[] = "/proc/self/maps";
         int mfd = open(maps_path, 0);
         if (mfd >= 0) {
@@ -3889,7 +6549,8 @@ int osal_dynamic_id(unsigned int type, unsigned int owner, unsigned long value) 
    key-event handlers - were invisible in every earlier run. */
 static int trace_registration(unsigned int id) {
     unsigned int family = (id >> 16) & 0xff;
-    if (id == 0x5503e0 || family == 0x55 || family == 0x7a) return 1;
+    if (id == 0x5503e0 || family == 0x55 || family == 0x7a ||
+        (pinmem_hdmi_video_connection_enabled && family == 0x2a)) return 1;
     return ((id >> 16) & 0xfff) == 0x1cf;
 }
 int osal_reg_sync_msg_queue_cb(unsigned int id, void **handle, void *callback, unsigned long argument) {
@@ -3917,7 +6578,8 @@ int osal_reg_msg_queue_cb(unsigned int id, void **handle, void *callback, unsign
     char text[240];
     snprintf(text, sizeof text, "id=%#x result=%d callback=%p arg=%#lx queue=%p caller=%s+%#lx",
              id, result, callback, argument, handle ? *handle : 0, module, offset);
-    if (!getenv("MENU_REG_SILENT")) record("REG_ASYNC ", text);
+    if (!getenv("MENU_REG_SILENT") ||
+        (pinmem_hdmi_video_connection_enabled && ((id >> 16) & 0xff) == 0x2a)) record("REG_ASYNC ", text);
     /* run_i blocks in DataflowInfraReceiver::ReceiveASync with timeout=-1 waiting for a reply
        from 0x92840747, and the kernel drops that send ("Skip snd to 0x747"). Recording every
        registration whose low id is 0x747, or whose module prefix is 0x9284, answers statically
@@ -3945,6 +6607,32 @@ static int version_transport_reply(unsigned int id, void *message) {
     for (unsigned int i = 4; i < 36; ++i) ((unsigned char *)message)[i] = 0;
     record("LENS_VERSION_SERVICE ", "inline sync reply: status 0, version 0, flag 0");
     return 0;
+}
+/* API-entry observations, including nested entries; never an IPC delivery count. */
+static void audit_cp_background_input(unsigned int id,void *message,const char *entry,void *caller) {
+    if((id!=NATIVE_CP_BACKGROUND_SID && id!=0x90040193u) ||
+       !same_name(getenv("MENU_CP_BACKGROUND"),"virtual-mode3-cold-v1"))return;
+    int saved_errno=*__errno_location();
+    static unsigned int sequence;
+    unsigned int ordinal=__atomic_add_fetch(&sequence,1,__ATOMIC_RELAXED);
+    unsigned int size_known=message && real_msg_size,source_known=message && real_get_source;
+    unsigned int bytes=size_known?real_msg_size(message):0,source=source_known?real_get_source(message):0;
+    unsigned int bytes_complete=size_known && bytes<=4096,complete=bytes_complete && source_known;
+    char text[448];snprintf(text,sizeof text,
+        "pid=%d tid=%ld sequence=%u entry=%s pointer=%p destination=%#x bytes=%u source=%#x size_known=%u source_known=%u bytes_complete=%u complete=%u producer_return=%p consumed=0 state_verified=0 capture_verified=0",
+        getpid(),syscall(178),ordinal,entry,message,id,bytes,source,size_known,source_known,bytes_complete,complete,caller);
+    record("NATIVE_CP_BACKGROUND_INPUT_AUDIT ",text);
+    if(cp302c_no_transition_enabled)
+        native_cp302c_observe_input(id,message,source,bytes,entry);
+    if(bytes_complete)for(unsigned int offset=0;offset<bytes;offset+=128) {
+        unsigned int count=bytes-offset;if(count>128)count=128;
+        char raw[257],line[384];const unsigned char *p=message;
+        for(unsigned int i=0;i<count;i++)snprintf(raw+2*i,3,"%02x",p[offset+i]);
+        raw[2*count]=0;snprintf(line,sizeof line,"pid=%d tid=%ld sequence=%u offset=%u bytes=%u raw=%s",
+            getpid(),syscall(178),ordinal,offset,count,raw);
+        record("NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES ",line);
+    }
+    *__errno_location()=saved_errno;
 }
 /* Bisect: the osal_snd_sync_direct interposition correlates with a NULL
    MonQueue::GetQueueRemain crash (libMWF+0x409d0) during late boot — both crashing
@@ -4074,6 +6762,7 @@ int _ZN3MWF12EventWrapper11SendAndRecvEPviS1_i(void *self,void *data,int bytes,v
     return result;
 }
 int osal_snd_sync_msg(unsigned int id, void *message) {
+    audit_cp_background_input(id,message,"sync",__builtin_return_address(0));
     if (!real_send_sync) __builtin_trap();
     trace_media_mount_sync("FULL_MEDIA_MOUNT_ENTER ",id,message,0);
     trace_media_rm_sync("FULL_MEDIA_MOUNT_RM_SYNC_ENTER ",id,message,0);
@@ -4156,11 +6845,44 @@ int osal_snd_sync_msg(unsigned int id, void *message) {
     }
     return result;
 }
-static int dmm_send(void *request) {
+static unsigned int capture_dmm_creator(unsigned long first,unsigned long caller,unsigned int sample) {
+    int saved_errno=*__errno_location(),fd=open("/proc/self/mem",0);
+    unsigned long fp=first,returns[4]={0};unsigned int count=0,caller_matches=0;
+    for(unsigned int depth=0;fd>=0 && depth<8;depth++) {
+        unsigned long words[2];
+        if(first<0x10000UL || fp<first || fp-first>0x40000UL || fp%16 ||
+           fp>0x800000000000UL-sizeof words || pread(fd,words,sizeof words,(long)fp)!=(long)sizeof words)break;
+        unsigned long lr=words[1];
+        unsigned int in_app=appfw_base && lr>=appfw_base && lr-appfw_base<0x51a6cffUL;
+        if(depth<4)returns[depth]=in_app?lr-appfw_base:0;
+        if(!depth)caller_matches=lr==caller;
+        char text[280];
+        snprintf(text,sizeof text,"sample=%u tid=%ld depth=%u fp=%#lx lr=%#lx appFw_offset=%#lx in_appFw=%u caller_matches=%u frame_candidate_only=1",
+            sample,syscall(178),depth,fp,lr,in_app?lr-appfw_base:0,in_app,caller_matches);
+        record("DMM_ALLOC_FRAME ",text);count++;
+        if(words[0]<=fp)break;
+        fp=words[0];
+    }
+    if(fd>=0)close(fd);
+    unsigned int creator=caller_matches?dmm_speech_initial_creator(returns,count<4?count:4):0;
+    char text[220];snprintf(text,sizeof text,"sample=%u tid=%ld frames=%u caller_matches=%u creator_kind=%u gate_admission_unchanged=1",
+        sample,syscall(178),count,caller_matches,creator);
+    record("DMM_ALLOC_CREATOR ",text);*__errno_location()=saved_errno;return creator;
+}
+static int dmm_send(void *request,unsigned long caller,unsigned long frame) {
     if (!real_allocate_msg || !real_free_msg || !real_get_source || !real_set_source || !real_msg_size || !real_send_msg)
         return -1021;
     unsigned int source = real_get_source(request);
     if (!source) return -1024;
+    unsigned int creator=0,sample=0;
+    if(vef_path_enabled && ((const unsigned short *)request)[0]==0x20) {
+        static unsigned int allocation_traces;
+        sample=__atomic_add_fetch(&allocation_traces,1,__ATOMIC_RELAXED);
+        if(sample && sample<=16)creator=capture_dmm_creator(frame,caller,sample);
+    }
+    Dl_info caller_info={0};int saved_errno=*__errno_location();
+    if(real_dladdr)real_dladdr((void *)caller,&caller_info);
+    *__errno_location()=saved_errno;
     void *reply = 0;
     int result = real_allocate_msg(source, &reply, 40, 1);
     if (result) return result;
@@ -4173,22 +6895,781 @@ static int dmm_send(void *request) {
     if (!result) {
         handle = ((unsigned int *)reply)[3]; size = ((unsigned int *)reply)[8];
         address = ((unsigned long long *)reply)[3]; status = ((short *)reply)[1];
+        if(((const unsigned short *)request)[0]==0x20 && !status && (handle&0x3ff)<2 &&
+           dmm.slots[handle&0x3ff].allocated && dmm.slots[handle&0x3ff].handle==handle)
+            dmm.slots[handle&0x3ff].creator_kind=creator;
     }
     if (!result) {
         real_set_source(reply, 0x9061003c);
         result = real_send_msg(source, reply);
     }
     if (result) dmm = previous;
-    char text[220];
-    snprintf(text, sizeof text, "source=%#x op=%#x transport=%d status=%d handle=%#x address=%#llx size=%#x slots=%d/%d opens=%u/%u",
-             source, ((unsigned short *)request)[0], result,
+    char text[700];
+    snprintf(text, sizeof text, "pid=%d tid=%ld source=%#x op=%#x transport=%d status=%d handle=%#x address=%#llx size=%#x slots=%d/%d opens=%u/%u caller=%s+%#lx caller_raw=%#lx sample=%u creator_kind=%u allocation_count=%llu lifecycle_changed=%u slot_epochs=%llu/%llu slot_creators=%u/%u",
+             getpid(),syscall(178),source, ((unsigned short *)request)[0], result,
              status, handle, address, size, dmm.slots[0].allocated, dmm.slots[1].allocated,
-             dmm.slots[0].open_count, dmm.slots[1].open_count);
+             dmm.slots[0].open_count, dmm.slots[1].open_count,
+             caller_info.dli_fname?caller_info.dli_fname:"unknown",
+             caller_info.dli_fbase?caller-(unsigned long)caller_info.dli_fbase:0,caller,
+             sample,creator,dmm.allocations,dmm.lifecycle_changed,
+             dmm.slots[0].allocation_epoch,dmm.slots[1].allocation_epoch,
+             dmm.slots[0].creator_kind,dmm.slots[1].creator_kind);
     record("DMM_SERVICE ", text);
     pthread_mutex_unlock(cap_lock);
     if (result) { real_free_msg(source, reply); return result; }
     real_free_msg(0x9061003c, request);
     return 0;
+}
+static int hdmi_video_backup_read(unsigned int key,void *out,unsigned int capacity,unsigned int *length) {
+    if((key>>16)==0x009a || key==0x010704fd) {
+        int saved_errno=*__errno_location(),fd=open("/seed-backup.bin",0);
+        if(length)*length=0;
+        int rc=fd<0?-1021:full_hdmi_public_backup_read(fd,key,out,capacity,length);
+        if(fd>=0 && close(fd))rc=-1021;
+        char text[320];snprintf(text,sizeof text,
+            "pid=%d tid=%ld key=%#x capacity=%u stored_bytes=%u rc=%d source=pinned-public-CP-bank bank_offset=0xed000 AP_runtime_value_claimed=0 verified_absent=%u capture_verified=0",
+            getpid(),syscall(178),key,capacity,length?*length:0,rc,(unsigned int)(rc==1));
+        record("FULL_HDMI_VIDEO_BACKUP_READ ",text);*__errno_location()=saved_errno;return rc;
+    }
+    int saved_errno=*__errno_location(),size=-1,read_rc=-1,size_errno=0,read_errno=0,rc=-1021;
+    unsigned int copied=0;const char *reason="invalid-arguments-or-missing-API";
+    if(length)*length=0;
+    if(length && (!capacity || out) && capacity<=0x7fffffffU && real_backup_get_datasize && real_backup_nread) {
+        *__errno_location()=0;size=real_backup_get_datasize(key);size_errno=*__errno_location();
+        if(size<0)reason="size-error-not-verified-absence";
+        else {
+            *length=(unsigned int)size;copied=*length<capacity?*length:capacity;
+            if(!copied){rc=0;reason="present-no-copy";}
+            else {
+                *__errno_location()=0;read_rc=real_backup_nread(key,out,(int)copied);read_errno=*__errno_location();
+                if(read_rc==(int)copied){rc=0;reason="bounded-read-complete";}
+                else reason=read_rc<0?"read-error":"short-or-invalid-read";
+            }
+        }
+    }
+    char text[360];snprintf(text,sizeof text,
+        "pid=%d tid=%ld key=%#x capacity=%u stored_bytes=%d copy_bytes=%u read_rc=%d size_errno=%d read_errno=%d rc=%d reason=%s verified_absent=0 private_bytes_logged=0 capture_verified=0",
+        getpid(),syscall(178),key,capacity,size,copied,read_rc,size_errno,read_errno,rc,reason);
+    record("FULL_HDMI_VIDEO_BACKUP_READ ",text);*__errno_location()=saved_errno;return rc;
+}
+static int tracked_native_reserve_resources(int adf) {
+    static const char *const prefixes[]={
+        "FULL_VEF","FULL_ADF_PROC","FULL_ADF_SET_INPUT","FULL_ADF_SET_OUTPUT","FULL_BB_SET_MODE",
+        "FULL_IMAGING_PIN_CONNECT","FULL_IMAGING_CONTROL_CONNECT","FULL_IMAGING_ADF_CONNECT",
+        "FULL_INFRABB_VEF_CONNECT","FULL_INFRABB_VEF_CONTROL_CONNECT","FULL_VEF_PINMEM_INPUT_CONNECT",
+        "FULL_VEF_PINMEM_CONTROL_CONNECT","FULL_SCALAR_CONNECT","FULL_ADF_CONNECT","FULL_PINMEM_DRAWINFO_CONNECT",
+        "FULL_PINMEM_HDMI_VIDEO_CONNECT","FULL_PINMEM_OSD_CONNECT","FULL_ADF_HDMI_AUDIO_CONNECT",
+        "NATIVE_CP302C_NOCONVERT","NATIVE_CP_NOTIFICATION","NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC",
+        "NATIVE_CP_STARTUP_DIAGNOSTIC","NATIVE_CP_EE_DIAGNOSTIC","NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC","NATIVE_CP_STATE_PUBLICATION",
+        "FUNCTIONAL_CAMERA_CONTROL","FUNCTIONAL_VDF_PATH","FUNCTIONAL_CP_ZOOM","FUNCTIONAL_HISTOGRAM","FUNCTIONAL_BACKGROUND_START"};
+    if(adf<0 || (unsigned int)adf>=sizeof prefixes/sizeof prefixes[0] || !prefixes[adf])return -1021;
+    const char *prefix=prefixes[adf];char tag[100];
+    /* Only prior owners are inspected; current endpoint callbacks need no private lock. */
+    if(adf>=2) {
+        struct full_adf_proc_snapshot procSnapshot={0};
+        struct full_adf_set_input_snapshot inputSnapshot={0};
+        struct full_adf_set_output_snapshot outputSnapshot={0};
+        full_adf_proc_snapshot(&procSnapshot);
+        int prior_idle=procSnapshot.owner_pid==getpid() && procSnapshot.configured &&
+            procSnapshot.clean_completion==1 && procSnapshot.ap_consumed==1 &&
+            procSnapshot.request_freed==1 && procSnapshot.reply_freed==1 &&
+            !procSnapshot.busy && !procSnapshot.worker_active && !procSnapshot.guard_held &&
+            !procSnapshot.faults && !procSnapshot.pending_config && !procSnapshot.queued_config &&
+            !procSnapshot.source5_pending && !procSnapshot.live_reply &&
+            !procSnapshot.retained_request && !procSnapshot.retained_reply && !procSnapshot.retained_cleanup;
+        if(adf>=3) {
+            full_adf_set_input_snapshot(&inputSnapshot);
+            prior_idle=prior_idle && inputSnapshot.owner_pid==getpid() && inputSnapshot.configured &&
+                inputSnapshot.clean_completion==1 && inputSnapshot.ap_consumed==1 &&
+                inputSnapshot.request_freed==1 && inputSnapshot.reply_freed==1 &&
+                !inputSnapshot.busy && !inputSnapshot.worker_active && !inputSnapshot.guard_held &&
+                !inputSnapshot.faults && !inputSnapshot.pending_config && !inputSnapshot.digital_pending &&
+                !inputSnapshot.live_reply && !inputSnapshot.retained_request &&
+                !inputSnapshot.retained_reply && !inputSnapshot.retained_cleanup;
+        }
+        if(adf>=4) {
+            full_adf_set_output_snapshot(&outputSnapshot);
+            prior_idle=prior_idle && outputSnapshot.owner_pid==getpid() && outputSnapshot.configured &&
+                outputSnapshot.clean_completion==1 && outputSnapshot.ap_consumed==1 &&
+                outputSnapshot.request_freed==1 && outputSnapshot.reply_freed==1 &&
+                !outputSnapshot.busy && !outputSnapshot.worker_active && !outputSnapshot.guard_held &&
+                !outputSnapshot.faults && !outputSnapshot.retained_request && !outputSnapshot.live_reply &&
+                !outputSnapshot.retained_reply && !outputSnapshot.retained_cleanup;
+        }
+        char text[500];snprintf(text,sizeof text,
+            "pid=%d tid=%ld accepted=%u proc_ap_consumed=%u input_ap_consumed=%u output_ap_consumed=%u output_faults=%u current_request_retained_expected=1 capture_verified=0",
+            getpid(),syscall(178),(unsigned int)prior_idle,procSnapshot.ap_consumed,inputSnapshot.ap_consumed,
+            outputSnapshot.ap_consumed,outputSnapshot.faults);
+        snprintf(tag,sizeof tag,"%s_RESOURCE_DEPENDENCIES ",prefix);record(tag,text);
+        if(!prior_idle)return -1021;
+    }
+    int rc=full_vef_resources_lock();
+    if(rc) {
+        snprintf(tag,sizeof tag,"%s_RESOURCES_FAULT ",prefix);record(tag,"process-owner-or-resource-lock-refused");
+        return rc;
+    }
+    struct full_vef_resource_snapshot resources={0};
+    long speech_read_before=-1,speech_read_after=-1;
+    unsigned long speech_address=appfw_base+0x5f66b08UL;
+    resources.appfw_base=appfw_base;resources.speech_address=speech_address;
+    int speech_fd=appfw_base>=0x10000UL && appfw_base<0x7ff0000000UL?open("/proc/self/mem",0):-1;
+    if(speech_fd>=0)speech_read_before=pread(speech_fd,resources.speech_before,sizeof resources.speech_before,(long)speech_address);
+    pthread_mutex_lock(cap_lock);
+    resources.dmm_enabled=dmm_enabled;resources.dmm=dmm;
+    pthread_mutex_unlock(cap_lock);
+    pin_control_snapshot(&resources.control);
+    full_pin_connection_snapshot(&resources.connection);
+    full_vef_snapshot(&resources.vef);
+    full_pinmem_snapshot(&resources.pinmem);
+    if(speech_fd>=0) {
+        speech_read_after=pread(speech_fd,resources.speech_after,sizeof resources.speech_after,(long)speech_address);
+        close(speech_fd);
+    }
+    resources.speech_read_before=speech_read_before;resources.speech_read_after=speech_read_after;
+    char speech_hex_before[0x121]={0},speech_hex_after[0x121]={0},speech_text[950];
+    if(speech_read_before==sizeof resources.speech_before)
+        for(unsigned int i=0;i<sizeof resources.speech_before;i++)snprintf(speech_hex_before+2*i,3,"%02x",resources.speech_before[i]);
+    if(speech_read_after==sizeof resources.speech_after)
+        for(unsigned int i=0;i<sizeof resources.speech_after;i++)snprintf(speech_hex_after+2*i,3,"%02x",resources.speech_after[i]);
+    snprintf(speech_text,sizeof speech_text,
+        "pid=%d tid=%ld appfw_base=%#lx table_va=0x5f66b08 address=%#lx bytes=144 reads=%ld/%ld unchanged=%u atomic_snapshot=0 raw_before=%s raw_after=%s ownership_verified=0",
+        getpid(),syscall(178),appfw_base,speech_address,speech_read_before,speech_read_after,
+        (unsigned int)(speech_read_before==sizeof resources.speech_before && speech_read_after==sizeof resources.speech_after &&
+                       !memcmp(resources.speech_before,resources.speech_after,sizeof resources.speech_before)),speech_hex_before,speech_hex_after);
+    snprintf(tag,sizeof tag,"%s_RESOURCES_TTS_TABLE ",prefix);record(tag,speech_text);
+    /* Only edge11 may resume its own canonical S7=2/P0=0 pending lease.
+     * Normalize the pending bit on the guard copy; the endpoint rechecks the
+     * complete saved registries under this reservation before doing work. */
+    unsigned int owned_pending=0;
+    if(adf==15) {
+        struct full_pinmem_hdmi_video_connection_snapshot video={0};
+        struct full_vef_snapshot peer={0};
+        static const unsigned int source_key[4]={4,2,0,FULL_PINMEM_CP},peer_key[4]={4,1,0,FULL_HDMI_PIN_CP};
+        full_pinmem_hdmi_video_connection_snapshot(&video);full_hdmi_pin_snapshot(&peer);
+        owned_pending=video.connection.owner_pid==getpid() && video.connection.initialized &&
+            video.connection.started && video.connection.native_guarded && video.connection.busy &&
+            !video.connection.guard_held && !video.connection.faults && video.request_owned && video.progressing &&
+            video.source_gate_known && !video.source_gate && video.source_history_known &&
+            video.peer_waiting && !video.peer_ready && video.connection.pending_event6==1 &&
+            video.connection.event6_enqueued==1 && !video.connection.event6_consumed && !video.connection.event6_inflight &&
+            video.connection.context_kind==2 && video.connection.phase==1 && video.connection.wait_primary==6 &&
+            !video.connection.wait_secondary && video.connection.keep_pending==1 &&
+            video.connection.retained_request && video.connection.event6_answer && video.connection.event6_body &&
+            !video.connection.retained_cleanup && !video.connection.live_reply && !video.connection.queued &&
+            !video.connection.releasing_reply && video.connection.retained_messages==1 &&
+            resources.pinmem.pending==1 && resources.pinmem.pins[7].state==2 &&
+            !memcmp(resources.pinmem.pins[7].self,source_key,sizeof source_key) &&
+            !memcmp(resources.pinmem.pins[7].peer,peer_key,sizeof peer_key) &&
+            peer.initialized && peer.owner_sid==FULL_HDMI_PIN_CP && peer.registry_objects==2 &&
+            !peer.faults && !peer.pending && !peer.live_replies && !peer.retained_request && !peer.retained_reply &&
+            !peer.pins[0].state && !memcmp(peer.pins[0].self,peer_key,sizeof peer_key) &&
+            !memcmp(peer.pins[0].peer,source_key,sizeof source_key);
+    }
+    struct full_vef_resource_snapshot admissibility=resources;
+    if(owned_pending)admissibility.pinmem.pending=0;
+    unsigned int dmm_domain=full_vef_resource_dmm_domain(&resources);
+    int admissible=full_vef_resources_admissible(&admissibility) &&
+        (adf<3 || dmm_domain==FULL_VEF_DMM_SPEECH_INITIAL);
+    char text[1400];
+    snprintf(text,sizeof text,
+        "tid=%ld accepted=%u dmm_enabled=%u dmm_bound=%u dmm_slots=%d/%d dmm_opens=%u/%u dmm_handles=%#x/%#x dmm_generations=%u/%u dmm_epochs=%llu/%llu dmm_creators=%u/%u dmm_allocation_count=%llu dmm_lifecycle_changed=%u dmm_domain=%u foreign_speech_kept=%u data_frozen=0 control_bound=%u control_live=%u control_faults=%u allocations=%llu releases=%llu connection_started=%u connections=%llu format_pending=%u blocked=%u format_consumed=%u buffer_released=%u connection_reply_frees=%llu connection_faults=%u vef_init=%u vef_owner=%#x vef_objects=%u vef_pending=%u vef_live=%u vef_retained=%u vef_faults=%u pinmem_init=%u pinmem_owner=%#x pinmem_objects=%u pinmem_pending=%u pinmem_live=%u pinmem_retained=%u pinmem_faults=%u global_dmm_idle_verified=0 original_cp_executed=0 capture_verified=0",
+        syscall(178),(unsigned int)admissible,resources.dmm_enabled,
+        (unsigned int)(resources.dmm.memory!=0 && resources.dmm.physical==DMM_TEST_PHYSICAL),
+        resources.dmm.slots[0].allocated,resources.dmm.slots[1].allocated,
+        resources.dmm.slots[0].open_count,resources.dmm.slots[1].open_count,
+        resources.dmm.slots[0].handle,resources.dmm.slots[1].handle,
+        resources.dmm.slots[0].generation,resources.dmm.slots[1].generation,
+        resources.dmm.slots[0].allocation_epoch,resources.dmm.slots[1].allocation_epoch,
+        resources.dmm.slots[0].creator_kind,resources.dmm.slots[1].creator_kind,
+        resources.dmm.allocations,resources.dmm.lifecycle_changed,dmm_domain,
+        (unsigned int)(dmm_domain==FULL_VEF_DMM_SPEECH_INITIAL),
+        resources.control.bound,resources.control.live,resources.control.faults,
+        resources.control.allocations,resources.control.releases,
+        resources.connection.started,resources.connection.connections,resources.connection.format_pending,
+        resources.connection.blocked_requests,resources.connection.format_consumed,resources.connection.buffer_released,
+        resources.connection.native_reply_frees,resources.connection.faults,
+        resources.vef.initialized,resources.vef.owner_sid,resources.vef.registry_objects,
+        resources.vef.pending,resources.vef.live_replies,
+        (unsigned int)(resources.vef.retained_request!=0 || resources.vef.retained_reply!=0),resources.vef.faults,
+        resources.pinmem.initialized,resources.pinmem.owner_sid,resources.pinmem.registry_objects,
+        resources.pinmem.pending,resources.pinmem.live_replies,
+        (unsigned int)(resources.pinmem.retained_request!=0 || resources.pinmem.retained_reply!=0),resources.pinmem.faults);
+    snprintf(tag,sizeof tag,"%s_RESOURCES_%s ",prefix,admissible?"RESERVED":"REFUSED");record(tag,text);
+    if(!admissible) {full_vef_resources_unlock();return -1021;}
+    return 0;
+}
+static int vef_path_reserve_resources(void) {return tracked_native_reserve_resources(0);}
+static int adf_proc_reserve_resources(void) {return tracked_native_reserve_resources(1);}
+static int adf_set_input_reserve_resources(void) {return tracked_native_reserve_resources(2);}
+static int adf_set_output_reserve_resources(void) {return tracked_native_reserve_resources(3);}
+static int bb_set_mode_reserve_resources(void) {return tracked_native_reserve_resources(4);}
+static int imaging_pin_connection_reserve_resources(void) {return tracked_native_reserve_resources(5);}
+static int imaging_control_connection_reserve_resources(void) {return tracked_native_reserve_resources(6);}
+static int imaging_adf_connection_reserve_resources(void) {return tracked_native_reserve_resources(7);}
+static int infrabb_vef_connection_reserve_resources(void) {return tracked_native_reserve_resources(8);}
+static int infrabb_vef_control_connection_reserve_resources(void) {return tracked_native_reserve_resources(9);}
+static int vef_pinmem_input_connection_reserve_resources(void) {return tracked_native_reserve_resources(10);}
+static int vef_pinmem_control_connection_reserve_resources(void) {return tracked_native_reserve_resources(11);}
+static int pinmem_scalar_connection_reserve_resources(void) {return tracked_native_reserve_resources(12);}
+static int pinmem_adf_connection_reserve_resources(void) {return tracked_native_reserve_resources(13);}
+static int pinmem_drawinfo_connection_reserve_resources(void) {return tracked_native_reserve_resources(14);}
+static int pinmem_hdmi_video_connection_reserve_resources(void) {return tracked_native_reserve_resources(15);}
+static int pinmem_osd_connection_reserve_resources(void) {return tracked_native_reserve_resources(16);}
+static int adf_hdmi_audio_connection_reserve_resources(void) {return tracked_native_reserve_resources(17);}
+static int cp302c_no_transition_reserve_resources(void) {return tracked_native_reserve_resources(18);}
+static int cp302c_no_transition_predecessors_ready(void) {
+    struct full_pinmem_hdmi_video_connection_snapshot video={0};
+    struct full_pinmem_osd_connection_snapshot osd={0};
+    struct full_adf_hdmi_audio_connection_snapshot audio={0};
+    struct full_osd_pool_snapshot pool={0};
+    full_pinmem_hdmi_video_connection_snapshot(&video);full_pinmem_osd_connection_snapshot(&osd);
+    full_adf_hdmi_audio_connection_snapshot(&audio);full_osd_pool_snapshot(&pool);
+    int pid=getpid();
+    int ready=video.connection.owner_pid==pid && video.connection.initialized &&
+        video.connection.clean_completion==1 && video.connection.ap_consumed==1 &&
+        video.connection.connections==1 && video.connection.request_freed==1 && video.connection.reply_freed==1 &&
+        !video.connection.busy && !video.progressing && !video.connection.guard_held && !video.connection.faults &&
+        !video.request_owned && !video.connection.live_reply && !video.connection.retained_request &&
+        !video.connection.retained_cleanup && !video.connection.retained_messages && !video.connection.releasing_reply &&
+        !video.connection.pending_event6 && !video.connection.event6_inflight && video.peer_ready==1 &&
+        video.source_gate_known==1 && !video.source_gate && video.source_history_known==1 &&
+        osd.owner_pid==pid && osd.initialized && osd.clean_completion==1 && osd.ap_consumed==1 &&
+        osd.connections==1 && osd.request_freed==1 && osd.reply_freed==1 && osd.metadata_ready==1 &&
+        !osd.busy && !osd.guard_held && !osd.faults && !osd.live_reply && !osd.retained_request &&
+        !osd.retained_cleanup && !osd.retained_messages && !osd.releasing_reply && !osd.pending_event6 && !osd.event6_inflight &&
+        audio.owner_pid==pid && audio.initialized && audio.clean_completion==1 && audio.ap_consumed==1 &&
+        audio.connections==1 && audio.request_freed==1 && audio.reply_freed==1 && !audio.busy && !audio.guard_held &&
+        !audio.faults && !audio.live_reply && !audio.retained_request && !audio.retained_cleanup &&
+        !audio.retained_messages && !audio.releasing_reply && audio.marker_owner_pid==pid &&
+        audio.marker_known==1 && audio.marker_value==1 && audio.marker_writes==1 &&
+        pool.owner_pid==(unsigned int)pid && pool.initialized && !pool.faults && pool.live==16 &&
+        pool.allocations==16 && pool.shares==16 && pool.opens==16 && !pool.releases;
+    for(unsigned int i=0;i<FULL_OSD_POOL_SLOTS;i++)
+        ready=ready && pool.slots[i].live && pool.slots[i].owners==2 && pool.slots[i].open_count==2 &&
+            pool.slots[i].creator_open==1 && pool.slots[i].consumer_open==1;
+    char text[320];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u video_AP_consumed=%u OSD_AP_consumed=%u audio_AP_consumed=%u OSD_live=%u OSD_owners_each=2 OSD_opens_each=2 global_DMM_idle_claimed=0 capture_verified=0",
+        pid,syscall(178),(unsigned int)ready,video.connection.ap_consumed,osd.ap_consumed,audio.ap_consumed,pool.live);
+    record(cp302c_diagnostic_enabled?"NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK ":"NATIVE_CP302C_NOCONVERT_ALL13_READBACK ",text);return ready;
+}
+static void observe_cp302c_3007_free(unsigned int destination,const unsigned char wire[12]) {
+    if(!cp302c_no_transition_enabled)return;
+    int saved_errno=*__errno_location();struct native_cp302c_snapshot prior={0},after={0};
+    native_cp302c_snapshot(&prior);long tid=syscall(178);
+    int rc=native_cp302c_observe_3007_reply_freed(NATIVE_CP_BACKGROUND_SID,destination,wire,12,0,0,
+                                               prior.predecessor_sender_tid,tid);
+    native_cp302c_snapshot(&after);
+    char text[320];snprintf(text,sizeof text,
+        "pid=%d tid=%ld sender=%ld destination=%#x reply_bytes=12 real_send_already_returned=1 actual_free_rc=0 observe_rc=%d predecessor_completed=%u history_valid=%u current_known=%u current=%u mode_transition_verified=0 capture_verified=0",
+        getpid(),tid,prior.predecessor_sender_tid,destination,rc,after.predecessor_completed,after.history_valid,after.current_known,after.current);
+    record(cp302c_diagnostic_enabled?"NATIVE_CP302C_DIAGNOSTIC_3007_FREE_OBSERVED ":"NATIVE_CP302C_NOCONVERT_3007_FREE_OBSERVED ",text);*__errno_location()=saved_errno;
+}
+static int cp_notification_reserve_resources(void) {return tracked_native_reserve_resources(19);}
+static int cp_notification_predecessors_ready_for(long sender) {
+    struct native_cp302c_snapshot prior={0};native_cp302c_snapshot(&prior);
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.diagnostic==1 &&
+        prior.diagnostic_transport==1 && prior.requests==1 && prior.clean_completion==1 &&
+        prior.ap_consumed==1 && prior.request_freed==1 && prior.reply_freed==1 &&
+        !prior.send_rc && !prior.request_free_rc && !prior.reply_free_rc && !prior.faults &&
+        !prior.busy && !prior.guard_held && !prior.retained_request && !prior.live_reply &&
+        !prior.retained_cleanup && sender>0 && prior.sender_tid==prior.waiter_tid && prior.sender_tid==sender &&
+        !prior.history_valid && !prior.current_known && !prior.no_transition &&
+        !prior.mode_transition && !prior.module_complete && !prior.capture;
+    if(ready)ready=cp302c_no_transition_predecessors_ready();
+    char text[280];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u diagnostic_302c_AP_consumed=%u original_sender=%ld waiter=%ld CP_history_verified=0 EE_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,prior.ap_consumed,prior.sender_tid,prior.waiter_tid);
+    record("NATIVE_CP_NOTIFICATION_PREDECESSORS ",text);return ready;
+}
+static int cp_notification_predecessors_ready(void) {return cp_notification_predecessors_ready_for(syscall(178));}
+static int cp_parameter_config_receive(unsigned int id,void *request,int *result) {
+    if(!cp_notification_control_enabled || id!=NATIVE_CP_NOTIFICATION_SID || !request ||
+       !result || !real_msg_size || !real_get_source || !real_free_msg)return 0;
+    unsigned int bytes=real_msg_size(request);const unsigned char *wire=request;
+    if(bytes<4 || wire[0]!=5)return 0;
+    unsigned int command=wire[2]|(unsigned int)wire[3]<<8;
+    int policy=command==0x40f9;
+    if(command!=0x4063 && !policy)return 0;
+    *result=-1021;
+    if(cp_parameter_batch_state.owner_pid!=getpid() || cp_output_policy_state.owner_pid!=getpid() ||
+       bytes!=(policy?CP_OUTPUT_POLICY_BYTES:CP_PARAMETER_BATCH_BYTES) ||
+       real_get_source(request)!=CP_PARAMETER_BATCH_SOURCE || !cp_notification_predecessors_ready())return 1;
+    struct native_cp_notification_snapshot prior={0};native_cp_notification_snapshot(&prior);
+    if(prior.owner_pid!=getpid() || !prior.initialized || prior.requests!=1 ||
+       !prior.clean_completion || !prior.ap_consumed || !prior.reply_freed ||
+       prior.reply_free_rc || prior.faults || prior.busy || prior.guard_held ||
+       prior.retained_request || prior.live_reply || prior.retained_cleanup ||
+       prior.sender_tid!=syscall(178) || prior.sender_tid!=prior.waiter_tid)return 1;
+    pthread_mutex_lock(cp_parameter_batch_mutex);
+    if(cp_parameter_batch_retained_request) { pthread_mutex_unlock(cp_parameter_batch_mutex);return 1; }
+    const unsigned char *saved=NULL;int copied=0;unsigned int known_mask=0;
+    if(policy) {
+        struct cp_output_policy_snapshot readback={0};
+        int rc=cp_output_policy_stage(&cp_output_policy_state,CP_OUTPUT_POLICY_SOURCE,id,request,bytes);
+        copied=rc==CP_OUTPUT_POLICY_CONFIG_CONSUMED &&
+            !cp_output_policy_snapshot(&cp_output_policy_state,CP_OUTPUT_POLICY_KNOWN_MASK,&readback) &&
+            readback.config_consumed && !readback.semantic_applied && !readback.published &&
+            !memcmp(readback.bytes,request,bytes);
+        known_mask=readback.known_mask;saved=cp_output_policy_state.state.bytes;
+    } else {
+        int rc=cp_parameter_batch_stage(&cp_parameter_batch_state,CP_PARAMETER_BATCH_SOURCE,id,request,bytes);
+        copied=rc==CP_PARAMETER_BATCH_STAGED && !cp_parameter_batch_state.semantic_applied &&
+            !memcmp(cp_parameter_batch_state.bytes,request,bytes);
+        for(unsigned int i=0;i<CP_PARAMETER_BATCH_MASK_WORDS;i++)
+            copied=copied && !cp_parameter_batch_state.semantic_consumed[i];
+        saved=cp_parameter_batch_state.bytes;
+    }
+    if(!copied) { pthread_mutex_unlock(cp_parameter_batch_mutex);return 1; }
+    if(!policy && cp_owned_state_enabled) {
+        pthread_mutex_lock(cp_owned_state_mutex);
+        int consumed=cp_parameter_state_consume(&cp_owned_parameters,CP_PARAMETER_BATCH_SOURCE,id,request,bytes);
+        unsigned char override=0;int override_rc=cp_parameter_state_read(&cp_owned_parameters,
+            CP_PARAMETER_STATE_OVERRIDE_MODE_OFFSET,&override,1);
+        pthread_mutex_unlock(cp_owned_state_mutex);
+        char data_text[300];snprintf(data_text,sizeof data_text,
+            "pid=%d tid=%ld bytes=%u consume_result=%d override_read_rc=%d override_input=%u business_complete=%u generation_advanced=0 original_CP=0 capture=0",
+            getpid(),syscall(178),bytes,consumed,override_rc,(unsigned int)override,
+            (unsigned int)(consumed==CP_PARAMETER_STATE_COMPLETE));
+        record("NATIVE_CP_PARAMETER_STATE_CONSUMED ",data_text);
+        if(consumed<0) {pthread_mutex_unlock(cp_parameter_batch_mutex);*result=consumed;return 1;}
+    }
+    unsigned long long hash=14695981039346656037ULL;
+    for(unsigned int i=0;i<bytes;i++) { hash^=saved[i];hash*=1099511628211ULL; }
+    cp_parameter_batch_retained_request=request;
+    pthread_mutex_unlock(cp_parameter_batch_mutex);
+    int freed=real_free_msg(id,request);
+    pthread_mutex_lock(cp_parameter_batch_mutex);
+    if(!freed)cp_parameter_batch_retained_request=NULL;
+    unsigned int retained=cp_parameter_batch_retained_request!=NULL;
+    pthread_mutex_unlock(cp_parameter_batch_mutex);
+    char text[420];snprintf(text,sizeof text,
+        "pid=%d tid=%ld bytes=%u slots=%u copied_readback=1 config_fields=%u known_mask=%u wire_fnv1a=%016llx request_free_rc=%d request_retained=%u stage_only=1 semantic_applied=0 semantic_slots=0 generation_advanced=0 published=0 ACK_sent=0 original_CP_executed=0 EE_verified=0 capture_verified=0",
+        getpid(),syscall(178),bytes,policy?0u:190u,policy?4u:0u,known_mask,hash,freed,retained);
+    record(policy?"NATIVE_CP_OUTPUT_POLICY_CONSUMED ":"NATIVE_CP_PARAMETER_BATCH_STAGED ",text);*result=0;return 1;
+}
+static int cp_capture_format_reserve_resources(void) {return tracked_native_reserve_resources(20);}
+static int cp_capture_format_predecessors_ready_for(long sender) {
+    if(!cp_notification_predecessors_ready_for(sender))return 0;
+    struct native_cp_notification_snapshot prior={0};native_cp_notification_snapshot(&prior);
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.requests==1 &&
+        prior.clean_completion==1 && prior.ap_consumed==1 && prior.request_freed==1 && prior.reply_freed==1 &&
+        !prior.faults && !prior.busy && !prior.guard_held && !prior.send_rc && !prior.request_free_rc &&
+        !prior.reply_free_rc && !prior.retained_request && !prior.live_reply && !prior.retained_cleanup &&
+        prior.sender_tid==sender && prior.sender_tid==prior.waiter_tid &&
+        prior.d018_consumed==1 && prior.d018_readback==1 && prior.startup_sticky==1;
+    pthread_mutex_lock(cp_parameter_batch_mutex);
+    unsigned int staged=cp_parameter_batch_state.staged,applied=cp_parameter_batch_state.semantic_applied;
+    struct cp_output_policy_snapshot policy={0};
+    int policy_ready=!cp_output_policy_snapshot(&cp_output_policy_state,CP_OUTPUT_POLICY_KNOWN_MASK,&policy) &&
+        policy.known_mask==CP_OUTPUT_POLICY_KNOWN_MASK && policy.config_consumed &&
+        !policy.semantic_applied && !policy.published && !policy.ee && !policy.capture;
+    ready=ready && cp_parameter_batch_state.owner_pid==getpid() && staged && !applied &&
+        policy_ready && !cp_parameter_batch_retained_request;
+    pthread_mutex_unlock(cp_parameter_batch_mutex);
+    char text[360];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u original_4073_AP_consumed=%u batch_bytes_staged=%u batch_semantic_applied=%u output_policy_consumed=%u output_policy_known_mask=%u business_applied=0 generation_advanced=0 EE_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,prior.ap_consumed,staged,applied,
+        (unsigned int)policy.config_consumed,policy.known_mask);
+    record("NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_PREDECESSORS ",text);return ready;
+}
+static int cp_capture_format_predecessors_ready(void) {return cp_capture_format_predecessors_ready_for(syscall(178));}
+static int cp_startup_controls_reserve_resources(void) {return tracked_native_reserve_resources(21);}
+static int cp_startup_controls_predecessors_ready_for(long sender) {
+    if(!cp_capture_format_predecessors_ready_for(sender))return 0;
+    struct native_cp_capture_format_diagnostic_snapshot prior={0};
+    native_cp_capture_format_diagnostic_snapshot(&prior);
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.diagnostic_only==1 &&
+        prior.no_publication==1 && prior.requests==1 && prior.clean_completion==1 && prior.ap_consumed==1 &&
+        prior.queued==1 && prior.request_freed==1 && prior.reply_freed==1 &&
+        !prior.faults && !prior.busy && !prior.guard_held && !prior.send_rc &&
+        !prior.request_free_rc && !prior.reply_free_rc && !prior.retained_request && !prior.live_reply &&
+        !prior.retained_cleanup && prior.sender_tid==sender && prior.sender_tid==prior.waiter_tid &&
+        prior.reply_free_destination==0x80020002u && prior.reply_free_source==NATIVE_CP_CAPTURE_FORMAT_SID &&
+        prior.reply_free_bytes==12 && !memcmp(prior.reply_wire,prior.freed_reply_wire,12) &&
+        !prior.source_business_applied && !prior.current_known && !prior.source_dependency_closed &&
+        !prior.generation && !prior.pending_complete && !prior.native_verified && !prior.ee && !prior.frame && !prior.capture;
+    char text[250];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u original_402d_AP_consumed=%u diagnostic_only=1 business_applied=0 EE_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,prior.ap_consumed);
+    record("NATIVE_CP_STARTUP_DIAGNOSTIC_PREDECESSORS ",text);return ready;
+}
+static int cp_startup_controls_predecessors_ready(void) {return cp_startup_controls_predecessors_ready_for(syscall(178));}
+static int cp_ee_controls_reserve_resources(void) {return tracked_native_reserve_resources(22);}
+static int cp_ee_controls_predecessors_ready(void) {
+    struct native_cp_startup_controls_diagnostic_snapshot prior={0};
+    struct native_cp_capture_format_diagnostic_snapshot format={0};
+    native_cp_startup_controls_diagnostic_snapshot(&prior);
+    native_cp_capture_format_diagnostic_snapshot(&format);
+    long sender=format.sender_tid;
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.diagnostic_only==1 &&
+        prior.requests>=2 && prior.completed==prior.requests && !prior.busy && !prior.guard_held &&
+        !prior.faults && !prior.business_applied && !prior.source_dependencies_closed &&
+        !prior.published && !prior.configured && !prior.generation && !prior.native_cp &&
+        !prior.ee && !prior.frame && !prior.capture && sender>0;
+    unsigned int required=0;
+    for(unsigned int i=0;i<CP_STARTUP_CONTROLS_COMMANDS;i++) {
+        const struct native_cp_startup_controls_diagnostic_lease *s=&prior.leases[i];
+        ready=ready && !s->busy && !s->guard_held && !s->faults && !s->retained_request &&
+            !s->live_reply && !s->retained_cleanup;
+        if(!s->requests) {ready=ready && s->opcode==0x40c8;continue;}
+        ready=ready && s->requests==1 && s->clean_completion==1 && s->ap_consumed==1 && s->queued==1 &&
+            s->request_freed==1 && s->reply_freed==1 && !s->allocate_rc && !s->send_rc &&
+            !s->request_free_rc && !s->reply_free_rc && s->sender_tid==sender && s->waiter_tid==sender &&
+            s->source==0x80020002u && s->request_destination==NATIVE_CP_STARTUP_CONTROLS_SID &&
+            s->destination==0x80020002u && s->reply_free_destination==0x80020002u &&
+            s->reply_free_source==NATIVE_CP_STARTUP_CONTROLS_SID && s->reply_free_bytes==12 &&
+            !memcmp(s->reply_wire,s->freed_reply_wire,12);
+        if(s->opcode==0x4014)required|=1;
+        else if(s->opcode==0x4057)required|=2;
+        else if(s->opcode!=0x40c8)ready=0;
+    }
+    ready=ready && required==3;
+    /* The next parallel worker may differ; each earlier pair keeps its own sender. */
+    if(ready)ready=cp_startup_controls_predecessors_ready_for(sender);
+    char text[300];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u predecessor_sender=%ld required_controls=%u completed=%u diagnostic_only=1 data_3003_supported=0 business_applied=0 EE_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,sender,required,prior.completed);
+    record("NATIVE_CP_EE_DIAGNOSTIC_PREDECESSORS ",text);return ready;
+}
+static int cp_movie_format_reserve_resources(void) {return tracked_native_reserve_resources(23);}
+static int cp_movie_format_predecessors_ready(void) {
+    if(!cp_ee_controls_predecessors_ready())return 0;
+    struct native_cp_ee_controls_diagnostic_snapshot prior={0};
+    native_cp_ee_controls_diagnostic_snapshot(&prior);
+    const struct native_cp_ee_controls_diagnostic_lease *s=&prior.leases[0];
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.diagnostic_only==1 &&
+        prior.requests==1 && prior.completed==1 && !prior.busy && !prior.guard_held && !prior.faults &&
+        !prior.business_applied && !prior.source_dependencies_closed && !prior.published && !prior.configured &&
+        !prior.generation && !prior.native_cp && !prior.ee && !prior.frame && !prior.capture &&
+        s->opcode==0x409d && s->requests==1 && s->queued==1 && s->clean_completion==1 && s->ap_consumed==1 &&
+        s->request_freed==1 && s->reply_freed==1 && !s->busy && !s->guard_held && !s->faults &&
+        !s->allocate_rc && !s->send_rc && !s->request_free_rc && !s->reply_free_rc &&
+        s->sender_tid==syscall(178) && s->sender_tid==s->waiter_tid &&
+        s->source==0x80020002u && s->request_destination==NATIVE_CP_EE_CONTROLS_SID &&
+        s->destination==0x80020002u && s->reply_free_destination==0x80020002u &&
+        s->reply_free_source==NATIVE_CP_EE_CONTROLS_SID && s->reply_free_bytes==12 &&
+        !memcmp(s->reply_wire,s->freed_reply_wire,12) && !s->retained_request && !s->live_reply && !s->retained_cleanup;
+    char text[220];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u original_409d_AP_consumed=%u diagnostic_only=1 business_applied=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,s->ap_consumed);
+    record("NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_PREDECESSORS ",text);return ready;
+}
+static int cp_movie_format_completed(void) {
+    struct native_cp_movie_format_diagnostic_snapshot s={0};
+    native_cp_movie_format_diagnostic_snapshot(&s);
+    return s.owner_pid==getpid() && s.initialized && s.diagnostic_only==1 && s.no_publication==1 &&
+        s.requests==1 && s.queued==1 && s.clean_completion==1 && s.ap_consumed==1 &&
+        s.request_freed==1 && s.reply_freed==1 && !s.busy && !s.guard_held && !s.faults &&
+        !s.allocate_rc && !s.send_rc && !s.request_free_rc && !s.reply_free_rc &&
+        s.sender_tid>0 && s.sender_tid==s.waiter_tid && s.source==0x80020002u &&
+        s.request_destination==NATIVE_CP_MOVIE_FORMAT_SID && s.destination==0x80020002u &&
+        s.reply_free_destination==0x80020002u && s.reply_free_source==NATIVE_CP_MOVIE_FORMAT_SID &&
+        s.reply_free_bytes==12 && !memcmp(s.reply_wire,s.freed_reply_wire,12) &&
+        !s.retained_request && !s.live_reply && !s.retained_cleanup &&
+        s.known_field_mask==CP_MOVIE_FORMAT_KNOWN_MASK && s.virtual_field_mask==CP_MOVIE_FORMAT_KNOWN_MASK &&
+        s.virtual_fields_readback==1 && !memcmp(s.virtual_fields,s.virtual_readback,sizeof s.virtual_fields) &&
+        s.virtual_fields_consumed==CP_MOVIE_FORMAT_KNOWN_MASK &&
+        !s.source_business_applied && !s.current_known && !s.source_dependency_closed && !s.business_applied &&
+        !s.source_dependencies_closed && !s.configured && !s.published && !s.generation && !s.pending_complete &&
+        !s.native_verified && !s.native_cp && !s.ee && !s.frame && !s.capture;
+}
+static int cp_ee_controls_after_movie_predecessors_ready(void) {
+    return cp_ee_controls_predecessors_ready() && cp_movie_format_completed();
+}
+static int cp_owned_state_reserve_resources(void) {return tracked_native_reserve_resources(24);}
+static int functional_camera_control_reserve_resources(void) {return tracked_native_reserve_resources(25);}
+static int functional_vdf_path_reserve_resources(void) {return tracked_native_reserve_resources(26);}
+static int functional_histogram_reserve_resources(void) {return tracked_native_reserve_resources(28);}
+static int functional_background_start_reserve_resources(void) {
+    int rc=tracked_native_reserve_resources(29);
+    if(!rc) {
+        rc=fcam_bridge_init(record);
+        if(rc)full_vef_resources_unlock();
+    }
+    return rc;
+}
+static int functional_cp_zoom_reserve_resources(void) {
+    int rc=tracked_native_reserve_resources(27);
+    if(!rc && pthread_mutex_lock(cp_owned_state_mutex)){full_vef_resources_unlock();return -EIO;}
+    return rc;
+}
+static void functional_cp_zoom_release_resources(void) {
+    pthread_mutex_unlock(cp_owned_state_mutex);full_vef_resources_unlock();
+}
+static int cp_owned_state_predecessors_ready(void) {
+    if(!cp_ee_controls_after_movie_predecessors_ready())return 0;
+    struct native_cp_ee_controls_diagnostic_snapshot s={0};native_cp_ee_controls_diagnostic_snapshot(&s);
+    const struct native_cp_ee_controls_diagnostic_lease *p=&s.leases[1];
+    return s.owner_pid==getpid() && s.initialized && !s.busy && !s.guard_held && !s.faults &&
+        p->opcode==0x4072 && p->requests==1 && p->oneway==1 && p->oneway_consumed==1 &&
+        p->request_freed==1 && p->clean_completion==1 && !p->request_free_rc && !p->faults &&
+        !p->busy && !p->guard_held && !p->retained_request && !p->retained_cleanup && !p->live_reply &&
+        !p->queued && !p->reply_freed && !p->ap_consumed && p->virtual_field_mask==3 &&
+        p->virtual_fields_readback==1 && p->virtual_fields_consumed==3 &&
+        p->source==0x80020002u && p->request_destination==NATIVE_CP_EE_CONTROLS_SID &&
+        !memcmp(p->virtual_fields,p->virtual_readback,sizeof p->virtual_fields);
+}
+static int cp_owned_bootstrap_inputs(void) {
+    int saved_errno=*__errno_location();
+    int stage_rc=cp_property_stage_init(&cp_owned_property_stage);
+    int profile_rc=-ENODATA,defaults_rc=-ENODATA,copy_rc=-ENODATA,binding_rc=-ENODATA,config_rc=-ENODATA;
+    struct cp_start_state_guard guard={(uint32_t)getpid(),2,2,CP_START_STATE_ORIGIN_VIRTUAL_SOURCE,1};
+    struct cp_property_stage_readback property={0};
+    struct cp_parameter_view_flagb_readback flagb={0};
+    if(!stage_rc){
+        int fd=open("/seed-backup.bin",0);
+        stage_rc=fd<0?-ENODATA:cp_property_stage_load_public_file(&cp_owned_property_stage,&guard,fd,&cp_owned_parameter_import);
+        if(fd>=0 && close(fd) && !stage_rc)stage_rc=-EIO;
+    }
+    if(!stage_rc)stage_rc=cp_property_stage_snapshot(&cp_owned_property_stage,&guard,&property);
+    if(!stage_rc)profile_rc=cp_property_stage_deliver_profile(&cp_owned_property_stage,&guard,&cp_owned_start_state);
+    if(!stage_rc && !profile_rc)
+        defaults_rc=cp_parameter_state_consume_default_stores(&cp_owned_parameters,&cp_owned_parameter_import);
+    if(!stage_rc && !profile_rc && !defaults_rc){
+        copy_rc=cp_parameter_view_init(&cp_owned_parameter_view);
+        guard.sequence_before=guard.sequence_after=4;
+        if(!copy_rc)copy_rc=cp_parameter_view_consume_initial_copy(&cp_owned_parameter_view,&guard,&cp_owned_parameters);
+        guard.sequence_before=guard.sequence_after=6;
+        if(!copy_rc)binding_rc=cp_parameter_view_consume_bank0_binding(&cp_owned_parameter_view,&guard,
+            CP_PARAMETER_VIEW_PUBLISHED_VA);
+        if(!copy_rc && !binding_rc){
+            guard.sequence_before=guard.sequence_after=8;
+            config_rc=cp_parameter_view_consume_config_constructor_store(&cp_owned_parameter_view,&guard);
+            guard.sequence_before=guard.sequence_after=10;
+            if(!config_rc)config_rc=cp_parameter_view_consume_config_copy(&cp_owned_parameter_view,&guard,
+                CP_PARAMETER_VIEW_CONFIG_COPY_INITIAL,NULL);
+            guard.sequence_before=guard.sequence_after=12;
+            if(!config_rc)config_rc=cp_parameter_view_consume_bank3_binding(&cp_owned_parameter_view,&guard,
+                CP_PARAMETER_VIEW_BANK3_VA);
+            guard.sequence_before=guard.sequence_after=14;
+            if(!config_rc)config_rc=cp_parameter_view_consume_flagb_store(&cp_owned_parameter_view,&guard);
+            if(!config_rc)config_rc=cp_parameter_view_copy_flagb(&cp_owned_parameter_view,&guard,&flagb);
+        }
+    }
+    char text[1000];snprintf(text,sizeof text,
+        "pid=%d stage_rc=%d profile_rc=%d defaults_rc=%d parameter_local_known_bytes=%u parameter_copy_rc=%d bank0_binding_rc=%d config_chain_rc=%d local_flagb_known=%u local_flagb=%u constructor_sequence=%llu config_copy_sequence=%llu bank3_sequence=%llu flagb_store_sequence=%llu source=public-CP-initial-stage parameter_import_selected=%u parameter_defaults_selected=%u mode_property_consumed=%u mode=%u profile_property_consumed=%u profile=%u repository_fallback=0 frozen_stage_used=0 initialization_complete=0 original_CP=0 data_3003_known=0 capture=0",
+        getpid(),stage_rc,profile_rc,defaults_rc,defaults_rc==0?CP_PARAMETER_STATE_INITIAL_LOCAL_KNOWN_BYTES:CP_PARAMETER_STATE_COMMON_LOCAL_BYTES,
+        copy_rc,binding_rc,config_rc,(unsigned int)(config_rc==0),(unsigned int)flagb.flagb,
+        (unsigned long long)flagb.constructor_store_sequence,(unsigned long long)flagb.config_copy_sequence,
+        (unsigned long long)flagb.bank3_sequence,(unsigned long long)flagb.flagb_store_sequence,
+        (unsigned int)cp_owned_parameter_import.import_selected,
+        (unsigned int)cp_owned_parameter_import.defaults_selected,(unsigned int)property.mode_property_known,
+        property.mode,(unsigned int)(profile_rc==0),(unsigned int)property.context[4]);
+    record("NATIVE_CP_OWNED_INPUTS ",text);
+    *__errno_location()=saved_errno;
+    return stage_rc?stage_rc:profile_rc?profile_rc:defaults_rc?defaults_rc:copy_rc?copy_rc:binding_rc?binding_rc:config_rc;
+}
+static int cp_owned_start_provider(void *context,struct cp_start_state_data *data,
+                                   struct cp_start_state_guard *guard) {
+    (void)context;pthread_mutex_lock(cp_owned_state_mutex);
+    *data=cp_owned_start_state.data;
+    *guard=(struct cp_start_state_guard){(uint32_t)getpid(),data->source_sequence,data->source_sequence,
+        CP_START_STATE_ORIGIN_VIRTUAL_SOURCE,1};
+    pthread_mutex_unlock(cp_owned_state_mutex);
+    /* No bootstrap/default input is promoted to known by the transport. */
+    struct cp_start_state_readback readback={0};int rc=cp_start_state_data_snapshot(data,guard,&readback);
+    return rc?rc:readback.data_ready?0:-ENODATA;
+}
+static int cp_owned_full_provider(void *context,struct cp_state_snapshot *snapshot) {
+    (void)context;(void)snapshot;
+    /* Whole 76-getter source providers must be complete before mode1 is ACKed. */
+    return -ENODATA;
+}
+static int functional_cp_zoom_prepare(void) {
+    if(!cp_owned_parameters.batch.owner_pid)return -ENODATA;
+    if(cp_owned_parameters.batch.owner_pid!=getpid())return -EXDEV;
+    if(functional_cp_zoom_setup_error)return functional_cp_zoom_setup_error;
+    unsigned int binding=__atomic_load_n(&functional_cp_zoom_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return 0;
+    if(binding)return -EBUSY;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_cp_zoom_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2?0:-EBUSY;
+    pthread_mutex_lock(cp_owned_state_mutex);
+    int rc=functional_cp_zoom_owner_init(&cp_owned_parameters);
+    pthread_mutex_unlock(cp_owned_state_mutex);
+    if(rc)functional_cp_zoom_setup_error=rc;
+    __atomic_store_n(&functional_cp_zoom_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    return rc;
+}
+static int functional_layout_stage_prepare(void) {
+    unsigned int binding=__atomic_load_n(&functional_layout_stage_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return 0;
+    if(binding)return functional_layout_stage_error?functional_layout_stage_error:-EBUSY;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_layout_stage_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2?0:-EBUSY;
+    int rc=functional_vdf_layout_stage_owner_init();
+    functional_layout_stage_error=rc;
+    __atomic_store_n(&functional_layout_stage_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    return rc;
+}
+static int functional_layout_stage_bind_model(void) {
+    if(!__atomic_load_n(&functional_layout_stage_used,__ATOMIC_ACQUIRE))return 0;
+    struct functional_vdf_layout_stage_snapshot staged;
+    functional_vdf_layout_stage_snapshot(&staged);
+    if(!staged.stage_generation || staged.applied.verified)return 0;
+    struct functional_vdf_path_snapshot path;
+    functional_vdf_path_snapshot(&path);
+    if(path.origin.command!=0x014c || !path.model_complete || path.faults ||
+       path.model_result_bytes!=FCAM_LAYOUT_RESULT_BYTES)return -EPROTO;
+    unsigned char bank[FCAM_LAYOUT_INPUT_BYTES];uint64_t digest=0;
+    int rc=functional_vdf_layout_stage_read_bank(staged.stage_generation,bank,sizeof bank,&digest);
+    if(rc)return rc;
+    if(memcmp(bank,path.canonical_layout32,sizeof bank) || digest!=staged.bank_fnv1a64)return -ESTALE;
+    const struct fcam_bridge_result metadata={.used=path.model_result_bytes,.required=path.model_result_bytes,
+        .model_instance=path.model_instance};
+    return functional_vdf_layout_stage_bind_applied(staged.stage_generation,getpid(),path.model_instance,
+        path.model_result,path.model_result_bytes,&metadata);
+}
+static int functional_camera_global_queue_bind(void *message,void *original_caller,unsigned int command) {
+    if(command!=0x141 && command!=0x148)return -ENOTSUP;
+    int saved_errno=*__errno_location(),rc=-ENODATA;
+    unsigned int source=message && real_get_source?real_get_source(message):0,first=0,second=0;
+    unsigned long global_va=command==0x141?0x910fa30UL:0x910fa20UL;
+    unsigned long caller_va=command==0x141?0x34e4f3cUL:0x34e53acUL;
+    unsigned long caller_pc=(unsigned long)original_caller,global_address=0;
+    long read_before=-1,read_after=-1;
+    if(appfw_base>=0x10000UL && appfw_base<0x7ff0000000UL) {
+        global_address=appfw_base+global_va;
+        if(caller_pc!=appfw_base+caller_va)rc=-ELIBBAD;
+        else {
+            int fd=open("/proc/self/mem",0);
+            if(fd>=0) {
+                read_before=pread(fd,&first,sizeof first,(long)global_address);
+                read_after=pread(fd,&second,sizeof second,(long)global_address);
+                close(fd);
+                if(read_before==(long)sizeof first && read_after==(long)sizeof second) {
+                    if(!source || source==0xffffffffu || source==FUNCTIONAL_VDF_PATH_SID || first!=second || first!=source)
+                        rc=-ESTALE;
+                    else rc=command==0x141?functional_vdf_path_bind_refresh_queue(source):functional_histogram_bind_queue(source);
+                }
+            }
+        }
+    }
+    unsigned int matched=source && source!=0xffffffffu && source!=FUNCTIONAL_VDF_PATH_SID &&
+        read_before==(long)sizeof first && read_after==(long)sizeof second && first==second && first==source;
+    char text[480];snprintf(text,sizeof text,
+        "pid=%d tid=%ld caller_pc=%#lx global_va=%#lx global_address=%#lx source=%#x read_before=%ld read_after=%ld first=%#x second=%#x bind_rc=%d source_match=%u readback_verified=%u capture_verified=0",
+        getpid(),syscall(178),caller_pc,global_va,global_address,source,read_before,read_after,first,second,rc,matched,(unsigned int)(!rc && matched));
+    record(command==0x141?"FUNCTIONAL_VDF_REFRESH_QUEUE_BOUND ":"FUNCTIONAL_HISTOGRAM_QUEUE_BOUND ",text);
+    *__errno_location()=saved_errno;
+    return rc;
+}
+static int functional_histogram_prepare(void) {
+    if(functional_camera_setup_error)return functional_camera_setup_error;
+    unsigned int binding=__atomic_load_n(&functional_histogram_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return functional_histogram_owner_pid==getpid()?0:-EXDEV;
+    if(binding)return -EBUSY;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_histogram_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2 && functional_histogram_owner_pid==getpid()?0:-EBUSY;
+    int rc=functional_histogram_owner_init();
+    if(!rc)rc=fcam_bridge_init(record);
+    if(!rc)functional_histogram_owner_pid=getpid();else functional_camera_setup_error=rc;
+    __atomic_store_n(&functional_histogram_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    return rc;
+}
+static int functional_background_start_prepare(void) {
+    if(functional_camera_setup_error)return functional_camera_setup_error;
+    unsigned int binding=__atomic_load_n(&functional_background_start_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return functional_background_start_owner_pid==getpid()?0:-EXDEV;
+    if(binding)return -EBUSY;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_background_start_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2 && functional_background_start_owner_pid==getpid()?0:-EBUSY;
+    int rc=functional_background_start_owner_init();
+    if(!rc)functional_background_start_owner_pid=getpid();else functional_camera_setup_error=rc;
+    __atomic_store_n(&functional_background_start_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    return rc;
+}
+static int functional_background_start_bind_original_source(void *caller,unsigned int source) {
+    int saved_errno=*__errno_location(),rc=-EPERM;
+    Dl_info info={0};unsigned int first=0,second=0;long before=-1,after=-1;
+    if((source>>16)==0x8102u && real_dladdr && real_dladdr(caller,&info) && info.dli_fbase && info.dli_fname &&
+       (uintptr_t)caller-(uintptr_t)info.dli_fbase==0xeda50u) {
+        size_t length=strlen(info.dli_fname);
+        if(length>=9 && !strcmp(info.dli_fname+length-9,"libObj.so") && (length==9 || info.dli_fname[length-10]=='/')) {
+            int fd=open("/proc/self/mem",0);
+            if(fd>=0) {
+                before=pread(fd,&first,4,(long)((uintptr_t)caller-4));
+                after=pread(fd,&second,4,(long)((uintptr_t)caller-4));close(fd);
+            }
+            rc=before==4 && after==4 && first==0x97fdb339u && second==first?
+                functional_background_start_bind_source_once(source):-ELIBBAD;
+        }
+    }
+    char text[330];snprintf(text,sizeof text,
+        "pid=%d tid=%ld caller_pc=%p caller_va=0xeda50 library_base=%p source=%#x reads=%ld/%ld first=%#x second=%#x bind_rc=%d original_cp_modules_verified=0 capture_verified=0",
+        getpid(),syscall(178),caller,info.dli_fbase,source,before,after,first,second,rc);
+    record("FUNCTIONAL_BACKGROUND_START_SOURCE_BOUND ",text);*__errno_location()=saved_errno;return rc;
+}
+static void native_background_start_progress(void) {
+    if(!__atomic_load_n(&functional_background_start_used,__ATOMIC_ACQUIRE) || functional_background_start_owner_pid!=getpid())return;
+    int saved_errno=*__errno_location();functional_background_start_progress();*__errno_location()=saved_errno;
+}
+static void native_background_start_received(unsigned int id,void *message,unsigned int source,unsigned int bytes) {
+    if(!__atomic_load_n(&functional_background_start_used,__ATOMIC_ACQUIRE) || functional_background_start_owner_pid!=getpid())return;
+    int saved_errno=*__errno_location();uint64_t cycle=0;
+    if(functional_background_start_observe_receive_cycle(id,message,source,bytes,&cycle)==1 && cycle) {
+        if(!functional_background_start_ticket.pointer) {
+            functional_background_start_ticket.pointer=message;functional_background_start_ticket.destination=id;
+            functional_background_start_ticket.cycle=cycle;
+        } else record("FUNCTIONAL_BACKGROUND_START_TICKET_RETAINED ","receiver_ticket_already_live=1 no_refresh=1 capture_verified=0");
+    }
+    *__errno_location()=saved_errno;
+}
+static int native_background_start_release(unsigned int id,void *message,int *result) {
+    if(!__atomic_load_n(&functional_background_start_used,__ATOMIC_ACQUIRE) || functional_background_start_owner_pid!=getpid())return 0;
+    int saved_errno=*__errno_location();
+    uint64_t cycle=functional_background_start_ticket.pointer==message && functional_background_start_ticket.destination==id?
+        functional_background_start_ticket.cycle:0;
+    int handled=functional_background_start_release_cycle(id,message,cycle,real_free_msg,record,result);
+    if(handled && !*result && cycle) {
+        functional_background_start_ticket.pointer=0;functional_background_start_ticket.destination=0;functional_background_start_ticket.cycle=0;
+    }
+    *__errno_location()=saved_errno;return handled;
+}
+static int functional_vdf_prepare(void) {
+    if(functional_camera_setup_error)return functional_camera_setup_error;
+    unsigned int binding=__atomic_load_n(&functional_vdf_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return 0;
+    if(binding)return -EBUSY;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_vdf_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2?0:-EBUSY;
+    int rc=functional_vdf_path_owner_init();
+    if(!rc)rc=fcam_bridge_init(record);
+    if(rc)functional_camera_setup_error=rc;
+    __atomic_store_n(&functional_vdf_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    return rc;
+}
+static int functional_mpr_prepare(void) {
+    if(functional_camera_setup_error)return functional_camera_setup_error;
+    unsigned int binding=__atomic_load_n(&functional_mpr_binding,__ATOMIC_ACQUIRE);
+    if(binding==2)return 0;
+    if(binding)return -EBUSY;
+    struct native_functional_camera_control_snapshot control={0};
+    native_functional_camera_control_snapshot(&control);
+    if(!control.model_initialized || !control.start_complete || control.faults)return -ENODATA;
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&functional_mpr_binding,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE))
+        return expected==2?0:-EBUSY;
+    int rc=functional_mpr_codec_owner_init();
+    void *anchor=0;Dl_info info={0};
+    if(!rc && real_dlopen && real_dlsym){
+        functional_mpr_library_handle=real_dlopen("libmpr.so",6); /* NOW|NOLOAD */
+        if(functional_mpr_library_handle)
+            anchor=real_dlsym(functional_mpr_library_handle,"_ZN3mpr5Codec17CallbackFromAvbbcEPvS1_");
+    }
+    if(!rc && (!anchor || !real_dladdr || !real_dladdr(anchor,&info) || !info.dli_fbase ||
+       (uintptr_t)anchor-(uintptr_t)info.dli_fbase!=0x283e74u))rc=-ELIBBAD;
+    if(!rc)rc=functional_mpr_codec_bind((uintptr_t)info.dli_fbase,FUNCTIONAL_MPR_CODEC_LIBRARY_SHA256);
+    __atomic_store_n(&functional_mpr_binding,rc?3u:2u,__ATOMIC_RELEASE);
+    char text[300];snprintf(text,sizeof text,
+        "pid=%d rc=%d library_base=%p host_verified_library_sha256=%s actual_symbol_offset=0x283e74 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),rc,info.dli_fbase,FUNCTIONAL_MPR_CODEC_LIBRARY_SHA256);
+    record("FUNCTIONAL_MPR_BIND ",text);return rc;
 }
 static unsigned int record_osd_transport(const char *prefix, unsigned int id, const void *message) {
     if (!getenv("MENU_OSD_OBSERVE")) return 0;
@@ -4213,6 +7694,93 @@ static unsigned int record_osd_transport(const char *prefix, unsigned int id, co
              size, shown, hex);
     record(prefix, text);
     return count;
+}
+static void native_hdmi_video_progress(void) {
+    if(!pinmem_hdmi_video_connection_enabled)return;
+    int saved_errno=*__errno_location();
+    full_pinmem_hdmi_video_connection_progress();
+    *__errno_location()=saved_errno;
+}
+static void native_hdmi_video_received(unsigned int id,void **message,int result) {
+    if(!pinmem_hdmi_video_connection_enabled || result || !message || !*message || !real_get_source || !real_msg_size)return;
+    int saved_errno=*__errno_location();
+    full_hdmi_video_state_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
+    native_hdmi_video_progress();
+    *__errno_location()=saved_errno;
+}
+static void native_histogram_received(unsigned int id,void *message,unsigned int source,unsigned int bytes) {
+    if(!__atomic_load_n(&functional_histogram_used,__ATOMIC_ACQUIRE) || functional_histogram_owner_pid!=getpid())return;
+    int saved_errno=*__errno_location();uint64_t cycle=0;
+    int accepted=functional_histogram_observe_receive_cycle(id,message,source,bytes,&cycle);
+    if(accepted==1 && cycle && (bytes==FUNCTIONAL_HISTOGRAM_ACK_BYTES || bytes==FUNCTIONAL_HISTOGRAM_NOTIFICATION_BYTES)) {
+        struct functional_histogram_receive_ticket *ticket=&functional_histogram_tickets[bytes==FUNCTIONAL_HISTOGRAM_ACK_BYTES?0:1];
+        unsigned int empty=0;
+        if(__atomic_compare_exchange_n(&ticket->ready,&empty,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
+            /* Single transaction: publish once; only ready retires ticket ownership. */
+            ticket->pointer=message;ticket->destination=id;ticket->cycle=cycle;
+            __atomic_store_n(&ticket->ready,2,__ATOMIC_RELEASE);
+        } else record("FUNCTIONAL_HISTOGRAM_TICKET_RETAINED ","receiver_ticket_already_live=1 no_refresh=1 capture_verified=0");
+    }
+    *__errno_location()=saved_errno;
+}
+static int native_histogram_release(unsigned int id,void *message,int *result) {
+    int selected=-1;uint64_t cycle=0;
+    if(functional_histogram_owner_pid==getpid())for(unsigned int i=0;i<2;i++) {
+        const struct functional_histogram_receive_ticket *ticket=&functional_histogram_tickets[i];
+        if(__atomic_load_n(&ticket->ready,__ATOMIC_ACQUIRE)==2 && ticket->pointer==message && ticket->destination==id) {
+            selected=(int)i;cycle=ticket->cycle;break;
+        }
+    }
+    int handled=functional_histogram_release_cycle(id,message,cycle,real_free_msg,record,result);
+    if(handled && !*result && selected>=0)__atomic_store_n(&functional_histogram_tickets[selected].ready,0,__ATOMIC_RELEASE);
+    return handled;
+}
+static void native_cp_state_received(unsigned int id,void **message,int result) {
+    if((!cp_owned_state_enabled && !functional_camera_enabled) || result || !message || !*message || !real_get_source || !real_msg_size)return;
+    int saved_errno=*__errno_location();
+    if(functional_camera_enabled){
+        native_background_start_received(id,*message,real_get_source(*message),real_msg_size(*message));
+        native_histogram_received(id,*message,real_get_source(*message),real_msg_size(*message));
+        if(__atomic_load_n(&functional_layout_stage_used,__ATOMIC_ACQUIRE)) {
+            uint64_t ticket=0;
+            int accepted=functional_vdf_layout_stage_observe_receive_cycle(id,*message,real_get_source(*message),real_msg_size(*message),&ticket);
+            if(accepted==1) {
+                if(!functional_layout_stage_ticket.pointer) {
+                    functional_layout_stage_ticket.pointer=*message;functional_layout_stage_ticket.destination=id;
+                    functional_layout_stage_ticket.cycle=ticket;
+                } else record("FUNCTIONAL_LAYOUT_STAGE_TICKET_RETAINED ","receiver_ticket_already_live=1 no_refresh=1 capture_verified=0");
+            }
+        }
+        if(__atomic_load_n(&functional_vdf_path_used,__ATOMIC_ACQUIRE)) {
+            uint64_t ticket=0;
+            int accepted=functional_vdf_path_observe_receive_cycle(id,*message,real_get_source(*message),real_msg_size(*message),&ticket);
+            if(accepted==1) {
+                if(!functional_vdf_ticket.pointer) {
+                    functional_vdf_ticket.pointer=*message;functional_vdf_ticket.destination=id;functional_vdf_ticket.cycle=ticket;
+                } else record("FUNCTIONAL_VDF_PATH_TICKET_RETAINED ","receiver-ticket-already-live no_refresh=1 capture_verified=0");
+            }
+        }
+        functional_camera_events_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        functional_jpeg_codec_observe_received(id,*message,&io);
+        if(__atomic_load_n(&functional_mpr_codec_used,__ATOMIC_ACQUIRE))
+            functional_mpr_codec_observe_received(id,*message,&io);
+    } else native_cp_state_publication_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
+    *__errno_location()=saved_errno;
+}
+/* The shipped OSAL exports this low-level receive as well as the public one.
+ * Public receives call it through the PLT: observe once, after the outer call. */
+int u_osal_rcv_msg_tmo(unsigned int id,void **message,long timeout) {
+    if(!real_u_rcv_msg_tmo)__builtin_trap();
+    unsigned int outer=native_receive_depth++;
+    int result=real_u_rcv_msg_tmo(id,message,timeout);
+    native_receive_depth--;
+    if(!outer) {
+        native_hdmi_video_received(id,message,result);
+        native_cp_state_received(id,message,result);
+    }
+    return result;
 }
 int osal_rcv_msg_tmo(unsigned int id, void **message, long timeout) {
     if (!real_rcv_msg_tmo) __builtin_trap();
@@ -4303,7 +7871,13 @@ int osal_rcv_msg_tmo(unsigned int id, void **message, long timeout) {
         snprintf(text, sizeof text, "tid=%ld queue=%#x timeout=%ld enter caller=%s+%#lx", syscall(178), id, timeout, module, offset);
         record("RCV_MSG_WAIT ", text);
     }
+    unsigned int outer=native_receive_depth++;
     int result = real_rcv_msg_tmo(id, message, timeout);
+    native_receive_depth--;
+    if(!outer) {
+        native_hdmi_video_received(id,message,result);
+        native_cp_state_received(id,message,result);
+    }
     if (!result && id == 0x005503e0 && message && *message &&
         (getenv("MENU_INJECT_KEY") || getenv("MENU_OBSERVE_INPUT")) && real_msg_size && real_get_source &&
         real_msg_size(*message) == 32 && real_get_source(*message) == 0x005503e0) {
@@ -4469,6 +8043,60 @@ int osal_free_msg(unsigned int id, void *message) {
     if (!real_free_msg) __builtin_trap();
     int media_mount_trace=trace_media_mount_completion("FULL_MEDIA_MOUNT_FREE_ENTER ",id,message);
     int vdf_result;
+    if(native_background_start_release(id,message,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&functional_histogram_used,__ATOMIC_ACQUIRE) &&
+       native_histogram_release(id,message,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&functional_layout_stage_used,__ATOMIC_ACQUIRE)) {
+        uint64_t ticket=functional_layout_stage_ticket.pointer==message && functional_layout_stage_ticket.destination==id?
+            functional_layout_stage_ticket.cycle:0;
+        if(functional_vdf_layout_stage_release_cycle(id,message,ticket,real_free_msg,record,&vdf_result)) {
+            if(!vdf_result && ticket) {
+                functional_layout_stage_ticket.pointer=0;functional_layout_stage_ticket.destination=0;functional_layout_stage_ticket.cycle=0;
+            }
+            return vdf_result;
+        }
+    }
+    if(__atomic_load_n(&functional_cp_zoom_used,__ATOMIC_ACQUIRE) &&
+       functional_cp_zoom_release(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&functional_vdf_path_used,__ATOMIC_ACQUIRE)) {
+        uint64_t ticket=functional_vdf_ticket.pointer==message && functional_vdf_ticket.destination==id?
+            functional_vdf_ticket.cycle:0;
+        if(functional_vdf_path_release_cycle(id,message,ticket,real_free_msg,record,&vdf_result)) {
+            if(!vdf_result && ticket) {
+                functional_vdf_ticket.pointer=0;functional_vdf_ticket.destination=0;functional_vdf_ticket.cycle=0;
+            }
+            return vdf_result;
+        }
+    }
+    if(__atomic_load_n(&functional_camera_control_used,__ATOMIC_ACQUIRE) &&
+       functional_camera_events_release(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&functional_mpr_codec_used,__ATOMIC_ACQUIRE)){
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        if(functional_mpr_codec_release_if_owned(id,message,&io,&vdf_result))return vdf_result;
+    }
+    if(pinmem_hdmi_video_connection_enabled &&
+       full_hdmi_video_state_release(id,message,real_free_msg,record,&vdf_result)) {
+        native_hdmi_video_progress();return vdf_result;
+    }
+    if(__atomic_load_n(&pinmem_hdmi_video_connection_used,__ATOMIC_ACQUIRE) &&
+       full_pinmem_hdmi_video_connection_release(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&pinmem_osd_connection_used,__ATOMIC_ACQUIRE) &&
+       full_pinmem_osd_connection_release(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp302c_no_transition_used,__ATOMIC_ACQUIRE) &&
+       native_cp302c_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_notification_control_used,__ATOMIC_ACQUIRE) &&
+       native_cp_notification_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_capture_format_used,__ATOMIC_ACQUIRE) &&
+       native_cp_capture_format_diagnostic_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_owned_state_used,__ATOMIC_ACQUIRE) &&
+       native_cp_state_publication_release(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_movie_format_used,__ATOMIC_ACQUIRE) &&
+       native_cp_movie_format_diagnostic_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_ee_controls_used,__ATOMIC_ACQUIRE) &&
+       native_cp_ee_controls_diagnostic_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&cp_startup_controls_used,__ATOMIC_ACQUIRE) &&
+       native_cp_startup_controls_diagnostic_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
     if (native_cp_background_release(id,message,real_free_msg,record,&vdf_result)) {
         char text[180];snprintf(text,sizeof text,"tid=%ld owner=%#x message=%p caller=%p rc=%d",
             syscall(178),id,message,__builtin_return_address(0),vdf_result);
@@ -4481,6 +8109,58 @@ int osal_free_msg(unsigned int id, void *message) {
         if (!vdf_result) native_pin_format_readback();
         return vdf_result;
     }
+    if (__atomic_load_n(&vef_path_used, __ATOMIC_ACQUIRE) &&
+        full_vef_path_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&adf_proc_used, __ATOMIC_ACQUIRE) &&
+        full_adf_proc_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&adf_set_input_used, __ATOMIC_ACQUIRE) &&
+        full_adf_set_input_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&adf_set_output_used, __ATOMIC_ACQUIRE) &&
+        full_adf_set_output_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&vef_pinmem_control_connection_used, __ATOMIC_ACQUIRE) &&
+        full_vef_pinmem_control_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&pinmem_peer_connections_used, __ATOMIC_ACQUIRE) &&
+        (full_scalar_connection_release(id, message, real_free_msg, record, &vdf_result) ||
+         full_adf_connection_release(id, message, real_free_msg, record, &vdf_result) ||
+         full_pinmem_drawinfo_connection_release(id, message, real_free_msg, record, &vdf_result)))
+        return vdf_result;
+    if (__atomic_load_n(&adf_hdmi_audio_connection_used, __ATOMIC_ACQUIRE) &&
+        full_adf_hdmi_audio_connection_release(id, message, real_free_msg, record, &vdf_result)) {
+        if(!vdf_result)native_background_start_progress();
+        return vdf_result;
+    }
+    if (__atomic_load_n(&vef_pinmem_input_connection_used, __ATOMIC_ACQUIRE) &&
+        full_vef_pinmem_input_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&infrabb_vef_control_connection_used, __ATOMIC_ACQUIRE) &&
+        full_infrabb_vef_control_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&infrabb_vef_connection_used, __ATOMIC_ACQUIRE) &&
+        full_infrabb_vef_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&imaging_adf_connection_used, __ATOMIC_ACQUIRE) &&
+        full_imaging_adf_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&imaging_control_connection_used, __ATOMIC_ACQUIRE) &&
+        full_imaging_control_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&imaging_pin_connection_used, __ATOMIC_ACQUIRE) &&
+        full_imaging_pin_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&bb_set_mode_used, __ATOMIC_ACQUIRE) &&
+        full_bb_set_mode_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&tcin_config_used, __ATOMIC_ACQUIRE) &&
+        full_tcin_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&touch_config_used, __ATOMIC_ACQUIRE) &&
+        full_touch_panel_release_reply(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
     if (__atomic_load_n(&vdf_config_used, __ATOMIC_ACQUIRE) &&
         full_vdf_release_reply(id, message, real_free_msg, record, &vdf_result))
         return vdf_result;
@@ -4504,6 +8184,7 @@ int osal_free_msg(unsigned int id, void *message) {
          full_hdmi_pin_release_reply(id, message, real_free_msg, record, &vdf_result) ||
          native_osdpin_release_reply(id, message, real_free_msg, record, &vdf_result) ||
          native_drawinfo_release_reply(id, message, real_free_msg, record, &vdf_result) ||
+         native_infraimaging_release_reply(id, message, real_free_msg, record, &vdf_result) ||
          native_infrabb_release_reply(id, message, real_free_msg, record, &vdf_result)))
         return vdf_result;
     if (id == 0x912503d0 && message) {
@@ -4513,6 +8194,7 @@ int osal_free_msg(unsigned int id, void *message) {
         if (from) return real_free_msg(from, message);
     }
     int result=real_free_msg(id,message),saved_errno=*__errno_location();
+    if(functional_camera_enabled)(void)functional_jpeg_codec_observe_freed(id,message,result);
     if(media_mount_trace) {
         char text[180];snprintf(text,sizeof text,"tid=%ld id=%#x message=%p result=%d caller=%p",
                                syscall(178),id,message,result,__builtin_return_address(0));
@@ -4535,7 +8217,7 @@ int osal_free_msg(unsigned int id, void *message) {
    - This consumes the request: appFw still owns and frees its own buffer, so this function must not
      free it. If the allocation or send fails we refuse to answer instead of inventing success. */
 static int cp_release_service(unsigned int destination, void *request) {
-    if (!real_allocate_msg || !real_send_msg || !real_set_source || !real_msg_size || !real_get_source)
+    if (!real_allocate_msg || !real_send_msg || !real_free_msg || !real_set_source || !real_msg_size || !real_get_source)
         return -1021;
     if (!request) return -1024;
     unsigned int size = real_msg_size(request);
@@ -4559,6 +8241,7 @@ static int cp_release_service(unsigned int destination, void *request) {
     *(unsigned int *)(body + 8) = 0xf000; /* status: success */
     real_set_source(reply, destination);
     result = real_send_msg(source, reply);
+    if (result) real_free_msg(source, reply);
     char text[224];
     snprintf(text, sizeof text,
              "cmd=%#x bytes=%u token=%#x source=%#x result=%d request=%08x,%08x,%08x,%08x",
@@ -4646,6 +8329,289 @@ static void install_sync_call_probe(unsigned long base) {
 static unsigned int cp_time_unavailable;
 
 int osal_snd_msg(unsigned int id, void *message) {
+    audit_cp_background_input(id,message,"async",__builtin_return_address(0));
+    if(cp302c_no_transition_enabled && id==NATIVE_CP_BACKGROUND_SID) {
+        __atomic_store_n(&cp302c_no_transition_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp302c_guard guard={cp302c_no_transition_reserve_resources,
+            full_vef_resources_unlock,cp302c_no_transition_predecessors_ready};
+        int result;
+        if(native_cp302c_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_HISTOGRAM_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==0x0d && wire[1]==0x20 && wire[2]==0x48 && wire[3]==1) {
+            if(bytes!=FUNCTIONAL_HISTOGRAM_REQUEST_BYTES || wire[4]!=12 || wire[5] || wire[6]!=1 || wire[7]!=0x80)return -ENOTSUP;
+            if(functional_camera_setup_error)return functional_camera_setup_error;
+            if(!cp302c_no_transition_predecessors_ready())return -ENODATA;
+            int rc=functional_histogram_prepare();if(rc)return rc;
+            rc=functional_camera_global_queue_bind(message,__builtin_return_address(0),0x148);if(rc)return rc;
+            const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,real_send_msg,real_msg_size,real_get_source,record};
+            const struct native_cp_state_publication_guard guard={functional_histogram_reserve_resources,full_vef_resources_unlock,cp302c_no_transition_predecessors_ready};
+            __atomic_store_n(&functional_histogram_used,1,__ATOMIC_RELEASE);
+            int result;if(functional_histogram_dispatch(id,message,&io,&guard,1,&result))return result;
+            return -ENOTSUP;
+        }
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_VDF_PATH_SID && message && real_msg_size) {
+        const unsigned char *wire=message;
+        unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==0x0d && wire[1]==0x20 && wire[3]==0x01 &&
+           (wire[2]==0x38 || wire[2]==0x53 || wire[2]==0x4c || wire[2]==0x52 || wire[2]==0x62 || wire[2]==0x41 ||
+            wire[2]==0x11 || wire[2]==0x66 || wire[2]==0x67 || wire[2]==0x5f || wire[2]==0x28)) {
+            unsigned int required=wire[2]==0x38?FUNCTIONAL_VDF_PATH_REQUEST_BYTES:
+                wire[2]==0x53?FUNCTIONAL_VDF_ZEBRA_REQUEST_BYTES:
+                wire[2]==0x4c?FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES:
+                wire[2]==0x52?FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES:
+                wire[2]==0x62?FUNCTIONAL_VDF_FLAG_REQUEST_BYTES:
+                wire[2]==0x11 || wire[2]==0x66?36u:wire[2]==0x67?10u:wire[2]==0x5f?12u:wire[2]==0x28?20u:FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES;
+            if(bytes!=required || wire[4]!=required || wire[5] || wire[6]!=1 || wire[7]!=0x80)
+                return -ENOTSUP;
+            if(functional_camera_setup_error)return functional_camera_setup_error;
+            int route_ready=cp302c_no_transition_predecessors_ready();
+            if(!route_ready) {
+                if(wire[2]!=0x4c)return -ENODATA;
+                const struct full_imaging_io stage_io={real_allocate_msg,real_free_msg,real_set_source,
+                    real_send_msg,real_msg_size,real_get_source,record};
+                if(full_bb_set_mode_enabled) {
+                    int observed=full_bb_set_mode_observe_input(id,message,&stage_io);
+                    if(observed)return observed;
+                }
+                int prepared=functional_layout_stage_prepare();if(prepared)return prepared;
+                __atomic_store_n(&functional_layout_stage_used,1,__ATOMIC_RELEASE);
+                int staged;
+                if(functional_vdf_layout_stage_dispatch(id,message,&stage_io,1,route_ready,&staged))return staged;
+                return -ENOTSUP;
+            }
+            int prepared=functional_vdf_prepare();if(prepared)return prepared;
+            if(wire[2]==0x41) {
+                int bound=functional_camera_global_queue_bind(message,__builtin_return_address(0),0x141);
+                if(bound)return bound;
+            }
+            const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+                real_send_msg,real_msg_size,real_get_source,record};
+            const struct native_cp_state_publication_guard guard={functional_vdf_path_reserve_resources,
+                full_vef_resources_unlock,cp302c_no_transition_predecessors_ready};
+            __atomic_store_n(&functional_vdf_path_used,1,__ATOMIC_RELEASE);
+            int result;
+            if(functional_vdf_path_dispatch(id,message,&io,&guard,1,&result)) {
+                if(!result && required==FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES) {
+                    int bound=functional_layout_stage_bind_model();
+                    if(bound) {
+                        functional_layout_stage_error=bound;functional_camera_setup_error=bound;
+                        char failure[128];snprintf(failure,sizeof failure,"rc=%d validated_late_layout_bound=0 capture_verified=0",bound);
+                        record("FUNCTIONAL_LAYOUT_STAGE_BIND_FAILED ",failure);
+                    }
+                }
+                return result;
+            }
+            return -ENOTSUP;
+        }
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_JPEG_CODEC_SID){
+        if(functional_camera_setup_error)return functional_camera_setup_error;
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        int result;
+        if(functional_jpeg_codec_dispatch(id,message,&io,&result))return result;
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_CAMERA_CONTROL_SID){
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_state_publication_guard guard={functional_camera_control_reserve_resources,
+            full_vef_resources_unlock,cp_owned_state_predecessors_ready};
+        const unsigned char *wire=message;
+        unsigned int bytes=message && real_msg_size?real_msg_size(message):0;
+        unsigned int command=bytes>=4?wire[2]|(unsigned int)wire[3]<<8:0;
+        if(bytes>=4 && wire[0]==0 && command==0x3006) {
+            if(bytes!=FUNCTIONAL_BACKGROUND_START_REQUEST_BYTES)return -ENOTSUP;
+            int prepared=functional_background_start_prepare();if(prepared)return prepared;
+            int bound=functional_background_start_bind_original_source(__builtin_return_address(0),real_get_source?real_get_source(message):0);
+            if(bound)return bound;
+            const struct native_cp_state_publication_guard background_guard={functional_background_start_reserve_resources,
+                full_vef_resources_unlock,cp302c_no_transition_predecessors_ready};
+            __atomic_store_n(&functional_background_start_used,1,__ATOMIC_RELEASE);
+            int result;
+            if(functional_background_start_dispatch(id,message,&io,&background_guard,1,&result))return result;
+            return -ENOTSUP;
+        }
+        if(bytes>=4 && wire[0]==5 && command==0x4001) {
+            if(bytes!=CP_PARAMETER_ZOOM_BYTES)return -EMSGSIZE;
+            if(!real_get_source || real_get_source(message)!=CP_PARAMETER_BATCH_SOURCE)return -EPERM;
+            if(!cp_owned_state_enabled || !cp302c_no_transition_predecessors_ready())return -ENODATA;
+            int prepared=functional_cp_zoom_prepare();if(prepared)return prepared;
+            uint64_t previous=__atomic_load_n(&functional_cp_zoom_sequence,__ATOMIC_RELAXED);
+            for(;;) {
+                if(previous>UINT64_MAX-2)return -EOVERFLOW;
+                if(__atomic_compare_exchange_n(&functional_cp_zoom_sequence,&previous,previous+2,0,
+                    __ATOMIC_RELAXED,__ATOMIC_RELAXED))break;
+            }
+            const struct cp_start_state_guard data_guard={(uint32_t)getpid(),previous+2,previous+2,
+                CP_START_STATE_ORIGIN_VIRTUAL_SOURCE,1};
+            const struct native_cp_state_publication_guard zoom_guard={functional_cp_zoom_reserve_resources,
+                functional_cp_zoom_release_resources,cp302c_no_transition_predecessors_ready};
+            __atomic_store_n(&functional_cp_zoom_used,1,__ATOMIC_RELEASE);
+            int result;
+            if(functional_cp_zoom_dispatch(id,message,&io,&zoom_guard,&data_guard,1,&result))return result;
+            return -ENOTSUP;
+        }
+        int selected=bytes>=12 && ((wire[0]==0 && bytes==24 && (command==0x3003 || command==0x3000)) ||
+            (wire[0]==5 && bytes==12 && command==0x4073 && wire[8]==1));
+        if(selected && functional_camera_setup_error)return functional_camera_setup_error;
+        if(selected && real_get_source && real_get_source(message)==FUNCTIONAL_CAMERA_CONTROL_AP &&
+           cp_owned_state_predecessors_ready()){
+            int init_rc=fcam_bridge_init(record);
+            if(init_rc)return init_rc;
+        }
+        __atomic_store_n(&functional_camera_control_used,1,__ATOMIC_RELEASE);
+        int result;
+        if(native_functional_camera_control_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_MPR_CODEC_DESTINATION && message &&
+       real_msg_size && real_get_source && real_msg_size(message)==48 &&
+       real_get_source(message)==FUNCTIONAL_MPR_CODEC_SOURCE){
+        int result=functional_mpr_prepare();if(result)return result;
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        __atomic_store_n(&functional_mpr_codec_used,1,__ATOMIC_RELEASE);
+        if(functional_mpr_codec_dispatch(id,message,&io,1,&result))return result;
+        record("FUNCTIONAL_MPR_UNSUPPORTED ","canonical-codec-request-not-implemented physical_ASIC_verified=0 capture_verified=0");
+        return -ENOTSUP;
+    }
+    if(cp_owned_state_enabled && !functional_camera_enabled && id==NATIVE_CP_STATE_PUBLICATION_SID) {
+        __atomic_store_n(&cp_owned_state_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_state_publication_guard guard={cp_owned_state_reserve_resources,
+            full_vef_resources_unlock,cp_owned_state_predecessors_ready};
+        const struct native_cp_state_publication_providers providers={NULL,cp_owned_start_provider,cp_owned_full_provider};
+        int result;
+        if(native_cp_state_publication_dispatch(id,message,&io,&guard,&providers,1,&result))return result;
+    }
+    if(cp_notification_control_enabled && id==NATIVE_CP_NOTIFICATION_SID) {
+        __atomic_store_n(&cp_notification_control_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_notification_guard guard={cp_notification_reserve_resources,
+            full_vef_resources_unlock,cp_notification_predecessors_ready};
+        int result;
+        if(native_cp_notification_dispatch(id,message,&io,&guard,1,&result))return result;
+        if(cp_parameter_config_receive(id,message,&result))return result;
+    }
+    if(cp_capture_format_enabled && id==NATIVE_CP_CAPTURE_FORMAT_SID) {
+        __atomic_store_n(&cp_capture_format_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_capture_format_diagnostic_guard guard={cp_capture_format_reserve_resources,
+            full_vef_resources_unlock,cp_capture_format_predecessors_ready};
+        int result;
+        if(native_cp_capture_format_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(cp_movie_format_enabled && id==NATIVE_CP_MOVIE_FORMAT_SID) {
+        __atomic_store_n(&cp_movie_format_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_movie_format_diagnostic_guard guard={cp_movie_format_reserve_resources,
+            full_vef_resources_unlock,cp_movie_format_predecessors_ready};
+        int result;
+        if(native_cp_movie_format_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(cp_ee_controls_enabled && id==NATIVE_CP_EE_CONTROLS_SID) {
+        __atomic_store_n(&cp_ee_controls_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const unsigned char *wire=message;
+        unsigned int command=message && real_msg_size && real_msg_size(message)>=4?
+            wire[2]|(unsigned int)wire[3]<<8:0;
+        const struct native_cp_ee_controls_diagnostic_guard guard={cp_ee_controls_reserve_resources,
+            full_vef_resources_unlock,cp_movie_format_enabled && (command==0x4072 || command==0x3012)?
+                cp_ee_controls_after_movie_predecessors_ready:cp_ee_controls_predecessors_ready};
+        int result;
+        if(native_cp_ee_controls_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(cp_startup_controls_enabled && id==NATIVE_CP_STARTUP_CONTROLS_SID) {
+        __atomic_store_n(&cp_startup_controls_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct native_cp_startup_controls_diagnostic_guard guard={cp_startup_controls_reserve_resources,
+            full_vef_resources_unlock,cp_startup_controls_predecessors_ready};
+        int result;
+        if(native_cp_startup_controls_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if((id==FULL_HDMI_CP || id==FULL_PINMEM_CP) && same_name(getenv("MENU_PINMEM_PEER_CONNECT"),FULL_PINMEM_PEER_CONNECTIONS_PROFILE)) {
+        static unsigned int pin_input_audit_sequence;
+        unsigned int sequence=__atomic_add_fetch(&pin_input_audit_sequence,1,__ATOMIC_RELAXED);
+        const char *audit_tag=id==FULL_HDMI_CP?"FULL_HDMI_INPUT_AUDIT ":"FULL_PINMEM_INPUT_AUDIT ";
+        const char *bytes_tag=id==FULL_HDMI_CP?"FULL_HDMI_INPUT_AUDIT_BYTES ":"FULL_PINMEM_INPUT_AUDIT_BYTES ";
+        unsigned int size_known=message && real_msg_size,source_known=message && real_get_source;
+        unsigned int bytes=size_known?real_msg_size(message):0,source=source_known?real_get_source(message):0;
+        unsigned int bytes_complete=size_known && bytes<=4096,complete=bytes_complete && source_known;
+        char text[300];snprintf(text,sizeof text,
+            "pid=%d tid=%ld sequence=%u destination=%#x bytes=%u source=%#x size_known=%u source_known=%u bytes_complete=%u complete=%u state_verified=0 capture_verified=0",
+            getpid(),syscall(178),sequence,id,bytes,source,size_known,source_known,bytes_complete,complete);
+        record(audit_tag,text);
+        if(bytes_complete)for(unsigned int offset=0;offset<bytes;offset+=128) {
+            unsigned int count=bytes-offset;if(count>128)count=128;
+            char raw[257],line[380];const unsigned char *p=message;
+            for(unsigned int i=0;i<count;i++)snprintf(raw+2*i,3,"%02x",p[offset+i]);
+            raw[2*count]=0;snprintf(line,sizeof line,"pid=%d tid=%ld sequence=%u offset=%u bytes=%u raw=%s",
+                getpid(),syscall(178),sequence,offset,count,raw);
+            record(bytes_tag,line);
+        }
+    }
+    /* History sees every PinMem input, not only this owner's Connect key. */
+    if(id==FULL_PINMEM_CP && pinmem_hdmi_video_connection_enabled) {
+        int saved_errno=*__errno_location();
+        full_pinmem_hdmi_video_connection_observe_input(id,message,message && real_msg_size?real_msg_size(message):0);
+        *__errno_location()=saved_errno;
+    }
+    /* Owned endpoints reserve this gate once; unrelated messages keep the legacy gate. */
+    if((id==FULL_VEF_CP && (vef_pinmem_input_connection_enabled || vef_pinmem_control_connection_enabled)) ||
+            (id==FULL_PINMEM_CP && pinmem_peer_connections_enabled) ||
+            (id==FULL_ADF_CP && adf_hdmi_audio_connection_enabled)) {
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        int result;
+        if(id==FULL_VEF_CP) {
+            if(vef_pinmem_control_connection_enabled) {
+                __atomic_store_n(&vef_pinmem_control_connection_used,1,__ATOMIC_RELEASE);
+                const struct full_adf_proc_guard guard={vef_pinmem_control_connection_reserve_resources,full_vef_resources_unlock};
+                if(full_vef_pinmem_control_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+            }
+            if(vef_pinmem_input_connection_enabled) {
+                __atomic_store_n(&vef_pinmem_input_connection_used,1,__ATOMIC_RELEASE);
+                const struct full_adf_proc_guard guard={vef_pinmem_input_connection_reserve_resources,full_vef_resources_unlock};
+                if(full_vef_pinmem_input_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+            }
+        }else if(id==FULL_PINMEM_CP) {
+            if(pinmem_hdmi_video_connection_enabled) {
+                __atomic_store_n(&pinmem_hdmi_video_connection_used,1,__ATOMIC_RELEASE);
+                const struct full_adf_proc_guard guard={pinmem_hdmi_video_connection_reserve_resources,full_vef_resources_unlock};
+                if(full_pinmem_hdmi_video_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+            }
+            if(pinmem_osd_connection_enabled) {
+                __atomic_store_n(&pinmem_osd_connection_used,1,__ATOMIC_RELEASE);
+                const struct full_adf_proc_guard guard={pinmem_osd_connection_reserve_resources,full_vef_resources_unlock};
+                if(full_pinmem_osd_connection_native_dispatch(id,message,&io,&guard,1,&result))return result;
+            }
+            __atomic_store_n(&pinmem_peer_connections_used,1,__ATOMIC_RELEASE);
+            const struct full_adf_proc_guard scalar={pinmem_scalar_connection_reserve_resources,full_vef_resources_unlock};
+            const struct full_adf_proc_guard adf={pinmem_adf_connection_reserve_resources,full_vef_resources_unlock};
+            const struct full_adf_proc_guard drawinfo={pinmem_drawinfo_connection_reserve_resources,full_vef_resources_unlock};
+            if(full_scalar_connection_native_dispatch(id,message,&io,&scalar,1,&result) ||
+               full_adf_connection_native_dispatch(id,message,&io,&adf,1,&result) ||
+               full_pinmem_drawinfo_connection_native_dispatch(id,message,&io,&drawinfo,1,&result))return result;
+        }else {
+            __atomic_store_n(&adf_hdmi_audio_connection_used,1,__ATOMIC_RELEASE);
+            const struct full_adf_proc_guard guard={adf_hdmi_audio_connection_reserve_resources,full_vef_resources_unlock};
+            if(full_adf_hdmi_audio_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+        }
+    }
+    /* Preserve original caller PCs and unlock on every fast/error return. */
+    int resource_token __attribute__((cleanup(full_vef_resource_send_leave)))=
+        full_vef_resource_send_enter(id,vef_path_enabled);
+    if(resource_token<0)return resource_token;
     if(id==0x9088076bU && message && real_msg_size && getenv("MENU_LIVE_KEY_FILE")) {
         static unsigned int captured;
         unsigned int ticket=__atomic_fetch_add(&captured,1,__ATOMIC_RELAXED),n=real_msg_size(message);
@@ -4663,6 +8629,19 @@ int osal_snd_msg(unsigned int id, void *message) {
     }
     trace_media_mount_completion("FULL_MEDIA_MOUNT_ASYNC_SEND ",id,message);
     if (!real_send_msg) __builtin_trap();
+    if(id==0x92840747u && full_bb_set_mode_enabled && message) {
+        const struct full_imaging_io bb_io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        int observed=full_bb_set_mode_observe_input(id,message,&bb_io);
+        if(observed)return observed;
+        if(real_msg_size && real_msg_size(message)==10 &&
+           ((const unsigned char *)message)[2]==0x10 && ((const unsigned char *)message)[3]==0x01) {
+            __atomic_store_n(&bb_set_mode_used,1,__ATOMIC_RELEASE);
+            const struct full_adf_proc_guard bb_guard={bb_set_mode_reserve_resources,full_vef_resources_unlock};
+            int bb_result;
+            if(full_bb_set_mode_dispatch(id,message,&bb_io,&bb_guard,1,&bb_result))return bb_result;
+        }
+    }
     if (id == 0x8102021fU && getenv("MENU_DMM_UNIT_CONFIG") && message && real_msg_size) {
         unsigned int bytes = real_msg_size(message);
         if (bytes <= 64) {
@@ -4719,7 +8698,7 @@ int osal_snd_msg(unsigned int id, void *message) {
             raw[size * 2] = 0;
             snprintf(text, sizeof text, "tid=%ld destination=%#x source=%#x bytes=%u raw=%s",
                      syscall(178), id, real_get_source ? real_get_source(message) : 0, size, raw);
-            record("FULL_AUDIO_BOOT_NEXT_REQUEST ", text);
+            record("DIG_LEVEL_BOOT_REQUEST ", text);
         }
     }
     /* Observe the original destination before choosing a model; native and dump routes can differ. */
@@ -4738,6 +8717,47 @@ int osal_snd_msg(unsigned int id, void *message) {
         snprintf(text, sizeof text, "tid=%ld destination=%#x source=%#x bytes=%u raw=%s",
                  syscall(178), id, real_get_source ? real_get_source(message) : 0, pin_bytes, raw);
         record(pin_bytes == 48 ? "PIN_QUERY " : "PIN_CONTROL_REQUEST ", text);
+    }
+    if (id == NATIVE_INFRABB_CP && infrabb_vef_control_connection_enabled) {
+        __atomic_store_n(&infrabb_vef_control_connection_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={infrabb_vef_control_connection_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_infrabb_vef_control_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == NATIVE_INFRABB_CP && infrabb_vef_connection_enabled) {
+        __atomic_store_n(&infrabb_vef_connection_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={infrabb_vef_connection_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_infrabb_vef_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == NATIVE_INFRAIMAGING_CP && imaging_adf_connection_enabled) {
+        __atomic_store_n(&imaging_adf_connection_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={imaging_adf_connection_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_imaging_adf_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == NATIVE_INFRAIMAGING_CP && imaging_control_connection_enabled) {
+        __atomic_store_n(&imaging_control_connection_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={imaging_control_connection_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_imaging_control_connection_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == NATIVE_INFRAIMAGING_CP && imaging_pin_connection_enabled) {
+        if(pin_control_open_guest(1)!=1)return -1021;
+        __atomic_store_n(&imaging_pin_connection_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={imaging_pin_connection_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_imaging_pin_connection_dispatch(id,message,&io,&guard,1,&result))return result;
     }
     if ((id == FULL_VEF_CP || id == FULL_PINMEM_CP) && getenv("MENU_PIN_CONNECTION")) {
         if (pin_control_open_guest(1) != 1) {
@@ -4773,6 +8793,82 @@ int osal_snd_msg(unsigned int id, void *message) {
         int result;
         if (full_vdf_dispatch(id, message, &io, 1, &result)) return result;
     }
+    if (id == FULL_VEF_PATH_INPUT && vef_path_enabled) {
+        unsigned int bytes=message && real_msg_size?real_msg_size(message):0;
+        if(bytes>=4 && ((const unsigned short *)message)[0]==0x200d &&
+           ((const unsigned short *)message)[1]==0x149) {
+            unsigned int sampled=bytes<40?bytes:40;
+            char raw[81],text[320];
+            for(unsigned int i=0;i<sampled;i++)snprintf(raw+2*i,3,"%02x",((const unsigned char *)message)[i]);
+            snprintf(text,sizeof text,"tid=%ld source=%#x bytes=%u sampled=%u raw=%s",
+                syscall(178),real_get_source?real_get_source(message):0,bytes,sampled,raw);
+            record("FULL_VEF_PATH_INPUT ",text);
+        }
+        __atomic_store_n(&vef_path_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_vef_path_guard guard={vef_path_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_vef_path_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == FULL_ADF_PROC_INPUT && adf_proc_enabled) {
+        __atomic_store_n(&adf_proc_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={adf_proc_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_adf_proc_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == FULL_ADF_SET_INPUT_INPUT && adf_set_input_enabled) {
+        __atomic_store_n(&adf_set_input_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={adf_set_input_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_adf_set_input_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == FULL_ADF_SET_OUTPUT_INPUT && full_adf_set_output_enabled) {
+        __atomic_store_n(&adf_set_output_used,1,__ATOMIC_RELEASE);
+        if(message && real_msg_size && real_msg_size(message)>=4 && !memcmp(message,"\x0d\x20\x2d\x03",4)) {
+            struct full_adf_set_output_snapshot outputSnapshot={0};
+            full_adf_set_output_snapshot(&outputSnapshot);
+            int idle=outputSnapshot.owner_pid==getpid() && outputSnapshot.known==1 && outputSnapshot.initialized==1 &&
+                !outputSnapshot.busy && !outputSnapshot.worker_active && !outputSnapshot.guard_held &&
+                !outputSnapshot.faults && !outputSnapshot.requests && !outputSnapshot.live_reply &&
+                !outputSnapshot.retained_request && !outputSnapshot.retained_reply && !outputSnapshot.retained_cleanup;
+            char text[280];snprintf(text,sizeof text,
+                "pid=%d owner_pid=%d accepted=%u initialized=%u busy=%u faults=%u requests=%u retained_request=%u before_dispatch=1 ap_consumed=0 capture_verified=0",
+                getpid(),outputSnapshot.owner_pid,(unsigned int)idle,outputSnapshot.initialized,
+                outputSnapshot.busy,outputSnapshot.faults,outputSnapshot.requests,(unsigned int)(outputSnapshot.retained_request!=0));
+            record("FULL_ADF_SET_OUTPUT_OWNER_SNAPSHOT ",text);
+            if(!idle)return -1021;
+        }
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        const struct full_adf_proc_guard guard={adf_set_output_reserve_resources,full_vef_resources_unlock};
+        int result;
+        if(full_adf_set_output_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if (id == FULL_TCIN_INPUT && getenv("MENU_TCIN_DETECT") &&
+        !strcmp(getenv("MENU_TCIN_DETECT"), "virtual-inactive-v1")) {
+        __atomic_store_n(&tcin_config_used, 1, __ATOMIC_RELEASE);
+        const struct full_imaging_io io = {
+            real_allocate_msg, real_free_msg, real_set_source, real_send_msg,
+            real_msg_size, real_get_source, record
+        };
+        int result;
+        if (full_tcin_dispatch(id, message, &io, 1, &result)) return result;
+    }
+    if (id == FULL_TOUCH_PANEL_INPUT && getenv("MENU_TOUCH_PANEL") &&
+        !strcmp(getenv("MENU_TOUCH_PANEL"), "virtual-config-v1")) {
+        __atomic_store_n(&touch_config_used, 1, __ATOMIC_RELEASE);
+        const struct full_imaging_io io = {
+            real_allocate_msg, real_free_msg, real_set_source, real_send_msg,
+            real_msg_size, real_get_source, record
+        };
+        int result;
+        if (full_touch_panel_dispatch(id, message, &io, 1, &result)) return result;
+    }
     if (id == FULL_AUDIO_INPUT && getenv("MENU_AUDIO_BOOT_CONFIG")) {
         __atomic_store_n(&audio_config_used, 1, __ATOMIC_RELEASE);
         unsigned int bytes = message && real_msg_size ? real_msg_size(message) : 0;
@@ -4792,7 +8888,24 @@ int osal_snd_msg(unsigned int id, void *message) {
         if (full_audio_dispatch_capabilities(id, message, &io, FULL_AUDIO_BOOT,
                                             FULL_AUDIO_CAPS_INPUTLESS, &result)) return result;
     }
-    if (id == FULL_HDMI_CP && getenv("MENU_HDMI_BOOT_CONFIG")) {
+    if(id==FULL_HDMI_CP && pinmem_hdmi_video_connection_enabled) {
+        /* Preserve the pre-existing photo-request facts, without its old producer. */
+        if(message && real_msg_size && real_msg_size(message)>=12) {
+            const unsigned short *head=message;char text[160];
+            snprintf(text,sizeof text,"tid=%ld frame=%#x command=%#x bytes=%u flags=%#x value=%#x source=%#x",
+                syscall(178),head[0],head[1],real_msg_size(message),head[3],
+                ((const unsigned int *)message)[2],real_get_source?real_get_source(message):0);
+            record("HDMI_PHOTO_REQUEST ",text);
+        }
+        __atomic_store_n(&hdmi_config_used,1,__ATOMIC_RELEASE);
+        const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        int result;
+        if(full_hdmi_video_state_dispatch(id,message,&io,FULL_HDMI_VIDEO_STATE_PROFILE,&result)) {
+            native_hdmi_video_progress();return result;
+        }
+    }
+    if (id == FULL_HDMI_CP && !pinmem_hdmi_video_connection_enabled && getenv("MENU_HDMI_BOOT_CONFIG")) {
         __atomic_store_n(&hdmi_config_used, 1, __ATOMIC_RELEASE);
         const struct full_imaging_io io = {
             real_allocate_msg, real_free_msg, real_set_source, real_send_msg,
@@ -4802,7 +8915,7 @@ int osal_snd_msg(unsigned int id, void *message) {
         if (full_hdmi_dispatch(id, message, &io, FULL_HDMI_BOOT, &result)) return result;
     }
     if ((id == FULL_VEF_CP || id == FULL_PINMEM_CP || id == FULL_SCALAR_CP || id == FULL_ADF_CP || id == FULL_HDMI_PIN_CP ||
-         id == NATIVE_INFRABB_CP || id == NATIVE_DRAWINFO_CP || id == NATIVE_OSDPIN_CP) && pin_enabled) {
+         id == NATIVE_INFRABB_CP || id == NATIVE_INFRAIMAGING_CP || id == NATIVE_DRAWINFO_CP || id == NATIVE_OSDPIN_CP) && pin_enabled) {
         __atomic_store_n(&pin_registry_used, 1, __ATOMIC_RELEASE);
         const struct full_imaging_io io = {
             real_allocate_msg, real_free_msg, real_set_source, real_send_msg,
@@ -4816,6 +8929,7 @@ int osal_snd_msg(unsigned int id, void *message) {
             full_hdmi_pin_dispatch(id, message, &io, 1, &result) ||
             native_osdpin_dispatch(id, message, &io, 1, &result) ||
             native_drawinfo_dispatch(id, message, &io, 1, &result) ||
+            native_infraimaging_dispatch(id, message, &io, 1, &result) ||
             native_infrabb_dispatch(id, message, &io, 1, &result)) return result;
     }
     if (honest_no_receiver(id)) {
@@ -4873,12 +8987,16 @@ int osal_snd_msg(unsigned int id, void *message) {
     }
     if (id == 0x9061003c && message && real_msg_size && real_msg_size(message) >= 40) {
         const unsigned int *words = message;
-        char text[180];
-        snprintf(text, sizeof text, "tid=%ld op=%#x unit=%#x handle=%#x option=%#x source=%#x",
+        unsigned int message_bytes=real_msg_size(message);
+        char text[320],raw[81];
+        for(unsigned int i=0;i<40;i++)snprintf(raw+2*i,3,"%02x",((const unsigned char *)message)[i]);
+        snprintf(text, sizeof text, "tid=%ld op=%#x unit=%#x handle=%#x option=%#x source=%#x bytes=%u sampled=40 raw=%s",
                  syscall(178), words[0] & 65535, words[1], words[2],
-                 ((const unsigned short *)message)[11], real_get_source ? real_get_source(message) : 0);
+                 ((const unsigned short *)message)[11], real_get_source ? real_get_source(message) : 0,message_bytes,raw);
         record("DMM_REQUEST ", text);
-        if (dmm_enabled && (words[0] & 65535) >= 0x20 && (words[0] & 65535) <= 0x23) return dmm_send(message);
+        unsigned int dop = words[0] & 65535;
+        if (dmm_enabled && ((dop >= 0x20 && dop <= 0x23) || dop == 0x2a))
+            return dmm_send(message,(unsigned long)__builtin_return_address(0),(unsigned long)__builtin_frame_address(0));
     }
     if (capid_enabled && (id == 0x9004015e || id == 0x92850750)) return capid_send(id, message);
     if (id == 0x92840747 && message && real_msg_size && real_msg_size(message) >= 8) {
@@ -4920,7 +9038,7 @@ int osal_snd_msg(unsigned int id, void *message) {
         record("PIN_REQUEST ", text);
         if (display_info_enabled && head[0] == 0 && head[1] == 0x101) return pin_disconnect_send(message);
     }
-    if (id == 0x909a015a && message && real_msg_size && real_msg_size(message) >= 12) {
+    if (id == 0x909a015a && !pinmem_hdmi_video_connection_enabled && message && real_msg_size && real_msg_size(message) >= 12) {
         const unsigned short *head = message;
         char text[160];
         snprintf(text, sizeof text, "tid=%ld frame=%#x command=%#x bytes=%u flags=%#x value=%#x source=%#x",

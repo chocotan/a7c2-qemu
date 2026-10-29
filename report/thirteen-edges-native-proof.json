@@ -1,0 +1,329 @@
+{
+  "scope": "all thirteen virtual graph connections, real AP and UPM consumers, control formats and same-run metadata SD",
+  "run": "run-ouc1t64_",
+  "native_verified_edge_numbers": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+  ],
+  "all_13_graph_edges_complete": true,
+  "native_verified_11": true,
+  "native_verified_12": true,
+  "302c_completed": false,
+  "original_CP_executed": false,
+  "original_CP_pages_verified": false,
+  "original_RTOS_scheduler_verified": false,
+  "hardware_verified": false,
+  "frames_verified": false,
+  "JPEG_verified": false,
+  "MP4_verified": false,
+  "capture_verified": false,
+  "evaluation": "../runtime/analysis/menu-runs/run-ouc1t64_/all-graph-native-evaluation.json",
+  "evaluation_sha256": "8ede2e2e1882ed1cfd416fb351558256b84e0d47885e39e5b30b9a6d55565ff3",
+  "observer_sha256": "898a0339c04a1fd6206e5069b66074cf041d797311098693600ef0d4cb08a1af",
+  "frozen_source_count": 321,
+  "source_archive_sha256": "9594edb52bdc3bc0f3dfb6f5ea9915a98ff3963cef097f353c218658f3e5a194",
+  "original_libc225_ABI_sha256": "e80fd440f76630e435c9d8d76a481c4fe60602a419d347c437cc87c5dca1b187",
+  "test_lineage": [
+    {
+      "file": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-kernel-receipt-host-regression.json",
+      "sha256": "946debe0f342a9e88804d35f9de8c12f20371edb2a50e7f33907f248a69d1e54",
+      "tests_passed": 276,
+      "subtests_passed": 0,
+      "module_count": 5,
+      "log": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-state-validation-1793039961157878164.log",
+      "log_sha256": "81e537f1c2fb90008cf70cb5e606177884f63067109bb469c7476f6d4c0b3f85"
+    },
+    {
+      "file": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-state-base-regression-1793039961157878164.json",
+      "sha256": "fc4ab92e31e298dd79d1bddd4f7d4c7afd0b9342a2723a02e24aa49c74f56423",
+      "tests_passed": 275,
+      "subtests_passed": 0,
+      "module_count": 5,
+      "log": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-kernel-receipt-host-regression.log",
+      "log_sha256": "57a0a9a0fc8f95383ac64428b2653919ecf1a66f196231e5bab7c4cd26ebbeea"
+    },
+    {
+      "file": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-kernel-receipt-host-regression-before-UPM-ABA-fix.json",
+      "sha256": "ddbc980f516f6ee24946c9edfa7f928170e52b44a7499e4aa06c63568d514fd5",
+      "tests_passed": 2175,
+      "subtests_passed": 139,
+      "module_count": 64,
+      "log": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/scratch/hdmi-kernel-receipt-host-regression-before-UPM-ABA-fix.log",
+      "log_sha256": "45fa3d6af32fb78eca6139047e5b7eb3d15946811b2771bea1b83eec3e640a75"
+    }
+  ],
+  "host_observer_validation_tests": 76,
+  "content_verifier_tests": {
+    "HDMI": 41,
+    "OSD": 67,
+    "all_graph_transport_and_types": 13
+  },
+  "original_AP_pid": 258,
+  "original_AP_tid": 381,
+  "thirteen_independent_56B_replies_same_sender_consumed": true,
+  "actual_free_rc": 0,
+  "actual_free_faults": 0,
+  "UPM_native_lifetimes": [
+    {
+      "order": 1,
+      "bridge_seq": 1,
+      "u": 547924040320,
+      "k": 18446743803535358592,
+      "user_pool": 547922141184,
+      "kernel_pool": 18446743803533459456,
+      "fd_context": 18446743803753735168,
+      "producer_task": 18446743803490541952,
+      "producer_tid": 381,
+      "task": 18446743803526246208,
+      "tid": 205,
+      "frame": 18446743524106616208,
+      "raw_hex": "170192000000000000009a0000000000",
+      "effective_hex": "170192000000000000009a0000000000",
+      "source": 2426011994,
+      "allocator": "vpool_fallback",
+      "free_header_hex": "0000000000000000024101005a019a901000000055555555",
+      "allocator_header_hex": "0000000000000000024100005a019a901000000055555555",
+      "events": {
+        "bridge": 1,
+        "send": 2,
+        "receive": 3,
+        "load": 4,
+        "consumer": 5,
+        "branch": 6,
+        "handled": 7,
+        "free_entry": 8,
+        "vpool_fallback": 9,
+        "free_return": 10
+      },
+      "native_allocation_retired": true,
+      "module_texts": {
+        "upm": 18446743523963547648,
+        "osal_uipc": 18446743523958710272
+      },
+      "lease_serial": 4,
+      "a_lease_binding_verified": true
+    },
+    {
+      "order": 2,
+      "bridge_seq": 12,
+      "u": 547924038464,
+      "k": 18446743803535356736,
+      "user_pool": 547922141184,
+      "kernel_pool": 18446743803533459456,
+      "fd_context": 18446743803753735168,
+      "producer_task": 18446743803490541952,
+      "producer_tid": 381,
+      "task": 18446743803526246208,
+      "tid": 205,
+      "frame": 18446743524106616208,
+      "raw_hex": "170192000200000000009a0000000000",
+      "effective_hex": "170192000300000000009a0000000000",
+      "source": 2426011994,
+      "allocator": "vpool_fallback",
+      "free_header_hex": "0000000000000000024101005a019a901000000055555555",
+      "allocator_header_hex": "0000000000000000024100005a019a901000000055555555",
+      "events": {
+        "bridge": 12,
+        "send": 13,
+        "receive": 14,
+        "load": 15,
+        "consumer": 16,
+        "branch": 17,
+        "handled": 18,
+        "free_entry": 19,
+        "vpool_fallback": 20,
+        "free_return": 21
+      },
+      "native_allocation_retired": true,
+      "module_texts": {
+        "upm": 18446743523963547648,
+        "osal_uipc": 18446743523958710272
+      },
+      "lease_serial": 5,
+      "a_lease_binding_verified": true
+    }
+  ],
+  "UPM_kernel_receiver_tid": 205,
+  "UPM_raw_operations": [
+    0,
+    2
+  ],
+  "UPM_effective_operations": [
+    0,
+    3
+  ],
+  "UPM_final_frees": 2,
+  "UPM_provider_send_success_substituted_for_consumer": false,
+  "UPM_second_user_free": false,
+  "condition_notifications_received_and_freed": 24,
+  "condition_batches": 2,
+  "condition_receiver_tid": 349,
+  "condition_model_events_runtime_verified": false,
+  "OSD_resources_live": 16,
+  "OSD_unit": "0xe1700",
+  "OSD_owners_each": 2,
+  "OSD_opens_each": 2,
+  "OSD_DMM_requests": 48,
+  "OSD_DMM_replies": 48,
+  "OSD_notices_consumed": 16,
+  "OSD_selected_tag100_backing_count": 0,
+  "OSD_selected_tag100_cached_count": 1,
+  "original_allocator_capacity_verified": false,
+  "console_raw_sha256": "bc3723e5915bef0ed73d87251504a5f685846913ad4ad89ad9340d29d9cf097c",
+  "console_parsed_sha256": "995393d193163828d24c2bbce3020d3f1b086818a396f6afa457c9f5e636ea26",
+  "raw_console_unchanged": true,
+  "transport_interleavings": [
+    {
+      "raw_warning_start": 1079356,
+      "raw_warning_end": 1079423,
+      "raw_record_line": 12355,
+      "record_prefix": "OBS FULL_INFRAIMAGING_PIN_CREATED ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_warning_start": 1137212,
+      "raw_warning_end": 1137279,
+      "raw_record_line": 12558,
+      "record_prefix": "OBS FULL_VEF_PINMEM_INPUT_CONNECT_DMM_REPLY ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_warning_start": 1178959,
+      "raw_warning_end": 1179026,
+      "raw_record_line": 12701,
+      "record_prefix": "OBS FULL_ADF_CONNECT_EVENT6_CONSUMED ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_warning_start": 1293648,
+      "raw_warning_end": 1293715,
+      "raw_record_line": 13971,
+      "record_prefix": "OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_warning_start": 1361743,
+      "raw_warning_end": 1361810,
+      "raw_record_line": 14242,
+      "record_prefix": "OBS FULL_PINMEM_OSD_CONNECT_DMM_REPLY ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit pending",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_warning_start": 1378684,
+      "raw_warning_end": 1378752,
+      "raw_record_line": 14309,
+      "record_prefix": "OBS FULL_PINMEM_OSD_CONNECT_DMM_REPLY ",
+      "host_warning": "qemu-system-aarch64: warning: vvfat: host directory commit complete",
+      "guest_bytes_invented": false
+    },
+    {
+      "raw_join_start": 1088408,
+      "raw_record_line": 12386,
+      "framing_bytes_inserted": 1,
+      "guest_payload_bytes_invented": false,
+      "scope": "one complete guest DMM record immediately followed by one complete host DFS record"
+    }
+  ],
+  "whole_selected_image_retention": {
+    "selected_initramfs_sha256": "44e21e98695f477f6fe2af694e31410a7d3a61a10e2626bc0edd04a95fc15a48",
+    "bytes": 552380928,
+    "source_path": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-initramfs.cpio",
+    "retained_path": "/home/choco/Downloads/20261009sony7c2/final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/menu-runs/run-ouc1t64_/selected-initramfs.cpio",
+    "same_run_manifest_sha256": "36ca9b51aff5516114bc9c74205e2318ad1c1ab5497212548369de20754d144b",
+    "capture_verified": false
+  },
+  "same_run_original_SD_verified": true,
+  "SD_flush_sequences": [
+    "1490942141203582",
+    "1490943072168439"
+  ],
+  "SD_clean_commit": true,
+  "SD_host_tree_readback": [
+    {
+      "path": "INPUT.BIN",
+      "bytes": 56,
+      "sha256": "48d7a7116f4977abda2dc276cc0b5b254dad30421b12c712e85cd150e65fd033"
+    },
+    {
+      "path": "private/database/database.bin",
+      "bytes": 9670656,
+      "sha256": "7880e78020b211761cd980a5584cad21341d41d9102e5b1bb82d9e25ca975251"
+    },
+    {
+      "path": "private/m4root/mediapro.xml",
+      "bytes": 406,
+      "sha256": "3aaa719647304ab239f10a33e1bbb89e55ebb1b912f8f2860d736697dd3ba9b4"
+    }
+  ],
+  "cleanup": {
+    "owner_pid": 2233281,
+    "owner_exited": true,
+    "owner_process_group_exited": true,
+    "group_check": "os.getpgid for live /proc processes",
+    "QEMU_absent": true,
+    "processes_inspected": 923,
+    "evaluator_signals_sent": false,
+    "locks_exclusive_acquired_and_released": [
+      ".menu-probe.lock",
+      "directory-sd-tests/.all-retained-image-g9tfpd3x.lock"
+    ]
+  },
+  "EE": {
+    "file": "ee-passive-hyf3w0ic/ee_status.txt",
+    "sha256": "3321a989c267682aa9097d45e2258d514b350fef29f08a7fafa387d8e0951256",
+    "raw_readback": "READMEM /proc/258/mem address=7f46515700 bytes=4\r\n0000007f46515700: 00 00 00 00",
+    "EE_state": 0,
+    "atomic_snapshot": false
+  },
+  "verifier_source_sha256": {
+    "evaluate-all-graph-native.py": "3b0ed53ca14a73e6ea6d7f78842038870ca9d0b4671973534d8cc93f053ce185",
+    "verify_hdmi_edge.py": "42573248ec8888242c2ec6d53fbd028ab11ebda7653fe1d17e7d18e2618fee66",
+    "verify_osd_edge.py": "52649216ce400c8697f91fa74425306f2dccdd0f34157ecba967dad45d6729fe"
+  },
+  "independent_native_review": {
+    "agent": "829aeab3-c212-49d1-9eac-500daf7e1add",
+    "verified_P1_P2_P3_findings": [],
+    "verdict": "accepted within virtual graph/control/native-consumer/metadata SD scope",
+    "exact_in_memory_replay_matched": true,
+    "original_evaluation_sha256_unchanged": "8ede2e2e1882ed1cfd416fb351558256b84e0d47885e39e5b30b9a6d55565ff3",
+    "all_321_source_inputs_independently_verified": true,
+    "retained_initramfs_parsed_independently": true,
+    "original_UPM_and_OSAL_module_bytes_verified": true,
+    "raw_UPM_22_events_independently_replayed": true,
+    "original_AP_13_replies_and_24_conditions_verified": true,
+    "OSD_16_resources_48_DMM_known_masks_verified": true,
+    "two_original_flushes_host_tree_and_cleanup_dual_locks_verified": true,
+    "exact_transport_repairs_reconstructed": true,
+    "additional_in_memory_negative_mutations_rejected": 19,
+    "new_VM_started": false,
+    "files_modified_by_reviewer": false,
+    "capture_verified": false
+  },
+  "failed_attempts_not_backfilled": [
+    "run-rhvtidg2",
+    "run-5ikctoec",
+    "run-2osrssdv",
+    "run-ybmz1kaq",
+    "run-3g2lqffh",
+    "run-fnbgeaa7",
+    "run-u7_ee_8y",
+    "run-_vpkt22p",
+    "run-o3xu57j2"
+  ]
+}

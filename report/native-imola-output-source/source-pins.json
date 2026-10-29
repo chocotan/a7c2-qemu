@@ -1,0 +1,37 @@
+{
+  "scope": "IRQ handler reads original hardware-visible result ring and sends0500; MCU ring/ES writer unclosed",
+  "artifacts": {
+    "K": {"path": "system/av-cam.bin", "bytes": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"},
+    "C": {"path": "usr/kmod/codec_drv.ko", "bytes": 19216, "sha256": "da929e5ed2e9524ae52685bd876966987b10c216394ff873599f0a3f3becde99"},
+    "L": {"path": "usr/kmod/liro.ko", "bytes": 121488, "sha256": "b4bd80cc614751e0092ee19e89cb90632db580bc01f23f1a1df23544e9b10186"}
+  },
+  "windows": [
+    {"artifact": "K", "raw_hex": "2293bc", "bytes": 688, "sha256": "1b8d0460ca033926eeeeda0ecf67b16e3c482fdc0a96ac509f234394fe08cd3c"},
+    {"artifact": "K", "raw_hex": "267c70", "bytes": 504, "sha256": "6e9ad18e0d90760f0de27d69c9d769eb18561b4f36a653df86b504fae90b22ac"},
+    {"artifact": "K", "raw_hex": "268570", "bytes": 188, "sha256": "8462a1e67f48e94e43186f79117b7c3455109464b5b43ee807ea852226318c7b"},
+    {"artifact": "K", "raw_hex": "268888", "bytes": 520, "sha256": "24dafbd7e377a13378695ae5226731511df382ecfdf19efd73b67f4e3c7101c5"},
+    {"artifact": "K", "raw_hex": "2663d0", "bytes": 400, "sha256": "ab36fa7c33dbcccf3c5e3ea1c4fed3cfd23054a12b092b4cdb940a3d65a1264b"},
+    {"artifact": "K", "raw_hex": "270914", "bytes": 208, "sha256": "05fc6c2f2dc319f5fa315ecd1d38da999a0ae1b7c8dbffab705da854021cdd92"},
+    {"artifact": "K", "raw_hex": "271250", "bytes": 96, "sha256": "712339e15938d4aef7663d9d2d15d383e3e4caf0c1974149e011099279163b63"},
+    {"artifact": "K", "raw_hex": "271598", "bytes": 540, "sha256": "814fa18db6f03e686ec4c8b1f0a461cb57acf6287d07bae25bc0db465703c71f"},
+    {"artifact": "K", "raw_hex": "2717b4", "bytes": 2444, "sha256": "d910a3b77074f4edc97821e81f2ce13d0b5d6aa46573a45c2e5f53353ea91c71"},
+    {"artifact": "K", "raw_hex": "332258", "bytes": 512, "sha256": "eede4889226f09b87bdbb70dbb2569d824d8feb46b38e5ffe0c719b151361900"},
+    {"artifact": "K", "raw_hex": "bd70d8", "bytes": 32, "sha256": "80fe290b3746a80176a2fb4a62598d70d0733cc5a5f4f4758ab48d8442ccce9b"},
+    {"artifact": "C", "raw_hex": "340", "bytes": 2020, "sha256": "11f0b3f843cdac0fe14d93aa1831ab4bbf0b602efe665dbc68d0e6f549977f27"}
+  ],
+  "window_count": 12,
+  "window_bytes": 8152,
+  "IRQ_descriptor": [41, 0, "ffffffc0012293bc", 1],
+  "GIC_INTID": 41,
+  "QEMU_external_IRQ": 9,
+  "MMIO_PA_hex": {"root_device_address": "f3800090", "global_status": "f3804200", "global_mask": "f3804204", "channel_status_base": "f3804060", "consumed_index_base": "f3804020"},
+  "slot_bytes": 128,
+  "N_min": 16,
+  "N_max": 256,
+  "event_queue_hex": "806800f3",
+  "event_bytes": 144,
+  "result_getter_rc_checked_before_send": false,
+  "MCU_result_memory_and_ES_writer_closed": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false
+}

@@ -1,0 +1,229 @@
+{
+  "scope": "Offline host/serial-owner input contracts, not firmware consumption or capture verification",
+  "firmware_sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+  "original_evidence": {
+    "forward_raw_to_canonical_va": "0x3704b98",
+    "reverse_va": "0x3706e98",
+    "entries": 1120,
+    "duplicates": "first duplicate wins",
+    "C1_enum_row_va": "0x58c14e0",
+    "half_press_enum_row_va": "0x58c15d0",
+    "mode_conversion_va": "0x18940f0",
+    "mode_jump_table_va": "0x3787c50",
+    "mode_declared_values_va": "0x5878b90",
+    "selector_names_va": "0x5808660",
+    "reference": "runtime/analysis/test_app_key_remap.py; report/remaining-body-controls.md"
+  },
+  "sources": [
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "symbol": "KEY_DEFINITIONS",
+      "sha256": "aad21de2641531a7c76d9b881a8c2443a4e58da8fe16432b15f9d1fb9eb57a03"
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "symbol": "key_definition",
+      "sha256": "c2e087f143b146a3c6ce1f92d4387e81475944415894ebc8b42094686a3a8555"
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "symbol": "key_command",
+      "sha256": "ecb474afa60bfc6a2b36ccc2ca036a267a744747c975382f14235045d9639f61"
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "symbol": "key_status_command",
+      "sha256": "298b68c7729bc7ad801d1a0257d6097de3c88a39c42769de188f0026923f2944"
+    },
+    {
+      "path": "runtime/analysis/inject-key.c",
+      "sha256": "ae107d4e6f0653d9d73ffe49ed80aa521369581e3d344f9de385b8b7ee1f2c73"
+    },
+    {
+      "path": "runtime/analysis/test_app_key_remap.py",
+      "sha256": "c20139a56003f5f551edb86a999f5a7883d626314d9f69c768a25a550fd77421"
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "sha256": "2307cdbae8a3c2043b8b3ef9057e1361a096a60cf5e039dcfdc57ecf91a7c2bd"
+    },
+    {
+      "path": "runtime/analysis/menu_control.py",
+      "sha256": "5624042cf7aaa8ad7ad711d4f41c6252befbdd8906d7434525ee4248579cc0ea",
+      "inherited_source_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
+      "previous_sha256": "cc8f867aaf00d1e7ad6d0c6da19e79a5c08332074e2d26522875f574cc99f417",
+      "package_adaptation": "The public package removes the /history.png route and its private historical research path. Functional-camera owner EOF and verified broker detach handling are retained; selectors, aliases and input wire values are unchanged.",
+      "change_scope": "Functional-camera owner now waits for control EOF and verified broker detach before VM exit; input wire mappings are unchanged. Focused lifecycle and complete input regressions passed before renewing this host-only pin."
+    },
+    {
+      "path": "runtime/analysis/camera_ui.py",
+      "sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358"
+    }
+  ],
+  "raw_to_canonical": {
+    "MENU": {
+      "raw": "0x1ab",
+      "canonical": "0x13"
+    },
+    "ENTER": {
+      "raw": "0x1ac",
+      "canonical": "0x14"
+    },
+    "UP": {
+      "raw": "0x3",
+      "canonical": "0x2"
+    },
+    "DOWN": {
+      "raw": "0x30",
+      "canonical": "0x6"
+    },
+    "LEFT": {
+      "raw": "0x15",
+      "canonical": "0x4"
+    },
+    "RIGHT": {
+      "raw": "0x1af",
+      "canonical": "0x16"
+    },
+    "DELETE": {
+      "raw": "0x1f8",
+      "canonical": "0x23"
+    },
+    "C2": {
+      "raw": "0x1f8",
+      "canonical": "0x23"
+    },
+    "DISP": {
+      "raw": "0x3",
+      "canonical": "0x2"
+    },
+    "ISO": {
+      "raw": "0x1af",
+      "canonical": "0x16"
+    },
+    "C1": {
+      "raw": "0x66",
+      "canonical": "0xe"
+    },
+    "PLAYBACK": {
+      "raw": "0x1f7",
+      "canonical": "0x22"
+    },
+    "AF_ON": {
+      "raw": "0xf000004",
+      "canonical": "0x2d7"
+    },
+    "FN": {
+      "raw": "0x7095",
+      "canonical": "0x8d"
+    },
+    "SHUTTER_HALF": {
+      "raw": "0x1f1",
+      "canonical": "0x1d"
+    },
+    "SHUTTER": {
+      "raw": "0xa7",
+      "canonical": "0xf"
+    },
+    "REC": {
+      "raw": "0x1f0",
+      "canonical": "0x1c"
+    },
+    "FRONT_LEFT": {
+      "raw": "0x1000001c",
+      "canonical": "0x2f5"
+    },
+    "FRONT_RIGHT": {
+      "raw": "0x1000001c",
+      "canonical": "0x2f5"
+    },
+    "REAR_LEFT": {
+      "raw": "0x10000013",
+      "canonical": "0x2ef"
+    },
+    "REAR_RIGHT": {
+      "raw": "0x10000013",
+      "canonical": "0x2ef"
+    },
+    "CONTROL_LEFT": {
+      "raw": "0x1000001d",
+      "canonical": "0x2f6"
+    },
+    "CONTROL_RIGHT": {
+      "raw": "0x1000001d",
+      "canonical": "0x2f6"
+    },
+    "MODE_STILL": {
+      "raw": "0x71c9",
+      "canonical": "0x1c5"
+    },
+    "MODE_MOVIE": {
+      "raw": "0x71c9",
+      "canonical": "0x1c5"
+    },
+    "MODE_SQ": {
+      "raw": "0x71c9",
+      "canonical": "0x1c5"
+    },
+    "MODE": {
+      "raw": "0x7025",
+      "canonical": "0x2a"
+    }
+  },
+  "mode_positions": {
+    "P": 3,
+    "A": 5,
+    "S": 4,
+    "M": 6,
+    "AUTO": 1,
+    "MR1": 7,
+    "MR2": 19,
+    "MR3": 20
+  },
+  "dial_status": {
+    "left": "0xfffffc00",
+    "right": "0x400"
+  },
+  "routes": {
+    "app32": {
+      "queue": "0x5503e0",
+      "source": "0x5503e0",
+      "bytes": 32,
+      "word_fields": [
+        "raw",
+        "sub",
+        "status",
+        "zero",
+        "ex",
+        "zero",
+        "from",
+        "zero"
+      ],
+      "from": 0
+    },
+    "infra20": {
+      "queue": "0x807a0020",
+      "source": "0x92840747",
+      "bytes": 20,
+      "word_fields": [
+        "raw",
+        "sub",
+        "status",
+        "ex",
+        "from"
+      ],
+      "from": 1
+    }
+  },
+  "unsupported": {
+    "EXPOSURE_COMP": "No source-closed independent contact",
+    "AEL": "No established dedicated AEL contact on this model"
+  },
+  "runtime_callers": {
+    "ui": "runtime/analysis/camera_ui.py:CameraUI.__init__ -> menu_live.camera_input_module().attach_gtk(self)",
+    "queue": "runtime/analysis/menu_control.py:VM.enqueue -> validate_request; VM._run -> original send_message channel",
+    "serial_owner": "runtime/analysis/qemu-menu-probe.py -> menu_live.run_live -> InputSession(live_serial, explicit app_input) -> key_status_command/key_command -> serial_command",
+    "shutdown": "CameraUI.power/_close -> release_inputs; menu_live.run_live export_sd -> InputSession.cleanup before export",
+    "receipt": "runtime/analysis/qemu-menu-probe.py source list includes report/camera-input-coverage/input_bindings.py"
+  }
+}

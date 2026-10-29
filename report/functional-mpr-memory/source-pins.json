@@ -1,0 +1,82 @@
+{
+  "scope": "Functional software IOVA memory provider; public ALLLANG source and host-only checks; capture_verified remains false",
+  "artifact": {
+    "path": "runtime/analysis/menu-root/usr/lib/libmpr.so",
+    "size": 3528576,
+    "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"
+  },
+  "decompiler": {
+    "path": "runtime/analysis/scratch/functional-mpr-memory-z2llws04/memory.c",
+    "sha256": "41cd93125a687f6b59377ff241d32b49421f1eacb52ae52e0dfc3e39e1752f6c",
+    "source_rc": 0,
+    "postprocess": "The separate KeyError was fixed before implementation; decompiler output does not replace instruction pins"
+  },
+  "mapping": "ELF VAs map using the containing file-backed PT_LOAD only; BSS root is an actual dlsym address, never bytes read from the file",
+  "windows": [
+    {"name":"SetMemTbl","elf_va":2829280,"file_offset":2829280,"length":2136,"sha256":"cb55c334d953cb733958ea7ff427c5cf154aabb2f742d7119f595976e20b6cb4","fnv1a64":"3b6dfcdbaabf7769"},
+    {"name":"UnitTypeTableSelect","elf_va":2828092,"file_offset":2828092,"length":424,"sha256":"1b313075d72b5f03c08ff1e9008c493e30c1ac1973f0f0cdc6baf4b7e75e22da","fnv1a64":"b674767f3a94b06a"},
+    {"name":"mode-switch","elf_va":3018420,"file_offset":3018420,"length":35,"sha256":"3a6c09f235e35653a1ca91e49ea5a32ba64759ac4a57655cbb611267b16ef334","fnv1a64":"92ddae20189f8dfb"},
+    {"name":"type-switch","elf_va":3018456,"file_offset":3018456,"length":46,"sha256":"aa3125b5847cf972c6f88c3ba93ed3ffc7ff0715b0ad58089cba9487199aca16","fnv1a64":"8dd9ff5b75cdf3ac"},
+    {"name":"GetUnitInfo","elf_va":2829164,"file_offset":2829164,"length":116,"sha256":"c34b5c324459902cb9262ce03480400cabc0ebadc6c5614fc013fbbb5d821752","fnv1a64":"15d7076b4ea4f2c3"},
+    {"name":"AllocDmmMemory","elf_va":2831416,"file_offset":2831416,"length":172,"sha256":"6b751a58387dac1bcbe483341c5888c0242a368234ea417988212bdc2b4b5381","fnv1a64":"3aa2a8b4f64f4d2c"},
+    {"name":"FreeMask","elf_va":2828992,"file_offset":2828992,"length":108,"sha256":"4f1d899cde0b837d60e88256b53c30b136441b87a6a966d1552bf34e4d7f5d3a","fnv1a64":"594c543943e9731b"},
+    {"name":"FreeAll","elf_va":2829100,"file_offset":2829100,"length":64,"sha256":"0d3db5a67f009b0141587c69b0076e91804da4dcbb3a5250dd5e67b28e49698c","fnv1a64":"207dfdcb1a847e86"},
+    {"name":"FixedArea","elf_va":2898104,"file_offset":2898104,"length":180,"sha256":"0f48ff62e7653bafb332110aa9fc318b08e40077f65a306ebd25d575b62aa814","fnv1a64":"2d78b6af26853837"},
+    {"name":"area-mask","elf_va":2828576,"file_offset":2828576,"length":80,"sha256":"e36c03b24859b415c27c0c4e12ae6dfbf455bc6ce6da04d98ae2614c20e3f5fa","fnv1a64":"c44e08fa79c60490"},
+    {"name":"ChangeVirtToPhysAddr","elf_va":2623056,"file_offset":2623056,"length":112,"sha256":"031f1f9fd2f429bdff3d8182c84c765a68cbcaff5fde34d5431bbf7604ca11fa","fnv1a64":"c2597d8a941a7bbd"},
+    {"name":"alloc-caller","elf_va":890696,"file_offset":890696,"length":32,"sha256":"a1f79076cba003a77ac020eec955361aac1f65cdb28811d29380d5516a938775","fnv1a64":"02a3123e4bec742c"},
+    {"name":"alloc-plt","elf_va":507840,"file_offset":507840,"length":16,"sha256":"94fff3ead43621f7734a500e62ade3cdcad0faff9876a2ee952443ec269f08c2","fnv1a64":"479654f54dcf3372"},
+    {"name":"GetStillBufConfig","elf_va":847404,"file_offset":847404,"length":388,"sha256":"11c618455ed491c7be5c6b8631a8b43fea32eccea9f94d276bc4702dab1ac783","fnv1a64":"ca74699d6f05d6e9"}
+  ],
+  "runtime_binder_windows": ["SetMemTbl","UnitTypeTableSelect","mode-switch","type-switch","area-mask","GetUnitInfo","GetStillBufConfig"],
+  "symbols": [
+    {"name":"_ZN3mpr10DmmMemInfo14AllocDmmMemoryEiPjPNS0_11BufferTableE","elf_va":2831416,"size":172},
+    {"name":"_ZN3mpr10DmmMemInfo13FreeDmmMemoryEij","elf_va":2828992,"size":108},
+    {"name":"_ZN3mpr10DmmMemInfo13FreeDmmMemoryEi","elf_va":2829100,"size":64},
+    {"name":"_ZN3mpr10DmmMemInfo11GetUnitInfoEPvPjS2_S2_PmS2_","elf_va":2829164,"size":116},
+    {"name":"_ZN3mpr6memory12GetFixedAreaENS0_13FixedAreaTypeEPPvS3_Pj","elf_va":2898104,"size":180},
+    {"name":"_ZN3mpr10DmmMemInfo9SetMemTblEjiPNS0_11BufferTableE","elf_va":2829280,"size":2136},
+    {"name":"_ZN3mpr10DmmMemInfo19UnitTypeTableSelectEi","elf_va":2828092,"size":424},
+    {"name":"_ZN3mpr10DmmMemInfo19mp_AreaExtListStartE","elf_va":4031224,"size":8},
+    {"name":"_ZN3mpr5Codec20ChangeVirtToPhysAddrEPm","elf_va":2623056,"size":112}
+  ],
+  "sds_binding": {
+    "schema": "type0_direct_unit_handle",
+    "producer_closed": true,
+    "producer": "M GetDmmExtList stores actual unit at node+8 and area at node+c; GetUnitInfo returns them separately; GetStillBufConfig uses the unit unchanged at config+54/+60; I makeParamEncodeJpeg copies it unchanged to request+28 with type0",
+    "registration": "Only successfully validated original SetMemTbl generations register their actual owned node identities; no arbitrary register API, address cast, unit/area packing or kernel namespace guess",
+    "mode_finding": "All three original GetStillBufConfig allocation callers use GetDmmModeId. Its byte table returns 0x13..0x22 except 0x14, plus fallback0x10; 6 and 0x11 are not required by this closed path",
+    "assets": {
+      "I": {"path":"runtime/analysis/menu-root/usr/lib/libInfraAvbbc.so","size":1738760,"sha256":"676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5","undefined_dynsym_count":197,"defined_dynsym_count":5313},
+      "L": {"path":"runtime/analysis/menu-root/lib/libc-2.25.so","size":1283936,"sha256":"f9104526eb7e5d2ea533c1a209bb0b83e69367f569e4c966895c8e106e6382c9"}
+    },
+    "windows": [
+      {"asset":"M","name":"GetDmmExtList-unit-producer","elf_va":2827676,"file_offset":2827676,"length":416,"sha256":"aa39a295484da2024934a34d62e6a2d6bd8416e5affabe3e9c29d31ff219b7f7"},
+      {"asset":"M","name":"GetDmmModeId","elf_va":847112,"file_offset":847112,"length":292,"sha256":"69ff8df77a6c81917d82c39ed4df276ace589a2ab05abc1566567c5bf6d10852"},
+      {"asset":"M","name":"record-mode-table","elf_va":2942280,"file_offset":2942280,"length":15,"sha256":"18d1d538f9482efd13fdb6c5687ab1c1fafade397ab32506378324a97ff9ac09"},
+      {"asset":"M","name":"Codec-StillBufConfig","elf_va":2609992,"file_offset":2609992,"length":280,"sha256":"93fe25ae92d22392e56e8f9b128459f4854b239cb36d862160ade2a3796c402c"},
+      {"asset":"M","name":"ExecEncOpen-still-call","elf_va":865016,"file_offset":865016,"length":120,"sha256":"c43264af6310b56c5a51d0e442163b41f50b57fa7d66e8ea6fe6f767a48eeea3"},
+      {"asset":"M","name":"EnterRec-still-call","elf_va":890536,"file_offset":890536,"length":32,"sha256":"85085521124490d2fbaac7feef6e9bad1a5d351c89025a5863ca048c8c0433f6"},
+      {"asset":"M","name":"RecStart-still-call","elf_va":909240,"file_offset":909240,"length":12,"sha256":"601173a20a02e4f32bcb824a6071f7d65a5f250f0b86e94a33b3e3c90ea8911d"},
+      {"asset":"M","name":"RecStart-allocation","elf_va":910028,"file_offset":910028,"length":36,"sha256":"7d5fc370c2fee24909a7f3790a4d23babda20adf12d3840987472bc604cd7048"},
+      {"asset":"I","name":"Without-Pin-output-producer","elf_va":1159564,"file_offset":1159564,"length":508,"sha256":"5e85ab99b9d079069ce51b65fe7a9bbf30df56237a08f1f001678a1faf35629f"},
+      {"asset":"I","name":"StillBufConfig-ParameterControl","elf_va":1201528,"file_offset":1201528,"length":480,"sha256":"b786a1d1710b525354adbc6a21f37f4db7ef71beddcb16f29b3a07ee68bf1925"},
+      {"asset":"I","name":"InternalEncode-config-keys","elf_va":1170644,"file_offset":1170644,"length":372,"sha256":"b12990fabb459db2be1548720000df25f1dc460fccd8f5d4fc5452e23ee04d6d"},
+      {"asset":"I","name":"one-thumbnail-output-constructor","elf_va":1168656,"file_offset":1168656,"length":40,"sha256":"7048c6a979e22537bcfd670741f9d293a071db01089e6c76e74f84f89b40cc87"},
+      {"asset":"I","name":"ParameterControl-set-struct","elf_va":672176,"file_offset":672176,"length":204,"sha256":"454b7cec71539ae916e40077c5166c2063e12677ab50793fd5cf88060ef00c05"},
+      {"asset":"I","name":"ParameterControl-get-pointer","elf_va":673508,"file_offset":673508,"length":196,"sha256":"4f369139be02e942d26973679172723d1d10fe9561ba35af751c8ea83025341f"},
+      {"asset":"L","name":"original-isoc99-sscanf","elf_va":386624,"file_offset":386624,"length":112,"sha256":"c18b69e05e18b7d72a73c4350b389079102870088660fdfde98d70a4c373b2cc"}
+    ],
+    "parameter_control_relocations": [
+      {"elf_va":1736824,"symbol":"_ZN14AvbbcParamCtrl16ParameterControl8SetValueEjPv"},
+      {"elf_va":1736832,"symbol":"_ZN14AvbbcParamCtrl16ParameterControl8SetValueEjPvj"},
+      {"elf_va":1736912,"symbol":"_ZN14AvbbcParamCtrl16ParameterControl8GetValueEjRPv"}
+    ],
+    "original_mpr_dynsym": {"undefined":354,"defined":3534},
+    "verification": "Compile/link/source-window checks only; pytest, all C scenarios, original SDK invocation, VM and media acceptance deferred to parent"
+  },
+  "capture_verified": false,
+  "physical_asic_verified": false,
+  "original_cp_verified": false,
+  "strict_gap_mask": 63
+}

@@ -110,12 +110,26 @@ REC 提示的变化另行记账。禁止用断点改值"验证"业务。
 但库没重建也曾制造假阴性）。入口 ready 只表示探针布置完成，
 不能叫相机 ready。
 
+## 9. 当前后台初始化与退出证据
+
+2026-10-29 最新完整基线为`unified-camera-4b3kb4kd`：5568 tests /7057 subtests、host/guest构建与双原glibc2.25 ABI通过。BEGIN、同锁唯一snapshot ID、真实receive/free ticket、cache128/readback128和退休后下一周期source绑定已纳本批；集中1051项通过，native内容checker的严格join也已接入。旧1KiB日志预算失败和随后strlen声明构建失败分别保留，新批通过不回填旧记录。原AP/SDK新VM及成片仍未验。
+
+最新 `run-qqu0q5oe` 的两条SP锚定保存FP链与原LR−4 BL字节互证：Common382等待本地21 future，串行CameraBackground339先被24B/CP3006/source810261c4回复等待占住。只看最后一包或时序相邻不能得到这个结论；裸send拒绝会遗失原request/动态queue，不能作为修复。功能owner需要真实同轮13边原free、debugger交接、实际Core INIT/STATE128与缓存读回，再释放原request并发独立回复；只有原sender receive/free0才是transport消费，不等于原物理CP业务ready。
+
+清理结果分开记录：
+
+- runner/broker生命周期：该轮broker从未attach，runner closed/safe。
+- 进程状态：独立检查时本项目系统QEMU已无，不干预无关项目实例。
+- 存储：原Flush0、两数据库文件导出及宿主SHA读回通过，卷退休/格式化未通过。
+- 退出方式：`host-sd-quit-error` 留有 `write to closed file`，普通QMP quit未获独立证明。进程absence不能补证退出方法，也不能把该错误抹去。
+
+内容checker必须消费实际producer记录，严格join同run/source/owner/model/generation/nonce/lease/snapshot与真实字节，缺观察则拒证。HOST_TEST支持夹具不能提升native/AP/UI/capture；原输出日志若截断、缺行或无法唯一关联，同样保留失败。见[完整进度](2026-10-29-current-progress.md)与[原生负例摘要](../../validation/2026-10-29-progress.json)。
+
 ## 证据入口
 
-- [已有反编译成果及地址说明](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/existing-decompiled-sources.md)
-- [CP Gamma/ADR 纠正](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/cp-barrier-static-correction.md)
-- [请求队列与 CPU 清理](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/request-queue-watch.md)
-- [实际首写与七项强写移除](../../../a7c2-re/report/2026-10-17-qemu-native-camera/report/media-firstwrite-root-cause.md)
+- [当前阶段、原生FP/BL定位与新组件范围](2026-10-29-current-progress.md)。
+- [本包历史媒体访问器与首写纠正](../../validation/README.md#媒体只读诊断访问器层修正)。
+- [地址/资产身份](01-firmware-assets.md)与[当前首启判据](04-app-and-first-setup.md)。
 
 ## 如果你在做别的机型
 

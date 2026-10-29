@@ -1,0 +1,22 @@
+{
+  "scope": "module ABI only; host control/platform hooks/runtime need separate evidence",
+  "size": 8224,
+  "sha256": "d743826eaa3cffdacc1c41acbfe53ba27ed9c022bf57cd304e0dac55880e665c",
+  "imports": [
+    "pci_add_resource",
+    "pci_bus_add_devices",
+    "pci_bus_assign_resources",
+    "pci_bus_size_bridges",
+    "pci_find_bus",
+    "pci_free_resource_list",
+    "pci_get_domain_bus_and_slot",
+    "pci_lock_rescan_remove",
+    "pci_scan_root_bus",
+    "pci_unlock_rescan_remove",
+    "printk",
+    "udif_ioremap"
+  ],
+  "runtime_blocked": true,
+  "blocked_reason": "original wildcard Root Port fixup casts sysdata to DW context",
+  "runtime_verified": false
+}

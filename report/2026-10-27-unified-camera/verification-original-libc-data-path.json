@@ -1,0 +1,28 @@
+{
+  "scope": "supplemental original libc execution of the already frozen3103 HOST_TEST video C scenarios; not native firmware capture",
+  "frozen_batch": "unified-camera-jvyiv8f1",
+  "sources": {
+    "report/lif-capability-owner/original-abi-entry.c": "8493a09949396e723b3e6c098575c1398bba128ff0204def68a041242e3c3cba",
+    "report/native-video-producer-contract/native-producer.c": "16dbddf50f1b4900e8312c185de88b203f7b66e50e2766cca5ee71594fca082d",
+    "report/native-video-producer-contract/test-native-producer.c": "e67022a3f7bb46a4839c73acae05b94cb9239777ac493b3d8b909437312d44db",
+    "report/native-video-binding/native-video.c": "34e89f901f962b58280374bccd91827c39ba8712cc26d367797a51bd19c76c9d",
+    "report/native-video-au-contract/native-au.c": "75a8cdc3c7c490b2d175660c01ea804160462440efedd1576dbfda5dd0671625",
+    "report/native-video-paramsets/native-paramsets.c": "4948681d1574cbc16ab51460d2f44b01abc7bee1c99a33564f0388530ac6d527",
+    "report/native-video-ring-contract/native-ring.c": "738ac4d235c437cf5a0ecc7d72d2f3199eb3d1225302bc96834ee7cb4d78ddb3",
+    "report/native-video-length-format/native-lengths.c": "79b1bf77ecaa3c2f538bb8fb9041ff5cd9e6c026f12882970d989512447d5cb5"
+  },
+  "video_cases_passed": 7,
+  "video_receipt": {
+    "path": "runtime/analysis/scratch/cp-stage-original-abi/video-original-abi.json",
+    "sha256": "2a83e83a623950d70445c3e42f73e4a77d7fc3680fafe55a1e93d89a05c61ede"
+  },
+  "LIF_cases_passed": 28,
+  "LIF_receipt": {
+    "path": "runtime/analysis/scratch/cp-stage-original-abi/lif-original-abi.json",
+    "sha256": "0397f2f8f2c11ed2a2b877c77f0c26ff2b35cbf12c6bd45082fbd17adf2401c7"
+  },
+  "new_host_test_count_claimed": false,
+  "new_system_vm_started": false,
+  "native_video_gaps": 63,
+  "capture_verified": false
+}

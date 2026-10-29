@@ -1,0 +1,176 @@
+{
+  "schema": "lif-handshake-contract-v1",
+  "scope": "bounded explicit local state/K/control stores and owned received data; boot event9 enqueue producer closed, actual message delivery/execution and original CP history/cache admission unverified",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "file_backed_CP_VA": [1081344, 19172224],
+  "source_window_bytes": 4728,
+  "pins": [
+    {
+      "name": "conditional-handshake-state-setter-a908ea",
+      "CP_VA": 11077866,
+      "end_CP_VA": 11077950,
+      "size": 84,
+      "sha256": "41b8c2d24881fd5303fe533e2c738c825ac869ad9b6aad4b19c8299d8c00f9b1"
+    },
+    {
+      "name": "explicit-state-and-kind-reset-prefix-a913d2",
+      "CP_VA": 11080658,
+      "end_CP_VA": 11080690,
+      "size": 32,
+      "sha256": "3731a57dd5eca8dd740948cf235bba5d3f3a17a9816885b45ca8cfb20b1137e4"
+    },
+    {
+      "name": "command8-command9-and-initial-kind-local-store-consumers",
+      "CP_VA": 11097450,
+      "end_CP_VA": 11100232,
+      "size": 2782,
+      "sha256": "5ee78017bd008a7ffb3fb47c03d585db01ebf753796d64c67886537d6fce597e"
+    },
+    {
+      "name": "command9-immediate-or-deferred-receive-wrapper-40bae4",
+      "CP_VA": 4242148,
+      "end_CP_VA": 4242300,
+      "size": 152,
+      "sha256": "9cf54b9fe383757cd24642bf38fac687abd7d5ab7a9d17e73e2caab950c717e0"
+    },
+    {
+      "name": "owned-received-cache-conditional-state4-state5-stores-405b22",
+      "CP_VA": 4217634,
+      "end_CP_VA": 4218194,
+      "size": 560,
+      "sha256": "57f04f49f2f430d97045722153a09711e09b4a818cf8ed3acab80d8fd18bd758"
+    },
+    {
+      "name": "dispatcher-event9-enable-and-ordered-pending-replay-prefix",
+      "CP_VA": 4230488,
+      "end_CP_VA": 4230994,
+      "size": 506,
+      "sha256": "e1300d627a710718a33d99bb3d8348345503c6929a48b5e0ac6a419cf12a44b3"
+    },
+    {
+      "name": "fixed-command1-through-command9-table-rows",
+      "CP_VA": 18896194,
+      "end_CP_VA": 18896254,
+      "size": 60,
+      "sha256": "281bb9404fb129d8cff0fd5ef544d086c16a72c643cc799f69b78104741a2f53"
+    },
+    {
+      "name": "command0a-bitmap-comparison-writes-separate-flag-a9248e",
+      "CP_VA": 11084942,
+      "end_CP_VA": 11085030,
+      "size": 88,
+      "sha256": "aa29e5aa2982cf776746342179c8ee21a82513cefd8873a282f3f64bccf3c57f"
+    },
+    {
+      "name": "original-cache-admission-unverified-boundary-a47718",
+      "CP_VA": 10778392,
+      "end_CP_VA": 10778498,
+      "size": 106,
+      "sha256": "7cd195b0ab437235a882c88973d122f847772cc04f6f48bfaced5ce9f2ba6cb0"
+    },
+    {
+      "name": "received-cache-context-boundary-a4763c",
+      "CP_VA": 10778172,
+      "end_CP_VA": 10778276,
+      "size": 104,
+      "sha256": "36dd55c0f1cf3b8260bf3ab994043ad91f3a4c3aa7b7ef872aaa027a31cac450"
+    },
+    {
+      "name": "control-enabled-pending8-pending9-reset-before-first-call",
+      "CP_VA": 11094184,
+      "end_CP_VA": 11094298,
+      "size": 114,
+      "sha256": "726ef52112e4051a05800f624776bf45cb4ce33a9cdcbc288be3e64c3c624dff"
+    },
+    {
+      "name": "boot-sb1-logged-branch-enqueues-event9",
+      "CP_VA": 4944232,
+      "end_CP_VA": 4944248,
+      "size": 16,
+      "sha256": "2fabfd166a741f6257d0bf73c3108187b1ca0cdce0f37ed43f016e68f00f551f"
+    },
+    {
+      "name": "boot-nonlogged-branch-enqueues-event9",
+      "CP_VA": 4944314,
+      "end_CP_VA": 4944356,
+      "size": 42,
+      "sha256": "523cb5b44916f126dc2df7bbd12a18ca775b129075027f994ca5b965dcd5fb38"
+    },
+    {
+      "name": "boot-enqueue-thunk-a48f86",
+      "CP_VA": 10784646,
+      "end_CP_VA": 10784650,
+      "size": 4,
+      "sha256": "72d6b16df663c5cbf5e54b4d4d0456c1458adbef89d3d204620f60631625a468"
+    },
+    {
+      "name": "event9-ff-enqueue-arguments-a96c7a",
+      "CP_VA": 11103354,
+      "end_CP_VA": 11103362,
+      "size": 8,
+      "sha256": "1d4f9eb7514aca59678e8b935eb863d3a896dda574e8ee63f51ba7015a14d202"
+    },
+    {
+      "name": "dispatcher-descriptor-and-queue-call-a9699c",
+      "CP_VA": 11102620,
+      "end_CP_VA": 11102690,
+      "size": 70,
+      "sha256": "8fedb299c13a2c069eeefdd1708c0b623de9b345e6c2b3b70535a4a0a35e0af7"
+    }
+  ],
+  "capability_source_pins": "../lif-capability-owner/source-pins.json",
+  "capability_pins_unchanged": {"windows": 15, "bytes": 7796},
+  "command9": {
+    "table_CP_VA": 18896242,
+    "table_hex": "090005000c00",
+    "body_bytes": 12,
+    "logical_frame_bytes": 20,
+    "optional_exact_final_zero_bytes": 1,
+    "supported_header_independent_body8_body9": [0, 0],
+    "other_header_values_known": false,
+    "deferred_body_target": "1b1ac5d",
+    "enabled_target": "1b1ac4e",
+    "pending8_target": "1b1ac53",
+    "pending9_target": "1b1ac54"
+  },
+  "local_source_operations": {
+    "handshake_reset": "a913de zero r4; a913e8 state[1a03ac0]=0 with DMB; a913ee K[1a03ad0]=0; later fields unmodeled",
+    "control_flags_reset": "a948a8..a9491a only enabled +0, pending8 +5 and pending9 +6 are consumed; body bytes are preserved",
+    "state_setter": "requests0/1 unconditional; request2 commits only from known0/1; requests3..5 commit only from known request-1; unknown old state stays unknown",
+    "command8": "actual 40ad58 body copy then a9556a support refresh and request2 in both P-type branches; later helpers unmodeled",
+    "command9": "requires known P22/control; enabled==1 applies a955da: P22low2==2 and body1low2==1 -> K5, ==2 -> K2, otherwise preserve K; request3; other enabled values defer all12 bytes",
+    "event9": "explicit local 408efa prefix enables control, checks pending8 first then pending9; no pending8 producer modeled; pending flags are not cleared",
+    "dynamic_receive": "call real cp_lif_bitmap_receive_decode on live owner once after alias prechecks; actual decoded command5 is checked before6; known state3 ->4 ->5; other/unknown states preserved",
+    "initial_kind_store": "existing local a95856 selection only; later timer setup not executed; a95fa6 callback queues event2 via a9699c(2,ff), never event9",
+    "command0a": "17-byte reply comparison writes 1a03c8c, a different flag from handshake state1a03ac0; return0 can mean mismatch; no new reply API"
+  },
+  "boot_event9_enqueue": {
+    "producer_closed": true,
+    "boot_function": "4b6bf4",
+    "logged_branch_BL": "4b7174",
+    "nonlogged_branch_BL": "4b71e0",
+    "both_BL_target": "a48f86",
+    "thunk_target": "a96c7a",
+    "enqueue_target": "a9699c",
+    "event": 9,
+    "argument": 255,
+    "descriptor_words": ["a96a0b", 0, "408d59", 0, 0],
+    "queue_call": "50ff1c",
+    "receiver": "1a04258",
+    "actual_message_delivery_known": false,
+    "dispatcher_execution_known": false
+  },
+  "initial_handshake_state_known": false,
+  "original_cache_admission_verified": false,
+  "original_event9_delivery_verified": false,
+  "original_handler_executed": false,
+  "native_capture_verified": false,
+  "original_CP": false,
+  "runtime_integration": false,
+  "native_generation_publication_ack_ready": false,
+  "unmodeled_worker": "135f88",
+  "native_output_3003": false
+}

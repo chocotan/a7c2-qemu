@@ -1,0 +1,27 @@
+{
+  "run": "run-z51ilinf",
+  "console_sha256": "ebb2831e5f87d66ee4d5b3bc6ce024e4f8b45b28eaf895641328f3ba5848dba6",
+  "scope": "standalone original Fsys file backend; camera application not started",
+  "first_process_mount_flags": 0,
+  "second_process_mount_flags": 256,
+  "original_fsys_write_bytes": 4096,
+  "second_process_readback_matches": true,
+  "full_image_bytes": 4194304,
+  "full_image_guest_qmp_fnv64": "41613544a04795ca",
+  "disk_sha256": "d2490baadea79eabbfda9e23bea5f70c2f821e41915d172d8603ed96fd5a7acf",
+  "file_sha256": "c5d2097fa1cd94e31b5aeb3e30ddad3b49194826436c11fdf91f27090e8f9e9a",
+  "fsck_readonly_rc": 0,
+  "host_fat_file_content_verified": true,
+  "selected_image_generated_test_files_verified": true,
+  "selected_image_fsys_provider_libraries_separately_byte_checked": false,
+  "sony_runtime_asset_check_passed": true,
+  "application_rm_or_media_detect_verified": false,
+  "application_nondev_rm2_path_verified": false,
+  "current_dialog_fixed": false,
+  "camera_capture_verified": false,
+  "negative_mutation_cases_verified": [
+    "missing_camera_mount_flags",
+    "export_tail_corruption"
+  ],
+  "failed_rerun_overwrites_old_success_verified": true
+}

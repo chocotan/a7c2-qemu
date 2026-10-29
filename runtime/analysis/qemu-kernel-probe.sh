@@ -9,6 +9,28 @@ binary_relative="${QEMU_SYSTEM_BINARY:-qemu-system-aarch64}"
 sony_timers="${SONY_TIMER_MODEL:-0}"
 native_window="${MENU_NATIVE_WINDOW:-0}"
 native_display="${QEMU_NATIVE_DISPLAY:-none}"
+cpu_count="${QEMU_CPU_COUNT:-1}"
+case "$cpu_count" in 1|2) ;; *) echo 'QEMU_CPU_COUNT must be 1 or 2' >&2; exit 2 ;; esac
+gic_handoff="${QEMU_SONY_GIC_HANDOFF:-0}"
+case "$gic_handoff" in 0|1) ;; *) echo 'QEMU_SONY_GIC_HANDOFF must be 0 or 1' >&2; exit 2 ;; esac
+if [[ "$gic_handoff" == 1 && ( "$cpu_count" != 2 || "${QEMU_SONY_PCIDMA:-0}" != 1 ) ]]; then
+  echo 'GIC handoff requires the matched native SMP2 PCI DMA board' >&2; exit 2
+fi
+rc_profile="${QEMU_SONY_RC:-0}"
+case "$rc_profile" in 0|1) ;; *) echo 'QEMU_SONY_RC must be 0 or 1' >&2; exit 2 ;; esac
+if [[ "$rc_profile" == 1 && ( "$cpu_count" != 2 || "${QEMU_SONY_PCIDMA:-0}" != 1 ) ]]; then
+  echo 'RC profile requires matched SMP2 and isolated PCI DMA board' >&2; exit 2
+fi
+sa_data_only="${QEMU_SONY_SA_DATA_ONLY:-0}"
+case "$sa_data_only" in 0|1) ;; *) echo 'QEMU_SONY_SA_DATA_ONLY must be 0 or 1' >&2; exit 2 ;; esac
+sa_reference_complete="${QEMU_SONY_SA_REFERENCE_COMPLETE:-0}"
+case "$sa_reference_complete" in 0|1) ;; *) echo 'QEMU_SONY_SA_REFERENCE_COMPLETE must be 0 or 1' >&2; exit 2 ;; esac
+if [[ "$sa_reference_complete" == 1 && ( "$rc_profile" != 1 || "$sa_data_only" == 1 ) ]]; then
+  echo 'SA reference completion requires RC and excludes data-only mode' >&2; exit 2
+fi
+if [[ "$sa_data_only" == 1 && "$rc_profile" != 1 ]]; then
+  echo 'SA data-only reference requires the explicit RC profile' >&2; exit 2
+fi
 case "$native_window" in 0|1) ;; *) echo 'MENU_NATIVE_WINDOW must be 0 or 1' >&2; exit 2 ;; esac
 case "$native_display" in none|gtk|sdl) ;; *) echo 'QEMU_NATIVE_DISPLAY must be none, gtk or sdl' >&2; exit 2 ;; esac
 display_args=(-display none)
@@ -17,10 +39,24 @@ queue_debug="${QEMU_REQUEST_QUEUE_GDB:-0}"
 case "$queue_debug" in 0|1) ;; *) echo 'Invalid queue debug flag' >&2; exit 2 ;; esac
 debug_args=()
 if [[ "$queue_debug" == 1 ]]; then
-  [[ "$native_window" == 1 && "${QEMU_UI_LIVE:-0}" == 1 ]] || { echo 'Queue debug requires an owned live native VM' >&2; exit 2; }
+  if [[ "${QEMU_RESIZE_OBSERVE:-0}" == 1 ]]; then
+    [[ "${QEMU_SONY_PCIDMA:-0}" == 1 ]] || { echo 'Resize observation requires the isolated PCI DMA model' >&2; exit 2; }
+  else
+    [[ "$native_window" == 1 && "${QEMU_UI_LIVE:-0}" == 1 ]] || { echo 'Queue debug requires an owned live native VM' >&2; exit 2; }
+  fi
   # Private per-run filesystem socket only; no TCP listener or physical device.
   debug_args=(-gdb unix:/out/request-queue-gdb.sock,server=on,wait=off
               -qmp unix:/out/request-queue-control.sock,server=on,wait=off)
+fi
+hdmi_debug="${QEMU_HDMI_UPM_GDB:-0}"
+case "$hdmi_debug" in 0|1) ;; *) echo 'Invalid HDMI debug flag' >&2; exit 2 ;; esac
+if [[ "$hdmi_debug" == 1 ]]; then
+  [[ "$queue_debug" == 0 && "$native_window" == 1 && "${QEMU_UI_LIVE:-0}" == 1 &&
+     "${MENU_PINMEM_HDMI_VIDEO_CONNECT:-}" == virtual-pinmem-video0-hdmi-video0-initializing-v1 ]] || {
+    echo 'HDMI consumer debug requires the isolated owned video profile' >&2; exit 2;
+  }
+  debug_args=(-gdb unix:/out/hdmi-upm-gdb.sock,server=on,wait=off
+              -qmp unix:/out/hdmi-upm-control.sock,server=on,wait=off)
 fi
 if [[ "$native_window" == 1 ]]; then
   display_args=(-display "$native_display" -device ramfb,id=a7c2-screen)
@@ -85,8 +121,30 @@ high_ddr=0
 if [[ "$test_initrd" != "$bootfs/initrd.img" ]]; then
   high_ddr=1
 fi
+if [[ "$cpu_count" == 2 && ( "$high_ddr" != 1 || "$skip_hwtimer" != 1 || -z "$board_dtb" ) ]]; then
+  echo 'SMP2 requires the native high-DDR fixed-address DTB preparation' >&2; exit 2
+fi
 pin_control_memory="${QEMU_PIN_CONTROL_MEMORY:-0}"
 sound_owner="${QEMU_SYSTEM_SOUND_OWNER:-0}"
+pcidma_enabled="${QEMU_SONY_PCIDMA:-0}"
+# QEMU runs under bwrap --clearenv: the model gate must be passed as --setenv or the
+# integrated devices are never created (the driver would read the bus-stub instead).
+pcidma_environment=()
+if [[ "$pcidma_enabled" == 1 ]]; then
+  pcidma_environment=(--setenv QEMU_SONY_PCIDMA 1)
+fi
+if [[ "$rc_profile" == 1 ]]; then
+  pcidma_environment+=(--setenv QEMU_SONY_RC 1)
+fi
+if [[ "$gic_handoff" == 1 ]]; then
+  pcidma_environment+=(--setenv QEMU_SONY_GIC_HANDOFF 1)
+fi
+if [[ "$sa_data_only" == 1 ]]; then
+  pcidma_environment+=(--setenv QEMU_SONY_SA_DATA_ONLY 1)
+fi
+if [[ "$sa_reference_complete" == 1 ]]; then
+  pcidma_environment+=(--setenv QEMU_SONY_SA_REFERENCE_COMPLETE 1)
+fi
 case "$sound_owner" in 0|1) ;; *) echo 'Invalid sound owner flag' >&2; exit 2;; esac
 if [[ "$sound_owner" == 1 ]] && { [[ "$high_ddr" != 1 || "$skip_hwtimer" != 1 ]] || [[ "$test_initrd" != *.cpio ]]; }; then
   echo 'Sound owner requires high-DDR raw cpio initramfs' >&2; exit 2
@@ -158,6 +216,13 @@ PY
   if [[ "$sony_timers" == 1 ]]; then
     cmdline="${cmdline/__boottime___udif_init_udif_hwtimer,/}"
   fi
+  # With the PCI DMA engine modeled (QEMU_SONY_PCIDMA=1), let the original pcidma
+  # UDIF driver initialize so pcidma_transfer_async can drive the engine. Also
+  # un-blacklist the UDIF pcie layer so the DW host link can come up and enable it.
+  if [[ "$pcidma_enabled" == 1 ]]; then
+    cmdline="${cmdline/,__boottime___udif_init_pcidma/}"
+    cmdline="${cmdline/,__boottime___udif_init_udif_pcie/}"
+  fi
   # This kernel uses the fixed-address DTB, so update that DTB's bootargs too.
   python3 - "$output_dir/virt.dtb" "$project_dir/sources/qemu-tools/usr/lib/libfdt.so.1" "$cmdline" "$test_initrd" "$high_ddr" "$analysis_dir" <<'PY'
 from pathlib import Path
@@ -227,6 +292,19 @@ props = {
 for name, value in props.items():
     if fdt.fdt_setprop(buffer, node, name, value, len(value)) != 0:
         raise RuntimeError('Cannot set GIC alias property')
+# LIRO's original IRQ trampoline acknowledges through this CPU-interface VA.
+node = fdt.fdt_add_subnode(buffer, 0, b'sony-gicc-alias')
+if node < 0:
+    raise RuntimeError('Cannot add GIC CPU alias node')
+for name, value in {
+    b'device_type': b'iomap\0',
+    b'phys': struct.pack('>Q', 0x08010000),
+    b'virt': struct.pack('>Q', 0xfffffffff13a2000),
+    b'size': struct.pack('>Q', 0x1000),
+    b'memtype': struct.pack('>I', 1),
+}.items():
+    if fdt.fdt_setprop(buffer, node, name, value, len(value)) != 0:
+        raise RuntimeError('Cannot set GIC CPU alias property')
 if sys.argv[5] == '1':
     # Minimal GPIO register backing, not a behavioral camera-device model.
     node = fdt.fdt_add_subnode(buffer, 0, b'sony-register-backing')
@@ -283,6 +361,8 @@ if sys.argv[5] == '1':
     }.items():
         if fdt.fdt_setprop(buffer, node, name, value, len(value)) != 0:
             raise RuntimeError('Cannot set timer map property')
+if os.environ.get('QEMU_SONY_RC')=='1':
+    runpy.run_path(str(Path(sys.argv[6])/'native_rc_board.py'))['add_control_map'](fdt,buffer)
 # Reject overlapping static virtual mappings before booting the unmodified kernel.
 mappings = []
 offset = fdt.fdt_next_node(buffer, -1, None)
@@ -305,6 +385,12 @@ if os.environ.get('QEMU_PIN_CONTROL_MEMORY') == '1':
     runpy.run_path(str(Path(sys.argv[6]) / 'native-pin-control-region.py'))['reserve'](fdt, buffer, sys.argv[3])
 if os.environ.get('QEMU_SYSTEM_SOUND_OWNER') == '1':
     runpy.run_path(str(Path(sys.argv[6]) / 'native-sound-region.py'))['reserve'](fdt, buffer, sys.argv[3])
+if os.environ.get('QEMU_CPU_COUNT') == '2':
+    runpy.run_path(str(Path(sys.argv[6]) / 'native_smp.py'))['configure'](fdt, buffer)
+if os.environ.get('QEMU_SONY_RC') == '1':
+    runpy.run_path(str(Path(sys.argv[6]) / 'native_rc_board.py'))['configure'](fdt, buffer)
+if os.environ.get('QEMU_SONY_SA_REFERENCE_COMPLETE')=='1':
+    runpy.run_path(str(Path(sys.argv[6])/'native_rc_board.py'))['reserve_sa_irq'](fdt,buffer)
 if fdt.fdt_pack(buffer) != 0:
     raise RuntimeError('Cannot pack board DTB')
 size = struct.unpack_from('>I', buffer.raw, 4)[0]
@@ -329,6 +415,14 @@ if [[ "${QEMU_PREPARE_ONLY:-0}" == 1 ]]; then
   printf 'Prepared board DTB: %s\n' "$output_dir/virt.dtb"
   exit 0
 fi
+if [[ "$rc_profile" == 1 || "$gic_handoff" == 1 ]]; then
+  python3 - "$analysis_dir" "$tool_root/$binary_relative" "$rc_profile" "$gic_handoff" "$sa_data_only" "$sa_reference_complete" <<'PY'
+from pathlib import Path
+import runpy,sys
+runpy.run_path(str(Path(sys.argv[1])/'native_rc_board.py'))['require_binary'](
+    Path(sys.argv[2]),reference=sys.argv[3]=='1',handoff=sys.argv[4]=='1',sa_data=sys.argv[5]=='1',sa_complete=sys.argv[6]=='1')
+PY
+fi
 observation_seconds="${QEMU_TIMEOUT_SECONDS:-15}"
 [[ "$observation_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid timeout' >&2; exit 2; }
 # Exit 124 means the observation window elapsed; zero allows an interactive session.
@@ -345,9 +439,10 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
     --bind "$output_dir" /out \
     --chdir / --setenv LD_LIBRARY_PATH /tools/usr/lib --setenv LC_ALL C \
     "${timer_environment[@]}" \
+    "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
     "/tools/$binary_relative" \
-      -machine virt,secure=off -cpu cortex-a35 -smp 1 -m "$memory_config" \
+      -machine virt,secure=off,gic-version=2 -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
       ${QEMU_ICOUNT_ARGS:-} \
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \

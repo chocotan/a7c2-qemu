@@ -1,0 +1,79 @@
+{
+  "scope": "final bounded source findings during frozen unified regression; no native promotion",
+  "pins": [
+    {
+      "image": "CP",
+      "address": 10796348,
+      "raw_offset": 9715004,
+      "bytes": 42,
+      "label": "publication-and-mutable-getter",
+      "sha256": "8ab9dea1e685491824e7faf3292d6a923b7acc4057383384bffa83f9b46361cf"
+    },
+    {
+      "image": "CP",
+      "address": 1275968,
+      "raw_offset": 194624,
+      "bytes": 50,
+      "label": "conditional-LIF-tuple-flags-reset",
+      "sha256": "36fd73b6dec67113ab77c353c22ebe7c052b9aa40937c41bf7b9661610b7d322"
+    },
+    {
+      "image": "CP",
+      "address": 1280866,
+      "raw_offset": 199522,
+      "bytes": 30,
+      "label": "mutable-LIF-publication-call",
+      "sha256": "975dd6fc257c194ea4979b55ecc0c8c7d440b7950350d8f26230c41db39a236b"
+    },
+    {
+      "image": "K",
+      "address": 2795840,
+      "raw_offset": 2795840,
+      "bytes": 332,
+      "label": "colorimetry-register-source",
+      "sha256": "55f160fdfa9bb8415fddfbe04d0ccf2f20405f4d56e44d35a6cb7842e4b9e46e"
+    },
+    {
+      "image": "K",
+      "address": 3186944,
+      "raw_offset": 3186944,
+      "bytes": 84,
+      "label": "matrix-selector-table",
+      "sha256": "c5079845c9278541eaa7b96ac43f2d9089d4801abf609037df0651de02d702e5"
+    },
+    {
+      "image": "K",
+      "address": 3187040,
+      "raw_offset": 3187040,
+      "bytes": 756,
+      "label": "matrix-coefficient-table",
+      "sha256": "2381c0690995b990ee32455b18a9e38da1b398607bff7ad07f355aa7cd4b7169"
+    },
+    {
+      "image": "K",
+      "address": 342116,
+      "raw_offset": 342116,
+      "bytes": 440,
+      "label": "aspect-geometry-helper-not-pixel-converter",
+      "sha256": "e54e80257ab557772caff22f456dcabe53711964d0810eb2178c90668a2bab06"
+    }
+  ],
+  "native_LIF": {
+    "tuple_and_flags_conditional_zero_stores_proven": true,
+    "reset_invocation_at_boot_verified": false,
+    "action_128_producer_known": false,
+    "complete_actual_source_packet_known": false,
+    "provider_ready_fields": 0
+  },
+  "native_JPEG": {
+    "colorimetry_register_source_closed": true,
+    "matrix_fixedpoint_math_closed": false,
+    "memory_bytes_to_matrix_components_closed": false,
+    "plane_layout_closed": false,
+    "nominated_CPU_converters_are_geometry_only": true,
+    "START_allowed": false
+  },
+  "source_files_changed": false,
+  "VM_run": false,
+  "capture_verified": false
+}

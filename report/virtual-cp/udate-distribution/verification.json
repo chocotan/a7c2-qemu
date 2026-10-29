@@ -1,0 +1,30 @@
+{
+  "scope": "sole kernel public sender; UDATE with opt-in guarded Backup PCI fixture, not CP firmware or runtime proof",
+  "backup_default_off": true,
+  "size": 19808,
+  "sha256": "1300b44c53834e1cbb9492e53641a894b42002a909231662792faa99b637b9b5",
+  "imports": [
+    "__memcpy_fromio",
+    "osal_dynamic_id",
+    "osal_free_msg",
+    "osal_get_msg_src",
+    "osal_rcv_msg_tmo",
+    "osal_reg_public",
+    "osal_set_msg_src",
+    "osal_snd_msg",
+    "osal_snd_sync_direct",
+    "osal_valloc_msg_wait",
+    "param_ops_bool",
+    "pci_bus_read_config_dword",
+    "pci_dev_put",
+    "pci_disable_device",
+    "pci_enable_device",
+    "pci_get_domain_bus_and_slot",
+    "pci_iomap_range",
+    "pci_iounmap",
+    "pci_set_master",
+    "pcidma_connect",
+    "printk"
+  ],
+  "resident": true
+}

@@ -1,0 +1,15 @@
+{
+  "run": "run-gjwv9_0o",
+  "console_sha256": "0b8d5a197a35bf130f2e2d5b549ad2c2bb8bade07d61e8b9911bd922aee2d196",
+  "worker_census": [
+    {"tid": 321, "name": "SeqThreadPool0", "state": "idle-stack", "stack_elf_va": ["0x34b9528", "0x36ec1b0"]},
+    {"tid": 322, "name": "SeqThreadPool1", "member": "adf_set_volume_i", "static_protocol": "200d/0330", "stack_elf_va": ["0x34e5788", "0x34eac6c", "0x34c72c4", "0x3058ed4", "0x34b9568"]},
+    {"tid": 323, "name": "SeqThreadPool2", "member": "regist_beep_signals_i:sysSoundAddress", "static_protocol": "200d/033f", "stack_elf_va": ["0x34e5788", "0x34ec204", "0x34c73c4", "0x3060a1c", "0x34b9568"]},
+    {"tid": 324, "name": "SeqThreadPool3", "member": "adf_get_func_i", "static_protocol": "200d/0327", "stack_elf_va": ["0x34e5788", "0x34ea4dc", "0x34c6f84", "0x305ac88", "0x34b9568"]}
+  ],
+  "license_completion_token_verified": false,
+  "audio_request_wire_bytes_captured_in_this_run": false,
+  "audio_output_verified": false,
+  "camera_startup_verified": false,
+  "pixels_consumed": false
+}

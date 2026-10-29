@@ -1,0 +1,997 @@
+{
+  "schema": 1,
+  "implementation": "gpt-6.1-sol; thinking=max; 2026-10-28",
+  "profile": "virtual-functional-camera-v1",
+  "address_coordinates": {
+    "I": "libInfraAvbbc.so ELF VA",
+    "D": "dataflowInfraFramework.so ELF VA",
+    "K": "av-cam.bin raw offset; original KVA=0xffffffc001000000+offset",
+    "L": "public guest libc.so.6 ELF VA; only the required existing scanf ABI export"
+  },
+  "assets": {
+    "I": {
+      "path": "usr/lib/libInfraAvbbc.so",
+      "size": 1738760,
+      "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5",
+      "kind": "ELF64-AArch64",
+      "segments": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "filesz": 1666675,
+          "memsz": 1666675,
+          "flags": 5
+        },
+        {
+          "offset": 1670304,
+          "vaddr": 1735840,
+          "filesz": 66424,
+          "memsz": 68168,
+          "flags": 6
+        }
+      ],
+      "undefined_dynsym_count": 197,
+      "defined_dynsym_count": 5315,
+      "needed": [
+        "libMWF.so",
+        "dataflowInfraFramework.so",
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libdl.so.2",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "librt.so.1"
+      ],
+      "symbols": [
+        {"name":"_ZN26ExecCmd_SDF_EncodeJpegMain7ExecCmdEPKh","address":1189572,"bytes":1092},
+        {"name":"_ZN26ExecCmd_SDF_EncodeJpegMain6ResCmdEPKht","address":1183332,"bytes":96},
+        {"name":"_ZN30ExecCmd_SDF_EncodeJpegMainComp7ExecCmdEPKh","address":1191420,"bytes":76},
+        {"name":"_ZN30ExecCmd_SDF_EncodeJpegMainComp6ResCmdEPKht","address":1190724,"bytes":696},
+        {"name":"_ZN14AvbbcParamCtrl16ParameterControl8GetValueEjRPv","address":673508,"bytes":196},
+        {"name":"_ZTV26ExecCmd_SDF_EncodeJpegMain","address":1767344,"bytes":48},
+        {"name":"_ZTV30ExecCmd_SDF_EncodeJpegMainComp","address":1767416,"bytes":48},
+        {
+          "name": "_ZN20InfraAvbbcMsgManager13ConvertCmdMidEtt",
+          "address": 1282028,
+          "bytes": 8
+        },
+        {
+          "name": "_ZTV34ExecCmd_SDF_EncodeJpeg_Without_Pin",
+          "address": 1766456,
+          "bytes": 48
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin18MakeInputYcStdDataEv",
+          "address": 1160072,
+          "bytes": 716
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinC2EP20InfraAvbbcMsgManagerPN14AvbbcParamCtrl16ParameterControlEjjhtt",
+          "address": 1158200,
+          "bytes": 108
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD2Ev",
+          "address": 1157536,
+          "bytes": 20
+        },
+        {
+          "name": "_ZN17InfraAvbbcSeqBase13StartSequenceEPKh",
+          "address": 1291884,
+          "bytes": 200
+        },
+        {
+          "name": "_ZTI34ExecCmd_SDF_EncodeJpeg_Without_Pin",
+          "address": 1766432,
+          "bytes": 24
+        },
+        {
+          "name": "_ZN20InfraAvbbcMsgManager10OsalSndMsgEjPKhj",
+          "address": 1282392,
+          "bytes": 2404
+        },
+        {
+          "name": "_ZN20InfraAvbbcMsgManager9GetOsalIdEv",
+          "address": 1282044,
+          "bytes": 8
+        },
+        {
+          "name": "_ZN17InfraAvbbcSeqBase16ResponceSequenceEPKht",
+          "address": 1292084,
+          "bytes": 260
+        },
+        {
+          "name": "_ZTS34ExecCmd_SDF_EncodeJpeg_Without_Pin",
+          "address": 1450352,
+          "bytes": 37
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin7ExecCmdEPKh",
+          "address": 1160788,
+          "bytes": 756
+        },
+        {
+          "name": "_ZN20InfraAvbbcMsgManager10OsalRcvMsgEP11IInfraAvbbc",
+          "address": 1285260,
+          "bytes": 2024
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD0Ev",
+          "address": 1157556,
+          "bytes": 40
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin19makeParamEncodeJpegERN3SDF25ENCODE_JPEG_COMMAND_PARAME",
+          "address": 1159564,
+          "bytes": 508
+        },
+        {
+          "name": "_ZN20InfraAvbbcMsgManager10ConvertCidEt",
+          "address": 1282036,
+          "bytes": 8
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin20PrintEncodeJpegParamEPKN3SDF25ENCODE_JPEG_COMMAND_PARAME",
+          "address": 1158308,
+          "bytes": 1256
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinC1EP20InfraAvbbcMsgManagerPN14AvbbcParamCtrl16ParameterControlEjjhtt",
+          "address": 1158200,
+          "bytes": 108
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin6ResCmdEPKht",
+          "address": 1157596,
+          "bytes": 604
+        },
+        {
+          "name": "_ZN16ObjAvbbcCmnTable19midConvTableFromSdfE",
+          "address": 1492528,
+          "bytes": 192
+        },
+        {
+          "name": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD1Ev",
+          "address": 1157536,
+          "bytes": 20
+        }
+      ],
+      "relocations": [
+        {"section":".rela.dyn","offset":1767360,"type":257,"addend":0,"symbol":"_ZN26ExecCmd_SDF_EncodeJpegMain7ExecCmdEPKh"},
+        {"section":".rela.dyn","offset":1767368,"type":257,"addend":0,"symbol":"_ZN26ExecCmd_SDF_EncodeJpegMain6ResCmdEPKht"},
+        {"section":".rela.dyn","offset":1767432,"type":257,"addend":0,"symbol":"_ZN30ExecCmd_SDF_EncodeJpegMainComp7ExecCmdEPKh"},
+        {"section":".rela.dyn","offset":1767440,"type":257,"addend":0,"symbol":"_ZN30ExecCmd_SDF_EncodeJpegMainComp6ResCmdEPKht"},
+        {
+          "section": ".rela.dyn",
+          "offset": 1736904,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN14AvbbcParamCtrl16ParameterControl8GetValueEjRm"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1736912,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN14AvbbcParamCtrl16ParameterControl8GetValueEjRPv"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766440,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZTS34ExecCmd_SDF_EncodeJpeg_Without_Pin"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766464,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZTI34ExecCmd_SDF_EncodeJpeg_Without_Pin"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766472,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin7ExecCmdEPKh"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766480,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin6ResCmdEPKht"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766488,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD1Ev"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1766496,
+          "type": 257,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD0Ev"
+        },
+        {
+          "section": ".rela.dyn",
+          "offset": 1784432,
+          "type": 1025,
+          "addend": 0,
+          "symbol": "_ZTV34ExecCmd_SDF_EncodeJpeg_Without_Pin"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1789368,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinD1Ev"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1790688,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN20InfraAvbbcMsgManager10OsalSndMsgEjPKhj"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1792832,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin18MakeInputYcStdDataEv"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1793240,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin19makeParamEncodeJpegERN3SDF25ENCODE_JPEG_COMMAND_PARAME"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1794616,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN20InfraAvbbcMsgManager13ConvertCmdMidEtt"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1795160,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN20InfraAvbbcMsgManager10OsalRcvMsgEP11IInfraAvbbc"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1796504,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN20InfraAvbbcMsgManager10ConvertCidEt"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1796704,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN20InfraAvbbcMsgManager9GetOsalIdEv"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1797224,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_PinC1EP20InfraAvbbcMsgManagerPN14AvbbcParamCtrl16ParameterControlEjjhtt"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 1798144,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "_ZN34ExecCmd_SDF_EncodeJpeg_Without_Pin20PrintEncodeJpegParamEPKN3SDF25ENCODE_JPEG_COMMAND_PARAME"
+        }
+      ]
+    },
+    "D": {
+      "path": "usr/lib/dataflowInfraFramework.so",
+      "size": 306496,
+      "sha256": "620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47",
+      "kind": "ELF64-AArch64",
+      "segments": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "filesz": 295188,
+          "memsz": 295188,
+          "flags": 5
+        },
+        {
+          "offset": 297776,
+          "vaddr": 363312,
+          "filesz": 6688,
+          "memsz": 6704,
+          "flags": 6
+        }
+      ],
+      "undefined_dynsym_count": 27,
+      "defined_dynsym_count": 1824,
+      "needed": [
+        "libpthread.so.0",
+        "libstdc++.so.6",
+        "libm.so.6",
+        "libdl.so.2",
+        "libgcc_s.so.1",
+        "libc.so.6",
+        "librt.so.1"
+      ],
+      "symbols": [
+        {
+          "name": "_ZN16DataflowInfraMsgD1Ev",
+          "address": 205292,
+          "bytes": 4
+        },
+        {
+          "name": "_ZN16DataflowInfraMsg8SetSrcIdEj",
+          "address": 205908,
+          "bytes": 12
+        },
+        {
+          "name": "_ZN16DataflowInfraMsgC1Ev",
+          "address": 205336,
+          "bytes": 36
+        },
+        {
+          "name": "_ZN19DataflowInfraSender9SendASyncEjP16DataflowInfraMsg",
+          "address": 213264,
+          "bytes": 288
+        },
+        {
+          "name": "_ZN16DataflowInfraMsg14SetDataflowMsgEPvt",
+          "address": 206180,
+          "bytes": 308
+        },
+        {
+          "name": "_ZN16DataflowInfraMsg18MakeDataflowHeaderEv",
+          "address": 206136,
+          "bytes": 44
+        },
+        {
+          "name": "_ZN19DataflowInfraSenderD1Ev",
+          "address": 213160,
+          "bytes": 4
+        },
+        {
+          "name": "_ZN19DataflowInfraSenderC1Ev",
+          "address": 213204,
+          "bytes": 20
+        }
+      ],
+      "relocations": [
+        {
+          "section": ".rela.plt",
+          "offset": 368744,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "osal_set_msg_src"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 369056,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "osal_snd_msg"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 369200,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "osal_valloc_msg_wait"
+        },
+        {
+          "section": ".rela.plt",
+          "offset": 369952,
+          "type": 1026,
+          "addend": 0,
+          "symbol": "osal_free_msg"
+        }
+      ]
+    },
+    "K": {
+      "path": "system/av-cam.bin",
+      "size": 13797088,
+      "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+      "kind": "raw"
+    },
+    "L": {
+      "path": "lib/libc.so.6",
+      "size": 1283936,
+      "sha256": "f9104526eb7e5d2ea533c1a209bb0b83e69367f569e4c966895c8e106e6382c9",
+      "kind": "ELF64-AArch64",
+      "segments": [
+        {
+          "offset": 0,
+          "vaddr": 0,
+          "filesz": 1252788,
+          "memsz": 1252788,
+          "flags": 5
+        },
+        {
+          "offset": 1256560,
+          "vaddr": 1322096,
+          "filesz": 18704,
+          "memsz": 34320,
+          "flags": 6
+        }
+      ],
+      "symbols": [
+        {
+          "name": "__isoc99_sscanf",
+          "address": 386624,
+          "bytes": 112
+        }
+      ],
+      "relocations": [],
+      "purpose": "Original guest exports __isoc99_sscanf and does not export __isoc23_sscanf."
+    }
+  },
+  "windows": [
+    {"asset":"I","address":1189572,"bytes":1092,"sha256":"344d2ed60eafdfd604d21066372a06385056e646482ea16baa1c10f8063fd75e","purpose":"complete original Main Exec; conditional DMM reads and actual 80-byte submission","runtime_fnv1a64":"4e8508c9915d6146"},
+    {"asset":"I","address":1183332,"bytes":96,"sha256":"96de5449b85b530fc2afe639cbf1bd8b5452dfe169c5f47757739a1108d72db5","purpose":"Main ACK ignores status and returns zero","runtime_fnv1a64":"464e48ea08c2cf3a"},
+    {"asset":"I","address":1191420,"bytes":76,"sha256":"df72c9e111fbf94d28c9d28293236fcf7d60e200462013ec029707a2bbbefb89","purpose":"distinct original MainComp wait Exec","runtime_fnv1a64":"b3d0afdf302e393f"},
+    {"asset":"I","address":1190724,"bytes":696,"sha256":"1aef4a43b72776ae27c8fa96901f04758efc02d5c5cdd0128f1fe8e3bef950e9","purpose":"original MainComp DONE status, key1048 pointer and three actual length stores","runtime_fnv1a64":"d26134b62e7fd103"},
+    {"asset":"I","address":673508,"bytes":196,"sha256":"4f369139be02e942d26973679172723d1d10fe9561ba35af751c8ea83025341f","purpose":"existing original ParameterControl pointer getter; virtual slot a8 must match","runtime_fnv1a64":"5f07e9e6ab435299"},
+    {"asset":"I","address":1186720,"bytes":984,"sha256":"8a3678da3afc9c3302236fbc4df87f93fa9a1792669e1bce7e72d63b97f7cb5c","purpose":"original selector0 width, quality codes 0/1/2/6 and addSoi0"},
+    {"asset":"I","address":1187704,"bytes":936,"sha256":"ca2584739dcdfd32f277a49e08006acc51e9cd7a946a00e72c9966ffb69b8db8","purpose":"original selector1 160x120 quality4 addSoi1"},
+    {"asset":"I","address":1188640,"bytes":932,"sha256":"f96daa2d755e632b4ddf2d185d63e2f53fd5e44b315009a420b3df80fd85a0e1","purpose":"original selector2 ScreenNail quality3 addSoi0"},
+    {"asset":"I","address":1185960,"bytes":760,"sha256":"fa0a9be07f251b7943d842c500b523da6ba723f305277acd06c42aa68e8ba166","purpose":"original metadata serializer; input SDS 18/1c/20 is not pixel packing"},
+    {"asset":"I","address":1183492,"bytes":76,"sha256":"b3a5381ee4a09d28a4120279565684e9a504af25708f5085090e3381c93cee58","purpose":"Main constructor 28-byte object and selector at20"},
+    {"asset":"I","address":1191496,"bytes":76,"sha256":"948d95658ce7f958f7f0aac1e449945aa06a4cfc8bc2ade583866d836f10f8ab","purpose":"MainComp constructor matching context/manager/control/selector"},
+    {"asset":"I","address":1194632,"bytes":304,"sha256":"437cb96956d15c1a4bc96a8145cde10908816acae5d467480e669b9021d45304","purpose":"original Main/Thumb/Screen sequence selection from configured nonzero units"},
+    {"asset":"I","address":1195204,"bytes":1168,"sha256":"a1ddfbc1efb7f3003a74fb002efa4395b62fa307dae7eb99cd790189a7162299","purpose":"original separate Main/MainComp 28-byte allocations; context and selector pairing"},
+    {
+      "asset": "I",
+      "address": 1157596,
+      "bytes": 604,
+      "sha256": "4b1583df11fe91341f8f65a4ea4df0937e18b5c032079322ed1662e395dacbaf",
+      "purpose": "original ResCmd return ABI and native configuration stores"
+    },
+    {
+      "asset": "I",
+      "address": 1158200,
+      "bytes": 108,
+      "sha256": "90d4c60e90f5dec9c175ff1141ee554bedbedf24366c3ec64dbd0a7c2147aa13",
+      "purpose": "original constructor and dimensions"
+    },
+    {
+      "asset": "I",
+      "address": 1159564,
+      "bytes": 508,
+      "sha256": "5e85ab99b9d079069ce51b65fe7a9bbf30df56237a08f1f001678a1faf35629f",
+      "purpose": "actual request, stream span, quality selectors and addSoi"
+    },
+    {
+      "asset": "I",
+      "address": 1160072,
+      "bytes": 716,
+      "sha256": "0afdd831d641ea0b07dfb2b3ee004b4a1c923451014550cf4e5a2a88620eb219",
+      "purpose": "unchanged original metadata builder"
+    },
+    {
+      "asset": "I",
+      "address": 1160788,
+      "bytes": 756,
+      "sha256": "e760c6bd94daca8402ea2857f49c0fe6100b2100843ae807497fe6ed2ac21c12",
+      "purpose": "actual original ExecCmd submission"
+    },
+    {
+      "asset": "I",
+      "address": 1213820,
+      "bytes": 68,
+      "sha256": "06947bcf52c8345708ebc157e2a730ef5f63b474496563b96b24a4a9f409c725",
+      "purpose": "base constructor context and manager"
+    },
+    {
+      "asset": "I",
+      "address": 1282012,
+      "bytes": 40,
+      "sha256": "807325c4fea03ec45a897979a5fbb417badf86b8d64a74413c3ed3d74b25f800",
+      "purpose": "original manager ID and conversion ABI"
+    },
+    {
+      "asset": "I",
+      "address": 1282392,
+      "bytes": 2404,
+      "sha256": "ba9a513b7189d6ea67702c413608e5709c779b7af12c9d88194efb91cd6301a0",
+      "purpose": "original OSAL sender wraps the actual request"
+    },
+    {
+      "asset": "I",
+      "address": 1285260,
+      "bytes": 2024,
+      "sha256": "0038996c5a8d609919ef9b2448b6d76855628348c6abcb52607cd13e1921cbc9",
+      "purpose": "native queue receiver and response dispatch"
+    },
+    {
+      "asset": "I",
+      "address": 1291884,
+      "bytes": 200,
+      "sha256": "94462fd1312c40ac87cbab4200ae9be0e546fee6b40a8b620a4571867ec082db",
+      "purpose": "native scheduler ExecCmd virtual-call sites"
+    },
+    {
+      "asset": "I",
+      "address": 1292084,
+      "bytes": 260,
+      "sha256": "bed8ac8c6ee4be1a2b6dd10fbb6ed0b7fb8e01efc9d8e63d667f41a0053b8f88",
+      "purpose": "native scheduler ResCmd virtual-call and progression"
+    },
+    {
+      "asset": "I",
+      "address": 1311624,
+      "bytes": 316,
+      "sha256": "db0516b448f991460770e6d7876de34bf2628a4aab5c9e4717ff2ffa0ed9f2e4",
+      "purpose": "original received-packet body reconstruction"
+    },
+    {
+      "asset": "I",
+      "address": 1318536,
+      "bytes": 80,
+      "sha256": "60164c75b86207bf575efc4e37abc1c510983df18678b2b72f2bd9522f12c6ee",
+      "purpose": "original SDF response MID conversion"
+    },
+    {
+      "asset": "I",
+      "address": 1492528,
+      "bytes": 192,
+      "sha256": "8d142e84c31e8270ed401f08c4fb6deed36809f8c4ce27e4a6d180cc5f695786",
+      "purpose": "8310 waiting and 8311 terminal namespace"
+    },
+    {
+      "asset": "D",
+      "address": 205292,
+      "bytes": 4,
+      "sha256": "110f46b5b35c069160560c6ad6786f647dd44e8760a52a46fc22dbbcd7630b91",
+      "purpose": "message destructor"
+    },
+    {
+      "asset": "D",
+      "address": 205336,
+      "bytes": 36,
+      "sha256": "862e13125b6493d67406175671a2170a18ef5b7f913ace07a18991a0eb618dda",
+      "purpose": "original message constructor"
+    },
+    {
+      "asset": "D",
+      "address": 205908,
+      "bytes": 12,
+      "sha256": "349b43e1b69e3b30d4aaea4fe22563bab36707a4062a6174775ea4fcf9fcbfb1",
+      "purpose": "source setter"
+    },
+    {
+      "asset": "D",
+      "address": 206136,
+      "bytes": 44,
+      "sha256": "cf6686ab0c481980011f281c96eb1d44296795320c1235da5985e485758526fa",
+      "purpose": "native Dataflow envelope maker"
+    },
+    {
+      "asset": "D",
+      "address": 206180,
+      "bytes": 308,
+      "sha256": "afe31cfd66339cf63b61ddb1c0af3ac330c4dd4dd40ae0831503adabdb883b6b",
+      "purpose": "native body serializer"
+    },
+    {
+      "asset": "D",
+      "address": 213160,
+      "bytes": 4,
+      "sha256": "110f46b5b35c069160560c6ad6786f647dd44e8760a52a46fc22dbbcd7630b91",
+      "purpose": "sender destructor"
+    },
+    {
+      "asset": "D",
+      "address": 213204,
+      "bytes": 20,
+      "sha256": "f7d909787847f2a052dc82b6e8b885faa5ce98473fc6e2911c79f83436749740",
+      "purpose": "sender constructor"
+    },
+    {
+      "asset": "D",
+      "address": 213264,
+      "bytes": 288,
+      "sha256": "b58ee0956064edf5f7ea30c5688e4bf735eeed1cbbd43546375280f5c44aefae",
+      "purpose": "actual OSAL allocation, source, queue and failure-free path"
+    },
+    {
+      "asset": "K",
+      "address": 248336,
+      "bytes": 336,
+      "sha256": "676f10c62dbe23711fdda912922c6fd22e41c9737f1c5652ebe94777c5b4a463",
+      "purpose": "first 16B reply CID/MID/tag binding and transaction ID"
+    },
+    {
+      "asset": "K",
+      "address": 249148,
+      "bytes": 104,
+      "sha256": "a6671866f6c1d7b035cbf46d580d85d43d60b987b34a2cf97c969dd44c2e363e",
+      "purpose": "service-generated first-ACK transaction ID"
+    },
+    {
+      "asset": "K",
+      "address": 249268,
+      "bytes": 300,
+      "sha256": "5339d04b613d4b6ffd4791ca27982650f62c947a485b260a3613fa089a1a6cfa",
+      "purpose": "native service status conversion"
+    },
+    {
+      "asset": "K",
+      "address": 268052,
+      "bytes": 296,
+      "sha256": "8c95aa54302b64f91fe87317c9a9de1abc366d5ab68e0e6101e86b0c058ecae7",
+      "purpose": "output SDS resolution and stream fields"
+    },
+    {
+      "asset": "K",
+      "address": 270424,
+      "bytes": 180,
+      "sha256": "6fb3f7cf110355705d456371aeec4997d3f070320ae5cd208330d9f981ff7c36",
+      "purpose": "second 16B reply and actual encoded length"
+    },
+    {
+      "asset": "K",
+      "address": 341208,
+      "bytes": 156,
+      "sha256": "03d22c2ada94679e9c467fec20429e7a71e50f8501c3dea3b44bbae74ef1434c",
+      "purpose": "addSoi1 writes SOI and reserves exactly two bytes"
+    },
+    {
+      "asset": "K",
+      "address": 353428,
+      "bytes": 144,
+      "sha256": "a32279e805b9282efaddb864569eb1dc43f2ca632f75c94fb0639947b6549fe1",
+      "purpose": "forward stream span and addSoi flag"
+    },
+    {
+      "asset": "K",
+      "address": 355096,
+      "bytes": 64,
+      "sha256": "7a44a6b4dd14a0b0b9cc7929de435456f1fb26124925207cb621f06e969f086c",
+      "purpose": "addSoi completion length adds exactly two bytes"
+    },
+    {
+      "asset": "K",
+      "address": 2803616,
+      "bytes": 884,
+      "sha256": "fea2991dc5fd3f2f7606faf4ba325ee7bc99bee99d99a9a4457c235345b4afd7",
+      "purpose": "source DQT/DHT/SOF prefix writer without SOI"
+    },
+    {
+      "asset": "K",
+      "address": 2805044,
+      "bytes": 316,
+      "sha256": "386ec78373d0addf8fadd90f5d4d9a9b3d99daaba6c8b9d9622226b9a5250f9b",
+      "purpose": "hardware SOS check and downstream 0x23d prefix completion"
+    },
+    {
+      "asset": "K",
+      "address": 4526829,
+      "bytes": 29,
+      "sha256": "9fb04cb1a8076318f33f273ffef967a9ea7291ecf3adeca79f643dfd300de425",
+      "purpose": "source DC luma table"
+    },
+    {
+      "asset": "K",
+      "address": 4526887,
+      "bytes": 179,
+      "sha256": "f27ce9b718f91cd426885e6ce4a37d0ba4900db219f719eef29ecc1f7f4fd5f0",
+      "purpose": "source AC luma table"
+    },
+    {
+      "asset": "K",
+      "address": 4526858,
+      "bytes": 29,
+      "sha256": "af48d4f608dfb682fd19ee479c66dad5342dfbed5b1d1807b95393162a8715d1",
+      "purpose": "source DC chroma table"
+    },
+    {
+      "asset": "K",
+      "address": 4527066,
+      "bytes": 179,
+      "sha256": "8cf60aa835f8474bb590e73332bee9c246bec9ce1e368aa725674c096f3efd2c",
+      "purpose": "source AC chroma table"
+    },
+    {
+      "asset": "L",
+      "address": 386624,
+      "bytes": 112,
+      "sha256": "c18b69e05e18b7d72a73c4350b389079102870088660fdfde98d70a4c373b2cc",
+      "purpose": "actual guest-libc C99 sscanf ABI used by the maps parser"
+    }
+  ],
+  "instructions": [
+    {"asset":"I","address":1189996,"instruction":["ldrsh","w5, [x23, #2]"]},
+    {"asset":"I","address":1190128,"instruction":["ldr","x5, [x23, #0x18]"]},
+    {"asset":"I","address":1190152,"instruction":["ldrb","w0, [x21, #0x20]"]},
+    {"asset":"I","address":1191288,"instruction":["ldr","w5, [x22, #0xc]"]},
+    {"asset":"I","address":1191292,"instruction":["str","w5, [x21, #0x5c]"]},
+    {"asset":"I","address":1191348,"instruction":["str","w5, [x21, #0x68]"]},
+    {"asset":"I","address":1191388,"instruction":["str","w5, [x21, #0x74]"]},
+    {
+      "asset": "I",
+      "address": 1157636,
+      "instruction": [
+        "ldr",
+        "w5, [x1, #8]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1157668,
+      "instruction": [
+        "mov",
+        "w19, #0x200"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1157912,
+      "instruction": [
+        "ldr",
+        "w0, [x21, #0xc]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1157920,
+      "instruction": [
+        "str",
+        "w0, [x20, #0x5c]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1157964,
+      "instruction": [
+        "str",
+        "w0, [x20, #0x68]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1159832,
+      "instruction": [
+        "ldrh",
+        "w0, [x20, #0x26]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1159840,
+      "instruction": [
+        "ldrh",
+        "w0, [x20, #0x28]"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1160056,
+      "instruction": [
+        "mov",
+        "w0, #1"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161212,
+      "instruction": [
+        "bl",
+        "#0x9f830"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161272,
+      "instruction": [
+        "bl",
+        "#0x9fb60"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1161536,
+      "instruction": [
+        "bl",
+        "#0x9e770"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1292008,
+      "instruction": [
+        "blr",
+        "x2"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1292164,
+      "instruction": [
+        "blr",
+        "x3"
+      ]
+    },
+    {
+      "asset": "I",
+      "address": 1292252,
+      "instruction": [
+        "blr",
+        "x2"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 213352,
+      "instruction": [
+        "bl",
+        "#0x30b60"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 213444,
+      "instruction": [
+        "bl",
+        "#0x30720"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 213456,
+      "instruction": [
+        "bl",
+        "#0x307d0"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 213468,
+      "instruction": [
+        "bl",
+        "#0x30a40"
+      ]
+    },
+    {
+      "asset": "D",
+      "address": 213512,
+      "instruction": [
+        "bl",
+        "#0x31140"
+      ]
+    }
+  ],
+  "bounded_kuna": {
+    "command": [
+      "kuna",
+      "decompile-all",
+      "analysis/qemu-runtime/analysis/menu-root/usr/lib/libInfraAvbbc.so",
+      "--addr",
+      "0x11a9dc",
+      "--addr",
+      "0x11b654",
+      "--addr",
+      "0x139158",
+      "--addr",
+      "0x139c8c",
+      "--addr",
+      "0x13b734",
+      "--max-fn-seconds",
+      "8",
+      "--max-fn-memory",
+      "256",
+      "--no-vars",
+      "--json"
+    ],
+    "format": "default ELF; no raw-image/base reinterpretation",
+    "count": 5,
+    "error": null,
+    "functions": [
+      {
+        "address": 1157596,
+        "name": "ExecCmd_SDF_EncodeJpeg_Without_Pin::ResCmd",
+        "error": null
+      },
+      {
+        "address": 1160788,
+        "name": "ExecCmd_SDF_EncodeJpeg_Without_Pin::ExecCmd",
+        "error": null
+      },
+      {
+        "address": 1282392,
+        "name": "InfraAvbbcMsgManager::OsalSndMsg",
+        "error": null
+      },
+      {
+        "address": 1285260,
+        "name": "InfraAvbbcMsgManager::OsalRcvMsg",
+        "error": null
+      },
+      {
+        "address": 1292084,
+        "name": "InfraAvbbcSeqBase::ResponceSequence",
+        "error": null
+      }
+    ],
+    "output_sha256": "f87a17dd2b8211e972194f7313d9442a157396e6d5506d61e8249e1beb069a65",
+    "scope": "Recovered code only corroborates source instructions; no target code executed.",
+    "reproduce_from_delivery_root": [
+      "kuna",
+      "decompile-all",
+      "runtime/analysis/menu-root/usr/lib/libInfraAvbbc.so",
+      "--addr",
+      "0x11a9dc",
+      "--addr",
+      "0x11b654",
+      "--addr",
+      "0x139158",
+      "--addr",
+      "0x139c8c",
+      "--addr",
+      "0x13b734",
+      "--max-fn-seconds",
+      "8",
+      "--max-fn-memory",
+      "256",
+      "--no-vars",
+      "--json"
+    ],
+    "working_directory_for_exact_invocation": "project root",
+    "output_retained_in_delivery": false
+  },
+  "runtime_binding": {
+    "checked": "dladdr load bias, exact code-window FNV1a64, actual relocated Exec/Res vtable entries",
+    "full_file_hash_checked_in_adapter": false,
+    "full_file_hash_requirement": "Parent asset staging must match the complete public assets above before loading."
+  },
+  "virtual_fields": {
+    "first_ack_u32_0c": "nonzero actual accepted virtual service transaction sequence; source K3cd3c defines this field as service-generated, not a request cookie or CP history",
+    "quality_3_4": "source table selectors map to current functional profile State.quality; the adapter does not claim Sony physical quantization policy",
+    "image_bus": "actual profile RGB888 CMOS/encoder model; physical YC packing remains unknown"
+  },
+  "main_contract": {
+    "source": "Existing completed functional-main-jpeg-request-contract; no new decompilation",
+    "original_main_object_bytes": 40,
+    "original_comp_object_bytes": 40,
+    "selectors": [
+      {"selector":0,"quality_codes":[0,1,2,6],"add_soi":0,"config_length_offset":92},
+      {"selector":1,"quality_codes":[4],"width":160,"height":120,"add_soi":1,"config_length_offset":104},
+      {"selector":2,"quality_codes":[3],"add_soi":0,"config_length_offset":116}
+    ],
+    "supported_options_4c_4d": [0,0],
+    "ack_expected_result": 0,
+    "ack_terminal": false,
+    "comp_exec_caller_return_pc": "0x13b7e0",
+    "done_distinct_object": true,
+    "comp_previous_ack_same_argument_address": true,
+    "main_state_geometry_fallback": false,
+    "cross_selector_same_sensor_frame_verified": false,
+    "runtime_scheduler_pins": [
+      {"address":1291884,"bytes":200,"runtime_fnv1a64":"9879ebd536f27865"},
+      {"address":1292084,"bytes":260,"runtime_fnv1a64":"d3146ef860069be0"}
+    ],
+    "key1047": "120-byte stable copy; never modified by adapter or equated with key1048",
+    "key1048": "original writable config pointer; original MainComp alone stores checked actual length",
+    "quality_policy": "All supported original quality codes use real State.quality, without claiming Sony quantization equivalence",
+    "input_metadata_and_original_pixel_producer_verified": false,
+    "native_reply_free_rc_tracked": false,
+    "original_main_execution_verified": false,
+    "actual_ap_capture_verified": false
+  },
+  "physical_asic_compatible": false,
+  "capture_verified": false
+}

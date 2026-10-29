@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "provenance": "Completed source124 handoff; finite exact metadata conversion and software publication order only; no new producer research",
+  "source_root": "../../runtime/analysis/menu-root",
+  "artifact": {
+    "path": "system/av-cam.bin",
+    "size": 13797088,
+    "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+    "coordinate": "K = raw file offset; KVA = raw + 0xffffffc001000000"
+  },
+  "native_capture": false,
+  "native_gaps": 63,
+  "window_count": 8,
+  "total_window_bytes": 2248,
+  "windows": [
+    {"id": "K160614", "file_offset": "0x160614", "length": "0x388", "sha256": "25caf3787534877f4f2ff1ea4ecd0073d4e8639809799505a2896dc002a91b96", "meaning": "Selects an internal 88-byte record; explicitly clears local 96 bytes before converter K162ff4, logger K1609cc and publisher K161374"},
+    {"id": "K161374", "file_offset": "0x161374", "length": "0x104", "sha256": "00511d48cab50f19ecdcb79b2cc263d6e5822e2e098e453c2e8bc471d61aba68", "meaning": "Copy96 to supplied slot; DSB SY; store j at control+4; only then internal queue update"},
+    {"id": "K162ff4", "file_offset": "0x162ff4", "length": "0x290", "sha256": "43f373e4c64b2edc5540e0b93c176e434f839e4218dbfd72438d2c486f077b8a", "meaning": "Exact 88-byte to 96-byte converter, complete U/G bytes and explicit optional auxiliary input"},
+    {"id": "K168ccc", "file_offset": "0x168ccc", "length": "0xa0", "sha256": "22da64c3b796a60c8055f18443bece98bd56dd2fda24d100159c5e793ec310eb", "meaning": "Queue update and next-index helper K168d54: equals-N wrap; queue-full result 1 occurs after publication and leaves internal counters unchanged"},
+    {"id": "K15ebbc", "file_offset": "0x15ebbc", "length": "0x64", "sha256": "dc5b5fd3124eb4bcff13a9e8933ff82f3c293bfe46ad19fa29373cd5afb1758d", "meaning": "Descriptor+0x58 u64 slot base to C+0x8b3f0; +0x60 u16 supplied count to C+0x8b3f8 u32; +0x80 u64 control to C+0x8b3c0; +0x78 is a different binding"},
+    {"id": "K15ed88", "file_offset": "0x15ed88", "length": "0x64", "sha256": "416628de6da6a6bef7ce9514613d72d4ddf87d6945d01ffbf474a1b0e2afe3dd", "meaning": "Binds internal base C+0x8b450 to C+0x210c0; capacity 0x63420 = 0x120c * 0x58, not a validated source index"},
+    {"id": "K363408", "file_offset": "0x363408", "length": "0x20", "sha256": "436de713afe22709aa4b5308095c2d9647d2dc2ac8c91bf9635c4c770415f27b", "meaning": "Completed handoff companion data window"},
+    {"id": "K1609c8", "file_offset": "0x1609c8", "length": "0x24", "sha256": "67a83ee9b4140274a4ac0299037f6ec7afb5257b5599b989f16ebd42a580db47", "meaning": "K1609c8 is RET; actual logger starts at K1609cc"}
+  ],
+  "instruction_checks": [
+    {"file_offset": "0x160680", "bytes_le": "5d0a0094", "branch_target": "0x162ff4", "meaning": "converter"},
+    {"file_offset": "0x16068c", "bytes_le": "d0000094", "branch_target": "0x1609cc", "meaning": "actual logger, not K1609c8"},
+    {"file_offset": "0x16069c", "bytes_le": "36030094", "branch_target": "0x161374", "meaning": "96-byte publisher"},
+    {"file_offset": "0x1613c4", "bytes_le": "a2620494", "branch_target": "0x279e4c", "meaning": "copy"},
+    {"file_offset": "0x1613d0", "bytes_le": "9f3f03d5", "meaning": "DSB SY"},
+    {"file_offset": "0x1613d8", "bytes_le": "170500b9", "meaning": "STR w23,[x8,#4]"},
+    {"file_offset": "0x1613e0", "bytes_le": "3b1e0094", "branch_target": "0x168ccc", "meaning": "post-publication queue update"}
+  ],
+  "caller_baseline_event": {"range": "K160664..K160670", "callee": "K279e64", "local": "sp+0x80", "length": 96, "value": 0, "meaning": "An actual explicit caller clear, not an ABI default"},
+  "known_bindings": {
+    "U_full_u8": "C+0x94dd0",
+    "G_full_u8": "C+0x94e98",
+    "internal_queue": {"base": "C+0x8b390", "current_u32": 0, "N_u32": 8, "occupied_u32": 12},
+    "full_queue_callback": {"operation": "0x0e", "argument": "C+0x94db0", "modeled": false}
+  },
+  "unverified": ["internal producer array fill", "original unchecked source index", "source record generation and configuration provenance", "88-byte source MMIO/IRQ completion", "pixel/frame/encoder production", "payload lease and native completion", "equality of supplied slot count and internal N", "MPR globals pointer identity"]
+}

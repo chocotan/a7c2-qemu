@@ -16,6 +16,8 @@ class RmFileDevice(unittest.TestCase):
                             str(HERE/'test-rm-file-device.c'),'-ldl','-o',str(binary)],text=True,capture_output=True)
             self.assertEqual(compiled.returncode,0,compiled.stdout+compiled.stderr)
             for case in ('normal','large','bad-geometry','oversize','symlink','allocfail','sendfail','alias','wrongfree','fork','unregfail','fastfree',
+                         'sparse10g','ten-gib-without-profile','sparse-wrong-size','sparse-bad-profile',
+                         'block-refuse-regular','block-bad-profile',
                          'front-normal','front-allocfail','front-sendfail','front-fastfree','front-wrongfree'):
                 with self.subTest(case=case),tempfile.TemporaryDirectory() as working:
                     result=subprocess.run([str(binary),case],cwd=working,capture_output=True,text=True,timeout=20)

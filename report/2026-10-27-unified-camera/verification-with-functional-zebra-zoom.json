@@ -1,0 +1,164 @@
+{
+  "scope": "Immutable completed Zebra/Zoom/INIT/graph code batch and fifth integrated native attempt; source worktree may subsequently advance, old run/batch never backfilled",
+  "profile": "virtual-functional-camera-v1",
+  "batch": "runtime/analysis/scratch/unified-camera-lcr55k0i",
+  "regression": {
+    "returncode": 0,
+    "tests_passed": 3912,
+    "subtests_passed": 1644,
+    "modules": 165,
+    "production_sources": 435,
+    "unique_inputs": 888,
+    "changed": {
+      "production": [],
+      "host": [],
+      "observer": [],
+      "test": []
+    }
+  },
+  "ready_sha256": "8fd11348ed545bb313af9eccda5cc058f50b93f58f0b3cd853f3c99673050a52",
+  "inputs_sha256": "f2bfcbbf752cc451ae0390bad0532b99d7182753f6c4249f57d80f87ef3e4bf6",
+  "regression_sha256": "0c2dcf679607518da8984a801f591e7c4584128b937f578319d70c8784ab0a7b",
+  "abi_sha256": "be8058e3fec5e86f54ef917f975d070c7b22b04ff3f2a7a32b7e98d30d71b945",
+  "all_input_archive_sha256": "9dd13cb1f5c6248ea1bb537c3792cdeac19dc579914dbd9b62963cd5da5a4819",
+  "observer_sha256": "68a6cc5023a52344a2f5cdc90592c802df11eb438d3f8aca5a250a03d5e58ab7",
+  "observer_source_archive_sha256": "2547da629aa22858a6771345a5b51258994cb5fe869574c763e9fb7d80917354",
+  "media_preload_sha256": "e720393d29baef38e4111eb6b5a2ca38de76fa27e7ad554cf95945fa614dbbd7",
+  "functional_model_sha256": "f4d9d9800e6235024948232754991f9eeff1780b5c6282aab2d78d9a29251fb4",
+  "functional_model_source_archive_sha256": "c838df64ff630953213a9bc47a93917d5974ee503da6128d3a1c82b63efd51d3",
+  "functional_model_build_receipt_sha256": "8e6e50c1770ed2dd37cbdd1c5fb89c96cb107e4940085339cb72764174e7030b",
+  "original_libc_ABI": {
+    "returncode": 0,
+    "media_returncode": 0,
+    "media_LD_BIND_NOW": true
+  },
+  "implemented": [
+    "full-origin CP INIT-to-response matching instead of first/last INIT",
+    "0138 and disabled0153/Zebra actual RGB consumer/readback and immutable per-cycle reply templates",
+    "4001 shared four-field idle oneway data/free; newer source events, retired-address reuse and DMM-then-parameter mutex",
+    "bounded source-grammar graph recovery with mandatory actual-content join"
+  ],
+  "native_attempt": {
+    "run": "runtime/analysis/menu-runs/run-jfz16a4v",
+    "automation_returncode": 0,
+    "verdict": "FAIL; no original JPEG/MP4",
+    "selected_initramfs_sha256": "c138dfde43be26453f92ed456024d317cc69b6d38d8bf776c88c721a3951bf30",
+    "model_instance": 1609196954484998456,
+    "VDF0138": {
+      "original_AP_consumed": true,
+      "config_generation": 2,
+      "frame_generation": 2,
+      "actual_RGB_bytes": 921600,
+      "raw_AP_free_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=1 requests=1 completed_cycles=1 busy=0 guard=0 faults=0 source=0x81cf61c4 destination=0x92840747 command=0x138 bytes=24 original_fnv1a=e39cfe6ede356b69 model_instance=1609196954484998456 config_generation=2 before_config_generation=1 frame_generation=2 before_frame_generation=1 lease_generation=2 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f7a264380 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d2038011800018001050500000000000000000000000000 ack_wire=0d2038110c00018000005900 canonical_config=01050500000000000000000000000000 canonical_zebra8=0000000000000000 model_result_bytes=160 model_result_fnv1a64=18a8cf1f3364a882 model_result_hex=01000000a00000003801b8ad1a0455160200000000000000020000000000000002000000000000007eedd048d9ddc6d725d8b8043b81193025d8b8043b81193000100e000000000080020000e00100008007000019085990010000000100000001000000010000000100000001000000010000000100000000000000000000000105050000000000000000000000000001000000000000000100000000000000"
+    },
+    "Zebra0153": {
+      "original_AP_consumed": true,
+      "config_generation": 3,
+      "frame_generation": 3,
+      "actual_RGB_bytes": 921600,
+      "canonical_zebra8": "0300204b41000000",
+      "reply_hex": "0d2053110c00018000000000",
+      "raw_AP_free_record": "OBS FUNCTIONAL_VDF_PATH_AP_FREE pid=258 tid=381 phase=5 cycle=2 requests=2 completed_cycles=2 busy=0 guard=0 faults=0 source=0x81cf61c5 destination=0x92840747 command=0x153 bytes=14 original_fnv1a=cbc5e88240e416f4 model_instance=1609196954484998456 config_generation=3 before_config_generation=2 frame_generation=3 before_frame_generation=2 lease_generation=3 init_rc=0 bridge_rc=0 validation_rc=0 request_owned=1 request_retained=(nil) request_freed=1 ack_retained=(nil) queued=1 received=1 AP_consumed=1 send_inflight=0 releasing=0 sender_tid=381 receiver_tid=381 free_tid=381 allocate_rc=0 allocation_returned=0x7f7a263840 allocation_alias=0 request_free_rc=0 send_rc=0 free_rc=0 model_complete=1 functional_model=1 original_CP_FIFO_verified=0 physical_CP_RTOS_verified=0 original_selector_verified=0 physical_ASIC_verified=0 capture_verified=0 raw=0d2053010e0001800300204b4100 ack_wire=0d2053110c00018000000000 canonical_config=01050500000000000000000000000000 canonical_zebra8=0300204b41000000 model_result_bytes=168 model_result_fnv1a64=e9037fb15506da5d model_result_hex=01000000a80000003801b8ad1a0455160300000000000000030000000000000003000000000000002abaee260503f9e825d8b8043b81193025d8b8043b81193000100e000000000080020000e001000080070000190859900100000001000000010000000100000001000000010000000100000001000000000000000000000001050500000000000000000000000000020000000000000002000000000000000300204b41000000"
+    },
+    "CP3003_start_complete": true,
+    "CP_INIT_actual_broker_sequence": 4,
+    "CP_INIT_actual_origin": {
+      "bytes": 24,
+      "command": 12291,
+      "destination": 2416115713,
+      "fnv1a64": 9609035673664479385,
+      "producer_tid": 379,
+      "source": 2147614722
+    },
+    "CP_INIT_State": {
+      "config_generation": 3,
+      "frame_generation": 3,
+      "rendered": 3,
+      "consumed": 2
+    },
+    "CP4001_native_consumption_verified": false,
+    "mode1_requests": 0,
+    "original_JPEG_requests": 0,
+    "original_MPR_codec_requests": 0,
+    "exported_files": [
+      {
+        "bytes": 406,
+        "path": "private/m4root/mediapro.xml",
+        "sha256": "4b4a927fd663f0a723a185663ee98c2f52506633638d89b292dd38ef8ad7cfee"
+      },
+      {
+        "bytes": 9670656,
+        "path": "private/database/database.bin",
+        "sha256": "f83141b7126b4e9cb94f4973b4fe53c7ae8ef54d547f4f8bcd758fdce204e447"
+      }
+    ],
+    "next_source_closed_request": {
+      "command": "014c",
+      "operation": "vdf_set_yuv_layout",
+      "synchronous": true,
+      "success_reply": "0d204c110c00018000005900",
+      "implemented_in_this_frozen_batch": false
+    },
+    "runner_receipt_phase": "closed",
+    "runner_error": null,
+    "actual_broker_cleanup": {
+      "debugger_stopped": true,
+      "detached": true,
+      "errors": [],
+      "mailbox_detached": true,
+      "protocol_physmode_restored": true,
+      "safe_to_close": true,
+      "worker_stopped": true
+    },
+    "all_recorded_owned_processes_absent": true,
+    "both_existing_locks_simultaneously_exclusive": true,
+    "manual_QMP_or_signal_recovery_used": false,
+    "negative_receipt": "runtime/analysis/scratch/functional-refusal-run-jfz16a4v.json",
+    "graph_receipt": "runtime/analysis/scratch/functional-graph-run-jfz16a4v.json",
+    "cleanup_receipt": "runtime/analysis/scratch/functional-cleanup-run-jfz16a4v.json",
+    "content_checker_missing": [
+      {
+        "code": "TRACE_MISSING",
+        "stage": "JPEG",
+        "detail": "actual independently decoded JPEG/H.264 product required by functional profile"
+      },
+      {
+        "code": "TRACE_MISSING",
+        "stage": "JPEG",
+        "detail": "actual original MPR/Fsys source/callback/readback, both exports and independent decode: ValueError: no native original-write evidence; host media is not capture"
+      },
+      {
+        "code": "TRACE_MISSING",
+        "stage": "MP4",
+        "detail": "actual independently decoded JPEG/H.264 product required by functional profile"
+      },
+      {
+        "code": "TRACE_MISSING",
+        "stage": "MP4",
+        "detail": "actual original MPR/Fsys source/callback/readback, both exports and independent decode: ValueError: no native original-write evidence; host media is not capture"
+      },
+      {
+        "code": "EVIDENCE_INVALID",
+        "stage": "transport",
+        "detail": "ValueError: failed/unknown VDF native receipt"
+      },
+      {
+        "code": "EVIDENCE_INVALID",
+        "stage": "graph.graph_content",
+        "detail": "ValueError: repaired record lacks an actual content-verifier join"
+      }
+    ]
+  },
+  "unverified": [
+    "original AP mode1/JPEG/H264 jobs",
+    "014c and remaining startup-to-capture synchronous chain; inventory now investigated as a whole",
+    "VDF lifecycle/resource-diagnostic classification and graph content joins",
+    "initial synchronous-file extent/ring lease/Combine-to-final-MP4 contribution",
+    "original recording UI/audio off/REC Stop and natural original mux Close"
+  ],
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_executed": false,
+  "original_CP_RAM_verified": false,
+  "original_RTOS_verified": false
+}

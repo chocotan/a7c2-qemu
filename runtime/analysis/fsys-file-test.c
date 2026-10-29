@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
@@ -22,6 +23,8 @@ extern int32_t Fsys_Read(uint64_t, void *, int32_t);
 extern int32_t Fsys_Flush(uint64_t);
 extern int32_t Fsys_Close(uint64_t);
 extern int32_t Fsys_Unmount(unsigned char, uint32_t);
+extern int32_t Fsys_GetFreeSpace(unsigned char,void *);
+extern int32_t Fsys_FlushVolume(unsigned char);
 extern int osal_stat_msgq(unsigned int,unsigned int *);
 extern int osal_reg_msg_queue_cb(unsigned int,void **,void (*)(void *,unsigned long),unsigned long);
 extern int osal_unreg_msg_queue_cb(unsigned int,void *);
@@ -157,7 +160,9 @@ static int run(int argc, char **argv) {
     if(argc==2 && !strcmp(argv[1],"queue"))return queue_transport_test();
     if(argc==2 && !strcmp(argv[1],"queue-idle"))return queue_idle();
     int verify_only = argc == 2 && !strcmp(argv[1], "verify");
-    if (argc > 2 || (argc == 2 && !verify_only)) return 2;
+    int host_nested = argc == 2 && !strcmp(argv[1], "host-nested");
+    int host_block = host_nested || (argc == 2 && !strcmp(argv[1], "host-256"));
+    if (argc > 2 || (argc == 2 && !verify_only && !host_block)) return 2;
     unsigned (*configured)(void) = dlsym(RTLD_DEFAULT, "file_media_configured");
     if (!configured) return 3;
     uint32_t mount_flags=verify_only?0x100:0;
@@ -170,6 +175,14 @@ static int run(int argc, char **argv) {
     char drive = 0, directory[32], path[64];
     require_zero("Mount", Fsys_Mount("/dev/mmca", mount_flags, &drive, 0));
     if (drive < 'A' || drive > 'Z') return 7;
+    if(host_block) {
+        uint32_t space[8]={0};
+        require_zero("GetFreeSpace",Fsys_GetFreeSpace((unsigned char)drive,space));
+        uint64_t free_bytes=(uint64_t)space[1]*space[6]*space[7];
+        printf("FSYS_HOST_SPACE total_clusters=%u free_clusters=%u sector=%u cluster_sectors=%u free_bytes=%llu\n",
+               space[0],space[1],space[6],space[7],(unsigned long long)free_bytes);fflush(0);
+        if(free_bytes<UINT64_C(250000000000) || free_bytes>UINT64_C(256000000000) || space[6]!=512)return 12;
+    }
     snprintf(directory, sizeof directory, "%c:/QTEST", drive);
     snprintf(path, sizeof path, "%c:/QTEST/PROBE.BIN", drive);
     unsigned char expected[4096], got[4096];
@@ -188,10 +201,41 @@ static int run(int argc, char **argv) {
     int32_t bytes = Fsys_Read(handle, got, sizeof got);
     if (bytes != sizeof got || memcmp(expected, got, sizeof got)) return 9;
     require_zero("CloseRead", Fsys_Close(handle));
+    if (host_nested) {
+        unsigned char *chunk = malloc(131072), *readback = malloc(131072);
+        if (!chunk || !readback) return 13;
+        snprintf(directory, sizeof directory, "%c:/QTEST/NESTED", drive);
+        require_zero("MkdirNested", Fsys_Mkdir(directory));
+        snprintf(directory, sizeof directory, "%c:/QTEST/NESTED/DEEP", drive);
+        require_zero("MkdirDeep", Fsys_Mkdir(directory));
+        snprintf(path, sizeof path, "%c:/QTEST/NESTED/DEEP/BIG.BIN", drive);
+        require_zero("OpenNestedWrite", Fsys_Open(path, &handle, 0xf));
+        for (unsigned part = 0; part < 8; part++) {
+            for (unsigned i = 0; i < 131072; i++)
+                chunk[i] = ((part * 131072U + i) * 37U + 9U) & 255U;
+            int32_t written = Fsys_Write(handle, chunk, 131072);
+            printf("FSYS_NESTED_WRITE part=%u actual=%d expected=131072\n", part, written); fflush(0);
+            if (written != 131072) return 14;
+        }
+        require_zero("FlushNested", Fsys_Flush(handle));
+        require_zero("CloseNestedWrite", Fsys_Close(handle));
+        require_zero("OpenNestedRead", Fsys_Open(path, &handle, 1));
+        for (unsigned part = 0; part < 8; part++) {
+            for (unsigned i = 0; i < 131072; i++)
+                chunk[i] = ((part * 131072U + i) * 37U + 9U) & 255U;
+            int32_t got_bytes = Fsys_Read(handle, readback, 131072);
+            if (got_bytes != 131072 || memcmp(chunk, readback, 131072)) return 15;
+        }
+        require_zero("CloseNestedRead", Fsys_Close(handle));
+        free(chunk); free(readback);
+        puts("FSYS_HOST_NESTED_TEST_PASS bytes=1048576 scope=original_Fsys_nested_diagnostic_not_media"); fflush(0);
+    }
+    if(host_block)require_zero("FlushVolume",Fsys_FlushVolume((unsigned char)drive));
     require_zero("Unmount", Fsys_Unmount((unsigned char)drive, 0));
     printf("FSYS_FILE_CONTENT_PASS bytes=%u verify_only=%d\n", (unsigned)sizeof got, verify_only); fflush(0);
     if (verify_only && export_image()) return 11;
     printf("FSYS_FILE_TEST_DONE result=0 verify_only=%d mount_flags=%#x\n", verify_only,mount_flags); fflush(0);
+    if(host_block){puts("FSYS_HOST_BLOCK_TEST_PASS scope=original_Fsys_diagnostic_not_camera_format_or_photo");fflush(0);}
     return 0;
 }
 __attribute__((noreturn)) void entry(unsigned long *stack) {

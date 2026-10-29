@@ -14,6 +14,10 @@ if ! pkg-config --exists gtk+-3.0 sdl2 pixman-1 glib-2.0 libseccomp; then
   echo 'MISSING development packages: GTK3/SDL2/pixman/glib2/libseccomp' >&2
   missing=1
 fi
+if ! pkg-config --exists libjpeg libavcodec libavformat libavutil libswscale; then
+  echo 'MISSING functional camera development packages: libjpeg/libavcodec/libavformat/libavutil/libswscale' >&2
+  missing=1
+fi
 [[ -d /usr/aarch64-linux-gnu/include ]] || {
   echo 'MISSING AArch64 glibc headers: /usr/aarch64-linux-gnu/include' >&2; missing=1;
 }

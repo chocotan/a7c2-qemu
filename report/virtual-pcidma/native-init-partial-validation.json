@@ -1,0 +1,29 @@
+{
+  "status": "VERIFIED_PARTIAL_NATIVE_IRQS_WITH_PROC_WARNINGS",
+  "original_auto_result_preserved": true,
+  "original_result_sha256": "e08473a8f65fe5dfff519059b5f7d8949024fe5699bcac40fb711c97be8b1238",
+  "console_sha256": "c78a57606f85fa9da6e5afcd25a543068fd0e2261c200390e6f18b91d106dc73",
+  "native_boottime_and_udif_worker_observed": true,
+  "actual_irq_rows": [
+    198,
+    200,
+    202,
+    204,
+    206
+  ],
+  "engine_enables": [
+    0,
+    0
+  ],
+  "warnings": 5,
+  "missing_proc_paths": [
+    "driver/pcie/0/dma",
+    "driver/pcie/1/dma",
+    "driver/pcie/2/dma",
+    "driver/pcie/3/dma",
+    "driver/pcie/4/dma"
+  ],
+  "cpu_resumed_and_owned_vm_exited": true,
+  "clean_native_init_verified": false,
+  "dma_or_capture_verified": false
+}

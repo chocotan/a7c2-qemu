@@ -1,0 +1,24 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -3288,6 +3288,17 @@
+     vms->highmem_ecam &= (!firmware_loaded || aarch64);
+ 
++    if (g_getenv("QEMU_SONY_SA_DATA_ONLY") && g_getenv("QEMU_SONY_RC") &&
++        g_getenv("QEMU_SONY_PCIDMA")) {
++        fprintf(stderr, "SONY_SA_DATA_ONLY_V1 no-completion-irq\n");
++        DeviceState *sa = qdev_new("sony-sa-nv12-data-only");
++        SysBusDevice *sbd = SYS_BUS_DEVICE(sa);
++        object_property_add_child(OBJECT(vms), "sony-sa-nv12-data", OBJECT(sa));
++        sysbus_realize_and_unref(sbd, &error_fatal);
++        memory_region_add_subregion_overlap(sysmem, 0xf3170000,
++            sysbus_mmio_get_region(sbd, 0), 9);
++    }
++
+     create_rtc(vms);
+ 
+     create_pcie(vms);
+ 
+--- a/hw/misc/meson.build
++++ b/hw/misc/meson.build
+@@ -174,0 +175,1 @@
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony-pcidma/sony_sa_data.c','sony-pcidma/sa-nv12-job.c','sony-pcidma/nv12-reference.c'))

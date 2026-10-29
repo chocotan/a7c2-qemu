@@ -1,0 +1,42 @@
+{
+  "scope": "original AP3003 immediate-send failure and received-status handling; no source-authorized advancing fallback found",
+  "artifacts": {
+    "A": {"path": "runtime/analysis/menu-root/usr/lib/appFw.so", "bytes": 99960744, "sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b", "window_mapping": "PT_LOAD1 VA=fileoffset in [0,51a6cff); do not generalize to PT_LOAD2"},
+    "C": {"path": "runtime/analysis/menu-root/cp/cpapp-b.bin", "bytes": 18090880, "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428", "window_mapping": "raw=CPVA-108000 in file-backed [108000,1248b80)"}
+  },
+  "windows": [
+    {"artifact": "A", "VA_hex": "3546040", "bytes": 164, "sha256": "962758f5c2f33738e576567889a7f2423e84ebba8006d5862d6ff861389bf9f9"},
+    {"artifact": "A", "VA_hex": "35358b8", "bytes": 676, "sha256": "300acebc23858d8e674fd25c620947df50b269445c0e135e740c6b18365cacd0"},
+    {"artifact": "A", "VA_hex": "34cb808", "bytes": 64, "sha256": "443c03bb657f92d8fcc6e30ffb766a866fdaa068d38cc062a2ebd4bef692e444"},
+    {"artifact": "A", "VA_hex": "338e924", "bytes": 356, "sha256": "eacc038aad0730d00996dcfb2ce411888731f3af404aa761b4a4696a7f6a8331"},
+    {"artifact": "A", "VA_hex": "3599b68", "bytes": 144, "sha256": "0e5c5fd18b27a1c3a44ab38a43ca7d8f574cbf642c0c8a9630e521f01b327ab4"},
+    {"artifact": "A", "VA_hex": "35aa4b4", "bytes": 40, "sha256": "df6658756af3ec4d26524fbfee6bad7c63da0eb6e4cd7cef7835910d59067df7"},
+    {"artifact": "C", "VA_hex": "4b6064", "bytes": 748, "sha256": "8cfafdc0baf92ffeb2e36a47787c8632e0c7a02e977f55269e14db1fba3a0a55"},
+    {"artifact": "C", "VA_hex": "b224a8", "bytes": 102, "sha256": "1d375ad0808dcb68deec70192eb7064427529693a41a52968df424077edf40bf"}
+  ],
+  "window_count": 8,
+  "window_bytes": 2294,
+  "exact_AP_call_edges_hex": [["338ea5c", "34cb808"], ["34cb830", "3546040"], ["35460a4", "35358b8"]],
+  "request": {"source_hex": "80020002", "destination_hex": "90030001", "bytes": 24, "wire_hex": "000003302700008000000000000000000000000000000000"},
+  "immediate_nonzero_send_return_is_fatal_assertion": true,
+  "fatal_function_source_name": "lib::assert::notify_model_system_error",
+  "assert_source_file": "lib_assert.cpp",
+  "assert_line": 46,
+  "request_free_before_fatal_branch": false,
+  "nonzero_send_return_does_not_transfer_request_ownership": true,
+  "received_reply_copy_bytes": 16,
+  "received_non_f000_result_locally_tolerated": true,
+  "current_caller_logs_EV_CamReady_without_testing_result": true,
+  "CP3003_maps_to_START_event": 2,
+  "examined_completion_reply_status_hex": "f000",
+  "source_authorized_CP3003_error_reply_producer_found": false,
+  "legitimate_advancing_fallback_closed": false,
+  "NoLens_setting_connection_proven": false,
+  "named_defined_dynsym_symbols": ["Application_System_Init"],
+  "dynsym_record_count": 950,
+  "symtab_present": false,
+  "internal_function_names_come_from_assert_strings_not_exports": true,
+  "new_reply_or_profile_implemented": false,
+  "firmware_executed": false,
+  "capture_verified": false
+}

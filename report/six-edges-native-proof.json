@@ -1,0 +1,201 @@
+{
+  "scope": "six explicit virtual graph edges and same-handle mapped control-format propagation; metadata-only SD",
+  "run": "run-4gqygshc",
+  "evaluation": "../runtime/analysis/menu-runs/run-4gqygshc/six-edges-native-evaluation.json",
+  "console_sha256": "f4566a8bc1e7b38ad9575148bfd420c9e790515c92aba9e5a1b3612e56c262b5",
+  "observer_sha256": "7ed5983503c6cfe1366b4c83a7869208c68465778859bf24ed9a121bcb2542dd",
+  "run_source_archive_sha256": "23f2fef5a41e48590c6e6885300ff62db863f4575aa42cd28772f3802d0766a4",
+  "frozen_source_count": 291,
+  "all_source_bytes_equal_ABI_bound_host_regression": true,
+  "initial_ABI_archive_sha256": "bbf9b5349d503f041c0a5c0e6e53b9aa69d6b9a822b99ed0e7586aae5474e175",
+  "gzip_archive_timestamps_not_used_as_source_identity": true,
+  "candidate_QEMU_sha256": "a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02",
+  "original_AP_pid": 259,
+  "original_AP_tid": 382,
+  "six_edges_native_verified": true,
+  "six_unique_AP_reply_bytes": 56,
+  "six_unique_AP_replies_consumed": true,
+  "reply_free_rc": 0,
+  "reply_free_faults": 0,
+  "sixth_source_pin": [
+    0,
+    2,
+    2,
+    "0x905a0048"
+  ],
+  "sixth_source_slot": 9,
+  "sixth_peer_pin": [
+    0,
+    1,
+    0,
+    "0x90590818"
+  ],
+  "sixth_peer_slot": 0,
+  "status22": {
+    "value": 1,
+    "known": true,
+    "writer_generation": 1,
+    "writes": 1,
+    "source": "earlier actual modeled SetPath completion, not sixth-edge forcing or NoMem state2",
+    "observed_by_sixth_readback": true
+  },
+  "sixth_handle": "0x8c00",
+  "previous_handles": [
+    "0x8000",
+    "0x8400",
+    "0x8800"
+  ],
+  "same_pool_without_reset_or_clone": true,
+  "physical": "0x500000000",
+  "CP_alias": "0x80000000",
+  "extent_bytes": 512,
+  "SSYN_packet_bytes": 80,
+  "SSYN_header_word": "0x01000000",
+  "ETRY_type": 0,
+  "entry_key": 0,
+  "payload_hex": "01010300000000008007000038040000",
+  "payload_FNV64": "37228cd728b41c0d",
+  "packet_FNV64": "cc29c69bf5fe4b52",
+  "DMM_operations": [
+    32,
+    33,
+    35,
+    36,
+    37,
+    36,
+    37,
+    36,
+    35
+  ],
+  "DMM_message_bytes": [
+    152,
+    152,
+    152,
+    152,
+    152,
+    216,
+    216,
+    216,
+    216
+  ],
+  "one_initial_Share21_only": true,
+  "reference_owner_open_history": [
+    [
+      1,
+      1
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      0,
+      0
+    ]
+  ],
+  "same_handle_notification_hops": [
+    "PinMemIN0 to VEFOUT2",
+    "VEFIN1 to InfraBBOUT1",
+    "InfraBBIN1 to InfraImagingOUT1"
+  ],
+  "notifications": 3,
+  "actual_mapped_reads": 3,
+  "same_existing_live_cache_owners_updated": true,
+  "VEF_live_ordinal0_current_hex": "0100000000000000010103008007000038040000",
+  "VEF_live_current_FNV64": "dd5cab073ba410f8",
+  "BB_live_expected_hex": "01010300000000008007000038040000",
+  "BB_changed": true,
+  "InfraImaging_live_cache_after": [
+    1,
+    1,
+    1920,
+    1080,
+    3
+  ],
+  "InfraImaging_format_consumption_count": 2,
+  "first_original_buffer_reply_Free_history_preserved": true,
+  "fourth_original_command_FNV64_preserved": "3c3a32bb6809f4cc",
+  "fourth_original_payload_FNV64_preserved": "1a3c540ebc5023bd",
+  "old_VEF_ordinal1_NoMem_AB_failure_S0_clock_bank_histories_preserved": true,
+  "final_Free23_option": 2,
+  "final_Free_closes_once_no_extra_Close": true,
+  "retired_owners_opens_live": [
+    0,
+    0,
+    0
+  ],
+  "sixth_dispatch_before_legacy_gate_verified": true,
+  "remaining_connections_refused": 7,
+  "302c_completed": false,
+  "original_sd_export_verified_this_run_only": true,
+  "SD_original_Fsys_flush_rc": [
+    0,
+    0
+  ],
+  "SD_flush_sequences": [
+    1460866617021147,
+    1460867546029634
+  ],
+  "SD_owner_STOP_and_resume": true,
+  "host_tree_all_sizes_and_SHA256_match_both_exports": true,
+  "host_file_count": 3,
+  "SD_clean_commit": true,
+  "host_control_owner_pid": 321925,
+  "host_owner_group_and_QEMU_exited": true,
+  "both_locks_exclusive_acquired_and_released": true,
+  "evaluator_signals_sent": false,
+  "host_combined_tests": 1364,
+  "host_subtests": 139,
+  "sixth_host_scenarios": 253,
+  "original_libc225_ABI_verified": true,
+  "independent_source_code_reviews": [
+    "709 shared status/live-cache APIs noP1-P3",
+    "c9eb sixth endpoint/guard noP1-P3"
+  ],
+  "native_independent_review": {
+    "agent": "8da09b94-81a1-461b-86b7-8eac8d17f153",
+    "result": "no P1-P3 within six virtual control edges and same-handle format propagation",
+    "ABI_bound_source_set_and_291_file_hashes_checked": true,
+    "strict_evaluator_replayed_without_writes_exact_match": true,
+    "six_AP_releases_and_nine_DMM_three_live_cache_reads_checked": true,
+    "host_tree_two_exports_and_existing_locks_independently_checked": true,
+    "destructive_in_memory_mutation_checks_rejected": 11,
+    "image_capture_or_original_hardware_verified": false
+  },
+  "original_CP_executed": false,
+  "original_CP_page_tables_verified": false,
+  "original_RTOS_scheduler_verified": false,
+  "original_CP_command_list_verified": false,
+  "PCM_verified": false,
+  "hardware_verified": false,
+  "frames_verified": false,
+  "CMOS_verified": false,
+  "JPEG_files": 0,
+  "MP4_files": 0,
+  "EE_state": 0,
+  "capture_verified": false
+}

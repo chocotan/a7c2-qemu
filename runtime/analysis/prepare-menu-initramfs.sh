@@ -52,6 +52,17 @@ else
 fi
 (cd "$root" && find . -path './usr/share/screenreader' -prune -o "${exclude_updater[@]}" -print0 |
   cpio --null -o -H newc --quiet) > "$output"
+if [[ -n "${MENU_YC_INPUT_RAW:-}" ]]; then
+  [[ -f "$MENU_YC_INPUT_RAW" && ! -L "$MENU_YC_INPUT_RAW" && $(stat -c %s "$MENU_YC_INPUT_RAW") == 2073600 ]] || {
+    echo 'YC grayscale input must be a 2073600-byte regular file' >&2; exit 1;
+  }
+  (
+    cd -- "$(dirname "$MENU_YC_INPUT_RAW")"
+    mkdir simulation
+    cp -- "$(basename "$MENU_YC_INPUT_RAW")" simulation/yc-input.gray
+    printf '%s\0' './simulation/yc-input.gray' | cpio --null -o -A -F "$output" -H newc --quiet
+  )
+fi
 if [[ ${MENU_SD_IMAGE+x} ]]; then
   [[ -f "$MENU_SD_IMAGE" && ! -L "$MENU_SD_IMAGE" ]] || {
     echo 'MENU_SD_IMAGE must be a regular host file' >&2; exit 1;

@@ -1,0 +1,106 @@
+{
+  "scope": "SOURCE_CLOSED ordinary numeric normalizers only; diagnostic owned-buffer adapter",
+  "source_root": "../..",
+  "artifact": "runtime/analysis/menu-root/usr/codec/vcd_firmware_imola2.bin",
+  "bytes": 10934476,
+  "sha256": "15e75a9732e2f9904ada1c919c631dac0da57e605ce3daa4c6fb2ebe98982b5b",
+  "authenticated_reader": {
+    "path": "report/imola-mcu-firmware-contract/image.py",
+    "sha256": "2f6458b74a61396a55923ea2d49c1f3055599bd87d4c7b1df667897474d5e374",
+    "operations": ["load_image", "read_window"],
+    "unchanged": true
+  },
+  "bank": "ram0",
+  "raw_begin_hex": "9000",
+  "raw_end_exclusive_hex": "714000",
+  "VA_equals_raw_plus_hex": "80000000",
+  "windows": [
+    {
+      "name": "complete-numeric-normalizers",
+      "bank": "ram0",
+      "VA_hex": "801bfd98",
+      "raw_hex": "1bfd98",
+      "bytes": 416,
+      "sha256": "f4c6ffbf50e977655680c62c686afd1ccf8ba85ef50ec1903689fb9579eb730f"
+    },
+    {
+      "name": "address-mode-jump-table",
+      "bank": "ram0",
+      "VA_hex": "80216260",
+      "raw_hex": "216260",
+      "bytes": 64,
+      "sha256": "b5bc65847e9d64e0c6c937f5632c4dcc23d181517d4383043c25e40882ecd933"
+    },
+    {
+      "name": "selected-job-normalizers-before-programming-call",
+      "bank": "ram0",
+      "VA_hex": "801be400",
+      "raw_hex": "1be400",
+      "bytes": 44,
+      "sha256": "f55824d0f88e3364bb7b86e8f3c8f69d397cc3d880cf7c4f64696ca95f9958d2"
+    },
+    {
+      "name": "core0-core1-virtual-slot18-wrappers-and-4c-delay-slot",
+      "bank": "ram0",
+      "VA_hex": "801c2388",
+      "raw_hex": "1c2388",
+      "bytes": 80,
+      "sha256": "0b80a786ede3e548138a9aff5639fe3cb60fee3358e80a1775c7273f2eb41f4d"
+    }
+  ],
+  "window_count": 4,
+  "window_bytes": 604,
+  "functions": [
+    {
+      "VA_hex": "801bfd98",
+      "end_exclusive_hex": "801bfed8",
+      "bytes": 320,
+      "instructions": 80,
+      "sha256": "d39514b68646d6967c576df21db55a30205fd550ebf556a2d2fadeca7ebe4e7a",
+      "return_jr_VA_hex": "801bfe08",
+      "return_delay_VA_hex": "801bfe0c",
+      "final_branch_VA_hex": "801bfed0",
+      "final_branch_delay_VA_hex": "801bfed4"
+    },
+    {
+      "VA_hex": "801bfed8",
+      "end_exclusive_hex": "801bff38",
+      "bytes": 96,
+      "instructions": 24,
+      "sha256": "2351b336ad03d94be05462e16e09d0e3d75f3c832ce9f88ada8a09142c00c0fe",
+      "return_jr_VA_hex": "801bff28",
+      "return_delay_VA_hex": "801bff2c",
+      "final_branch_VA_hex": "801bff30",
+      "final_branch_delay_VA_hex": "801bff34"
+    }
+  ],
+  "kuna_input": {
+    "path": "runtime/analysis/scratch/imola-static/vbb-normalizers.c",
+    "bytes": 1403,
+    "sha256": "189821c89ef7ff272c1c7b529197f8691be5a6eb152186a045c5fb02347fd7de",
+    "function_count": 2,
+    "parent_reported_returncode": 0,
+    "diagnostics_path": "runtime/analysis/scratch/imola-static/vbb-normalizers.stderr",
+    "diagnostics_bytes": 0,
+    "diagnostics_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "instruction_review": "Capstone 5.0.7 MIPS32 little-endian decoded every word of both complete functions; raw arithmetic, table targets, branches and delay slots checked against full Kuna output",
+  "subrecord_bytes": 76,
+  "subrecord_extent_basis": "adapter envelope inferred from selected 0x98 work in two halves and literal W+0x4c dispatch; not a pixel stride or complete field contract",
+  "supported_address_modes_hex": ["0", "1", "2", "3", "4", "5", "6", "7", "9", "d", "f"],
+  "context_inputs": {"base": "u32[C+0x18]", "address_mode": "u8[C+0x1c]", "auxiliary_mode": "u8[C+0x1d]"},
+  "unsupported_mode_policy": "conservative -ENOTSUP with whole output unchanged; original subtracts in place before assert and has no error code",
+  "numeric_transform_closed": true,
+  "source_pixel_format_closed": false,
+  "hardware_backend_field_roles_closed": false,
+  "actual_CMOS_producer_closed": false,
+  "MCU_executed": false,
+  "registers_programmed": false,
+  "engine_started": false,
+  "ACK_sent": false,
+  "IRQ_raised": false,
+  "engine_completed": false,
+  "native_gaps": 63,
+  "native_capture": false,
+  "capture_verified": false
+}

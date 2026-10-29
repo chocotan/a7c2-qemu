@@ -1,0 +1,101 @@
+{
+  "status": "HOST_COMPONENT_VALIDATED_NATIVE_INTEGRATION_PENDING",
+  "scope": "New functional 3006 owner, offline real-Core HOST_TEST transport and three inherited public source windows only",
+  "final_tests": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/test_functional_background_start.py -q -x --color=no",
+    "returncode": 0,
+    "stdout_summary": "694 passed in 35.20s",
+    "passed": 694,
+    "build_modes": ["normal", "address-and-undefined-sanitized"],
+    "per_build": {"behavior_and_failure_scenarios": 67, "pending_request_bytes": 24, "init_response_bytes": 128, "state_response_bytes": 128, "total": 347},
+    "strict_flags": ["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-fno-omit-frame-pointer", "-fno-pie", "-no-pie", "-pthread"],
+    "sanitizer_flags": ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"],
+    "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1:abort_on_error=1",
+    "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1",
+    "sanitizer_errors_observed": 0,
+    "fixture_ready_is_native_evidence": false
+  },
+  "source_validation": {
+    "command": "PYTHONDONTWRITEBYTECODE=1 python3 -B final/a7c2-re/report/2026-10-17-qemu-native-camera/report/functional-background-start/validation.py",
+    "returncode": 0,
+    "source_windows_verified": true,
+    "windows": 3,
+    "bounded_bytes": 284,
+    "full_public_original_hashes_verified": true,
+    "exact_eda4c_call_hex": "39b3fd97",
+    "original_execution_verified": false
+  },
+  "implementation_inputs": [
+    {"path": "runtime/analysis/device-models/functional-background-start.h", "bytes": 6031, "sha256": "7043e0ba31d97d55ffa63e54bbb3fc29674b743bd974ff5b4fd96c5c66485068"},
+    {"path": "runtime/analysis/device-models/functional-background-start.c", "bytes": 28630, "sha256": "717d86d526305a9687f4b5a7c2e38b55045b20e51a4cc89c0a4610ba5ee3d6b6"}
+  ],
+  "test_inputs": [
+    {"path": "runtime/analysis/device-models/test-functional-background-start.c", "bytes": 36987, "sha256": "1078c1a5e4c3806198c9998ff39f77fecc0045bb327e62e8f203657f801c697f"},
+    {"path": "runtime/analysis/test_functional_background_start.py", "bytes": 8000, "sha256": "16d092e60a61593fea045e0e27887bd766dc83957c0993c76fd8fcc70ca54297"}
+  ],
+  "report_inputs": [
+    {"path": "report/functional-background-start/README.md", "bytes": 13570, "sha256": "82f680b3093bc37d4925ce3ec67795efaa62ea142604ebf0f43e2c04739560df"},
+    {"path": "report/functional-background-start/source-pins.json", "bytes": 3460, "sha256": "ebe3f520c86ce123fd19317b31cdcac22e672726f0e48e232dfc0a1d36661e64"},
+    {"path": "report/functional-background-start/validation.py", "bytes": 1950, "sha256": "cbd2c98cc475c811cc34a2695851e6b71dc798bf934ebcbef7a6edfc503bec50"}
+  ],
+  "real_core_compile_inputs": [
+    {"path": "report/functional-camera-core/functional-camera-core.c", "bytes": 62796, "sha256": "cd1d9ad108bf19f8df139e923321ab2b4638b5beeaf355e6d9c5fa46c515a7e7"},
+    {"path": "report/virtual-optics/optics.c", "bytes": 2902, "sha256": "eb64c7fcd2ff7bca5567dd71fd34ccb018fcfd2ff61175b2dbffb8d4d54db926"},
+    {"path": "report/virtual-optical-frame-owner/optical-frame-owner.c", "bytes": 14668, "sha256": "fc23ad480c2d2327b7f38cca752d4e0b65eca736f498217411b61f2159609a82"},
+    {"path": "report/virtual-jpeg-hardware/jpeg-hardware.c", "bytes": 13027, "sha256": "0824c4461a90f573f66e5b5a707e6a1b498ef38a9b6330c2670578d8a490bb52"},
+    {"path": "report/virtual-jpeg-hardware/jpeg-hardware-codec.c", "bytes": 9464, "sha256": "308055236827ead624f23146a6403aa860da08cdf93ae74740a416a30dccac8e"},
+    {"path": "report/virtual-jpeg-sos/jpeg-sos.c", "bytes": 5595, "sha256": "0db3d9a9bbb6327c3a7da107ab232f3cfb02fee4784530ebe042eaab0714b0be"},
+    {"path": "report/virtual-video-engine/video-engine.c", "bytes": 29628, "sha256": "98eb5a1e60e7473b9ba4d8a43cfa202bcae06c3b80d6c23c0d8b6a3bfc72bf48"},
+    {"path": "report/virtual-camera-pipeline/camera-pipeline.c", "bytes": 29684, "sha256": "af78d4c9da1ec505ddc1a39d5ef6c36ab75790b597d7a6d16283abb9f4a5e8c0"}
+  ],
+  "tools": {
+    "cc": "cc (GCC) 16.2.1 20260810",
+    "python": "3.14.7",
+    "pytest": "pytest 9.1.1",
+    "libjpeg": "3.2.0",
+    "libavcodec": "63.1.102",
+    "libavformat": "63.1.102",
+    "libavutil": "61.1.102",
+    "libswscale": "10.1.102"
+  },
+  "representative_actual_outputs": {
+    "deferred_thread": {
+      "cycles": 1, "init_calls": 1, "state_calls": 1, "actual_request_frees": 1, "actual_reply_frees": 1,
+      "model_instance_hex": "0000009a17013006", "config": 1, "rendered": 1, "consumed": 0, "frame": 1,
+      "state_fnv1a64": "cacf21b967fa940f", "source": "810261c4", "producer_separate": true,
+      "same_sender_receive_free": true,
+      "actual_state128": "010000000f00000080020000e00100001e0000005a00000090010000640000001b41000000000000c0c62d0000000000063001179a000000010000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000",
+      "reply12": "01000630abacadae00f00000"
+    },
+    "preinitialized": {
+      "cycles": 2, "init_calls": 2, "state_calls": 2, "actual_request_frees": 2, "actual_reply_frees": 2,
+      "config": 3, "rendered": 2, "consumed": 1, "frame": 2,
+      "state_fnv1a64": "f6e6709156a6f570", "all_prior_state_and_frame_counts_preserved": true,
+      "actual_state128": "010000000f0000006000000040000000190000005200000020030000c8000000c409000000000000ffffffffffffffff063001179a000000030000000000000002000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000"
+    },
+    "address_reuse": {"cycles": 2, "actual_malloc_pool_reuses": 3, "stale_ticket_rejected": true, "fresh_unrelated_message_declined": true, "fresh_pending_original_not_poisoned": true},
+    "request_free_failure": {"error": -5, "pending": 1, "retained_original": 1, "retained_reply": 0, "retries": 0, "allocations": 0, "sends": 0},
+    "inline_send_failure": {"error": -5, "pending": 1, "retained_original": 0, "retained_reply": 0, "retries": 0, "actual_request_frees": 1, "actual_reply_frees": 1, "AP_consumed": false, "transport_complete": false}
+  },
+  "negative_history": [
+    {"stage": "initial fixture compile", "returncode": 1, "raw_error_excerpt": "error: too many arguments to function ‘fcam_model_create’; expected 1, have 2", "cause": "Test fixture initially used an incorrect model-create signature", "resolution": "Use actual pointer-returning fcam_model_create(instance); final normal and sanitized builds pass"}
+  ],
+  "claims": {
+    "host_component_functional_core_init_readback": true,
+    "host_component_two_lease_lifecycle": true,
+    "native_predecessors_verified": false,
+    "native_mailbox_rsp_handoff_verified": false,
+    "original_ap_verified": false,
+    "original_cp_rtos_verified": false,
+    "cp_modules_verified": false,
+    "original_masks_verified": false,
+    "business_published": false,
+    "hardware_ready": false,
+    "image_ready": false,
+    "physical_asic_verified": false,
+    "capture_verified": false,
+    "production_so_built": false,
+    "vm_run": false,
+    "fullreg_run": false
+  }
+}

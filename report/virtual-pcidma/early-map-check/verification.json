@@ -1,0 +1,8 @@
+{
+  "scope": "read-only existing-translation diagnostic ABI; no mapper imported or runtime proof",
+  "size": 3368,
+  "sha256": "cbfef1041664bccadd7d6da74333bed41a1cf6da88eb6d3b31bbebd480392e32",
+  "imports": [
+    "printk"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "scope": "independent parent static source readback only; no module execution or state initialization claim",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "AP_sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+  "module_pins_sha256": "1b0af38819a2eda1a19e517ea24e1950f8bd32e9b9007149717aec5750c8b69e",
+  "module_byte_windows_verified": 33,
+  "state_report_sha256": "8d86fe3698de9c7dbc67accdd1062742b2f419827fb23503819002d670dc0337",
+  "state_byte_windows_verified": 35,
+  "required_slots": {
+    "0x17b": [
+      0,
+      1,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "0x17f": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ]
+  },
+  "normal_observed_word_must_equal_full_requested_u16": true,
+  "graph_connections_are_module_completion_proof": false,
+  "302c_native_verified": false,
+  "capture_verified": false
+}

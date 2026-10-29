@@ -1,0 +1,29 @@
+{
+  "scope": "normal exported osal_uipc + memremap APIs only; YC IN1 injection diagnostic, not a real CMOS or consumption proof",
+  "size": 19704,
+  "sha256": "46c21ac7318a120a7b21391c24d7936cd495d9b952206748855b3860c59b5b05",
+  "imports": [
+    "filp_close",
+    "filp_open",
+    "kernel_read",
+    "memremap",
+    "memunmap",
+    "msleep",
+    "osal_free_msg",
+    "osal_get_msg_src",
+    "osal_msg_size",
+    "osal_reg_msg_queue_cb",
+    "osal_set_msg_src",
+    "osal_snd_msg",
+    "osal_unreg_msg_queue_cb",
+    "osal_valloc_msg_wait",
+    "printk"
+  ],
+  "sources_sha256": {
+    "yc_inject.c": "db8e426acff66207c3ea2dab5fe58a20ac79c3e0bc92a327432ba3cf361a8bdd",
+    "unit-info.h": "96fdcad0b526a4de6ffcd869e2ab0f1540bf9958543ad92b8fdb904d0c3b2f79",
+    "descriptor.S": "a059773e6c3c8ae5849b9a919119657020c6597d1e6e61c7fddf443ea0636c67",
+    "build.sh": "0894b9cd2fc79318060a6d3d0707245da4310e43572f4909daf854f0f1f4aab8",
+    "check_module.py": "54e111ebf468acfb561d5762626a4743ec998a746f0f4bb1c011cb7d65276aec"
+  }
+}

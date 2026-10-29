@@ -1,0 +1,36 @@
+{
+  "scope": "actual packet10 physical conversion and constructor-bound type1 queue-to-receiver route; runtime/extent/lifetime unverified",
+  "artifacts": {
+    "K": {"path": "runtime/analysis/menu-root/system/av-cam.bin", "bytes": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"},
+    "L": {"path": "runtime/analysis/menu-root/usr/kmod/liro.ko", "bytes": 121488, "sha256": "b4bd80cc614751e0092ee19e89cb90632db580bc01f23f1a1df23544e9b10186"}
+  },
+  "mappings": {"K": "raw+ffffffc001000000", "L": "ELF ET_REL file offsets; init.text raw9e90, not runtime-relocated zero fields"},
+  "windows": [
+    {"artifact": "K", "raw_hex": "a5178", "bytes": 3084, "sha256": "b9978c5d2688101a6f4f9b9332e1d09adc3ebba60de9d5ae223cdc9785f9d140"},
+    {"artifact": "K", "raw_hex": "a3b54", "bytes": 156, "sha256": "d1eec34f02933ec2e862c481606e2f946562afdf229c2ef778ffe46dbdd82135"},
+    {"artifact": "K", "raw_hex": "a1814", "bytes": 796, "sha256": "3ebbf960badeaa88e548728a9d59785198eac216c4940a88efa900b34830cc83"},
+    {"artifact": "K", "raw_hex": "12c864", "bytes": 24, "sha256": "71d5e9ce80a82533515026afada7eabc3a6beba7cc19fcb7f0db6e84c8813506"},
+    {"artifact": "K", "raw_hex": "a63d8", "bytes": 116, "sha256": "a6aa66f4b1c4f37e2d16a424fd243d43f86241eabc1b5006152d61612572cc71"},
+    {"artifact": "K", "raw_hex": "168da8", "bytes": 220, "sha256": "304da6116bf49cce9256310ed990989035603489c573c4d8bbc3f5302bdeec3b"},
+    {"artifact": "K", "raw_hex": "363e50", "bytes": 560, "sha256": "73494ce87d02dcc8e025ad384d5c0cb519b182d816c594e35a712389d06a244f"},
+    {"artifact": "K", "raw_hex": "2f500", "bytes": 20, "sha256": "485e6c99f2bd0a475fa7db2188c64f52e904868290e7850df5d54ad1c2f4da75"},
+    {"artifact": "L", "raw_hex": "a340", "bytes": 240, "sha256": "56efbc0e54b314eba7e52a6307d52c18ca1a8c53913b06e28a421b352560b84c"},
+    {"artifact": "L", "raw_hex": "1cea0", "bytes": 24, "sha256": "167e254279487b28bca8a42a2dc224c6e0aeca84c728a47d7844f5647ac94bb1"}
+  ],
+  "window_count": 10,
+  "window_bytes": 5240,
+  "selected_queue_hex": "805720f9",
+  "other_queue_type0_hex": "805700f9",
+  "type0_route_inherited": false,
+  "packet_coordinate": "Q dispatcher input, retained call parameter atQ10",
+  "conversion": {"load_raw_hex": "a1850", "target_call_raw_hex": "a1a48", "store_raw_hex": "a1a4c", "range_table_raw_hex": "332258", "range_count": 4, "bounds": "base<=P<base+size only", "provider": "arch_phys_to_noncache", "API_slot_hex": "620", "L_relocation_section": ".rela.init.data", "L_relocation_offset_hex": "5d8", "L_API_copy_destination_offset_hex": "48", "nonzero_unmatched_result": "diagnose thenQ10=0", "local_transport_bypass_exists": true},
+  "queue_receiver_offsets_hex": {"R": "C+358", "R8": "C", "Q": "R+1a8=C+500", "R328": "D=C+308", "D18": "C+320 aggregate"},
+  "receiver_selection": {"MID_hex": "0201", "command_hex": "210", "subtype": 0, "predicate": "u8[convertedP+88]!=0", "true_offset_hex": "690", "false_offset_hex": "18", "runtime_choice_known": false},
+  "earliest_post_conversion_read_raw_hex": "a1a6c",
+  "parameter_byte67_clear": {"raw_hex": "a1ab0", "condition": "selectedcommand and metadata ID !=808b0768"},
+  "alternate_dispatch_bypass": "firstu64[convertedP]==0 OR a8aa8 returns true bypasses12c864",
+  "full98_extent_checked_by_original_range_gate": false,
+  "actual_original_lease_or_consumption_proven": false,
+  "native_video_gaps": 63,
+  "capture_verified": false
+}

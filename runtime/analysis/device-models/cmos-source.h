@@ -8,10 +8,13 @@
  * original firmware consider the imager ready.
  *
  * Contract:
- *   - every frame carries its index and a 64-bit checksum of its own payload in
- *     the first row, so a consumer can prove which frame it read;
- *   - a short capacity is refused instead of overrunning the buffer;
- *   - counters only advance when bytes were actually written.
+ *   - row 0 starts with a little-endian frame index and FNV-1a checksum; the
+ *     checksum covers the index, pixels and padding with only its own 8 bytes
+ *     zeroed;
+ *   - fill generates and publishes one leased frame. A second fill or a
+ *     reconfiguration is refused until retire matches that buffer and index;
+ *   - frame indices are strictly increasing, including after retirement;
+ *   - short capacity and corrupt frames are refused instead of being accepted.
  */
 #ifndef CMOS_SOURCE_H
 #define CMOS_SOURCE_H
@@ -27,18 +30,22 @@ struct cmos_spec {
 };
 
 struct cmos_stats {
-    uint64_t frames;            /* frames fully written */
+    uint64_t frames;            /* frames fully written and published */
     uint64_t pixels;            /* pixels written across all frames */
     uint64_t bytes;             /* bytes written across all frames */
-    uint64_t refused;           /* calls rejected before writing anything */
+    uint64_t refused;           /* operations rejected before writing/changing state */
+    uint64_t retired;           /* leases explicitly retired */
+    uint64_t last_frame_index;  /* last published generation */
     int last_error;             /* negative errno-style code, 0 when healthy */
+    int lease_active;           /* exactly 0 or 1; this source has one lease slot */
 };
 
 int cmos_source_init(const struct cmos_spec *spec);
 int cmos_source_frame_bytes(uint32_t *out);          /* stride*height */
 int cmos_source_fill(void *dst, size_t capacity, uint64_t frame_index);
+int cmos_source_retire(const void *dst, uint64_t frame_index);
 int cmos_source_stats(struct cmos_stats *out);
-/* Frame identity helpers, shared by producers and verifiers. */
+/* Verify one complete stride*height frame and return its identity on success. */
 int cmos_frame_probe(const void *frame, size_t capacity, uint32_t stride,
                      uint64_t *frame_index, uint64_t *payload_checksum);
 

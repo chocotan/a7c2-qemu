@@ -1,0 +1,333 @@
+{
+  "scope": "Public CP3003/3000 caller-owned status-data semantics; host tests only",
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_bytes": 18090880,
+  "CP_VA_equals_raw_plus": 1081344,
+  "file_backed_CP_VA": [
+    1081344,
+    19172224
+  ],
+  "BSS_read_as_file": false,
+  "constructor_input_known_mask": 0,
+  "constructor_output_known_mask": 0,
+  "cache_image_initial_hex": "000000",
+  "cache_initializer_is_not_published": true,
+  "native_history_claimed": false,
+  "runtime_provider_bound": false,
+  "publication_claimed": false,
+  "unsupported": [
+    "native LIF bootstrap/history without an explicit producer event",
+    "property repository/prefetch history without actual delivery",
+    "ADJ multibyte aliases",
+    "native ADJ M/C initialization without an actual source event",
+    "current predicate-kind producer before actual source delivery",
+    "notification delivery/receiver business effects",
+    "send/lease/publication/AP application"
+  ],
+  "pins": [
+    {
+      "label": "cache-image-initial-three",
+      "CP_VA": 17707462,
+      "bytes": 3,
+      "raw_offset": 16626118,
+      "sha256": "709e80c88487a2411e1ee4dfb9f22a861492d20c4765150c0c794abd70f8147c",
+      "expected_hex": "000000"
+    },
+    {
+      "label": "collector-cache-base-and-P",
+      "CP_VA": 3847360,
+      "bytes": 42,
+      "raw_offset": 2766016,
+      "sha256": "19bf711c4eb8dccf8c55c1918f55425fe33bc22ffca63e5eba17f2e574c1f5ac"
+    },
+    {
+      "label": "collector-P-save",
+      "CP_VA": 3847562,
+      "bytes": 2,
+      "raw_offset": 2766218,
+      "sha256": "39daf8f78c2dc023a8de3e7c61fc253d00d5a73edafa66b1c1e0ae2ec5d6ae1d",
+      "expected_hex": "0394"
+    },
+    {
+      "label": "collector-P-restore",
+      "CP_VA": 3853190,
+      "bytes": 2,
+      "raw_offset": 2771846,
+      "sha256": "11bab664eb6c3c1784fee2ef3cab30ee77d98e7afe094347b49d62fb7fa1d862",
+      "expected_hex": "039d"
+    },
+    {
+      "label": "collector-copy348-cache-to-P",
+      "CP_VA": 3853368,
+      "bytes": 16,
+      "raw_offset": 2772024,
+      "sha256": "6ef1f38190005bfacdd12b4056a10da2b23c5dff6e7b90a5a78afcf083275e51",
+      "expected_hex": "284659464ff452728bf8024371f2e2ec"
+    },
+    {
+      "label": "collector-status-writes",
+      "CP_VA": 3849094,
+      "bytes": 484,
+      "raw_offset": 2767750,
+      "sha256": "b84d5d84bc34d47a53ec5092b5a07c309dd9f8edd98fe0a9a89b957ae9a860cd"
+    },
+    {
+      "label": "state-tuple-update",
+      "CP_VA": 10091966,
+      "bytes": 186,
+      "raw_offset": 9010622,
+      "sha256": "a22a78c912fc028ebbe82c106462496330456a3de53f0d870da9430785824c9e"
+    },
+    {
+      "label": "action-cache-update",
+      "CP_VA": 10092152,
+      "bytes": 90,
+      "raw_offset": 9010808,
+      "sha256": "d0da366cfe6d5356aa0292ce156aea045e85064ee8acbecb61510ce06c824f6c"
+    },
+    {
+      "label": "tuple-notification",
+      "CP_VA": 10134660,
+      "bytes": 114,
+      "raw_offset": 9053316,
+      "sha256": "28de3ea175444d3daa777c5c2f2710b47e5528017e671ccffc28aded41034716"
+    },
+    {
+      "label": "action-notification",
+      "CP_VA": 10134774,
+      "bytes": 68,
+      "raw_offset": 9053430,
+      "sha256": "0b0a10fd8b154bc0afcebf8804798cb56a73bc68439226ef9d1403e4e978110f"
+    },
+    {
+      "label": "flags-notification",
+      "CP_VA": 5307892,
+      "bytes": 224,
+      "raw_offset": 4226548,
+      "sha256": "f9998ecfd0eb457f53ac057855d6ff049e48b1c175619f7362d4c2c93a495cf6"
+    },
+    {
+      "label": "LIF-raw-getters",
+      "CP_VA": 10797692,
+      "bytes": 144,
+      "raw_offset": 9716348,
+      "sha256": "5f0d9b0635054b69c3a40ad8c9f4298251bfb81f4427de64740cc83a8193da93"
+    },
+    {
+      "label": "override-mode-getter",
+      "CP_VA": 10084944,
+      "bytes": 16,
+      "raw_offset": 9003600,
+      "sha256": "ed954a4dba06e0d68796b120fc58f8e79370412e487d2a29febca2070e489058",
+      "expected_hex": "4cf6b070c0f26510006890f8c8017047"
+    },
+    {
+      "label": "LIF-working-to-published-copy",
+      "CP_VA": 10796350,
+      "bytes": 40,
+      "raw_offset": 9715006,
+      "sha256": "90308d89b5189353db394cb7a2d0999eb5c9eb81d6cffb06a9d551437863bd0d"
+    },
+    {
+      "label": "override-pointer-bank-input-copy",
+      "CP_VA": 10072060,
+      "bytes": 22,
+      "raw_offset": 8990716,
+      "sha256": "59d462f23ffd9d9dc10b71beee7eb64590f2f505bcea2ec138331e5bce85ad0c"
+    },
+    {
+      "label": "fourth-mode-cache-selection",
+      "CP_VA": 10787316,
+      "bytes": 70,
+      "raw_offset": 9705972,
+      "sha256": "305d99e4513cfa1c90a5feed0ef9338edd78ac062947898b337c59d73aca1b2b"
+    },
+    {
+      "label": "fourth-predicate",
+      "CP_VA": 11110494,
+      "bytes": 98,
+      "raw_offset": 10029150,
+      "sha256": "0ebb1090668e0a1a3795378b663dbc8aa7fe5be661bf5d665caf4aed819f337d"
+    },
+    {
+      "label": "property-registration-and-copy-callback",
+      "CP_VA": 10783650,
+      "bytes": 114,
+      "raw_offset": 9702306,
+      "sha256": "b2f108a162ddaeb79da51f5f996dd10a04b68a6ba08cfa95b47b6b993460bffb"
+    },
+    {
+      "label": "property-context-and-ID-tables",
+      "CP_VA": 17834108,
+      "bytes": 28,
+      "raw_offset": 16752764,
+      "sha256": "e96ef22b55c2c98d4e9b384a28ba21d479c2161fc1b7da67d2a0ba32da7e69a8"
+    },
+    {
+      "label": "profile-image-initial-not-prefetch-history",
+      "CP_VA": 18944772,
+      "bytes": 1,
+      "raw_offset": 17863428,
+      "sha256": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+      "expected_hex": "00"
+    },
+    {
+      "label": "Q-clear-copy-getter",
+      "CP_VA": 11081484,
+      "bytes": 46,
+      "raw_offset": 10000140,
+      "sha256": "6068a5b7f5729719d571cd9419c201f716c9582a33a8283b3793dff27631cc9e"
+    },
+    {
+      "label": "predicate-kind-getter",
+      "CP_VA": 11094918,
+      "bytes": 12,
+      "raw_offset": 10013574,
+      "sha256": "d4aab719a065d9bf2e414302df860e9fd9a02dcd5a57b37359a8c8d3e0a5e8cc",
+      "expected_hex": "44f2ac00c0f2a01000787047"
+    },
+    {
+      "label": "ADJ-group9-registration",
+      "CP_VA": 10784620,
+      "bytes": 18,
+      "raw_offset": 9703276,
+      "sha256": "64443d5157303755d821f7a04fb2f1914c2fdeff977577050306c2d2c0893cd5"
+    },
+    {
+      "label": "ADJ-group-registration-loop",
+      "CP_VA": 11677470,
+      "bytes": 44,
+      "raw_offset": 10596126,
+      "sha256": "52c1e933bd1cd1878348761697f3ba404eadb05011d0303bfd67017d709f4ac1"
+    },
+    {
+      "label": "ADJ-packet-dispatch",
+      "CP_VA": 4945712,
+      "bytes": 336,
+      "raw_offset": 3864368,
+      "sha256": "5091c7c65ec41414c9a16bff2970fe465cf94d056006bedfbe53d35508cdc19c"
+    },
+    {
+      "label": "ADJ-key10-table-entry",
+      "CP_VA": 15177176,
+      "bytes": 8,
+      "raw_offset": 14095832,
+      "sha256": "8073a35458ba32ac479bc9c9ce84f31e20e14aa8338d34c79084931b4ffed73a",
+      "expected_hex": "0a000000c54cb200"
+    },
+    {
+      "label": "ADJ-key10-group9-byte-writer",
+      "CP_VA": 11685060,
+      "bytes": 236,
+      "raw_offset": 10603716,
+      "sha256": "b3cf79bf028b795a28b92022830f2a0b2c8f1df5763a368331d1816d73ba2f94"
+    },
+    {
+      "label": "reply3003-and3000",
+      "CP_VA": 11674798,
+      "bytes": 192,
+      "raw_offset": 10593454,
+      "sha256": "d8084617e5261a15942ed241a82c63725549787c419b1ab1fc690ba95b0de11e"
+    },
+    {
+      "label": "registered-hook-table",
+      "CP_VA": 18708756,
+      "bytes": 8,
+      "raw_offset": 17627412,
+      "sha256": "8ab437a3db0dabb6438c6199a080a3c97f3e0cb1a49cd3fd6f76332c886ad6d9",
+      "expected_hex": "75e1be007be1be00"
+    },
+    {
+      "label": "registered-hook-install-and-mode0-entry",
+      "CP_VA": 12509524,
+      "bytes": 38,
+      "raw_offset": 11428180,
+      "sha256": "398968a4e87db12058d07d856b2e6231d44a94be14a3c12890cf2e3628fd3a37"
+    },
+    {
+      "label": "message-send-remote-selection",
+      "CP_VA": 5655352,
+      "bytes": 96,
+      "raw_offset": 4574008,
+      "sha256": "a90e73686ecb09eb670be5628c9fa58cc1eb4bd5c96d5dc5fca58feac814e0f5"
+    },
+    {
+      "label": "message-send-hook-tail",
+      "CP_VA": 5655644,
+      "bytes": 34,
+      "raw_offset": 4574300,
+      "sha256": "7edf8e0b5cab3b0618423b6ccb657ff0f9c19ef087bc798db7af8bcb6bd71570"
+    },
+    {
+      "label": "async-hook-body",
+      "CP_VA": 5679508,
+      "bytes": 1472,
+      "raw_offset": 4598164,
+      "sha256": "6e9bf3f578db1c8754dc81bccf595dc705f8c59882d145fac93a9c414f923471"
+    },
+    {
+      "label": "async-enqueue",
+      "CP_VA": 12512714,
+      "bytes": 114,
+      "raw_offset": 11431370,
+      "sha256": "73ec77375d3b5c88472b601fc892981f7165ee0b260b6094e7c47e1bd57bdfb6"
+    },
+    {
+      "label": "async-hook-statistics",
+      "CP_VA": 12510334,
+      "bytes": 342,
+      "raw_offset": 11428990,
+      "sha256": "6388fc230e5f5bd54ed0e3dbaaeb2be71891d62e0bd4badbfa1f08736b6ae7b8"
+    },
+    {
+      "label": "root-subobject-table-mapping",
+      "CP_VA": 11725774,
+      "bytes": 104,
+      "raw_offset": 10644430,
+      "sha256": "51e160c4dac5ca018d5dca6b53400e7db328f4b82fe5c8fa29182063cd4bafd7"
+    },
+    {
+      "label": "root-table-getter",
+      "CP_VA": 11722164,
+      "bytes": 10,
+      "raw_offset": 10640820,
+      "sha256": "9cc467af19c361f8cc1c05463cdeee3467e0cf7813487f4d0fdc82e573c60f78",
+      "expected_hex": "4ef6e870c0f273107047"
+    },
+    {
+      "label": "root-plus3e80-to-whole-writer",
+      "CP_VA": 5089896,
+      "bytes": 30,
+      "raw_offset": 4008552,
+      "sha256": "60b15d3dd09aa8e43a4469d39d6ee584f4bd1aa03387d429c659871fb7bd6814"
+    },
+    {
+      "label": "whole-writer-entry-P",
+      "CP_VA": 10037008,
+      "bytes": 80,
+      "raw_offset": 8955664,
+      "sha256": "abb4393bb90d506e2034b9e51e10b0239216276ab89d63563b845ead32e496e1"
+    },
+    {
+      "label": "whole-writer-to-collector-first",
+      "CP_VA": 10037776,
+      "bytes": 30,
+      "raw_offset": 8956432,
+      "sha256": "325aba6b1d24eb8c612f0b7db0b83833c457df4cf2e97ec1be83bc38b6c12476"
+    },
+    {
+      "label": "whole-writer-to-collector-second",
+      "CP_VA": 10039682,
+      "bytes": 30,
+      "raw_offset": 8958338,
+      "sha256": "d1c40e55782108d49f45fad0afdd57ad1f2cb09c321169f4b19b84057aa6ef22"
+    },
+    {
+      "label": "ARM-memcpy-direction",
+      "CP_VA": 6415884,
+      "bytes": 144,
+      "raw_offset": 5334540,
+      "sha256": "256f9b083730a4e19ec2a91c7310f310a68149508267d7c354bfdcf7ce03726c"
+    }
+  ]
+}

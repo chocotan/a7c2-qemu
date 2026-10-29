@@ -1,0 +1,62 @@
+{
+  "schema": "unified-cp-stage-and-paramsets-v1",
+  "scope": "frozen host regression, AArch64 observer build and original libc2.25 ABI; not native camera capture",
+  "batch": "unified-camera-c8lxht7i",
+  "regression": {
+    "tests_passed": 2994,
+    "subtests_passed": 381,
+    "failed": 0,
+    "modules": 131,
+    "runtime_sources": 398,
+    "unique_frozen_inputs": 649,
+    "group_counts": {"production": 398, "host": 6, "observer": 8, "test": 240},
+    "all_frozen_inputs_reread_equal": true
+  },
+  "receipts": {
+    "inputs": {"path": "runtime/analysis/scratch/unified-camera-c8lxht7i/inputs.json", "sha256": "cae74eb2f9333434461b4ae4d358dbdf9fa61c91c68a56d9d9f9ee2c99f6a83f"},
+    "regression": {"path": "runtime/analysis/scratch/unified-camera-c8lxht7i/host-regression.json", "sha256": "ea8a901084b30869013967f20d860b10112ee1a6a1a8ef0bd3052cc4d3a6719b"},
+    "abi": {"path": "runtime/analysis/scratch/unified-camera-c8lxht7i/abi.json", "sha256": "2a8c856d800ae781dc78330335439217eced51c6c68d34b139c2bb71eb0ffb64"},
+    "ready": {"path": "runtime/analysis/scratch/unified-camera-c8lxht7i/ready.json", "sha256": "ab3e326c61326a05c4ce064162c7cb4e79d3d518cd3fb77ce2af8b2d37b1e19c"}
+  },
+  "observer_sha256": "95db1a9d5b66f99a15bedc284727223b4ab4c39a5fbe0b8f0db607339a333b78",
+  "source_archive_sha256": "fab36c043f3c11d80cacca0b26d5fe6af9f4d74662a03401d0e372fe50380b14",
+  "media_preload_sha256": "38361f057de51d5349d2572b0ab1bcc2bb65a9675e83f97459672333dc81d66e",
+  "accepted_binaries_and_archive_preserved_in_batch_directory": true,
+  "original_abi": {"observer_returncode": 0, "media_preload_returncode": 0, "media_bind_now": true},
+  "included": {
+    "common_local_parameter_bytes": 694,
+    "default_local_parameter_writes": 2223,
+    "combined_initial_known_parameter_bytes": 2913,
+    "combined_actual_4063_known_parameter_bytes": 2973,
+    "combined_actual_4063_unknown_parameter_bytes": 455,
+    "explicit_same_stage_mode_and_profile_consumption": true,
+    "same_stage_parameter_import_decision": true,
+    "owned_immutable_parameter_copy_and_separate_bank0_binding": true,
+    "lif_configured_consumed_receive_sequences_separate": true,
+    "strict_video_type4_parameter_set_parser": true,
+    "original_libc_fstat_import_fixed_to_existing_aarch64_fxstat_abi": true
+  },
+  "independent_failed_batch": {
+    "batch": "unified-camera-_tga_gbp",
+    "tests_passed": 2993,
+    "subtests_passed": 381,
+    "build_passed": false,
+    "reason": "fstat unavailable in original glibc2.25; ld.lld refused observer link",
+    "failure_receipt": "runtime/analysis/scratch/unified-input-abi-failure.json",
+    "rewritten": false
+  },
+  "later_added_components_included_in_this_batch": false,
+  "later_components": ["lif-capability-owner", "native-video-au-contract", "native-video-ring-contract"],
+  "last_actual_native_run": "run-nzx01uc3",
+  "native_run_rewritten": false,
+  "new_system_vm_started": false,
+  "capture_verified": false,
+  "original_cmos_consumption_verified": false,
+  "original_jpeg_mp4_written_verified": false,
+  "remaining": [
+    "CP3003 actual LIF/history/fourth-predicate inputs remain incomplete; complete76 provider is ENODATA",
+    "Native JPEG YC component order, scan/restart and coherent lease remain unproved",
+    "Video parameter-set parsing does not establish native encoded producer, normalAU framing, ES/PI publish or hardware release",
+    "Actual CMOS to original encoder to MPR/Fsys to virtualSD independent-decode acceptance still required"
+  ]
+}

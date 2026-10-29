@@ -1,0 +1,34 @@
+{
+  "scope": "original static names/control/status subset, not complete PHY or runtime initialization",
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "pins": 63,
+  "reset_table": [
+    "rst_pwrup",
+    "rst_button",
+    "rst_pe",
+    "rst_apb",
+    "rst_axi2avb_pci",
+    "rst_axi2avb_pci_i0"
+  ],
+  "clock_table": [
+    "apb_pclk",
+    "dbi_aclk",
+    "slv_aclk",
+    "mstr_aclk",
+    "aux_clk",
+    "axi2avb_pcie0",
+    "axi2avb_pcie1"
+  ],
+  "ready_helper": "0x246cc0",
+  "status_offset": "0x2038c",
+  "input_masks": {
+    "1": 1,
+    "2": 3,
+    "4": 15
+  },
+  "output_one_iff_masked_status_zero": true,
+  "invalid_input_returns": -22,
+  "probe_checks_final_ready_after_counter_exhaustion": true,
+  "full_reset_clock_order_verified": false,
+  "runtime_verified": false
+}

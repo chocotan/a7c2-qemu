@@ -125,7 +125,7 @@ def preinit_gate(console):
 
 
 def owned_config(run, sequence, owner_pid, trace_mode='counter'):
-    if trace_mode not in ('counter', 'handoff', 'media', 'media-policy', 'media-init'):
+    if trace_mode not in ('counter', 'handoff', 'media', 'media-policy', 'media-init', 'resize'):
         raise ValueError('Unknown owned queue observation mode')
     run = Path(run).absolute()
     info = run.lstat()
@@ -138,13 +138,19 @@ def owned_config(run, sequence, owner_pid, trace_mode='counter'):
     if (owner_pid <= 1 or manifest.get('host_control_owner_pid') != owner_pid or manifest.get('overwrite') or
             manifest.get('selected_initramfs_verified_files', {}).get('usr/lib/appFw.so') != AP_SHA or
             not all(manifest.get(key) is True for key in
-                    (('request_queue_gdb', 'media_init_watch') if trace_mode == 'media-init' else
+                    (('request_queue_gdb', 'resize_mmio_watch') if trace_mode == 'resize' else
+                     ('request_queue_gdb', 'media_init_watch') if trace_mode == 'media-init' else
                      ('request_queue_gdb', 'mode_state_readback', 'media_predicate_observe') if trace_mode in ('media', 'media-policy')
                      else ('request_queue_gdb', 'power_notice_observe', 'apo_cancel_request_probe', 'mode_state_readback')))):
         raise ValueError('Queue observation requires the owned original-AP experiment')
-    if not isinstance(sequence, int) or isinstance(sequence, bool) or not (0 if trace_mode == 'media-init' else 1) <= sequence < 10000000:
+    if not isinstance(sequence, int) or isinstance(sequence, bool) or not (0 if trace_mode in ('media-init','resize') else 1) <= sequence < 10000000:
         raise ValueError('Invalid validated snapshot sequence')
-    if trace_mode == 'media-init':
+    if trace_mode == 'resize':
+        from resize_mmio_watch import KERNEL_SHA
+        if manifest.get('selected_initramfs_verified_files', {}).get('system/av-cam.bin') != KERNEL_SHA:
+            raise ValueError('Resize observation requires the original verified kernel component')
+        pid, base = 0, 0  # Kernel addresses do not use an AP process mapping.
+    elif trace_mode == 'media-init':
         console = run/'console.log'
         if console.is_symlink():
             raise ValueError('Console symlink refused')
@@ -168,6 +174,10 @@ def owned_config(run, sequence, owner_pid, trace_mode='counter'):
                         publish_pc=base + 0x24d8774, cancel_caller=base + 0x262aafc,
                         socket=f'/proc/self/fd/{fd}/{SOCKET}', run=str(run),
                         run_device=info.st_dev, run_inode=info.st_ino, limit=16, trace_mode=trace_mode)
+        if trace_mode=='resize' and manifest.get('rc_board_profile') is True:
+            config['limit']=64  # Three frames can now execute both completion and cleanup paths.
+            config['observe_sa_mmu']=True
+            config['observe_sa_completion']=manifest.get('sa_reference_completion') is True
         if trace_mode == 'media-init':
             config['observer_gate_address'] = gate_address
         return fd, config
@@ -520,6 +530,10 @@ def sequence_handoff(gdb, config, initial, emit, result, stops, registers):
 def gdb_main(config_path):
     import gdb
     initial_config = json.loads(Path(config_path).read_text())
+    if initial_config.get('trace_mode') == 'resize':
+        from resize_mmio_watch import gdb_main as observe_resize
+        observe_resize(initial_config)
+        return
     if initial_config.get('trace_mode') == 'media-init':
         from media_initial_write import gdb_main as observe_initial_write
         observe_initial_write(initial_config)

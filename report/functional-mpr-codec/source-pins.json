@@ -1,0 +1,256 @@
+{
+  "scope": "public ALLLANG original source windows; compile-only functional adapter handoff",
+  "artifact": {
+    "path": "runtime/analysis/menu-root/usr/lib/libmpr.so",
+    "size": 3528576,
+    "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9",
+    "pt_load": [
+      {
+        "file_offset": 0,
+        "virtual_address": 0,
+        "file_size": 3032372,
+        "memory_size": 3032372,
+        "flags": 5
+      },
+      {
+        "file_offset": 3036072,
+        "virtual_address": 3101608,
+        "file_size": 490632,
+        "memory_size": 1457688,
+        "flags": 6
+      }
+    ]
+  },
+  "windows": [
+    {
+      "name": "SendMsgToAvbbc",
+      "address_kind": "ELF VA",
+      "address": 2605144,
+      "file_offset": 2605144,
+      "length": 376,
+      "sha256": "a007573409a8cca35688502d4c1915a67d7d6ee5ebd41fe6fa9c4ced8ebf74c6",
+      "meaning": "Original 48-byte copy and cond_wait releasing original MPR mutex"
+    },
+    {
+      "name": "SendMsgToAvbbc_wo_wait",
+      "address_kind": "ELF VA",
+      "address": 2612364,
+      "file_offset": 2612364,
+      "length": 324,
+      "sha256": "dff14115053331cb0c17faa7b13ebd68906b7376da137ae9082f3904f266c0d4",
+      "meaning": "Original asynchronous request ownership"
+    },
+    {
+      "name": "CmdRcvThread",
+      "address_kind": "ELF VA",
+      "address": 2611996,
+      "file_offset": 2611996,
+      "length": 368,
+      "sha256": "350e4a994b5e0655ab684fe0f8e6f64774ad08d136b1ab65b23ec2b275918ebb",
+      "meaning": "Original secondary callback deque receiver; not the primary OSAL callback"
+    },
+    {
+      "name": "ConvertAvconEvent",
+      "address_kind": "ELF VA",
+      "address": 2610304,
+      "file_offset": 2610304,
+      "length": 1440,
+      "sha256": "552d8b43f9698a7a7bd78cd6ed46aa69077a6085b588ec3270667c3997d69950",
+      "meaning": "4e0 event commands 1/3/5/7/9 map to 1001/1003/1004/1005/1006"
+    },
+    {
+      "name": "GetExpEvt",
+      "address_kind": "ELF VA",
+      "address": 2604752,
+      "file_offset": 2604752,
+      "length": 392,
+      "sha256": "8104a022f542d0658d4368c55a2780bde59ce5d9f772218113d11be078dc14b8",
+      "meaning": "Original 210 command expected-event mapping"
+    },
+    {
+      "name": "CallbackFromAvbbc",
+      "address_kind": "ELF VA",
+      "address": 2637428,
+      "file_offset": 2637428,
+      "length": 484,
+      "sha256": "7d79537cdc78d5b1d640c342ff8ed3135fadafa0cc6062d0bce83bc5ea545cd6",
+      "meaning": "Actual 48-byte callback, mutex/cond handling and original free"
+    },
+    {
+      "name": "EncOpen",
+      "address_kind": "ELF VA",
+      "address": 2624456,
+      "file_offset": 2624456,
+      "length": 1028,
+      "sha256": "55d22f23de2fc47031d8a8f488afd156ad1511e093a44782985afb63850de13d",
+      "meaning": "Pre-conversion runtime ES/PI/read/write globals and coherent open metadata"
+    },
+    {
+      "name": "GetEsAreaInfo",
+      "address_kind": "ELF VA",
+      "address": 2633656,
+      "file_offset": 2633656,
+      "length": 152,
+      "sha256": "3b53adc90c1ca59117b8c0b3131c4e92881a17e4663a4757ba357a52f7dfbf9e",
+      "meaning": "BufferAreaInfo base, u64 capacity and correction geometry"
+    },
+    {
+      "name": "GetEncESBufferAreaInfo",
+      "address_kind": "ELF VA",
+      "address": 2633808,
+      "file_offset": 2633808,
+      "length": 140,
+      "sha256": "e1887e75711524c9196da6edc94a4a82dcf0fb5494ac983c0443e8924fe20782",
+      "meaning": "Stream0 main ES triple at 3b7d68"
+    },
+    {
+      "name": "CreateMessage",
+      "address_kind": "ELF VA",
+      "address": 2604600,
+      "file_offset": 2604600,
+      "length": 152,
+      "sha256": "cbc8afff44ed550dbec69af5bfae83439e70bea842fc8b70d371b60af701db96",
+      "meaning": "48-byte header field coordinates and distinct P/V fixed-area domains"
+    },
+    {
+      "name": "EncStart",
+      "address_kind": "ELF VA",
+      "address": 2613128,
+      "file_offset": 2613128,
+      "length": 388,
+      "sha256": "8dd8b2e11d143d674f07e8272fc0291effca3f9454e9f2ded189565efe4b2da6",
+      "meaning": "210/1 exact 0x80 payload, user setup before wait"
+    },
+    {
+      "name": "EncIPicture",
+      "address_kind": "ELF VA",
+      "address": 2606500,
+      "file_offset": 2606500,
+      "length": 180,
+      "sha256": "444cc7c42b9f7dd5e561b95a213558e29a3f3ca1de771633036fbfbd11035860",
+      "meaning": "210/2 exact 4-byte payload; unsupported without force-IDR operation"
+    },
+    {
+      "name": "EncStop",
+      "address_kind": "ELF VA",
+      "address": 2614140,
+      "file_offset": 2614140,
+      "length": 400,
+      "sha256": "8d525e3ecb06710e0b36506b4705dfe42edef10dfc13bfe9a1487b177050b55a",
+      "meaning": "210/3 exact 0x10 payload and original transport wait"
+    },
+    {
+      "name": "EncClose",
+      "address_kind": "ELF VA",
+      "address": 2605520,
+      "file_offset": 2605520,
+      "length": 308,
+      "sha256": "74d4c433460bef45df67c4878485614256549fb800d2bf584a93bbfb0cef5471",
+      "meaning": "210/4 declares size zero despite copying count*16 bytes into fixed area"
+    },
+    {
+      "name": "ExecEncOpen",
+      "address_kind": "ELF VA",
+      "address": 864468,
+      "file_offset": 864468,
+      "length": 1088,
+      "sha256": "cc373af1309f6658224877c1c792a32cb44c45778f262bc6c1a202b0785f2b71",
+      "meaning": "Actual recording producer route and caller transport/error behavior"
+    },
+    {
+      "name": "CallbackPointForCodec",
+      "address_kind": "ELF VA",
+      "address": 902236,
+      "file_offset": 902236,
+      "length": 344,
+      "sha256": "901f289e5e5017c26e69e5782faf6fff1c199074ddff2c5065187cc140ac39ea",
+      "meaning": "Original PayloadCodec error field at +0x14"
+    },
+    {
+      "name": "GetCodecAudioFormat",
+      "address_kind": "ELF VA",
+      "address": 855784,
+      "file_offset": 855784,
+      "length": 200,
+      "sha256": "a61eb069a97ed0e36ac61c45dc6d6c312f458cf3e60c79c0371cd2eb8f8b34e6",
+      "meaning": "GetCodecAudioFormat(3,video) preserves value 3; v1 admits this explicit form"
+    },
+    {
+      "name": "ConvertVideoCodecToCodec",
+      "address_kind": "ELF VA",
+      "address": 855984,
+      "file_offset": 855984,
+      "length": 256,
+      "sha256": "4b95291e53c69e954d406c3dae7791aa427643ce126c22f84d9f486c30e42fcc",
+      "meaning": "Original codec selection expressions; no physical ASIC format claim"
+    },
+    {
+      "name": "SetVideoSampleInfo",
+      "address_kind": "ELF VA",
+      "address": 1148112,
+      "file_offset": 1148112,
+      "length": 324,
+      "sha256": "0a7814a23046108f4a290b3b5307601e38df014f27e55a79e4747ca5026f913b",
+      "meaning": "Native PTS/DTS member mapping into actual mux sample"
+    },
+    {
+      "name": "SetVideoInfoList",
+      "address_kind": "ELF VA",
+      "address": 1146364,
+      "file_offset": 1146364,
+      "length": 316,
+      "sha256": "07f2f294e75a0cef965b9ea94f3f55595400838d2389e21bbf68a6c6960f8df2",
+      "meaning": "Normal sample filter and timestamp byte transport"
+    },
+    {
+      "name": "MuxSampleInput90kHz",
+      "address_kind": "ELF VA",
+      "address": 2239936,
+      "file_offset": 2239936,
+      "length": 332,
+      "sha256": "245fb64fc94bc7b36cd13dc4fcc3572caad0fc2d6583fa0a778ec0faff00e51d",
+      "meaning": "Actual sample conversion passes 90000 as input timestamp scale"
+    },
+    {
+      "name": "WriterControlEndWindow",
+      "address_kind": "ELF VA",
+      "address": 1160524,
+      "file_offset": 1160524,
+      "length": 448,
+      "sha256": "2dcfbc7c114c8026ea631bec5a2a7e7b958fa2eb8f1a421fa5ec4068d57bcb93",
+      "meaning": "Original video read-list consumer recognizes type7 control end; bounded window"
+    },
+    {
+      "name": "SetUserInfoByEncStart",
+      "address_kind": "ELF VA",
+      "address": 2612932,
+      "file_offset": 2612932,
+      "length": 196,
+      "sha256": "d74d35d9e9691cc8006489ed4f082285325510ade0231fee73ad6e4b09a7802c",
+      "meaning": "Source user status3 setup; adapter never patches user state"
+    },
+    {
+      "name": "SetUserInfoByForceEncStop",
+      "address_kind": "ELF VA",
+      "address": 2613944,
+      "file_offset": 2613944,
+      "length": 196,
+      "sha256": "a5c0b3fead1451239059d1ec05594256b16fbd593754238114402405898ece67",
+      "meaning": "Original forced-stop software status update; adapter never patches it"
+    },
+    {
+      "name": "GetEncStatusVideoFrameCounter",
+      "address_kind": "ELF VA",
+      "address": 2622832,
+      "file_offset": 2622832,
+      "length": 68,
+      "sha256": "5b8661c8eb20452275fce85ec2ae02bb7dee7db7a6cb5d3caf7d9ad8413a26ab",
+      "meaning": "Actual codec status reads u32 through runtime pointer 3b8168, saved by EncOpen as independent write base"
+    }
+  ],
+  "total_window_bytes": 9900,
+  "strict_gap_mask": 63,
+  "capture_verified": false,
+  "physical_asic_verified": false,
+  "original_cp_verified": false
+}

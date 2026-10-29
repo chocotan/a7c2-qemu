@@ -1,0 +1,30 @@
+{
+  "run": "run-hobha2ig",
+  "console_sha256": "b5ac70aab7cf6320c92385b2ce826eee55f1bc9cbaf5c6d62e8378b90e578384",
+  "original_ui_visible": true,
+  "visible_content": "メモリーカードが正しく読めません / メモリーカードを入れ直してください",
+  "meaning_zh": "无法正确读取存储卡，请重新插入存储卡",
+  "capture_png": "boot-card-error-visible.png",
+  "png_sha256": "ad66bc7d5e5f97ce73ea57a8e9ca1e46b77d94b852bea83349426948cb73924b",
+  "rgba_sha256": "3496a870d47c6019bd6f4068d9d518a6bbaab6878555ef820c04b278055bddf6",
+  "dimensions": [640, 480],
+  "rendering_scope": "original firmware UI through AP software RGBA4444 consumption; no CP composition or physical panel",
+  "headless_sequence": 458,
+  "headless_pixel_source_seq": 2,
+  "headless_ack_delivery_proven": false,
+  "screens": [
+    {"id": "0x308", "original_name": "scr0039_boot", "create_count": 28},
+    {"id": "0x12d", "original_name": "scr0099_0001", "create_count": 6},
+    {"id": "0x322", "original_name": "dlg_dbl021_base", "create_count": 4}
+  ],
+  "menu_key_original_app_queue_consumed": true,
+  "menu_screen_entered_verified": false,
+  "ui_thread": 290,
+  "ui_stack_elf_va": ["0x1795708", "0x179a470", "0x1796ef4"],
+  "common_thread": 328,
+  "common_stack_elf_va": ["0x310194c", "0x34f4f74", "0x3535b04", "0x3548cbc", "0x34d1774", "0x305eb88"],
+  "boot_future_completion_site_passed_evidence": "sampled original run frame after 305e9ec completion call; UI no longer waits in boot_start_seq",
+  "shooting_main_screen_verified": false,
+  "camera_startup_verified": false,
+  "sensor_pixels_consumed": false
+}

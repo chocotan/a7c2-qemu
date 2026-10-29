@@ -1,0 +1,23 @@
+{
+  "run": "run-1_77s6pg",
+  "console_sha256": "ba4ec41ce5e2afd13351a4c40044e67cf70a96ca36c7d3ceb52cc4936de6fa79",
+  "screen": "0x322",
+  "presenter": "0x7f55c80190",
+  "presenter_vtable_elf_va": "0x59590b8",
+  "presenter_type": "dlt01_presenter",
+  "getter_at_creation": "0x7f4e10ced0",
+  "getter_vtable_elf_va": "0x59128c0",
+  "getter_rtti": "caution::caution_module",
+  "getter_method_elf_va": "0x1882dc8",
+  "getter_method_semantics": "adjust this by -8 then branch to 0x1882c7c",
+  "text_param": "0x7f5573a130",
+  "text_resource": "0x0200a73b",
+  "text_source": "original view-string param+0x30 after original draw",
+  "getter_or_dialog_modified": false,
+  "frame_matches_original_error_rgba_sha256": "3496a870d47c6019bd6f4068d9d518a6bbaab6878555ef820c04b278055bddf6",
+  "static_candidate_module_indexes": ["0x233", "0x262"],
+  "active_module_index_runtime_verified": false,
+  "filesystem_or_rm_failure_proven": false,
+  "camera_startup_verified": false,
+  "shooting_main_screen_verified": false
+}

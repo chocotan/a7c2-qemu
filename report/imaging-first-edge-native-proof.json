@@ -1,0 +1,169 @@
+{
+  "scope": "first source-equivalent virtual graph edge plus real mapped control-format consumption and original AP reply; no original CP/RTOS/hardware/page-table/image claim",
+  "run": "run-509c5q1z",
+  "evaluation": "../runtime/analysis/menu-runs/run-509c5q1z/imaging-first-edge-native-evaluation.json",
+  "console_sha256": "9b856a35dee4e42dae689586608ee57ccb65cdfe570591b41e0be5b6dda69b6c",
+  "observer_sha256": "4b9e1c85b48fc6269d5c7510ee25626162f34501aaa2881e71f28f6d2f67eccf",
+  "source_archive_sha256": "f3dcead1c7af6e09e8838758868ad4ce83025ba944fc8971d14931102bfaac61",
+  "frozen_source_count": 270,
+  "candidate_QEMU_sha256": "a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02",
+  "profile": "virtual-imaging-out1-bb-in1-v1",
+  "default_off": true,
+  "source_pin": [
+    0,
+    2,
+    1,
+    "0x90050004"
+  ],
+  "sink_pin": [
+    0,
+    1,
+    1,
+    "0x9284074a"
+  ],
+  "original_AP_pid": 258,
+  "original_AP_tid": 381,
+  "request_bytes": 64,
+  "internal_message_bytes": [
+    64,
+    72
+  ],
+  "unique_AP_reply_bytes": 56,
+  "internal_message_frees": 7,
+  "source_state_path": [
+    1,
+    2,
+    0
+  ],
+  "sink_state_path": [
+    1,
+    0
+  ],
+  "sink_connected_marker_CP_VA": "0x01acad10",
+  "sink_marker_initial_value_known": false,
+  "sink_marker_value": 1,
+  "sink_marker_writes": 1,
+  "sink_marker_readback": 1,
+  "sink_marker_verified": true,
+  "DMM_unit": "0x404",
+  "DMM_semantic_owner_code": "0x284",
+  "DMM_sender_identity_policy": "explicit-virtual-endpoints-not-original-dynamic-2a-284-or-owner5",
+  "DMM_message_bytes": 216,
+  "DMM_operations": [
+    32,
+    37,
+    36,
+    35
+  ],
+  "DMM_buffer_handle": "0x8400",
+  "DMM_extent_bytes": 512,
+  "DMM_physical": "0x500000000",
+  "DMM_CP_alias": "0x80000000",
+  "actual_buffer_bytes": 80,
+  "SSYN_header_word": "0x06000000",
+  "ETRY_type": 1,
+  "ETRY_key": 0,
+  "payload_bytes": 16,
+  "payload_hex": "01000000000000008007000038040000",
+  "buffer_FNV64": "88d47938b00f682e",
+  "payload_FNV64": "1a3c540ebc5023bd",
+  "source_cache_before": [
+    1,
+    0,
+    0,
+    0,
+    0
+  ],
+  "source_cache_after": [
+    0,
+    1,
+    1920,
+    1080,
+    0
+  ],
+  "configuration_synchronization_object": 33,
+  "synchronization_acquires": 1,
+  "synchronization_releases": 1,
+  "same_owner_transfer_no_command21_share": true,
+  "reference_owner_open_history": [
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      0,
+      0
+    ]
+  ],
+  "creator_Close25_is_not_release": true,
+  "consumer_Free23_option2_retired_buffer": true,
+  "source_and_sink_real_owned_registry_references": true,
+  "control_pool_reset_or_clone": false,
+  "foreign_Speech_405_406_kept_live": true,
+  "initial_Speech_strong_creation_verified": true,
+  "AP_reply_publication_policy": "deferred until proven synchronous local format/Free completed; not original scheduler timing",
+  "original_AP_reply_consumed": true,
+  "reply_free_rc": 0,
+  "reply_free_faults": 0,
+  "AP_reply_sender_waiter_tid_verified": true,
+  "imaging_first_edge_native_verified": true,
+  "mapped_control_format_consumed": true,
+  "remaining_connections_refused": 12,
+  "all_graph_connections_verified": false,
+  "302c_completed": false,
+  "original_sd_export_verified_this_run_only": true,
+  "original_Fsys_FlushVolume_rc": [
+    0,
+    0
+  ],
+  "SD_flush_sequences": [
+    1452592138641146,
+    1452593072624583
+  ],
+  "SD_owner_STOP_and_resume": true,
+  "host_tree_all_sizes_and_SHA256_match_both_exports": true,
+  "host_file_count": 3,
+  "SD_clean_commit": true,
+  "host_control_owner_pid": 186080,
+  "host_owner_and_group_exited": true,
+  "no_system_QEMU": true,
+  "dual_locks_exclusive_acquired_and_released": true,
+  "sigkill_sent": false,
+  "host_tests_passed": 592,
+  "host_subtests_passed": 139,
+  "composed_connection_host_scenarios": 102,
+  "original_libc225_loader_ABI_verified": true,
+  "independent_review": {
+    "agent": "e5f9cd8f-ac0f-404d-9d05-4fb0f7ce29b1",
+    "result": "no P1-P3 within this virtual first-edge/control-format/this-run SD scope",
+    "archived_source_hashes_checked": 270,
+    "raw_log_references_checked": 52,
+    "new_run_evaluator_exit_code": 0,
+    "old_partial_evaluator_exit_code": 1,
+    "host_tree_and_candidate_entity_independently_hashed": true,
+    "no_QEMU_and_existing_locks_exclusively_available": true,
+    "VM_or_broad_host_tests_repeated": false
+  },
+  "prior_partial_run_remains_partial": "run-9rvjwhrz",
+  "original_CP_executed": false,
+  "original_CP_page_tables_verified": false,
+  "original_RTOS_scheduler_verified": false,
+  "hardware_mode_verified": false,
+  "frames_verified": false,
+  "JPEG_files": 0,
+  "MP4_files": 0,
+  "EE_status": 0,
+  "capture_verified": false
+}

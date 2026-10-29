@@ -1,0 +1,54 @@
+{
+  "scope": "Explicit source-local constructor STRD event and parameter import branches; not native startup history, full constructor completion or publication",
+  "asset": {
+    "path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+    "bytes": 18090880,
+    "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+    "va_base": 1081344,
+    "file_backed_va_end": 19172224
+  },
+  "event": {
+    "function_va": "0x8db6a2",
+    "root_register": "r0 preserved in r4 at 0x8db6aa",
+    "value_register": "r5=0 at 0x8db6ac",
+    "store_va": "0x8db6d6",
+    "store_hex": "c4e97255",
+    "instruction": "strd r5,r5,[r4,#0x1c8]",
+    "offset": 456,
+    "bytes": 8,
+    "value": "0000000000000000",
+    "mutable_root": "0x165a720",
+    "mutable_field": "0x165a8e8",
+    "published_root": "0x172fe50",
+    "published_field": "0x1730018"
+  },
+  "wrapper": {
+    "va": "0x8dc67e",
+    "sequence": "Call 0x8db6a2(root) before testing saved flag. Nonzero returns; zero tailcalls 0x8db9bc(root).",
+    "accepted_property_call": "0x353e26, root=0x165a720, flag=1",
+    "rejected_property_call": "0x353e80, root=0x165a720, flag=0"
+  },
+  "property_read": {
+    "function_va": "0x353d48",
+    "property": "0x00030160",
+    "read_path": "0x510728 -> 0xbe91ea -> 0xbe9130; payload is memcpy source, caller buffer destination",
+    "buffer": "0x1659720, 4096 bytes",
+    "acceptance": "LE32(payload)==0xd68 and property0x0092001c bit2 set",
+    "copy": "0x353dba copies0xd64 bytes into mutable root before initialize(root,1)",
+    "public_secondary": "00030160 has4096 zero bytes and0092001c=00000000; rejected, cannot supply override data",
+    "import_marker": "1b0470e is not constructor-consumed or published proof"
+  },
+  "windows": [
+    {"va": "0x353d48", "bytes": 324, "sha256": "640c0622494b31711f03b12b79495cfb37228b6898a484cb48c9f898f1e60a5f"},
+    {"va": "0x8dc67e", "bytes": 26, "sha256": "cd056d2ee2e430dcbf12c4955fbb93ae15728868ddbb22ee7990cf9f9ad3d8e2"},
+    {"va": "0x8db6a2", "bytes": 56, "sha256": "40fbc5ab179f455747098aa82975b8ed6f20a1c1a4db87da19732c876175e2ff"},
+    {"va": "0xb2e150", "bytes": 24, "sha256": "3afbe9a88ebb52e1bf2f7aac92081d0de3a9ab7d98eef41f1eac520e7ccea6fa"},
+    {"va": "0x99e250", "bytes": 16, "sha256": "ed954a4dba06e0d68796b120fc58f8e79370412e487d2a29febca2070e489058"}
+  ],
+  "modeled_local_store": true,
+  "complete_constructor_applied": false,
+  "native_constructor_executed": false,
+  "published_override_value_verified": false,
+  "cp_reply_known_mask_promoted": false,
+  "capture_verified": false
+}

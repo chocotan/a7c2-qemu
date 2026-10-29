@@ -1,0 +1,200 @@
+{
+  "schema": "lif-capability-owner-v1",
+  "scope": "caller-owned diagnostic fixed-command Z0 data; original CP frame-to-cache admission UNVERIFIED",
+  "CP_path": "runtime/analysis/menu-root/cp/cpapp-b.bin",
+  "CP_bytes": 18090880,
+  "CP_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "CP_VA_equals_raw_plus": 1081344,
+  "file_backed_CP_VA": [
+    1081344,
+    19172224
+  ],
+  "source_window_bytes": 7796,
+  "pins": [
+    {
+      "name": "initial-kind-store-selection",
+      "CP_VA": 11098198,
+      "end_CP_VA": 11098282,
+      "size": 84,
+      "sha256": "20205b8ba9edb09de866cc1bf1fd29f32017fabe6b5e0d80d13a9e4f2b81478c"
+    },
+    {
+      "name": "kind-store-and-getter",
+      "CP_VA": 11078052,
+      "end_CP_VA": 11078076,
+      "size": 24,
+      "sha256": "4c065bd9de8947592187f110d91505ad8fb2f6401d3647b775164a1b3291d94b"
+    },
+    {
+      "name": "support-range-pure-state-getter",
+      "CP_VA": 11077996,
+      "end_CP_VA": 11078008,
+      "size": 12,
+      "sha256": "5a1ed79e23d4f3582fcbafcb6773931596efe12d348d87d4f17e418dba8803aa"
+    },
+    {
+      "name": "constructor-and-pointer-publication",
+      "CP_VA": 11076092,
+      "end_CP_VA": 11077618,
+      "size": 1526,
+      "sha256": "0857f15aaf952a0855e26e488bf7cf70b96cdbd31ecebed5bf7e5ccb252f7432"
+    },
+    {
+      "name": "received-frame-framing-only",
+      "CP_VA": 10777672,
+      "end_CP_VA": 10780336,
+      "size": 2664,
+      "sha256": "89835e360f1d3ece3ea84d6a312e4d3703334cdc2c2d3388858616ec9ddb5484"
+    },
+    {
+      "name": "command1-reset-request-and-copy",
+      "CP_VA": 11097906,
+      "end_CP_VA": 11098036,
+      "size": 130,
+      "sha256": "f7f1683ebfa4bfe13c002668252383637906baa2a14018bafce6c17132f2250b"
+    },
+    {
+      "name": "command7-dual-copy",
+      "CP_VA": 4241876,
+      "end_CP_VA": 4242098,
+      "size": 222,
+      "sha256": "6fcea2544c09f22fce4862f5d19533d380c0dd3011a1a9d6dea1f4d462098625"
+    },
+    {
+      "name": "command8-and-command3d-consumers",
+      "CP_VA": 4238612,
+      "end_CP_VA": 4239336,
+      "size": 724,
+      "sha256": "c14aa50fedac6455acabac715b417e7bd0465110b63ca5ca4ec3de8beaeb1050"
+    },
+    {
+      "name": "Z-producer-and-incomplete-Z1-normalizers",
+      "CP_VA": 11112424,
+      "end_CP_VA": 11113362,
+      "size": 938,
+      "sha256": "1863eaad723a1f05135d50ef817b53560f3b2332f1a90c3d5ce228a96a00728e"
+    },
+    {
+      "name": "support-refresh-predicate-and-Z-mask",
+      "CP_VA": 4214240,
+      "end_CP_VA": 4214536,
+      "size": 296,
+      "sha256": "ab27a2d2fae3d5a08fbe2a7566f881dea615b4d302026195072f111fe724d11d"
+    },
+    {
+      "name": "fixed-command-table",
+      "CP_VA": 18896188,
+      "end_CP_VA": 18896740,
+      "size": 552,
+      "sha256": "33f017ccec4bc18390f67106df8e71bc762708d7053ad7ced7d479a2df0310a0"
+    },
+    {
+      "name": "selector-request-masks",
+      "CP_VA": 16316823,
+      "end_CP_VA": 16316887,
+      "size": 64,
+      "sha256": "06824f56bcc0b2fb7e734bec604cf00b1117842fad3bf0523b9128dbd5f26b40"
+    },
+    {
+      "name": "property-allocation-arguments",
+      "CP_VA": 4068940,
+      "end_CP_VA": 4069204,
+      "size": 264,
+      "sha256": "8a1062d192cfbe8d50a7fe7973b168c601396a6d5a176a10215dfc35fb6e442b"
+    },
+    {
+      "name": "support-reset-and-selector-binding",
+      "CP_VA": 11077408,
+      "end_CP_VA": 11077632,
+      "size": 224,
+      "sha256": "6773ef0f1460c5432d2169689a0f39862395c3cdb8ada06f610cddae948cc1ca"
+    },
+    {
+      "name": "command8-wrapper-both-refresh-paths",
+      "CP_VA": 11097450,
+      "end_CP_VA": 11097522,
+      "size": 72,
+      "sha256": "1b60e0dd478f66934221af533ea5a3a7bb8e60629741cabead8ebc4aa2bcee9c"
+    }
+  ],
+  "requests": [
+    {
+      "row": 0,
+      "mask_hex": "ffffffffffffffffffefffff0700000000000000000000000000000000000000",
+      "request_hex": "01ffffffffffffffffffefffff0700000000000000000000000000000000000000",
+      "request_fnv1a64": "a706d8a9ad9a33c7"
+    },
+    {
+      "row": 1,
+      "mask_hex": "4108180000000000000000000000000000000000000000000000000000000000",
+      "request_hex": "014108180000000000000000000000000000000000000000000000000000000000",
+      "request_fnv1a64": "7446d46ee330718d"
+    }
+  ],
+  "fixed_rows": [
+    {
+      "command": 1,
+      "CP_VA": 18896194,
+      "hex": "010021002100",
+      "received_body_bytes": 33
+    },
+    {
+      "command": 7,
+      "CP_VA": 18896230,
+      "hex": "070002002300",
+      "received_body_bytes": 35
+    },
+    {
+      "command": 8,
+      "CP_VA": 18896236,
+      "hex": "08000900ca00",
+      "received_body_bytes": 202
+    },
+    {
+      "command": 61,
+      "CP_VA": 18896554,
+      "hex": "3d0018004000",
+      "received_body_bytes": 64
+    }
+  ],
+  "property_storage_bytes": 1088,
+  "native_constructor_property_known_bytes": 0,
+  "four_command_destination_known_bytes": 369,
+  "stage_contract": "../cp-property-repository-contract/source-pins.json",
+  "public_context": {
+    "profile_sha256": "9814ef4bd1a406fdee481bc1d47f8c616030922d52d7b5f02747fe61a0401d66",
+    "hex_17": 0,
+    "hex_20": 1,
+    "decimal_17": 0,
+    "decimal_20": 0,
+    "source_context_read_CP_VA": "404e0e",
+    "source_instruction": "ldrb.w r0, [r0, #0x20]",
+    "actual_public_init_result": "0; consumed stage preserved unchanged, property bytes remain unknown until actual frame copies",
+    "positive_copy_tests": "HOST_TEST frames on the unmodified authenticated public stage",
+    "range_41_49_gate": "a9096c reads unknown byte 1b1a7b1 without side effects; positive capability and mask do not establish a known support result",
+    "gate_state_byte_known": false
+  },
+  "mode_binding": {
+    "existing_pin_name": "mode-property-consumer",
+    "CP_VA": 4244088,
+    "size": 48,
+    "sha256": "25b804e82236b03332195cacb42b31f602e22753b1728d29cec1057206cfd0f4",
+    "target": "1107178",
+    "initializer_CP_VA": 15423056,
+    "initializer_value": 3,
+    "meaning": "E-mode read by bitmap; distinct from data owner M predicate"
+  },
+  "initial_kind_store": {
+    "source": "a95856 prefix, a95876/a958a6 -> a909a4 writes 1a03ad0",
+    "input": "P+22 & 3, derived from received command7 byte1",
+    "type1_K": 4,
+    "type2_K": 1,
+    "explicit_local_event_required": true,
+    "later_calls_executed": false,
+    "native_handler_invocation_verified": false
+  },
+  "original_cache_admission_verified": false,
+  "native_capture_verified": false,
+  "original_CP": false,
+  "Z1_normalizers_complete": false
+}

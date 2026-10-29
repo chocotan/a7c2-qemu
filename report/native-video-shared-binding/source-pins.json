@@ -1,0 +1,33 @@
+{
+  "scope": "positive field layout and address-correction binding; asynchronous pointer transport not fully closed",
+  "artifacts": {
+    "M": {"path": "usr/lib/libmpr.so", "bytes": 3528576, "sha256": "4fb6d886c1ac620399d09c9c2ffc074315968cf0ada764062913c4e0783fc7f9"},
+    "I": {"path": "usr/lib/libInfraAvbbc.so", "bytes": 1738760, "sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5"},
+    "K": {"path": "system/av-cam.bin", "bytes": 13797088, "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096"}
+  },
+  "windows": [
+    {"artifact": "M", "file_offset_hex": "280d44", "bytes": 616, "sha256": "3352c880c5097610e7ec82710a4b41157186169f7080d861da22733a3629457d"},
+    {"artifact": "M", "file_offset_hex": "281110", "bytes": 1124, "sha256": "9c782b91537905c900e2331f99080d62869725d0bcc4a5703a2190a23d46be72"},
+    {"artifact": "M", "file_offset_hex": "280650", "bytes": 112, "sha256": "031f1f9fd2f429bdff3d8182c84c765a68cbcaff5fde34d5431bbf7604ca11fa"},
+    {"artifact": "I", "file_offset_hex": "b21e0", "bytes": 512, "sha256": "dbffbf1864f58c73967c41c31d8209fb1c429c340dd104ee015f5084b743ca96"},
+    {"artifact": "I", "file_offset_hex": "139158", "bytes": 1232, "sha256": "1a7b9b70803f35f269501d6c621287cb760611b293c006fd9f00b4c52de674ae"},
+    {"artifact": "K", "file_offset_hex": "194cf4", "bytes": 240, "sha256": "2f35bc5e36df963b2dbad617f061c758ab11bb49b4a9af05cfc7b11d5ef8e8b3"},
+    {"artifact": "K", "file_offset_hex": "1454f8", "bytes": 44, "sha256": "21f97120dd8bc98ecf8356927f7ee4285bbb81d92e0a8299df7dc07521045d5f"},
+    {"artifact": "K", "file_offset_hex": "1345fc", "bytes": 8, "sha256": "eda514a2a82549e39eeabb81628e678ea251762fe5cb4155439630aa033969c2"},
+    {"artifact": "K", "file_offset_hex": "14f854", "bytes": 52, "sha256": "184140dd4502b6c4eac17321cf629bf29c4cc8a00a968de476ace41acb7ab625"},
+    {"artifact": "K", "file_offset_hex": "15ebbc", "bytes": 100, "sha256": "dc5b5fd3124eb4bcff13a9e8933ff82f3c293bfe46ad19fa29373cd5afb1758d"}
+  ],
+  "window_count": 10,
+  "window_bytes": 4040,
+  "kernel_setup_calls": [["194de0", "1454f8", "BL"], ["14550c", "1345fc", "BL"], ["134600", "14f854", "B"], ["14f868", "15ebbc", "BL"]],
+  "descriptor_prefix_bytes": 40,
+  "inline_parameter_bytes": 152,
+  "read_control_parameter_offset": 80,
+  "write_control_parameter_offset": 88,
+  "read_index_offset_in_read_control": 0,
+  "write_index_offset_in_write_control": 4,
+  "same_control_base_assumed": false,
+  "asynchronous_pointer_transport_verified": false,
+  "native_gap_mask": 63,
+  "capture_verified": false
+}

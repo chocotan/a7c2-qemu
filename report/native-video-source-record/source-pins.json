@@ -1,0 +1,30 @@
+{
+  "scope": "source88 array initialization and start-configuration transport; valid record fill unclosed",
+  "artifact": "runtime/analysis/menu-root/system/av-cam.bin",
+  "bytes": 13797088,
+  "sha256": "90343f5f2edc0393ad8809d907cfe648dfd3a82ce0ef39cf06167929d8955096",
+  "windows": [
+    {"raw_hex": "15ed88", "bytes": 1704, "sha256": "f292b6819d9d595d00d40b699c6ffacb77d1b942b7e047cc69ee657038e9c8f4"},
+    {"raw_hex": "14fccc", "bytes": 16, "sha256": "603c7d9cb41428e93b6f07d7dcdc2f25d8e9c3bba266ef3ae555cd508fc753b7"},
+    {"raw_hex": "1363a4", "bytes": 316, "sha256": "1d46b96f99989ea62125ab84441ba888aa29a20037a6e2048e96a2dd0b88036c"},
+    {"raw_hex": "136e1c", "bytes": 252, "sha256": "2e50e2c4272e04fa5c5279253f1403c7dd2f0ae02a4dfd34b608431a80724f5a"},
+    {"raw_hex": "94760", "bytes": 392, "sha256": "c705c08cb0ab390549fef93de19670a222149aa36277d757bef9d9ff056fa0b9"},
+    {"raw_hex": "97058", "bytes": 292, "sha256": "2242cc0e39990cebc866ee95aaa56a8a07fa0e13fdec0c7b2d41a7290d33b5d2"},
+    {"raw_hex": "245ecc", "bytes": 300, "sha256": "3951a47272cd779dc0356540c179dbaf1fb639c03f6d109c69da9ba11e29841e"},
+    {"raw_hex": "2482bc", "bytes": 964, "sha256": "c77e892b6e696f3eed1e5d4924d6038d551744518dec08e3abf271d3adab02d6"},
+    {"raw_hex": "24259c", "bytes": 28, "sha256": "b3eeda7dd188df583b6a9f0f557c9bc432ece1ab82e44aeae7319ab5091b77ce"},
+    {"raw_hex": "165ce8", "bytes": 60, "sha256": "f0eddd7edd093a7f560ab7a5965ca17fdcfe1d22f63f91c239cc7c1d6fa36554"}
+  ],
+  "window_count": 10,
+  "window_bytes": 4324,
+  "source_record_bytes": 88,
+  "source_record_capacity": 4620,
+  "start_parameter_copy_bytes": 136,
+  "inner_message_bytes": 144,
+  "outer_message_bytes": 168,
+  "callback_argument_bytes": 24,
+  "valid_record_fill_verified": false,
+  "hardware_completion_verified": false,
+  "native_video_gap_mask": 63,
+  "capture_verified": false
+}

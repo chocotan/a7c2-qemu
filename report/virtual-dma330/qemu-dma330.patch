@@ -1,0 +1,189 @@
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -3211,6 +3211,55 @@
+     virt_flash_fdt(vms, sysmem, secure_sysmem ?: sysmem);
+ 
+     create_gic(vms, sysmem);
++    /* Opt-in Sony memory DMA experiment. Resources were read from the original
++     * running kernel's UDIF records, not inferred from a successful submit.
++     * Data movement and event generation are performed by the stock PL330.
++     */
++    if (g_getenv("QEMU_SONY_DMA330")) {
++        MemoryRegion *bus = g_new0(MemoryRegion, 1);
++        MemoryRegion *dram = g_new0(MemoryRegion, 1);
++        MemoryRegion *sram = g_new0(MemoryRegion, 1);
++        const hwaddr bases[2] = { 0xf1056000, 0xf1057000 };
++        const unsigned event_spi[2] = { 80, 113 };
++        const unsigned abort_spi[2] = { 112, 145 };
++
++        memory_region_init(bus, OBJECT(vms), "sony-dma330-bus", 1ULL << 32);
++        /* Original arch_p32_to_p64: <= fdffffff gains bit34; fe000000..
++         * feffffff is identity; ff000000..ffffffff is rejected. These aliases
++         * refer to actual system backing. Unbacked accesses remain faults.
++         */
++        memory_region_init_alias(dram, OBJECT(vms), "sony-dma330-dram",
++                                 sysmem, 0x400000000ULL, 0xfe000000ULL);
++        memory_region_add_subregion(bus, 0, dram);
++        memory_region_init_alias(sram, OBJECT(vms), "sony-dma330-sram",
++                                 sysmem, 0xfe000000, 0x1000000);
++        memory_region_add_subregion(bus, 0xfe000000, sram);
++
++        for (unsigned controller = 0; controller < 2; controller++) {
++            DeviceState *dma = qdev_new("pl330");
++            SysBusDevice *sbd = SYS_BUS_DEVICE(dma);
++            object_property_set_link(OBJECT(dma), "memory", OBJECT(bus),
++                                     &error_fatal);
++            qdev_prop_set_uint32(dma, "num_chnls", 8);
++            qdev_prop_set_uint8(dma, "num_events", 8);
++            /* Original programs use non-secure DMAGO (a2). Model these eight
++             * event resources as non-secure: do not turn a completed copy's
++             * DMASEV into EVENT_ERR just because stock INS defaults to zero.
++             * The PL330 still executes WMB/SEV and checks every transaction.
++             */
++            qdev_prop_set_uint32(dma, "INS", 0xff);
++            sysbus_realize_and_unref(sbd, &error_fatal);
++            memory_region_add_subregion_overlap(sysmem, bases[controller],
++                                                 sysbus_mmio_get_region(sbd, 0), 1);
++            sysbus_connect_irq(sbd, 0,
++                               qdev_get_gpio_in(vms->gic, abort_spi[controller]));
++            for (unsigned event = 0; event < 8; event++) {
++                sysbus_connect_irq(sbd, event + 1,
++                                   qdev_get_gpio_in(vms->gic,
++                                                    event_spi[controller] + event));
++            }
++        }
++    }
+     create_sony_usb(vms);
+     /* Local Sony experiment: overlay four timers on the generic RAM range. */
+     if (g_getenv("QEMU_SONY_TIMERS")) {
+--- a/hw/dma/pl330.c
++++ b/hw/dma/pl330.c
+@@ -442,19 +442,20 @@
+ 
+ static void pl330_fifo_tagged_remove(PL330Fifo *s, uint8_t tag)
+ {
+-    int i, t, n;
++    int i, t, n, kept = 0;
++    int original_num = s->num;
+ 
+     t = i = s->head;
+-    for (n = 0; n < s->num; n++) {
++    for (n = 0; n < original_num; n++) {
+         if (s->tag[i] != tag) {
+             s->buf[t] = s->buf[i];
+             s->tag[t] = s->tag[i];
+             t = pl330_fifo_inc(s, t);
+-        } else {
+-            s->num = s->num - 1;
++            kept++;
+         }
+         i = pl330_fifo_inc(s, i);
+     }
++    s->num = kept;
+ }
+ 
+ /* Read-Write Queue implementation
+@@ -602,6 +603,16 @@
+     }
+ }
+ 
++/* Cancel this tag's pending operations before exposing its bus fault. */
++static void pl330_memtx_fault(PL330Chan *ch, uint32_t fault)
++{
++    PL330State *s = ch->parent;
++    pl330_fifo_tagged_remove(&s->fifo, ch->tag);
++    pl330_queue_remove_tagged(&s->read_queue, ch->tag);
++    pl330_queue_remove_tagged(&s->write_queue, ch->tag);
++    pl330_fault(ch, fault);
++}
++
+ /*
+  * For information about instructions see PL330 Technical Reference Manual.
+  *
+@@ -647,8 +658,11 @@
+ 
+     if (ch->state == pl330_chan_executing && !ch->is_manager) {
+         /* Wait for all transfers to complete */
+-        if (pl330_fifo_has_tag(&s->fifo, ch->tag) ||
+-            pl330_queue_find_insn(&s->read_queue, ch->tag, false) != NULL ||
++        /* ARM DDI 0424A section 4.3.2: finish outstanding transfers,
++         * then flush this thread's MFIFO. Surplus prefetched bytes alone
++         * must not prevent END from reaching the tagged flush below.
++         */
++        if (pl330_queue_find_insn(&s->read_queue, ch->tag, false) != NULL ||
+             pl330_queue_find_insn(&s->write_queue, ch->tag, false) != NULL) {
+ 
+             ch->stall = 1;
+@@ -1101,8 +1115,11 @@
+     uint8_t opcode;
+     int i;
+ 
+-    dma_memory_read(ch->parent->mem_as, ch->pc, &opcode, 1,
+-                    MEMTXATTRS_UNSPECIFIED);
++    if (dma_memory_read(ch->parent->mem_as, ch->pc, &opcode, 1,
++                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
++        pl330_memtx_fault(ch, PL330_FAULT_INSTR_FETCH_ERR);
++        return NULL;
++    }
+     for (i = 0; insn_desc[i].size; i++) {
+         if ((opcode & insn_desc[i].opmask) == insn_desc[i].opcode) {
+             return &insn_desc[i];
+@@ -1116,8 +1133,11 @@
+     uint8_t buf[PL330_INSN_MAXSIZE];
+ 
+     assert(insn->size <= PL330_INSN_MAXSIZE);
+-    dma_memory_read(ch->parent->mem_as, ch->pc, buf, insn->size,
+-                    MEMTXATTRS_UNSPECIFIED);
++    if (dma_memory_read(ch->parent->mem_as, ch->pc, buf, insn->size,
++                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
++        pl330_memtx_fault(ch, PL330_FAULT_INSTR_FETCH_ERR);
++        return;
++    }
+     insn->exec(ch, buf[0], &buf[1], insn->size - 1);
+ }
+ 
+@@ -1143,10 +1163,15 @@
+     insn = pl330_fetch_insn(ch);
+     if (!insn) {
+         trace_pl330_chan_exec_undef();
+-        pl330_fault(ch, PL330_FAULT_UNDEF_INSTR);
++        if (ch->state != pl330_chan_fault) {
++            pl330_fault(ch, PL330_FAULT_UNDEF_INSTR);
++        }
+         return 0;
+     }
+     pl330_exec_insn(ch, insn);
++    if (ch->state == pl330_chan_fault) {
++        return 0;
++    }
+     if (!ch->stall) {
+         pl330_update_pc(ch, insn);
+         ch->watchdog_timer = 0;
+@@ -1181,8 +1206,11 @@
+     if (q != NULL && q->len <= pl330_fifo_num_free(&s->fifo)) {
+         int len = q->len - (q->addr & (q->len - 1));
+ 
+-        dma_memory_read(s->mem_as, q->addr, buf, len,
+-                        MEMTXATTRS_UNSPECIFIED);
++        if (dma_memory_read(s->mem_as, q->addr, buf, len,
++                            MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
++            pl330_memtx_fault(&s->chan[q->tag], PL330_FAULT_DATA_READ_ERR);
++            return num_exec;
++        }
+         trace_pl330_exec_cycle(q->addr, len);
+         if (trace_event_get_state_backends(TRACE_PL330_HEXDUMP)) {
+             pl330_hexdump(buf, len);
+@@ -1213,8 +1241,11 @@
+             fifo_res = pl330_fifo_get(&s->fifo, buf, len, q->tag);
+         }
+         if (fifo_res == PL330_FIFO_OK || q->z) {
+-            dma_memory_write(s->mem_as, q->addr, buf, len,
+-                             MEMTXATTRS_UNSPECIFIED);
++            if (dma_memory_write(s->mem_as, q->addr, buf, len,
++                                 MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
++                pl330_memtx_fault(&s->chan[q->tag], PL330_FAULT_DATA_WRITE_ERR);
++                return num_exec;
++            }
+             trace_pl330_exec_cycle(q->addr, len);
+             if (trace_event_get_state_backends(TRACE_PL330_HEXDUMP)) {
+                 pl330_hexdump(buf, len);

@@ -1,0 +1,150 @@
+{
+  "status": "PASS_HARDWARE_ONLY",
+  "binary_sha256": "87dda374b5a02bc94bbe4c624dcb3f900fc03443e62d25b2832147c37083117d",
+  "direct_cases": 16,
+  "linked_cases": 2,
+  "fault_cases": 3,
+  "raw_trace_sha256": "7413681bbf596249ea241c10e151d747c4e3fabadef961c15526679bf64bfbd6",
+  "checks": [
+    {
+      "direction": 0,
+      "channel": 0,
+      "linked": false,
+      "actual_data_sha256": "a7f0ce8ca689c295cb9fb1af38e7919fad0a7dd3679f64a818a26148710308f6",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 1,
+      "linked": false,
+      "actual_data_sha256": "ce2b0746f37ed0a3fd2e009584d68ee2715b8ed14da404512a00bfc857a6432b",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 2,
+      "linked": false,
+      "actual_data_sha256": "4be37ddd803323a0a750c6f4cd916d81cd5f181808c05b930df41edabf6dda88",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 3,
+      "linked": false,
+      "actual_data_sha256": "1b50f72fb7d9713eaf0c16195a5533735d999b1fac4f11dc3d2e531edb047269",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 4,
+      "linked": false,
+      "actual_data_sha256": "5ca217bf14aa61400d3cbbc7fbccc4b3fa5b5b0d89f81d5e73b3fc2f0dacd475",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 5,
+      "linked": false,
+      "actual_data_sha256": "5a9e927027fd557411caa24472c3c9ed049f7e0a14762390c9526ef43a63de66",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 6,
+      "linked": false,
+      "actual_data_sha256": "f665f90a9501302d09fb09eb75e36155adc7c20b194ab51a57d4c64eb7e7cdc5",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 7,
+      "linked": false,
+      "actual_data_sha256": "89dc39797d496561d2491ab622debb3bd02e0e41124ca1baadffbb7781fb8090",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 0,
+      "channel": 0,
+      "linked": true,
+      "actual_data_sha256": "d4fc1ee7cd27727dd37b1d49f79376f6f6aff8a0dafe8d053c7b937ca2afea44",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 0,
+      "linked": false,
+      "actual_data_sha256": "a8e44bb572fc58bec859e8339169e92293e90246ff06d1301862c5a508a62e21",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 1,
+      "linked": false,
+      "actual_data_sha256": "e1a66a7a98d3988231b38e6deaa8484d168820c706d3fef5fa8f06f0a01e7191",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 2,
+      "linked": false,
+      "actual_data_sha256": "de757bfdca4dc5ffbbd497d7a265079235d2b42595ffa8a7ce31cd4d8bc8157d",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 3,
+      "linked": false,
+      "actual_data_sha256": "377d1459ed0169d93f1d7c8bf46038fedaad1d4c0fabb42d1682b9e3d6b7118d",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 4,
+      "linked": false,
+      "actual_data_sha256": "f45bcc9b312c4e490c2925dc0414a55c302de475897e1b78da195fef8e186bbe",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 5,
+      "linked": false,
+      "actual_data_sha256": "82ad34bfcb8a3119f3785e0f5a8829c739c8ec73a157cdff1fd5c530af54c733",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 6,
+      "linked": false,
+      "actual_data_sha256": "11c99780537c8f155ab21d3f5b351eba30dc255b75223be19b6d19d251c96bac",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 7,
+      "linked": false,
+      "actual_data_sha256": "38ec1091110639d9d06de713b622c68a344bda464ee00de59f718bdd3653e929",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "direction": 1,
+      "channel": 0,
+      "linked": true,
+      "actual_data_sha256": "b2bbc49883623ebe41cadb7a0332220665704b5d307830378de3d18223d56b89",
+      "guards_source_gic_and_ack_verified": true
+    },
+    {
+      "fault": "descriptor",
+      "actual_abort_gic_peer_verified": true
+    },
+    {
+      "fault": "source",
+      "actual_abort_gic_peer_verified": true
+    },
+    {
+      "fault": "target",
+      "actual_abort_gic_peer_verified": true
+    }
+  ],
+  "original_driver_verified": false,
+  "cp_or_capture_verified": false
+}
