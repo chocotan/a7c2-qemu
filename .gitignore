@@ -51,3 +51,4 @@ runtime/analysis/camera-instances/
 /runtime/analysis/qemu-virt-board/*-proof.json
 /runtime/analysis/*.log
 *.o
+*.ko

@@ -13865,5 +13865,20 @@
     "historical_driver_scope": "Only imported research helper source is included; its historical immutable inputs are not distributed. Use tools/test-public-models.py for fresh public host tests.",
     "original_AP_capture_verified": false,
     "physical_ASIC_verified": false
+  },
+  "documentation_screenshots": {
+    "docs/images/startup-window.png": {
+      "source": "actual published GTK camera window on the local desktop",
+      "scope": "startup original-firmware language-selection page; no camera capture acceptance",
+      "sha256": "b64d83b0d95da43824c015b3a6729920c3a8b479f146e46a2fdcf28644a1994e",
+      "dimensions": [
+        1360,
+        930
+      ],
+      "pixels_sha256": "f0ad09c864a9591169c12413f6ddcaf64a7651c605eb5538f771d44ed360261a",
+      "pixels_changed": false,
+      "other_desktop_or_personal_content_included": false,
+      "capture_verified": false
+    }
   }
 }
