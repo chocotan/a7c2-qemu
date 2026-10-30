@@ -15,6 +15,7 @@ import re
 import shlex
 import struct
 import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -304,7 +305,10 @@ def host_test_transport(root, operations=None, console_prefix='', guest_pid=77, 
             policies.update(checker.DISPLAY_POLICY)
         if any(event['kind'] == 'request' and event['opcode'] == 9 for event in events):
             policies.update(checker.BB_POLICY)
-        policy = {'functional_camera_' + key: value for key, value in policies.items()}
+        if any(event['kind'] == 'request' and event['opcode'] == 12 for event in events):
+            policies.update(checker.BIT_WIDTH_POLICY)
+        generated = checker.source_module(checker.RUNTIME / 'backup_profile.py').functional_camera_profile_fields(checker.PROFILE)
+        policy = {'functional_camera_' + key: generated['functional_camera_' + key] for key in policies}
         manifest.update(policy)
         manifest['backup_transport'] = dict(policy)
     if any(event['kind'] == 'request' and event['opcode'] == 10 for event in events):
@@ -410,6 +414,7 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
     transport/RGB/JPEG/PI/NAL/writeback/decoder stages without starting target code.
     vdf_paths keeps legacy bool/bytes8 Zebra/bytes32 layout entries;
     ('display', native_command[, body8]) selects the independent op8 command.
+    ('bit_width',) selects original015e/body0000 and actual typed op12/result168.
     Refresh0141/body0 uses only virtual body8 and interleaves a real State128
     exchange before the later original receive/free on its reusable global D.
     """
@@ -433,7 +438,8 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         parsed_movie = checker.mp4_samples(movie)
     has_layout = any(isinstance(item, bytes) and len(item) == 32 for item in vdf_paths)
     has_bb = any(isinstance(item, tuple) and item[0] == 'bb' for item in vdf_paths)
-    width, height = (640, 480) if has_layout or has_bb or histogram else (24, 16)
+    has_bit_width = any(isinstance(item, tuple) and item[0] == 'bit_width' for item in vdf_paths)
+    width, height = (640, 480) if has_layout or has_bb or has_bit_width or histogram else (24, 16)
     rgb_hashes = {}
     records, operations = JFZ_VDF_RESOURCE_OBS.splitlines() if has_layout else [], []
     def row(tag, **fields):
@@ -448,7 +454,7 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         nonlocal serial, generation
         config_generation = configuration if config_generation is None else config_generation
         serial += 1
-        kind = {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 16: 1, 33: 2, 34: 3}[op]
+        kind = {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4, 16: 1, 33: 2, 34: 3}[op]
         rendered = kind != 3 and (kind != 4 or active)
         consumer = kind != 0 and (kind != 4 or active)
         before = counts.copy()
@@ -528,9 +534,13 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         layout = isinstance(requested, bytes) and len(requested) == 32
         display = isinstance(requested, tuple) and requested[0] == 'display'
         bb = isinstance(requested, tuple) and requested[0] == 'bb'
+        bit_width = isinstance(requested, tuple) and requested[0] == 'bit_width'
         assert not isinstance(requested, bytes) or zebra or layout
         op, command, native_bytes = (7, 0x14c, 40) if layout else (6, 0x153, 14) if zebra else (5, 0x138, 24)
-        if bb:
+        if bit_width:
+            assert requested == ('bit_width',)
+            op, command, native_bytes, body, canonical = 12, 0x15e, 10, bytes(2), bytes(8)
+        elif bb:
             _, command, body = requested
             native_bytes = checker.BB_COMMANDS[command]
             assert len(body) == native_bytes - 8
@@ -546,8 +556,8 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         else:
             canonical = requested if zebra or layout else bytes([int(requested), 5 if requested else 1, 5 if requested else 1, 0xa5, 2,
                                                                  0x63, 0x74, cycle, 0x91, 0x82, 0x73, 0x64, 0x55, 0, 0, 0])
-        active = bool(route[0]) if zebra or layout or display or bb else requested
-        if display or bb:
+        active = bool(route[0]) if zebra or layout or display or bb or bit_width else requested
+        if display or bb or bit_width:
             original = struct.pack('<4H', 0x200d, command, native_bytes, 0x8001) + body[:native_bytes - 8]
         elif layout:
             original = bytes.fromhex('0d204c0128000180') + canonical
@@ -558,7 +568,8 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
             route = canonical
             original = bytes.fromhex('0d20380118000180') + canonical[:13] + b'\xa5\xff\x55'
         native = dict(producer_tid=90,
-                      source=0x81cf61d0 + list(checker.BB_COMMANDS).index(command) if bb else
+                      source=0x81cf61ca if bit_width else
+                             0x81cf61d0 + list(checker.BB_COMMANDS).index(command) if bb else
                              {0x141: refresh_source, 0x152: 0x81cf61c7, 0x162: 0x81cf61c8}[command] if display else
                              0x81cf61c6 if layout else 0x81cf61c5 if zebra else 0x81cf61c4,
                       destination=0x92840747, command=command, bytes=native_bytes, fnv1a64=checker.fnv(original))
@@ -582,17 +593,17 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         before_config, before_frame = configuration, generation
         configuration += 1
         p = proof(op, b'', active=active)
-        result = bytearray(192 if bb else 176 if display else 192 if layout else 168 if zebra else 160)
+        result = bytearray(168 if bit_width else 192 if bb else 176 if display else 192 if layout else 168 if zebra else 160)
         struct.pack_into('<2I8Q14I', result, 0, 1, len(result), 99, configuration, generation,
                          generation if active else 0, checker.fnv(canonical),
                          p['source_fnv1a64'], p['consumer_after_fnv1a64'], p['active_bytes'],
-                         width, height, width * 3, 0x90590819, 1, 1, 5 if bb else int(active), int(active), 1, 1,
+                         width, height, width * 3, 0x90590819, 1, 1, 7 if bit_width else 5 if bb else int(active), int(active), 1, 1,
                          int(active), int(active), 0, 0)
         result[128:144] = route
         struct.pack_into('<2Q', result, 144, before_frame, before_config)
-        if zebra or layout or display or bb:
+        if zebra or layout or display or bb or bit_width:
             result[160:] = canonical
-        if bb:
+        if bb or bit_width:
             p.update(result_bytes=len(result), result_fnv1a64=checker.fnv(result))
         operations.append(dict(op=op, data=canonical, output=bytes(result), origin=native, proof=p))
         records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
@@ -612,14 +623,15 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
                 frame_generation=generation, before_frame_generation=before_frame,
                 lease_generation=generation if active else 0, init_rc=0, bridge_rc=0, validation_rc=0,
                 request_owned=1, request_retained='(nil)', request_freed=1,
-                ack_retained='(nil)' if freed or name == 'REQUEST_FREE' and (layout or display or bb) else '0x500000',
+                ack_retained='(nil)' if freed or name == 'REQUEST_FREE' and (layout or display or bb or bit_width) else '0x500000',
                 queued=queued, received=received,
                 AP_consumed=consumed, send_inflight=int(name in ('RECEIVE', 'AP_FREE') and not queued), releasing=0,
                 sender_tid=90, receiver_tid=90 if received else 0, free_tid=90 if freed else 0,
                 allocate_rc=0, send_rc=0, free_rc=0, model_complete=1, functional_model=1,
                 original_CP_FIFO_verified=0, physical_CP_RTOS_verified=0, original_selector_verified=0,
                 physical_ASIC_verified=0, capture_verified=0, raw=original.hex(),
-                ack_wire=struct.pack('<4HI', 0x200d, command + 0x1000, 12, 0x8001, 0 if zebra or bb else 0x590000).hex(),
+                ack_wire=(bytes.fromhex('0d205e110c00018000005900') if bit_width else
+                          struct.pack('<4HI', 0x200d, command + 0x1000, 12, 0x8001, 0 if zebra or bb else 0x590000)).hex(),
                 canonical_config=route.hex(),
                 model_result_fnv1a64=f'{checker.fnv(result):016x}', model_result_hex=result.hex(),
                 **(dict(canonical_zebra8=saved_zebra.hex(), model_result_bytes=len(result)) if mixed_display else {}),
@@ -631,7 +643,10 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
                         allocation_alias=0, request_free_rc=0) if display else {}),
                 **(dict(canonical_bb32=canonical.hex(),
                         allocation_returned='(nil)' if name == 'REQUEST_FREE' else '0x500000',
-                        allocation_alias=0, request_free_rc=0) if bb else {}))
+                        allocation_alias=0, request_free_rc=0) if bb else {}),
+                **(dict(canonical_bit_width8=canonical.hex(), realresultbytes=len(result),
+                        allocation_returned='(nil)' if name == 'REQUEST_FREE' else '0x500000',
+                        allocation_alias=0, request_free_rc=0) if bit_width else {}))
             if command == 0x141 and name == 'SEND' and not vdf_inline:
                 operations.append(dict(op=2, data=b'', output=state(), origin=cp_origin))
                 records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
@@ -642,7 +657,7 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
                 applied_config_generation=configuration, applied_frame_generation=generation,
                 applied_result_fnv1a64=f'{checker.fnv(result):016x}'))
         if mixed_display:
-            repeat_origin = cp_origin if layout or display else jpeg_origin
+            repeat_origin = cp_origin if layout or display or bit_width else jpeg_origin
             operations.append(dict(op=1, data=b'', output=state(), origin=repeat_origin))
             records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
     if histogram:
@@ -1020,7 +1035,9 @@ class EvidenceTests(unittest.TestCase):
         actual = checker.parse_console(process.stdout.encode())
         accept = next(r for r in actual if r['tag'] == 'FUNCTIONAL_BACKGROUND_START_ACCEPT')['fields']
         pid, sender, source = (checker.number(accept[k]) for k in ('pid', 'sender_tid', 'source'))
-        broker = checker.source_module(checker.RUNTIME / 'functional_camera_broker.py')
+        snapshot = checker.source_module(checker.RUNTIME / 'functional_face_source_snapshot.py')
+        with mock.patch.dict(sys.modules, functional_face_source_snapshot=snapshot):
+            broker = checker.source_module(checker.RUNTIME / 'functional_camera_broker.py')
         operations, console, bound = [], [], 0
         for text in records:
             if text.startswith('FUNCTIONAL_BACKGROUND_START_ACCEPT '):
@@ -1099,6 +1116,23 @@ class EvidenceTests(unittest.TestCase):
             self.assertIs(evidence[key], False)
         with self.assertRaises(checker.MissingEvidence):
             checker.check_frames(args[0], transport)  # INIT128 still cannot replace JPEG/H264/drain.
+
+    def test_background_all13_frees_use_dynamic_AP_queue_not_control_service_prefix(self):
+        args = self.background(require_native=True)
+        transport = checker.check_transport(*args)
+        rows = copy.deepcopy(args[2])
+        for row in rows:
+            if row['tag'] in checker.BACKGROUND_FREE_TAGS:
+                row['fields'].update(destination='0x81cf61c4', expected='0x81cf61c4')
+        evidence = checker.check_background_start(args[0], args[1], rows, transport)
+        self.assertTrue(evidence['content_join_verified'])
+        for destination, expected in (('0x70020002', '0x70020002'), ('0x80000000', '0x80000000'),
+                                      ('0x81cf61c4', '0x81cf61c5')):
+            bad = copy.deepcopy(rows)
+            free = next(row['fields'] for row in bad if row['tag'] in checker.BACKGROUND_FREE_TAGS)
+            free.update(destination=destination, expected=expected)
+            with self.subTest(destination=destination, expected=expected), self.assertRaises(ValueError):
+                checker.check_background_start(args[0], args[1], bad, transport)
 
     def test_background_pending_is_reported_without_verifying_or_borrowing_generic_ACK(self):
         args = self.background()
@@ -1358,6 +1392,7 @@ class EvidenceTests(unittest.TestCase):
         args, transport = self.transport()
         self.assertFalse(transport['background_start']['required'])
         self.assertFalse(transport['background_start']['verified'])
+        self.assertEqual(checker.check_face_source(*args[:4], transport)['status'], 'not_observed')
         for key, value in checker.BACKGROUND_POLICY.items():
             manifest = dict(functional_camera_runtime=args[1]['functional_camera_runtime'],
                             backup_transport={'functional_camera_' + k: v for k, v in checker.BACKGROUND_POLICY.items()},
@@ -1470,6 +1505,25 @@ class EvidenceTests(unittest.TestCase):
         for kwargs in ({}, {'require_media': True}):
             with self.subTest(default_media=kwargs), self.assertRaises(checker.MissingEvidence):
                 checker.check_frames(args[0], transport, **kwargs)
+
+    def test_control_resource_notes_are_not_timing_receipts_or_success(self):
+        args = host_test_control(self.root)
+        transport = checker.check_transport(*args)
+        notes = [dict(tag='FUNCTIONAL_CAMERA_CONTROL_' + suffix, line=index,
+                      fields={'pid': str(transport['pid']), 'accepted': '1'})
+                 for index, suffix in enumerate(('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE',
+                                                 'RESOURCES_RESERVED'), 1)]
+        self.assertEqual(checker.check_control(args[0], notes + args[2], transport), transport['control'])
+        only_notes = checker.check_control(args[0], notes, transport)
+        self.assertFalse(only_notes['required'])
+        self.assertFalse(only_notes['verified'])
+        for suffix in ('RESOURCE_UNKNOWN', 'RESOURCES_RESERVED_FAULT', 'FAILED'):
+            row = dict(notes[0], tag='FUNCTIONAL_CAMERA_CONTROL_' + suffix)
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                checker.check_control(args[0], [row] + args[2], transport)
+        malformed = dict(notes[0], diagnostic='duplicate field')
+        with self.assertRaises(ValueError):
+            checker.check_control(args[0], [malformed] + args[2], transport)
 
     def test_Xsync_actual_bad_FPS_and_same_generation_State_cannot_borrow_cached_source(self):
         for index, source in ((3, control_state(3, 8)), (3, control_state(61, 8)), (3, control_state(120, 8)),
@@ -2023,6 +2077,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(result['capture_verified'])
         self.assertFalse(result['products']['JPEG']['capture_verified'])
         self.assertFalse(result['physical_asic_compatibility_verified'])
+        self.assertEqual(result['evidence']['functional_AP_source_snapshot_consumed']['status'], 'not_observed')
         self.assertTrue(any(row['stage'] == 'graph' for row in result['missing']))
         self.assertTrue(any(row['stage'] == 'native_acceptance' for row in result['missing']))
         json.dumps(result)
@@ -2849,6 +2904,346 @@ class EvidenceTests(unittest.TestCase):
         idle = host_test_capture(idle_root, (False, ('display', 0x162)))
         with self.assertRaisesRegex(ValueError, 'committed active RGB route'):
             checker.check_transport(*idle)
+
+    def test_BitWidth_OP12_full_typed_content_and_original_lifecycle(self):
+        for inline in (False, True):
+            root = self.root / str(inline)
+            root.mkdir()
+            paths = REFRESH_PATHS + BB_PATHS + (('bit_width',), ('bit_width',))
+            args = host_test_capture(root, paths, vdf_inline=inline, configuration_only=True, histogram=True)
+            transport = checker.check_transport(*args)
+            frames = checker.check_frames(args[0], transport, require_codecs=False)
+            self.assertEqual(transport['opcodes']['12'], 2)
+            self.assertEqual(transport['opcodes']['9'], len(BB_PATHS))
+            self.assertEqual(transport['opcodes']['10'], 1)
+            self.assertEqual(frames['last_counts']['jpeg_encoded'], 0)
+            self.assertEqual(frames['last_counts']['video_encoded'], 0)
+            self.assertFalse(transport['VDF_path']['display_bit_width_physical_mapping_verified'])
+            self.assertIs(args[1]['functional_camera_runtime']['capture_verified'], False)
+            generated = checker.source_module(checker.RUNTIME / 'backup_profile.py').functional_camera_profile_fields(checker.PROFILE)
+            for key, expected in checker.BIT_WIDTH_POLICY.items():
+                full = 'functional_camera_' + key
+                self.assertTrue(checker.typed_equal(generated[full], expected))
+                self.assertTrue(checker.typed_equal(args[1][full], generated[full]))
+                self.assertTrue(checker.typed_equal(args[1]['backup_transport'][full], generated[full]))
+            for tx in (tx for tx in transport['transfers'] if tx['opcode'] == 12):
+                output = checker.transfer_output(args[0], tx)
+                canonical = checker.payload_read(args[0], tx['request_payload'])
+                value = checker.vdf_result(output, canonical, 99, 12, output[128:144])
+                self.assertEqual((len(output), canonical, output[160:], value['class']), (168, bytes(8), bytes(8), 7))
+                self.assertEqual((value['width'], value['height'], value['stride'], value['active_bytes']),
+                                 (640, 480, 1920, 921600))
+                self.assertEqual(value['source_fnv'], checker.fnv(bytes([0, 0, 255]) * (640 * 480)))
+                self.assertEqual(value['source_fnv'], value['sink_fnv'])
+                self.assertEqual(value['config_generation'], value['before_config_generation'] + 1)
+                self.assertEqual(value['frame_generation'], value['before_frame_generation'] + 1)
+                self.assertEqual((value['frame_consumed'], value['retired'], value['config_readback']), (1, 1, 1))
+                p = tx['frame']['proof']
+                self.assertEqual((p['consumer_kind'], p['result_bytes'], p['result_fnv1a64'], p['result_token']),
+                                 (4, 168, checker.fnv(output), 0))
+                self.assertEqual((tx['first'], tx['token']), (tx['last'], 0))
+                job = next(job for job in frames['jobs'] if job['first'] == tx['first'])
+                self.assertEqual(job['configuration_result_sha256'], checker.sha(output))
+                self.assertNotIn('encoded_result_sha256', job)
+                cycle = next(c for c in transport['VDF_path']['cycles'] if c['first'] == tx['first'])
+                self.assertEqual((cycle['opcode'], cycle['native_command'], cycle['AP_consumed']), (12, 0x15e, True))
+                records = [r for r in args[2] if r['tag'].startswith('FUNCTIONAL_VDF_PATH_') and
+                           r['fields'].get('cycle') == str(cycle['cycle'])]
+                self.assertEqual(len(records), 5)
+                for row in records:
+                    f = row['fields']
+                    self.assertEqual(f['raw'], '0d205e010a0001800000')
+                    self.assertEqual(f['ack_wire'], '0d205e110c00018000005900')
+                    self.assertEqual(f['original_fnv1a'], f'{checker.fnv(bytes.fromhex(f["raw"])):016x}')
+                    self.assertEqual(f['canonical_bit_width8'], '00' * 8)
+                    self.assertEqual(f['model_result_hex'], output.hex())
+                    self.assertEqual(f['allocation_returned'], '(nil)' if row['tag'].endswith('REQUEST_FREE') else '0x500000')
+                self.assertLess(cycle['receive_line'], cycle['free_line'])
+            with self.assertRaises(checker.MissingEvidence):
+                checker.check_frames(args[0], transport)
+
+    def test_BitWidth_policy_is_real_typed_complete_in_both_copies_and_legacy_optional(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        fields = checker.source_module(checker.RUNTIME / 'backup_profile.py').functional_camera_profile_fields(checker.PROFILE)
+        profile = dict(fields, backup_transport=copy.deepcopy(fields), directory_sd_profile='directory-vvfat-256gb-v1',
+                       rm_file_image_bytes=checker.writeback.CARD_BYTES)
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        for location in ('top', 'backup_transport'):
+            for key, expected in checker.BIT_WIDTH_POLICY.items():
+                full = 'functional_camera_' + key
+                wrong_values = ('missing', None, 0, True) if expected is False else (
+                    ('missing', None, [], [True], [False], [float(expected[0])], [expected[0], expected[0]])
+                    if type(expected) is list else ('missing', None, False, 'physical-8bit'))
+                for wrong in wrong_values:
+                    changed, changed_profile = copy.deepcopy(args[1]), copy.deepcopy(profile)
+                    for value in (changed, changed_profile):
+                        target = value if location == 'top' else value[location]
+                        if wrong == 'missing':
+                            del target[full]
+                        else:
+                            target[full] = wrong
+                    with self.subTest(location=location, key=key, wrong=wrong):
+                        with self.assertRaisesRegex(ValueError, 'exact typed software policy'):
+                            checker.check_transport(args[0], changed, *args[2:])
+                        with self.assertRaisesRegex(ValueError, 'typed functional profile drift'):
+                            checker.check_profile(changed_profile)
+        legacy = self.root / 'legacy'
+        legacy.mkdir()
+        old = host_test_capture(legacy, (True,), configuration_only=True)
+        for target in (profile, profile['backup_transport']):
+            for key in checker.BIT_WIDTH_POLICY:
+                del target['functional_camera_' + key]
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        self.assertTrue(checker.check_transport(*old)['verified'])
+        self.assertTrue(checker.check_frames(old[0], checker.check_transport(*old), require_codecs=False)['verified'])
+        profile['functional_camera_display_bit_width_physical_mapping_verified'] = False
+        with self.assertRaises(ValueError):
+            checker.check_profile(profile)
+
+    def test_BitWidth_result168_rejects_selector_reserved_tail_class_and_shapes(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 12)
+        raw = checker.transfer_output(args[0], tx)
+        route = raw[128:144]
+        mutations = ((0, '<I', 0), (4, '<I', 160), (8, '<Q', 100), (16, '<Q', 1),
+                     (24, '<Q', 1), (32, '<Q', 0), (40, '<Q', 0), (48, '<Q', 0), (56, '<Q', 1),
+                     (64, '<Q', 0), (72, '<I', 320), (76, '<I', 240), (80, '<I', 2560),
+                     (84, '<I', 0), (88, '<I', 0), (92, '<I', 0), (96, '<I', 1), (96, '<I', 5),
+                     (96, '<I', 6), (100, '<I', 0), (104, '<I', 0), (108, '<I', 0),
+                     (112, '<I', 0), (116, '<I', 0), (120, '<I', 1), (124, '<I', 1),
+                     (144, '<Q', 0), (152, '<Q', 0))
+        for offset, fmt, wrong in mutations:
+            output = bytearray(raw)
+            struct.pack_into(fmt, output, offset, wrong)
+            with self.subTest(offset=offset, wrong=wrong), self.assertRaises(ValueError):
+                checker.vdf_result(output, bytes(8), 99, 12, route)
+        for offset in range(8):
+            for wrong in ((1, 2, 3, 255) if offset == 0 else (1, 255)):
+                canonical, output = bytearray(8), bytearray(raw)
+                canonical[offset] = wrong
+                output[160:] = canonical
+                struct.pack_into('<Q', output, 40, checker.fnv(canonical))
+                with self.subTest(input_offset=offset, wrong=wrong), self.assertRaises(ValueError):
+                    checker.vdf_result(output, canonical, 99, 12, route)
+            output = bytearray(raw)
+            output[160 + offset] = 1
+            with self.subTest(saved_tail=offset), self.assertRaises(ValueError):
+                checker.vdf_result(output, bytes(8), 99, 12, route)
+        for output in (raw[:160], raw[:-1], raw + b'\0', raw + bytes(24)):
+            with self.subTest(result_bytes=len(output)), self.assertRaises(ValueError):
+                checker.vdf_result(output, bytes(8), 99, 12, route)
+        for canonical in (b'', bytes(2), bytes(7), bytes(9), bytes(16), bytes(32)):
+            with self.subTest(input_bytes=len(canonical)), self.assertRaises(ValueError):
+                checker.vdf_result(raw, canonical, 99, 12, route)
+        for op in (5, 6, 7, 8, 9, 10):
+            with self.subTest(wrong_opcode=op), self.assertRaises(ValueError):
+                checker.vdf_result(raw, bytes(8), 99, op, route)
+        with self.assertRaises(ValueError):
+            checker.vdf_result(raw, bytes(8), 99, 12, bytes(16))
+
+    def test_BitWidth_original10_header_full_hash_source_and_independent115e_are_exact(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        original = bytes.fromhex('0d205e010a0001800000')
+        raw_packets = [original[:n] for n in (0, 8, 9)] + [original + b'\0', original + bytes(2)]
+        for offset, wrong in ((0, 0), (2, 0x5f), (4, 8), (4, 12), (6, 0), (8, 1), (8, 2), (8, 3), (9, 1)):
+            wire = bytearray(original)
+            wire[offset] = wrong
+            raw_packets.append(bytes(wire))
+        for wire in raw_packets:
+            rows = copy.deepcopy(args[2])
+            changed = copy.deepcopy(transport)
+            for row in rows:
+                if row['tag'].startswith('FUNCTIONAL_VDF_PATH_') and row['fields'].get('command') == '0x15e':
+                    row['fields'].update(raw=wire.hex(), original_fnv1a=f'{checker.fnv(wire):016x}')
+            for tx in changed['transfers']:
+                if tx['origin']['command'] == 0x15e:
+                    tx['origin']['fnv1a64'] = checker.fnv(wire)
+            with self.subTest(raw=wire.hex()), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], rows, changed)
+        for key, wrong in (('ack_wire', '0d205e110c00018000000000'),
+                ('ack_wire', '0d205e110c00018001005900'), ('ack_wire', '0d205e110c00018005005900'),
+                ('ack_wire', '0d205e110c000180ffffffff'), ('ack_wire', '0d205f110c00018000005900'),
+                ('ack_wire', '0d205e110c0001800000590000'), ('canonical_bit_width8', '00' * 7),
+                ('model_result_bytes', '160'), ('realresultbytes', '192'), ('model_instance', '100'),
+                ('original_fnv1a', '0000000000000000'), ('model_result_fnv1a64', '0000000000000000'),
+                ('source', '0x81cf1234'), ('destination', '0x92840748'), ('command', '0x15f'), ('bytes', '12')):
+            rows = copy.deepcopy(args[2])
+            next(row['fields'] for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_AP_FREE' and
+                 row['fields']['command'] == '0x15e')[key] = wrong
+            with self.subTest(field=key, wrong=wrong), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], rows, transport)
+        for source in (0, True, 0x81ce61ca, 0x181cf61ca, 0x10000000081cf61ca, (1 << 64) - 1, '0x81cf61ca', None):
+            changed = copy.deepcopy(transport)
+            next(tx for tx in changed['transfers'] if tx['opcode'] == 12)['origin']['source'] = source
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], args[2], changed)
+
+    def test_BitWidth_original_request_free_precedes_allocation_and_receive_free_are_required(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        mutations = (('REQUEST_FREE', 'ack_retained', '0x500000'), ('REQUEST_FREE', 'allocation_returned', '0x500000'),
+            ('REQUEST_FREE', 'request_freed', '0'), ('REQUEST_FREE', 'request_free_rc', '-1'),
+            ('SEND', 'allocation_returned', '(nil)'), ('SEND', 'allocation_alias', '1'),
+            ('SEND', 'request_retained', '0x400000'), ('RECEIVE', 'ack_retained', '(nil)'),
+            ('RECEIVE', 'receiver_tid', '91'), ('AP_FREE', 'free_tid', '91'), ('AP_FREE', 'free_rc', '-1'),
+            ('AP_FREE', 'AP_consumed', '0'), ('COMPLETE', 'model_complete', '0'), ('SEND', 'sender_tid', '91'),
+            ('SEND', 'tid', '91'), ('AP_FREE', 'model_instance', '100'), ('SEND', 'capture_verified', '1'),
+            ('SEND', 'physical_ASIC_verified', '1'), ('SEND', 'original_selector_verified', '1'),
+            ('SEND', 'original_CP_FIFO_verified', '1'), ('SEND', 'physical_CP_RTOS_verified', '1'))
+        for tag, key, wrong in mutations:
+            rows = copy.deepcopy(args[2])
+            next(row['fields'] for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_' + tag and
+                 row['fields']['command'] == '0x15e')[key] = wrong
+            with self.subTest(tag=tag, key=key), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], rows, transport)
+        for tag in ('REQUEST_FREE', 'SEND', 'COMPLETE', 'RECEIVE', 'AP_FREE'):
+            rows = [row for row in args[2] if not (row['tag'] == 'FUNCTIONAL_VDF_PATH_' + tag and
+                    row['fields']['command'] == '0x15e')]
+            with self.subTest(missing=tag), self.assertRaises(checker.MissingEvidence):
+                checker.check_vdf_path(args[0], rows, transport)
+        for key in ('canonical_bit_width8', 'model_result_bytes', 'allocation_returned', 'allocation_alias', 'request_free_rc'):
+            rows = copy.deepcopy(args[2])
+            del next(row['fields'] for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_REQUEST_FREE' and
+                     row['fields']['command'] == '0x15e')[key]
+            with self.subTest(missing_field=key), self.assertRaises((ValueError, KeyError)):
+                checker.check_vdf_path(args[0], rows, transport)
+        rows = copy.deepcopy(args[2])
+        send = next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and row['fields']['command'] == '0x15e')
+        free = next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_REQUEST_FREE' and row['fields']['command'] == '0x15e')
+        send['line'], free['line'] = free['line'], send['line']
+        with self.assertRaisesRegex(ValueError, 'order differs'):
+            checker.check_vdf_path(args[0], rows, transport)
+
+    def test_BitWidth_native015e_cannot_be_relabelled_as_STILL_CONFIG_BB_or_STATE(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        for opcode in (True, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 32, 33, 34, 64, 65, 66):
+            changed = copy.deepcopy(transport)
+            next(tx for tx in changed['transfers'] if tx['opcode'] == 12)['opcode'] = opcode
+            with self.subTest(opcode=opcode), self.assertRaisesRegex(ValueError, 'original015e.*relabelled'):
+                checker.check_vdf_path(args[0], args[2], changed)
+        for key, wrong in (('command', 0x15f), ('command', 0x153), ('bytes', 12), ('destination', 0x92840748),
+                           ('producer_tid', 91), ('fnv1a64', 0)):
+            changed = copy.deepcopy(transport)
+            next(tx for tx in changed['transfers'] if tx['opcode'] == 12)['origin'][key] = wrong
+            with self.subTest(origin=key), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], args[2], changed)
+
+    def test_BitWidth_kind4_requires_full168_receipt_fresh_RGB_and_no_codec(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        mutations = (('consumer_kind', 1), ('consumer_kind', 5), ('consumer_kind', 6), ('opcode', 9),
+            ('result_bytes', 0), ('result_bytes', 160), ('result_fnv1a64', checker.fnv(b'')), ('result_token', 1),
+            ('encoder_consumed', 1), ('encoded_bytes', 168), ('encoded_fnv1a64', 0),
+            ('source_fnv1a64', 0), ('consumer_before_fnv1a64', 1), ('consumer_after_fnv1a64', 1),
+            ('render_observed', 0), ('consumer_entered', 0), ('consumer_returned', 0), ('retired', 0),
+            ('model_instance', 100), ('owner_pid', 178), ('config_generation', 1), ('frame_generation', 1),
+            ('lease_generation', 0), ('width', 24), ('height', 16), ('stride', 1921), ('active_bytes', 0),
+            ('render_status', -1), ('consumer_status', -1), ('retire_status', -1), ('operation_status', -1))
+        for key, wrong in mutations:
+            changed = copy.deepcopy(transport)
+            next(tx['frame']['proof'] for tx in changed['transfers'] if tx['opcode'] == 12)[key] = wrong
+            with self.subTest(proof=key):
+                with self.assertRaises(ValueError):
+                    checker.check_vdf_path(args[0], args[2], changed)
+                with self.assertRaises(ValueError):
+                    checker.check_frames(args[0], changed, require_codecs=False)
+        for counter in ('rendered', 'consumed', 'retired', 'jpeg_encoded', 'video_encoded'):
+            changed = copy.deepcopy(transport)
+            next(tx['frame']['proof'] for tx in changed['transfers'] if tx['opcode'] == 12)['after'][counter] += 1
+            with self.subTest(counter=counter), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], args[2], changed)
+        changed = copy.deepcopy(transport)
+        next(tx for tx in changed['transfers'] if tx['opcode'] == 12)['frame'] = None
+        with self.assertRaises(checker.MissingEvidence):
+            checker.check_vdf_path(args[0], args[2], changed)
+        with self.assertRaises(checker.MissingEvidence):
+            checker.check_frames(args[0], changed, require_codecs=False)
+        for key, wrong in (('serial', 1), ('model_lifetime', 2), ('render_observed', True)):
+            changed = copy.deepcopy(transport)
+            next(tx['frame']['proof'] for tx in changed['transfers'] if tx['opcode'] == 12)[key] = wrong
+            with self.subTest(frame_history=key):
+                with self.assertRaises(ValueError):
+                    checker.check_vdf_path(args[0], args[2], changed)
+                with self.assertRaises(ValueError):
+                    checker.check_frames(args[0], changed, require_codecs=False)
+
+    def test_BitWidth_actual_payload_tail_cannot_be_repaired_with_only_local_FNV(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 12)
+        rows = copy.deepcopy(args[2])
+        output = bytearray(checker.transfer_output(args[0], tx))
+        output[-1] = 1
+        for row in rows:
+            if row['tag'].startswith('FUNCTIONAL_VDF_PATH_') and row['fields'].get('command') == '0x15e':
+                row['fields'].update(model_result_hex=output.hex(), model_result_fnv1a64=f'{checker.fnv(output):016x}')
+        with self.assertRaisesRegex(ValueError, 'raw request/ACK/config/result bytes differ'):
+            checker.check_vdf_path(args[0], rows, transport)
+        reference = tx['output_payloads'][0]
+        (args[0] / reference['path']).write_bytes(output)
+        with self.assertRaises(ValueError):
+            checker.check_transport(*args)
+        with self.assertRaises(ValueError):
+            checker.vdf_result(output, bytes(8), 99, 12, output[128:144])
+
+    def test_BitWidth_frame_history_preserves_route_Config48_and_generation_lease(self):
+        args = host_test_capture(self.root, (True, ('bit_width',), ('bit_width',)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 12)
+        original = checker.transfer_output
+        raw = original(args[0], tx)
+        for offsets in ((131,), (16, 152), (24, 144), (32,)):
+            output = bytearray(raw)
+            for offset in offsets:
+                if offset == 131:
+                    output[offset] ^= 1
+                else:
+                    struct.pack_into('<Q', output, offset, 1 if offset == 32 else struct.unpack_from('<Q', output, offset)[0] + 1)
+            self.assertEqual(checker.vdf_result(output, bytes(8), 99, 12, output[128:144])['class'], 7)
+            def forged(run, item):
+                return bytes(output) if item['first'] == tx['first'] else original(run, item)
+            with self.subTest(history=offsets), mock.patch.object(checker, 'transfer_output', side_effect=forged):
+                with self.assertRaises(ValueError):
+                    checker.vdf_history(args[0], transport)
+        follow = transport['transfers'][transport['transfers'].index(tx) + 1]
+        output = bytearray(original(args[0], follow))
+        output[24] ^= 1
+        def forged_state(run, item):
+            return bytes(output) if item['first'] == follow['first'] else original(run, item)
+        with mock.patch.object(checker, 'transfer_output', side_effect=forged_state), self.assertRaisesRegex(ValueError, 'Config48'):
+            checker.vdf_history(args[0], transport)
+
+    def test_BitWidth_mailbox_requires_real_integer_OP12_input8_and_native_origin(self):
+        args = host_test_capture(self.root, (True, ('bit_width',)), configuration_only=True)
+        for offset, wrong in ((32, 9), (32, 6), (36, 2), (36, 7), (36, 9), (36, 16), (16, 100),
+                              (96, 91), (100, 0x81cf1234), (104, 0x92840748), (108, 0x15f), (112, 12)):
+            changed = copy.deepcopy(args)
+            event = next(row for row in changed[3] if row['kind'] == 'request' and row['opcode'] == 12)
+            header = bytearray.fromhex(event['raw_header_hex'])
+            struct.pack_into('<I', header, offset, wrong)
+            event.update(raw_header_hex=header.hex(), raw_header_sha256=checker.sha(header))
+            with self.subTest(header_offset=offset, wrong=wrong), self.assertRaises(ValueError):
+                checker.check_transport(*changed)
+        for opcode in (True, 12.0, '12'):
+            changed = copy.deepcopy(args)
+            next(row for row in changed[3] if row['kind'] == 'request' and row['opcode'] == 12)['opcode'] = opcode
+            with self.subTest(opcode=opcode), self.assertRaises(ValueError):
+                checker.check_transport(*changed)
+        for location in ('origin', 'request_payload'):
+            changed = copy.deepcopy(args)
+            event = next(row for row in changed[3] if row['kind'] == 'request' and row['opcode'] == 12)
+            target = event['origin'] if location == 'origin' else event['request_payload']['origin']
+            target['source'] += 1 << 32
+            with self.subTest(source_high=location), self.assertRaises(ValueError):
+                checker.check_transport(*changed)
+
+    def test_BitWidth_disabled_route_is_not_a_consumed_frame(self):
+        args = host_test_capture(self.root, (False, ('bit_width',)), configuration_only=True)
+        with self.assertRaisesRegex(ValueError, 'active full 640x480'):
+            checker.check_transport(*args)
 
     def test_Display_policy_is_exact_typed_in_both_copies_and_optional_without_op8(self):
         args = host_test_capture(self.root, (True, ('display', 0x152), ('display', 0x162)))
@@ -3971,6 +4366,9 @@ class EvidenceTests(unittest.TestCase):
                 value = checker.finish_verdict(assembled(), {'evidence_class': evidence_class})
                 self.assertFalse(value['capture_verified'])
         value = assembled()
+        value['evidence'] = {'functional_AP_source_snapshot_consumed': dict(verified=True)}
+        self.assertFalse(checker.finish_verdict(value, {})['capture_verified'])
+        value = assembled()
         value['products']['MP4']['independent_decoded'] = False
         self.assertFalse(checker.finish_verdict(value, {})['capture_verified'])
         value = assembled()
@@ -3992,6 +4390,9 @@ class EvidenceTests(unittest.TestCase):
                 checker.object_json(raw)
 
     def test_jsonl_truncation_sequence_and_duplicate_fields(self):
+        oversized = dict(event=1, monotonic_ns=1, kind='core_result', padding='x' * 17000)
+        with self.assertRaisesRegex(ValueError, 'oversized non-source'):
+            checker.jsonl((json.dumps(oversized) + '\n').encode())
         for raw in (b'{"event":1}', b'{"event":2,"monotonic_ns":1}\n',
                     b'{"event":1,"event":1,"monotonic_ns":1}\n'):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
@@ -4008,6 +4409,53 @@ class EvidenceTests(unittest.TestCase):
                     '1_000', '0x1_0', '0xg', str(2**64), '0x10000000000000000'):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 checker.number(raw)
+
+    def test_actual_ash_prompt_prefix_keeps_observer_fields_and_line_numbers(self):
+        record = b'FUNCTIONAL_CAMERA_TRANSFER seq=17..24 op=11 token=0x8000000000000001 error=0\n'
+        raw = b'ordinary console\n' + record + b'OBS ' + record + b'/ # OBS ' + record
+        rows = checker.parse_console(raw)
+        self.assertEqual([r['line'] for r in rows], [2, 3, 4])
+        self.assertEqual([r['fields'] for r in rows], [rows[0]['fields']] * 3)
+        self.assertEqual(rows[0]['fields']['seq'], '17..24')
+        for prefix in (b'echo OBS ', b'/ # echo OBS ', b'output / # OBS ', b'/ # OBS OBS '):
+            with self.subTest(prefix=prefix):
+                self.assertEqual(checker.parse_console(prefix + record), [])
+        for suffix in (b'error=0 error=1\n', b'error=0'):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                checker.parse_console(b'/ # OBS FUNCTIONAL_CAMERA_TRANSFER ' + suffix)
+
+    def test_complete_control_commit_and_exact_kernel_trailer_keep_both_records(self):
+        args = host_test_control(self.root)
+        transport = checker.check_transport(*args)
+        rows = copy.deepcopy(args[2])
+        original = next(row for row in rows if row['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT')
+        fields = dict(original['fields'])
+        capture = fields.pop('capture')
+        guest = ('OBS ' + original['tag'] + ' ' + ' '.join(f'{k}={v}' for k, v in fields.items()) +
+                 ' capture=' + capture).encode()
+        kernel = b'[ 5371.235382] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+        raw = guest + kernel + b'\r\n'
+        parsed, = checker.parse_console(raw)
+        self.assertEqual(parsed['fields'], original['fields'])
+        self.assertEqual(parsed['kernel_diagnostic']['raw'], kernel.decode())
+        self.assertEqual(parsed['kernel_diagnostic']['sha256'], checker.sha(kernel))
+        self.assertEqual(parsed['kernel_diagnostic']['bytes'], len(kernel))
+        parsed['line'] = original['line']
+        rows[rows.index(original)] = parsed
+        self.assertEqual(checker.check_control(args[0], rows, transport), transport['control'])
+        for changed in (kernel.replace(b'-1022', b'-1021'), b'unknown kernel trailer',
+                        kernel.replace(b'5371.235382', b'not-a-timestamp')):
+            row, = checker.parse_console(guest + changed + b'\n')
+            self.assertIn('diagnostic', row)
+        for changed in (guest.replace(b'capture=0', b'capture=1'),
+                        guest.removesuffix(b' capture=0'),
+                        guest.replace(b'FUNCTIONAL_CAMERA_CONTROL_COMMIT', b'FUNCTIONAL_CAMERA_TRANSFER')):
+            row, = checker.parse_console(changed + kernel + b'\n')
+            self.assertIn('diagnostic', row)
+        for changed in (guest + kernel, b'OBS FUNCTIONAL_CAMERA_CONTROL_COMMIT pid=1 pid=2 capture=0' + kernel + b'\n'):
+            with self.subTest(raw=changed), self.assertRaises(ValueError):
+                checker.parse_console(changed)
+        self.assertEqual(raw, guest + kernel + b'\r\n')
 
     def test_console_duplicate_and_truncated_fields(self):
         for raw in (b'OBS FUNCTIONAL_CAMERA_TRANSFER error=0 error=1\n',

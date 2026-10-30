@@ -30,7 +30,8 @@ MAX_LOG = 64 * 1024**2
 MAX_EVENTS = 100000
 DATA_BYTES = 65024
 OPS = {1: (0, 48), 2: (0,), 3: (48,), 4: (32,), 5: (16,), 6: (8,), 7: (32,), 8: (16,),
-       9: (32,), 10: (8,), 16: (16, 144),
+       9: (32,), 10: (8,), 11: tuple(360 + 8 * (cp + sdk) for cp in (100, 13, 14) for sdk in (1, 2)),
+       12: (8,), 16: (16, 144),
        32: (48,), 33: (0,), 34: (0,), 64: (24,), 65: (16,), 66: (0,)}
 VDF_POLICY = {
     'vdf_path_policy': 'canonical-0138-single-RGB-sink-readback-before-1138',
@@ -65,6 +66,13 @@ DISPLAY_POLICY = {
     'display_flag_enabled_supported': False,
     'original_Peaking_operator_verified': False,
     'original_0162_feature_verified': False,
+}
+BIT_WIDTH_POLICY = {
+    'display_bit_width_policy': 'original-015e-selector0-virtual-RGB888-readback-before-115e',
+    'display_bit_width_commands': [0x15e],
+    'display_bit_width_supported_selectors': [0],
+    'display_bit_width_selector_mapping': 'explicit-software-only-physical-selector-meaning-unverified',
+    'display_bit_width_physical_mapping_verified': False,
 }
 BB_POLICY = {
     'bb_startup_config_policy': 'initial-C-config-banks-RGB-readback-before-independent-reply',
@@ -122,7 +130,8 @@ BACKGROUND_FREE_TAGS = tuple('FULL_' + name + suffix for name, suffix in (
     ('ADF_HDMI_AUDIO_CONNECT', '_REPLY_FREE')))
 BB_COMMANDS = {0x111: 36, 0x166: 36, 0x167: 10, 0x15f: 12, 0x128: 20}
 VDF_OPERATIONS = {5: ({0x138: 24}, 160), 6: ({0x153: 14}, 168), 7: ({0x14c: 40}, 192),
-                  8: ({0x141: 8, 0x152: 16, 0x162: 10}, 176), 9: (BB_COMMANDS, 192)}
+                  8: ({0x141: 8, 0x152: 16, 0x162: 10}, 176), 9: (BB_COMMANDS, 192),
+                  12: ({0x15e: 10}, 168)}
 CONFIG_OPERATIONS = {**VDF_OPERATIONS, 10: ({0x148: 12}, 1192)}
 HIST_CANONICAL = bytes.fromhex('4801040001010000')
 PUBLIC_LIBRARIES = {
@@ -356,7 +365,12 @@ def check_full_snapshot(state, fields, raw=None, known=None):
 
 def check_control(run, rows, transport):
     """Join control timing records to actual INIT/STATE and full-wire FNV."""
-    records = [row for row in rows if row['tag'].startswith('FUNCTIONAL_CAMERA_CONTROL_')]
+    scoped = [row for row in rows if row['tag'].startswith('FUNCTIONAL_CAMERA_CONTROL_')]
+    resource_tags = {'FUNCTIONAL_CAMERA_CONTROL_' + suffix for suffix in
+                     ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+    require(not any('diagnostic' in row for row in scoped if row['tag'] in resource_tags),
+            'malformed control resource diagnostic')
+    records = [row for row in scoped if row['tag'] not in resource_tags]
     result = dict(required=bool(records), verified=False, publications=[], capture_verified=False,
                   physical_asic_compatibility_verified=False, original_CP_executed=False)
     if not records:
@@ -800,7 +814,8 @@ def check_background_start(run, manifest, rows, transport=None):
                 require('diagnostic' not in found[0] and x.get('pid') == f['pid'] and x.get('bytes') == '56' and
                         x.get('rc') == x.get('faults') == x.get('capture_verified') == '0' and x.get('ap_consumed') == '1' and
                         0 < number(x['tid']) < 2**31 and number(x['destination']) == number(x['expected']) and
-                        number(x['destination']) >> 16 == 0x8002 and ptr(x.get('reply', x.get('pointer', '(nil)'))) and
+                        number(x['destination']) >> 28 == 8 and number(x['destination']) & 0x0fffffff and
+                        ptr(x.get('reply', x.get('pointer', '(nil)'))) and
                         ('sender' not in x or x['sender'] == x['tid'] and x.get('waiter') == '1') and
                         ('command' not in x or number(x['command']) == 0x8001), 'background actual all13 AP free0 identity differs')
                 free_keys = set('pid tid destination expected bytes rc faults ap_consumed capture_verified'.split())
@@ -904,7 +919,8 @@ def check_profile(manifest):
         'physical_Xsync_capability_verified')})
     backup = manifest.get('backup_transport')
     needed(type(backup) is dict, 'runtime-manifest.json: backup_transport')
-    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, DISPLAY_POLICY, BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY):
+    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, DISPLAY_POLICY, BIT_WIDTH_POLICY,
+                   BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY):
         if any('functional_camera_' + key in manifest or 'functional_camera_' + key in backup for key in policy):
             expected.update(policy)
     for key, value in expected.items():
@@ -1318,7 +1334,17 @@ def parse_console(raw):
     rows = []
     for line, item in enumerate(raw.splitlines(keepends=True), 1):
         require(len(item) <= 8192, 'console line exceeds budget')
+        if item.startswith(b'/ # OBS '):
+            item = item[4:]  # Interactive ash can leave its prompt before an observer record.
         item = item[4:] if item.startswith(b'OBS ') else item
+        kernel_diagnostic = None
+        joined = re.fullmatch(
+            rb'(FUNCTIONAL_CAMERA_CONTROL_COMMIT [^\r\n]* capture=0)'
+            rb'(\[ [0-9]{1,10}\.[0-9]{6}\] UDIF: cdev_ioctl\(\) Line 100: uipc: warning ret = -1022)(\r?\n)', item)
+        if joined:
+            kernel = joined[2]
+            kernel_diagnostic = dict(raw=kernel.decode('ascii'), bytes=len(kernel), sha256=sha(kernel))
+            item = joined[1] + joined[3]
         tag = item.split(b' ', 1)[0].rstrip(b'\r\n')
         if not tag.startswith((b'FUNCTIONAL_', b'FSYS_WRITE_', b'MPR_WRITE_')) and tag.decode('ascii', 'ignore') not in (
                 *BACKGROUND_FREE_TAGS, 'NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK', 'NATIVE_CP302C_NOCONVERT_ALL13_READBACK'):
@@ -1328,9 +1354,13 @@ def parse_console(raw):
         # Diagnostic failure prose is retained, never parsed as a successful record.
         if not all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*=[!-~]+', part) for part in parts[1:]):
             rows.append({'tag': parts[0], 'line': line, 'fields': {}, 'diagnostic': ' '.join(parts[1:])})
+            if kernel_diagnostic is not None:
+                rows[-1]['kernel_diagnostic'] = kernel_diagnostic
             continue
         rows.append({'tag': parts[0], 'line': line,
                      'fields': writeback.unique_object(part.split('=', 1) for part in parts[1:])})
+        if kernel_diagnostic is not None:
+            rows[-1]['kernel_diagnostic'] = kernel_diagnostic
         require(len(rows) <= MAX_EVENTS, 'trace record budget exceeded')
     return rows
 
@@ -1340,8 +1370,12 @@ def jsonl(raw):
     rows = []
     last_time = 0
     for index, line in enumerate(raw.splitlines(), 1):
-        require(index <= MAX_EVENTS and len(line) <= 16384, 'broker event/line budget exceeded')
+        require(index <= MAX_EVENTS and len(line) <= 2 * 1024**2, 'broker event/line budget exceeded')
         row = object_json(line)
+        require(len(line) <= 16384 or row.get('kind') in ('ap_source_result', 'response') and
+                row.get('opcode') == 11 and row.get('actual_c_result', 1) is None and
+                row.get('source_provider_kind') == 'paused-source-snapshot-v1',
+                'oversized non-source broker event')
         require(type(row.get('event')) is int and row['event'] == index and
                 uint(row.get('monotonic_ns')) >= last_time, 'broker event sequence/time differs')
         last_time = row['monotonic_ns']
@@ -1424,8 +1458,11 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
     size = CONFIG_OPERATIONS[opcode][1]
     require(len(raw) == size and struct.unpack_from('<2I', raw) == (1, size),
             'VDF result size differs from its actual opcode')
-    if opcode in (6, 7, 8, 9, 10):
-        if opcode == 9:
+    if opcode in (6, 7, 8, 9, 10, 12):
+        if opcode == 12:
+            require(canonical == bytes(8) and raw[160:] == canonical,
+                    'Bit width selector0 canonical8/independent saved readback differs')
+        elif opcode == 9:
             bb_config(canonical)
             require(raw[160:] == canonical, 'BB independent canonical32/save/readback differs')
         elif opcode == 10:
@@ -1466,7 +1503,7 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
     require(value['model_instance'] == instance and instance > 0 and value['input_fnv'] == fnv(canonical) and
             raw[128:144] == route and value['endpoint'] == 0x90590819 and
             value['selected_mask'] == value['completed_mask'] == value['config_readback'] == value['committed'] == 1 and
-            value['class'] == ({9: 5, 10: 6}.get(opcode, active)) and
+            value['class'] == ({9: 5, 10: 6, 12: 7}.get(opcode, active)) and
             value['enabled'] == value['frame_consumed'] == value['retired'] == active and
             value['status'] == value['reserved'] == 0, 'VDF configuration readback/endpoint/commit differs')
     require(0 < value['before_config_generation'] < 2**64 - 1 and
@@ -1474,9 +1511,9 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
             value['frame_generation'] == value['before_frame_generation'] + active and
             0 < value['width'] <= 8192 and 0 < value['height'] <= 8192 and
             value['stride'] == value['width'] * 3, 'VDF configuration/frame generation or geometry differs')
-    if opcode in (7, 9, 10):
+    if opcode in (7, 9, 10, 12):
         require(active == 1 and (value['width'], value['height'], value['stride']) == (640, 480, 1920) and
-                value['active_bytes'] == 921600, 'Layout/BB/histogram requires the active full 640x480 RGB software route')
+                value['active_bytes'] == 921600, 'Layout/BB/histogram/bit width requires the active full 640x480 RGB software route')
     if opcode == 8:
         require(active == 1, 'Display refresh/disabled features require a committed active RGB route')
     if active:
@@ -1520,7 +1557,7 @@ def vdf_history(run, transport):
                     'VDF reused an old rendered RGB lease')
             values[tx['first']] = value
             config, generation, route = value['config_generation'], value['frame_generation'], raw[128:144]
-            preserve_parameters = preserve_parameters or op in (6, 7, 8, 9, 10)
+            preserve_parameters = preserve_parameters or op in (6, 7, 8, 9, 10, 12)
         elif op == 4:
             preserve_parameters = False
         elif tx.get('frame') is not None:
@@ -1536,8 +1573,9 @@ def noncodec_proof(tx, value, transport, output):
     event = tx.get('frame')
     needed(type(event) is dict and type(event.get('proof')) is dict, 'actual noncodec RGB proof required')
     p, active = event['proof'], value['enabled']
-    kind = {5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6}.get(tx['opcode'])
-    result = output if tx['opcode'] in (9, 10) else b''
+    kind = {5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4}.get(tx['opcode'])
+    # OP12 uses VDF kind4 but caches the complete typed configuration receipt.
+    result = output if tx['opcode'] in (9, 10, 12) else b''
     require(kind is not None and p['version'] == 1 and p['struct_bytes'] == 376 and
             p['operation_status'] == 0 and p['model_lifetime'] > 0 and p['opcode'] == tx['opcode'] and
             p['consumer_kind'] == kind and p['model_instance'] == transport['model_instance'] and
@@ -1608,11 +1646,14 @@ def check_vdf_path(run, rows, transport):
                 require(row['tag'] in tags.values(), 'failed/unknown VDF native receipt')
                 records.append(row)
     native_opcodes = {command: op for op, (commands, _) in VDF_OPERATIONS.items() for command in commands}
+    require(all(type(tx['opcode']) is int and tx['opcode'] in (1, 12) for tx in transport['transfers']
+                if tx['origin']['destination'] == 0x92840747 and tx['origin']['command'] == 0x15e),
+            'VDF original015e was relabelled as a media/configuration operation')
     original = any(tx['origin']['destination'] == 0x92840747 and tx['origin']['command'] in native_opcodes
                    for tx in transport['transfers'])
     if not (transfers or records or original or bindings):
         return {'required': False, 'verified': False, 'cycles': [], 'diagnostics': diagnostics}
-    needed(transfers and records, 'VDF op5/op6/op7/op8/BB9 and their original receive/free receipts required together')
+    needed(transfers and records, 'VDF op5/op6/op7/op8/BB9/op12 and their original receive/free receipts required together')
     refreshes = [tx for tx in transfers if tx['origin']['command'] == 0x141]
     needed(len(bindings) >= len(refreshes), 'VDF each original0141 requires its own refresh queue binding receipt')
     require(len(bindings) == len(refreshes), 'VDF refresh binding/original0141 census differs')
@@ -1624,7 +1665,7 @@ def check_vdf_path(run, rows, transport):
         require(cycle > 0 and row['tag'] not in group, 'VDF duplicate/zero/old cycle receipt')
         group[row['tag']] = row
     require(list(groups) == list(range(1, len(groups) + 1)) and len(groups) == len(transfers),
-            'VDF original cycle/op5/op6/op7/op8/BB9 census differs')
+            'VDF original cycle/op5/op6/op7/op8/BB9/op12 census differs')
     previous_line, checked, refresh_source = 0, [], None
     refresh_bindings = iter(bindings)
     for (cycle, group), tx in zip(groups.items(), transfers):
@@ -1638,7 +1679,7 @@ def check_vdf_path(run, rows, transport):
         output = transfer_output(run, tx)
         require(tx['token'] == 0 and tx['first'] == tx['last'], 'VDF config result acquired an encoded lease')
         value = history[tx['first']]
-        zebra, layout, display, bb = (tx['opcode'] == op for op in (6, 7, 8, 9))
+        zebra, layout, display, bb, bit_width = (tx['opcode'] == op for op in (6, 7, 8, 9, 12))
         commands, result_bytes = VDF_OPERATIONS[tx['opcode']]
         command = tx['origin']['command']
         require(command in commands, 'VDF configuration opcode/native command mapping differs')
@@ -1648,9 +1689,9 @@ def check_vdf_path(run, rows, transport):
         needed(type(event) is dict and type(event.get('proof')) is dict, 'VDF/BB actual kind4/kind5 RGB/config proof required')
         p, active = noncodec_proof(tx, value, transport, output), value['enabled']
         origin = tx['origin']
-        if bb:
+        if bb or bit_width:
             require(type(origin['source']) is int and 0 < origin['source'] < 2**32,
-                    'BB source must be the complete native u32 without truncation')
+                    'BB/bit width source must be the complete native u32 without truncation')
         binding = None
         if command == 0x141:
             binding = next(refresh_bindings)
@@ -1672,11 +1713,13 @@ def check_vdf_path(run, rows, transport):
         text = r['RECEIVE']['fields']['ack_retained']
         ack_pointer = 0 if text == '(nil)' else number(text)
         require(0 < ack_pointer <= 2**64 - 12, 'VDF independent live ACK allocation missing')
-        allocate_after_free = layout or display or bb
+        allocate_after_free = layout or display or bb or bit_width
         for name, row in r.items():
             f, line = row['fields'], row['line']
             wire = raw_hex(f, 'raw', native_bytes)
-            if bb:
+            if bit_width:
+                converted = wire[8:] + bytes(6)
+            elif bb:
                 converted = struct.pack('<2H', command, native_bytes - 8) + wire[8:] + bytes(36 - native_bytes)
             elif display:
                 converted = struct.pack('<2I', command, native_bytes - 8) + wire[8:] + bytes(16 - native_bytes)
@@ -1685,16 +1728,16 @@ def check_vdf_path(run, rows, transport):
             require(wire[:8] == struct.pack('<4H', 0x200d, command, native_bytes, 0x8001) and
                     converted == canonical and fnv(wire) == origin['fnv1a64'] ==
                     int(writeback.hash_hex(f.get('original_fnv1a'), 16), 16) and
-                    raw_hex(f, 'ack_wire', 12) == struct.pack('<4HI', 0x200d, command + 0x1000, 12, 0x8001,
-                                                            0 if zebra or bb else 0x590000) and
+                    raw_hex(f, 'ack_wire', 12) == (bytes.fromhex('0d205e110c00018000005900') if bit_width else
+                        struct.pack('<4HI', 0x200d, command + 0x1000, 12, 0x8001, 0 if zebra or bb else 0x590000)) and
                     raw_hex(f, 'canonical_config', 16) == route and
                     raw_hex(f, 'model_result_hex', result_bytes) == output and
                     int(writeback.hash_hex(f.get('model_result_fnv1a64'), 16), 16) == fnv(output),
                     'VDF raw request/ACK/config/result bytes differ')
-            if zebra or layout or display or bb:
-                key, count = ('canonical_bb32', 32) if bb else ('canonical_display16', 16) if display else ('canonical_layout32', 32) if layout else ('canonical_zebra8', 8)
+            if zebra or layout or display or bb or bit_width:
+                key, count = ('canonical_bit_width8', 8) if bit_width else ('canonical_bb32', 32) if bb else ('canonical_display16', 16) if display else ('canonical_layout32', 32) if layout else ('canonical_zebra8', 8)
                 require(raw_hex(f, key, count) == canonical and number(f['model_result_bytes']) == result_bytes,
-                        'Zebra/layout/display canonical/result native receipt differs')
+                        'Zebra/layout/display/bit width canonical/result native receipt differs')
             elif 'model_result_bytes' in f:
                 require(number(f['model_result_bytes']) == 160, 'VDF native result160 size differs')
             if 'realresultbytes' in f:
@@ -1761,13 +1804,16 @@ def check_vdf_path(run, rows, transport):
     require(all(tx['opcode'] in (1, native_opcodes[tx['origin']['command']])
                 for tx in transport['transfers'] if tx['origin']['destination'] == 0x92840747 and
                 tx['origin']['command'] in native_opcodes),
-            'VDF original0138/0153/014c/0141/0152/0162 was relabelled as a media/configuration operation')
+            'VDF original0138/0153/014c/0141/0152/0162/015e was relabelled as a media/configuration operation')
+    if any(tx['opcode'] == 12 for tx in transfers):
+        check_frames(run, transport, require_codecs=False)
     return {'required': True, 'verified': True, 'cycles': checked, 'diagnostics': diagnostics,
             'physical_asic_compatibility_verified': False,
             'original_selector_verified': False, 'original_CP_FIFO_verified': False, 'original_RTOS_verified': False,
             'original_Zebra_gate_verified': False, 'original_VDF_area_order_verified': False,
             'original_VDF_layout_hardware_verified': False,
             'original_Peaking_operator_verified': False, 'original_0162_feature_verified': False,
+            'display_bit_width_physical_mapping_verified': False,
             'original_BB_C_configuration_work_verified': False, 'original_BB_C_configuration_units_verified': False}
 
 
@@ -2177,10 +2223,14 @@ def mailbox_header(row, mailbox):
     require((get32(0), get32(4), get32(8), get32(12), get64(16)) ==
             (0x314d4346, 1, mailbox['pid'], 1, mailbox['nonce']) and
             list(struct.unpack_from('<16Q', raw, 128)) == mailbox['pages'], 'broker PID/instance/pages differ')
-    require(raw[44:56] == bytes(12) and raw[64:96] == bytes(32) and raw[116:120] == bytes(4) and
+    require(raw[44:52] == bytes(8) and raw[64:96] == bytes(32) and raw[116:120] == bytes(4) and
             raw[256:] == bytes(256), 'broker request reserved/response fields not pristine')
     op, count, capacity = get32(32), get32(36), get32(40)
-    require(get64(24) == row['sequence'] and op == row['opcode'] and op in OPS and count in OPS[op] and
+    flags = get32(52)
+    require(flags in (0, 1) and (not flags or op in (11, 64, 65, 66)) and (op != 11 or flags == 1),
+            'broker actual request origin flags differ')
+    require(type(row.get('opcode')) is int and get64(24) == row['sequence'] and op == row['opcode'] and
+            op in OPS and count in OPS[op] and
             count == row['request_bytes'] and capacity <= DATA_BYTES and get64(56) == row['request_fnv1a64'],
             'broker actual request header/opcode/size differs')
     origin = dict(producer_tid=get32(96), source=get32(100), destination=get32(104),
@@ -2252,15 +2302,20 @@ def check_transport(run, manifest, rows, events, build):
         paths.add(reference['path'])
         payload_inodes.add(inode)
         return raw
-    active_result = None
+    active_result, source_cleanup = None, None
     for event in events:
         require(type(event.get('model_instance')) is int and event['model_instance'] == mailbox['nonce'], 'mixed model instance')
         kind = event.get('kind')
-        require(kind in ('binding', 'attached', 'request', 'core_result', 'response', 'physical_mode_restored',
+        require(kind in ('binding', 'attached', 'request', 'core_result', 'ap_source_result', 'source_cancel',
+                         'response', 'physical_mode_restored',
                          'resume_suppressed', 'detach_commit', 'mailbox_detached', 'cancel_cleanup',
                          'debugger_disconnected', 'cleanup', 'model_frame'), 'failed/rejected/unknown broker event')
         counts[kind] = counts.get(kind, 0) + 1
+        if counts.get('detach_commit'):
+            require(kind in ('detach_commit', 'physical_mode_restored', 'mailbox_detached',
+                             'debugger_disconnected', 'cleanup'), 'model/source access after detach')
         if kind == 'request':
+            require(source_cleanup is None, 'model/source request after source finalizer')
             seq = uint(event.get('sequence'))
             require(pending is None and seq == len(transactions) + 1, 'request gap/replay/interleaving')
             header, origin, capacity = mailbox_header(event, mailbox)
@@ -2268,7 +2323,13 @@ def check_transport(run, manifest, rows, events, build):
             if event['request_bytes'] == 0:
                 require(event['request_sha256'] == sha(b'') and event['request_fnv1a64'] == fnv(b''),
                         'empty model request has different actual byte digest')
-            pending = {'request': event, 'origin': origin, 'capacity': capacity, 'raw_header': header}
+            source_call = event['opcode'] != 66 and (event['opcode'] == 11 or struct.unpack_from('<I', header, 52)[0] == 1)
+            if event['opcode'] in (64, 65):
+                require(active_result is not None and source_call == active_result['source_call'] and
+                        (not source_call or header[8:12] + header[16:24] + header[52:56] + header[96:116] + header[120:128] ==
+                         active_result['source_binding']), 'retained source/core provider or API40 binding changed')
+            pending = {'request': event, 'origin': origin, 'capacity': capacity, 'raw_header': header,
+                       'source_call': source_call}
             require(typed_equal(event.get('origin'), origin), 'raw/header request origin differs')
             token = active_result['token'] if active_result and event['opcode'] in (64, 65) else 0
             total = active_result['total'] if token else 0
@@ -2288,18 +2349,24 @@ def check_transport(run, manifest, rows, events, build):
                 require(active_result is None or event['opcode'] == 2, 'new operation overlaps retained result')
             pending['request_data'] = incoming
             transactions[seq] = pending
-        elif kind in ('core_result', 'response'):
+        elif kind in ('core_result', 'ap_source_result', 'response'):
+            result_kind = 'ap_source_result' if pending is not None and pending['source_call'] else 'core_result'
             require(pending is not None and event.get('sequence') == pending['request']['sequence'] and
-                    event.get('opcode') == pending['request']['opcode'] and kind not in pending,
-                    'unmatched/duplicate actual C result/response')
-            require(type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0,
-                    'actual model C execution failed')
+                    event.get('opcode') == pending['request']['opcode'] and kind not in pending and
+                    kind in (result_kind, 'response'), 'unmatched/duplicate/wrong provider result/response')
+            if pending['source_call']:
+                require(event.get('actual_c_result', 1) is None and type(event.get('actual_source_result')) is int and
+                        event['actual_source_result'] == 0 and event.get('source_provider_kind') == 'paused-source-snapshot-v1',
+                        'actual AP source execution failed/disguised as C')
+            else:
+                require(type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
+                        'actual_source_result' not in event, 'actual model C execution failed')
             count, token, total, offset = (uint(event.get(key)) for key in ('returned_bytes', 'token', 'total', 'offset'))
             require(count <= pending['capacity'] and total <= 64 * 1024**2 and offset <= total and
                     (token and 0 < count <= total - offset or not token and not total and not offset), 'actual C result bounds')
             writeback.hash_hex(event.get('returned_sha256'), 64)
             pending[kind] = event
-            if kind == 'core_result':
+            if kind == result_kind:
                 require(typed_equal(event.get('origin'), pending['origin']) and
                         typed_equal(event.get('request_payload'), pending['request'].get('request_payload')),
                         'actual C request reference/origin differs')
@@ -2319,10 +2386,14 @@ def check_transport(run, manifest, rows, events, build):
                                 'actual result chunk ownership differs')
                         capacity = struct.unpack_from('<I', pending['request_data'], 16)[0]
                     else:
-                        require(op in (16, 33, 34) and active_result is None and offset == 0,
-                                'actual encoded lease overlaps/has invalid origin')
+                        require(op in (11, 16, 33, 34) and active_result is None and offset == 0 and
+                                (token >= 1 << 63) == (op == 11),
+                                'actual encoded/source lease overlaps/has invalid origin')
+                        header = pending['raw_header']
                         active_result = dict(token=token, total=total, cursor=0, fnv=writeback.FNV_INIT,
-                                             digest=hashlib.sha256(), chunks=0, first=pending['request']['sequence'])
+                                             digest=hashlib.sha256(), chunks=0, first=pending['request']['sequence'],
+                                             source_call=pending['source_call'], source_binding=
+                                             header[8:12] + header[16:24] + header[52:56] + header[96:116] + header[120:128])
                         capacity = pending['capacity']
                     require(count == min(capacity, total - offset), 'short actual retained result chunk')
                     active_result['cursor'] += count
@@ -2333,8 +2404,9 @@ def check_transport(run, manifest, rows, events, build):
                     'bytes': active_result['cursor'], 'sha256': active_result['digest'].hexdigest(),
                     'fnv1a64': active_result['fnv']}
             if kind == 'response':
-                require('core_result' in pending and all(typed_equal(pending['core_result'].get(key), event.get(key)) for key in
-                        ('actual_c_result', 'returned_bytes', 'returned_sha256', 'returned_fnv1a64', 'token', 'total', 'offset',
+                require(result_kind in pending and all(typed_equal(pending[result_kind].get(key), event.get(key)) for key in
+                        ('actual_c_result', 'actual_source_result', 'source_provider_kind', 'source_snapshot',
+                         'returned_bytes', 'returned_sha256', 'returned_fnv1a64', 'token', 'total', 'offset',
                          'request_payload', 'output_payload', 'result_transfer')) and
                         typed_equal(event.get('origin'), pending['origin']) and event.get('data_readback') is True and
                         event.get('raw_header_sha256') == pending['request']['raw_header_sha256'],
@@ -2355,6 +2427,24 @@ def check_transport(run, manifest, rows, events, build):
                     typed_equal(event.get('output_payload'), pending['core_result'].get('output_payload')),
                     'frame proof differs from actual original C call')
             pending['frame'] = event
+        elif kind == 'source_cancel':
+            require(active_result is None and event.get('host_snapshot_cleared') is True and
+                    uint(event.get('token')) == 0 and uint(event.get('discarded_bytes')) == 0 and
+                    event.get('source_model') == 'paused-source-snapshot-v1' and all(event.get(k) is False for k in
+                        ('capture', 'capture_verified', 'native_global_writer_exclusion_verified', 'physical_ASIC',
+                         'physicalBackingObjectVerified', 'source_writer_completion_verified',
+                         'native_source_atomicity_verified', 'physical_asic_compatibility_verified')),
+                    'source cleanup retains source storage or promotes scope')
+            if event.get('reason') == 'broker_cleanup':
+                # Host Snapshot.cancel precedes the separate actual C cleanup CANCEL.
+                require(source_cleanup is None and pending is None and 'actual_c_result' not in event,
+                        'source finalizer duplicate/in-flight or disguised as C CANCEL')
+                source_cleanup = event
+            else:
+                require(event.get('reason') == 'actual_c_cancel' and pending is not None and
+                        pending['request']['opcode'] == 66 and not pending['source_call'] and
+                        'core_result' not in pending and type(event.get('actual_c_result')) is int and
+                        event['actual_c_result'] == 0, 'source cleanup lacks its actual in-band C CANCEL')
     require(active_result is None, 'actual retained output not released before final cleanup')
     require(pending is None and transactions and transactions[1]['request']['opcode'] == 1 and
             events[-1].get('kind') == 'cleanup' and
@@ -2382,7 +2472,8 @@ def check_transport(run, manifest, rows, events, build):
                 number(f['request_fnv']) == tx['request']['request_fnv1a64'], 'bridge initial request differs from broker')
         for seq in ids:
             origin = transactions[seq]['origin']
-            require(all(number(f[guest]) == origin[host] for guest, host in
+            require(origin['producer_tid'] == tx['origin']['producer_tid'] and
+                    all(number(f[guest]) == origin[host] for guest, host in
                         (('source', 'source'), ('destination', 'destination'), ('command', 'command'),
                          ('bytes', 'bytes'), ('native_fnv', 'fnv1a64'))), 'bridge original native origin differs')
         produced = tx['response']
@@ -2427,14 +2518,17 @@ def check_transport(run, manifest, rows, events, build):
                         'origin': tx['origin'], 'bytes': total, 'sha256': digest.hexdigest(),
                         'fnv1a64': f'{value:016x}', 'request_payload': tx['request']['request_payload'],
                         'output_payloads': output_payloads, 'frame': tx.get('frame'),
-                        'token': token, 'model_instance': mailbox['nonce']})
+                        'token': token, 'model_instance': mailbox['nonce'],
+                        'provider_kind': 'source' if tx['source_call'] else 'core'})
     require(covered == set(transactions), 'broker responses not fully consumed by actual guest bridge')
     needed(all(counts.get(key) == 1 for key in ('binding', 'attached', 'cancel_cleanup', 'cleanup',
                                               'detach_commit', 'mailbox_detached', 'debugger_disconnected')),
            'broker: one binding/attach/actual cancel/detach/disconnect/cleanup lifecycle')
     lifecycle = {event['kind']: event for event in events if event['kind'] in
                  ('detach_commit', 'mailbox_detached', 'debugger_disconnected', 'cleanup')}
-    require(lifecycle['detach_commit'].get('model_work_stopped') is True and
+    require(type(lifecycle['detach_commit'].get('sequence')) is int and
+            lifecycle['detach_commit']['sequence'] == len(transactions) and
+            lifecycle['detach_commit'].get('model_work_stopped') is True and
             lifecycle['detach_commit'].get('no_further_ram_after_ack') is True and
             lifecycle['mailbox_detached'].get('cleanup_detach') is True and
             lifecycle['debugger_disconnected'].get('detached') is True and
@@ -2442,12 +2536,17 @@ def check_transport(run, manifest, rows, events, build):
             sorted(lifecycle[k]['event'] for k in ('detach_commit', 'mailbox_detached', 'debugger_disconnected', 'cleanup')) and
             max(tx['response']['event'] for tx in transactions.values()) < lifecycle['detach_commit']['event'],
             'detach precedes committed work or cleanup lifecycle is unsafe')
+    needed(not any(tx['source_call'] for tx in transactions.values()) or source_cleanup is not None,
+           'broker: source finalizer after actual source RELEASE required')
     for event in events:
         if event['kind'] == 'cancel_cleanup':
             require(type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
-                    event.get('returned_bytes') == 128 and max(tx['response']['event'] for tx in transactions.values()) <
-                    event['event'] < lifecycle['detach_commit']['event'],
-                    'actual model cleanup cancel failed/late')
+                    type(event.get('returned_bytes')) is int and event['returned_bytes'] == 128 and
+                    max(tx['response']['event'] for tx in transactions.values()) < event['event'] <
+                    lifecycle['detach_commit']['event'], 'actual model cleanup cancel failed/late')
+            if source_cleanup is not None:
+                require(max(tx['response']['event'] for tx in transactions.values()) < source_cleanup['event'] <
+                        event['event'], 'source finalizer not before actual C cleanup CANCEL/after completed work')
     result = {'verified': True, 'pid': mailbox['pid'], 'model_instance': mailbox['nonce'],
               'requests': len(transactions), 'opcodes': op_counts, 'transfers': checked,
               'safe_cleanup': True, 'raw_payload_bytes_verified': True, 'owner_pid': config['owner']['pid'],
@@ -2478,13 +2577,13 @@ def check_transport(run, manifest, rows, events, build):
             typed_equal(manifest.get('functional_camera_' + key), value) and
             typed_equal(backup.get('functional_camera_' + key), value) for key, value in DISPLAY_POLICY.items()),
             'Display operation lacks the explicit disabled/off software policy')
-    for opcode, policy in ((9, BB_POLICY), (10, HIST_POLICY)):
+    for opcode, policy in ((9, BB_POLICY), (10, HIST_POLICY), (12, BIT_WIDTH_POLICY)):
         if any(tx['opcode'] == opcode for tx in checked):
             backup = manifest.get('backup_transport')
             require(type(backup) is dict and all(
                 typed_equal(manifest.get('functional_camera_' + key), value) and
                 typed_equal(backup.get('functional_camera_' + key), value) for key, value in policy.items()),
-                'BB/histogram operation lacks its exact typed software policy')
+                'BB/histogram/bit width operation lacks its exact typed software policy')
     result['histogram'] = check_histogram(run, rows, result)
     result['control'] = check_control(run, rows, result)
     if result['control']['required']:
@@ -2597,10 +2696,10 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
         require(all(value >= 0 for value in delta.values()), 'actual model counters regressed')
         output = transfer_output(run, tx)
         kind = p['consumer_kind']
-        result_data = b'' if kind in (0, 4) else output
+        result_data = b'' if kind in (0, 4) and op != 12 else output
         require(p['result_bytes'] == len(result_data) and p['result_fnv1a64'] == fnv(result_data) and p['result_token'] == tx['token'],
                 'actual coded result is not this frame job output')
-        require(kind == {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 16: 1, 33: 2, 34: 3}.get(op), 'actual frame consumer kind differs')
+        require(kind == {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4, 16: 1, 33: 2, 34: 3}.get(op), 'actual frame consumer kind differs')
         if kind != 3 and (kind != 4 or vdf['enabled']):
             require(0 < p['width'] <= 8192 and 0 < p['height'] <= 8192 and p['stride'] >= p['width'] * 3 and
                     p['active_bytes'] == p['width'] * p['height'] * 3 and p['lease_generation'] > 0 and
@@ -3224,6 +3323,24 @@ def check_video(rows, transport, storage, run=None):
             'storage_join_verified': True, 'capture_verified': True}
 
 
+def check_face_source(run, manifest, rows, events, transport=None, sources=None):
+    """Only observed OP11 runs import the new checker/parser; old runs stay absent."""
+    seen = any(row['tag'].startswith('FUNCTIONAL_FACE_SOURCE_') for row in rows) or any(
+        event.get('kind') == 'ap_source_result' or event.get('kind') == 'request' and event.get('opcode') == 11
+        for event in events)
+    if not seen:
+        return dict(status='not_observed', required=False, verified=False, capture_verified=False,
+                    physical_asic_compatibility_verified=False, transactions=[], missing=[])
+    required = (Path(__file__).with_name('check_face_source.py'),
+                RUNTIME / 'functional_face_source_snapshot.py', RUNTIME / 'functional-face-source-snapshot-abi.h')
+    if sources is not None:
+        for path in required:
+            needed(str(path) in sources, 'inputs.json: freeze source snapshot dependency ' + str(path))
+            digest_binding(read_absolute(path, 16 * 1024**2), sources[str(path)], 'current source checker dependency')
+    api = types.SimpleNamespace(**globals())
+    return source_module(required[0]).check(run, manifest, rows, events, transport, api)
+
+
 def check_graph(run, batch, sources):
     path = NATIVE / 'report/functional-graph-evidence/check_graph.py'
     needed(str(path) in sources, 'inputs.json: freeze functional-graph-evidence/check_graph.py and its dependency closure')
@@ -3331,6 +3448,12 @@ def evaluate(run, batch):
                               storage.get('error', '; '.join(item.get('error', '') for item in items))})
     transport = stage('transport', check_transport, run, manifest, rows, events, build) if all(
         item is not None for item in (profile, build, rows, events)) else None
+    if rows is not None and events is not None and manifest is not None:
+        source = stage('functional_AP_source_snapshot_consumed', check_face_source,
+                       run, manifest, rows, events, transport, sources)
+        if source is not None and source['required']:
+            result['missing'].extend(dict(item, stage='functional_AP_source_snapshot_consumed')
+                                     for item in source.get('missing', []))
     if transport is not None:
         if transport['background_start']['required']:
             result['evidence']['background_start'] = transport['background_start']

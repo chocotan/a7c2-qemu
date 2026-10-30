@@ -590,7 +590,14 @@ def test_socket_connect_failure_closes_directory_fd(tmp_path, monkeypatch):
             os.fstat(fd)
 
 
-C_SCENARIOS = ('vdf', 'vdfbadsize', 'vdfbadinstance', 'vdfbadreserved',
+C_SCENARIOS = ('bitwidth', 'bitwidth-validation', 'bitwidth-badclass', 'bitwidth-badsize',
+               'bitwidth-badtail', 'bitwidth-badinputfnv', 'bitwidth-badsink', 'bitwidth-badinstance',
+               'bitwidth-badreserved', 'bitwidth-badframe', 'bitwidth-badgeneration', 'bitwidth-badroute',
+               'bitwidth-badretire', 'bitwidth-badtoken', 'bitwidth-badfnv', 'bitwidth-upstream', 'bitwidth-copy',
+               'snapshot-1d9', 'snapshot-1da', 'snapshot-1db', 'snapshot-schema',
+               'snapshot-empty', 'snapshot-total', 'snapshot-short', 'snapshot-digest', 'snapshot-flags',
+               'snapshot-partial', 'snapshot-release', 'snapshot-token',
+               'vdf', 'vdfbadsize', 'vdfbadinstance', 'vdfbadreserved',
                'zebra', 'zebrabadsize', 'zebrabadinstance', 'zebrabadreserved',
                'layout', 'layoutbadsize', 'layoutbadinstance', 'layoutbadreserved',
                'display', 'displaybadsize', 'displaybadinstance', 'displaybadreserved',

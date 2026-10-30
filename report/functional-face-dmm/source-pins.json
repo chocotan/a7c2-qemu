@@ -1,0 +1,99 @@
+{
+  "schema": "functional-face-dmm-source-v1",
+  "inherited_from": "analysis/scratch/functional-zzb-dmm1d9-frontier/RESULT.md and source-provenance.json",
+  "new_decompiler_runs": 0,
+  "artifacts": {
+    "appfw": {
+      "path": "runtime/analysis/menu-root/usr/lib/appFw.so",
+      "size": 99960744,
+      "sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b"
+    },
+    "cp": {
+      "path": "runtime/analysis/menu-root/cp/DmmCfg.bin",
+      "size": 43508,
+      "sha256": "d3466cee62fd86d927236a2c6c37dd633f76cdc181b4ad07a9863696aab76660"
+    },
+    "ap": {
+      "path": "runtime/analysis/menu-root/seed-setting/DmmCfg.bin",
+      "size": 65956,
+      "sha256": "6c37baddaa60b6756340f77b051eed948978cea28d04f499f91263c9d270d962"
+    }
+  },
+  "windows": [
+    {"name": "w01-alloc-core", "va": "0x35521a0", "bytes": 1520, "file_offset": "0x35521a0", "sha256": "61d52967143719a67d0aff1a7882b52e3fd06eda5c383d03ac119ff995a3e105"},
+    {"name": "w02-dmm-api", "va": "0x34d3568", "bytes": 128, "file_offset": "0x34d3568", "sha256": "51ab8f5fc51875d667dfef6347df4c10276cd838f8f0aa9f9c7f2cd4111db522"},
+    {"name": "w03-owner", "va": "0x339a1a0", "bytes": 1840, "file_offset": "0x339a1a0", "sha256": "b1ddc39e52c067bd6e29f793a7385aab25ca03144ce28720297c0ff3dc0b3b9f"},
+    {"name": "w04-stage", "va": "0x33ab988", "bytes": 24, "file_offset": "0x33ab988", "sha256": "88e6320296f888963c6c87fc1872d36610b6ffead0216d289e0fc883e2bde9ff"},
+    {"name": "w05-error-conversion", "va": "0x359a274", "bytes": 168, "file_offset": "0x359a274", "sha256": "065a2bfb6aeada0660dc59302385dabf81ebd3eb99197f56b1f5dee6c918f190"},
+    {"name": "w06-fp-callsites", "va": "0x3209dc0", "bytes": 192, "file_offset": "0x3209dc0", "sha256": "8ddda3e7ab16fefca091a9c9937b15d0c2cdb4a4799566cf884a73d134b58b05"},
+    {"name": "w07-thread-callsite", "va": "0x36ec170", "bytes": 80, "file_offset": "0x36ec170", "sha256": "fa92e9c5a0a83c23e4f82f9efaea422a5716a3184bf2c0b847845e0954213607"},
+    {"name": "w08-owner-publish-accessors", "va": "0x3399dc8", "bytes": 164, "file_offset": "0x3399dc8", "sha256": "adc9c7210200252f74afceeca637983e29d13603139a28fe7f88dfbc5b7b0db6"},
+    {"name": "w09-model-capwords", "va": "0x2860490", "bytes": 240, "file_offset": "0x2860490", "sha256": "a929d4e2ae36ed56f11a1ea6d6d6978985e25d6d3fd3982ae7f177da644b4508"},
+    {"name": "w10-dmm-open-close-map", "va": "0x3552790", "bytes": 2396, "file_offset": "0x3552790", "sha256": "0c624f2f6e8a0ecb60b7b44ddea8dbaeb56015f2a9224e37e503e361e7569e4d"}
+  ],
+  "config_records": {
+    "cp": [
+      {"unit": 473, "unit_offset": 39440, "unit_raw": "d90100000000000023020000ffffffff", "extent_offset": 480, "extent_raw": "000000000800000023020000004006000f010000", "bytes": 409600, "extent_id": 547},
+      {"unit": 474, "unit_offset": 39456, "unit_raw": "da0100000000000024020000ffffffff", "extent_offset": 500, "extent_raw": "00000000080000002402000000c800000f010000", "bytes": 51200, "extent_id": 548},
+      {"unit": 475, "unit_offset": 39472, "unit_raw": "db0100000000000025020000ffffffff", "extent_offset": 520, "extent_raw": "00000000080000002502000000d100000f010000", "bytes": 53504, "extent_id": 549}
+    ],
+    "ap": [
+      {"unit": 473, "unit_offset": 57716, "unit_raw": "d90100000000000023020000ffffffff", "extent_offset": 460, "extent_raw": "000000000800000023020000004006000f010000", "bytes": 409600, "extent_id": 547},
+      {"unit": 474, "unit_offset": 57732, "unit_raw": "da0100000000000024020000ffffffff", "extent_offset": 480, "extent_raw": "00000000080000002402000000c800000f010000", "bytes": 51200, "extent_id": 548},
+      {"unit": 475, "unit_offset": 57748, "unit_raw": "db0100000000000025020000ffffffff", "extent_offset": 5000, "extent_raw": "00000000080000002502000000d100000f010000", "bytes": 53504, "extent_id": 549},
+      {"unit": 476, "unit_offset": 57764, "unit_raw": "dc0100000000000026020000ffffffff", "extent_offset": 920, "extent_raw": "00000000050000002602000020e200000f010000", "bytes": 57888, "extent_id": 550}
+    ]
+  },
+  "software_policy": {
+    "cp_domain": 1,
+    "indices": [2, 3, 4],
+    "alignment": 4096,
+    "zero_initialization": true,
+    "instances_per_unit": 1,
+    "open_share_reference_limit_per_unit": 32,
+    "borrow_lease_limit": 64,
+    "transport_lease_limit": 16,
+    "logical_address_provider": "mandatory parent registry callback; never host-pointer conversion"
+  },
+  "wire_contract": {
+    "inherited_from": "analysis/scratch/functional-face-wire-contract-final/RESULT.md, OP40-MATRIX.json, golden-op40.json and source-provenance.json",
+    "new_decompiler_runs": 0,
+    "artifacts": {
+      "appfw": {"path": "runtime/analysis/menu-root/usr/lib/appFw.so", "size": 99960744, "sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b"},
+      "icdt_module": {"path": "runtime/analysis/menu-root/usr/kmod/icdt.ko", "size": 21776, "sha256": "8784a3ec17fac03339f912fa1eb8f3d969970220dcb9c8ea05b3b96a3e9aab22"},
+      "dmm_module": {"path": "runtime/analysis/menu-root/usr/kmod/dmm.ko", "size": 118336, "sha256": "295f02234a9bc39697cf1a39a13fc8c1d823b340ed3115609c89b7950d694353"}
+    },
+    "windows": [
+      {"name": "w01-app-constructors", "source": "appfw", "va": 55910816, "bytes": 1520, "file_offset": 55910816, "section": null, "sha256": "61d52967143719a67d0aff1a7882b52e3fd06eda5c383d03ac119ff995a3e105"},
+      {"name": "w02-app-share-close", "source": "appfw", "va": 55912336, "bytes": 1484, "file_offset": 55912336, "section": null, "sha256": "869f201bde13e7b4c12825b05a6ce3e965e103ad80650e4be42375326df83131"},
+      {"name": "w03-icdt-query", "source": "icdt_module", "va": 712, "bytes": 776, "file_offset": 816, "section": ".text", "sha256": "1091f8680c22d28031de3977447f41c4b73458f171b166ba21c980f05145c19d"},
+      {"name": "w04-ap-sync-callback", "source": "dmm_module", "va": 33144, "bytes": 136, "file_offset": 33248, "section": ".text", "sha256": "a0f90c7883d0ee67781829b8da54bf183dd44c55ccb84bbdfbbf6a5c8f147fb1"},
+      {"name": "w05-ap-sync-dispatch", "source": "dmm_module", "va": 26480, "bytes": 952, "file_offset": 26584, "section": ".text", "sha256": "965185dbeb1effa77492e725606eed0924d46dc04e8544419c0769ba0bbabc42"},
+      {"name": "w06-ap-native-alloc", "source": "dmm_module", "va": 35720, "bytes": 624, "file_offset": 35824, "section": ".text", "sha256": "872411b3874c988f8dbe16ab1678fb7653585cbcdfda4a1c9bbc8d4933b6b10d"},
+      {"name": "w07-ap-native-extent", "source": "dmm_module", "va": 40952, "bytes": 212, "file_offset": 41056, "section": ".text", "sha256": "1287907b94e660ecb7e05c7a178e4c9b2425cc80248010d85e3277345ec003a4"},
+      {"name": "w08-ap-sync-registration", "source": "dmm_module", "va": 33824, "bytes": 120, "file_offset": 33928, "section": ".text", "sha256": "7cb36e4fa1e0e9056feb50880d2cc2a15c14affc85eaccc46018c27e8358d8c5"}
+    ],
+    "window_bytes": 5824,
+    "labels": "appFw ELF VAs; kernel module .text offsets; body offsets hexadecimal",
+    "evidence_hashes": {
+      "RESULT.md": "7a1339004b1150b2e6e1cab1b664a3723010b7e5fc48c0cd4ef986dd54e9518d",
+      "OP40-MATRIX.json": "2d1218299503dfd5c5d79d0bb8348b9032220a31f7b7c3f958180e47d43f9bc6",
+      "golden-op40.json": "eb1669c54b5642638bcb9ee60f586434ad2f9bb4e5fa2fe9d8f6eb82f5ec11ee",
+      "source-provenance.json": "731d2bb932648d29c5652715f6c57177f3a84fe5d64713031d78f2147cbc3e76"
+    },
+    "golden_op40": [
+      {"id": "appfw-unit-create-20", "bodylen": 40, "hex": "20000000d901000000000000ffffffff000000000000000000000000000000000000000000000000", "sha256": "d018e6e0683d435692967f5e721379c4ec8ad500d6af022d9afdf2b5bfacbe65"},
+      {"id": "appfw-alloc-share-21", "bodylen": 40, "hex": "21000000d90100000284000000000000000000000000000000000000000000000000000000000000", "sha256": "7f87d63b07a9658e8fe15edda4695c34675c46f38f809c562ee1ff99518883d2"},
+      {"id": "appfw-free-23", "bodylen": 40, "hex": "23000000000000000284000000000000000000003412000000000000000000000000000000000000", "sha256": "267f2188c482e102e24abedba261bb375ad9a3b8c310986937c04dff55043a93"},
+      {"id": "appfw-open-24", "bodylen": 40, "hex": "240000000000000002840000ffffffff000000000000000000000000000000000000000000000000", "sha256": "aedf19192fbb50b6664be3c36ec04c0c6db2835f51e1adbc206e81494b1bf9e7"},
+      {"id": "appfw-close-25", "bodylen": 40, "hex": "25000000000000000284000000000000000000000000000000000000000000000000000000000000", "sha256": "593e013b3a4d5bc7244e9192846c1e2f8bacf1abc60bf5cfdcdd7aeaef66edcc"},
+      {"id": "icdt-kernel-segment-query-2a", "bodylen": 40, "hex": "2a000000000000000284000000000000000000000000000000000000000000000000000000000000", "sha256": "8e7e706fcb0bbf8fb2ea326b0f9b9c10eba64be28dc66d6197012741c690ccd7"}
+    ],
+    "implemented_opcodes": [32, 33, 35, 36, 37],
+    "source_only_opcodes": [42],
+    "face_mode": 0,
+    "reply_policy": "existing dmm-service software policy; original CP producer unpinned"
+  },
+  "unknown": ["configuration word 8 physical meaning", "configuration word 0x10f alignment meaning", "original CP RAM and RTOS execution", "original persistent face descriptor final teardown owner", "parent original AP mapping and cross-chip byte consumption"],
+  "claims": {"host_model": true, "native_ap_consumed": false, "physical_asic_verified": false, "original_cp_verified": false, "capture_verified": false}
+}

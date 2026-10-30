@@ -70,6 +70,11 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "functional-mpr-codec.h"
 #include "functional-mpr-memory.h"
 #include "functional-jpeg-codec.h"
+#include "functional-face-runtime.h"
+#include "functional-face-ap-observer.h"
+#include "functional-face-proc.h"
+#include "functional-face-sdk.h"
+#include "functional-face-source-snapshot.h"
 #include "device-models/functional-vdf-path.h"
 #include "device-models/functional-histogram.h"
 #include "device-models/functional-background-start.h"
@@ -88,10 +93,13 @@ extern int *__errno_location(void);
 extern long syscall(long, ...);
 extern unsigned long strtoul(const char *, char **, int);
 extern int close(int);
+extern void *malloc(size_t);
+extern void free(void *);
 extern int getpid(void);
 extern char *getenv(const char *);
 extern char *strstr(const char *, const char *);
 extern int memcmp(const void *, const void *, size_t);
+extern void *memcpy(void *, const void *, size_t);
 extern int snprintf(char *, size_t, const char *, ...);
 extern int sscanf(const char *, const char *, ...);
 extern void *mmap(void *, size_t, int, int, int, unsigned long);
@@ -161,6 +169,10 @@ static unsigned int functional_histogram_binding,functional_histogram_used;
 static int functional_histogram_owner_pid;
 static unsigned int functional_background_start_binding,functional_background_start_used;
 static int functional_background_start_owner_pid;
+static unsigned int functional_face_used;
+static int functional_face_owner_pid;
+static _Thread_local struct functional_face_runtime_ticket functional_face_ticket;
+static _Thread_local struct functional_face_ap_observer functional_face_ap_state;
 static _Thread_local struct { void *pointer; unsigned int destination; uint64_t cycle; } functional_background_start_ticket;
 struct functional_histogram_receive_ticket { void *pointer; unsigned int destination; uint64_t cycle; unsigned int ready; };
 static struct functional_histogram_receive_ticket functional_histogram_tickets[2];
@@ -1193,7 +1205,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_",
             "FULL_DMM_UNIT_",
-            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
+            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
             "GUI_PROPERTY_",
@@ -2667,6 +2679,9 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
     if (site > 2) { *__errno_location() = saved_errno; return; }
     unsigned int code = 0, id = 0, state[3] = {0};
     long code_bytes = -1, id_bytes = -1, state0 = -1, state1 = -1, state2 = -1;
+    unsigned int press_gate[3] = {0};
+    unsigned char inhibit = 0;
+    long local_bytes = -1, transition_bytes = -1, inhibit_bytes = -1, duplicate_bytes = -1;
     int fd = open("/proc/self/mem", 0);
     if (site == 0) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 + 12));
     if (site == 1) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 - 0x10));
@@ -2675,6 +2690,12 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
         state0 = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
         state1 = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d498UL));
         state2 = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e5c408UL));
+    }
+    if (site == 1 && code_bytes == 4 && code == 0x02070000) {
+        local_bytes = fd < 0 ? -1 : pread(fd, press_gate, 4, (long)a0);
+        transition_bytes = fd < 0 ? -1 : pread(fd, press_gate+1, 4, (long)(appfw_base + 0x7e67fc8UL));
+        inhibit_bytes = fd < 0 ? -1 : pread(fd, &inhibit, 1, (long)(appfw_base + 0x83337e3UL));
+        duplicate_bytes = fd < 0 ? -1 : pread(fd, press_gate+2, 4, (long)(appfw_base + 0x7e5d570UL));
     }
     if (fd >= 0) close(fd);
     int match = site < 2 ? code_bytes == 4 &&
@@ -2685,11 +2706,13 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
         unsigned int n = __atomic_add_fetch(&counts[site], 1, __ATOMIC_RELAXED);
         if (n <= 32) {
             const char *name = site == 0 ? "core" : site == 1 ? "final" : "send";
-            char text[512];
+            char text[768];
             snprintf(text, sizeof text,
-                     "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx code=%#x id=%#x state_d428=%#x state_d498=%#x state_c408=%#x reads=%ld/%ld/%ld/%ld/%ld",
+                     "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx code=%#x id=%#x state_d428=%#x state_d498=%#x state_c408=%#x reads=%ld/%ld/%ld/%ld/%ld press_local=%#x transition_67fc8=%#x inhibit_83337e3=%#x duplicate_d570=%#x gate_reads=%ld/%ld/%ld/%ld observation_only=1 atomic_snapshot=0 original_branch_observed=0",
                      name, n, syscall(178), a0, a1, a2, a3, code, id,
-                     state[0], state[1], state[2], code_bytes, id_bytes, state0, state1, state2);
+                     state[0], state[1], state[2], code_bytes, id_bytes, state0, state1, state2,
+                     press_gate[0], press_gate[1], inhibit, press_gate[2],
+                     local_bytes, transition_bytes, inhibit_bytes, duplicate_bytes);
             record("SHUTTER_FLOW ", text);
         }
     }
@@ -6761,9 +6784,31 @@ int _ZN3MWF12EventWrapper11SendAndRecvEPviS1_i(void *self,void *data,int bytes,v
     *__errno_location()=result_errno;
     return result;
 }
+static void native_face_sdk_observation(unsigned int stage,unsigned int id,void *message,unsigned int bytes,int result,void *caller) {
+    if(!functional_camera_enabled || id!=0x02820746u)return;
+    int saved_errno=*__errno_location();Dl_info info={0};
+    if(real_dladdr && caller)real_dladdr(caller,&info);
+    char raw[97]={0},text[600];unsigned int sampled=0;
+    if(message && bytes==48 && (stage==2 || stage==3)) {
+        const unsigned char *p=message;
+        for(unsigned int i=0;i<48;i++)snprintf(raw+2*i,3,"%02x",p[i]);
+        sampled=48;
+    }
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld stage=%u destination=%#x message=%p bytes=%u actual_rc=%d actual_rc_defined=%u caller_pc=%p library_base=%p caller_va=%#lx sampled=%u raw=%s kernel_result_defined=%u observation_only=1 source_memory_ready=0 native_pin=0 physical_verified=0 capture_verified=0",
+        getpid(),syscall(178),stage,id,message,bytes,result,(unsigned int)(stage!=2),caller,info.dli_fbase,
+        info.dli_fbase && (uintptr_t)caller>=(uintptr_t)info.dli_fbase?(unsigned long)((uintptr_t)caller-(uintptr_t)info.dli_fbase):0,
+        sampled,raw,(unsigned int)(stage==3 && result==0 && sampled==48));
+    record("FUNCTIONAL_FACE_DMM_SDK_OBSERVATION ",text);*__errno_location()=saved_errno;
+}
 int osal_snd_sync_msg(unsigned int id, void *message) {
     audit_cp_background_input(id,message,"sync",__builtin_return_address(0));
     if (!real_send_sync) __builtin_trap();
+    if(functional_camera_enabled && id==0x02820746u && message && real_msg_size) {
+        int saved_errno=*__errno_location();
+        native_face_sdk_observation(2,id,message,real_msg_size(message),0,__builtin_return_address(0));
+        *__errno_location()=saved_errno;
+    }
     trace_media_mount_sync("FULL_MEDIA_MOUNT_ENTER ",id,message,0);
     trace_media_rm_sync("FULL_MEDIA_MOUNT_RM_SYNC_ENTER ",id,message,0);
     /* appFw's own logger (0x367fa80 / 0x36804c8) ships "%4X %s %s" text to SID 0x008f013a and
@@ -6835,6 +6880,11 @@ int osal_snd_sync_msg(unsigned int id, void *message) {
         record("SND_SYNC_OTHER ", text);
     }
     int result = real_send_sync(id, message);
+    if(functional_camera_enabled && id==0x02820746u && message && real_msg_size) {
+        int saved_errno=*__errno_location();
+        native_face_sdk_observation(3,id,message,real_msg_size(message),result,__builtin_return_address(0));
+        *__errno_location()=saved_errno;
+    }
     trace_media_mount_sync("FULL_MEDIA_MOUNT_RETURN ",id,message,result);
     trace_media_rm_sync("FULL_MEDIA_MOUNT_RM_SYNC_RETURN ",id,message,result);
     if (version) {
@@ -7630,6 +7680,147 @@ static int native_background_start_release(unsigned int id,void *message,int *re
     }
     *__errno_location()=saved_errno;return handled;
 }
+static void functional_face_native_birth_observe(const struct functional_face_ap_observer *);
+static void functional_face_ap_record_event(enum functional_face_ap_event event,const struct functional_face_ap_observer *s) {
+    int saved_errno=*__errno_location();char request[81],reply[81],text[1100];
+    for(unsigned int i=0;i<40;i++) {
+        snprintf(request+2*i,3,"%02x",s->request_wire[i]);
+        snprintf(reply+2*i,3,"%02x",s->reply_wire[i]);
+    }
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld event=%u observation=%llu sender_tid=%lld active=%u source=%#x op=%#x unit=%#x handle=%#x request=%#llx send_seen=%u send_rc=%d received=%u reply=%#llx reply_source=%#x reply_bytes=%u free_attempts=%u free_rc=%d dropped=%llu request_raw=%s reply_raw=%s observation_only=1 native_reply_source_verified=0 allocation_pin_verified=0 native_byte_access_verified=0 physical_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)event,(unsigned long long)s->sequence,(long long)s->sender_tid,s->active,
+        s->source,s->op,s->unit,s->handle,(unsigned long long)s->request,s->send_seen,s->send_result,s->received,
+        (unsigned long long)s->reply,s->reply_source,s->reply_bytes,s->free_attempts,s->free_result,
+        (unsigned long long)s->dropped,request,reply);
+    record("FUNCTIONAL_FACE_DMM_AP_OBSERVATION ",text);
+    if(event==FACE_AP_FREE_RETURN)functional_face_native_birth_observe(s);
+    *__errno_location()=saved_errno;
+}
+static uint64_t functional_face_producer_owner(void) {
+    /* Explicit process-local software producer, not an original CPPObject. */
+    return ((uint64_t)(unsigned int)getpid()<<32)|UINT64_C(0x46414345);
+}
+static void functional_face_record(const char *prefix,const struct functional_face_runtime_snapshot *s) {
+    const struct functional_face_runtime_transaction *t=&s->last_completed;
+    for(unsigned int i=0;i<FUNCTIONAL_FACE_RUNTIME_TRANSACTIONS;i++)if(s->transactions[i].active){t=&s->transactions[i];break;}
+    char text[1300],tag[96];snprintf(tag,sizeof tag,"%s ",prefix);snprintf(text,sizeof text,
+        "pid=%d tid=%ld snapshot_id=%llu owner=%#llx enabled=%u busy=%u live_creators=%u opens=%u shares=%u tickets=%u retained=%u faults=%u actual_receive=%llu actual_request_free=%llu actual_reply_free=%llu ledger_commit=%llu transaction=%llu op=%#x unit=%#x source=%#x sender_tid=%lld dispatch_returned=%u dispatch_rc=%d request_freed=%u request_free_rc=%d observed=%u reply_freed=%u reply_free_rc=%d model_snapshot_rc=%d physical_verified=0 original_cp_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned long long)s->snapshot_id,(unsigned long long)s->producer_owner,s->enabled,s->busy,
+        s->live_creators,s->opens,s->shares,s->tickets,s->retained,s->faults,(unsigned long long)s->actual_receive,
+        (unsigned long long)s->actual_request_free,(unsigned long long)s->actual_reply_free,(unsigned long long)s->ledger_commit,
+        (unsigned long long)t->id,t->op,t->unit,t->request_source,(long long)t->sender_tid,t->dispatch_returned,t->dispatch_result,
+        t->request_freed,t->request_free_result,t->observed,t->reply_freed,t->reply_free_result,s->model_snapshot_result);
+    record(tag,text);
+    for(unsigned int i=0;i<FUNCTIONAL_FACE_DMM_UNITS;i++) {
+        const struct functional_face_runtime_unit *u=&s->units[i];
+        const struct functional_face_dmm_descriptor *d=&u->creator;
+        snprintf(text,sizeof text,
+            "pid=%d snapshot_id=%llu slot=%u live_creator=%u retired=%u creator_tid=%lld unit=%#x handle=%#x epoch=%llu owner=%#llx reference=%llu logical=%#llx registration=%llu host_view=%#llx bytes=%lu mapped_bytes=%lu receipt_transaction=%llu receipt_nonce=%llu receipt_queue=%#x physical_verified=0 capture_verified=0",
+            getpid(),(unsigned long long)s->snapshot_id,i,u->live_creator,u->retired,(long long)u->creator_tid,d->unit,d->handle,
+            (unsigned long long)d->epoch,(unsigned long long)d->owner,(unsigned long long)d->reference,(unsigned long long)d->logical,
+            (unsigned long long)d->registration,(unsigned long long)d->host_view,(unsigned long)d->bytes,(unsigned long)d->mapped_bytes,
+            (unsigned long long)u->receipt.transaction,(unsigned long long)u->receipt.actual.nonce,u->receipt.actual.destination);
+        record("FUNCTIONAL_FACE_DMM_UNIT ",text);
+    }
+}
+static int functional_face_original_caller(unsigned int op,void *caller,unsigned int source) {
+    unsigned long expected=0;unsigned int instruction=0,first=0,second=0;
+    switch(op) {
+    case 0x20:expected=0x35522a4;instruction=0x9784320c;break;
+    case 0x21:expected=0x3552c60;instruction=0x97842f9d;break;
+    case 0x23:expected=0x35524a8;instruction=0x9784318b;break;
+    case 0x24:expected=0x3552694;instruction=0x97843110;break;
+    case 0x25:expected=0x35528ac;instruction=0x9784308a;break;
+    default:return -ENOTSUP;
+    }
+    Dl_info info={0};long before=-1,after=-1;int rc=-ELIBBAD,saved_errno=*__errno_location();
+    if(source && source!=FUNCTIONAL_FACE_DMM_CP && source!=UINT32_MAX && caller && appfw_base && real_dladdr &&
+       real_dladdr(caller,&info) && (unsigned long)info.dli_fbase==appfw_base && info.dli_fname &&
+       (uintptr_t)caller>=(uintptr_t)info.dli_fbase && (uintptr_t)caller-(uintptr_t)info.dli_fbase==expected) {
+        size_t length=strlen(info.dli_fname);
+        if(length>=8 && !strcmp(info.dli_fname+length-8,"appFw.so") && (length==8 || info.dli_fname[length-9]=='/')) {
+            int fd=open("/proc/self/mem",0);
+            if(fd>=0) {
+                before=pread(fd,&first,4,(long)((uintptr_t)caller-4));
+                after=pread(fd,&second,4,(long)((uintptr_t)caller-4));close(fd);
+            }
+            if(before==4 && after==4 && first==instruction && second==first)rc=0;
+        }
+    }
+    char text[400];snprintf(text,sizeof text,
+        "pid=%d tid=%ld op=%#x caller_pc=%p caller_va=%#lx library_base=%p source=%#x reads=%ld/%ld first=%#x second=%#x rc=%d producer=process-local-software-owner original_cp_verified=0 capture_verified=0",
+        getpid(),syscall(178),op,caller,expected,info.dli_fbase,source,before,after,first,second,rc);
+    record("FUNCTIONAL_FACE_DMM_SOURCE_BOUND ",text);*__errno_location()=saved_errno;return rc;
+}
+static int native_functional_face_send(unsigned int id,void *message,void *caller,int *result) {
+    if(!functional_camera_enabled || id!=FUNCTIONAL_FACE_DMM_CP || !message || !real_msg_size || real_msg_size(message)!=40)return 0;
+    const unsigned int *words=message;unsigned int op=words[0]&0xffffu,unit=0;
+    if(op==0x20 || op==0x21) {
+        unit=words[1];if(unit<0x1d9 || unit>0x1db)return 0;
+    } else if(op==0x23 || op==0x24 || op==0x25) {
+        unsigned int index=words[2]&0x3ffu;
+        if(!(words[2]&0x8000u) || index<2 || index>4)return 0;
+    } else return 0;
+    int saved_errno=*__errno_location();
+    int rc=functional_face_original_caller(op,caller,real_get_source?real_get_source(message):0);
+    if(!rc && functional_camera_setup_error)rc=functional_camera_setup_error;
+    struct native_functional_camera_control_snapshot control={0};
+    if(!rc) {
+        native_functional_camera_control_snapshot(&control);
+        if(!control.model_initialized || !control.start_complete || control.faults)rc=-ENODATA;
+    }
+    const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,real_send_msg,real_msg_size,real_get_source,record};
+    uint64_t owner=functional_face_producer_owner();
+    if(!rc)rc=functional_face_runtime_prepare(1,owner,&io,functional_face_record);
+    if(!rc) {
+        __atomic_store_n(&functional_face_owner_pid,getpid(),__ATOMIC_RELEASE);
+        __atomic_store_n(&functional_face_used,1,__ATOMIC_RELEASE);
+        if(!unit) {
+            /* Only the ledger published by actual receive/free supplies epoch. */
+            for(unsigned int i=0;i<FUNCTIONAL_FACE_DMM_UNITS;i++) {
+                struct functional_face_dmm_descriptor saved={0};
+                if(!functional_face_runtime_lookup_creator(owner,0x1d9+i,&saved) && saved.handle==words[2]) {
+                    if(unit){rc=-ENODATA;break;}unit=saved.unit;
+                }
+            }
+            if(!unit)rc=-ESTALE;
+        }
+    }
+    if(rc){*result=rc;*__errno_location()=saved_errno;return 1;}
+    const struct functional_face_runtime_caller origin={owner,unit,FUNCTIONAL_FACE_RUNTIME_ACCEPTED,FUNCTIONAL_FACE_RUNTIME_UNIQUE_REFERENCE};
+    int handled=functional_face_runtime_dispatch(id,message,&io,1,&origin,result);
+    *__errno_location()=saved_errno;return handled;
+}
+static void native_functional_face_received(unsigned int id,void *message) {
+    if(functional_camera_enabled && message && real_get_source && real_msg_size) {
+        int saved_errno=*__errno_location();
+        functional_face_ap_received(&functional_face_ap_state,syscall(178),id,real_get_source(message),message,
+            real_msg_size(message),0,functional_face_ap_record_event);
+        *__errno_location()=saved_errno;
+    }
+    if(!__atomic_load_n(&functional_face_used,__ATOMIC_ACQUIRE) ||
+       __atomic_load_n(&functional_face_owner_pid,__ATOMIC_ACQUIRE)!=getpid())return;
+    int saved_errno=*__errno_location();
+    if(functional_face_ticket.actual.reply)record("FUNCTIONAL_FACE_DMM_TICKET_RETAINED ","receiver_ticket_already_live=1 no_refresh=1 capture_verified=0");
+    else {
+        struct functional_face_runtime_ticket ticket={0};
+        if(functional_face_runtime_observe(functional_face_producer_owner(),id,message,0,&ticket)==1)functional_face_ticket=ticket;
+    }
+    *__errno_location()=saved_errno;
+}
+static int native_functional_face_release(unsigned int id,void *message,int *result) {
+    if(!__atomic_load_n(&functional_face_used,__ATOMIC_ACQUIRE))return 0;
+    const struct functional_face_runtime_ticket *ticket=functional_face_ticket.actual.reply==(uintptr_t)message &&
+        functional_face_ticket.actual.destination==id?&functional_face_ticket:0;
+    if(__atomic_load_n(&functional_face_owner_pid,__ATOMIC_ACQUIRE)!=getpid()) {
+        if(ticket){*result=-EXDEV;return 1;}return 0;
+    }
+    int saved_errno=*__errno_location();
+    int handled=functional_face_runtime_release(functional_face_producer_owner(),id,message,ticket,real_free_msg,result);
+    if(handled && !*result && ticket)functional_face_ticket=(struct functional_face_runtime_ticket){0};
+    *__errno_location()=saved_errno;return handled;
+}
 static int functional_vdf_prepare(void) {
     if(functional_camera_setup_error)return functional_camera_setup_error;
     unsigned int binding=__atomic_load_n(&functional_vdf_binding,__ATOMIC_ACQUIRE);
@@ -7671,6 +7862,131 @@ static int functional_mpr_prepare(void) {
         getpid(),rc,info.dli_fbase,FUNCTIONAL_MPR_CODEC_LIBRARY_SHA256);
     record("FUNCTIONAL_MPR_BIND ",text);return rc;
 }
+struct functional_face_native_proc_birth {
+    int owner_pid,error;int64_t owner_tid;uint64_t observation,allocation_token;unsigned int attempted;
+    struct functional_face_proc_unit row;
+};
+static _Thread_local struct functional_face_native_proc_birth functional_face_native_proc_births[4];
+static unsigned int functional_face_native_proc_busy;
+/* Protected by proc_busy; software identity is minted only at original birth. */
+static uint64_t functional_face_native_allocation_serial;
+static int functional_face_native_proc_read(unsigned int unit,unsigned int handle,uint64_t observation,
+    unsigned int pass,struct functional_face_proc_unit *out) {
+    const size_t capacity=2u*1024u*1024u;unsigned char *raw=malloc(capacity);if(!raw)return -ENOMEM;
+    size_t used=0;int rc=0,eof=0,fd=open("/proc/udm/dmm_units",0);
+    if(fd<0)rc=-*__errno_location();
+    else {
+        for(unsigned int tries=0;tries<32 && !eof && !rc;tries++) {
+            if(used==capacity){rc=-E2BIG;break;}
+            long n=read(fd,raw+used,capacity-used);
+            if(n<0)rc=-*__errno_location();else if(!n)eof=1;
+            else if((unsigned long)n>capacity-used)rc=-EIO;else used+=(size_t)n;
+        }
+        if(!rc && !eof)rc=-EIO;
+        int closed=close(fd);if(!rc && closed)rc=-*__errno_location();
+    }
+    struct functional_face_proc_unit row={0};
+    if(!rc)rc=functional_face_proc_unit_parse(raw,used,unit,handle,&row);
+    if(!rc && (row.row_offset>used || row.row_bytes>used-row.row_offset))rc=-EPROTO;
+    uint64_t digest=UINT64_C(14695981039346656037);
+    for(size_t i=0;i<used;i++){digest^=raw[i];digest*=UINT64_C(1099511628211);}
+    char text[900];snprintf(text,sizeof text,
+        "pid=%d tid=%ld birth_observation=%llu pass=%u unit=%#x handle=%#x eof=%d table_bytes=%lu table_fnv=%#llx parse_rc=%d diagnostic_only=1 atomic_snapshot_verified=0 competing_readers_excluded=0 allocation_pin_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned long long)observation,pass,unit,handle,eof,(unsigned long)used,(unsigned long long)digest,rc);
+    record("FUNCTIONAL_FACE_DMM_PROC_READ ",text);
+    if(!rc) {
+        for(size_t offset=0;offset<row.row_bytes;offset+=128) {
+            size_t n=row.row_bytes-offset;if(n>128)n=128;char hex[257];
+            for(size_t i=0;i<n;i++)snprintf(hex+2*i,3,"%02x",raw[row.row_offset+offset+i]);
+            snprintf(text,sizeof text,"pid=%d tid=%ld birth_observation=%llu pass=%u row_offset=%lu row_bytes=%lu chunk_offset=%lu chunk_bytes=%lu raw=%s diagnostic_only=1",
+                getpid(),syscall(178),(unsigned long long)observation,pass,(unsigned long)row.row_offset,
+                (unsigned long)row.row_bytes,(unsigned long)offset,(unsigned long)n,hex);
+            record("FUNCTIONAL_FACE_DMM_PROC_ROW ",text);
+        }
+        *out=row;
+    }
+    free(raw);return rc;
+}
+static int functional_face_native_proc_same(const struct functional_face_proc_unit *a,const struct functional_face_proc_unit *b) {
+    return a->handle==b->handle && a->unit==b->unit && a->state==b->state && a->owners==b->owners &&
+        a->opens==b->opens && a->shares==b->shares && a->generation==b->generation && a->relation==b->relation &&
+        a->extent_id==b->extent_id && a->segments==b->segments && a->address==b->address && a->bytes==b->bytes;
+}
+static void functional_face_native_birth_observe(const struct functional_face_ap_observer *s) {
+    if(!functional_camera_enabled || s!=&functional_face_ap_state || s->owner_pid!=getpid() || s->sender_tid!=syscall(178) ||
+       s->op!=0x20 || s->unit<0x1d9 || s->unit>0x1dc || s->active || s->free_attempts!=1 || s->free_result)return;
+    struct functional_face_ap_birth fact={0};uint32_t handle=0;
+    for(unsigned int i=0;i<4;i++)handle|=(uint32_t)s->reply_wire[12+i]<<(8*i);
+    if(functional_face_ap_observed_birth(s,syscall(178),s->unit,handle,&fact) || fact.observation_sequence!=s->sequence || fact.any_free_observed)return;
+    struct functional_face_native_proc_birth *b=&functional_face_native_proc_births[s->unit-0x1d9];
+    if(b->attempted)return;
+    int saved_errno=*__errno_location();b->attempted=1;b->owner_pid=getpid();b->owner_tid=syscall(178);b->observation=s->sequence;
+    unsigned int expected=0;int locked=__atomic_compare_exchange_n(&functional_face_native_proc_busy,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE);
+    struct functional_face_proc_unit first={0},second={0};int rc=locked?0:-EBUSY;
+    if(!rc)rc=functional_face_native_proc_read(s->unit,handle,s->sequence,1,&first);
+    if(!rc)rc=functional_face_native_proc_read(s->unit,handle,s->sequence,2,&second);
+    if(!rc && (!functional_face_native_proc_same(&first,&second) || first.state!=1 || first.owners!=1 || first.opens || first.shares))rc=-ESTALE;
+    if(!rc && functional_face_native_allocation_serial==UINT64_C(0x0000ffffffffffff))rc=-EOVERFLOW;
+    if(!rc) {
+        b->row=first;
+        b->allocation_token=UINT64_C(0xface000000000000)|++functional_face_native_allocation_serial;
+    }
+    b->error=rc;if(locked)__atomic_store_n(&functional_face_native_proc_busy,0,__ATOMIC_RELEASE);
+    char text[700];snprintf(text,sizeof text,
+        "pid=%d tid=%ld birth_observation=%llu unit=%#x handle=%#x capture_rc=%d software_allocation_token=%#llx relation=%#x generation=%u owners=%u opens=%u state=%u address=%#llx bytes=%lu extent_id=%#x diagnostic_only=1 observed_at_original_birth=1 native_birth_complete=0 allocation_pin_verified=0 source_memory_ready=0 physical_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned long long)s->sequence,s->unit,handle,rc,(unsigned long long)b->allocation_token,first.relation,first.generation,first.owners,
+        first.opens,first.state,(unsigned long long)first.address,(unsigned long)first.bytes,first.extent_id);
+    record("FUNCTIONAL_FACE_DMM_PROC_BIRTH ",text);*__errno_location()=saved_errno;
+}
+struct functional_face_native_dmm_input { uint32_t unit,chip,handle; };
+struct functional_face_native_dmm_result { uint32_t unit,handle;uint64_t address;uint32_t bytes,reserved,error,padding; };
+_Static_assert(sizeof(struct functional_face_native_dmm_input)==12,"original DMM input ABI");
+_Static_assert(sizeof(struct functional_face_native_dmm_result)==32,"original DMM result includes error at +18h");
+static int functional_face_native_ap_command(void *context,unsigned int op,unsigned int unit,unsigned int handle,
+    struct functional_face_ap_observer *observation) {
+    (void)context;
+    if(!functional_camera_enabled || !observation || !appfw_base || !real_dladdr || unit<0x1d9 || unit>0x1db)return -ENODATA;
+    int saved_errno=*__errno_location();int64_t tid=syscall(178);struct functional_face_ap_birth birth={0};
+    int rc=functional_face_ap_observed_birth(&functional_face_ap_state,tid,unit,handle,&birth);
+    if(rc){*__errno_location()=saved_errno;return rc;}
+    if(functional_face_ap_state.active || functional_face_ap_state.sequence==UINT64_MAX) {
+        *__errno_location()=saved_errno;return -EBUSY;
+    }
+    unsigned long entry=op==0x21?0x3552b3c:op==0x24?0x355258c:op==0x25?0x35527c8:op==0x23?0x35523b0:0;
+    if(!entry){*__errno_location()=saved_errno;return -ENOTSUP;}
+    if(appfw_base>UINTPTR_MAX-entry){*__errno_location()=saved_errno;return -EOVERFLOW;}
+    uintptr_t address=appfw_base+entry;Dl_info info={0};uint64_t first=0,second=0;long a=-1,b=-1;
+    if(real_dladdr((void *)address,&info) && (uintptr_t)info.dli_fbase==appfw_base && info.dli_fname) {
+        size_t n=strlen(info.dli_fname);
+        if(n>=8 && !strcmp(info.dli_fname+n-8,"appFw.so") && (n==8 || info.dli_fname[n-9]=='/')) {
+            int fd=open("/proc/self/mem",0);
+            if(fd>=0){a=pread(fd,&first,8,(long)address);b=pread(fd,&second,8,(long)address);close(fd);}
+        }
+    }
+    if(a!=8 || b!=8 || first!=UINT64_C(0x910003fda9ba7bfd) || second!=first) {
+        *__errno_location()=saved_errno;return -ELIBBAD;
+    }
+    uint64_t before=functional_face_ap_state.sequence;
+    struct functional_face_native_dmm_input input={unit,0,handle};
+    struct functional_face_native_dmm_result output={0};int native_error=0;
+    if(op==0x21 || op==0x24) {
+        ((void (*)(const struct functional_face_native_dmm_input *,struct functional_face_native_dmm_result *))address)(&input,&output);
+        native_error=(int)output.error;
+    } else if(op==0x25) {
+        ((void (*)(const uint32_t *,int *))address)(&input.handle,&native_error);
+    } else native_error=((int (*)(uint32_t,unsigned int))address)(handle,0);
+    *observation=functional_face_ap_state;
+    if(native_error)rc=-EIO;
+    else if(observation->owner_pid!=getpid() || observation->sender_tid!=tid || observation->sequence!=before+1 ||
+        observation->op!=op || observation->active || !observation->send_seen || observation->send_result ||
+        !observation->received || observation->free_attempts!=1 || observation->free_result)rc=-ENODATA;
+    else rc=0;
+    char text[450];snprintf(text,sizeof text,
+        "pid=%d tid=%ld op=%#x unit=%#x handle=%#x helper_va=%#lx birth_observation=%llu transaction=%llu helper_error=%d capture_rc=%d result_storage_bytes=32 original_api_invoked=1 raw_ticket_capture_only=1 allocation_pin_verified=0 physical_verified=0 capture_verified=0",
+        getpid(),syscall(178),op,unit,handle,entry,(unsigned long long)birth.observation_sequence,
+        (unsigned long long)observation->sequence,native_error,rc);
+    record("FUNCTIONAL_FACE_DMM_NATIVE_AP_COMMAND ",text);*__errno_location()=saved_errno;return rc;
+}
 static unsigned int record_osd_transport(const char *prefix, unsigned int id, const void *message) {
     if (!getenv("MENU_OSD_OBSERVE")) return 0;
     unsigned int local = id & 0x7fffffffu;
@@ -7700,6 +8016,223 @@ static void native_hdmi_video_progress(void) {
     int saved_errno=*__errno_location();
     full_pinmem_hdmi_video_connection_progress();
     *__errno_location()=saved_errno;
+}
+static int functional_face_source_current_metadata(void *context,unsigned int unit,unsigned int handle,
+    struct functional_face_proc_unit *out) {
+    (void)context;
+    if(!functional_camera_enabled || !out || unit<0x1d9 || unit>0x1db)return -ENODATA;
+    int saved_errno=*__errno_location(),rc=0;int64_t tid=syscall(178);
+    const struct functional_face_native_proc_birth *b=&functional_face_native_proc_births[unit-0x1d9];
+    struct functional_face_ap_birth fact={0};
+    if(!b->attempted || b->error || !b->allocation_token || b->owner_pid!=getpid() || b->owner_tid!=tid ||
+       b->row.unit!=unit || b->row.handle!=handle)rc=-ESTALE;
+    if(!rc)rc=functional_face_ap_observed_birth(&functional_face_ap_state,tid,unit,handle,&fact);
+    if(!rc && fact.observation_sequence!=b->observation)rc=-ESTALE;
+    if(!rc && functional_face_ap_state.active)rc=-EBUSY;
+    unsigned int expected=0;int locked=0;
+    if(!rc) {
+        locked=__atomic_compare_exchange_n(&functional_face_native_proc_busy,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE);
+        if(!locked)rc=-EBUSY;
+    }
+    struct functional_face_proc_unit first={0},second={0};
+    if(!rc)rc=functional_face_native_proc_read(unit,handle,b->observation,3,&first);
+    if(!rc)rc=functional_face_native_proc_read(unit,handle,b->observation,4,&second);
+    if(!rc && !functional_face_native_proc_same(&first,&second))rc=-ESTALE;
+    if(locked)__atomic_store_n(&functional_face_native_proc_busy,0,__ATOMIC_RELEASE);
+    if(!rc)*out=first;
+    char text[650];snprintf(text,sizeof text,
+        "pid=%d tid=%ld unit=%#x handle=%#x birth_observation=%llu native_transaction=%llu software_allocation_token=%#llx rc=%d relation=%#x generation=%u owners=%u opens=%u state=%u address=%#llx bytes=%lu extent_id=%#x shares=%u segments=%u diagnostic_only=1 native_atomicity_verified=0 original_global_writer_exclusion_verified=0 capture_verified=0",
+        getpid(),syscall(178),unit,handle,(unsigned long long)b->observation,
+        (unsigned long long)functional_face_ap_state.sequence,(unsigned long long)b->allocation_token,rc,
+        first.relation,first.generation,first.owners,first.opens,first.state,(unsigned long long)first.address,(unsigned long)first.bytes,
+        first.extent_id,first.shares,first.segments);
+    record("FUNCTIONAL_FACE_SOURCE_CURRENT_METADATA ",text);*__errno_location()=saved_errno;return rc;
+}
+struct functional_face_sdk_origin {
+    struct functional_face_api_request request;
+    struct functional_face_dmm_descriptor destination;
+    struct functional_face_ap_birth birth;
+    uintptr_t frame,input_pointer;
+    uint64_t allocation_token;
+    unsigned char api40[40],source_descriptor[8],destination_descriptor[8];
+    unsigned int unit,native_metadata_observed;
+};
+struct functional_face_sdk_frame_reader { int fd;uintptr_t frame; };
+static long functional_face_sdk_frame_read(void *opaque,uintptr_t address,void *out,size_t bytes) {
+    const struct functional_face_sdk_frame_reader *r=opaque;
+    if(!r || r->fd<0 || !out || bytes!=8 || (address!=r->frame+0x68 && address!=r->frame+0x70))return -ERANGE;
+    return pread(r->fd,out,bytes,(long)address);
+}
+static int functional_face_sdk_origin(void *caller,const void *api_pointer,struct functional_face_sdk_origin *out) {
+    if(!functional_camera_enabled || !caller || !api_pointer || !out || !appfw_base || !real_dladdr)return -ENODATA;
+    int saved_errno=*__errno_location(),rc=-ELIBBAD,fd=-1;uintptr_t p=(uintptr_t)api_pointer;
+    struct functional_face_sdk_origin candidate={0};Dl_info info={0};unsigned char first[40],second[40];
+    uint64_t code1=0,code2=0,callback1=0,callback2=0;uint32_t context1=0,context2=0;
+    if(appfw_base>UINTPTR_MAX-0x35150c8 || (uintptr_t)caller!=appfw_base+0x35150c8 ||
+       p<0xb8 || p>INT64_MAX-40 || ((p-0xb8)&15u))goto done;
+    if(!real_dladdr(caller,&info) || (uintptr_t)info.dli_fbase!=appfw_base || !info.dli_fname)goto done;
+    size_t n=strlen(info.dli_fname);
+    if(n<8 || strcmp(info.dli_fname+n-8,"appFw.so") || (n!=8 && info.dli_fname[n-9]!='/'))goto done;
+    fd=open("/proc/self/mem",0);if(fd<0){rc=-ENODATA;goto done;}
+    if(pread(fd,&code1,8,(long)((uintptr_t)caller-8))!=8 || pread(fd,&code2,8,(long)((uintptr_t)caller-8))!=8 ||
+       code1!=UINT64_C(0x978520739102e3a0) || code2!=code1)goto done;
+    if(pread(fd,&callback1,8,(long)(appfw_base+0x3514c88))!=8 ||
+       pread(fd,&callback2,8,(long)(appfw_base+0x3514c88))!=8 ||
+       callback1!=UINT64_C(0x910003fda9b97bfd) || callback2!=callback1)goto done;
+    rc=-EIO;
+    if(pread(fd,first,40,(long)p)!=40 || pread(fd,second,40,(long)p)!=40)goto done;
+    if(memcmp(first,second,40)){rc=-ESTALE;goto done;}
+    candidate.frame=p-0xb8;candidate.input_pointer=p;memcpy(candidate.api40,first,40);
+    struct functional_face_sdk_frame_reader reader={fd,candidate.frame};
+    rc=functional_face_transfer_decode_api40(first,40,functional_face_sdk_frame_read,&reader,&candidate.request);
+    if(rc)goto done;
+    if(candidate.request.source_descriptor!=candidate.frame+0x68 || candidate.request.destination_descriptor!=candidate.frame+0x70 ||
+       candidate.request.callback!=appfw_base+0x3514c88 || candidate.request.callback_context!=candidate.frame+0x60 ||
+       candidate.request.input.source_offset || candidate.request.input.destination_offset){rc=-EPROTO;goto done;}
+    for(unsigned int i=0;i<4;i++) {
+        candidate.source_descriptor[i]=(unsigned char)(candidate.request.input.source_handle>>(8*i));
+        candidate.destination_descriptor[i]=(unsigned char)(candidate.request.input.destination_handle>>(8*i));
+    }
+    if(pread(fd,&context1,4,(long)(candidate.frame+0x60))!=4 ||
+       pread(fd,&context2,4,(long)(candidate.frame+0x60))!=4){rc=-EIO;goto done;}
+    if(context1!=context2 || context1!=candidate.request.input.source_handle){rc=-ESTALE;goto done;}
+    unsigned int bytes=candidate.request.input.bytes;
+    candidate.unit=bytes==0x64000?0x1d9:bytes==0xc800?0x1da:bytes==0xd100?0x1db:0;
+    if(!candidate.unit){rc=-ENOTSUP;goto done;}
+    rc=functional_face_runtime_lookup_creator(functional_face_producer_owner(),candidate.unit,&candidate.destination);
+    if(rc)goto done;
+    if(candidate.destination.handle!=candidate.request.input.destination_handle || candidate.destination.bytes!=bytes){rc=-ESTALE;goto done;}
+    rc=functional_face_ap_observed_birth(&functional_face_ap_state,syscall(178),candidate.unit,
+        candidate.request.input.source_handle,&candidate.birth);
+    if(rc)goto done;
+    if(candidate.birth.any_free_observed){rc=-ESTALE;goto done;}
+    const struct functional_face_native_proc_birth *b=&functional_face_native_proc_births[candidate.unit-0x1d9];
+    candidate.native_metadata_observed=b->attempted && !b->error && b->owner_pid==getpid() && b->owner_tid==syscall(178) &&
+        b->observation==candidate.birth.observation_sequence && b->row.handle==candidate.birth.handle && b->row.unit==candidate.unit;
+    if(candidate.native_metadata_observed)candidate.allocation_token=b->allocation_token;
+    *out=candidate;
+ done:
+    if(fd>=0)close(fd);
+    char text[650];snprintf(text,sizeof text,
+        "pid=%d tid=%ld caller=%p api=%p frame=%#llx unit=%#x rc=%d source_birth=%llu native_metadata_observed=%u original_caller_bound=%u provider_bound=0 source_memory_ready=0 allocation_pin_verified=0 capture_verified=0",
+        getpid(),syscall(178),caller,api_pointer,(unsigned long long)candidate.frame,candidate.unit,rc,
+        (unsigned long long)candidate.birth.observation_sequence,candidate.native_metadata_observed,rc==0);
+    record("FUNCTIONAL_FACE_DMM_API40_ORIGIN ",text);*__errno_location()=saved_errno;return rc;
+}
+struct functional_face_source_transaction {
+    struct functional_face_source_snapshot source;
+    struct functional_face_sdk sdk;
+    struct functional_face_sdk_origin origin;
+    struct functional_face_sdk_frame_reader reader;
+    unsigned int initialized,callback_invoked,callback_returned;
+};
+static _Thread_local struct functional_face_source_transaction functional_face_source_transactions[3];
+static int functional_face_source_callback(void *opaque,uintptr_t callback,int32_t status,uintptr_t context) {
+    struct functional_face_source_transaction *s=opaque;
+    if(!s || status || s->callback_invoked || !s->initialized ||
+       s->source.config.owner_pid!=getpid() || s->source.config.owner_tid!=syscall(178) ||
+       callback!=s->origin.request.callback || context!=s->origin.request.callback_context ||
+       !s->sdk.last.copy.content_complete || s->sdk.last.copy.source_release_result ||
+       s->sdk.last.copy.destination_release_result || s->source.owner_live || s->source.open_live ||
+       s->source.snapshot_live || s->source.provider_may_retain)return -ESTALE;
+    if(!appfw_base || appfw_base>UINTPTR_MAX-0x3514c88 || callback!=appfw_base+0x3514c88 ||
+       context!=s->origin.frame+0x60 || !real_dladdr)return -ELIBBAD;
+    Dl_info info={0};uint64_t code1=0,code2=0;uint32_t handle1=0,handle2=0;
+    if(!real_dladdr((void *)callback,&info) || (uintptr_t)info.dli_fbase!=appfw_base || !info.dli_fname)return -ELIBBAD;
+    size_t n=strlen(info.dli_fname);
+    if(n<8 || strcmp(info.dli_fname+n-8,"appFw.so") || (n!=8 && info.dli_fname[n-9]!='/'))return -ELIBBAD;
+    if(pread(s->reader.fd,&code1,8,(long)callback)!=8 || pread(s->reader.fd,&code2,8,(long)callback)!=8 ||
+       code1!=UINT64_C(0x910003fda9b97bfd) || code2!=code1 ||
+       pread(s->reader.fd,&handle1,4,(long)context)!=4 || pread(s->reader.fd,&handle2,4,(long)context)!=4 ||
+       handle1!=handle2 || handle1!=s->origin.birth.handle)return -ESTALE;
+    s->callback_invoked=1;
+    char text[700];snprintf(text,sizeof text,
+        "pid=%d tid=%ld unit=%#x allocation_token=%#llx model_instance=%#llx snapshot_token=%#llx callback=%#llx context=%#llx source_fnv=%#llx cp_fnv=%#llx actual_original_callback=1 original_sender_started=0 content_readback_complete=1 capture_verified=0",
+        getpid(),syscall(178),s->origin.unit,(unsigned long long)s->origin.allocation_token,
+        (unsigned long long)s->source.bridge_result.model_instance,(unsigned long long)s->source.bridge_result.result_token,
+        (unsigned long long)callback,(unsigned long long)context,(unsigned long long)s->sdk.last.copy.source_digest,
+        (unsigned long long)s->sdk.last.copy.destination_digest);
+    record("FUNCTIONAL_FACE_SOURCE_CALLBACK_ENTER ",text);
+    ((void (*)(int32_t,void *))callback)(0,(void *)context);
+    s->callback_returned=1;
+    char returned[750];snprintf(returned,sizeof returned,"%s actual_original_callback_returned=1",text);
+    record("FUNCTIONAL_FACE_SOURCE_CALLBACK_RETURN ",returned);
+    return 0;
+}
+static int functional_face_try_source_snapshot(const struct functional_face_sdk_origin *origin,int *result) {
+    if(!functional_camera_enabled || !origin || !result || !origin->native_metadata_observed ||
+       !origin->allocation_token || origin->unit<0x1d9 || origin->unit>0x1db)return 0;
+    struct functional_face_source_transaction *s=&functional_face_source_transactions[origin->unit-0x1d9];
+    /* shortcut: one original initialization upload per unit; revisit only after native reuse is observed. */
+    if(s->initialized)return 0;
+    const struct functional_face_native_proc_birth *b=&functional_face_native_proc_births[origin->unit-0x1d9];
+    if(b->error || b->allocation_token!=origin->allocation_token || b->owner_pid!=getpid() ||
+       b->owner_tid!=syscall(178) || b->observation!=origin->birth.observation_sequence)return 0;
+    s->origin=*origin;s->reader=(struct functional_face_sdk_frame_reader){open("/proc/self/mem",0),origin->frame};
+    if(s->reader.fd<0)return 0;
+    struct functional_face_ap_span span={.domain=0,.unit=origin->unit,.handle=origin->birth.handle,
+        .epoch=origin->allocation_token,.owner=(uint64_t)(unsigned int)getpid(),.bytes=origin->request.input.bytes};
+    struct functional_face_source_snapshot_config cfg={.saved_source=span,.birth=origin->birth,
+        .observer=&functional_face_ap_state,.relation=b->row.relation,.generation=b->row.generation,
+        .extent_id=b->row.extent_id,.born=b->row,.read_current_metadata=functional_face_source_current_metadata,
+        .destination=origin->destination,.producer_owner=functional_face_producer_owner(),
+        .owner_pid=getpid(),.owner_tid=syscall(178),.frame=origin->frame,.api_pointer=origin->input_pointer,
+        .original_caller_verified=1,.original_command=functional_face_native_ap_command};
+    memcpy(cfg.raw_api40,origin->api40,40);memcpy(cfg.ap_descriptor,origin->source_descriptor,8);
+    memcpy(cfg.cp_descriptor,origin->destination_descriptor,8);
+    struct functional_face_ap_provider provider={0};
+    int rc=functional_face_source_snapshot_init(&s->source,&cfg,&provider);
+    struct functional_face_sdk_binding binding={.saved_source=span,.provider=provider,
+        .producer_owner=cfg.producer_owner,.owner_pid=getpid(),.owner_tid=syscall(178),
+        .read_descriptor=functional_face_sdk_frame_read,.reader_context=&s->reader,
+        .invoke_callback=functional_face_source_callback,.callback_context=s};
+    if(!rc)rc=functional_face_sdk_init(&s->sdk,&binding);
+    if(rc){close(s->reader.fd);*s=(struct functional_face_source_transaction){0};return 0;}
+    s->initialized=1;
+    struct functional_face_sdk_transaction transaction={0};
+    rc=functional_face_sdk_submit(&s->sdk,origin->api40,40,1,0,&transaction);
+    char text[700];snprintf(text,sizeof text,
+        "pid=%d tid=%ld unit=%#x allocation_token=%#llx rc=%d claimed=%u started=%u source_bytes=%lu cp_written=%lu cp_readback=%lu original_callback_invoked=%u original_callback_returned=%u model_instance=%#llx snapshot_token=%#llx source_fnv=%#llx cp_fnv=%#llx original_sender_started=0 original_global_writer_exclusion_verified=0 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),origin->unit,(unsigned long long)origin->allocation_token,rc,transaction.claimed,transaction.started,
+        (unsigned long)s->source.bytes_read,(unsigned long)transaction.copy.written,(unsigned long)transaction.copy.readback,
+        s->callback_invoked,s->callback_returned,(unsigned long long)s->source.bridge_result.model_instance,
+        (unsigned long long)s->source.bridge_result.result_token,(unsigned long long)transaction.copy.source_digest,
+        (unsigned long long)transaction.copy.destination_digest);
+    record("FUNCTIONAL_FACE_SOURCE_SNAPSHOT_RESULT ",text);
+    if(rc && (transaction.claimed || transaction.started || s->source.claimed)) {
+        record("FUNCTIONAL_FACE_SOURCE_RETAINED_FAULT ",text);
+        for(;;)usleep(10000); /* Keep the original frame alive until owned fault cleanup exits QEMU. */
+    }
+    if(!rc) {
+        close(s->reader.fd);s->reader.fd=-1;*result=0;return 1;
+    }
+    close(s->reader.fd);*s=(struct functional_face_source_transaction){0};return 0;
+}
+static int (*real_interchip_transfer_async)(const void *);
+int interchip_transfer_async(const void *api_pointer) {
+    int before=*__errno_location();
+    int (*original)(const void *)=__atomic_load_n(&real_interchip_transfer_async,__ATOMIC_ACQUIRE);
+    if(!original && real_dlsym) {
+        original=real_dlsym((void *)-1,"interchip_transfer_async");
+        if(original && original!=interchip_transfer_async)__atomic_store_n(&real_interchip_transfer_async,original,__ATOMIC_RELEASE);
+        else original=0;
+    }
+    if(!original){*__errno_location()=before;return -ENOSYS;}
+    struct functional_face_sdk_origin origin={0};int bound=-ENODATA;
+    if(functional_camera_enabled)bound=functional_face_sdk_origin(__builtin_return_address(0),api_pointer,&origin);
+    if(!bound) {
+        int modeled_result=0;
+        if(functional_face_try_source_snapshot(&origin,&modeled_result)){*__errno_location()=before;return modeled_result;}
+    }
+    *__errno_location()=before;
+    int result=original(api_pointer),after=*__errno_location();
+    if(functional_camera_enabled) {
+        char text[550];snprintf(text,sizeof text,
+            "pid=%d tid=%ld api=%p unit=%#x origin_rc=%d actual_sdk_return=%d actual_errno=%d original_sender_invoked=1 callback_invoked_by_model=0 provider_bound=0 source_memory_ready=0 capture_verified=0",
+            getpid(),syscall(178),api_pointer,origin.unit,bound,result,after);
+        record("FUNCTIONAL_FACE_DMM_API40_RETURN ",text);
+    }
+    *__errno_location()=after;return result;
 }
 static void native_hdmi_video_received(unsigned int id,void **message,int result) {
     if(!pinmem_hdmi_video_connection_enabled || result || !message || !*message || !real_get_source || !real_msg_size)return;
@@ -7739,6 +8272,7 @@ static void native_cp_state_received(unsigned int id,void **message,int result) 
     if((!cp_owned_state_enabled && !functional_camera_enabled) || result || !message || !*message || !real_get_source || !real_msg_size)return;
     int saved_errno=*__errno_location();
     if(functional_camera_enabled){
+        native_functional_face_received(id,*message);
         native_background_start_received(id,*message,real_get_source(*message),real_msg_size(*message));
         native_histogram_received(id,*message,real_get_source(*message),real_msg_size(*message));
         if(__atomic_load_n(&functional_layout_stage_used,__ATOMIC_ACQUIRE)) {
@@ -8022,7 +8556,9 @@ int osal_valloc_msg_wait(unsigned int id, void **message, unsigned int size, uns
         }
         return result;
     }
-    return real_allocate_msg(id, message, size, count);
+    int result=real_allocate_msg(id, message, size, count),saved_errno=*__errno_location();
+    native_face_sdk_observation(1,id,!result && message?*message:0,size,result,__builtin_return_address(0));
+    *__errno_location()=saved_errno;return result;
 }
 static __attribute__((noinline)) void native_pin_format_readback(void) {
     struct pin_connection_snapshot state;
@@ -8043,6 +8579,7 @@ int osal_free_msg(unsigned int id, void *message) {
     if (!real_free_msg) __builtin_trap();
     int media_mount_trace=trace_media_mount_completion("FULL_MEDIA_MOUNT_FREE_ENTER ",id,message);
     int vdf_result;
+    if(native_functional_face_release(id,message,&vdf_result))return vdf_result;
     if(native_background_start_release(id,message,&vdf_result))return vdf_result;
     if(__atomic_load_n(&functional_histogram_used,__ATOMIC_ACQUIRE) &&
        native_histogram_release(id,message,&vdf_result))return vdf_result;
@@ -8194,7 +8731,11 @@ int osal_free_msg(unsigned int id, void *message) {
         if (from) return real_free_msg(from, message);
     }
     int result=real_free_msg(id,message),saved_errno=*__errno_location();
+    if(functional_camera_enabled)
+        functional_face_ap_freed(&functional_face_ap_state,syscall(178),id,message,result,functional_face_ap_record_event);
     if(functional_camera_enabled)(void)functional_jpeg_codec_observe_freed(id,message,result);
+    if(functional_camera_enabled && id==0x02820746u)
+        native_face_sdk_observation(4,id,message,0,result,__builtin_return_address(0));
     if(media_mount_trace) {
         char text[180];snprintf(text,sizeof text,"tid=%ld id=%#x message=%p result=%d caller=%p",
                                syscall(178),id,message,result,__builtin_return_address(0));
@@ -8358,13 +8899,14 @@ int osal_snd_msg(unsigned int id, void *message) {
         const unsigned char *wire=message;
         unsigned int bytes=real_msg_size(message);
         if(bytes>=4 && wire[0]==0x0d && wire[1]==0x20 && wire[3]==0x01 &&
-           (wire[2]==0x38 || wire[2]==0x53 || wire[2]==0x4c || wire[2]==0x52 || wire[2]==0x62 || wire[2]==0x41 ||
+           (wire[2]==0x38 || wire[2]==0x53 || wire[2]==0x4c || wire[2]==0x52 || wire[2]==0x62 || wire[2]==0x41 || wire[2]==0x5e ||
             wire[2]==0x11 || wire[2]==0x66 || wire[2]==0x67 || wire[2]==0x5f || wire[2]==0x28)) {
             unsigned int required=wire[2]==0x38?FUNCTIONAL_VDF_PATH_REQUEST_BYTES:
                 wire[2]==0x53?FUNCTIONAL_VDF_ZEBRA_REQUEST_BYTES:
                 wire[2]==0x4c?FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES:
                 wire[2]==0x52?FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES:
                 wire[2]==0x62?FUNCTIONAL_VDF_FLAG_REQUEST_BYTES:
+                wire[2]==0x5e?FUNCTIONAL_VDF_BIT_WIDTH_REQUEST_BYTES:
                 wire[2]==0x11 || wire[2]==0x66?36u:wire[2]==0x67?10u:wire[2]==0x5f?12u:wire[2]==0x28?20u:FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES;
             if(bytes!=required || wire[4]!=required || wire[5] || wire[6]!=1 || wire[7]!=0x80)
                 return -ENOTSUP;
@@ -8995,6 +9537,8 @@ int osal_snd_msg(unsigned int id, void *message) {
                  ((const unsigned short *)message)[11], real_get_source ? real_get_source(message) : 0,message_bytes,raw);
         record("DMM_REQUEST ", text);
         unsigned int dop = words[0] & 65535;
+        int face_result;
+        if(native_functional_face_send(id,message,__builtin_return_address(0),&face_result))return face_result;
         if (dmm_enabled && ((dop >= 0x20 && dop <= 0x23) || dop == 0x2a))
             return dmm_send(message,(unsigned long)__builtin_return_address(0),(unsigned long)__builtin_frame_address(0));
     }
@@ -9154,8 +9698,20 @@ int osal_snd_msg(unsigned int id, void *message) {
     if(id==GUI_MODEL_QUEUE && file_media_flush_pending_fn) {
         file_media_flush_pending_fn();start_sd_ack_retry_worker();
     }
-    int result;
+    int result,ap_traced=0;
+    if(functional_camera_enabled && id==FUNCTIONAL_FACE_AP_DMM && message && real_msg_size && real_get_source && real_msg_size(message)==40) {
+        int saved_errno=*__errno_location();unsigned int source=real_get_source(message);
+        unsigned int op=((const unsigned short *)message)[0];
+        int verified=!functional_face_original_caller(op,__builtin_return_address(0),source);
+        ap_traced=functional_face_ap_begin(&functional_face_ap_state,1,verified,syscall(178),id,source,message,40,functional_face_ap_record_event)==1;
+        *__errno_location()=saved_errno;
+    }
     if(!gui_model_service_send(id,message,&result))result=real_send_msg(id,message);
+    if(ap_traced) {
+        int saved_errno=*__errno_location();
+        functional_face_ap_sent(&functional_face_ap_state,syscall(178),result,functional_face_ap_record_event);
+        *__errno_location()=saved_errno;
+    }
     if (observed) {
         char text[96];
         snprintf(text, sizeof text, "call=%u endpoint=%#x result=%d", observed, id, result);

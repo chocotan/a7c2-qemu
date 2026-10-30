@@ -13,6 +13,8 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'runtime/analysis'))
 
 OUTSIDE_HOST_SCOPE = {
+    ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'):
+        'launcher rejection integration; host byte/width/error-preservation tests run separately',
     ('runtime/analysis/test_vef_path_device.py',
      'test_observer_resource_wiring_and_pre_vm_rejection'):
         'launcher rejection integration; validate with package adapters/native opt-in suite',
@@ -22,6 +24,19 @@ OUTSIDE_HOST_SCOPE = {
     ('runtime/analysis/test_fsys_async_observer.py',
      'test_async_write_observer_is_explicit_passthrough_and_profile_gated'):
         'launcher rejection integration; validate with package adapters/native opt-in suite',
+    **{(path, test): 'original Sony assets or ABI integration; outside host software-model publication'
+       for path, test in (
+           ('runtime/analysis/test_functional_face_dmm.py', 'test_final_wire_source_pins'),
+           ('runtime/analysis/test_functional_face_dmm.py', 'test_inherited_original_source_and_config_pins'),
+           ('runtime/analysis/test_functional_face_dmm.py', 'test_aarch64_hand_declared_guest_libc_225'),
+           ('runtime/analysis/test_functional_face_registry.py', 'test_aarch64_hand_declared_guest_libc_225'),
+           ('runtime/analysis/test_functional_face_runtime.py', 'test_aarch64_guest_libc_225_no_undefined'),
+           ('runtime/analysis/test_functional_face_transfer.py', 'test_aarch64_guest_libc_225_link_only'),
+           ('runtime/analysis/test_functional_face_ap_observer.py', 'test_aarch64_original_libc225_link_only'),
+           ('runtime/analysis/test_functional_face_native_ap.py', 'test_aarch64_guest_libc_225_link_only'),
+           ('runtime/analysis/test_functional_face_sdk.py', 'test_aarch64_guest_libc_225_link_only'),
+           ('runtime/analysis/test_functional_face_source_snapshot.py', 'test_source_snapshot_guest_aarch64_libc_225_link_only'),
+       )},
     **{(path, test): 'original Sony glibc and QEMU-user integration; validate with native asset opt-in suite'
        for path, test in (
            ('report/native-video-producer-contract/test_producer.py', 'test_all_modes_with_original_aarch64_libc'),

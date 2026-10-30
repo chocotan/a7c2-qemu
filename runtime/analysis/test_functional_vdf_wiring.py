@@ -69,6 +69,7 @@ int functional_vdf_path_bind_refresh_queue(unsigned int source){
  refresh_bind_calls++;refresh_bound_source=source;errno=E2BIG;return refresh_bind_result;
 }
 int functional_histogram_bind_queue(unsigned int source){(void)source;assert(0);return -EINVAL;}
+static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_background_start_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;
 }
@@ -351,7 +352,7 @@ int main(int argc,char **argv){
   }else if(!strcmp(argv[1],"stage-early-reject")){
    request_wire[4]=24;assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENOTSUP);
    layout_request();request_bytes=39;assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENOTSUP);
-   const unsigned int commands[]={0x38,0x53,0x52,0x62,0x41},sizes[]={24,14,16,10,8};
+   const unsigned int commands[]={0x38,0x53,0x52,0x62,0x41,0x5e},sizes[]={24,14,16,10,8,10};
    for(size_t i=0;i<sizeof commands/sizeof *commands;i++){
     layout_request();request_wire[2]=(unsigned char)commands[i];request_wire[4]=(unsigned char)sizes[i];request_bytes=sizes[i];
     assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENODATA);
@@ -481,17 +482,25 @@ int main(int argc,char **argv){
    request_wire[2]=(unsigned char)commands[index];request_bytes=sizes[index];request_wire[4]=(unsigned char)request_bytes;
    if(strstr(argv[1],"-short"))request_bytes--;
   }
+  if(!strncmp(argv[1],"send-bit-width",14)){
+   request_bytes=10;request_wire[2]=0x5e;request_wire[4]=10;
+   if(strstr(argv[1],"-short"))request_bytes=9;
+   if(strstr(argv[1],"-long"))request_bytes=11;
+   if(strstr(argv[1],"-bad-header"))request_wire[4]=12;
+   if(strstr(argv[1],"-not-ready"))graph_ready=0;
+   if(strstr(argv[1],"-disabled"))functional_camera_enabled=0;
+  }
   if(!strcmp(argv[1],"send-short"))request_bytes=4;
   if(!strcmp(argv[1],"send-bad-header"))request_wire[4]=14;
   if(!strcmp(argv[1],"send-unrelated"))request_wire[2]=0x54;
   if(!strcmp(argv[1],"send-not-ready"))graph_ready=0;
   if(!strcmp(argv[1],"send-disabled"))functional_camera_enabled=0;
   int rc=actual_send(id,request_wire);
-  if(!strcmp(argv[1],"send-path") || !strcmp(argv[1],"send-zebra") || !strcmp(argv[1],"send-layout") || !strcmp(argv[1],"send-peaking") || !strcmp(argv[1],"send-flag") || !strcmp(argv[1],"send-refresh") || (!strncmp(argv[1],"send-bb-",8) && !strstr(argv[1],"-short")))
+  if(!strcmp(argv[1],"send-bit-width") || !strcmp(argv[1],"send-path") || !strcmp(argv[1],"send-zebra") || !strcmp(argv[1],"send-layout") || !strcmp(argv[1],"send-peaking") || !strcmp(argv[1],"send-flag") || !strcmp(argv[1],"send-refresh") || (!strncmp(argv[1],"send-bb-",8) && !strstr(argv[1],"-short")))
    assert(!rc && owner_calls==1 && bridge_calls==1 && dispatch_calls==1);
   else{
-   int expected=(strstr(argv[1],"-short") || strstr(argv[1],"-bad-header"))?-ENOTSUP:
-       !strcmp(argv[1],"send-not-ready")?-ENODATA:-999;
+   int expected=(strstr(argv[1],"-short") || strstr(argv[1],"-long") || strstr(argv[1],"-bad-header"))?-ENOTSUP:
+       strstr(argv[1],"-not-ready")?-ENODATA:-999;
    assert(rc==expected && !owner_calls && !bridge_calls && !dispatch_calls);
   }
  }else return 2;
@@ -516,6 +525,8 @@ int main(int argc,char **argv){
                                  'refresh-origin-read-error', 'refresh-origin-changing', 'refresh-origin-source',
                                  'refresh-origin-zero', 'refresh-origin-sentinel', 'refresh-origin-service',
                                  'refresh-origin-bind-failure',
+                                 'send-bit-width', 'send-bit-width-short', 'send-bit-width-long',
+                                 'send-bit-width-bad-header', 'send-bit-width-not-ready', 'send-bit-width-disabled',
                                  'send-path', 'send-zebra', 'send-layout', 'send-layout-short',
                                  'send-layout-bad-header', 'send-peaking', 'send-peaking-short',
                                  'send-flag', 'send-flag-short', 'send-refresh', 'send-refresh-short',

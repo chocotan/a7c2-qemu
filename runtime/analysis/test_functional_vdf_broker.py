@@ -88,13 +88,22 @@ def histogram_response():
     return data, route, bytes(raw)
 
 
+def bit_width_response():
+    data, (route, base) = bytes(8), response()
+    raw = bytearray(base + data)
+    struct.pack_into('<I', raw, 4, 168)
+    struct.pack_into('<I', raw, 96, 7)
+    struct.pack_into('<Q', raw, 40, b.fnv64(data))
+    return data, route, bytes(raw)
+
+
 def core_with_reply(raw):
     class Library:
         def fcam_model_request(self, model, opcode, incoming, size, outgoing, capacity, result):
             assert opcode in (b.VDF_PATH, b.VDF_ZEBRA, b.VDF_LAYOUT, b.VDF_DISPLAY_CONFIG,
-                              b.BB_STARTUP_CONFIG, b.HISTOGRAM) and capacity >= len(raw)
+                              b.BB_STARTUP_CONFIG, b.HISTOGRAM, b.VDF_BIT_WIDTH) and capacity >= len(raw)
             assert size == {b.VDF_PATH: 16, b.VDF_ZEBRA: 8, b.VDF_LAYOUT: 32, b.VDF_DISPLAY_CONFIG: 16,
-                            b.BB_STARTUP_CONFIG: 32, b.HISTOGRAM: 8}[opcode]
+                            b.BB_STARTUP_CONFIG: 32, b.HISTOGRAM: 8, b.VDF_BIT_WIDTH: 8}[opcode]
             ctypes.memmove(outgoing, raw, len(raw))
             result._obj.used = len(raw)
             return 0
@@ -347,7 +356,53 @@ def test_display_rejects_unmodelled_features_even_with_consistent_mock_readback(
         core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, bytes(data), 176)
 
 
+def test_bit_width0_requires_independent_readback_and_fixed_committed_rgb_route():
+    data, route, raw = bit_width_response()
+    core = core_with_reply(raw)
+    with pytest.raises(ValueError, match='committed VDF route'):
+        core.execute(INSTANCE, b.VDF_BIT_WIDTH, data, 168)
+    core.vdf_route = route
+    code, copied, result = core.execute(INSTANCE, b.VDF_BIT_WIDTH, data, 168)
+    assert code == 0 and copied == raw and result.used == 168 and not result.token
+    assert copied[160:] == bytes(8) and core.vdf_route == route
+    changed = bytearray(raw)
+    struct.pack_into('<3I', changed, 72, 320, 480, 960)
+    struct.pack_into('<Q', changed, 64, 320 * 480 * 3)
+    core = core_with_reply(bytes(changed))
+    core.vdf_route = route
+    with pytest.raises(ValueError, match='RGB geometry'):
+        core.execute(INSTANCE, b.VDF_BIT_WIDTH, data, 168)
+
+
+@pytest.mark.parametrize('offset', [0, 4, 8, 16, 24, 32, 40, 56, 84, 92, 96, 104, 108, 112, 116, 120, 128, 160, 167])
+def test_bit_width_corrupt_class_tail_or_copy_proof_is_rejected(offset):
+    data, route, raw = bit_width_response()
+    changed = bytearray(raw)
+    changed[offset] ^= 1
+    if offset == 32:
+        changed[32:40] = bytes(8)
+    core = core_with_reply(bytes(changed))
+    core.vdf_route = route
+    with pytest.raises(ValueError):
+        core.execute(INSTANCE, b.VDF_BIT_WIDTH, data, 168)
+    assert core.vdf_route == route
+
+
+@pytest.mark.parametrize('offset,value', [(0, 1), (0, 2), (0, 3), (0, 255), *((i, 1) for i in range(1, 8))])
+def test_bit_width_consistent_echo_does_not_authorize_another_software_domain(offset, value):
+    data, route, raw = bit_width_response()
+    data, changed = bytearray(data), bytearray(raw)
+    data[offset] = value
+    changed[160:] = data
+    struct.pack_into('<Q', changed, 40, b.fnv64(data))
+    core = core_with_reply(bytes(changed))
+    core.vdf_route = route
+    with pytest.raises(ValueError, match='bit-width0 RGB888'):
+        core.execute(INSTANCE, b.VDF_BIT_WIDTH, bytes(data), 168)
+
+
 @pytest.mark.parametrize('opcode,data,capacity', [
+    (b.VDF_BIT_WIDTH, bytes(8), 168),
     (b.VDF_PATH, bytes((1, 5, 5)) + bytes(13), 160),
     (b.VDF_ZEBRA, bytes((3, 0, 0x20, 75, 65)) + bytes(3), 168),
     (b.VDF_LAYOUT, b.LAYOUT_INITIAL_BODY, 192),
@@ -365,7 +420,8 @@ def test_vdf_request_requires_exact_body(opcode, data, capacity):
         command, body_bytes = struct.unpack_from('<2I', data)
         native_bytes = 8 + body_bytes
     else:
-        command, native_bytes = {b.VDF_PATH: (0x138, 24), b.VDF_ZEBRA: (0x153, 14), b.VDF_LAYOUT: (0x14c, 40)}[opcode]
+        command, native_bytes = {b.VDF_PATH: (0x138, 24), b.VDF_ZEBRA: (0x153, 14), b.VDF_LAYOUT: (0x14c, 40),
+                                 b.VDF_BIT_WIDTH: (0x15e, 10)}[opcode]
     struct.pack_into('<5I', raw, 96, 1235, 0x81cf61c4, 0x92840747, command, native_bytes)
     struct.pack_into('<16Q', raw, 128, *mailbox['pages'])
     assert b.validate_request(bytes(raw), data, mailbox, 0) == (opcode, capacity)

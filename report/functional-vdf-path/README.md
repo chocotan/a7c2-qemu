@@ -1,5 +1,7 @@
 # 功能 VDF path / Zebra / Layout / display / refresh / initial BB 的原 transport owner
 
+当前另支持原015e的[显示位宽事务](../disp-bit-width/README.md)：OP12/input8/result168/class7，软件selector0表示RGB888八位分量，物理含义未知；完整RGB消费/读回/retire后原request free，再独立发送成功状态`00590000`的115e。原sender本轮receive/ticket/free完成后才记消费。本次公开host结果不构成新原AP/VM或capture验收，以下前轮记录保留当时范围。
+
 本成果在 `virtual-functional-camera-v1` 的同一 VDF owner 中处理原 AP `200d/0138`、enable0 `0153`、精确 initial case0 `014c`、disabled `0152`、off `0162`、exact-bound `0141`，以及 initial/neutral `0111/0166/0167/015f/0128`。每条命令保留实际 OSAL source、完整原 wire/header/FNV、独立 ACK 和同 sender TID 的 receive/free ticket。新 C 组通过稳定 bridge API 取得并严格验证 class5/result192，再按原 owner 释放 request、分配各自零状态12B回复。**本轮新增验证仅为 HOST_TEST owner/OSAL fixture；真实 core、native AP/VM 和拍摄链由主会话另接。本轮不把构造的模型回执当作实际 CMOS/RGB 执行证据。** `capture_verified=false`、`physical_asic_verified=false`；原 C 工作、0111 deferred 路径和 CP RTOS 独立未验证。后文真实 core/guest 组合结果保留为前轮历史证据。
 
 前轮五命令实现仅修改 `runtime/analysis/device-models/{functional-vdf-path.c,functional-vdf-path.h,test-functional-vdf-path.c}`、`runtime/analysis/test_functional_vdf_path.py`、本文和 `source-pins.json`，共6个 owned 文件。未修改组合测试、menu-observe、bridge/broker、profile、共享 ABI、core 或构建脚本；未启动 VM、调试器、mainso/fullreg/fullbuild，未接触保留的 old VM、真实设备或原件。继承原 C 合同的项目根路径为 `analysis/scratch/functional-cp-vdf-startup-inventory/AFTER-BB-RESULT.md` §1/3，范围见同目录 `scope.md`；已有源窗只复用元数据，没有重新提取或反编译。本文按 docs-generator 的普通技术报告结构维护，`flavor=null`。

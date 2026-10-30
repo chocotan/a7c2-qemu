@@ -1,0 +1,474 @@
+{
+  "schema": "a7c2-qemu-publication-host-v1",
+  "date": "2026-10-30",
+  "scope": "public package source/host checks and strict C11 plus ASan/UBSan software-model tests; no camera VM",
+  "source_provenance": {
+    "batch": "unified-camera-4yvz8x4k",
+    "ready_sha256": "e2667c7087ed3edc763baf1a64a2788b5276f55826f2ea2c8c3aac73aaff45a8",
+    "role": "read-only research source identity; not public-package native acceptance"
+  },
+  "checks": [
+    {
+      "name": "legacy-sync",
+      "command": [
+        "bash",
+        "analysis/sync_repo_scripts.sh",
+        "--check"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "source",
+      "command": [
+        "python3",
+        "-B",
+        "tools/check-source.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "host",
+      "command": [
+        "python3",
+        "-B",
+        "tools/test-host.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "adapters",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tools/test_package_adapters.py",
+        "tools/test_public_models_runner.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "host-final",
+      "command": [
+        "python3",
+        "-B",
+        "tools/test-host.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "adapters-final",
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "pytest",
+        "--color=no",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tools/test_package_adapters.py",
+        "tools/test_public_models_runner.py"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "source-only-host-final",
+      "command": [
+        "python3",
+        "-B",
+        "tools/test-host.py"
+      ],
+      "returncode": 0
+    }
+  ],
+  "host_tests": {
+    "passed": 302,
+    "skipped": 34,
+    "warning": 1,
+    "subtests_passed": 76
+  },
+  "source_only_relocated_host_tests": {
+    "passed": 278,
+    "skipped": 58,
+    "warning": 1,
+    "subtests_passed": 76
+  },
+  "package_adapters_and_guard_tests": {
+    "passed": 69
+  },
+  "software_model_tests": {
+    "command": [
+      "python3",
+      "-B",
+      "tools/test-public-models.py"
+    ],
+    "returncode": 0,
+    "modules": 197,
+    "passed": 6625,
+    "skipped": 78,
+    "warnings": 26,
+    "subtests_passed": 7350,
+    "skipped_tests": [
+      {
+        "test": "runtime.analysis.test_adf_aip_input_config::test_pinned_public_view_selector_and_template_proof",
+        "reason": "static private-workdir receipt is optional for readers"
+      },
+      {
+        "test": "runtime.analysis.test_infrabb_vef_connection::test_public_source_constructor_and_bb_table",
+        "reason": "pinned public CP original unavailable"
+      },
+      {
+        "test": "runtime.analysis.test_vef_path_device::test_observer_resource_wiring_and_pre_vm_rejection",
+        "reason": "outside public host software-model scope: launcher rejection integration; validate with package adapters/native opt-in suite"
+      },
+      {
+        "test": "runtime.analysis.test_adf_hdmi_audio_connection::test_public_cp_source_windows",
+        "reason": "pinned public CP original unavailable"
+      },
+      {
+        "test": "runtime.analysis.test_hdmi_video_state::test_pinned_public_cp_constants_and_bounded_source_windows",
+        "reason": "pinned public CP original unavailable"
+      },
+      {
+        "test": "runtime.analysis.test_cp_start_state_provider::test_same_run_4063_content_audit",
+        "reason": "local original-run evidence absent"
+      },
+      {
+        "test": "runtime.analysis.test_cp_parameter_state::test_actual_same_run_batch_consumption",
+        "reason": "same-run console is local evidence, not a redistributed fixture"
+      },
+      {
+        "test": "runtime.analysis.test_fsys_async_observer::test_async_write_observer_is_explicit_passthrough_and_profile_gated",
+        "reason": "outside public host software-model scope: launcher rejection integration; validate with package adapters/native opt-in suite"
+      },
+      {
+        "test": "runtime.analysis.test_cp_property_stage_file::test_public_stage_file_loader_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.native-video-producer-contract.test_producer::test_all_modes_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.lif-capability-owner.test_capabilities::test_all_behaviors_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.lif-cache-admission-contract.test_cache::test_all_behaviors_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.native-video-record-fill.test_fill::test_all_modes_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.imola-mbp-mailbox.test_mailbox::test_all_modes_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.imola-vbb-normalize.test_normalize::test_all_modes_with_original_aarch64_libc",
+        "reason": "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite"
+      },
+      {
+        "test": "report.functional-camera-evidence.test_face_source::test_saved_xnod_actual_source_stage_after_transport_fixes",
+        "reason": "private immutable xnod replay is not distributed"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_original_delayed_note_full_hdmi_stage_is_source_bound",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_strict_logged_pointer_reuse_needs_no_source_or_public_assets",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[missing-receive]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[missing-free]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[missing-send]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[receiver]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[pointer]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[size]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[source]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[raw]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[serial]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[free-rc]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[unsent]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[alias-fault]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_conditions_never_excuse_incomplete_or_changed_lifetimes[other-run-trace]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[missing-archive]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[archive-bytes]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[manifest]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[run-binding]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[observer-binding]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[batch-binding]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[selected-observer]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_delayed_note_requires_original_archive_and_all_bindings[abi-binding]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_changed_archived_guard_is_not_approved_by_self_consistent_metadata[device-models/hdmi-video-state.c]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_changed_archived_guard_is_not_approved_by_self_consistent_metadata[device-models/hdmi-video-state.h]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_changed_archived_guard_is_not_approved_by_self_consistent_metadata[menu-observe.c]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_changed_archived_guard_is_not_approved_by_self_consistent_metadata[build-observers.sh]",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_native_upm_never_inherits_condition_delayed_note_rule",
+        "reason": "explicit completed delayed-free-note run unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_successful_actual_hdmi11_full_content",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_PINMEM_NATIVE_REPLY_FREE-sender-999999--1]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_HDMIPIN_COMMIT-slot-1--1]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_HDMIPIN_COMMIT-type-5--1]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[HDMI_PHOTO_REQUEST-value-0x81cf618c-2]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_HDMI_VIDEO_BACKUP_READ-rc--1-8]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_HDMI_VIDEO_BACKUP_READ-source-AP-runtime-2]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_full_edge_get_subscription_and_backup_mutations[FULL_HDMI_VIDEO_STATE_DRIVER_CONSUMED-config-000000000000000000000000000000000000000000000000000000000000000000000000-0]",
+        "reason": "explicit successful HDMI11 run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_actual_two_native_upm_receipts_join_without_full_edge_claim",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[raw]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[effective]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[kernel-tid]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[mapping]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[branch]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[return-rc]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[missing-free]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[missing-allocator]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_independent_native_decoder_rejects_changed_events[early-bridge]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_mailbox_and_cleanup_are_required[missing-commit]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_mailbox_and_cleanup_are_required[commit-sha]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_mailbox_and_cleanup_are_required[unsafe-cleanup]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_mailbox_and_cleanup_are_required[wrong-nonce]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.scratch.test_verify_hdmi_edge::test_mailbox_and_cleanup_are_required[wrong-effective]",
+        "reason": "explicit actual native UPM replay run is unavailable"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_ap_observer::test_aarch64_original_libc225_link_only",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_dmm::test_final_wire_source_pins",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_dmm::test_inherited_original_source_and_config_pins",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_dmm::test_aarch64_hand_declared_guest_libc_225",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_native_ap::test_aarch64_guest_libc_225_link_only",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_registry::test_aarch64_hand_declared_guest_libc_225",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_runtime::test_aarch64_guest_libc_225_no_undefined",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_sdk::test_aarch64_guest_libc_225_link_only",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_source_snapshot::test_source_snapshot_guest_aarch64_libc_225_link_only",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_functional_face_transfer::test_aarch64_guest_libc_225_link_only",
+        "reason": "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication"
+      },
+      {
+        "test": "runtime.analysis.test_shutter_route_trace::test_gate_is_fail_closed",
+        "reason": "outside public host software-model scope: launcher rejection integration; host byte/width/error-preservation tests run separately"
+      }
+    ]
+  },
+  "host_model_build": {
+    "command": [
+      "python3",
+      "-B",
+      "runtime/analysis/build-functional-camera-model.py"
+    ],
+    "returncode": 0,
+    "archive_members": 21,
+    "bit_width_header_archived": true,
+    "every_archive_member_readback_verified": true,
+    "library_sha256": "33caed96f515cdef7d8429798ae98ca4e4513d81fd62f88623aff6e5765369f6",
+    "source_archive_sha256": "ec1f668c34666ab6b8f399d6a6061ef822e9015b42813d7bda83ef47477a3e39"
+  },
+  "additional_checks": [
+    "Python AST and Bash syntax",
+    "new public Markdown links and scope",
+    "every added test module registered",
+    "public launch/ALLLANG adapters preserved",
+    "explicit new-file and binary/private-asset exclusion"
+  ],
+  "initial_failure": {
+    "software_model_returncode": 1,
+    "reason": "First collection included a launcher-rejection item. The host audit guard rejected execution before exec; final scope explicitly skips this integration item and the complete host model suite was rerun.",
+    "source_only_host": "Initial source-only host check had 18 fixture setup errors because original seed-backup.bin is not distributed. The two fixtures now explicitly skip only when absent; wrong available bytes still fail. Both installed-asset and source-only host suites plus the regression checks passed.",
+    "build_command": "An initial project-root relative path returned 2 (file not found); corrected to the public-package cwd before the successful build."
+  },
+  "not_run": [
+    "system QEMU and qtest",
+    "QEMU-user and original Sony ARM ABI execution/link validation",
+    "GTK/GUI/Xvfb",
+    "fresh original AP/guest/native capture acceptance",
+    "real camera, physical SD or disk access"
+  ],
+  "excluded_from_distribution": [
+    "Sony firmware, original libraries, kernels, modules and fonts",
+    "device-private setting and Backup",
+    "generated binaries and source archives",
+    "virtual disks/cards and raw run/UI/menu logs",
+    "decompile corpus",
+    "research STATUS/HANDOFF"
+  ],
+  "capture_verified": false,
+  "original_AP_capture_verified": false,
+  "physical_ASIC_verified": false
+}

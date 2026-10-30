@@ -486,6 +486,9 @@ GLYPH_FIXTURES = {
         'eJzt1DGLE0EUB/A3tzJjsWbbFIv7FXLYpDjY+sAvYDfpLVJaBHeOgKXWguBXEPwArqwkgmKtKLhHDq4dsHDBsM//zIacJLNnWvGmCLuZ/THvvZl5RDfjfxyaqCQa4SmlIzGnowNAxXUHFIAiig8BRQkQAch8PVCtYLaHgLM5DfK1BFimo/D3BTNVpEfaAfF2jl9SUop5vA8UY10AswUEMCSKnoRBsgHJL9LjDjxjOwbACssguGQrDAFMuAMJ2ylmAEJJJ1xmOwBVqj2gMCCAMyOucgC4wMxA+urtgUawjQQAygqQtQ4sMJOqFXMTAHkADLi9e9IDXJVUB6YeKJQ1BhhHtc9lF6wpt1KYaEV65nNwIOVWuoqWQZDZAcAP0o83O11h4zRSxgnYFx7EANi4tqvSd7dxWmbcA56/sWnRyq+kf27BIw+MDsQEkNsT9uD19iz9FRRt/IEmr7agAZBRX0i5nQkTV3x+BT5fA9ovuX0oTFrxanM0qg4oScGQ2ge5vS/M7T9A5MsaXQNiB2gy0u8cWG7A056QOtBd0YUDnzowedEDTnvAedMT0mmxBaUD4psHqmx6VqBd8L4Dxh4IcKo9mK/DIbEDkXGN7Lj8iP6xnDpQq+RlD8AFuuMaGYCZASxyboZZLfMkeONcI6s34J6Z4R+cOjvMSppFl8zrPeCH69TI4di/3KKMhplB89+P52b8e+M3vopo0w=='),
     'shooting': ((145,0,375,34),
         'eJzN07FqwzAQBmCLGzx08Fxicq/RwdBXircOgah48BavGfIw7pSxa6GFOPgFbLI4RFiReo4iuZHJ2H/9dPBznILg32QlVcoprDwoCRdMpHWhHgFP/BjypR8jGwUy+UF41IhjZBp5elwHelL48clF7NFCeBfxi8EI+1cHf+K3K3aFmTwTbh2USG3PhVojZA6CDAm/B5wbPBUMQGEr0j1hfMN2x0Avoe0GzC1scoSDRp7ufws5GGLWUNsB+3lnoewIPwfEL4PwB2cG6xplYyNPZhsbWcUajXQJsYO9wkrh7h6qDXmQzoSVFj6PMLifSZw86snv8EAu9+zp2w=='),
+    # xnodlttg original LCD, crop (145,0,375,34); glyph SHA bc37def4...de31b18.
+    'shooting-33m-afs': ((145,0,375,34),
+        'eJzN07FuwjAQBuCcPEQsyQtU3ItU6qvwAAxkr9RIHbo1r5RMLJV4AAYcZe2QiMUIy67NYWMXsBi50Z/POtm/s+xp6kObalPI76AmXIGshsZsKmtxH7GTic4+QImgO8I9oYoRLNbV/tsu8CKBiwhRYYzFi8cS1Vt8bPHqUDS+82gR+DxCjTTtsTHXmLcyRKZzwi2huOChAcYMTrLanZDL0uO0BmYvYRIO1QXHL2S9xbranact3z3m+DnStISrGLUg3DhcemRXOPt1OAyoxxB5MfsJETiMFs9PFqEyyA2uT0noZdyZh9gFSDGB1qEJ2H/MblcSk6FOfocH6g/04O1v'),
     'system-error': ((255,155,385,200),
         'eJy90rFOwzAQBuCLLmoYkJPRiCjhEcLmIRI8ShAvELYOFbXUtWJm41XcFpUF8QyW+gIZO4Qc9jkQuiO83Sfl7vLbAP92rmIA1JDFZ1yWWgkGNZOuvCHSVcJQ/UDrqgkGgAZBoDbVLPctCoB7Gjwsl6Qd1ACHE5jHsBkhfNIJeM+5h+WmkS2idQDDgHoRrVUzQZp2mKvWwSZASRaPrQdDPCUlg8dGTSBSjZ1VKZFRYY8ig+td70GGMBYKHqj3PzdCV8MdDROgLcDKD4aS/B66ACNfPdALhYAiI8056oaekwCrfgSJftMBdyNIBhDR6qhOIEM9Ak9BoQCq3/DkQq22Hi4YEuFib988XHIPIVLIG4aSIReJ7u3eQ8FQC9x9mr0LyAaYD9HhYAaXh625advDFvWjhzD2tnd3A24XaDKZ/PFL/D5fJbuhEg=='),
 }
@@ -508,9 +511,10 @@ def screen_log(*screens):
 SHOOTING_CHAIN=((0x347,28),(0x343,0),(0x1e6,5),(0x343,0),(0,565))
 
 
-def test_shooting_requires_current_original_content_and_closed_tutorial_not_factory_history():
+@pytest.mark.parametrize('fixture', ['shooting', 'shooting-33m-afs'])
+def test_shooting_requires_current_original_content_and_closed_tutorial_not_factory_history(fixture):
     from PIL import Image
-    hud=glyph_frame('shooting')
+    hud=glyph_frame(fixture)
     assert checker.firstboot_frame(hud,screen_log(*SHOOTING_CHAIN))['page']=='shooting'
     for screens in (((0x343,0),),SHOOTING_CHAIN[:-1],SHOOTING_CHAIN+((0x29b,4),),
                     SHOOTING_CHAIN+((0x431,10),),((0x347,28),(0x343,0),(0,565)),

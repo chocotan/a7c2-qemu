@@ -3,6 +3,7 @@
 #define FUNCTIONAL_CAMERA_CORE_H
 
 #include "../../runtime/analysis/functional-bb-startup-abi.h"
+#include "../../runtime/analysis/functional-vdf-bit-width-abi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,6 +98,13 @@ void fcam_model_destroy(struct fcam_model *model);
  * actual saved Zebra8 readback. All Config48 optics/geometry/fps remain intact;
  * only the software display transaction's config generation advances.
  * Both fixed replies require full capacity before any action or allocation.
+ * VDF_BIT_WIDTH(Input8) returns BitWidth168/class7, with the existing VDF
+ * consumer proof kind. Only software selector0 -> RGB888/eight-bit components
+ * is defined; original015e physical bit depth remains unknown. Requires INIT
+ * and an active 640x480 route; consumes/readbacks/retires one real RGB frame,
+ * then commits/readbacks its separate8-byte display-bus bank and advances both
+ * generations once. Later VDF consumers enforce this saved bus domain. Other
+ * selectors return ENOTSUP. No Config48, older banks or State128 ABI changes.
  * BB_STARTUP_CONFIG(canonical32) returns BB192/class5; HISTOGRAM(canonical8)
  * returns Hist1192/class6. Policies and wire offsets are specified in
  * functional-bb-startup-abi.h. Both require the active 640x480 route, consume

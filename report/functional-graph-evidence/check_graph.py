@@ -32,6 +32,7 @@ FROZEN_DEPENDENCIES = (
     'report/functional-graph-evidence/test_graph.py',
     'report/functional-graph-evidence/README.md',
     'report/functional-camera-evidence/check_evidence.py',
+    'report/functional-camera-evidence/check_face_source.py',
     'report/functional-camera-evidence/test_evidence.py',
     'report/native-card-write/check_writeback.py',
     'report/capture-evidence/check_evidence.py',
@@ -49,6 +50,7 @@ FROZEN_DEPENDENCIES = (
     'runtime/analysis/scratch/evaluate-six-edges-native.py',
     'runtime/analysis/scratch/evaluate-five-edges-native.py',
     'runtime/analysis/scratch/verify_hdmi_edge.py',
+    'runtime/analysis/scratch/test_verify_hdmi_edge.py',
     'runtime/analysis/scratch/verify_osd_edge.py',
 )
 UPM_FILES = ('hdmi-upm-watch-config.json', 'hdmi-upm-watch-events.jsonl',

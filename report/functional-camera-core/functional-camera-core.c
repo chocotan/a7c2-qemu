@@ -67,6 +67,8 @@ struct fcam_model {
     uint8_t hist_staged[FCAM_HIST_INPUT_BYTES], hist_config[FCAM_HIST_INPUT_BYTES];
     uint8_t hist_result[FCAM_HIST_RESULT_BYTES];
     int hist_valid;
+    uint8_t bit_width_staged[FCAM_BIT_WIDTH_INPUT_BYTES], bit_width_config[FCAM_BIT_WIDTH_INPUT_BYTES];
+    int bit_width_valid;
     uint8_t *vdf_sink;
     size_t vdf_capacity, vdf_copied;
     uint32_t vdf_class;
@@ -130,7 +132,8 @@ static void proof_begin(struct fcam_model *m, uint32_t op)
             op == FCAM_OP_BB_STARTUP_CONFIG ? FCAM_PROOF_BB_STARTUP :
             op == FCAM_OP_HISTOGRAM ? FCAM_PROOF_HISTOGRAM :
             (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA ||
-             op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG) ? FCAM_PROOF_VDF : FCAM_PROOF_PROBE,
+             op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG ||
+             op == FCAM_OP_VDF_BIT_WIDTH) ? FCAM_PROOF_VDF : FCAM_PROOF_PROBE,
         .config_generation = m->generation, .frame_generation = m->frame_generation,
         .packet_generation = m->packet_generation, .render_status = -ENODATA,
         .consumer_status = -ENODATA, .retire_status = -ENODATA,
@@ -192,6 +195,7 @@ static int arguments(struct fcam_model *m, const uint8_t *input, size_t in_size,
             if (overlap(spans[i], private_spans[j])) return -EINVAL;
     }
     if (in_size > FCAM_DATA_BYTES || capacity > FCAM_DATA_BYTES) return -E2BIG;
+    if (m->owner_pid != (uint64_t)getpid()) return -ECHILD;
     return m->busy ? -EBUSY : 0;
 }
 static int config_parse(const uint8_t *p, struct config *c, int video)
@@ -577,6 +581,10 @@ static int vdf_copy(const optical_frame_view *view, void *opaque)
         !valid_span((struct span){m->vdf_sink, m->vdf_capacity}) ||
         overlap((struct span){m->vdf_sink, m->vdf_capacity}, (struct span){m->pool, FRAME_CAPACITY}) ||
         overlap((struct span){m->vdf_sink, m->vdf_capacity}, (struct span){m, sizeof(*m)})) return -EINVAL;
+    /* The saved software bus domain constrains every subsequent actual VDF consumer. */
+    if ((m->bit_width_valid && !fcam_bit_width_input_valid(m->bit_width_config)) ||
+        (m->proof.opcode == FCAM_OP_VDF_BIT_WIDTH &&
+         !fcam_bit_width_input_valid(m->bit_width_staged))) return -EINVAL;
     if ((m->proof.opcode == FCAM_OP_BB_STARTUP_CONFIG && !bb_identity(&m->bb_staged_policy)) ||
         (m->proof.opcode == FCAM_OP_HISTOGRAM && !bb_identity(&m->bb_applied))) return -EINVAL;
     if (m->proof.opcode == FCAM_OP_VDF_LAYOUT &&
@@ -618,6 +626,7 @@ static int vdf_frame(struct fcam_model *m)
         ++m->rendered;
         if (m->proof.opcode != FCAM_OP_VDF_LAYOUT &&
             m->proof.opcode != FCAM_OP_VDF_DISPLAY_CONFIG &&
+            m->proof.opcode != FCAM_OP_VDF_BIT_WIDTH &&
             m->proof.opcode != FCAM_OP_BB_STARTUP_CONFIG &&
             m->proof.opcode != FCAM_OP_HISTOGRAM) ++m->frame_generation;
         proof_source(m, &lease);
@@ -784,23 +793,23 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
                             struct fcam_exec_result *result)
 {
     const int zebra = op == FCAM_OP_VDF_ZEBRA, layout = op == FCAM_OP_VDF_LAYOUT;
-    const int display = op == FCAM_OP_VDF_DISPLAY_CONFIG;
+    const int display = op == FCAM_OP_VDF_DISPLAY_CONFIG, bit_width = op == FCAM_OP_VDF_BIT_WIDTH;
     const size_t slot = display ? get32(input) == 0x0141u ? 2u : (size_t)(get32(input) == 0x0162u) : 0u;
-    const size_t input_bytes = layout ? FCAM_LAYOUT_INPUT_BYTES :
+    const size_t input_bytes = bit_width ? FCAM_BIT_WIDTH_INPUT_BYTES : layout ? FCAM_LAYOUT_INPUT_BYTES :
         zebra ? FCAM_ZEBRA_INPUT_BYTES : display ? FCAM_DISPLAY_INPUT_BYTES : FCAM_VDF_INPUT_BYTES;
-    const size_t saved_bytes = layout ? sizeof(m->layout_config) :
+    const size_t saved_bytes = bit_width ? sizeof(m->bit_width_config) : layout ? sizeof(m->layout_config) :
         zebra ? sizeof(m->zebra_config) : display ? sizeof(m->display_config[slot]) : sizeof(m->vdf_config);
-    const size_t response_bytes = layout ? FCAM_LAYOUT_RESULT_BYTES :
+    const size_t response_bytes = bit_width ? FCAM_BIT_WIDTH_RESULT_BYTES : layout ? FCAM_LAYOUT_RESULT_BYTES :
         zebra ? FCAM_ZEBRA_RESULT_BYTES : display ? FCAM_DISPLAY_RESULT_BYTES : FCAM_VDF_RESULT_BYTES;
-    uint8_t *staged = layout ? m->layout_staged : zebra ? m->zebra_staged :
+    uint8_t *staged = bit_width ? m->bit_width_staged : layout ? m->layout_staged : zebra ? m->zebra_staged :
         display ? m->display_staged[slot] : m->vdf_staged;
-    uint8_t *committed = layout ? m->layout_config : zebra ? m->zebra_config :
+    uint8_t *committed = bit_width ? m->bit_width_config : layout ? m->layout_config : zebra ? m->zebra_config :
         display ? m->display_config[slot] : m->vdf_config;
     uint8_t canonical[FCAM_LAYOUT_INPUT_BYTES] = {0}, readback[FCAM_LAYOUT_INPUT_BYTES] = {0};
     uint8_t previous[FCAM_LAYOUT_INPUT_BYTES];
     memcpy(canonical, input, input_bytes);
     memcpy(previous, committed, saved_bytes);
-    const int enabled = layout || display || (zebra ? m->vdf_class != 0 : canonical[0] == 1);
+    const int enabled = bit_width || layout || display || (zebra ? m->vdf_class != 0 : canonical[0] == 1);
     const uint64_t before_frame = m->frame_generation, before_config = m->generation;
     if (enabled) {
         const size_t bytes = (size_t)m->config.width * m->config.height * 3u;
@@ -833,6 +842,13 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
         const int error = vdf_frame(m);
         if (error) return error;
     }
+    if (bit_width) {
+        const size_t bytes = (size_t)m->config.width * m->config.height * 3u;
+        m->proof.consumer_after_fnv1a64 = fnv(m->vdf_sink, m->vdf_copied);
+        if (m->vdf_copied != bytes || bytes != m->proof.active_bytes ||
+            m->proof.consumer_after_fnv1a64 != m->proof.source_fnv1a64 ||
+            memcmp(m->pool, m->vdf_sink, bytes)) return fault(m, -EIO);
+    }
     if (memcmp(staged, canonical, saved_bytes)) return fault(m, -EIO);
     memcpy(committed, staged, saved_bytes);
     memcpy(readback, committed, saved_bytes);
@@ -840,8 +856,9 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
         memcpy(committed, previous, saved_bytes);
         return fault(m, -EIO);
     }
-    if (layout || display) {
+    if (layout || display || bit_width) {
         if (layout) m->layout_valid = 1;
+        if (bit_width) m->bit_width_valid = 1;
         m->proof.frame_generation = ++m->frame_generation;
     } else if (!zebra) m->vdf_class = (uint32_t)enabled;
     m->vdf_busy = 0;
@@ -849,10 +866,15 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     m->proof.config_generation = m->generation;
     uint8_t response[FCAM_VDF_RESULT_MAX_BYTES] = {0};
     vdf_receipt(m, response, response_bytes, canonical, input_bytes, enabled,
-                m->vdf_class, before_frame, before_config);
+                bit_width ? FCAM_BIT_WIDTH_CLASS : m->vdf_class, before_frame, before_config);
     if (zebra) memcpy(response + FCAM_ZEBRA_R_CONFIG, readback, FCAM_ZEBRA_INPUT_BYTES);
     if (layout) memcpy(response + FCAM_LAYOUT_R_CONFIG, readback, FCAM_LAYOUT_INPUT_BYTES);
     if (display) memcpy(response + FCAM_DISPLAY_R_CONFIG, readback, FCAM_DISPLAY_INPUT_BYTES);
+    if (bit_width) {
+        memcpy(response + FCAM_BIT_WIDTH_R_CONFIG, readback, FCAM_BIT_WIDTH_INPUT_BYTES);
+        m->proof.result_bytes = response_bytes;
+        m->proof.result_fnv1a64 = fnv(response, response_bytes);
+    }
     memcpy(out, response, response_bytes);
     *result = (struct fcam_exec_result){0, 0, 0, response_bytes};
     return 0;
@@ -1038,6 +1060,14 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
             m->vdf_config[1] != 5 || m->vdf_config[2] != 5) return -ENODATA;
         break;
     }
+    case FCAM_OP_VDF_BIT_WIDTH:
+        if (size != FCAM_BIT_WIDTH_INPUT_BYTES) return -EINVAL;
+        for (size_t i = 1; i < FCAM_BIT_WIDTH_INPUT_BYTES; ++i) if (in[i]) return -EINVAL;
+        if (in[0] != FCAM_BIT_WIDTH_SOFTWARE_RGB888_SELECTOR) return -ENOTSUP;
+        if (!m->sensor_initialized || m->vdf_class != 1 || m->vdf_config[0] != 1 ||
+            m->vdf_config[1] != 5 || m->vdf_config[2] != 5) return -ENODATA;
+        if (m->config.width != 640 || m->config.height != 480) return -ENOTSUP;
+        break;
     case FCAM_OP_BB_STARTUP_CONFIG:
     case FCAM_OP_HISTOGRAM: {
         if (op == FCAM_OP_BB_STARTUP_CONFIG) {
@@ -1087,8 +1117,9 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
         op == FCAM_OP_VIDEO_BEGIN || op == FCAM_OP_CANCEL) {
         if (capacity < FCAM_STATE_BYTES) return -ENOSPC;
     } else if (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA ||
-               op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG) {
-        const size_t required = op == FCAM_OP_VDF_LAYOUT ? FCAM_LAYOUT_RESULT_BYTES :
+               op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG || op == FCAM_OP_VDF_BIT_WIDTH) {
+        const size_t required = op == FCAM_OP_VDF_BIT_WIDTH ? FCAM_BIT_WIDTH_RESULT_BYTES :
+            op == FCAM_OP_VDF_LAYOUT ? FCAM_LAYOUT_RESULT_BYTES :
             op == FCAM_OP_VDF_ZEBRA ? FCAM_ZEBRA_RESULT_BYTES :
             op == FCAM_OP_VDF_DISPLAY_CONFIG ? FCAM_DISPLAY_RESULT_BYTES : FCAM_VDF_RESULT_BYTES;
         if (capacity < required) return -ENOSPC;
@@ -1103,7 +1134,8 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
     if ((op == FCAM_OP_STILL || op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END ||
          op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA || op == FCAM_OP_VDF_LAYOUT ||
          op == FCAM_OP_VDF_DISPLAY_CONFIG || op == FCAM_OP_BB_STARTUP_CONFIG ||
-         op == FCAM_OP_HISTOGRAM || (op == FCAM_OP_INIT && !m->sensor_initialized)) &&
+         op == FCAM_OP_HISTOGRAM || op == FCAM_OP_VDF_BIT_WIDTH ||
+         (op == FCAM_OP_INIT && !m->sensor_initialized)) &&
         m->proof.serial == UINT64_MAX)
         return -EOVERFLOW;
     if (op == FCAM_OP_INIT && !m->sensor_initialized &&
@@ -1114,11 +1146,11 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
     } else if (m->stream_state == 1) return -EBUSY;
     if (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA ||
         op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG ||
-        op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM) {
+        op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM || op == FCAM_OP_VDF_BIT_WIDTH) {
         if (m->vdf_busy || m->owner.info.state != OPTICAL_FRAME_IDLE) return -EBUSY;
         if (m->generation == UINT64_MAX) return -EOVERFLOW;
         const int active = op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG ||
-            op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM ||
+            op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM || op == FCAM_OP_VDF_BIT_WIDTH ||
             (op == FCAM_OP_VDF_ZEBRA ? m->vdf_class != 0 : in[0] != 0);
         if (active && (m->rendered == UINT64_MAX || m->consumed == UINT64_MAX ||
             m->retired == UINT64_MAX || m->frame_generation == UINT64_MAX ||
@@ -1146,7 +1178,7 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
     struct fcam_exec_result value = {0};
     int error = 0;
     if (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA ||
-        op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG)
+        op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG || op == FCAM_OP_VDF_BIT_WIDTH)
         return vdf_transaction(m, op, in, out, r);
     if (op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM)
         return bb_transaction(m, op, in, out, r);

@@ -172,7 +172,7 @@ def input_submission(state, previous, name, mouse, position=None):
     return False
 
 
-# Reviewed Chinese controls: qzcokwhi startup/HUD, qqu0q5oe reader/temperature/error.
+# Reviewed Chinese controls: qzcokwhi startup/HUD, qqu0q5oe modals, xnodlttg 33M/AF-S HUD.
 # shortcut: current Chinese/default-HUD glyph crops; add reviewed controls for other languages/HUD settings.
 FIRSTBOOT_CONTROLS = {
     'language': ((0x12d,), (0,0,200,52), '2ee481d6d8c7ff2409bf3364fc31200f9303cf31555eab179ca3a1a5180903a0'),
@@ -187,7 +187,9 @@ FIRSTBOOT_CONTROLS = {
     'temperature-cancel': ((0x431,), (170,100,460,235), 'cc18445617b5d5ac474b854fe6c41a50a20eb594a466e8d4d232266abb67ac9e'),
     'creators-guide': ((0x1f4,), (235,400,405,452), '581af34609bce4146df3f10e78a92cf7d139a14fc931c58d95afdfa1cdc50513'),
     'touch-guide': ((0x1e6,), (10,310,620,395), '0be8ce575c04091007d45b1e6ef01eb17cca90487e0e66951a1dcc11f0e7034b'),
-    'shooting': ((0,), (145,0,375,34), '5987f429f9018ee8f94a76a34e6dfd5544a5aeacf26d6d2ff0646194caface54'),
+    'shooting': ((0,), (145,0,375,34),
+        ('5987f429f9018ee8f94a76a34e6dfd5544a5aeacf26d6d2ff0646194caface54',
+         'bc37def4380cc8406c5018c7c3f96ca0dbac344df55b82d02e18300f0de31b18')),
     'system-error': ((0x30c,), (255,155,385,200), '7dca556027edff73436dfec590be634f56ec87cc93e5e57d4fc5e53a8f75f58b'),
 }
 
@@ -206,7 +208,8 @@ def firstboot_frame(image, console):
         return result
     for page,(candidates,box,digest) in FIRSTBOOT_CONTROLS.items():
         glyphs=image.crop(box).convert('L').point(lambda pixel:255 if pixel>=128 else 0,'1')
-        if hashlib.sha256(glyphs.tobytes()).hexdigest()!=digest:
+        actual_digest=hashlib.sha256(glyphs.tobytes()).hexdigest()
+        if actual_digest not in ((digest,) if isinstance(digest,str) else digest):
             continue
         result['content_page']=page
         if page=='system-error':
@@ -217,7 +220,7 @@ def firstboot_frame(image, console):
                     not any(item[1]==0x1e6 for item in screens)):
                 continue
             result.update(page=page,reason='reviewed original content matches current screen',
-                          control_crop_sha256=digest)
+                          control_crop_sha256=actual_digest)
         break
     if result['page']=='pending':
         result['reason']+=f': screen={screen!r}, content={result.get("content_page","unknown")}'

@@ -90,6 +90,60 @@ def test_native_pinmem_peer_connections(native_peer_binary, public_adf_input_see
         assert 'parameter_bytes=12 cleared_bytes=12' in result.stdout
         assert 'original_CP_event_pointer_identity_verified=0' in result.stdout
         assert 'original_RTOS_scheduling_verified=0' in result.stdout
+    prefix = 'FULL_' + edge.upper() + '_CONNECT_'
+    rejected = [line for line in result.stdout.splitlines()
+                if line.startswith(prefix + 'RELEASE_REJECT_FAULT ')]
+    assert len(rejected) == int(case in ['wrong-owner', 'queued-fault', 'recursive-free'])
+    if rejected:
+        fields = dict(part.split('=', 1) for part in rejected[0].split()[1:])
+        reentrant = case == 'recursive-free'
+        assert fields['reason'] == ('release-inflight' if reentrant else 'wrong-destination')
+        assert fields['pid'] == fields['owner_pid'] and fields['tid'] == fields['sender']
+        assert fields['reply'] == fields['live']
+        assert int(fields['destination'], 0) == (int(fields['expected'], 0) ^ int(not reentrant))
+        assert fields['inflight'] == str(int(reentrant))
+        assert fields['phase'] == '1' and fields['event6_inflight'] == '0'
+        assert fields['faults'] == '1' and fields['rc'] == '-1021'
+    failed_send = [line for line in result.stdout.splitlines()
+                   if line.startswith(prefix + 'SEND_RELEASE_FAULT ')]
+    assert len(failed_send) == int(case in ['inline-send-fail', 'in-flight-send-fail', 'in-flight-free-fail'])
+    if failed_send:
+        fields = dict(part.split('=', 1) for part in failed_send[0].split()[1:])
+        assert fields['reason'] == 'send-failed-after-release' and fields['send_rc'] == '-61'
+        assert fields['pid'] == fields['owner_pid'] and fields['tid'] == fields['sender']
+        assert fields['destination'] == fields['expected']
+        assert fields['phase'] == '1' and fields['busy'] == '1' and fields['queued'] == '0'
+        assert fields['inflight'] == str(int(case != 'inline-send-fail'))
+
+
+@pytest.mark.parametrize('mode', ['', '-wrong-owner', '-inflight'])
+def test_retired_scalar_address_reused_by_adf(native_peer_binary, public_adf_input_seed, mode):
+    if public_adf_input_seed is None:
+        pytest.skip('provision the pinned public ALLLANG seed first')
+    result = subprocess.run([str(native_peer_binary), 'adf-retired-reuse' + mode,
+                             str(public_adf_input_seed)], capture_output=True,
+                            text=True, timeout=35, env=ENV)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PINMEM_NATIVE_RETIRED_REUSE_SAME_ADDRESS ' in result.stdout
+    assert 'PINMEM_NATIVE_PEER_CONNECTIONS_HOST_TEST_PASS' in result.stdout
+    final = [re.search(r'pointer=(\S+)', line)[1]
+             for line in result.stdout.splitlines()
+             if line.startswith(('FULL_SCALAR_CONNECT_REPLY_QUEUED ',
+                                 'FULL_ADF_CONNECT_REPLY_QUEUED '))]
+    assert len(final) == 2 and final[0] == final[1]
+    rejected = [line for line in result.stdout.splitlines()
+                if line.startswith('FULL_ADF_CONNECT_RELEASE_REJECT_FAULT ')]
+    assert len(rejected) == int(bool(mode))
+    if rejected:
+        fields = dict(part.split('=', 1) for part in rejected[0].split()[1:])
+        assert fields['reason'] == ('wrong-destination' if mode == '-wrong-owner' else 'release-inflight')
+        assert fields['inflight'] == str(int(mode == '-inflight'))
+        assert fields['reply'] == fields['live'] == final[1]
+        assert fields['pid'] == fields['owner_pid'] and fields['tid'] == fields['sender']
+        assert fields['phase'] == '1' and fields['faults'] == '1'
+    freed = next(line for line in result.stdout.splitlines()
+                 if line.startswith('FULL_ADF_CONNECT_NATIVE_REPLY_FREE '))
+    assert f'rc=0 faults={int(bool(mode))} ap_consumed=1' in freed
 
 
 def test_foreign_seventh_reply_free_cannot_admit_eighth(native_peer_binary, public_adf_input_seed):

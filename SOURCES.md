@@ -1,6 +1,8 @@
 # 来源与固定身份
 
-2026-10-29 的源码移交增加公开 `report/` 组件、13连接后的功能控制/真实RGB管线、JPEG/H264软件设备、原SDK/MPR/Fsys观察及严格内容检查器。最终文件身份由本次 `SOURCE-SHA256SUMS` 绑定；历史完整4693/5740基线和当前发布测试分别记在 `validation/`，均不证明原固件已经产出照片。`SOURCE-ORIGINS.json` 保留旧来源记录，并用 `functional_camera_port` 单独记录本次源摘要与发布适配后的摘要。
+本次选择性更新加入原 API40 图像源的完整读取/功能CP读回、`015e` 显示位宽的真实RGB消费与独立`115e`生命周期，并同步ABI、构建源归档、profile、正式内容检查和host测试。selector0仅定义为本功能模型的RGB888八位分量；Sony物理位深与f039效果未知。原厂JPG/MP4仍未完成。
+
+最终文件身份由 `SOURCE-SHA256SUMS` 绑定；`SOURCE-ORIGINS.json::display_source_port` 记录本次逐文件来源与发布适配，旧 `functional_camera_port` 等记录保留原历史身份。本包实际执行范围见 `validation/2026-10-30-publication.json`，研究源冻结结果不抵作本包native验收。
 
 项目代码基线来自同一工作区的 `a7c2-re/report/2026-10-17-qemu-native-camera`；这是来源描述，运行时不读取该目录。本包保留其 `runtime/analysis` 相对布局，未复制 `source/build`、旧运行目录、私有 setting、完整 dump、Sony 原始固件和原厂派生资产。合成 `fixtures/headless-osd.b64` 是测试向量，其来源说明在相邻 README。
 
@@ -28,6 +30,7 @@
 - `start.sh` 使用包内临时目录并关闭 Python 字节码写入；构建入口增加不触发构建的帮助信息。
 - USB socket 短别名迁到 `/var/tmp`，仅替换当前用户、同一运行目录的旧链接，拒绝删除其它文件；避免宿主 `/tmp` 配额限制。
 - 增加主机依赖检查、三段patch及DMA/ATU/PCI暂存身份检查、受限host测试入口和显式host编译模型自测；后者需要libjpeg及FFmpeg开发库。
+- 纯源码包缺少原ALLLANG seed时，settings的两处字节fixture明确skip；有文件但摘要错误仍失败，无资产的实例/路径测试继续执行。公开host入口不依赖分发原Backup。
 - `runtime/analysis/scratch/` 只随附公开检查器实际导入的有限研究脚本源码；旧baseline、绝对路径输入、意图、构建产物和运行数据均未移交。普通使用与软件模型自测分别走 `start.sh` 和 `tools/test-public-models.py`，不把历史driver当当前可直接运行的验收。
 - 排除两个只适用于 full-system、且依赖该路线启动器的 ADF/HDMI pin 校验脚本；本机原生运行链不使用它们。
 

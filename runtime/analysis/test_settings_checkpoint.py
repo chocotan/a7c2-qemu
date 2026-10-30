@@ -13,7 +13,10 @@ N=Path(__file__).resolve().parent
 
 @pytest.fixture
 def saved():
-    data=(N/'menu-root/seed-backup.bin').read_bytes()
+    seed=N/'menu-root/seed-backup.bin'
+    if not seed.is_file():
+        pytest.skip('original ALLLANG seed-backup.bin is not distributed')
+    data=seed.read_bytes()
     assert hashlib.sha256(data).hexdigest()=='3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'
     data=bytearray(data);data[0x95556]=25;data[0x9555a]=2
     end=sum(struct.unpack_from('<II',data,24))

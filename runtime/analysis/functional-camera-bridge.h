@@ -3,6 +3,8 @@
 #define FUNCTIONAL_CAMERA_BRIDGE_H
 #include "functional-camera-abi.h"
 #include "functional-bb-startup-abi.h"
+#include "functional-vdf-bit-width-abi.h"
+#include "functional-face-source-snapshot-abi.h"
 
 /* Facts supplied by the actual original-request adapter, not host-created
  * firmware events. The adapter retains its original request until call ends. */
@@ -24,7 +26,15 @@ int fcam_bridge_init(void (*record)(const char *, const char *));
  * Caller owns accessible immutable input and mutable output for the call.
  * Serialized internally; forked owners fail before inherited locks.
  * Returns 0 or negative errno. Validation errors leave outputs unchanged;
- * a failed live transfer may leave partial output, never reported complete. */
+ * a failed live transfer may leave partial output, never reported complete.
+ * OP11 accepts BASE360 + exact CP/SDK page counts and API40 handle origin;
+ * its retained stream must equal source bytes, with flag1 on READ/RELEASE/
+ * CANCEL. OP12 takes Input8/returns BitWidth168 under legacy flag0, with
+ * original015e native10-byte origin. Full class7/config/sink/generation/tail
+ * validation and caller destination readback precede success; token must be
+ * zero. Selector0 is only the explicit software RGB888 bus policy; physical
+ * depth is unknown. Other operations retain legacy flag0. This API supplies no error-
+ * stage receipt: an errno alone cannot prove a remote result was cancelled. */
 int fcam_bridge_call(const struct fcam_native_origin *, uint32_t opcode,
     const void *input, size_t input_bytes, void *output, size_t output_capacity,
     struct fcam_bridge_result *);

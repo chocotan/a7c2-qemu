@@ -160,7 +160,7 @@ def test_detail_filter_target_handler_and_bounds(tmp_path):
 #include <string.h>
 #include <sys/mman.h>
 static unsigned records;
-static char last[512];
+static char last[1024];
 static unsigned long appfw_base=0x100000UL;
 static void record(const char *prefix,const char *line) {
     (void)prefix; records++; snprintf(last,sizeof last,"%s",line);
@@ -175,6 +175,11 @@ int main(void) {
     void *globals=mmap((void *)(appfw_base+0x7e40000),0xb0000,
                        PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,-1,0);
     assert(globals!=MAP_FAILED);
+    void *inhibit_page=mmap((void *)(appfw_base+0x8333000),0x1000,
+                       PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,-1,0);
+    assert(inhibit_page!=MAP_FAILED);
+    *(unsigned char *)(appfw_base+0x83337e3)=0xa5;
+    *(unsigned char *)(appfw_base+0x83337e4)=0xfe;
     void *product=mmap((void *)(appfw_base+0x370c000),0x1000,
                        PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,-1,0);
     void *groups=mmap((void *)(appfw_base+0x3dcf000),0x1000,
@@ -194,11 +199,12 @@ int main(void) {
     *(unsigned int *)(appfw_base+0x7e5d498)=0x44;
     *(unsigned int *)(appfw_base+0x7e67700)=0x55;
     *(unsigned int *)(appfw_base+0x7e67fc8)=0x66;
+    *(unsigned int *)(appfw_base+0x7e5d570)=0x77;
     *(unsigned int *)(appfw_base+0x7e71f00)=0x33;
     *(unsigned int *)(appfw_base+0x7e71a70)=1;
     *(unsigned int *)(appfw_base+0x7ee4778)=2;
     *(unsigned int *)(appfw_base+0x7ee4750)=3;
-    memcpy(frame+44,&raw,sizeof raw); event[3]=0x02070000;
+    memcpy(frame+44,&raw,sizeof raw); event[3]=0x02070000; event[7]=0x99;
     memcpy(frame_copy,frame,sizeof frame); memcpy(event_copy,event,sizeof event);
     errno=EDOM;
     capture_shutter_detail_dispatch(0x02060000,0x5555,(unsigned long)frame);
@@ -215,6 +221,11 @@ int main(void) {
     assert(records==4 && strstr(last,"site=core") && strstr(last,"code=0x2070000"));
     capture_shutter_flow(1,(unsigned long)(event+7),0,0,0);
     assert(records==5 && strstr(last,"site=final") && strstr(last,"code=0x2070000"));
+    assert(strstr(last,"press_local=0x99") && strstr(last,"transition_67fc8=0x66"));
+    assert(strstr(last,"inhibit_83337e3=0xa5") && strstr(last,"duplicate_d570=0x77"));
+    assert(strstr(last,"gate_reads=4/4/1/4 observation_only=1 atomic_snapshot=0 original_branch_observed=0"));
+    assert(errno==EDOM && *(unsigned char *)(appfw_base+0x83337e3)==0xa5);
+    assert(*(unsigned char *)(appfw_base+0x83337e4)==0xfe);
     capture_shutter_flow(2,0x555,(unsigned long)&id,0,0);
     assert(records==6 && strstr(last,"site=send") && strstr(last,"id=0x40a"));
     capture_shutter_api(2,1,0,0,0,appfw_base+0x2688f18);
@@ -335,6 +346,13 @@ int main(void) {
     assert(records==68 && errno==EDOM);
     assert(shutter_detail_mode_code(0x02240002));
     assert(!shutter_detail_mode_code(0x02240007));
+    assert(munmap(inhibit_page,0x1000)==0);
+    capture_shutter_flow(1,(unsigned long)(event+7),0,0,0);
+    assert(records==69 && errno==EDOM && strstr(last,"gate_reads=4/4/-1/4"));
+    assert(strstr(last,"inhibit_83337e3=0 ") && strstr(last,"original_branch_observed=0"));
+    capture_shutter_flow(0,(unsigned long)event,0,0,0);
+    assert(records==70 && strstr(last,"gate_reads=-1/-1/-1/-1"));
+    assert(!memcmp(event,event_copy,sizeof event));
     munmap(globals,0xb0000);munmap(product,0x1000);munmap(groups,0x1000);munmap(index,0x1000);
     munmap(sequence_groups,0x1000);
     return 0;

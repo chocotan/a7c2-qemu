@@ -6,6 +6,7 @@
 #include "../functional-camera-bridge.h"
 #include "../functional-vdf-path-abi.h"
 #include "../functional-bb-startup-abi.h"
+#include "../functional-vdf-bit-width-abi.h"
 
 #define FUNCTIONAL_VDF_PATH_SID UINT32_C(0x92840747)
 #define FUNCTIONAL_VDF_PATH_REQUEST_BYTES 24u
@@ -14,6 +15,7 @@
 #define FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES 16u
 #define FUNCTIONAL_VDF_FLAG_REQUEST_BYTES 10u
 #define FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES 8u
+#define FUNCTIONAL_VDF_BIT_WIDTH_REQUEST_BYTES 10u
 #define FUNCTIONAL_BB_0111_REQUEST_BYTES 36u
 #define FUNCTIONAL_BB_0166_REQUEST_BYTES 36u
 #define FUNCTIONAL_BB_0167_REQUEST_BYTES 10u
@@ -55,6 +57,7 @@ struct functional_vdf_path_snapshot {
     unsigned char canonical_layout32[FCAM_LAYOUT_INPUT_BYTES];
     unsigned char canonical_display16[FCAM_DISPLAY_INPUT_BYTES];
     unsigned char canonical_bb32[FCAM_BB_INPUT_BYTES];
+    unsigned char canonical_bit_width8[FCAM_BIT_WIDTH_INPUT_BYTES];
     unsigned char init_state[FCAM_STATE_BYTES];
     unsigned char model_result[FCAM_VDF_RESULT_MAX_BYTES];
     unsigned int model_result_bytes;
@@ -70,7 +73,11 @@ struct functional_vdf_path_snapshot {
  * consumption/retirement before independent replies. BB startup0111/0166/0167/
  * 015f/0128 uses BB_STARTUP_CONFIG/result192, canonical_bb32 and class5, with
  * an active committed 640x480 route and the shared ABI's neutral software-only
- * policy. Each has its own zero-status reply and real request retirement before
+ * policy. Display015e accepts only body0000: explicit selector0 software RGB888
+ * bus policy, not a proven physical bit-depth mapping. OP12/result168/class7
+ * must consume/read back/retire real RGB and independently read back config8.
+ * Its original115e status is 0x590000; the BB C-group replies have zero status.
+ * These operations require real request retirement before
  * ACK allocation. Config48 is unchanged. No CP3003/start/mode1 prerequisite.
  * Only explicit profile enabled==1 owns it.
  * Unrelated requests return0; rejected matching requests return1/result<0 and

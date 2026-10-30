@@ -7,13 +7,17 @@ it deliberately does not assert that conditions or the AP edge completed.
 verify_hdmi_edge(log, previous_free, identity, first_graph_request, run) requires
 both, plus constructor and canonical Get retirements. The outer verifier owns
 build/source identity, prior edges, resource locks, SD, and whole-run cleanup.
+Only delayed kind-2 free notes require this helper's same-run frozen-source join;
+standalone effects/condition checks without run keep strict console ordering.
 No function writes an artifact, starts a process, or accesses a VM/socket.
 """
 # SPDX-License-Identifier: MIT
 import hashlib
 import importlib.util
+import io
 from pathlib import Path
 import struct
+import tarfile
 
 BASE = Path(__file__).resolve().parents[1]
 PREFIX = 'FULL_PINMEM_HDMI_VIDEO_CONNECT'
@@ -27,6 +31,13 @@ CONDITION_SOURCE = 0x91ca0816
 CONDITION_SID = 0x802a0116
 IDS = (0, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11, 0x23, 0x22, 0x21, 0x30)
 _WATCH = None
+# Exact reviewed ledger, receive/free hooks and linking recipe; new versions need review.
+CONDITION_LEDGER_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': '9d880941dbb3c8b58b9d020563a006fc216a6a69a9ce6281ec73dd627fe711c4',
+    'build-observers.sh': 'a9f33123ee99178589dc73377b378f90bfc2c053e43b582870709e495f75bd1d',
+}
 
 
 def require(value, reason):
@@ -87,7 +98,90 @@ def _kind(log, suffix, kind):
     return [r for r in log.rows(STATE + '_' + suffix) if r['fields'].get('kind') == str(kind)]
 
 
-def _leases(log, kind, native=False):
+def _condition_source_proof(log, run):
+    """Read the actual evidence, never a caller-supplied approval or current C shape."""
+    graph_path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
+    spec = importlib.util.spec_from_file_location('_hdmi11_source_reader', graph_path)
+    graph = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(graph)
+    run = graph.absolute(run)
+    modules = ('report/functional-camera-evidence/check_evidence.py',
+               'runtime/analysis/scratch/evaluate-five-edges-native.py')
+    frozen = {str(graph.NATIVE / name): graph.sha(graph.read(graph.NATIVE / name)) for name in modules}
+    reader, legacy = [graph.source_module(name, frozen) for name in modules]
+    inputs = {name: graph.read(run / name, graph.MAX_JSON) for name in
+              ('observer-build-inputs.json', 'runtime-manifest.json', 'source-snapshot-run-binding.json')}
+    build, manifest, binding = [graph.object_json(value) for value in inputs.values()]
+    require(reader.typed_equal(build, manifest.get('compiled_observer')) and
+            manifest.get('selected_observer_matches_build') is True, 'condition source/run build differs')
+    observer = build['observer_sha256']
+    require(binding.get('schema') == 'functional-source-snapshot-run-v1' and binding.get('run') == str(run) and
+            binding.get('observer_sha256') == observer, 'condition source/run binding differs')
+    batch = graph.absolute(binding['batch'])
+    ready_raw, batch_raw = [graph.read(batch / name, graph.MAX_JSON) for name in ('ready.json', 'inputs.json')]
+    ready, tested = map(graph.object_json, (ready_raw, batch_raw))
+    require(graph.sha(ready_raw) == binding.get('batch_ready_sha256') and
+            graph.sha(batch_raw) == ready.get('inputs_sha256'), 'condition source/batch binding differs')
+    sources = build['sources']
+    require({name: entry['sha256'] for name, entry in sources.items()} == tested['groups']['production'],
+            'condition build/tested production source set differs')
+    for name, digest in CONDITION_LEDGER_SOURCES.items():
+        entry = sources[str(BASE / name)]
+        require(entry['sha256'] == digest and entry['archive_path'] ==
+                str((BASE / name).relative_to(graph.NATIVE.parent.parent)), 'unreviewed condition ledger/hook source: ' + name)
+    abi_raw = graph.read(batch / 'abi.json', graph.MAX_JSON)
+    abi = graph.object_json(abi_raw)
+    require(graph.sha(abi_raw) == ready.get('abi_sha256') and type(abi.get('returncode')) is int and
+            abi['returncode'] == 0 and abi.get('observer_sha256') == observer and
+            abi.get('source_archive_sha256') == build['source_archive_sha256'] and
+            abi.get('source_count') == len(sources) and abi.get('capture_verified') is False and
+            abi.get('regression_sha256') == ready.get('regression_sha256'), 'condition original ABI/source build differs')
+    files, selected = manifest['files'], manifest['selected_initramfs_verified_files']
+    require(files.get(str(BASE / 'observer-build-inputs.json')) == graph.sha(inputs['observer-build-inputs.json']) and
+            files.get(str(BASE / 'menu-observe.so')) == observer == selected.get('simulation/menu-observe.so'),
+            'condition actual/selected observer manifest differs')
+    for path in (BASE / 'menu-observe.so', BASE / 'menu-root/simulation/menu-observe.so'):
+        reader.digest_binding(reader.read_absolute(path), observer, 'condition actual observer')
+    archive_raw = reader.read(run, 'observer-build-sources.tar.gz')
+    reader.digest_binding(archive_raw, build['source_archive_sha256'], 'condition original source archive')
+    index = {entry['archive_path']: entry['sha256'] for entry in sources.values()}
+    require(len(index) == len(sources) and 'source-inputs.json' not in index, 'condition source index ambiguous')
+    index_raw, total, count = None, 0, 0
+    with tarfile.open(fileobj=io.BytesIO(archive_raw), mode='r:gz') as archive:
+        for member in archive:
+            count += 1
+            total += member.size
+            require(count <= 8192 and 0 <= member.size <= graph.MAX_SOURCE and total <= reader.MAX_FILE and
+                    (member.isfile() or member.isdir() and member.size == 0), 'condition archive exceeds bounds')
+            if member.name == 'source-inputs.json':
+                require(index_raw is None and member.isfile() and member.size <= graph.MAX_JSON,
+                        'condition archived source index ambiguous/oversized')
+                with archive.extractfile(member) as stream:
+                    index_raw = stream.read(graph.MAX_JSON + 1)
+    require(index_raw is not None and reader.typed_equal(graph.object_json(index_raw), sources),
+            'condition archived source index differs')
+    reader.archive(archive_raw, {**index, 'source-inputs.json': graph.sha(index_raw)})
+    console = graph.read(run / 'console.log', graph.MAX_LOG)
+    parsed, _ = graph.console_records(console)
+    scope = lambda rows: [r for r in rows if r['tag'].startswith((PREFIX + '_', STATE + '_'))]
+    require(scope(log.records) == scope(legacy.Log(parsed).records), 'condition trace differs from original same-run bytes')
+    for name, value in inputs.items():
+        require(graph.read(run / name, graph.MAX_JSON) == value, 'condition source binding changed: ' + name)
+    require(graph.read(batch / 'ready.json', graph.MAX_JSON) == ready_raw and
+            graph.read(batch / 'inputs.json', graph.MAX_JSON) == batch_raw and
+            graph.read(batch / 'abi.json', graph.MAX_JSON) == abi_raw, 'condition batch changed')
+    return {'run': str(run), 'source_sha256': dict(CONDITION_LEDGER_SOURCES),
+            'observer_sha256': observer, 'source_archive_sha256': graph.sha(archive_raw),
+            'build_inputs_sha256': graph.sha(inputs['observer-build-inputs.json']),
+            'manifest_sha256': graph.sha(inputs['runtime-manifest.json']),
+            'run_binding_sha256': graph.sha(inputs['source-snapshot-run-binding.json']),
+            'batch_ready_sha256': graph.sha(ready_raw), 'abi_sha256': graph.sha(abi_raw),
+            'console_sha256': graph.sha(console),
+            'basis': 'real free success then mutex retirement/active-alias guard; free note after unlock',
+            'independent_retirement_sequence': None}
+
+
+def _leases(log, kind, native=False, run=None):
     """Match serials, not addresses: reuse after a complete lifetime is legal."""
     published = _kind(log, 'MESSAGE_PUBLISHED', kind)
     sent = _kind(log, 'MESSAGE_SENT', kind)
@@ -116,21 +210,30 @@ def _leases(log, kind, native=False):
         else:
             eq(f, sender=p['fields']['tid'], receiver=f['fields']['tid'], received=1, consumed=1)
         result.append({'published': p, 'sent': s, 'freed': f})
+    source_proof = None
     for index, item in enumerate(result):
         p = item['published']
         for earlier in result[:index]:
             if number(p, 'pointer') == number(earlier['published'], 'pointer'):
-                require(max(earlier['sent']['line'], earlier['freed']['line']) < p['line'], 'live message address reused')
+                require(earlier['sent']['line'] < p['line'], 'live message address reused before send completed')
+                if earlier['freed']['line'] >= p['line']:
+                    require(kind == 2 and not native and run is not None, 'live message address reused without source proof')
+                    if source_proof is None:
+                        source_proof = _condition_source_proof(log, run)
+                    # The reviewed mutex ledger rejects active pointers; its free note is written after unlock.
+                    item.setdefault('late_free_note_predecessors', []).append({
+                        'lease': number(earlier['published'], 'lease'), 'sent': earlier['sent'],
+                        'free_note': earlier['freed'], 'source_proof': source_proof})
     return result
 
 
-def verify_conditions(log):
+def verify_conditions(log, run=None):
     """Require two exact batches and all 24 same-thread native frees, by serial."""
     for record in log.records:
         if record['tag'].startswith((PREFIX + '_', STATE + '_')):
             require(not any(word in record['tag'] for word in ('FAULT', 'REJECT', 'UNSUPPORTED', 'REFUSED')),
                     ('fault/rejection prevents condition acceptance', record))
-    messages = _leases(log, 2)
+    messages = _leases(log, 2, run=run)
     require(len(messages) == 24, 'requires all 24 condition receives/frees')
     tids = set()
     indices = tuple(range(11)) + (12,)
@@ -145,7 +248,7 @@ def verify_conditions(log):
             'condition_model_events_verified': False, 'scope': '24 received=1 same-thread native frees; no model-publication claim'}
 
 
-def verify_hdmi_effects(log):
+def verify_hdmi_effects(log, run=None):
     """Actual C effects only; host UPM frees are explicitly not native proof."""
     allowed = {'PROFILE', 'UNADMITTED', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE',
         'RESOURCES_RESERVED', 'REQUEST', 'PEER_REQUEST', 'PEER_REPLY', 'EVENT6_ENQUEUED',
@@ -216,7 +319,7 @@ def verify_hdmi_effects(log):
         matches = [r for r in frees if r['fields'].get('pointer') == edge[tag]['fields']['pointer'] and low < r['line'] < high]
         require(len(matches) == 1, ('peer lifetime differs', tag))
         eq(matches[0], owner=hex(caller), rc=0)
-    conditions = verify_conditions(log)
+    conditions = verify_conditions(log, run)
     condition = conditions['messages']
     native = bool(_kind(log, 'KERNEL_RETIRED', 3))
     require(not (native and _kind(log, 'NATIVE_FREE', 3)), 'UPM has a second user-space owner/free')
@@ -409,7 +512,7 @@ def _backup(log, edge):
 
 def verify_hdmi_edge(log, previous_free, identity, first_graph_request, run):
     """Require all virtual effects plus same-run native UPM/condition/AP proof."""
-    edge = verify_hdmi_effects(log)
+    edge = verify_hdmi_effects(log, run)
     identity = tuple(map(str, identity))
     require(edge['identity'] == identity, 'original AP PID/TID differs')
     start = edge['REQUEST']['line']

@@ -32,11 +32,15 @@ static unsigned int pnc_alloc_fail,pnc_alloc_alias,pnc_alloc_short,pnc_event_fau
 static int pnc_adf,pnc_history_ready,pnc_busy,pnc_guard_mutation,pnc_inline,pnc_send_error,pnc_request_error,pnc_cleanup_error,pnc_reply_error;
 static int pnc_recursive,pnc_recursive_free,pnc_queued_fault,pnc_fork_held,pnc_duplicate,pnc_mutate_request;
 static int pnc_threaded,pnc_thread_error,pnc_thread_started,pnc_thread_go;
+static unsigned int pnc_release_rejects,pnc_send_release_faults;
+static int pnc_reuse;
+static unsigned char *pnc_retired,*pnc_reuse_pointer;
 static pthread_t pnc_thread;
 static pthread_mutex_t pnc_thread_mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t pnc_thread_condition=PTHREAD_COND_INITIALIZER;
 static const struct full_imaging_io pnc_io;
 static const struct full_adf_proc_guard pnc_guard;
+static void pnc_record(const char *,const char *);
 struct pnc_history {
     struct vpc_history prior;
     struct full_vef_pinmem_control_connection_snapshot seventh;
@@ -58,7 +62,8 @@ static int pnc_dispatch(int *rc){
         full_scalar_connection_native_dispatch(FULL_PINMEM_CP,pnc_request->data,&pnc_io,&pnc_guard,1,rc);
 }
 static int pnc_release(unsigned int owner,void *p,int (*free_message)(unsigned int,void *),void (*record_message)(const char *,const char *),int *rc){
-    return pnc_adf?full_adf_connection_release(owner,p,free_message,record_message,rc):full_scalar_connection_release(owner,p,free_message,record_message,rc);
+    if(full_scalar_connection_release(owner,p,free_message,record_message,rc))return 1;
+    return pnc_adf?full_adf_connection_release(owner,p,free_message,record_message,rc):0;
 }
 static void pnc_preserved(void){
     if(pnc_speech_ready){assert(!memcmp(&pnc_speech,&pnc_speech_state_before,sizeof pnc_speech));assert(!memcmp(pnc_speech_memory,pnc_speech_before,sizeof pnc_speech_memory));}
@@ -80,7 +85,9 @@ static int pnc_free(unsigned int owner,void *p){
     if(m==pnc_request && pnc_request_error)return -53;
     if(m==pnc_final && pnc_reply_error)return -59;
     if(m->allocation && m!=pnc_final && pnc_cleanup_error)return -47;
-    if(m==pnc_final && pnc_recursive_free){int rc=77;unsigned int attempts=m->attempts;assert(pnc_release(owner,p,pnc_free,0,&rc) && rc==-1021 && m->attempts==attempts);}
+    if(m==pnc_final && pnc_recursive_free){int rc=77;unsigned int attempts=m->attempts;assert(pnc_release(owner,p,pnc_free,pnc_record,&rc) && rc==-1021 && m->attempts==attempts);}
+    /* Deterministic allocator pool: retirement ends the lease, retaining storage for reuse. */
+    if(m==pnc_final && pnc_reuse){assert(!pnc_retired);m->released=1;pnc_retired=m->data;return 0;}
     cm_dispose(m);return 0;
 }
 static void pnc_set(void *p,unsigned int sid){pnc_callback();cm_set(p,sid);}
@@ -89,7 +96,12 @@ static int pnc_allocate(unsigned int owner,void **out,unsigned int n,unsigned in
     static const unsigned int sizes[3]={64,72,56};assert(pnc_allocs<=3 && n==sizes[pnc_allocs-1]);
     if(pnc_allocs==pnc_alloc_fail){*out=0;return -41;}
     if(pnc_allocs==pnc_alloc_alias){*out=pnc_allocs==2?cm[cm_count-1].data:pnc_request->data;return 0;}
-    struct connect_message *m=cm_new(n,owner,ALLOCATOR_SOURCE);m->allocation=pnc_allocs;*out=m->data;
+    struct connect_message *m;
+    if(pnc_reuse && pnc_adf && pnc_allocs==3){
+        assert(pnc_retired && cm_count<sizeof cm/sizeof *cm);m=&cm[cm_count++];
+        *m=(struct connect_message){.bytes=n,.owner=owner,.source=ALLOCATOR_SOURCE,.data=pnc_retired};pnc_retired=0;
+    }else m=cm_new(n,owner,ALLOCATOR_SOURCE);
+    m->allocation=pnc_allocs;*out=m->data;
     if(pnc_allocs==pnc_alloc_short)m->bytes=n-1;
     return 0;
 }
@@ -102,6 +114,8 @@ static void pnc_record(const char *tag,const char *text){
     pnc_callback();fprintf(stdout,"%s%s\n",tag,text);const char *prefix=pnc_adf?"FULL_ADF_CONNECT_":"FULL_SCALAR_CONNECT_";
     if(strncmp(tag,prefix,strlen(prefix)))return;
     const char *kind=tag+strlen(prefix);
+    if(!strcmp(kind,"RELEASE_REJECT_FAULT ")){assert(pnc_snapshot().faults && !pnc_snapshot().clean_completion);pnc_release_rejects++;}
+    if(!strcmp(kind,"SEND_RELEASE_FAULT ")){assert(pnc_snapshot().faults && !pnc_snapshot().clean_completion);pnc_send_release_faults++;}
     if(!strcmp(kind,"REQUEST ") && pnc_recursive){int rc=77;assert(pnc_dispatch(&rc) && rc==-1021 && pnc_snapshot().requests==1);}
     if(!strcmp(kind,"REQUEST ") && pnc_fork_held){pid_t child=fork();assert(child>=0);if(!child){alarm(2);int rc=77;assert(pnc_init()==-1021 && !pnc_snapshot().initialized);
             assert(pnc_dispatch(&rc) && rc==-1021);assert(!pnc_release(pnc_caller,pnc_request->data,pnc_free,pnc_record,&rc));_exit(0);}
@@ -122,7 +136,7 @@ static void pnc_record(const char *tag,const char *text){
         if(pnc_duplicate){int rc=pnc_adf?full_adf_connection_test_event_consume(&pnc_io):full_scalar_connection_test_event_consume(&pnc_io);assert(rc==-1);}
     }
     if(!strcmp(kind,"YC_DIRECTION_CHECK ")){assert(pnc_snapshot().yc_callback_seen && !pnc_snapshot().yc_format_published);pnc_posthooks++;}
-    if(!strcmp(kind,"REPLY_QUEUED ") && pnc_queued_fault){int rc=77;assert(pnc_release(pnc_caller^1u,pnc_final->data,pnc_free,0,&rc) && rc==-1021);}
+    if(!strcmp(kind,"REPLY_QUEUED ") && pnc_queued_fault){int rc=77;assert(pnc_release(pnc_caller^1u,pnc_final->data,pnc_free,pnc_record,&rc) && rc==-1021);}
 }
 static int pnc_thread_free(unsigned int owner,void *p){
     assert(!pthread_mutex_lock(&pnc_thread_mutex));pnc_thread_started=1;assert(!pthread_cond_signal(&pnc_thread_condition));
@@ -135,6 +149,13 @@ static int pnc_send(unsigned int owner,void *p){
     assert(owner==pnc_caller && pnc_final->allocation==3 && pnc_final->bytes==56 && pnc_final->source==FULL_PINMEM_CP);
     unsigned char expected[56];ctframe(expected,56,0x8001,2);for(unsigned int i=0;i<4;i++)ctput32(expected+32+4*i,pnc_s[i]);assert(!memcmp(p,expected,56));
     assert(s.live_reply==p && !s.faults && s.event6_consumed==1 && s.yc_callback_seen && !s.yc_format_published && !s.manager_calls && pnc_event_consumes==1 && pnc_posthooks==1);pnc_sends++;
+    if(pnc_reuse && pnc_adf){
+        struct scalar_connection_snapshot before,after;full_scalar_connection_snapshot(&before);unsigned int callbacks=pnc_callbacks;int f=77;
+        assert(p==pnc_reuse_pointer && !before.live_reply);
+        assert(!full_scalar_connection_release(owner^1u,p,pnc_free,pnc_record,&f) && f==77 && pnc_callbacks==callbacks);
+        full_scalar_connection_snapshot(&after);assert(!memcmp(&before,&after,sizeof before));
+        fprintf(stdout,"PINMEM_NATIVE_RETIRED_REUSE_SAME_ADDRESS reply=%p scalar_claimed=0 adf_live=1 capture_verified=0\n",p);
+    }
     if(pnc_fork_held){
         struct scalar_connection_snapshot before=pnc_snapshot();unsigned int callbacks_before=pnc_callbacks;
         pid_t child=fork();assert(child>=0);if(!child){alarm(2);int f=77;
@@ -177,6 +198,13 @@ static void pnc_save(void){pnc_capture(&pnc_before);memcpy(pnc_memory_before,con
 static void pnc_select_adf(void){
     pnc_adf=1;pnc_s=pnc_adf_s;pnc_p=pnc_adf_p;pnc_caller=0x8def3202;
     pnc_allocs=pnc_sends=pnc_callbacks=pnc_reserves=pnc_releases=pnc_event_consumes=pnc_posthooks=0;pnc_history_ready=0;
+    pnc_release_rejects=pnc_send_release_faults=0;
+    if(pnc_reuse){
+        struct scalar_connection_snapshot before,after;full_scalar_connection_snapshot(&before);int f=77;
+        pnc_reuse_pointer=pnc_retired;assert(pnc_retired && !before.live_reply && before.ap_consumed==1);
+        assert(!pnc_release(pnc_caller^1u,pnc_retired,pnc_free,pnc_record,&f) && f==77 && !pnc_callbacks);
+        full_scalar_connection_snapshot(&after);assert(!memcmp(&before,&after,sizeof before));
+    }
 }
 static void pnc_complete_current(void){
     int rc=77;assert(pnc_dispatch(&rc) && !rc);struct scalar_connection_snapshot s=pnc_snapshot();
@@ -184,13 +212,14 @@ static void pnc_complete_current(void){
     assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&rc) && !rc);s=pnc_snapshot();
     assert(s.ap_consumed==1 && s.native_reply_frees==1 && s.waiter_frees==1 && s.reply_freed && !s.live_reply && !s.retained_messages);pnc_preserved();
 }
-static void pnc_finish(void){pnc_preserved();for(unsigned int i=0;i<cm_count;i++)if(!cm[i].released)cm_dispose(&cm[i]);puts("PINMEM_NATIVE_PEER_CONNECTIONS_HOST_TEST_PASS");}
+static void pnc_finish(void){pnc_preserved();for(unsigned int i=0;i<cm_count;i++)if(!cm[i].released)cm_dispose(&cm[i]);free(pnc_retired);pnc_retired=0;puts("PINMEM_NATIVE_PEER_CONNECTIONS_HOST_TEST_PASS");}
 #ifndef FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN
 #define FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN main
 #endif
 int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
     assert(argc==3);host_pid=getpid();alarm(30);assert(!setvbuf(stdout,0,_IONBF,0));
     const char *name=argv[1];int target_adf=!strncmp(name,"adf-",4);if(target_adf)name+=4;
+    pnc_reuse=target_adf && !strncmp(name,"retired-reuse",13);
     int rc=77;
     if(!strcmp(name,"uninitialized")){
         pnc_request=pnc_new_request();assert(pnc_dispatch(&rc) && rc==-1021 && !pnc_callbacks && !pnc_snapshot().initialized);pnc_finish();return 0;
@@ -225,6 +254,11 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
         pnc_get(FULL_PINMEM_CP,pnc_s,!strcmp(name,"live-source-get"));pnc_get(FULL_ADF_CP,pnc_p,!strcmp(name,"live-peer-get"));
         if(strcmp(name,"live-source-get") && strcmp(name,"live-peer-get") && !predecessor_reply)vi_clear_messages();
         pnc_save();pnc_request=pnc_new_request();}
+    if(pnc_reuse){
+        if(!strcmp(name,"retired-reuse"))name="normal";
+        else if(!strcmp(name,"retired-reuse-wrong-owner"))name="wrong-owner";
+        else{assert(!strcmp(name,"retired-reuse-inflight"));name="recursive-free";}
+    }
     if(predecessor_reply){
         unsigned int allocations_before=pnc_allocs;assert(pnc_dispatch(&rc) && rc==-1021 && !pnc_snapshot().started && !pnc_snapshot().faults && !pnc_request->released && pnc_allocs==allocations_before);
         pnc_history_ready=0;
@@ -269,6 +303,7 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
     if(pnc_busy){assert(rc==-1021 && !s.started && !s.faults && !pnc_allocs && !pnc_sends);pnc_finish();return 0;}
     assert(s.owner_pid==getpid() && s.initialized && s.native_guarded && s.started && s.requests==1);
     if(pnc_threaded){
+        assert(pnc_send_release_faults==1 && !pnc_release_rejects);
         assert(rc==-1021 && s.faults && !s.clean_completion && s.releasing_reply && s.live_reply==pnc_final->data && s.retained_messages==1 && !s.ap_consumed && !pnc_final->released);
         assert(!pthread_mutex_lock(&pnc_thread_mutex));pnc_thread_go=1;assert(!pthread_cond_signal(&pnc_thread_condition));assert(!pthread_mutex_unlock(&pnc_thread_mutex));assert(!pthread_join(pnc_thread,0));
         s=pnc_snapshot();assert(s.faults && !s.clean_completion && !s.releasing_reply && !s.ap_consumed && !s.waiter_frees);
@@ -292,6 +327,11 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
         if(!strcmp(name,"foreign-thread-free"))assert(!s.ap_consumed && !s.waiter_frees);else assert(s.ap_consumed==1 && s.waiter_frees==1);
         if(pnc_recursive_free || pnc_queued_fault || pnc_request_error || !strcmp(name,"wrong-owner") || !strcmp(name,"reply-free-fail"))assert(s.faults && !s.clean_completion);
         int f=77;assert(!pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&f));
+        if(pnc_reuse){
+            struct scalar_connection_snapshot before=pnc_snapshot();unsigned int callbacks=pnc_callbacks;
+            assert(!pnc_release(pnc_caller^1u,pnc_retired,pnc_free,pnc_record,&f) && f==77 && pnc_callbacks==callbacks);
+            s=pnc_snapshot();assert(!memcmp(&before,&s,sizeof before));
+        }
         pnc_request=pnc_new_request();unsigned int before=pnc_allocs;assert(pnc_dispatch(&f) && f==-1021 && pnc_allocs==before && !pnc_request->released);
         if(!target_adf && !strcmp(name,"normal")){
             pnc_preserved();assert(!cm_free(FULL_PINMEM_CP,pnc_request->data));vi_clear_messages();pnc_select_adf();
@@ -303,6 +343,8 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
         if(pnc_cleanup_error)assert(s.retained_messages && s.retained_cleanup);
         unsigned int before=pnc_allocs;int f=77;assert(pnc_dispatch(&f) && f==-1021 && pnc_allocs==before);
     }
+    assert(pnc_release_rejects==(unsigned int)(pnc_recursive_free || pnc_queued_fault || !strcmp(name,"wrong-owner")));
+    assert(pnc_send_release_faults==(unsigned int)(pnc_inline && pnc_send_error));
     struct scalar_connection_snapshot before=pnc_snapshot();assert(!pnc_init());s=pnc_snapshot();assert(!memcmp(&before,&s,sizeof s));
     pnc_finish();return 0;
 }

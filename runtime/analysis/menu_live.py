@@ -117,10 +117,11 @@ class FirmwareMonitor:
         self.offset = 0
         self.tail = b''
         self.failed = False
+        self.failure_message = '相机固件发生异常，已停止接收按键；详情见 console.log'
 
     def check(self):
         if self.failed:
-            raise FirmwareFault('相机固件发生异常，已停止接收按键；详情见 console.log')
+            raise FirmwareFault(self.failure_message)
         with self.console.open('rb') as reader:
             if os.fstat(reader.fileno()).st_size < self.offset:
                 self.offset, self.tail = 0, b''
@@ -128,9 +129,13 @@ class FirmwareMonitor:
             while chunk := reader.read(65536):
                 self.offset += len(chunk)
                 data = self.tail + chunk.replace(b'\r', b'')
+                if re.search(rb'(?:^|\n)OBS FUNCTIONAL_FACE_SOURCE_RETAINED_FAULT ', data):
+                    self.failed = True
+                    self.failure_message = '功能源快照发生集成故障，原调用栈和资源已保留；详情见 console.log'
+                    raise FirmwareFault(self.failure_message)
                 if re.search(rb'(?:^|\n)(?:Entering exception monitor\.|Exception>|OBS GUI_MODEL_FAILED )', data):
                     self.failed = True
-                    raise FirmwareFault('相机固件发生异常，已停止接收按键；详情见 console.log')
+                    raise FirmwareFault(self.failure_message)
                 self.tail = data[-128:]
 
 

@@ -17,7 +17,10 @@ FIRMWARE='a'*64
 
 @pytest.fixture
 def sample(tmp_path):
-    image=bytearray((N/'menu-root/seed-backup.bin').read_bytes())
+    seed=N/'menu-root/seed-backup.bin'
+    if not seed.is_file():
+        pytest.skip('original ALLLANG seed-backup.bin is not distributed')
+    image=bytearray(seed.read_bytes())
     assert hashlib.sha256(image).hexdigest()=='3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'
     image[0x95556]=25;image[0x9555a]=2
     end=sum(struct.unpack_from('<II',image,24));struct.pack_into('<I',image,32,(sum(image[:32])+sum(image[36:end]))&0xffffffff)

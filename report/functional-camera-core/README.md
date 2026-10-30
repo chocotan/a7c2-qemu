@@ -4,7 +4,7 @@ A synchronous C backend for the host broker, using the explicit
 `virtual-functional-camera-v1` software RGB888 image bus. Sony physical ASIC
 packing/compatibility remains unverified. The original AP → MPR/Fsys → virtual SD
 integration and `capture_verified` are owned by the parent integration; this
-component alone does not establish that capture chain.
+component alone does not establish that capture chain. 本次 OP12 的实际 RGB 消费、完整回执与原115e生命周期见[位宽合同](../disp-bit-width/README.md)；OP11源读取由[独立 AP source provider](../functional-face-source-snapshot/README.md)负责，不调用 Core 生成替代图像。
 
 The implementation produces actual frame-content and raw transfer receipts.
 The OP9/OP10 contracts and limited software policies are documented below under
@@ -15,7 +15,7 @@ covering VDF/Zebra/layout/display and actual JPEG/H.264 cases in ordinary and
 ASan/UBSan scenarios. Broker/guest integration and parent evidence joins remain
 outside this component validation; these receipts do not clear original
 JPEG/MPR/Fsys acceptance gaps. Scope is the authorized local functional profile
-in [AGENTS.md](../../../../../../AGENTS.md).
+in the [public package scope](../../README.md).
 
 ## Build and integrate
 
@@ -95,6 +95,7 @@ offsets and reserved zeros.
 | VDF_DISPLAY_CONFIG (8) | Typed16: LEu32 original command, LEu32 original body size, body8 | Fixed Display176 independent saved feature/current-route/actual-sink receipt; only disabled0152 and off0162; requires active route at current RGB geometry; no result token |
 | BB_STARTUP_CONFIG (9) | Canonical32: LEu16 original command, LEu16 body bytes, body28 | Fixed BB192/class5, five independent initial/neutral software banks; active 640×480; no result token |
 | HISTOGRAM (10) | Canonical8: LEu16 0148, LEu16 4, original body01010000 | Fixed Hist1192/class6: base160 + saved input8 + actual sink-derived software Y/R/G/B heights1024; active 640×480; no result token |
+| VDF_BIT_WIDTH (12) | BitWidth8：selector0及七个保留零 | 固定168B/class7；真实active640×480 RGB sink/读回/retire及独立Config8读回；原物理位深未知，见[位宽合同](../disp-bit-width/README.md) |
 | STILL | Still16, optional 128-byte DQT | Actual full JPEG or SOS/entropy/EOI suffix |
 | VIDEO_BEGIN | Config48 | State128 after opening the real stream |
 | VIDEO_FRAME | empty | Packet96 + Annex-B config + real packet; empty only if actually buffered |
@@ -426,7 +427,7 @@ body2..3留零，body4/8/12/16/20/24为六个LEu32，观察值为`0,0,8,7,1,1`�
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 -B -m pytest -p no:cacheprovider \
-  final/a7c2-re/report/2026-10-17-qemu-native-camera/report/functional-camera-core/test_functional_startup.py -q
+  report/functional-camera-core/test_functional_startup.py -q
 ```
 
 实际normal与ASan/UBSan共8项通过。独立Python逐字节oracle核对新literal的完整192B、

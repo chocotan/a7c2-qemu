@@ -43,8 +43,10 @@ done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include \
   -c "$vdf_dir/system-sound-owner.c" -o "$device_build/system-sound-owner.o"
-for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec; do
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
+  owner_flags=()
+  case "$owner" in functional-face-*) owner_flags=(-DFULL_IMAGING_GUEST);; esac
+  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" \
     -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/$owner.c" \
     -o "$device_build/$owner.o"
 done

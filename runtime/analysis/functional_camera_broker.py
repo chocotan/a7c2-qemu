@@ -20,6 +20,8 @@ import struct
 import threading
 import time
 
+import functional_face_source_snapshot as source_snapshot
+
 BASE = Path(__file__).resolve().parent
 RUNS = BASE / 'menu-runs'
 PREFIX = 'functional-camera-broker'
@@ -33,7 +35,9 @@ PAYLOAD_FILE_LIMIT = 65536
 MAGIC, VERSION = 0x314d4346, 1
 IDLE, REQUEST, RESPONSE, CLOSED, DETACHED = range(5)
 INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG = 1, 2, 3, 4, 5, 6, 7, 8
-BB_STARTUP_CONFIG, HISTOGRAM = 9, 10
+BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT = 9, 10, source_snapshot.OP
+VDF_BIT_WIDTH = 12
+BIT_WIDTH_INPUT_BYTES, BIT_WIDTH_RESULT_BYTES = 8, 168
 BB_INPUT_BYTES, BB_RESULT_BYTES = 32, 192
 BB_0166_OBSERVED_INITIAL_BODY = bytes.fromhex('00010000000000000000000008000000070000000100000001000000')
 HIST_INPUT_BYTES, HIST_RESULT_BYTES, HIST_BINS_OFFSET = 8, 1192, 168
@@ -41,7 +45,7 @@ LAYOUT_INITIAL_BODY = bytes.fromhex('07010100000000008002e0010000000000000000000
 STILL, VIDEO_BEGIN, VIDEO_FRAME, VIDEO_END = 16, 32, 33, 34
 READ_RESULT, RELEASE_RESULT, CANCEL = 64, 65, 66
 OPS = {INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG,
-       BB_STARTUP_CONFIG, HISTOGRAM, STILL, VIDEO_BEGIN, VIDEO_FRAME,
+       BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL, VIDEO_BEGIN, VIDEO_FRAME,
        VIDEO_END, READ_RESULT, RELEASE_RESULT, CANCEL}
 FNV_SEED = 0xcbf29ce484222325
 
@@ -213,8 +217,13 @@ def validate_header(raw, mailbox):
     require(u32(raw, 0) == MAGIC and u32(raw, 4) == VERSION and
             u32(raw, 8) == mailbox['pid'] and u64(raw, 16) == mailbox['nonce'], 'Mailbox magic/version/PID/nonce differs')
     require([u64(raw, 128 + n * 8) for n in range(PAGE_COUNT)] == mailbox['pages'], 'Mailbox PFN list changed')
-    require(raw[256:] == bytes(256) and raw[116:120] == bytes(4) and u32(raw, 52) == 0,
+    flags = u32(raw, 52)
+    require(raw[256:] == bytes(256) and raw[116:120] == bytes(4) and flags in (0, 1),
             'Mailbox reserved bytes/flags are nonzero')
+    if flags:
+        require(u32(raw, 32) in (AP_SOURCE_SNAPSHOT, READ_RESULT, RELEASE_RESULT, CANCEL),
+                'API40 source flags are invalid for this opcode')
+        source_snapshot.validate_origin(raw)
     require(u32(raw, 12) in (IDLE, REQUEST, RESPONSE, CLOSED, DETACHED), 'Unknown mailbox status')
 
 
@@ -249,10 +258,12 @@ def validate_request(raw, data, mailbox, previous):
             'Missing original-request origin/producer TID')
     require(fnv64(data) == u64(raw, 56), 'Request FNV differs')
     sizes = {INIT: (0, 48), STATE: (0,), CONFIGURE: (48,), AUTOFOCUS: (32,), VDF_PATH: (16,), VDF_ZEBRA: (8,), VDF_LAYOUT: (32,), VDF_DISPLAY_CONFIG: (16,),
-             BB_STARTUP_CONFIG: (BB_INPUT_BYTES,), HISTOGRAM: (HIST_INPUT_BYTES,), STILL: (16, 144),
+             BB_STARTUP_CONFIG: (BB_INPUT_BYTES,), HISTOGRAM: (HIST_INPUT_BYTES,), VDF_BIT_WIDTH: (BIT_WIDTH_INPUT_BYTES,),
+             AP_SOURCE_SNAPSHOT: range(360, 1177, 8), STILL: (16, 144),
              VIDEO_BEGIN: (48,), VIDEO_FRAME: (0,), VIDEO_END: (0,), READ_RESULT: (24,),
              RELEASE_RESULT: (16,), CANCEL: (0,)}
     require(size in sizes[op], 'Opcode request size differs')
+    require(op != AP_SOURCE_SNAPSHOT or u32(raw, 52) == 1, 'Snapshot requires actual API40 origin flag')
     if op == READ_RESULT:
         require(u32(data, 20) == 0 and 0 < u32(data, 16) <= capacity and u64(data, 0),
                 'Invalid retained-result read request')
@@ -536,17 +547,32 @@ class QMP:
             if not chunk:
                 raise EOFError('QMP socket closed')
             self.buffer.extend(chunk)
-            require(len(self.buffer) <= 1024 * 1024, 'QMP line exceeds bound')
+            require(len(self.buffer) <= 4 * 1024 * 1024, 'QMP line exceeds bound')
         line, _, self.buffer = self.buffer.partition(b'\n')
+        require(len(line) <= 4 * 1024 * 1024, 'QMP line exceeds bound')
         value = json.loads(line)
         require(type(value) is dict, 'Nonobject QMP message')
         return value
 
-    def execute(self, command):
-        require(command in ('qmp_capabilities', 'query-status', 'stop', 'cont'), 'Unapproved QMP command')
+    def execute(self, command, arguments=None):
+        require(command in ('qmp_capabilities', 'query-status', 'stop', 'cont', 'human-monitor-command'),
+                'Unapproved QMP command')
+        if command == 'human-monitor-command':
+            require(type(arguments) is dict and set(arguments) == {'command-line'} and
+                    type(arguments['command-line']) is str, 'Invalid HMP arguments')
+            line = arguments['command-line']
+            match = re.fullmatch(r'xp /([1-9][0-9]{0,5})bx 0x([0-9a-f]{1,16})', line)
+            require(line in ('cpu 0', 'info mtree -f -o') or match and
+                    int(match[1]) <= max(source_snapshot.UNITS.values()) and
+                    int(match[2], 16) + int(match[1]) <= 2**64, 'Unapproved HMP command/span')
+        else:
+            require(arguments is None, 'Unexpected QMP arguments')
         self.serial += 1
         serial = self.serial
-        self.socket.sendall(json.dumps(dict(execute=command, id=serial)).encode('ascii') + b'\n')
+        message = dict(execute=command, id=serial)
+        if arguments is not None:
+            message['arguments'] = arguments
+        self.socket.sendall(json.dumps(message).encode('ascii') + b'\n')
         deadline = time.monotonic() + self.timeout
         for _ in range(256):
             value = self._line(deadline)
@@ -621,7 +647,7 @@ class Core:
             raise
 
     def execute(self, instance, op, data, capacity):
-        require(type(instance) is int and 0 < instance < 2**64 and op in OPS and type(data) is bytes and
+        require(type(instance) is int and 0 < instance < 2**64 and op in OPS and op != AP_SOURCE_SNAPSHOT and type(data) is bytes and
                 len(data) <= DATA and type(capacity) is int and 0 <= capacity <= DATA, 'Invalid core call boundary')
         if self.model is None:
             require(op == INIT, 'First actual core request must be INIT')
@@ -642,6 +668,7 @@ class Core:
         require(result.used <= capacity and result.total <= MAX_RESULT and result.offset <= result.total,
                 'Core returned out-of-bounds result')
         if result.token:
+            require(result.token < source_snapshot.TOKEN_BASE, 'Core result overlaps reserved source token namespace')
             chunk_capacity = min(capacity, u32(data, 16)) if op == READ_RESULT else capacity
             require(result.total and result.used and result.used == min(chunk_capacity, result.total - result.offset),
                     'Core retained result has a short chunk or invalid bounds')
@@ -651,9 +678,10 @@ class Core:
         if op in (INIT, STATE, CONFIGURE, VIDEO_BEGIN, CANCEL):
             require(result.used == 128 and not result.token and u32(actual, 0) == VERSION and
                     u64(actual, 48) == instance and actual[120:] == bytes(8), 'Actual core state identity/size differs')
-        elif op in (VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM):
+        elif op in (VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
             expected_bytes = {VDF_PATH: 160, VDF_ZEBRA: 168, VDF_LAYOUT: 192, VDF_DISPLAY_CONFIG: 176,
-                              BB_STARTUP_CONFIG: BB_RESULT_BYTES, HISTOGRAM: HIST_RESULT_BYTES}[op]
+                              BB_STARTUP_CONFIG: BB_RESULT_BYTES, HISTOGRAM: HIST_RESULT_BYTES,
+                              VDF_BIT_WIDTH: BIT_WIDTH_RESULT_BYTES}[op]
             require(result.used == expected_bytes and not result.token and u32(actual, 0) == VERSION and
                     u32(actual, 4) == expected_bytes and u64(actual, 8) == instance and
                     u64(actual, 40) == fnv64(data) and actual[120:128] == bytes(8),
@@ -662,7 +690,10 @@ class Core:
             if op == VDF_PATH:
                 require(len(data) == 16 and route == data, 'Actual VDF route readback differs')
             else:
-                if op == VDF_ZEBRA:
+                if op == VDF_BIT_WIDTH:
+                    require(data == bytes(BIT_WIDTH_INPUT_BYTES) and actual[160:] == data,
+                            'Actual software bit-width0 RGB888 configuration/readback differs')
+                elif op == VDF_ZEBRA:
                     require(len(data) == 8 and data[1] == 0 and data[5:] == bytes(3) and actual[160:] == data,
                             'Actual Zebra disabled configuration/readback differs')
                 elif op == VDF_LAYOUT:
@@ -692,16 +723,16 @@ class Core:
                 committed_route = getattr(self, 'vdf_route', None)
                 require(route == (committed_route if committed_route is not None else b'\x00\x01\x01' + bytes(13)),
                         'VDF configuration operation changed the committed VDF route')
-                if op in (BB_STARTUP_CONFIG, HISTOGRAM):
+                if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
                     require((u32(actual, 72), u32(actual, 76), u32(actual, 80)) == (640, 480, 1920),
-                            'Actual BB/histogram supported RGB geometry differs')
-                if op in (VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM):
+                            'Actual BB/histogram/bit-width supported RGB geometry differs')
+                if op in (VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
                     require(committed_route is not None and route[:3] == b'\x01\x05\x05',
                             'Display configuration requires a committed active VDF route')
             require(route[:3] in (b'\x01\x05\x05', b'\x00\x01\x01') and route[4] <= 2 and
                     route[13:] == bytes(3), 'Actual core accepted an unsupported VDF route')
             active = route[0] == 1
-            result_class = 5 if op == BB_STARTUP_CONFIG else 6 if op == HISTOGRAM else int(active)
+            result_class = 7 if op == VDF_BIT_WIDTH else 5 if op == BB_STARTUP_CONFIG else 6 if op == HISTOGRAM else int(active)
             require(u32(actual, 84) == 0x90590819 and u32(actual, 88) == u32(actual, 92) == 1 and
                     u32(actual, 96) == result_class and u32(actual, 100) == int(active) and
                     u32(actual, 104) == u32(actual, 108) == 1 and
@@ -776,6 +807,8 @@ class Broker:
         self.cleaning, self.log_errors = False, []
         self.last_response = None
         self.pending_payloads = self.transfer = self.last_frame = None
+        self.source_provider = source_snapshot.Snapshot(all(os.environ.get(key) == source_snapshot.PROFILE
+            for key in ('MENU_FUNCTIONAL_CAMERA', 'A7C2_FUNCTIONAL_CAMERA')))
         self.core = self.events = self.lease = self.payloads = None
         self.thread = None
         try:
@@ -843,19 +876,37 @@ class Broker:
         with self.coordinated():
             revalidate(self.config)
             prior = self.qmp.status()
+            trace = dict(prior_status=prior, prior_status_qmp_id=getattr(self.qmp, 'serial', None),
+                         stop_reply=None, stop_qmp_id=None, commands=[], window_closed=False)
+            stopped = prior
             if prior['running']:
-                self.qmp.execute('stop')
-                require(not self.qmp.status()['running'], 'QEMU did not stop for mailbox copy')
+                trace['stop_reply'] = self.qmp.execute('stop')
+                trace['stop_qmp_id'] = getattr(self.qmp, 'serial', None)
+                stopped = self.qmp.status()
+                require(not stopped['running'], 'QEMU did not stop for mailbox copy')
+            trace.update(paused_status=stopped, paused_status_qmp_id=getattr(self.qmp, 'serial', None))
+            self.copy_trace, self.copy_status = trace, stopped
             self.rsp.window_deadline = time.monotonic() + 5.0
             try:
                 yield
             finally:
+                self.copy_status = None
                 self.rsp.window_deadline = None
+                trace['physical_mode_restored_before_exit'] = self.phys_restored
                 if prior['running'] and self.phys_restored and self.resume_allowed():
-                    self.qmp.execute('cont')
-                    require(self.qmp.status()['running'], 'QEMU did not resume after mailbox copy')
+                    trace['resume_reply'] = self.qmp.execute('cont')
+                    trace['resume_qmp_id'] = getattr(self.qmp, 'serial', None)
+                    resumed = self.qmp.status()
+                    require(resumed['running'], 'QEMU did not resume after mailbox copy')
+                    trace.update(continuation='resumed', resumed_status=resumed,
+                                 resumed_status_qmp_id=getattr(self.qmp, 'serial', None))
                 elif prior['running']:
+                    trace['continuation'] = 'suppressed'
                     self.emit('resume_suppressed', physical_mode_restored=self.phys_restored)
+                else:
+                    trace['continuation'] = 'kept_paused'
+                trace['window_closed'] = True
+                self.copy_trace = None
 
     @contextmanager
     def physical(self):
@@ -930,6 +981,8 @@ class Broker:
             return None
         op, sequence = u32(request, 32), u64(request, 24)
         transfer = self.transfer
+        if transfer is not None and transfer.get('provider_kind') == 'source' and op in (READ_RESULT, RELEASE_RESULT):
+            require(source_snapshot.binding(request) == transfer['source_binding'], 'Source retained origin changed')
         if op == CANCEL:
             self.transfer = None
             status = 'cancelled'
@@ -948,11 +1001,15 @@ class Broker:
                     len(data) > 0, 'Actual READ_RESULT token/cursor/bytes differs')
             status = 'chunk'
         elif result.token:
-            require(op in (STILL, VIDEO_FRAME, VIDEO_END) and transfer is None and result.offset == 0 and
-                    0 < len(data) == result.used <= result.total <= MAX_RESULT,
+            require(op in (STILL, VIDEO_FRAME, VIDEO_END, AP_SOURCE_SNAPSHOT) and transfer is None and result.offset == 0 and
+                    0 < len(data) == result.used <= result.total <= MAX_RESULT and
+                    (result.token >= source_snapshot.TOKEN_BASE) == (op == AP_SOURCE_SNAPSHOT),
                     'Actual result lease overlaps or has invalid bytes')
             transfer = dict(token=result.token, total=result.total, cursor=0, fnv1a64=FNV_SEED,
-                            sha_state=hashlib.sha256(), chunk_count=0, first_sequence=sequence)
+                            sha_state=hashlib.sha256(), chunk_count=0, first_sequence=sequence,
+                            provider_kind='source' if op == AP_SOURCE_SNAPSHOT else 'core',
+                            source_provider_kind=source_snapshot.CLAIMS['source_model'] if op == AP_SOURCE_SNAPSHOT else None,
+                            origin=origin(request), source_binding=source_snapshot.binding(request))
             self.transfer = transfer
             status = 'opened'
         else:
@@ -968,7 +1025,64 @@ class Broker:
                     reconstructed_bytes=transfer['cursor'], fnv1a64=transfer['fnv1a64'],
                     sha256=transfer['sha_state'].hexdigest(), chunk_count=transfer['chunk_count'],
                     first_sequence=transfer['first_sequence'], sequence=sequence,
-                    complete=transfer['cursor'] == transfer['total'])
+                    provider_kind=transfer['provider_kind'], source_provider_kind=transfer['source_provider_kind'],
+                    origin=transfer['origin'], complete=transfer['cursor'] == transfer['total'])
+
+    def source(self):
+        if not hasattr(self, 'source_provider'):
+            self.source_provider = source_snapshot.Snapshot(all(os.environ.get(key) == source_snapshot.PROFILE
+                for key in ('MENU_FUNCTIONAL_CAMERA', 'A7C2_FUNCTIONAL_CAMERA')))
+        return self.source_provider
+
+    def clear_source(self, reason, **fields):
+        source = self.source()
+        receipt = source.cancel()
+        if self.transfer and self.transfer.get('provider_kind') == 'source':
+            self.transfer = None
+        self.emit('source_cancel', reason=reason, **receipt, **fields)
+
+    def call_source(self, request, incoming, capacity):
+        op, source = u32(request, 32), self.source()
+        metadata = dict(**source_snapshot.CLAIMS)
+        window = None
+        try:
+            if op == AP_SOURCE_SNAPSHOT:
+                if not source.enabled:
+                    return -errno.ENOTSUP, b'', ExecResult(), metadata
+                if self.transfer is not None or source.active is not None:
+                    return -errno.EBUSY, b'', ExecResult(), metadata
+                if source.fault is not None:
+                    return -errno.EIO, b'', ExecResult(), dict(metadata, sticky_fault=source.fault)
+                if not capacity:
+                    return -errno.ENOSPC, b'', ExecResult(), metadata
+                if self.core.model is None:
+                    return -errno.ENODEV, b'', ExecResult(), metadata
+                with self.copy_window():
+                    window = self.copy_trace
+                    window.update(sequence=u64(request, 24), request_header_sha256=hashlib.sha256(request).hexdigest(),
+                                  request_payload_sha256=hashlib.sha256(incoming).hexdigest(), origin=origin(request),
+                                  model_instance=self.mailbox['nonce'])
+                    require(self.copy_status['status'] == 'paused' and not self.done.is_set(),
+                            'Source snapshot requires paused live copy window')
+                    with self.physical():
+                        actual_header, actual_input = self.read(0, HEADER), self.read(HEADER, len(incoming))
+                        require(actual_header == request and actual_input == incoming,
+                                'Source snapshot request changed before paused read')
+                        window.update(observed_header_sha256=hashlib.sha256(actual_header).hexdigest(),
+                                      observed_payload_sha256=hashlib.sha256(actual_input).hexdigest())
+                    active, metadata = source.open(incoming, request, self.mailbox, self.qmp, window)
+                metadata['paused_window'] = window
+                output = active['data'][:capacity]
+                return 0, output, ExecResult(active['token'], len(active['data']), 0, len(output)), metadata
+            if op not in (READ_RESULT, RELEASE_RESULT):
+                return -errno.EBUSY, b'', ExecResult(), metadata
+            error, output, offset = source.stream(request, incoming, self.transfer)
+            active = source.active
+            result = ExecResult(active['token'], len(active['data']), offset, len(output)) if not error and output else ExecResult()
+            return error, output, result, metadata
+        except (ValueError, OSError, EOFError, TimeoutError) as error:
+            return -errno.EPROTO, b'', ExecResult(), dict(metadata, error=str(error), sticky_fault=source.fault,
+                                                        paused_window=window)
 
     def call_core(self, request, incoming, capacity):
         op, checked_capacity = validate_request(request, incoming, self.mailbox, self.sequence)
@@ -984,23 +1098,42 @@ class Broker:
                   raw_header_sha256=hashlib.sha256(request).hexdigest(), raw_header_hex=request.hex(),
                   request_bytes=len(incoming), request_sha256=hashlib.sha256(incoming).hexdigest(),
                   request_fnv1a64=fnv64(incoming), request_payload=input_ref)
-        error, data, result = self.core.execute(self.mailbox['nonce'], op, incoming, capacity)
+        source = self.source()
+        source_call = op != CANCEL and (op == AP_SOURCE_SNAPSHOT or u32(request, 52) == 1 or
+            token >= source_snapshot.TOKEN_BASE or source.active is not None)
+        if source_call:
+            error, data, result, metadata = self.call_source(request, incoming, capacity)
+        else:
+            try:
+                error, data, result = self.core.execute(self.mailbox['nonce'], op, incoming, capacity)
+            finally:
+                if op == CANCEL:
+                    receipt = source.cancel()
+                    self.emit('source_cancel', reason='actual_c_cancel', actual_c_result=locals().get('error'), **receipt)
         output_ref = self.payloads.retain(request, 'out', data, event=self.event_serial + 1,
                                           token=result.token, total=result.total, offset=result.offset)
         observed_transfer = self.observe_transfer(request, incoming, data, error, result)
-        self.emit('core_result', sequence=self.sequence, opcode=op, origin=origin(request), actual_c_result=error,
+        if op == CANCEL and not source_call and error and self.transfer and self.transfer.get('provider_kind') == 'source':
+            self.transfer = None
+        result_fields = dict(actual_c_result=None, actual_source_result=error, source_provider_kind='paused-source-snapshot-v1',
+                             source_snapshot=metadata) if source_call else dict(actual_c_result=error)
+        self.emit('ap_source_result' if source_call else 'core_result', sequence=self.sequence, opcode=op,
+                  origin=origin(request), **result_fields,
                   returned_bytes=len(data), returned_sha256=hashlib.sha256(data).hexdigest(), returned_fnv1a64=fnv64(data),
                   token=result.token, total=result.total, offset=result.offset,
                   request_payload=input_ref, output_payload=output_ref, result_transfer=observed_transfer)
-        self.pending_payloads = dict(sequence=self.sequence, request=request, incoming=incoming, actual_c_result=error,
+        self.pending_payloads = dict(sequence=self.sequence, request=request, incoming=incoming, result_code=error,
+                                     result_fields=result_fields,
                                      result=(result.token, result.total, result.offset, result.used),
                                      request_payload=input_ref, output_payload=output_ref, result_transfer=observed_transfer)
+        if source_call:
+            return error, data, result
         proof = self.core.proof_snapshot()  # Read only, after the one original call, under broker serialization.
         previous = self.last_frame['serial'] if self.last_frame else 0
-        if op in (BB_STARTUP_CONFIG, HISTOGRAM) and not error:
+        if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH) and not error:
             require(proof is not None and proof['serial'] == previous + 1 and
-                    proof['consumer_kind'] == (5 if op == BB_STARTUP_CONFIG else 6),
-                    'Actual BB/histogram success lacks its own noncodec frame proof')
+                    proof['consumer_kind'] == (4 if op == VDF_BIT_WIDTH else 5 if op == BB_STARTUP_CONFIG else 6),
+                    'Actual BB/histogram/bit-width success lacks its own noncodec frame proof')
         if proof is not None:
             require(proof['serial'] in (previous, previous + 1), 'Actual C proof sequence changed unexpectedly')
             if proof['serial'] == previous and self.last_frame is not None:
@@ -1025,11 +1158,12 @@ class Broker:
                 'Uncommitted/out-of-bounds core output cannot be published')
         evidence = self.pending_payloads
         require(evidence is not None and evidence['sequence'] == u64(request, 24) and evidence['request'] == request and
-                evidence['actual_c_result'] == error and
+                evidence.get('result_code', evidence.get('actual_c_result')) == error and
                 evidence['result'] == (result.token, result.total, result.offset, result.used),
                 'Missing or changed actual retained request/result evidence')
         self.payloads.verify(evidence['request_payload'], evidence['incoming'])
         self.payloads.verify(evidence['output_payload'], data)
+        result_fields = evidence.get('result_fields', dict(actual_c_result=error))
         response = bytearray(request)
         struct.pack_into('<Ii', response, 44, len(data), error)
         struct.pack_into('<4Q', response, 64, fnv64(data), result.total, result.offset, result.token)
@@ -1037,11 +1171,15 @@ class Broker:
             actual = self.read(0, HEADER)
             self.validate_observed_header(actual)
             if u32(actual, 12) == CLOSED:
-                self.emit('late_close', sequence=u64(request, 24), opcode=u32(request, 32), actual_c_result=error,
+                self.emit('late_close', sequence=u64(request, 24), opcode=u32(request, 32), **result_fields,
                           discarded_bytes=len(data), discarded_sha256=hashlib.sha256(data).hexdigest())
+                if self.source().active is not None:
+                    self.clear_source('late_close')
                 return False
             require(actual == request, 'Request changed while actual C model executed: raw_header=' + actual.hex())
             if self.done.is_set():
+                if self.source().active is not None:
+                    self.clear_source('stop_before_publish')
                 return False
             if data:
                 self.write(HEADER, data)
@@ -1057,7 +1195,7 @@ class Broker:
             self.emit('response', sequence=u64(request, 24), opcode=u32(request, 32),
                       raw_header_sha256=hashlib.sha256(request).hexdigest(), response_header_sha256=hashlib.sha256(response).hexdigest(),
                       origin=origin(request),
-                      actual_c_result=error, returned_bytes=len(data), returned_sha256=hashlib.sha256(data).hexdigest(),
+                      **result_fields, returned_bytes=len(data), returned_sha256=hashlib.sha256(data).hexdigest(),
                       returned_fnv1a64=fnv64(data), token=result.token, total=result.total, offset=result.offset,
                       request_payload=evidence['request_payload'], output_payload=evidence['output_payload'],
                       result_transfer=evidence['result_transfer'], data_readback=True, native_acceptance=False)
@@ -1067,6 +1205,7 @@ class Broker:
     def detach_mailbox(self):
         # Model work/cancellation and destruction must already have ended.
         require(self.core.model is None, 'Cannot detach while core owns model storage')
+        require(self.source().active is None, 'Cannot detach while host source snapshot owns storage')
         with self.copy_window():
             # The final physical write is the last RAM access. Restoring mode 0
             # afterwards changes the debugger protocol only, never guest RAM.
@@ -1113,7 +1252,7 @@ class Broker:
                     self.done.wait(0.01)
                     continue
                 op, capacity = validate_request(raw, data, self.mailbox, self.sequence)
-                # Guest is resumed here; only actual in-process C model execution.
+                # Source reads open their own coordinated paused copy window.
                 error, output, result = self.call_core(raw, data, capacity)
                 if not self.publish(raw, output, error, result):
                     break
@@ -1126,6 +1265,7 @@ class Broker:
         finally:
             self.cleaning = True
             self.ready.set()
+            self.clear_source('broker_cleanup')
             if self.core:
                 try:
                     if self.core.model:

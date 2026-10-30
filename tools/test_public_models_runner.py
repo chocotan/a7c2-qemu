@@ -111,7 +111,18 @@ print('all execution attempts rejected before exec')
 
 def test_scope_skips_only_declared_asset_and_launcher_integrations():
     expected = {
+        ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'),
         ('runtime/analysis/test_vef_path_device.py', 'test_observer_resource_wiring_and_pre_vm_rejection'),
+        ('runtime/analysis/test_functional_face_dmm.py', 'test_final_wire_source_pins'),
+        ('runtime/analysis/test_functional_face_dmm.py', 'test_inherited_original_source_and_config_pins'),
+        ('runtime/analysis/test_functional_face_dmm.py', 'test_aarch64_hand_declared_guest_libc_225'),
+        ('runtime/analysis/test_functional_face_registry.py', 'test_aarch64_hand_declared_guest_libc_225'),
+        ('runtime/analysis/test_functional_face_runtime.py', 'test_aarch64_guest_libc_225_no_undefined'),
+        ('runtime/analysis/test_functional_face_transfer.py', 'test_aarch64_guest_libc_225_link_only'),
+        ('runtime/analysis/test_functional_face_ap_observer.py', 'test_aarch64_original_libc225_link_only'),
+        ('runtime/analysis/test_functional_face_native_ap.py', 'test_aarch64_guest_libc_225_link_only'),
+        ('runtime/analysis/test_functional_face_sdk.py', 'test_aarch64_guest_libc_225_link_only'),
+        ('runtime/analysis/test_functional_face_source_snapshot.py', 'test_source_snapshot_guest_aarch64_libc_225_link_only'),
         ('runtime/analysis/test_cp_property_stage_file.py', 'test_public_stage_file_loader_with_original_aarch64_libc'),
         ('runtime/analysis/test_fsys_async_observer.py', 'test_async_write_observer_is_explicit_passthrough_and_profile_gated'),
         ('report/native-video-producer-contract/test_producer.py', 'test_all_modes_with_original_aarch64_libc'),

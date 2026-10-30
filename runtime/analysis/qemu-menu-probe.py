@@ -878,6 +878,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
         manifest['files'][str(path)] = sha256_file(path)
 if functional_camera is not None:
     for path in (base/'functional_camera_runner.py', base/'functional_camera_broker.py',
+                 base/'functional_face_source_snapshot.py',
                  base/'start-menu.py',
                  base/'build-functional-camera-model.py',
                  base/'functional-camera-bridge.c', base/'functional-camera-bridge.h',

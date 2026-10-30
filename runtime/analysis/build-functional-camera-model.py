@@ -51,7 +51,7 @@ def main():
         raise RuntimeError('installed host C compiler is required')
     sources = [REPORT / name for name in SOURCES]
     headers = [BASE / 'functional-camera-abi.h', BASE / 'functional-vdf-path-abi.h',
-               BASE / 'functional-bb-startup-abi.h']
+               BASE / 'functional-bb-startup-abi.h', BASE / 'functional-vdf-bit-width-abi.h']
     for component in COMPONENTS:
         headers.extend((REPORT / component).glob('*.h'))
     paths = sorted(set([*sources, *headers, Path(__file__)]))

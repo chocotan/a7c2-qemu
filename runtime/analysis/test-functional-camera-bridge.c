@@ -37,7 +37,8 @@ int fcam_test_pagemap(const void *p, uint64_t *out) {
 }
 int fcam_test_random(uint64_t *out) { *out = !strcmp(scenario, "noncezero") ? 0 : UINT64_C(0x1234fedc9876abcd); return 0; }
 void fcam_test_after_copy(void *p, size_t n) {
-    if (!strcmp(scenario, "readback") && n) ((unsigned char *)p)[n / 2] ^= 0x80;
+    if ((!strcmp(scenario, "readback") || !strcmp(scenario, "bitwidth-copy")) && n)
+        ((unsigned char *)p)[n / 2] ^= 0x80;
 }
 static unsigned char encoded_byte(size_t n) { return (unsigned char)((n * 73 + n / 251 + 17) & 255); }
 static void record_test(const char *tag, const char *text) {
@@ -64,6 +65,7 @@ static void *server(void *unused) {
         if (status != FCAM_STATUS_REQUEST || get64(mailbox + FCAM_H_SEQUENCE) == last) { sleep_short(); continue; }
         last = get64(mailbox + FCAM_H_SEQUENCE);
         uint32_t op = get32(mailbox + FCAM_H_OPCODE);
+        assert(get32(mailbox + FCAM_H_FLAGS) == 0);
         assert(get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(mailbox + FCAM_HEADER_BYTES, get32(mailbox + FCAM_H_REQUEST_BYTES)));
         if (!strcmp(scenario, "lateclose")) {
             const struct timespec pause = {0, 420000000}; nanosleep(&pause, NULL);
@@ -146,6 +148,204 @@ static void *server(void *unused) {
 static void start_server(pthread_t *t) { assert(!pthread_create(t, NULL, server, NULL)); }
 static void finish_server(pthread_t t) { assert(!fcam_bridge_close()); assert(!pthread_join(t, NULL)); assert(!mailbox && unpins == 1); }
 
+static const struct fcam_native_origin bit_width_origin = {0x1001, 0x200d, 0x015e, 10, UINT64_C(0x0123456789abcdef)};
+static void *bit_width_server(void *unused) {
+    (void)unused;
+    uint64_t last = 0;
+    for (;;) {
+        uint32_t status = status_load();
+        if (status == FCAM_STATUS_CLOSED) { status_store(FCAM_STATUS_DETACHED); return NULL; }
+        if (status != FCAM_STATUS_REQUEST || get64(mailbox + FCAM_H_SEQUENCE) == last) { sleep_short(); continue; }
+        last = get64(mailbox + FCAM_H_SEQUENCE);
+        assert(get32(mailbox + FCAM_H_OPCODE) == FCAM_OP_VDF_BIT_WIDTH);
+        assert(get32(mailbox + FCAM_H_FLAGS) == 0 && get32(mailbox + FCAM_H_REQUEST_BYTES) == 8);
+        assert(get32(mailbox + FCAM_H_NATIVE_SOURCE) == bit_width_origin.source &&
+            get32(mailbox + FCAM_H_NATIVE_DESTINATION) == bit_width_origin.destination &&
+            get32(mailbox + FCAM_H_NATIVE_COMMAND) == 0x015e && get32(mailbox + FCAM_H_NATIVE_BYTES) == 10 &&
+            get64(mailbox + FCAM_H_NATIVE_FNV) == bit_width_origin.wire_fnv1a64);
+        unsigned char input[8]; memcpy(input, mailbox + FCAM_HEADER_BYTES, sizeof input);
+        assert(fcam_bit_width_input_valid(input) && get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(input, sizeof input));
+        unsigned char *p = mailbox + FCAM_HEADER_BYTES;
+        memset(p, 0, FCAM_BIT_WIDTH_RESULT_BYTES);
+        put32(p + FCAM_VDF_R_ABI, FCAM_ABI_VERSION); put32(p + FCAM_VDF_R_BYTES, FCAM_BIT_WIDTH_RESULT_BYTES);
+        put64(p + FCAM_VDF_R_INSTANCE, nonce); put64(p + FCAM_VDF_R_CONFIG_GENERATION, 5);
+        put64(p + FCAM_VDF_R_FRAME_GENERATION, 6); put64(p + FCAM_VDF_R_LEASE_GENERATION, 6);
+        put64(p + FCAM_VDF_R_INPUT_FNV, fnv(input, sizeof input));
+        put64(p + FCAM_VDF_R_SOURCE_FNV, UINT64_C(0xabcdef1020304050));
+        put64(p + FCAM_VDF_R_SINK_FNV, UINT64_C(0xabcdef1020304050));
+        put64(p + FCAM_VDF_R_ACTIVE_BYTES, 640u * 480u * 3u);
+        put32(p + FCAM_VDF_R_WIDTH, 640); put32(p + FCAM_VDF_R_HEIGHT, 480); put32(p + FCAM_VDF_R_STRIDE, 1920);
+        put32(p + FCAM_VDF_R_ENDPOINT, FCAM_VDF_ENDPOINT);
+        put32(p + FCAM_VDF_R_SELECTED_MASK, 1); put32(p + FCAM_VDF_R_COMPLETED_MASK, 1);
+        put32(p + FCAM_VDF_R_CLASS, FCAM_BIT_WIDTH_CLASS);
+        for (size_t at = FCAM_VDF_R_ENABLED; at <= FCAM_VDF_R_RETIRED; at += 4) put32(p + at, 1);
+        p[FCAM_VDF_R_CONFIG] = 1; p[FCAM_VDF_R_CONFIG + 1] = p[FCAM_VDF_R_CONFIG + 2] = 5;
+        put64(p + FCAM_VDF_R_BEFORE_FRAME_GENERATION, 5); put64(p + FCAM_VDF_R_BEFORE_CONFIG_GENERATION, 4);
+        memcpy(p + FCAM_BIT_WIDTH_R_CONFIG, input, sizeof input);
+        if (strstr(scenario, "badclass")) put32(p + FCAM_VDF_R_CLASS, 1);
+        if (strstr(scenario, "badtail")) p[FCAM_BIT_WIDTH_R_CONFIG + 7] = 1;
+        if (strstr(scenario, "badinputfnv")) p[FCAM_VDF_R_INPUT_FNV] ^= 1;
+        if (strstr(scenario, "badsink")) p[FCAM_VDF_R_SINK_FNV] ^= 1;
+        if (strstr(scenario, "badinstance")) put64(p + FCAM_VDF_R_INSTANCE, nonce + 1);
+        if (strstr(scenario, "badreserved")) p[FCAM_VDF_R_RESERVED] = 1;
+        if (strstr(scenario, "badframe")) put64(p + FCAM_VDF_R_FRAME_GENERATION, 5);
+        if (strstr(scenario, "badgeneration")) put64(p + FCAM_VDF_R_BEFORE_CONFIG_GENERATION, UINT64_MAX);
+        if (strstr(scenario, "badroute")) p[FCAM_VDF_R_CONFIG] = 0;
+        if (strstr(scenario, "badretire")) put32(p + FCAM_VDF_R_RETIRED, 0);
+        size_t used = strstr(scenario, "badsize") ? FCAM_BIT_WIDTH_RESULT_BYTES - 1 : FCAM_BIT_WIDTH_RESULT_BYTES;
+        int error = !strcmp(scenario, "bitwidth-upstream") ? -EIO : 0;
+        if (error) used = 0;
+        put32(mailbox + FCAM_H_ERROR, (uint32_t)error); put32(mailbox + FCAM_H_RESPONSE_BYTES, (uint32_t)used);
+        if (strstr(scenario, "badtoken")) {
+            put64(mailbox + FCAM_H_RESULT_TOTAL, used); put64(mailbox + FCAM_H_RESULT_TOKEN, 77);
+        }
+        put64(mailbox + FCAM_H_RESPONSE_FNV, fnv(p, used));
+        if (strstr(scenario, "badfnv")) put64(mailbox + FCAM_H_RESPONSE_FNV, 0);
+        status_store(FCAM_STATUS_RESPONSE);
+    }
+}
+static void bit_width_bridge_test(void) {
+    unsigned char input[8] = {0}, output[FCAM_BIT_WIDTH_RESULT_BYTES + 8];
+    memset(output, 0xa5, sizeof output);
+    struct fcam_bridge_result result = {1, 2, 3, 4}, before = result;
+    if (!strcmp(scenario, "bitwidth-validation")) {
+        unsigned char sized_input[9] = {0};
+        for (size_t n = 0; n <= sizeof sized_input; ++n) {
+            if (n == 8) continue;
+            assert(fcam_bridge_call(&bit_width_origin, FCAM_OP_VDF_BIT_WIDTH, sized_input, n,
+                output, sizeof output, &result) == -EINVAL);
+        }
+        assert(fcam_bridge_call(&bit_width_origin, FCAM_OP_VDF_BIT_WIDTH, input, 8,
+            output, 167, &result) == -ENOSPC);
+        for (size_t i = 1; i < 8; ++i) {
+            input[i] = 1;
+            assert(fcam_bridge_call(&bit_width_origin, FCAM_OP_VDF_BIT_WIDTH, input, 8,
+                output, sizeof output, &result) == -EINVAL); input[i] = 0;
+        }
+        for (unsigned int i = 1; i <= 3; ++i) {
+            input[0] = (unsigned char)i;
+            assert(fcam_bridge_call(&bit_width_origin, FCAM_OP_VDF_BIT_WIDTH, input, 8,
+                output, sizeof output, &result) == -ENOTSUP);
+        }
+        input[0] = 0;
+        assert(fcam_bridge_call(&origin, FCAM_OP_VDF_BIT_WIDTH, input, 8,
+            output, sizeof output, &result) == -EINVAL);
+        assert(sequence == 0 && !memcmp(&result, &before, sizeof result));
+        for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        return;
+    }
+    pthread_t host; assert(!pthread_create(&host, NULL, bit_width_server, NULL));
+    const int rc = fcam_bridge_call(&bit_width_origin, FCAM_OP_VDF_BIT_WIDTH, input, sizeof input,
+        output, sizeof output, &result);
+    if (!strcmp(scenario, "bitwidth")) {
+        assert(!rc && result.used == 168 && result.required == 168 && result.model_instance == nonce && !result.result_token);
+        assert(bit_width_reply_valid(output, input) && !memcmp(output + 160, input, 8));
+        assert(readback_closed == 1 && !released && !cancelled);
+        for (size_t i = 168; i < sizeof output; ++i) assert(output[i] == 0xa5);
+    } else {
+        const int expected = !strcmp(scenario, "bitwidth-upstream") || !strcmp(scenario, "bitwidth-copy") ? -EIO :
+            strstr(scenario, "badfnv") ? -EBADMSG : -EPROTO;
+        assert(rc == expected && !memcmp(&result, &before, sizeof result) && !readback_closed);
+        if (strcmp(scenario, "bitwidth-copy"))
+            for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+    }
+    finish_server(host);
+}
+static unsigned char *snapshot_source;
+static size_t snapshot_bytes, snapshot_cursor;
+static struct fcam_native_origin snapshot_origin;
+static void *snapshot_server(void *unused) {
+    (void)unused; uint64_t last = 0;
+    for (;;) {
+        uint32_t status = status_load();
+        if (status == FCAM_STATUS_CLOSED) { status_store(FCAM_STATUS_DETACHED); return NULL; }
+        if (status != FCAM_STATUS_REQUEST || get64(mailbox + FCAM_H_SEQUENCE) == last) { sleep_short(); continue; }
+        last = get64(mailbox + FCAM_H_SEQUENCE);
+        uint32_t op = get32(mailbox + FCAM_H_OPCODE);
+        assert(get32(mailbox + FCAM_H_FLAGS) == FCAM_ORIGIN_API40_SOURCE_SNAPSHOT);
+        assert(get32(mailbox + FCAM_H_NATIVE_SOURCE) == snapshot_origin.source &&
+            get32(mailbox + FCAM_H_NATIVE_DESTINATION) == snapshot_origin.destination &&
+            get32(mailbox + FCAM_H_NATIVE_COMMAND) == snapshot_origin.command &&
+            get32(mailbox + FCAM_H_NATIVE_BYTES) == 40 && get64(mailbox + FCAM_H_NATIVE_FNV) == snapshot_origin.wire_fnv1a64);
+        assert(get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(mailbox + FCAM_HEADER_BYTES, get32(mailbox + FCAM_H_REQUEST_BYTES)));
+        put32(mailbox + FCAM_H_RESPONSE_BYTES, 0); put32(mailbox + FCAM_H_ERROR, 0);
+        memset(mailbox + FCAM_H_RESULT_TOTAL, 0, 24);
+        if (op == FCAM_OP_AP_SOURCE_SNAPSHOT || op == FCAM_OP_READ_RESULT) {
+            if (op == FCAM_OP_AP_SOURCE_SNAPSHOT) {
+                snapshot_cursor = 0;
+                assert(get32(mailbox + FCAM_HEADER_BYTES + FCAM_FACE_SNAPSHOT_BYTES_AT) == snapshot_bytes);
+            } else {
+                assert(get64(mailbox + FCAM_HEADER_BYTES) == 91 &&
+                    get64(mailbox + FCAM_HEADER_BYTES + 8) == snapshot_cursor);
+            }
+            if (op == FCAM_OP_READ_RESULT && !strcmp(scenario, "snapshot-partial")) {
+                put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO);
+            } else if (strcmp(scenario, "snapshot-empty")) {
+                size_t total = snapshot_bytes - (!strcmp(scenario, "snapshot-total") ? 1u : 0u);
+                size_t used = total - snapshot_cursor;
+                if (used > FCAM_DATA_BYTES) used = FCAM_DATA_BYTES;
+                if (!strcmp(scenario, "snapshot-short")) --used;
+                memcpy(mailbox + FCAM_HEADER_BYTES, snapshot_source + snapshot_cursor, used);
+                put32(mailbox + FCAM_H_RESPONSE_BYTES, (uint32_t)used);
+                put64(mailbox + FCAM_H_RESULT_TOTAL, total); put64(mailbox + FCAM_H_RESULT_OFFSET, snapshot_cursor);
+                put64(mailbox + FCAM_H_RESULT_TOKEN, op == FCAM_OP_READ_RESULT && !strcmp(scenario, "snapshot-token") ? 92 : 91);
+                snapshot_cursor += used;
+            }
+        } else if (op == FCAM_OP_RELEASE_RESULT) {
+            assert(snapshot_cursor == snapshot_bytes && get64(mailbox + FCAM_HEADER_BYTES) == 91);
+            assert(!memcmp(snapshot_source, caller_output, snapshot_bytes) &&
+                get64(mailbox + FCAM_HEADER_BYTES + 8) == fnv(snapshot_source, snapshot_bytes));
+            if (!strcmp(scenario, "snapshot-release")) put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO);
+            else ++released;
+        } else if (op == FCAM_OP_CANCEL) {
+            ++cancelled; state_reply();
+        } else abort();
+        size_t used = get32(mailbox + FCAM_H_RESPONSE_BYTES);
+        put64(mailbox + FCAM_H_RESPONSE_FNV, fnv(mailbox + FCAM_HEADER_BYTES, used));
+        if (op == FCAM_OP_AP_SOURCE_SNAPSHOT && !strcmp(scenario, "snapshot-digest")) put64(mailbox + FCAM_H_RESPONSE_FNV, 0);
+        if (op == FCAM_OP_AP_SOURCE_SNAPSHOT && !strcmp(scenario, "snapshot-flags")) put32(mailbox + FCAM_H_FLAGS, 0);
+        status_store(FCAM_STATUS_RESPONSE);
+    }
+}
+static void snapshot_bridge_test(void) {
+    unsigned int unit = !strcmp(scenario, "snapshot-1da") ? 0x1da : !strcmp(scenario, "snapshot-1db") ? 0x1db : 0x1d9;
+    static const size_t lengths[3] = {0x64000, 0xc800, 0xd100}; snapshot_bytes = lengths[unit - 0x1d9];
+    snapshot_source = malloc(snapshot_bytes); caller_output = malloc(snapshot_bytes); assert(snapshot_source && caller_output);
+    for (size_t i = 0; i < snapshot_bytes; ++i) snapshot_source[i] = (unsigned char)((i * 37 + (unit - 0x1d9) * 53 + 11) ^ (i >> 7));
+    memset(caller_output, 0xa5, snapshot_bytes);
+    unsigned char packet[FCAM_FACE_SNAPSHOT_MAX_INPUT_BYTES] = {0};
+    put32(packet, 1); put32(packet + 4, unit); put32(packet + 8, 0x92a); put32(packet + 12, 0x8402 + unit - 0x1d9);
+    put32(packet + 16, (uint32_t)snapshot_bytes);
+    unsigned int cp_count = (unsigned int)((snapshot_bytes + FCAM_PAGE_BYTES - 1) / FCAM_PAGE_BYTES);
+    put32(packet + 20, cp_count); put32(packet + 24, 2);
+    const size_t input_bytes = FCAM_FACE_SNAPSHOT_BASE_BYTES + 8u * (cp_count + 2);
+    put64(packet + 72, fnv(packet + FCAM_FACE_SNAPSHOT_API40_AT, 40));
+    snapshot_origin = (struct fcam_native_origin){0x92a, 0x8402 + unit - 0x1d9, FCAM_FACE_SNAPSHOT_COMMAND, 40, get64(packet + 72)};
+    struct fcam_bridge_result result = {1, 2, 3, 4}, before = result;
+    if (!strcmp(scenario, "snapshot-schema")) {
+        assert(fcam_bridge_call(&snapshot_origin, FCAM_OP_AP_SOURCE_SNAPSHOT, packet, input_bytes - 1,
+            caller_output, snapshot_bytes, &result) == -EINVAL);
+        put32(packet + 20, cp_count - 1);
+        assert(fcam_bridge_call(&snapshot_origin, FCAM_OP_AP_SOURCE_SNAPSHOT, packet, input_bytes,
+            caller_output, snapshot_bytes, &result) == -EINVAL);
+        assert(!memcmp(&result, &before, sizeof before) && sequence == 0);
+    } else {
+        pthread_t host; assert(!pthread_create(&host, NULL, snapshot_server, NULL));
+        int rc = fcam_bridge_call(&snapshot_origin, FCAM_OP_AP_SOURCE_SNAPSHOT, packet, input_bytes,
+            caller_output, snapshot_bytes, &result);
+        if (!strcmp(scenario, "snapshot-1d9") || !strcmp(scenario, "snapshot-1da") || !strcmp(scenario, "snapshot-1db")) {
+            assert(!rc && result.used == snapshot_bytes && result.required == snapshot_bytes && result.result_token == 91);
+            assert(released == 1 && !cancelled && !memcmp(snapshot_source, caller_output, snapshot_bytes));
+        } else {
+            assert(rc < 0 && !memcmp(&result, &before, sizeof before));
+            if (!strcmp(scenario, "snapshot-partial") || !strcmp(scenario, "snapshot-release") || !strcmp(scenario, "snapshot-token")) assert(cancelled == 1);
+            else for (size_t i = 0; i < snapshot_bytes; ++i) assert(caller_output[i] == 0xa5);
+            assert(!released && !readback_closed);
+        }
+        finish_server(host);
+    }
+    free(snapshot_source); free(caller_output);
+}
 static void *state_call(void *unused) {
     (void)unused;
     unsigned char out[FCAM_STATE_BYTES]; struct fcam_bridge_result result;
@@ -199,6 +399,8 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof out; ++i) assert(out[i] == 0xa5);
         assert(sequence == 0 && status_load() == FCAM_STATUS_IDLE); return 0;
     }
+    if (!strncmp(scenario, "bitwidth", 8)) { bit_width_bridge_test(); return 0; }
+    if (!strncmp(scenario, "snapshot-", 9)) { snapshot_bridge_test(); return 0; }
     pthread_t host; start_server(&host);
     if (!strncmp(scenario, "bb", 2) || !strncmp(scenario, "hist", 4)) {
         const int histogram = !strncmp(scenario, "hist", 4);

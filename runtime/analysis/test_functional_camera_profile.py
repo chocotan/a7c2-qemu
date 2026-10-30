@@ -24,6 +24,9 @@ CLAIMS = (
     'original_Histogram_physical_callback_verified', 'histogram_UI_applied_verified',
     'original_Xsync_state_producer_verified', 'physical_Xsync_capability_verified',
     'cp_background_start_original_modules_verified',
+    'cp_face_dmm_original_AP_consumption_verified', 'cp_face_dmm_physical_bank_verified',
+    'cp_face_dmm_native_ap_backend_verified', 'cp_face_dmm_native_birth_complete_verified',
+    'cp_face_dmm_functional_source_snapshot_verified', 'cp_face_dmm_original_global_writer_exclusion_verified',
     'backend_readiness_verified',
     'original_AP_consumption_verified', 'frame_consumption_verified',
     'original_MPR_Fsys_write_verified', 'standalone_host_media_write',
@@ -49,6 +52,27 @@ def test_functional_intent_is_software_hardware_not_runtime_acceptance():
     assert selected['functional_camera_cp_background_start_policy'] == 'original-3006-pending-all13-free-model-INIT-STATE-readback-before-independent-reply'
     assert selected['functional_camera_cp_background_start_native_commands'] == [0x3006]
     assert selected['functional_camera_cp_background_start_deferred_until'] == 'same-run-all13-original-free-and-actual-debugger-handoff'
+    assert selected['functional_camera_cp_face_dmm_policy'] == 'original-five-callsite-byte-pins-owned-backing-receive-free-before-ledger'
+    assert selected['functional_camera_cp_face_dmm_units'] == [0x1d9, 0x1da, 0x1db]
+    assert selected['functional_camera_cp_face_dmm_commands'] == [0x20, 0x21, 0x23, 0x24, 0x25]
+    assert selected['functional_camera_cp_face_dmm_software_iova'] == [0x70000000, 0x70100000, 0x70200000]
+    assert selected['functional_camera_cp_face_dmm_iova_policy'] == 'software-only-no-implicit-AP-physical-translation'
+    assert selected['functional_camera_cp_face_dmm_lifecycle'] == 'one-creator-lifecycle-per-unit-per-process-no-wire-wrap'
+    assert selected['functional_camera_cp_face_dmm_transfer_content_policy'] == 'saved-AP-lease-disjoint-proof-full-write-independent-readback-release-before-content-complete'
+    assert selected['functional_camera_cp_face_dmm_transfer_sdk48_decode'] == 'class1-two-stable-eight-byte-descriptors-preserve-callback-context-result-padding'
+    assert selected['functional_camera_cp_face_dmm_ap_observer_policy'] == 'passive-original-code-pinned-send-receive-free-record-no-pin-no-byte-capability'
+    assert selected['functional_camera_cp_face_dmm_ap_observer_commands'] == [0x20, 0x21, 0x23, 0x24, 0x25]
+    assert selected['functional_camera_cp_face_dmm_ap_observer_units'] == [0x1d9, 0x1da, 0x1db, 0x1dc]
+    assert selected['functional_camera_cp_face_dmm_ap_observer_kernel_2a_observed'] is False
+    assert selected['functional_camera_cp_face_dmm_sdk_observer_policy'] == 'passive-original-valloc48-sync-enter-return-free-no-callback-no-result-write'
+    assert selected['functional_camera_cp_face_dmm_sdk_literal_result_observed'] is False
+    assert selected['functional_camera_cp_face_dmm_native_ap_provider_policy'] == 'required-original-owner-open-close-free-tickets-mapping-writer-no-default-backend'
+    assert selected['functional_camera_cp_face_dmm_native_birth_proc_policy'] == 'original20-free0-two-complete-proc-reads-diagnostic-no-atomicity'
+    assert selected['functional_camera_cp_face_dmm_functional_source_snapshot_policy'] == 'original-owner-open-paused-CPU-AS-full-source-read-retained-readback-no-global-writer-claim'
+    assert selected['functional_camera_cp_face_dmm_transfer_source_policy'] == 'required-native-pinned-span-no-default-provider'
+    assert not any(selected['functional_camera_cp_face_dmm_' + key] for key in
+                   ('segment_query_supported', 'interchip_transfer_supported', 'original_completion_transport_supported',
+                    'original_AP_consumption_verified', 'physical_bank_verified'))
     assert selected['functional_camera_vdf_path_policy'] == 'canonical-0138-single-RGB-sink-readback-before-1138'
     assert selected['functional_camera_vdf_virtual_endpoint'] == 0x90590819
     assert type(selected['functional_camera_vdf_virtual_completion_mask']) is int
@@ -63,6 +87,12 @@ def test_functional_intent_is_software_hardware_not_runtime_acceptance():
     assert selected['functional_camera_layout_supported_rgb_geometry'] == [640, 480, 1920]
     assert bytes.fromhex(selected['functional_camera_layout_initial_body_hex']) == bytes.fromhex('07010100000000008002e0010000000000000000000000000300000000000000')
     assert selected['functional_camera_display_config_policy'] == 'original-0141-refresh-0152-disabled-and-0162-off-RGB-readback-before-independent-reply'
+    assert selected['functional_camera_display_bit_width_policy'] == 'original-015e-selector0-virtual-RGB888-readback-before-115e'
+    assert selected['functional_camera_display_bit_width_commands'] == [0x15e]
+    assert selected['functional_camera_display_bit_width_supported_selectors'] == [0]
+    assert selected['functional_camera_display_bit_width_selector_mapping'] == 'explicit-software-only-physical-selector-meaning-unverified'
+    assert selected['functional_camera_display_bit_width_physical_mapping_verified'] is False
+    assert off['functional_camera_display_bit_width_physical_mapping_verified'] is None
     assert selected['functional_camera_display_config_commands'] == [0x141, 0x152, 0x162]
     assert selected['functional_camera_peaking_enabled_supported'] is False
     assert selected['functional_camera_display_flag_enabled_supported'] is False
@@ -202,7 +232,8 @@ def test_actual_functional_sdk_library_identity_is_indexed_and_selected():
             if enabled:
                 assert scope['expected_guest'][name] == scope['manifest']['files'][path] == 'hash:' + path
         for name in ('start-menu.py', 'build-functional-camera-model.py',
-                     'functional_camera_broker.py', 'functional_camera_runner.py'):
+                     'functional_camera_broker.py', 'functional_camera_runner.py',
+                     'functional_face_source_snapshot.py'):
             path = str(HERE / name)
             assert (path in scope['manifest']['files']) is enabled
             if enabled:

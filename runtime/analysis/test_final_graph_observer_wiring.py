@@ -57,6 +57,7 @@ static int full_hdmi_public_backup_read(int fd,unsigned int key,void *out,unsign
  if(!length || (cap && !out))return -1021;
  *length=1;if(cap)((unsigned char *)out)[0]=0x7b;return 0;
 }
+static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_background_start_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;
 }

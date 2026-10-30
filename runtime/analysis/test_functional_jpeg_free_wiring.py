@@ -22,6 +22,14 @@ def jpeg_free_binary(tmp_path_factory):
 #include <stdlib.h>
 #include <string.h>
 #include "functional-jpeg-codec.h"
+#include "functional-face-ap-observer.h"
+static _Thread_local struct functional_face_ap_observer functional_face_ap_state;
+static void functional_face_ap_record_event(enum functional_face_ap_event event,const struct functional_face_ap_observer *s){
+ (void)event;(void)s;assert(!"AP observer is inactive in this JPEG-only fixture");
+}
+static void native_face_sdk_observation(unsigned int stage,unsigned int id,void *message,unsigned int bytes,int result,void *caller){
+ (void)stage;(void)id;(void)message;(void)bytes;(void)result;(void)caller;assert(!"SDK trace is inactive in this JPEG-only fixture");
+}
 static int functional_camera_enabled,native_calls,observed_calls,trace_calls;
 static int native_rc,observer_rc,actually_freed;
 static unsigned int saved_id;
@@ -62,7 +70,8 @@ int main(int argc,char **argv){
     path.write_text(code)
     built = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic',
                             '-fsanitize=address,undefined', '-fno-pie', '-no-pie',
-                            '-I', str(HERE), str(path), '-o', str(binary)], capture_output=True, text=True)
+                            '-I', str(HERE), str(path), str(HERE / 'functional-face-ap-observer.c'),
+                            '-o', str(binary)], capture_output=True, text=True)
     assert built.returncode == 0, built.stdout + built.stderr
     return binary
 

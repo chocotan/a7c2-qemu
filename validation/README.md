@@ -1,6 +1,12 @@
 # 本包验证记录
 
-## 2026-10-29 当前验证边界
+## 当前公开代码的验证范围
+
+本次移交原API40源数据读取、功能CP完整读回和015e位宽配置的真实RGB消费/独立115e生命周期；实现边界见[当前进展](../docs/tech/functional-source-and-display.md)。实际命令、返回码、host测试结果、明确跳过项和来源身份统一记录在[本次发布收据](2026-10-30-publication.json)。
+
+本次只执行本包host/source/package检查与host功能模型编译，未运行系统QEMU、QEMU-user、GUI或新的原AP/guest验收。研究冻结批次仅作为逐文件来源，不抵作本包native结果。旧模式尾部等待与快门实验的正式失败保留，不能由新增代码回填成功；原厂JPG/MP4、`capture_verified`和物理ASIC兼容性继续未验证。
+
+## 上一轮发布验证（历史保留）
 
 **原固件 JPG/MP4 尚未完成，`capture_verified=false`。** [当前进度报告](../docs/tech/2026-10-29-current-progress.md)提供功能矩阵、阶段时间线、复现入口与下一缺口；[机器可读摘要](2026-10-29-progress.json)固定完整基线SHA和最新原生负例。本次实际执行了研究整批及公开包host/适配测试，未运行新的系统VM。
 
@@ -34,7 +40,7 @@ sha256sum -c SOURCE-SHA256SUMS
 
 `test-host.py`不运行编译器或VM。`test-public-models.py`允许本包C模型的宿主编译与ASan/UBSan，需要pytest 9、Pillow、C编译器及libjpeg/FFmpeg开发库；模块清单在`tools/public-model-tests.json`。它使用0700的短`/var/tmp/a7m-*`测试目录以满足Unix socket长度，结束后清理；JUnit保留在被忽略的`validation/tmp/public-models/`。
 
-公开模型入口明确跳过9个固定的集成测试：7项需要原Sony glibc/QEMU-user的ARM执行，2项执行VM前端以验证拒绝。清单及逐项理由在`tools/test-public-models.py::OUTSIDE_HOST_SCOPE`，其它测试失败不会被自动跳过。需要官方原件/本地历史运行内容的少数源检查还会按原测试自己的条件跳过；实际数量见发布收据。完整研究5568/7057批次包含原资产/用户态ARM检查，其结果与公开host scope分开。审计hook继续拒绝真实QEMU、bubblewrap及启动/构建入口，host socket mock不是真相机或VM。
+公开模型入口的固定排除项及逐项理由以`tools/test-public-models.py::OUTSIDE_HOST_SCOPE`为准：包含原Sony glibc/ARM执行、原件窗口/ABI链接及VM启动器拒绝集成。新增纯host字节、读错误、errno保持与生命周期测试实际执行，未因同模块另有集成项而整文件跳过。需要官方原件/本地历史运行内容的少数检查仍按原测试自己的条件跳过，实际数量见本次发布收据。审计hook继续拒绝真实QEMU、bubblewrap及启动/构建入口；host socket mock不是真相机或VM。
 
 ## 历史记录的阅读顺序
 

@@ -181,6 +181,7 @@ int functional_background_start_release_cycle(unsigned int id,void *p,uint64_t c
  *result=release_result?release_result:!cycle?-ESTALE:release(id,p);return 1;
 }
 /* Unrelated receive observers are deliberately inert; the actual parent receive gate is executed. */
+static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_histogram_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){(void)id;(void)p;(void)source;(void)bytes;}
 int functional_vdf_layout_stage_observe_receive_cycle(unsigned int id,void *p,unsigned int source,unsigned int bytes,uint64_t *ticket){
  (void)id;(void)p;(void)source;(void)bytes;(void)ticket;assert(0);return 0;

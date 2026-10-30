@@ -123,6 +123,21 @@ def test_reference_resolver_uses_package_receipt_and_validates_explicit_stage(tm
     assert not (analysis / '.menu-probe.lock').exists()
 
 
+@pytest.mark.parametrize('filename,fixture', [('test_settings_checkpoint.py', 'saved'),
+                                             ('test_settings_instance.py', 'sample')])
+@pytest.mark.parametrize('present', [False, True])
+def test_source_only_settings_fixtures_skip_missing_but_reject_wrong_assets(tmp_path, monkeypatch, filename, fixture, present):
+    module = load('package_settings_fixture_' + fixture, ANALYSIS / filename)
+    monkeypatch.setattr(module, 'N', tmp_path)
+    if present:
+        seed = tmp_path / 'menu-root/seed-backup.bin'
+        seed.parent.mkdir()
+        seed.write_bytes(b'not an original ALLLANG seed')
+    expected = AssertionError if present else pytest.skip.Exception
+    with pytest.raises(expected):
+        getattr(module, fixture).__wrapped__(*[tmp_path] if fixture == 'sample' else [])
+
+
 def test_host_guard_treats_python_code_as_code_not_executable_name():
     tree = ast.parse((ROOT / 'tools/test-host.py').read_text())
     definition = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'guard')

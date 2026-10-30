@@ -252,12 +252,20 @@ static int dispatch(unsigned int dst,void *request,const struct full_imaging_io 
     pthread_mutex_lock(&mutex);
     if(state.faults || state.live_reply || state.releasing_reply || current_request!=request){pthread_mutex_unlock(&mutex);goto failed;}
     state.live_reply=final;pthread_mutex_unlock(&mutex);
-    if(io->send(d,final)){
-        pthread_mutex_lock(&mutex);
+    int sent=io->send(d,final);
+    if(sent){
+        char line[560];pthread_mutex_lock(&mutex);
         /* A callback may already have freed the buffer, or hold its free in
          * another thread. That lease, rather than this stack, owns cleanup. */
-        if(state.live_reply!=final || state.releasing_reply){state.faults++;state.clean_completion=0;final=0;}else state.live_reply=0;
-        pthread_mutex_unlock(&mutex);goto failed;
+        int lease_fault=state.live_reply!=final || state.releasing_reply;
+        if(lease_fault){
+            state.faults++;state.clean_completion=0;
+            snprintf(line,sizeof line,"reason=send-failed-after-release pid=%d owner_pid=%d tid=%ld sender=%ld destination=%#x expected=%#x reply=%p live=%p inflight=%u event6_inflight=%u phase=%u busy=%u queued=%u send_rc=%d faults=%u capture_verified=0",getpid(),state.owner_pid,syscall(SYS_gettid),sender,d,state.reply_destination,final,state.live_reply,state.releasing_reply,state.event6_inflight,state.phase,state.busy,state.queued,sent,state.faults);
+            final=0;
+        }else state.live_reply=0;
+        pthread_mutex_unlock(&mutex);
+        if(lease_fault)event(io,"SEND_RELEASE_FAULT ",line);
+        goto failed;
     }
     queued=1;pthread_mutex_lock(&mutex);state.queued=1;forget(final);pthread_mutex_unlock(&mutex);
     wire_from(io,"REPLY_QUEUED ",FULL_PINMEM_CP,d,final,final_wire,sizeof final_wire);final=0;
@@ -293,7 +301,13 @@ int EDGE_RELEASE(unsigned int d,void *message,int (*release)(unsigned int,void *
     pthread_mutex_lock(&mutex);
     if(message!=state.live_reply){pthread_mutex_unlock(&mutex);return 0;}
     unsigned int dst=state.reply_destination;long waiter=sender;
-    if(d!=dst || state.releasing_reply){state.faults++;state.clean_completion=0;pthread_mutex_unlock(&mutex);*result=-1021;return 1;}
+    if(d!=dst || state.releasing_reply){
+        char line[560];state.faults++;state.clean_completion=0;
+        snprintf(line,sizeof line,"reason=%s pid=%d owner_pid=%d tid=%ld sender=%ld destination=%#x expected=%#x reply=%p live=%p inflight=%u event6_inflight=%u phase=%u busy=%u queued=%u faults=%u rc=-1021 capture_verified=0",d!=dst?"wrong-destination":"release-inflight",getpid(),state.owner_pid,syscall(SYS_gettid),waiter,d,dst,message,state.live_reply,state.releasing_reply,state.event6_inflight,state.phase,state.busy,state.queued,state.faults);
+        pthread_mutex_unlock(&mutex);
+        if(record)record("FULL_" EDGE_TAG "_CONNECT_RELEASE_REJECT_FAULT ",line);
+        *result=-1021;return 1;
+    }
     state.releasing_reply=1;pthread_mutex_unlock(&mutex);
     int rc=release(d,message);long tid=syscall(SYS_gettid);
     pthread_mutex_lock(&mutex);state.releasing_reply=0;

@@ -13880,5 +13880,725 @@
       "other_desktop_or_personal_content_included": false,
       "capture_verified": false
     }
+  },
+  "display_source_port": {
+    "date": "2026-10-30",
+    "source_origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+    "scope": "explicit public AP-source and software RGB888 bit-width delta; no firmware, private configuration, binaries or run/card data",
+    "source_batch": "unified-camera-4yvz8x4k",
+    "source_ready_sha256": "e2667c7087ed3edc763baf1a64a2788b5276f55826f2ea2c8c3aac73aaff45a8",
+    "source_batch_scope": "research provenance only; not a native result produced by this public package",
+    "public_package_tests": "validation/2026-10-30-publication.json",
+    "files": {
+      "report/camera-input-coverage/source-pins.json": {
+        "source": "report/camera-input-coverage/source-pins.json",
+        "source_sha256": "c569e6c397c938b8fcb93ee49debd2f441cb1c98346641c995a7eb36963ed911",
+        "published_sha256": "27639a89ed6f74c37798b209975f34dc3ba269825a44029413140b4b3139437e",
+        "adapted": true
+      },
+      "report/functional-camera-core/README.md": {
+        "source": "report/functional-camera-core/README.md",
+        "source_sha256": "59f1d8ab83c4f9cc3fd82dce8dccefa93d540326519bce8c067551b74e5d7cf4",
+        "published_sha256": "c757848cd43edbe1651bb0d427177e8929960a7dc5042096a890ca3d6b1dfa18",
+        "adapted": true
+      },
+      "report/functional-camera-core/functional-camera-core.c": {
+        "source": "report/functional-camera-core/functional-camera-core.c",
+        "source_sha256": "6b562ccf15d32a9f551521fd9d48fffe7d49d61ff9a604f41d1fb7843a554d3b",
+        "published_sha256": "6b562ccf15d32a9f551521fd9d48fffe7d49d61ff9a604f41d1fb7843a554d3b",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-camera-core/functional-camera-core.h": {
+        "source": "report/functional-camera-core/functional-camera-core.h",
+        "source_sha256": "f967edc521a011641e5e834d5f7e6fac23d895b7f35bbbebed52c2187f36fcae",
+        "published_sha256": "f967edc521a011641e5e834d5f7e6fac23d895b7f35bbbebed52c2187f36fcae",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-camera-evidence/README.md": {
+        "source": "report/functional-camera-evidence/README.md",
+        "source_sha256": "51d700ae666ed888897353af0fa4b3c21851f54a62f8f642956c580412001a0d",
+        "published_sha256": "5e6edb4d44d881c42120a29e63620ec4e1fd916ca22dff43f278190be7c547cd",
+        "adapted": true
+      },
+      "report/functional-camera-evidence/check_evidence.py": {
+        "source": "report/functional-camera-evidence/check_evidence.py",
+        "source_sha256": "abd36180d8c76e10d318b375886196b2d8ed1062d282aad837c8e6b6e2d4670a",
+        "published_sha256": "abd36180d8c76e10d318b375886196b2d8ed1062d282aad837c8e6b6e2d4670a",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-camera-evidence/check_face_source.py": {
+        "source": "report/functional-camera-evidence/check_face_source.py",
+        "source_sha256": "32b85317144884e9dd18ba2384ec7e2992395af6877957185fdeb796f947c7cf",
+        "published_sha256": "32b85317144884e9dd18ba2384ec7e2992395af6877957185fdeb796f947c7cf",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-camera-evidence/test_evidence.py": {
+        "source": "report/functional-camera-evidence/test_evidence.py",
+        "source_sha256": "c55b92c90fe7cafbde53de72c7a8b4ded15a876820e4f7bf614cf12ce933de93",
+        "published_sha256": "c55b92c90fe7cafbde53de72c7a8b4ded15a876820e4f7bf614cf12ce933de93",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-camera-evidence/test_face_source.py": {
+        "source": "report/functional-camera-evidence/test_face_source.py",
+        "source_sha256": "bf0f16be40ac2d6aca860bd05b9b337667cbec1e108772d998992d946fa9e2ad",
+        "published_sha256": "bf0f16be40ac2d6aca860bd05b9b337667cbec1e108772d998992d946fa9e2ad",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-face-dmm/source-pins.json": {
+        "source": "report/functional-face-dmm/source-pins.json",
+        "source_sha256": "5fb61ad0d948ef7990fc33d011256d72f8d168da2079d6e621789dadc164e267",
+        "published_sha256": "5fb61ad0d948ef7990fc33d011256d72f8d168da2079d6e621789dadc164e267",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-graph-evidence/check_graph.py": {
+        "source": "report/functional-graph-evidence/check_graph.py",
+        "source_sha256": "e500b12a7e0878b1a768336becf977cb46f6793a3a17915037914515751ebfb5",
+        "published_sha256": "e500b12a7e0878b1a768336becf977cb46f6793a3a17915037914515751ebfb5",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-graph-evidence/test_graph.py": {
+        "source": "report/functional-graph-evidence/test_graph.py",
+        "source_sha256": "6331e1de7ea5781643eb69d38df96dd8d03c7f81fcd6dbf0d69d7b10de286b5d",
+        "published_sha256": "6331e1de7ea5781643eb69d38df96dd8d03c7f81fcd6dbf0d69d7b10de286b5d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "report/functional-vdf-path/README.md": {
+        "source": "report/functional-vdf-path/README.md",
+        "source_sha256": "804bb331202ddb1df63434b87fd7702858dee84cb90d1b18db63a0559222bb6d",
+        "published_sha256": "24a29a5e98a2dcaf71e64e6c4e16c3ed362f10b4b9ebc083b5cc6bc8f46d0c87",
+        "adapted": true
+      },
+      "runtime/analysis/backup_profile.py": {
+        "source": "runtime/analysis/backup_profile.py",
+        "source_sha256": "fd9f1667607703fb97d105fc955e64b352374adbfc976e506f53ec2936848f53",
+        "published_sha256": "fd9f1667607703fb97d105fc955e64b352374adbfc976e506f53ec2936848f53",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/build-functional-camera-model.py": {
+        "source": "runtime/analysis/build-functional-camera-model.py",
+        "source_sha256": "4e1f0c5e81a7c29613c3ff6394b349218d395856959aea26f1b60a743d6d0feb",
+        "published_sha256": "4e1f0c5e81a7c29613c3ff6394b349218d395856959aea26f1b60a743d6d0feb",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/build-observers.sh": {
+        "source": "runtime/analysis/build-observers.sh",
+        "source_sha256": "a9f33123ee99178589dc73377b378f90bfc2c053e43b582870709e495f75bd1d",
+        "published_sha256": "a9f33123ee99178589dc73377b378f90bfc2c053e43b582870709e495f75bd1d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/check-natural-gtk-input.py": {
+        "source": "runtime/analysis/check-natural-gtk-input.py",
+        "source_sha256": "1797ad60d1a1e9c8f31adb745260f127c920e2b7ac5d13219e3ce2d5abde6f2b",
+        "published_sha256": "1797ad60d1a1e9c8f31adb745260f127c920e2b7ac5d13219e3ce2d5abde6f2b",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/device-models/functional-vdf-path.c": {
+        "source": "runtime/analysis/device-models/functional-vdf-path.c",
+        "source_sha256": "06611b61fff98152d46d33aaddfd245488dee0cca6111a00bf9d76891eb45bbf",
+        "published_sha256": "06611b61fff98152d46d33aaddfd245488dee0cca6111a00bf9d76891eb45bbf",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/device-models/functional-vdf-path.h": {
+        "source": "runtime/analysis/device-models/functional-vdf-path.h",
+        "source_sha256": "2db76c01c3e2f71957fc512a4bcab7b3b5514017d8f420b0f25b6f8c321a1de7",
+        "published_sha256": "2db76c01c3e2f71957fc512a4bcab7b3b5514017d8f420b0f25b6f8c321a1de7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/device-models/pin-peer-connection.inc": {
+        "source": "runtime/analysis/device-models/pin-peer-connection.inc",
+        "source_sha256": "7c1b8bbbaa3f3b4bde9d1a9f35e18ee9928ea86c2d99892d03c85b13f7b24c25",
+        "published_sha256": "7c1b8bbbaa3f3b4bde9d1a9f35e18ee9928ea86c2d99892d03c85b13f7b24c25",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/device-models/test-functional-vdf-bit-width.c": {
+        "source": "runtime/analysis/device-models/test-functional-vdf-bit-width.c",
+        "source_sha256": "dbb1bb6fc8767ef8751d336d9ea570ff48ba88510c095879435c0276a810db3d",
+        "published_sha256": "dbb1bb6fc8767ef8751d336d9ea570ff48ba88510c095879435c0276a810db3d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/device-models/test-pinmem-native-peer-connections.c": {
+        "source": "runtime/analysis/device-models/test-pinmem-native-peer-connections.c",
+        "source_sha256": "95f0da8a38b9877c84cf67644a53423c792217aa20de548e1cfc0745f2357a40",
+        "published_sha256": "95f0da8a38b9877c84cf67644a53423c792217aa20de548e1cfc0745f2357a40",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-camera-abi.h": {
+        "source": "runtime/analysis/functional-camera-abi.h",
+        "source_sha256": "81e1d4be23353998958c8287d38699dcd2ecbdce78eedd711e001f1b24da117e",
+        "published_sha256": "81e1d4be23353998958c8287d38699dcd2ecbdce78eedd711e001f1b24da117e",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-camera-bridge.c": {
+        "source": "runtime/analysis/functional-camera-bridge.c",
+        "source_sha256": "db0e1296553582da72a48eaffea88beae226ecf02fe435340ecf2057bc6aa23d",
+        "published_sha256": "db0e1296553582da72a48eaffea88beae226ecf02fe435340ecf2057bc6aa23d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-camera-bridge.h": {
+        "source": "runtime/analysis/functional-camera-bridge.h",
+        "source_sha256": "b2ee10b35c3d1eee2ed7c5851893f05653881e7c89a1745e253706b6337d93bb",
+        "published_sha256": "b2ee10b35c3d1eee2ed7c5851893f05653881e7c89a1745e253706b6337d93bb",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-ap-observer.c": {
+        "source": "runtime/analysis/functional-face-ap-observer.c",
+        "source_sha256": "8fd710f92dbac71bd0be6302b96845fa1f32c69c0056fc0cf827d18e08e77148",
+        "published_sha256": "8fd710f92dbac71bd0be6302b96845fa1f32c69c0056fc0cf827d18e08e77148",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-ap-observer.h": {
+        "source": "runtime/analysis/functional-face-ap-observer.h",
+        "source_sha256": "35cdbedf82f89e800f4fbd4f92f2cd9d8a70d0735395f170f7b93c1e49f2ae78",
+        "published_sha256": "35cdbedf82f89e800f4fbd4f92f2cd9d8a70d0735395f170f7b93c1e49f2ae78",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-dmm.c": {
+        "source": "runtime/analysis/functional-face-dmm.c",
+        "source_sha256": "a630463c017e958fb804e5e3d6596f6de49e03031b73b63bdc1e4878e2e9e58e",
+        "published_sha256": "a630463c017e958fb804e5e3d6596f6de49e03031b73b63bdc1e4878e2e9e58e",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-dmm.h": {
+        "source": "runtime/analysis/functional-face-dmm.h",
+        "source_sha256": "478863b0783dc037be9929858737f17ed7b03fbacc905bdb70221944ee6c0192",
+        "published_sha256": "478863b0783dc037be9929858737f17ed7b03fbacc905bdb70221944ee6c0192",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-native-ap.c": {
+        "source": "runtime/analysis/functional-face-native-ap.c",
+        "source_sha256": "6b41e318f8fd4c9ea76a9358589a5696b597b0aa4aa4b4c228b19f8e57e8486b",
+        "published_sha256": "6b41e318f8fd4c9ea76a9358589a5696b597b0aa4aa4b4c228b19f8e57e8486b",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-native-ap.h": {
+        "source": "runtime/analysis/functional-face-native-ap.h",
+        "source_sha256": "dd4bc3c2948eb9b9ea4f9344fedab89d8763e46684edc487d23a7f562fb40e29",
+        "published_sha256": "dd4bc3c2948eb9b9ea4f9344fedab89d8763e46684edc487d23a7f562fb40e29",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-proc.c": {
+        "source": "runtime/analysis/functional-face-proc.c",
+        "source_sha256": "83fc28bdda286a2831f158ad69182883d14ea540dada5f02d79d61b8b61525ff",
+        "published_sha256": "83fc28bdda286a2831f158ad69182883d14ea540dada5f02d79d61b8b61525ff",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-proc.h": {
+        "source": "runtime/analysis/functional-face-proc.h",
+        "source_sha256": "e1df05518eb9d7611c81e1221511e02d9d1cf141f01585e5ff3681668edcfbe3",
+        "published_sha256": "e1df05518eb9d7611c81e1221511e02d9d1cf141f01585e5ff3681668edcfbe3",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-registry.c": {
+        "source": "runtime/analysis/functional-face-registry.c",
+        "source_sha256": "89c909f897e526606b0ac21a351fe6f87216c276848fdb1275a7b1ee761288df",
+        "published_sha256": "89c909f897e526606b0ac21a351fe6f87216c276848fdb1275a7b1ee761288df",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-registry.h": {
+        "source": "runtime/analysis/functional-face-registry.h",
+        "source_sha256": "b764cfce391da866ce2844660137bb4fa39bdef4bfe9631267bb5b9b6ed352ad",
+        "published_sha256": "b764cfce391da866ce2844660137bb4fa39bdef4bfe9631267bb5b9b6ed352ad",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-runtime.c": {
+        "source": "runtime/analysis/functional-face-runtime.c",
+        "source_sha256": "9cb2b2e13b4fd82732e24c35044573d7d4d89e5390e3d5976ea8a786349ef4f6",
+        "published_sha256": "9cb2b2e13b4fd82732e24c35044573d7d4d89e5390e3d5976ea8a786349ef4f6",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-runtime.h": {
+        "source": "runtime/analysis/functional-face-runtime.h",
+        "source_sha256": "9f9db54acca7d957013d9bbbf60f3d3107f51a473d0d6cdf99fab131edda15ff",
+        "published_sha256": "9f9db54acca7d957013d9bbbf60f3d3107f51a473d0d6cdf99fab131edda15ff",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-sdk.c": {
+        "source": "runtime/analysis/functional-face-sdk.c",
+        "source_sha256": "5736d457ecaaddbb208d2454f9560a6da91bbb94bb4d7146a2007e2d68b93e9d",
+        "published_sha256": "5736d457ecaaddbb208d2454f9560a6da91bbb94bb4d7146a2007e2d68b93e9d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-sdk.h": {
+        "source": "runtime/analysis/functional-face-sdk.h",
+        "source_sha256": "1704ca56ba0150619a066e305967fae0353bf20c8b50223f31192422cb9b5082",
+        "published_sha256": "1704ca56ba0150619a066e305967fae0353bf20c8b50223f31192422cb9b5082",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-source-snapshot-abi.h": {
+        "source": "runtime/analysis/functional-face-source-snapshot-abi.h",
+        "source_sha256": "546d58e565f53e7ddef29579affdd781a733764b266dd534e8f68f6497754c55",
+        "published_sha256": "546d58e565f53e7ddef29579affdd781a733764b266dd534e8f68f6497754c55",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-source-snapshot.c": {
+        "source": "runtime/analysis/functional-face-source-snapshot.c",
+        "source_sha256": "061207aefc6e34d7f525286e642127ba1719cbaa52e7d84dd7af19cfa310dde2",
+        "published_sha256": "061207aefc6e34d7f525286e642127ba1719cbaa52e7d84dd7af19cfa310dde2",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-source-snapshot.h": {
+        "source": "runtime/analysis/functional-face-source-snapshot.h",
+        "source_sha256": "b42d760622bb70d91293717d727ea5c8aa3d15f68157e05c2aedeb022888f219",
+        "published_sha256": "b42d760622bb70d91293717d727ea5c8aa3d15f68157e05c2aedeb022888f219",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-transfer.c": {
+        "source": "runtime/analysis/functional-face-transfer.c",
+        "source_sha256": "c6695998075d72f8a68d7c98ed0e3fab7fe90a335e56d3fdab11e72bc33e2c3f",
+        "published_sha256": "c6695998075d72f8a68d7c98ed0e3fab7fe90a335e56d3fdab11e72bc33e2c3f",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-face-transfer.h": {
+        "source": "runtime/analysis/functional-face-transfer.h",
+        "source_sha256": "12f59fe4b6939b3d7d22bbf0ca119de9997dbf368d22b014723c94b5db2a5c35",
+        "published_sha256": "12f59fe4b6939b3d7d22bbf0ca119de9997dbf368d22b014723c94b5db2a5c35",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional-vdf-bit-width-abi.h": {
+        "source": "runtime/analysis/functional-vdf-bit-width-abi.h",
+        "source_sha256": "143a20f22a16aae41439ef59c5bdaac4d16dbd841b20602e043202c1356543d7",
+        "published_sha256": "143a20f22a16aae41439ef59c5bdaac4d16dbd841b20602e043202c1356543d7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional_camera_broker.py": {
+        "source": "runtime/analysis/functional_camera_broker.py",
+        "source_sha256": "b75d5be73cbd4ad02311f830fc4698148409008b250ac4147808d89f9d8431d2",
+        "published_sha256": "b75d5be73cbd4ad02311f830fc4698148409008b250ac4147808d89f9d8431d2",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/functional_face_source_snapshot.py": {
+        "source": "runtime/analysis/functional_face_source_snapshot.py",
+        "source_sha256": "018057afccd9b8a5a534e9a48d6e4ccc9ab94471c0dc5cc189210504687b7b7b",
+        "published_sha256": "018057afccd9b8a5a534e9a48d6e4ccc9ab94471c0dc5cc189210504687b7b7b",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/menu-observe.c": {
+        "source": "runtime/analysis/menu-observe.c",
+        "source_sha256": "27fb41f08d389c54beda4a9e97980c8edb8a71c7769f969ea2f7634e8c691ae9",
+        "published_sha256": "27fb41f08d389c54beda4a9e97980c8edb8a71c7769f969ea2f7634e8c691ae9",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/menu_live.py": {
+        "source": "runtime/analysis/menu_live.py",
+        "source_sha256": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
+        "published_sha256": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "source": "runtime/analysis/qemu-menu-probe.py",
+        "source_sha256": "877ab39e82f4ec2fe56a5589f38e5405437e4e9c03f2d8b3a9b368110c2bb6cc",
+        "published_sha256": "877ab39e82f4ec2fe56a5589f38e5405437e4e9c03f2d8b3a9b368110c2bb6cc",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/scratch/test_verify_hdmi_edge.py": {
+        "source": "runtime/analysis/scratch/test_verify_hdmi_edge.py",
+        "source_sha256": "131bfedac6467fb160ee55c0b2422ef06d05375ba8059c051b8b915277a8157f",
+        "published_sha256": "131bfedac6467fb160ee55c0b2422ef06d05375ba8059c051b8b915277a8157f",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/scratch/validate-unified-camera.py": {
+        "source": "runtime/analysis/scratch/validate-unified-camera.py",
+        "source_sha256": "b698df66d00722671c21678100162a464858001e5c0a2d1496748df0d24d60e4",
+        "published_sha256": "3a4c11e826e684ce54c70197440a911d681357eaa48ca0654d8c3405f75487f7",
+        "adapted": true
+      },
+      "runtime/analysis/scratch/verify_hdmi_edge.py": {
+        "source": "runtime/analysis/scratch/verify_hdmi_edge.py",
+        "source_sha256": "695e7091cf0cd9b1d269418abf2cd3eeb545842a4f977f140f93a9196baa5ff7",
+        "published_sha256": "695e7091cf0cd9b1d269418abf2cd3eeb545842a4f977f140f93a9196baa5ff7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-bit-width-core.c": {
+        "source": "runtime/analysis/test-functional-bit-width-core.c",
+        "source_sha256": "309d34f273d61ada75dc9fa5b3c257e7b1fbf1d8499fc06db4425b5a9e3b9168",
+        "published_sha256": "309d34f273d61ada75dc9fa5b3c257e7b1fbf1d8499fc06db4425b5a9e3b9168",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-camera-bridge.c": {
+        "source": "runtime/analysis/test-functional-camera-bridge.c",
+        "source_sha256": "53c82f15bcf6c37c8137aa463782bfc2465789ffdb49bab02967842c9c60d221",
+        "published_sha256": "53c82f15bcf6c37c8137aa463782bfc2465789ffdb49bab02967842c9c60d221",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-ap-observer.c": {
+        "source": "runtime/analysis/test-functional-face-ap-observer.c",
+        "source_sha256": "5f39b3b6c5fb65f13ef8c30257ac54be26200d41df7fbb52e66957e1504213d3",
+        "published_sha256": "5f39b3b6c5fb65f13ef8c30257ac54be26200d41df7fbb52e66957e1504213d3",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-dmm.c": {
+        "source": "runtime/analysis/test-functional-face-dmm.c",
+        "source_sha256": "8ff39fca176beeab2468c957022a5a43208c06b1554a4cafde1e1cf0735dcc33",
+        "published_sha256": "8ff39fca176beeab2468c957022a5a43208c06b1554a4cafde1e1cf0735dcc33",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-native-ap.c": {
+        "source": "runtime/analysis/test-functional-face-native-ap.c",
+        "source_sha256": "843a22b213f38196bcb75a8cef48da71aa4bb996a7b9b090a41325cd5f3fb726",
+        "published_sha256": "843a22b213f38196bcb75a8cef48da71aa4bb996a7b9b090a41325cd5f3fb726",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-native-command.c": {
+        "source": "runtime/analysis/test-functional-face-native-command.c",
+        "source_sha256": "edde92b5a59be28d3527ad6d0c41fe329969cc92a01c6a911d4af7efc4649de7",
+        "published_sha256": "edde92b5a59be28d3527ad6d0c41fe329969cc92a01c6a911d4af7efc4649de7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-proc-birth.c": {
+        "source": "runtime/analysis/test-functional-face-proc-birth.c",
+        "source_sha256": "54ae5ff5bb363c717692f28704b86e67b4a5ce626fafcfac2fdf810258a631ac",
+        "published_sha256": "54ae5ff5bb363c717692f28704b86e67b4a5ce626fafcfac2fdf810258a631ac",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-proc.c": {
+        "source": "runtime/analysis/test-functional-face-proc.c",
+        "source_sha256": "fe053bcfa484b8446a2e48de7bf47e3138783b8565cb86ba7a7d04b89bc4a04d",
+        "published_sha256": "fe053bcfa484b8446a2e48de7bf47e3138783b8565cb86ba7a7d04b89bc4a04d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-registry.c": {
+        "source": "runtime/analysis/test-functional-face-registry.c",
+        "source_sha256": "a8e1fed6a7e531f108460e8685ea9d7b57424e8a74cbcd44e89a5ad05ae02756",
+        "published_sha256": "a8e1fed6a7e531f108460e8685ea9d7b57424e8a74cbcd44e89a5ad05ae02756",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-runtime.c": {
+        "source": "runtime/analysis/test-functional-face-runtime.c",
+        "source_sha256": "9078fc4f2ff133f7a45b27001f7eb2f35995e219743ae516f00236de0afd7f51",
+        "published_sha256": "9078fc4f2ff133f7a45b27001f7eb2f35995e219743ae516f00236de0afd7f51",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-sdk-origin.c": {
+        "source": "runtime/analysis/test-functional-face-sdk-origin.c",
+        "source_sha256": "7f665eede53e09e0438e88c67e904fb583c90d679c045bb981c9ecc063106f24",
+        "published_sha256": "7f665eede53e09e0438e88c67e904fb583c90d679c045bb981c9ecc063106f24",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-sdk.c": {
+        "source": "runtime/analysis/test-functional-face-sdk.c",
+        "source_sha256": "2ae7aa4ab19062602afd44c82105696ee68eae013b5e57a8414282cfb41b2fd1",
+        "published_sha256": "2ae7aa4ab19062602afd44c82105696ee68eae013b5e57a8414282cfb41b2fd1",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-source-main.c": {
+        "source": "runtime/analysis/test-functional-face-source-main.c",
+        "source_sha256": "c1c0aff455f4ebdfd037cdf4f5c59ed2294616f36627daf19b03503f077dc098",
+        "published_sha256": "c1c0aff455f4ebdfd037cdf4f5c59ed2294616f36627daf19b03503f077dc098",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-source-snapshot.c": {
+        "source": "runtime/analysis/test-functional-face-source-snapshot.c",
+        "source_sha256": "2a9e7649e0f8e0743ad9bcb31319421b12d707e06e0ad2bbfdb414318eddfefb",
+        "published_sha256": "2a9e7649e0f8e0743ad9bcb31319421b12d707e06e0ad2bbfdb414318eddfefb",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-transfer.c": {
+        "source": "runtime/analysis/test-functional-face-transfer.c",
+        "source_sha256": "df500f189ff7c3111fc6de3ae0df0398966dc39f643e83f583e1634e933f70b7",
+        "published_sha256": "df500f189ff7c3111fc6de3ae0df0398966dc39f643e83f583e1634e933f70b7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test-functional-face-wiring.c": {
+        "source": "runtime/analysis/test-functional-face-wiring.c",
+        "source_sha256": "377e2ec81f6d2b066d698b1dde97c8c772afff80b4677f1333b7a2cd25d20204",
+        "published_sha256": "377e2ec81f6d2b066d698b1dde97c8c772afff80b4677f1333b7a2cd25d20204",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_final_graph_observer_wiring.py": {
+        "source": "runtime/analysis/test_final_graph_observer_wiring.py",
+        "source_sha256": "8d48e055e67c65ff2359c5be95568a27d01195ca3bd7113107d0395f845f9066",
+        "published_sha256": "8d48e055e67c65ff2359c5be95568a27d01195ca3bd7113107d0395f845f9066",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_background_wiring.py": {
+        "source": "runtime/analysis/test_functional_background_wiring.py",
+        "source_sha256": "0386ac8626a75d0e17887d182b334997820630ae4a44f919cbef6fbeeaa44a66",
+        "published_sha256": "0386ac8626a75d0e17887d182b334997820630ae4a44f919cbef6fbeeaa44a66",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_bit_width_core.py": {
+        "source": "runtime/analysis/test_functional_bit_width_core.py",
+        "source_sha256": "f8064cdf6fd61b71ccad2020f5205e4ac71b69f84d441af8b30b971c5ffb7a8c",
+        "published_sha256": "f8064cdf6fd61b71ccad2020f5205e4ac71b69f84d441af8b30b971c5ffb7a8c",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_camera_bridge.py": {
+        "source": "runtime/analysis/test_functional_camera_bridge.py",
+        "source_sha256": "84c147391ee8f28e085b459774dee0b4bbfb41de559250389bd6d20206787862",
+        "published_sha256": "84c147391ee8f28e085b459774dee0b4bbfb41de559250389bd6d20206787862",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_camera_profile.py": {
+        "source": "runtime/analysis/test_functional_camera_profile.py",
+        "source_sha256": "297287c5a746f65593cb0d33cdcf1474502feaf66dcaeaf389caa977241dd718",
+        "published_sha256": "297287c5a746f65593cb0d33cdcf1474502feaf66dcaeaf389caa977241dd718",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_ap_observer.py": {
+        "source": "runtime/analysis/test_functional_face_ap_observer.py",
+        "source_sha256": "791d76af43a25526e7dae85517924e53b82a61960d596cf50fd9a031791da24a",
+        "published_sha256": "791d76af43a25526e7dae85517924e53b82a61960d596cf50fd9a031791da24a",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_dmm.py": {
+        "source": "runtime/analysis/test_functional_face_dmm.py",
+        "source_sha256": "e204c01d7643404d2b66511887b0a4eeb54b50a0976c13c75a6c6cbc9c9a9270",
+        "published_sha256": "e204c01d7643404d2b66511887b0a4eeb54b50a0976c13c75a6c6cbc9c9a9270",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_native_ap.py": {
+        "source": "runtime/analysis/test_functional_face_native_ap.py",
+        "source_sha256": "2a6a5165ea5afa0fb9ee914646d5a9fba6214287f8c2e09a5458c855cccc140d",
+        "published_sha256": "2a6a5165ea5afa0fb9ee914646d5a9fba6214287f8c2e09a5458c855cccc140d",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_native_command.py": {
+        "source": "runtime/analysis/test_functional_face_native_command.py",
+        "source_sha256": "26fd48760c5d700c56cb606957be5184e70b8d18d3e775e83805c3d911664033",
+        "published_sha256": "26fd48760c5d700c56cb606957be5184e70b8d18d3e775e83805c3d911664033",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_proc.py": {
+        "source": "runtime/analysis/test_functional_face_proc.py",
+        "source_sha256": "12ffd7378fb68490153f0dd50a2a293a7b4e63dace566b6af81c6f4eb0251e25",
+        "published_sha256": "12ffd7378fb68490153f0dd50a2a293a7b4e63dace566b6af81c6f4eb0251e25",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_proc_birth.py": {
+        "source": "runtime/analysis/test_functional_face_proc_birth.py",
+        "source_sha256": "88fddf7cdd524995e906341b5be1d8dbfd4d49912f64ff416b77b0119311b9af",
+        "published_sha256": "88fddf7cdd524995e906341b5be1d8dbfd4d49912f64ff416b77b0119311b9af",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_registry.py": {
+        "source": "runtime/analysis/test_functional_face_registry.py",
+        "source_sha256": "dd1443d139b3fef75e68da3b29061cfefe4a1092c1c86a518b4f2252abbd4683",
+        "published_sha256": "dd1443d139b3fef75e68da3b29061cfefe4a1092c1c86a518b4f2252abbd4683",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_runtime.py": {
+        "source": "runtime/analysis/test_functional_face_runtime.py",
+        "source_sha256": "e87a409f076d49395048e58694bde3341af63c676c6c79e40bd0173671fe6987",
+        "published_sha256": "e87a409f076d49395048e58694bde3341af63c676c6c79e40bd0173671fe6987",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_sdk.py": {
+        "source": "runtime/analysis/test_functional_face_sdk.py",
+        "source_sha256": "af99b904159cebb1070b590118dcade54e2c28f25fe581d650163a912f879eb7",
+        "published_sha256": "af99b904159cebb1070b590118dcade54e2c28f25fe581d650163a912f879eb7",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_sdk_observer.py": {
+        "source": "runtime/analysis/test_functional_face_sdk_observer.py",
+        "source_sha256": "343d21aba5425953293aea20ec25f61ceeaec452bb7e8d9330dddc6079625336",
+        "published_sha256": "343d21aba5425953293aea20ec25f61ceeaec452bb7e8d9330dddc6079625336",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_sdk_origin.py": {
+        "source": "runtime/analysis/test_functional_face_sdk_origin.py",
+        "source_sha256": "ac979333d35f7f207c18bd4769914a055ef1bbb8c9c8bc131fd496f0d2f09cd0",
+        "published_sha256": "1be7a52775038809ddbe0b1c0da4d8518a62b076c51fd7b27da46c0d814e1f39",
+        "adapted": true,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_source_fault.py": {
+        "source": "runtime/analysis/test_functional_face_source_fault.py",
+        "source_sha256": "bd54565dcdaeaa5b89c1ff4b7e4308ffe5113fe66acb9abecbad8fdc237016c8",
+        "published_sha256": "bd54565dcdaeaa5b89c1ff4b7e4308ffe5113fe66acb9abecbad8fdc237016c8",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_source_main.py": {
+        "source": "runtime/analysis/test_functional_face_source_main.py",
+        "source_sha256": "dae2c3c070dd2e338e8afa6ebb2a89e7da71f08bc68ff9606eae47f7d14e6909",
+        "published_sha256": "01b41b084e9e033855ce3c1836fcd09f185a210342967702c4107458bc04e7f6",
+        "adapted": true,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_source_snapshot.py": {
+        "source": "runtime/analysis/test_functional_face_source_snapshot.py",
+        "source_sha256": "555f9791518a0f8693c2f009ddea62342af49e23d1376ae662df3db50e6af730",
+        "published_sha256": "43c2e97f517c5eba245b87766c372d18abf237af9697106ab7a275a8599524ac",
+        "adapted": true,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_transfer.py": {
+        "source": "runtime/analysis/test_functional_face_transfer.py",
+        "source_sha256": "fec2c4152dc59cc0b8344b13b7b582aef59aef23151ff3cc40681988d4486236",
+        "published_sha256": "fec2c4152dc59cc0b8344b13b7b582aef59aef23151ff3cc40681988d4486236",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_face_wiring.py": {
+        "source": "runtime/analysis/test_functional_face_wiring.py",
+        "source_sha256": "e0f62bf20133a511a0656f2ee6c0650a84e9f9c3e00ff016dcab774a1c9cda0b",
+        "published_sha256": "e0f62bf20133a511a0656f2ee6c0650a84e9f9c3e00ff016dcab774a1c9cda0b",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_jpeg_free_wiring.py": {
+        "source": "runtime/analysis/test_functional_jpeg_free_wiring.py",
+        "source_sha256": "5c88e46fbdfe3eb57a91c4a3ef807d1621481ef86c0ab8d9d057c694e8230af1",
+        "published_sha256": "5c88e46fbdfe3eb57a91c4a3ef807d1621481ef86c0ab8d9d057c694e8230af1",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_vdf_bit_width.py": {
+        "source": "runtime/analysis/test_functional_vdf_bit_width.py",
+        "source_sha256": "5b1b49af93bb1f1a80e523e41340cc4e0cfc034c4ff670697f7ba9f0f86754e2",
+        "published_sha256": "3afd6840f3356b95501c557a2c0791507da15e6c627fc614931aa31bdc075320",
+        "adapted": true,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_vdf_broker.py": {
+        "source": "runtime/analysis/test_functional_vdf_broker.py",
+        "source_sha256": "e25ec7cbe072e7836e8d185940cba4c2b002373ed6a6ff6c206e52b7ee9d8f63",
+        "published_sha256": "e25ec7cbe072e7836e8d185940cba4c2b002373ed6a6ff6c206e52b7ee9d8f63",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_functional_vdf_wiring.py": {
+        "source": "runtime/analysis/test_functional_vdf_wiring.py",
+        "source_sha256": "2e5bdb45f0a3c1e2e2404e78c1d9b7c405aee06138182bbd1ab1d32717d40e13",
+        "published_sha256": "2e5bdb45f0a3c1e2e2404e78c1d9b7c405aee06138182bbd1ab1d32717d40e13",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_natural_gtk_input_receipts.py": {
+        "source": "runtime/analysis/test_natural_gtk_input_receipts.py",
+        "source_sha256": "b715a14d8a705dffb113d9187e53ad4d10017cc8a396cdadade37e85b1da3d36",
+        "published_sha256": "b715a14d8a705dffb113d9187e53ad4d10017cc8a396cdadade37e85b1da3d36",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_pinmem_native_peer_connections.py": {
+        "source": "runtime/analysis/test_pinmem_native_peer_connections.py",
+        "source_sha256": "ec093038f9fad211a6fc456329b6c17d25b35383e07c9064bb63e46c2788c7d0",
+        "published_sha256": "ec093038f9fad211a6fc456329b6c17d25b35383e07c9064bb63e46c2788c7d0",
+        "adapted": false,
+        "matches_frozen_batch": true
+      },
+      "runtime/analysis/test_settings_checkpoint.py": {
+        "source": "runtime/analysis/test_settings_checkpoint.py",
+        "source_sha256": "116e67f445898ec56a6ab50ed85a098cc6cdd903eb6872a9c5b74e49d5a66696",
+        "published_sha256": "c8ccbbffe0a1f25c50b7e1b4ace0634efd0002401e936487650ce49eeec698fb",
+        "adapted": true
+      },
+      "runtime/analysis/test_settings_instance.py": {
+        "source": "runtime/analysis/test_settings_instance.py",
+        "source_sha256": "8ecc4a148654f065fc7bc5b474eb3053a50775ddb1e95d55fa9c70b2ada61b48",
+        "published_sha256": "1dc0021523eacfe194b686cb9cfab8d99673bb894a5fdb0db687d63b03f7c842",
+        "adapted": true
+      },
+      "runtime/analysis/test_shutter_route_trace.py": {
+        "source": "runtime/analysis/test_shutter_route_trace.py",
+        "source_sha256": "ada64e8237f7c45454d66e81f24ec4f96583a664db1ba4e0ecad95304cdfc16c",
+        "published_sha256": "ada64e8237f7c45454d66e81f24ec4f96583a664db1ba4e0ecad95304cdfc16c",
+        "adapted": false,
+        "matches_frozen_batch": false
+      }
+    },
+    "package_adaptations": [
+      "README.md",
+      "SOURCES.md",
+      "docs/tech/README.md",
+      "docs/tech/functional-source-and-display.md",
+      "report/camera-input-coverage/source-pins.json",
+      "report/disp-bit-width/README.md",
+      "report/functional-camera-core/README.md",
+      "report/functional-camera-evidence/README.md",
+      "report/functional-face-source-snapshot/README.md",
+      "report/functional-vdf-path/README.md",
+      "runtime/analysis/scratch/validate-unified-camera.py",
+      "runtime/analysis/test_settings_checkpoint.py",
+      "runtime/analysis/test_settings_instance.py",
+      "tools/public-model-tests.json",
+      "tools/test-public-models.py",
+      "tools/test_package_adapters.py",
+      "tools/test_public_models_runner.py",
+      "validation/2026-10-30-publication.json",
+      "validation/README.md"
+    ],
+    "original_AP_capture_verified": false,
+    "physical_ASIC_verified": false
   }
 }

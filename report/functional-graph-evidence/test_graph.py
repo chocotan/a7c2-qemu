@@ -1147,13 +1147,14 @@ class GraphEvidenceTests(unittest.TestCase):
     def test_exact_dependency_closure_and_current_source_required(self):
         frozen = current_dependencies()
         self.assertEqual(len(v.check_dependency_hashes(frozen)), len(v.FROZEN_DEPENDENCIES))
-        name = str(v.RUNTIME / 'scratch/verify_osd_edge.py')
-        wrong = dict(frozen); wrong[name] = '0' * 64
-        with self.assertRaisesRegex(ValueError, 'current/frozen dependency SHA differs'):
-            v.check_dependency_hashes(wrong)
-        del wrong[name]
-        with self.assertRaisesRegex(v.SourceMissing, 'missing frozen dependency'):
-            v.check_dependency_hashes(wrong)
+        for relative in ('scratch/verify_osd_edge.py', 'scratch/test_verify_hdmi_edge.py'):
+            name = str(v.RUNTIME / relative)
+            wrong = dict(frozen); wrong[name] = '0' * 64
+            with self.subTest(name=relative), self.assertRaisesRegex(ValueError, 'current/frozen dependency SHA differs'):
+                v.check_dependency_hashes(wrong)
+            del wrong[name]
+            with self.subTest(name=relative), self.assertRaisesRegex(v.SourceMissing, 'missing frozen dependency'):
+                v.check_dependency_hashes(wrong)
 
     def test_new_batch_cannot_use_old_ready_input_hash(self):
         with tempfile.TemporaryDirectory(prefix='HOST_TEST-graph-inputs-') as name:

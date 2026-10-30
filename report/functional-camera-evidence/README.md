@@ -1,5 +1,7 @@
 # Functional capture evidence checker
 
+当前公开增量增加[原API40源内容检查](../functional-face-source-snapshot/README.md)与[015e/OP12位宽事务](../disp-bit-width/README.md)。OP11使用独立source provider及token空间，不生成Core/frame proof；检查实际暂停窗口、完整源读取、分块/功能CP读回、原callback和退租。OP12要求真实RGB消费、完整168B/class7/proof kind4及独立成功115e的request-free/send/receive/ticket/free；它的proof result_bytes/result_fnv覆盖168B，不沿用旧kind4空结果规则。两份profile策略须类型和值完整匹配。复现当前公开host检查用仓库根的 `python3 -B tools/test-public-models.py`；下述前轮结果和工作区命令保留为历史资料。新增本包测试不证明原VM拍照录像或物理ASIC，`capture_verified=false`。
+
 `check_evidence.py` implements the positive content joins for the approved `virtual-functional-camera-v1` software RGB888 bus: original AP/SDK request → actual rendered/encoder-consumed frame → original MPR/Fsys → virtual SD → independent JPEG **and** H.264 MP4 decoding. It returns a structured verdict for a completed run and its current immutable batch. Missing or invalid evidence fails the relevant stage; there are no unconditional obsolete missing-contract markers or force flags.
 
 ## 3006 background initialization evidence (fresh formatter integration)

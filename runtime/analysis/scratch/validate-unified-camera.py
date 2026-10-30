@@ -50,7 +50,8 @@ COMPONENTS = ('virtual-jpeg-engine', 'virtual-jpeg-sos', 'virtual-jpeg-hardware'
               'functional-mpr-codec', 'functional-mpr-memory', 'functional-jpeg-codec',
               'functional-camera-evidence', 'functional-graph-evidence',
               'functional-vdf-path', 'functional-vdf-layout-stage', 'native-movie-write-trace', 'functional-cp-zoom',
-              'functional-histogram', 'functional-background-start')
+              'functional-histogram', 'functional-background-start',
+              'functional-face-source-snapshot', 'disp-bit-width')
 MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_cp_start_state_provider.py', 'test_cp_parameter_state.py',
                'test_cp_state_publication.py', 'test_cp_owned_state_profile.py',
@@ -67,7 +68,15 @@ MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_functional_vdf_wiring.py', 'test_functional_histogram.py', 'test_functional_histogram_wiring.py',
                'test_functional_background_start.py', 'test_functional_background_wiring.py',
                'test_functional_background_integration.py', 'test_virtual_hci.py',
-               'test_functional_vdf_integration.py', 'test_functional_cp_zoom.py',
+               'test_functional_face_dmm.py', 'test_functional_face_registry.py',
+               'test_functional_face_runtime.py', 'test_functional_face_wiring.py', 'test_functional_face_transfer.py',
+               'test_functional_face_ap_observer.py', 'test_functional_face_sdk_observer.py',
+               'test_functional_face_native_command.py', 'test_functional_face_native_ap.py', 'test_functional_face_proc.py',
+               'test_functional_face_proc_birth.py', 'test_functional_face_sdk.py', 'test_functional_face_sdk_origin.py',
+               'test_functional_face_source_snapshot.py', 'test_functional_face_source_fault.py', 'test_functional_face_source_main.py',
+               'scratch/test_verify_hdmi_edge.py',
+               'test_functional_vdf_integration.py', 'test_functional_bit_width_core.py', 'test_functional_vdf_bit_width.py',
+               'test_functional_cp_zoom.py',
                'test_natural_gtk_input_receipts.py', 'test_mode_wheel_probe.py',
                'test_menu_control.py', 'test_host_sd_guard.py', 'test_media_initial_write.py')
 
@@ -128,7 +137,7 @@ def main():
     runtime = digests(source_api['source_paths'](BASE))
     host = digests([*(Path(p) for p in baseline['host_profile_sources_before']), BASE / 'camera_ui.py',
                     BASE / 'build-functional-camera-model.py', BASE / 'functional_camera_broker.py',
-                    BASE / 'functional_camera_runner.py', BASE / 'initramfs_identity.py',
+                    BASE / 'functional_camera_runner.py', BASE / 'functional_face_source_snapshot.py', BASE / 'initramfs_identity.py',
                     BASE / 'check-natural-gtk-input.py'])
     observers = digests([*(Path(p) for p in baseline['observer_sources_before']),
                          BASE / 'snapshot-observer-sources.py', Path(__file__)])
