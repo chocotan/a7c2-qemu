@@ -58,8 +58,8 @@ def test_startup_timeout_preserves_unsafe_cleanup_and_watcher(tmp_path, monkeypa
     caught.value.hdmi_upm_watcher.log.close()
 
 
-@pytest.mark.parametrize('scenario', ['owned-namespace', 'host-only-listener', 'wrong-out-mount'])
-def test_listener_is_bound_in_owned_qemu_namespace(tmp_path, monkeypatch, scenario):
+@pytest.fixture
+def owned_qemu(tmp_path, monkeypatch):
     import socket
     run = tmp_path / 'run'
     run.mkdir()
@@ -74,12 +74,12 @@ def test_listener_is_bound_in_owned_qemu_namespace(tmp_path, monkeypatch, scenar
     (qemu / 'root').mkdir()
     other = tmp_path / 'other'
     other.mkdir()
-    (qemu / 'root/out').symlink_to(other if scenario == 'wrong-out-mount' else run)
+    (qemu / 'root/out').symlink_to(run)
     (qemu / 'fd/4').symlink_to('socket:[678]')
     table = 'Num RefCount Protocol Flags Type St Inode Path\n000: 2 0 00010000 0001 01 678 /out/' + w.SOCKET + '\n'
-    (qemu / 'net/unix').write_text(table if scenario != 'host-only-listener' else table.splitlines()[0] + '\n')
+    (qemu / 'net/unix').write_text(table)
     (proc / 'net').mkdir()
-    (proc / 'net/unix').write_text(table if scenario == 'host-only-listener' else table.splitlines()[0] + '\n')
+    (proc / 'net/unix').write_text(table.splitlines()[0] + '\n')
     executable = tmp_path / 'qemu-system-aarch64'
     executable.write_bytes(b'unit fixture, never executed')
     os.chmod(executable, 0o700)
@@ -99,14 +99,304 @@ def test_listener_is_bound_in_owned_qemu_namespace(tmp_path, monkeypatch, scenar
                                                 b'-gdb', ('unix:/out/' + w.SOCKET).encode()])
     monkeypatch.setattr(w, 'process_identity', identity)
     try:
-        if scenario == 'owned-namespace':
-            assert w.owned_config(run, 1234, TEXTS)['qemu_pid'] == 345
-        else:
-            with pytest.raises(ValueError, match='unique owned QEMU'):
-                w.owned_config(run, 1234, TEXTS)
+        yield types.SimpleNamespace(run=run, proc=proc, qemu=qemu, binary=executable, other=other, table=table)
     finally:
         server.close()
         os.close(directory)
+
+
+@pytest.mark.parametrize('scenario', ['owned-namespace', 'host-only-listener', 'wrong-out-mount'])
+def test_listener_is_bound_in_owned_qemu_namespace(owned_qemu, scenario):
+    fixture = owned_qemu
+    if scenario == 'host-only-listener':
+        (fixture.qemu / 'net/unix').write_text(fixture.table.splitlines()[0] + '\n')
+        (fixture.proc / 'net/unix').write_text(fixture.table)
+    elif scenario == 'wrong-out-mount':
+        (fixture.qemu / 'root/out').unlink()
+        (fixture.qemu / 'root/out').symlink_to(fixture.other)
+    if scenario == 'owned-namespace':
+        assert w.owned_config(fixture.run, 1234, TEXTS)['qemu_pid'] == 345
+    else:
+        with pytest.raises(ValueError, match='unique owned QEMU'):
+            w.owned_config(fixture.run, 1234, TEXTS)
+
+
+@pytest.fixture(params=(1, 2, 3))
+def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
+    fixture = owned_qemu
+    profile = w.scope_observer_profile
+    version = {1: profile.PROFILE, 2: profile.PROFILE_V2, 3: profile.PROFILE_V3}[request.param]
+    names = profile.SOURCE_SETS[version]
+    native = tmp_path / 'native'
+    base = native / 'runtime/analysis'
+    base.mkdir(parents=True)
+    source = profile.source_root(native, version)
+    source.mkdir(parents=True)
+    for name in names:
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'owned source ' + name.encode())
+    if version == profile.PROFILE_V3:
+        schema = source / 'log-schema-v3.json'
+        schema.write_text(json.dumps(dict(schema='readonly_scope_v3', profile=version)))
+        (source / 'source-contract-v3.json').write_text(json.dumps(dict(
+            schema='readonly_scope_source_contract_v3', profile=version, trace_schema='readonly_scope_v3',
+            trace_schema_sha256=profile.sha(schema), actual_build_source_names_required=list(names))))
+    header = native / 'source/build/qemu-SRBXNK/qemu-11.1.2/include/plugins/qemu-plugin.h'
+    header.parent.mkdir(parents=True)
+    header.write_bytes(b'owned API7 header')
+    library = tmp_path / 'scope-observer.so'
+    elf = bytearray(32)
+    elf[:6] = b'\x7fELF\x02\x01'
+    struct.pack_into('<HH', elf, 16, 3, 62)
+    library.write_bytes(elf)
+    receipt = tmp_path / 'scope-build.json'
+    data = dict(schema=version, plugin_api=7, readonly_imports_verified=True,
+        source_sha256={name: profile.sha(source / name) for name in names},
+        qemu_header_sha256=profile.sha(header), qemu_sha256=profile.sha(fixture.binary),
+        library=str(library), library_sha256=profile.sha(library))
+    if version in (profile.PROFILE_V2, profile.PROFILE_V3):
+        suffix = version[-2:]
+        data.update(trace_schema='readonly_scope_' + suffix,
+            trace_schema_sha256=data['source_sha256']['log-schema-' + suffix + '.json'],
+            source_contract_sha256=data['source_sha256']['source-contract-' + suffix + '.json'],
+            runtime_verified=False, capture_verified=False, physical_asic_compatibility_verified=False)
+    if version == profile.PROFILE_V3:
+        monkeypatch.setattr(profile, 'V3_QEMU_SHA256', profile.sha(fixture.binary))
+        monkeypatch.setattr(profile, 'V3_HEADER_SHA256', profile.sha(header))
+    receipt.write_text(json.dumps(data))
+    build = profile.validate_build(native, receipt, fixture.binary)
+    staged = fixture.run / 'readonly-scope-observer.so'
+    staged.write_bytes(library.read_bytes())
+    manifest = dict(readonly_scope_observer=dict(build, library=str(staged),
+        log=str(fixture.run / 'readonly-scope-trace.log')),
+        backup_transport=dict(binary=str(fixture.binary), binary_sha256=profile.sha(fixture.binary)),
+        files={str(path): profile.sha(path) for path in
+               (fixture.binary, receipt, staged, *(source / name for name in names))})
+    manifest_path = fixture.run / 'runtime-manifest.json'
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setattr(w, 'BASE', base)
+    monkeypatch.setattr(w, 'QEMU_SHA', 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02')
+    # Synthetic host bytes exercise the production guard without executing QEMU.
+    monkeypatch.setattr(w, 'READONLY_SCOPE_QEMU_SHA', profile.sha(fixture.binary))
+    return types.SimpleNamespace(**vars(fixture), native=native, source=source, header=header,
+        library=library, staged=staged, receipt=receipt, manifest=manifest, manifest_path=manifest_path)
+
+
+def test_reviewed_qemu_pins_remain_exact_and_distinct():
+    assert w.QEMU_SHA == 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+    assert w.READONLY_SCOPE_QEMU_SHA == '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
+
+
+def test_receipt_reader_imports_from_its_own_base_without_pythonpath():
+    code = '''import importlib.util, sys
+from pathlib import Path
+path=Path(sys.argv[1])
+assert str(path.parent) not in sys.path
+spec=importlib.util.spec_from_file_location('isolated_receipt_reader',path)
+module=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+assert Path(module.scope_observer_profile.__file__).resolve()==path.with_name('scope_observer_profile.py')
+'''
+    result = subprocess.run([sys.executable, '-I', '-B', '-c', code, str(Path(w.__file__).resolve())],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+
+
+def test_v2_scope_schema_metadata_cannot_differ_from_validated_receipt(scope_owned):
+    f = scope_owned
+    scope = f.manifest['readonly_scope_observer']
+    if scope['profile'] == w.scope_observer_profile.PROFILE:
+        assert 'trace_schema' not in scope
+        return
+    original = dict(scope)
+    for key, value in (('trace_schema', 'readonly_scope_v1'), ('trace_schema_sha256', '0' * 64),
+                       ('source_contract_sha256', '0' * 64)):
+        scope[key] = value
+        f.manifest_path.write_text(json.dumps(f.manifest))
+        with pytest.raises(ValueError, match=scope['profile'][-2:] + ' manifest schema binding changed'):
+            w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+        scope[key] = original[key]
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    assert config['readonly_scope_observer']['profile'] == original['profile']
+    assert w.revalidate(config) == config
+
+
+def test_v3_scope_manifest_uses_selected_actual_new_root_and_no_alias_or_old_root_fallback(scope_owned):
+    f = scope_owned
+    scope = f.manifest['readonly_scope_observer']
+    if scope['profile'] != w.scope_observer_profile.PROFILE_V3:
+        return
+    config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    bound = config['readonly_scope_observer']
+    assert bound['source_sha256'] == {name: w.scope_observer_profile.sha(f.source / name)
+                                     for name in w.scope_observer_profile.SOURCE_NAMES_V3}
+    assert len(bound['source_sha256']) == 9
+    assert bound['trace_schema_sha256'] == w.scope_observer_profile.sha(f.source / 'log-schema-v3.json')
+    for alias in ('schema_sha256', 'log_schema_sha256', 'v3_schema_sha256', 'source_root', 'Source_root', 'sourceDependencyFrozen'):
+        scope[alias] = bound['trace_schema_sha256']
+        f.manifest_path.write_text(json.dumps(f.manifest))
+        with pytest.raises(ValueError, match='schema digest/root alias'):
+            w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+        del scope[alias]
+    old_root = f.native / 'report/2026-10-30-qemu-readonly-scope-observer'
+    for name in bound['source_sha256']:
+        digest = f.manifest['files'].pop(str(f.source / name))
+        f.manifest['files'][str(old_root / name)] = digest
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    with pytest.raises(ValueError, match='manifest.files'):
+        w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+
+
+def test_explicit_scope_receipt_returns_actual_owned_exe_and_default_stays_closed(scope_owned):
+    f = scope_owned
+    with pytest.raises(ValueError, match='actual running QEMU'):
+        w.owned_config(f.run, 1234, TEXTS, MAILBOX)
+    config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    assert config['running_QEMU_sha256'] == w.scope_observer_profile.sha(f.qemu / 'exe')
+    assert config['running_QEMU_sha256'] != w.QEMU_SHA
+    assert config['readonly_scope_observer']['qemu_binary'] == str(f.binary)
+    assert config['readonly_scope_observer']['build_receipt'] == str(f.receipt)
+    assert config['readonly_scope_observer']['staged_library'] == str(f.staged)
+    assert config['readonly_scope_observer']['identity_binding'] == 'unverified'
+    assert config['readonly_scope_observer']['capture_verified'] is False
+    assert w.revalidate(json.loads(json.dumps(config))) == config
+    f.manifest['unrelated_runtime_progress'] = 'may change'
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    assert w.revalidate(config) == config
+
+
+@pytest.mark.parametrize('mutation', [
+    'missing-scope', 'missing-profile', 'wrong-profile', 'unknown-exe', 'old-with-receipt',
+    'receipt', 'receipt-reference', 'staged-library', 'original-library', 'source', 'header',
+    'metadata-header', 'metadata-source', 'metadata-qemu', 'metadata-library', 'metadata-receipt',
+    'metadata-identity', 'metadata-capture', 'metadata-physical', 'metadata-log',
+    'binary-binding', 'symlink-binary', 'files-binary', 'files-receipt', 'files-library', 'files-source'])
+def test_scope_admission_rejects_unbound_or_changed_assets(scope_owned, monkeypatch, mutation):
+    f = scope_owned
+    scope = f.manifest['readonly_scope_observer']
+    if mutation == 'missing-scope':
+        del f.manifest['readonly_scope_observer']
+    elif mutation == 'missing-profile':
+        del scope['profile']
+    elif mutation == 'wrong-profile':
+        scope['profile'] = 'other'
+    elif mutation == 'unknown-exe':
+        f.binary.write_bytes(b'unknown actual executable')
+    elif mutation == 'old-with-receipt':
+        monkeypatch.setattr(w, 'QEMU_SHA', w.READONLY_SCOPE_QEMU_SHA)
+        monkeypatch.setattr(w, 'READONLY_SCOPE_QEMU_SHA', '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4')
+        assert w.owned_config(f.run, 1234, TEXTS)['running_QEMU_sha256'] == w.QEMU_SHA
+    elif mutation in ('receipt', 'staged-library', 'original-library', 'source', 'header'):
+        path = {'receipt': f.receipt, 'staged-library': f.staged, 'original-library': f.library,
+                'source': f.source / 'late-sites.inc', 'header': f.header}[mutation]
+        path.write_bytes(path.read_bytes() + b' changed')
+    elif mutation == 'receipt-reference':
+        other = f.receipt.with_name('different-receipt.json')
+        other.write_bytes(f.receipt.read_bytes())
+        scope['build_receipt'] = str(other)
+        f.manifest['files'][str(other)] = w.scope_observer_profile.sha(other)
+    elif mutation.startswith('metadata-'):
+        key = {'metadata-header': 'qemu_header_sha256', 'metadata-source': 'source_sha256',
+               'metadata-qemu': 'qemu_sha256', 'metadata-library': 'library_sha256',
+               'metadata-receipt': 'build_receipt_sha256', 'metadata-identity': 'identity_binding',
+               'metadata-capture': 'capture_verified', 'metadata-physical': 'physical_asic_compatibility_verified',
+               'metadata-log': 'log'}[mutation]
+        scope[key] = {} if key == 'source_sha256' else 0 if key in (
+            'capture_verified', 'physical_asic_compatibility_verified') else '0' * 64
+    elif mutation == 'binary-binding':
+        f.manifest['backup_transport']['binary_sha256'] = '0' * 64
+    elif mutation == 'symlink-binary':
+        alias = f.binary.with_name('alias-qemu')
+        alias.symlink_to(f.binary)
+        f.manifest['backup_transport']['binary'] = str(alias)
+        f.manifest['files'][str(alias)] = w.READONLY_SCOPE_QEMU_SHA
+    else:
+        path = {'files-binary': f.binary, 'files-receipt': f.receipt, 'files-library': f.staged,
+                'files-source': f.source / 'build-plugin.sh'}[mutation]
+        f.manifest['files'][str(path)] = '0' * 64
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    with pytest.raises(ValueError):
+        w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+
+
+def test_revalidation_rejects_even_a_valid_rebound_receipt(scope_owned):
+    f = scope_owned
+    config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    f.receipt.write_bytes(f.receipt.read_bytes() + b' ')
+    new_sha = w.scope_observer_profile.sha(f.receipt)
+    f.manifest['readonly_scope_observer']['build_receipt_sha256'] = new_sha
+    f.manifest['files'][str(f.receipt)] = new_sha
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    assert w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)['readonly_scope_observer']['build_receipt_sha256'] == new_sha
+    with pytest.raises(ValueError, match='binding changed'):
+        w.revalidate(config)
+
+
+def test_revalidation_retains_optional_plan_binding_and_rejects_changes(scope_owned):
+    f = scope_owned
+    f.manifest['readonly_scope_observer']['plan_binding'] = {'nonce': 123, 'batch_ready_sha256': '1' * 64}
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    assert config['readonly_scope_observer']['plan_binding'] == f.manifest['readonly_scope_observer']['plan_binding']
+    assert w.revalidate(config) == config
+    f.manifest['readonly_scope_observer']['plan_binding']['nonce'] = 124
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    with pytest.raises(ValueError, match='binding changed'):
+        w.revalidate(config)
+    f.manifest['readonly_scope_observer']['plan_binding'] = False
+    f.manifest_path.write_text(json.dumps(f.manifest))
+    with pytest.raises(ValueError, match='plan binding must be an object'):
+        w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+
+
+def test_start_generated_gdb_revalidation_and_detach_keep_scope_binding(scope_owned, monkeypatch):
+    f = scope_owned
+    calls, launches, recoveries = [], [], []
+    validate = w.scope_observer_profile.validate_build
+    def validate_build(*args):
+        calls.append(args)
+        return validate(*args)
+    monkeypatch.setattr(w.scope_observer_profile, 'validate_build', validate_build)
+    monkeypatch.setattr(w.shutil, 'which', lambda _: '/owned-gdb')
+    child = types.SimpleNamespace(returncode=None, poll=lambda: child.returncode)
+    def launch(*args, **kwargs):
+        launches.append(args)
+        w.publish_json(f.run, w.PREFIX + '-ready.json', dict(connected=True, armed=True, context=w.context(TEXTS)))
+        return child
+    monkeypatch.setattr(w.subprocess, 'Popen', launch)
+    watcher = w.start(f.run, 1234, TEXTS, MAILBOX, scope_build_receipt=f.receipt)
+    config_path = f.run / (w.PREFIX + '-config.json')
+    config_raw = config_path.read_bytes()
+    config_sha = w.hashlib.sha256(config_raw).hexdigest()
+    script = (f.run / (w.PREFIX + '.gdb')).read_text()
+    assert f'sys.path.insert(0, {str(w.BASE)!r})' in script
+    assert f'config_sha256={config_sha!r}' in script
+    class AfterValidation(Exception):
+        pass
+    def tracker(*args):
+        raise AfterValidation()
+    monkeypatch.setitem(sys.modules, 'gdb', types.SimpleNamespace())
+    monkeypatch.setattr(w, 'Correlator', tracker)
+    with pytest.raises(AfterValidation):
+        w.gdb_main(config_path, config_sha256=config_sha)
+    config_path.write_bytes(config_raw + b' ')
+    with pytest.raises(ValueError, match='configuration changed'):
+        w.gdb_main(config_path, config_sha256=config_sha)
+    config_path.write_bytes(config_raw)
+    child.returncode = 0
+    (f.run / (w.PREFIX + '-result.json')).write_text('{"detached": false}')
+    def recover(command, **kwargs):
+        recoveries.append(command)
+        assert child.poll() is not None
+        assert command.count('target remote ' + w.SOCKET) == 1
+        return types.SimpleNamespace(returncode=0, stdout=b'HDMI_UPM_DETACHED')
+    monkeypatch.setattr(w.subprocess, 'run', recover)
+    assert watcher.stop()['safe_to_close'] is True
+    assert len(launches) == len(recoveries) == 1
+    assert calls == [(f.native, f.receipt, f.binary)] * 4
+    assert watcher.config['running_QEMU_sha256'] == w.READONLY_SCOPE_QEMU_SHA
 
 
 T = 0xffffff8002000000

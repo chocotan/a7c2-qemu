@@ -1,6 +1,27 @@
 # 本包验证记录
 
-## 当前公开代码的验证范围
+## 10 月 31 日公开包实测
+
+选择性同步已验证的 `arzj0n5v` 源码后，主会话冻结公开树并完成统一验包：
+
+| 范围 | 实际结果 | 边界 |
+| --- | --- | --- |
+| 依赖、根脚本同步、离线源码 | 全部返回 0；三段 QEMU patch 的 before/after 与 DMA/ATU/PCI 暂存摘要通过 | 只核源文件与依赖，不构建或启动系统 QEMU |
+| asset-free/build-free host suite | **302 passed / 34 skipped / 76 subtests passed** | 跳过项为官方资产、构建、GTK 显示或显式 startup baseline 条件 |
+| 219 模块公开软件模型 suite | **7871 passed / 107 skipped / 9998 subtests passed** | 跳过项为原 Sony ABI/API、外部 QEMU/原件或不分发的同次运行证据；逐项理由入收据 |
+| 测试过程源身份 | **2352 个公开文件前后不变**，测试前 2351 项 checksum 全匹配；`git diff --check` 通过 | 测试后新增发布收据和文档链接，另仅去掉 3 个测试文件的末尾空行并刷新来源／校验清单；运行代码与全部测试 AST 不变 |
+
+实际命令、日志摘要、JUnit 摘要及完整跳过理由见[10 月 31 日公开包收据](2026-10-31-publication.json)。研究侧的 9070/10006 仍只作来源证明，不与本包结果混加。本次没有运行原 Sony 系统 VM、GUI 或实机，没有在本包重做原 ABI/API，**原 JPEG/MP4 成片、`capture_verified` 和物理 ASIC 兼容性仍未通过**。下方“文档移交未测”描述原文档代理阶段，不覆盖本节后续实测。
+
+## 10 月 31 日研究进展摘要
+
+**原固件 JPG/MP4 尚未完成，`capture_verified=false`；物理 ASIC 兼容性独立未验证。** [当前进度](../docs/tech/2026-10-31-current-progress.md)按显示、输入、成像、编码与存储列出功能和阻塞；[进度 JSON](2026-10-31-progress.json)沿用既有摘要 schema，固定研究来源与验收范围。
+
+最新已验研究快照 `unified-camera-arzj0n5v` 完整通过 **9070 tests / 10006 subtests、225 模块/1162 唯一输入**、严格 C/SAN、host/guest 构建、双原 ABI 及独立全部内容读回。随后对原 run64 的一次内容复核仍 **INCOMPLETE / rc1**：seq3 覆盖已恢复，但控制提交记录分帧和研究工具的原模块只读核对仍阻塞；原正式 capture/graph FAIL 保留，卡仍只有数据库/XML。历史同次运行的 514304 B AP 源数据与软件显示配置消费也不能提升为 CMOS 拍摄或原媒体保存。
+
+这是研究快照摘要。本次文档更新仅检查文档链接、JSON 和差异，没有运行完整 host suite、VM、GUI 或原拍摄验收。**9070/10006 不是本公开包测试数量**，冻结后源码修补与本轮公开源码移交仍需独立集成、验证和收据；下方 10 月 30 日发布结果保留其当时范围。原始研究收据、固件、私有配置、卡/guest 和日志不随摘要分发。
+
+## 10 月 30 日公开代码的验证范围
 
 本次移交原API40源数据读取、功能CP完整读回和015e位宽配置的真实RGB消费/独立115e生命周期；实现边界见[当前进展](../docs/tech/functional-source-and-display.md)。实际命令、返回码、host测试结果、明确跳过项和来源身份统一记录在[本次发布收据](2026-10-30-publication.json)。
 
@@ -8,7 +29,7 @@
 
 ## 上一轮发布验证（历史保留）
 
-**原固件 JPG/MP4 尚未完成，`capture_verified=false`。** [当前进度报告](../docs/tech/2026-10-29-current-progress.md)提供功能矩阵、阶段时间线、复现入口与下一缺口；[机器可读摘要](2026-10-29-progress.json)固定完整基线SHA和最新原生负例。本次实际执行了研究整批及公开包host/适配测试，未运行新的系统VM。
+**原固件 JPG/MP4 尚未完成，`capture_verified=false`。** [10 月 29 日历史报告](../docs/tech/2026-10-29-current-progress.md)提供当时的功能矩阵、阶段时间线、复现入口与下一缺口；[历史摘要](2026-10-29-progress.json)固定当时完整基线 SHA 和原生负例。本轮实际执行了研究整批及公开包 host/适配测试，未运行新的系统 VM。
 
 | 验证层 | 最近已核结果 | 不能据此声明 |
 | --- | --- | --- |

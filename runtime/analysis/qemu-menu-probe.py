@@ -14,7 +14,7 @@ import tempfile
 import time
 import signal
 import sys
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 from gpe_captures import raster_sources
 from headless_osd_capture import capture as capture_headless_osd
 from initramfs_identity import verify_image
@@ -661,7 +661,8 @@ functional_camera = None
 if functional_camera_profile:
     from functional_camera_runner import prepare as prepare_functional_camera
     functional_camera = prepare_functional_camera(functional_camera_profile, base, out,
-        Path(env['QEMU_SYSTEM_DIR']) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64'))
+        Path(env['QEMU_SYSTEM_DIR']) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64'),
+        scope_build_receipt=env.get('A7C2_SCOPE_OBSERVER_BUILD') or None)
 
 cp_background_identity=None
 if cp_background:
@@ -669,7 +670,13 @@ if cp_background:
     cp_background_identity=verify_image(Path(command[-1]),{
         'cp/cpapp-b.bin':'f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428'})
 
+from scope_observer_profile import (prepare as prepare_scope_observer,
+                                    record_exit as record_scope_exit,
+                                    source_root as scope_source_root)
+scope_observer = prepare_scope_observer(base.parents[1], env, out)
+
 manifest = {'probe_args': vars(args).copy(), 'settle_seconds': int(os.environ.get('MENU_SETTLE_SECONDS', '90')),
+            'readonly_scope_observer':scope_observer,
             'backup_sync_profile':backup_sync or None,
             'backup_transport':backup_profile_receipt,
             'backup_original_cp_executed':False,
@@ -807,6 +814,7 @@ manifest['probe_args']['initramfs_file'] = str(args.initramfs_file) if args.init
 if functional_camera is not None:
     manifest['functional_camera_runtime'] = functional_camera.receipt('preflight')
 for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_profile.py',
+             base / 'scope_observer_profile.py',
              base / 'menu-observe.c', base / 'menu-observe.so',
              base / 'menu-regs.c', base / 'menu-root/simulation/menu-regs', base / 'menu-readmem.c',
              base / 'capid-service.c', base / 'capid-service.h',
@@ -875,6 +883,11 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'menu-root/usr/lib/libgpe.so', base / 'menu-root/usr/lib/libupdaterufp.so',
              Path(env.get('QEMU_SYSTEM_DIR', str(base.parent / 'sources/qemu-11.1.2/build-sony-ui'))) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64')]:
     if path.is_file():
+        manifest['files'][str(path)] = sha256_file(path)
+if scope_observer is not None:
+    for path in (Path(scope_observer['build_receipt']), Path(scope_observer['library']),
+                 *(scope_source_root(base.parents[1], scope_observer['profile']) / name
+                   for name in scope_observer['source_sha256'])):
         manifest['files'][str(path)] = sha256_file(path)
 if functional_camera is not None:
     for path in (base/'functional_camera_runner.py', base/'functional_camera_broker.py',
@@ -1013,16 +1026,18 @@ if manifest['rc_board_profile']:
     manifest['rc_reference_build']=receipt
     (out/'rc-reference-build.json').write_text(json.dumps(receipt,indent=2)+'\n')
 (out / 'runtime-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-with (out / "console.log").open("a" if live_fd else "w") as console:
+with (out / "console.log").open("a" if live_fd else "w") as console, ExitStack() as qmp_resources:
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=console,
                             stderr=subprocess.STDOUT, env=env,
                             pass_fds=tuple(fd for fd in (host_sd_fd,directory_sd_fd) if fd is not None))
     early_media_watch=None
+    qmp_quit_attempted=[False]
     try:
         if media_init_watch:
             from media_initial_write import EarlyWatch
             early_media_watch=EarlyWatch(out,manifest['host_control_owner_pid'],proc)
-        with socket.socket(socket.AF_UNIX) as sock:
+        # The outer guarded teardown still needs QMP; release its stream/socket afterwards.
+        with nullcontext(qmp_resources.enter_context(socket.socket(socket.AF_UNIX))) as sock:
             sock.settimeout(15)
             deadline = time.monotonic() + 8
             while True:
@@ -1034,7 +1049,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                     if proc.poll() is not None or time.monotonic() > deadline:
                         raise RuntimeError("QMP unavailable; inspect console.log")
                     time.sleep(0.1)
-            with sock.makefile("rwb") as stream:
+            with nullcontext(qmp_resources.enter_context(sock.makefile("rwb"))) as stream:
                 if "QMP" not in json.loads(stream.readline()):
                     raise RuntimeError("Unexpected QMP greeting")
 
@@ -1052,14 +1067,25 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
                         message = {"execute": name}
                         if arguments:
                             message['arguments'] = arguments
-                        stream.write((json.dumps(message) + "\n").encode())
-                        stream.flush()
-                        while True:
-                            result = json.loads(stream.readline())
-                            if "error" in result:
-                                raise RuntimeError(result["error"])
-                            if "return" in result:
-                                return result
+                        if name == 'quit':
+                            if qmp_quit_attempted[0]:
+                                raise RuntimeError('QMP quit already attempted; do not resend')
+                            # A failed write/flush may have sent bytes; never retry this quit.
+                            qmp_quit_attempted[0]=True
+                        try:
+                            stream.write((json.dumps(message) + "\n").encode())
+                            stream.flush()
+                            while True:
+                                result = json.loads(stream.readline())
+                                if "error" in result:
+                                    raise RuntimeError(result["error"])
+                                if "return" in result:
+                                    return result
+                        except Exception as error:
+                            if name == 'quit' and (host_sd_fd is not None or directory_sd_fd is not None):
+                                (out/'host-sd-quit-error.json').write_text(json.dumps({'error':str(error),
+                                    'force_kill_authorized':False})+'\n')
+                            raise
 
                 qmp("qmp_capabilities")
                 if functional_camera is not None:
@@ -2312,20 +2338,20 @@ with (out / "console.log").open("a" if live_fd else "w") as console:
             from host_sd_guard import guard_shutdown as guard_host_sd
             guard_host_sd(proc,out,host_sd_export_verified[0])
         if proc.poll() is None:
-            if host_sd_fd is not None or directory_sd_fd is not None:
-                try:qmp('quit')
-                except Exception as error:
-                    (out/'host-sd-quit-error.json').write_text(json.dumps({'error':str(error),
-                        'force_kill_authorized':False})+'\n')
-                    raise RuntimeError('Host-backed SD QMP quit failed; retain VM, do not terminate sandbox') from error
-            else:proc.terminate()
+            if not qmp_quit_attempted[0]:
+                if host_sd_fd is not None or directory_sd_fd is not None:
+                    try:qmp('quit')
+                    except Exception as error:
+                        raise RuntimeError('Host-backed SD QMP quit failed; retain VM, do not terminate sandbox') from error
+                else:proc.terminate()
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                if host_sd_fd is not None or functional_camera is not None:
+                if host_sd_fd is not None or directory_sd_fd is not None or functional_camera is not None:
                     raise RuntimeError('Owned camera VM still running; retain lease, never SIGKILL')
                 proc.kill()
                 proc.wait(timeout=5)
+        record_scope_exit(out, scope_observer, proc)
 def convert_screens(run_dir):
     """Candidate RGB565 interpretations only: neither display use nor pixel format is verified."""
     try:

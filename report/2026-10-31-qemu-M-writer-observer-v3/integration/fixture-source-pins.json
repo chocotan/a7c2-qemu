@@ -1,0 +1,10 @@
+{
+  "integration/fixture.S": "be6e238482238ff09958ebb1481922aca5cff18a3d9f030aacb26a2c805eb9c5",
+  "integration/link.ld": "46d31bddfc213ed2c6b0da61a9d78534369e70aafc4dd966edaac3409466049e",
+  "integration/run_fixture.py": "1fa17058616ec1df96fe5213741195c53585d778023bee5cb294f5d508308e5f",
+  "integration/test_fixture_driver.py": "e14a9aadae1b52fe0bfbabb4ea15a5beb4313b5820fdc2d72d497eb15234bd5a",
+  "integration/test_actual_scope_plugin.py": "37dd264a845cd11e9c812aae7901c06fb088a338820a026c6a251e35d86427b5",
+  "integration/scope_trace_checks.py": "a6804ac5a3a3299ec386b9aa0dfc5bdc3d2562eabeaf48f72185dcad302297e8",
+  "integration/test_scope_trace_checks.py": "16fbc91ed15eb5359e42370f1206b971e9af9dd06f963f4c0cb752c698d807a0",
+  "integration/scope_trace_checks_v3.py": "b8a6b243a23d9da3e2e9adf4e8a9b652116d7f66276d132364cb112e6a8a4d13"
+}

@@ -1,0 +1,88 @@
+{
+  "scope": "public-source contract and explicit functional software policy; not physical ASIC or native capture acceptance",
+  "source_contract": {
+    "request_destination": "0x92840747",
+    "request_hex": "0d205e010a0001800000",
+    "request_bytes": 10,
+    "source_request_selector_byte": 8,
+    "source_request_canonical_high_byte": 0,
+    "name": "VDF::VdfDisplayCmdSetLineValidBitWidth",
+    "internal": "2001:011e -> selector4/9059081b:2001:f039",
+    "original_success_reply_hex": "0d205e110c00018000005900",
+    "internal_success_status": 0,
+    "original_success_status_u32": "0x00590000",
+    "reply_body_kind": "u32 converted status, not selector echo",
+    "physical_selector0_depth_verified": false,
+    "lower_f039_effect_verified": false,
+    "event3b_actual_producer_verified": false
+  },
+  "source_evidence": {
+    "RESULT.md": {
+      "project_relative_path": "analysis/scratch/functional-bb015e-source/RESULT.md",
+      "sha256": "0e7522b41eb9c9a72f2810b8697773ae4c7be935ae1bf7704f1addd31e5310b4"
+    },
+    "FIELDS.json": {
+      "project_relative_path": "analysis/scratch/functional-bb015e-source/FIELDS.json",
+      "sha256": "96afb5b1d84e75903a0fbcf44011d51b122bf3d97f5fa04ab847b4e228d1a185"
+    },
+    "verify.py": {
+      "project_relative_path": "analysis/scratch/functional-bb015e-source/verify.py",
+      "sha256": "20112e4757fe9b96cb2de9aeb0c59b09cee2b2a847e5b510a00d100df481104f"
+    }
+  },
+  "explicit_functional_policy": {
+    "profile": "virtual-functional-camera-v1",
+    "supported_selectors": [
+      0
+    ],
+    "software_output_bus": "RGB888-u8-components",
+    "opcode": 12,
+    "input_bytes": 8,
+    "result_bytes": 168,
+    "result_class": 7,
+    "result_config_offset": 160,
+    "proof_consumer_kind": 4,
+    "proof_result_bytes": 168,
+    "requires_prior_initialized_active_route": [
+      640,
+      480,
+      1920
+    ],
+    "actual_consumption_before_completion": [
+      "render",
+      "independent_RGB_sink_readback",
+      "retire",
+      "independent_config8_readback",
+      "configuration_commit",
+      "original_request_free",
+      "independent_original115e_send",
+      "original_sender_receive_ticket_and_free"
+    ],
+    "preserves": [
+      "Config48",
+      "old_display_banks",
+      "BB_five_banks",
+      "histogram",
+      "encoded_counters"
+    ],
+    "software_policy_is_original_physical_mapping": false
+  },
+  "validation": {
+    "core_and_bridge_target_delivered": true,
+    "guest_real_core_combination_delivered": true,
+    "formal_content_target_delivered": true,
+    "joint_regression": {
+      "returncode": 0,
+      "tests_passed": 1256,
+      "subtests_passed": 6966,
+      "modules": 17,
+      "frozen_inputs": 880,
+      "changed": [],
+      "receipt_sha256": "4247b1b216b2c568b16bfd520c3db411b595d2ba0d7d1e14d9f970383b32d8fd"
+    },
+    "new_complete_frozen_batch": "not-yet-accepted-at-documentation-freeze",
+    "new_native_acceptance": "not_started"
+  },
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false
+}

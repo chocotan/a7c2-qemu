@@ -311,6 +311,7 @@ import ast, json, os, signal, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import functional_camera_runner as runner
+from scope_observer_profile import record_exit as record_scope_exit
 import menu_live
 run = Path(sys.argv[2])
 runner.transport.RUNS = run.parent
@@ -347,6 +348,7 @@ class Broker:
         return safe
 instance.broker = Broker()
 functional_camera = instance
+scope_observer = None
 functional_camera_profile = runner.FUNCTIONAL_CAMERA_PROFILE
 resize_mmio_watch = False
 probe = ast.parse((Path(sys.argv[1])/'qemu-menu-probe.py').read_text())
@@ -366,6 +368,7 @@ def export():
     return {'ok':True}
 proc, out = child, run
 early_media_watch, host_sd_fd, directory_sd_fd, host_sd_export_verified = None, None, 40, [True]
+qmp_quit_attempted = [False]
 menu_live.serial_command = lambda *args, **kwargs: b''
 os.environ['MENU_LIVE_KEY_FILE'] = 'host-double'
 try:

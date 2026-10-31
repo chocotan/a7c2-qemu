@@ -1,0 +1,27 @@
+{
+  "scope": "Read-only exact selected properties in pinned public ALLLANG seed; no implicit repository fallback or CP runtime initialization claim",
+  "source": {
+    "path": "runtime/analysis/menu-root/seed-backup.bin",
+    "bytes": 2390264,
+    "sha256": "3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47"
+  },
+  "source_contract": "CP mode u32[0x1107178] has file initializer 3; conditional 0x40c278..0x40c2a8 reads property 0x01250003 and only byte1/2 changes mode. Property delivery/selection history remains unknown.",
+  "banks": [
+    {
+      "bank_offset": 0,
+      "checksum_verified": true,
+      "01250003": {"present": false, "reason": "index absent"},
+      "01250006": {"present": false, "reason": "index absent"}
+    },
+    {
+      "bank_offset": 970752,
+      "checksum_verified": true,
+      "01250003": {"present": true, "attr": 0, "bytes": 1, "file_offset": 1448825, "data": "01", "sha256": "4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"},
+      "01250006": {"present": true, "attr": 8, "bytes": 256, "file_offset": 1449860, "first_8": "0000000000000000", "sha256": "9814ef4bd1a406fdee481bc1d47f8c616030922d52d7b5f02747fe61a0401d66"}
+    }
+  ],
+  "runtime_repository_selection_proven": false,
+  "mode1_runtime_consumed": false,
+  "cp_provider_known_bits_promoted": false,
+  "capture_verified": false
+}

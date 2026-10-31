@@ -1,0 +1,166 @@
+{
+  "schema": "a7c2-qemu-progress-summary-v1",
+  "date": "2026-10-31",
+  "record_kind": "research-build-and-publication-progress-summary",
+  "new_test_or_VM_execution_by_documentation_worker": false,
+  "scope": "Owner-authorized local isolated QEMU; ordinary virtual-card files only; research snapshot summary, not public-package native acceptance",
+  "firmware": "ILCE-7CM2 2.01 ALLLANG",
+  "functional_profile": "virtual-functional-camera-v1",
+  "image_bus": "explicit software RGB888",
+  "latest_complete_batch": {
+    "name": "unified-camera-arzj0n5v",
+    "tests_passed": 9070,
+    "subtests_passed": 10006,
+    "modules": 225,
+    "production_sources": 491,
+    "unique_frozen_inputs": 1162,
+    "strict_C_and_ASan_UBSan_passed": true,
+    "host_build_passed": true,
+    "guest_build_passed": true,
+    "both_original_glibc_2_25_ABI_checks_passed": true,
+    "actual_plugin_API_owned_fixture_cases": {"v2": 6, "v3": 7},
+    "actual_plugin_API_is_original_Sony_capture": false,
+    "ready_sha256": "ecf3dc6dacb8e5d539fe4939ed8cb88e96cd4e54852adda034977242a8395332",
+    "runtime_ready_sha256": "e4cb5662ecb687fa49581d859af5a39dbb392b7cd9cfcb154d98d4f1fe0cd0a0",
+    "independent_parent_readback_passed": true,
+    "parent_readback_sha256": "46d476c94d72e31217b7cab009292acd7894712ee4d83d96704d943cc149dd08",
+    "parent_readback_scope": ["every archive member", "full64 data", "commands", "artifacts", "source bytes", "business binary bytes"],
+    "external_assets_unchanged": 13,
+    "three_business_binaries_unchanged": true,
+    "plugin_rebuilt_for_this_batch": false,
+    "original_AP_native_acceptance_for_this_batch": false,
+    "post_snapshot_source_only_changes_verified": false,
+    "scope": "authoritative research snapshot; public package requires separate validation"
+  },
+  "latest_native_attempt": {
+    "run": "run-64f9ieca",
+    "uses_latest_complete_batch": false,
+    "original_flow_returncode": 0,
+    "original_proof_ok": false,
+    "original_formal_capture_verdict": "FAIL",
+    "original_formal_graph_verdict": "FAIL",
+    "original_results_not_rewritten": true,
+    "shooting_page_observed": true,
+    "shooting_page": "J-FINE 33M / AF-S; black preview",
+    "natural_shutter_sequence_submitted": true,
+    "natural_shutter_consumer_verified": false,
+    "original_pressed_zero_release_call_observed": true,
+    "original_pressed_one_capture_call_verified": false,
+    "strict_v3_readonly_scope_and_original_Main_context_binding_passed": true,
+    "M_compare_value": 0,
+    "known_writer_sites_observed": 0,
+    "all_M_writes_excluded": false,
+    "actual_branch_retirement_store_or_return_verified": false,
+    "virtual_card": {
+      "files": [
+        {"path": "private/database/database.bin", "bytes": 9670656},
+        {"path": "private/m4root/mediapro.xml", "bytes": 406}
+      ],
+      "JPEG_MP4_files": 0,
+      "original_MPR_Fsys_media_write_verified": false
+    },
+    "cleanup": {
+      "strict_postexit_preservation_returncode": 0,
+      "CANCEL_returncode": 0,
+      "CANCEL_response_bytes": 128,
+      "debugger_detached": true,
+      "saved_owned_owners": 7,
+      "saved_owned_owners_absent": true,
+      "existing_locks_exclusively_verified": 2
+    }
+  },
+  "later_component_results": {
+    "scope": "Historical same-run consumption and host component results; not additive and not evidence for the latest native attempt",
+    "historical_AP_source": {
+      "transactions": 3,
+      "bytes": 514304,
+      "per_transaction_bytes": [409600, 53504, 51200],
+      "AP_read_CP_write_independent_full_readback_and_original_callback_verified": true,
+      "is_CMOS_capture_frame_evidence": false
+    },
+    "historical_display_bit_width": {
+      "request": "015e",
+      "reply": "115e",
+      "policy": "selector0 software RGB888",
+      "actual_RGB_consumption_readback_and_retirement_verified": true,
+      "original_request_free_and_independent_reply_receive_free_verified": true,
+      "physical_bit_width_or_ASIC_layout_verified": false
+    },
+    "host_JPEG_and_H264_component_content_verified": true,
+    "host_media_is_original_firmware_capture": false
+  },
+  "same_run_checker_replay": {
+    "status": "INCOMPLETE",
+    "returncode": 1,
+    "is_new_original_VM_execution": false,
+    "actual_entries_entered_once": 6,
+    "dependent_entries_not_entered": 8,
+    "input_records": 1328,
+    "input_records_unchanged": true,
+    "original_ledger_count": 1270,
+    "original_ledger_verified": true,
+    "guest_bridge_records": 27,
+    "broker_responses_covered": 36,
+    "sequence_difference_empty": true,
+    "seq3_coverage_frontier_passed": true,
+    "full_transport_verified": false,
+    "new_ADF_repair_join_executed": false,
+    "remaining_blockers": [
+      "CONTROL_COMMIT framing with exact kernel free_dynamic_msgq_id suffix",
+      "research tool read audit blocks required original UPM module SHA and opcode verification"
+    ],
+    "source_only_followups_await_integrated_validation": true,
+    "typed_result_sha256": "4e6bc2e085c8228f6c95105c8a36c00b5391e7a128dafef28fab2da635e30607"
+  },
+  "preserved_failures": {
+    "first_complete_batch": "unified-camera-abq2ca7q",
+    "new_duplicate_key_negative_test_expectation_failed": true,
+    "correction_only_changed_test_exception_expectation": true,
+    "duplicate_key_rejection_relaxed": false,
+    "original_formal_capture_and_graph_FAIL_preserved": true
+  },
+  "remaining_capture_joins": [
+    "Actual original pressed1 path and normal producer; observed gate values do not prove branch retirement",
+    "Original AP retained frame and actual virtual CMOS source lifetime",
+    "Original SDK and encoder consumption of the same frame",
+    "Original MPR/Fsys callback, worker and media readback",
+    "Virtual SD exports and independent JPEG decode",
+    "Movie ring/source consumption, natural Stop/Close, final MP4 and FSYS_SYNC"
+  ],
+  "claim_boundaries": {
+    "historical_original_UI_and_menu_verified_within_recorded_scope": true,
+    "all_physical_controls_verified": false,
+    "latest_functional_stable_full_shooting_UI_verified": false,
+    "original_UI_live_view_verified": false,
+    "physical_asic_compatibility_verified": false,
+    "original_CP_modules_verified": false,
+    "original_CP_RAM_history_verified": false,
+    "original_CP_RTOS_history_verified": false,
+    "original_firmware_JPEG_on_SD_verified": false,
+    "original_firmware_MP4_on_SD_verified": false,
+    "capture_verified": false
+  },
+  "research_origin": {
+    "repository": "a7c2-re",
+    "path": "report/2026-10-17-qemu-native-camera",
+    "authoritative_runtime_sources": "runtime/analysis",
+    "raw_receipts_distributed_with_this_summary": false,
+    "source_refs_are_research_citations_not_public_reproduction_dependencies": true
+  },
+  "evidence_sources": [
+    "report/2026-10-31-run64-checker-recovery/README.md",
+    "report/2026-10-31-run64-checker-recovery/validation.json",
+    "report/2026-10-31-native-M-v3-64f9/README.md",
+    "report/2026-10-31-M-v2-integration/validation-lwo-typed-content.json",
+    "report/2026-10-30-native-mode-tail-ybl2/README.md"
+  ],
+  "public_package_validation": {
+    "receipt": "validation/2026-10-30-publication.json",
+    "receipt_scope": "historical public-package checks; not validation of the 2026-10-31 research snapshot or its public transfer",
+    "new_tests_executed_by_documentation_worker": false,
+    "new_system_VM_run": false,
+    "new_source_transfer_and_package_acceptance_claimed_here": false
+  },
+  "private_assets_or_raw_logs_included": false,
+  "capture_verified": false
+}

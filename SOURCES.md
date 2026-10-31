@@ -1,6 +1,8 @@
 # 来源与固定身份
 
-本次选择性更新加入原 API40 图像源的完整读取/功能CP读回、`015e` 显示位宽的真实RGB消费与独立`115e`生命周期，并同步ABI、构建源归档、profile、正式内容检查和host测试。selector0仅定义为本功能模型的RGB888八位分量；Sony物理位深与f039效果未知。原厂JPG/MP4仍未完成。
+2026-10-31 更新把同一冻结批次 `unified-camera-arzj0n5v` 的 startup-control、still-format、只读 scope v2/v3、内容检查与有限测试依赖移交到本包。逐文件原始/最终摘要和保留的公开适配见 `SOURCE-ORIGINS.json::scope_source_port` 与 [源码清单](tools/source-port-20261031.json)，受限检查结果和独立资产/API 测试边界见 [本次移交说明](report/2026-10-31-source-publication/PUBLICATION.md)。本次实际只做静态源码与 synthetic host 检查；完整公开包回归、原 ABI、actual API 和原固件成片没有在此轮重验。
+
+2026-10-30 的前次选择性更新加入原 API40 图像源的完整读取/功能CP读回、`015e` 显示位宽的真实RGB消费与独立`115e`生命周期，并同步ABI、构建源归档、profile、正式内容检查和host测试。selector0仅定义为本功能模型的RGB888八位分量；Sony物理位深与f039效果未知。原厂JPG/MP4仍未完成。
 
 最终文件身份由 `SOURCE-SHA256SUMS` 绑定；`SOURCE-ORIGINS.json::display_source_port` 记录本次逐文件来源与发布适配，旧 `functional_camera_port` 等记录保留原历史身份。本包实际执行范围见 `validation/2026-10-30-publication.json`，研究源冻结结果不抵作本包native验收。
 

@@ -32,6 +32,8 @@ static _Thread_local int entered;
 static unsigned char *mailbox;
 static uint64_t pages[FCAM_MAILBOX_PAGES], nonce, sequence;
 static int poisoned, retired;
+static uint64_t current_config40_fnv, current_config_generation, current_frame_generation;
+static int current_config40_known;
 static void (*record_event)(const char *, const char *);
 
 #ifdef FCAM_HOST_TEST
@@ -246,14 +248,14 @@ static int zero_bytes(const unsigned char *p, size_t n) {
     for (size_t i = 0; i < n; ++i) if (p[i]) return 0;
     return 1;
 }
-static int bit_width_reply_valid(const unsigned char *p, const void *input) {
+static int rgb_config_reply_valid(const unsigned char *p, const void *input,
+                                  size_t input_bytes, uint32_t receipt_class) {
     const uint64_t before_frame = get64(p + FCAM_VDF_R_BEFORE_FRAME_GENERATION);
     const uint64_t before_config = get64(p + FCAM_VDF_R_BEFORE_CONFIG_GENERATION);
     const unsigned char *route = p + FCAM_VDF_R_CONFIG;
-    return get32(p + FCAM_VDF_R_CLASS) == FCAM_BIT_WIDTH_CLASS &&
-        get64(p + FCAM_VDF_R_INPUT_FNV) == fnv(input, FCAM_BIT_WIDTH_INPUT_BYTES) &&
-        !memcmp(p + FCAM_BIT_WIDTH_R_CONFIG, input, FCAM_BIT_WIDTH_INPUT_BYTES) &&
-        fcam_bit_width_input_valid(p + FCAM_BIT_WIDTH_R_CONFIG) &&
+    return get32(p + FCAM_VDF_R_CLASS) == receipt_class &&
+        get64(p + FCAM_VDF_R_INPUT_FNV) == fnv(input, input_bytes) &&
+        !memcmp(p + FCAM_STILL_FORMAT_R_CONFIG, input, input_bytes) &&
         before_frame != UINT64_MAX && before_config != UINT64_MAX &&
         get64(p + FCAM_VDF_R_FRAME_GENERATION) == before_frame + 1 &&
         get64(p + FCAM_VDF_R_CONFIG_GENERATION) == before_config + 1 &&
@@ -268,6 +270,21 @@ static int bit_width_reply_valid(const unsigned char *p, const void *input) {
         get32(p + FCAM_VDF_R_COMMITTED) == 1 && get32(p + FCAM_VDF_R_FRAME_CONSUMED) == 1 &&
         get32(p + FCAM_VDF_R_RETIRED) == 1 && route[0] == 1 && route[1] == 5 && route[2] == 5 &&
         route[4] <= 2 && zero_bytes(route + 13, 3);
+}
+static int bit_width_reply_valid(const unsigned char *p, const void *input) {
+    return rgb_config_reply_valid(p, input, FCAM_BIT_WIDTH_INPUT_BYTES, FCAM_BIT_WIDTH_CLASS) &&
+        fcam_bit_width_input_valid(p + FCAM_BIT_WIDTH_R_CONFIG);
+}
+static int still_format_reply_valid(const unsigned char *p, const void *input) {
+    return rgb_config_reply_valid(p, input, FCAM_STILL_FORMAT_INPUT_BYTES, FCAM_STILL_FORMAT_CLASS) &&
+        fcam_still_format_input_valid(p + FCAM_STILL_FORMAT_R_CONFIG);
+}
+static int startup_control_reply_valid(const unsigned char *p, const void *input) {
+    return rgb_config_reply_valid(p, input, FCAM_STARTUP_CONTROL_INPUT_BYTES, FCAM_STARTUP_CONTROL_CLASS) &&
+        fcam_startup_control_validate_basic(p + FCAM_STARTUP_CONTROL_R_CONFIG) && current_config40_known &&
+        get64(p + FCAM_STARTUP_CONTROL_R_CONFIG + FCAM_STARTUP_CONTROL_I_CONFIG_FNV) == current_config40_fnv &&
+        get64(p + FCAM_VDF_R_BEFORE_CONFIG_GENERATION) == current_config_generation &&
+        get64(p + FCAM_VDF_R_BEFORE_FRAME_GENERATION) == current_frame_generation;
 }
 static int variable_field(unsigned i) {
     return (i >= FCAM_H_STATUS && i < FCAM_H_STATUS + 4) ||
@@ -320,8 +337,10 @@ static int exchange(const struct fcam_native_origin *origin, uint32_t flags, uin
          get64(r->data + FCAM_S_INSTANCE) != nonce || !zero_bytes(r->data + 120, 8))) return -EPROTO;
     if (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA || op == FCAM_OP_VDF_LAYOUT ||
         op == FCAM_OP_VDF_DISPLAY_CONFIG || op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM ||
-        op == FCAM_OP_VDF_BIT_WIDTH) {
-        const unsigned int bytes = op == FCAM_OP_VDF_BIT_WIDTH ? FCAM_BIT_WIDTH_RESULT_BYTES :
+        op == FCAM_OP_VDF_BIT_WIDTH || op == FCAM_OP_STILL_FORMAT || op == FCAM_OP_STARTUP_CONTROL) {
+        const unsigned int bytes = op == FCAM_OP_STARTUP_CONTROL ? FCAM_STARTUP_CONTROL_RESULT_BYTES :
+            op == FCAM_OP_STILL_FORMAT ? FCAM_STILL_FORMAT_RESULT_BYTES :
+            op == FCAM_OP_VDF_BIT_WIDTH ? FCAM_BIT_WIDTH_RESULT_BYTES :
             op == FCAM_OP_VDF_PATH ? FCAM_VDF_RESULT_BYTES :
             op == FCAM_OP_VDF_ZEBRA ? FCAM_ZEBRA_RESULT_BYTES :
             op == FCAM_OP_VDF_LAYOUT ? FCAM_LAYOUT_RESULT_BYTES :
@@ -332,7 +351,9 @@ static int exchange(const struct fcam_native_origin *origin, uint32_t flags, uin
             !zero_bytes(r->data + FCAM_VDF_R_STATUS, 8) ||
             (op == FCAM_OP_BB_STARTUP_CONFIG && get32(r->data + FCAM_VDF_R_CLASS) != FCAM_BB_CLASS) ||
             (op == FCAM_OP_HISTOGRAM && get32(r->data + FCAM_VDF_R_CLASS) != FCAM_HIST_CLASS) ||
-            (op == FCAM_OP_VDF_BIT_WIDTH && !bit_width_reply_valid(r->data, input))) return -EPROTO;
+            (op == FCAM_OP_VDF_BIT_WIDTH && !bit_width_reply_valid(r->data, input)) ||
+            (op == FCAM_OP_STILL_FORMAT && !still_format_reply_valid(r->data, input)) ||
+            (op == FCAM_OP_STARTUP_CONTROL && !startup_control_reply_valid(r->data, input))) return -EPROTO;
     }
     if (op == FCAM_OP_AUTOFOCUS && (r->used != FCAM_AF_BYTES || r->token || !zero_bytes(r->data + 24, 8))) return -EPROTO;
     if (op == FCAM_OP_RELEASE_RESULT && (r->used || r->token)) return -EPROTO;
@@ -340,6 +361,16 @@ static int exchange(const struct fcam_native_origin *origin, uint32_t flags, uin
     if (op == FCAM_OP_AP_SOURCE_SNAPSHOT && (!r->token ||
         r->total != get32((const unsigned char *)input + FCAM_FACE_SNAPSHOT_BYTES_AT))) return -EPROTO;
     if ((op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END) && r->used && !r->token) return -EPROTO;
+    if (op == FCAM_OP_INIT || op == FCAM_OP_STATE || op == FCAM_OP_CONFIGURE ||
+        op == FCAM_OP_VIDEO_BEGIN || op == FCAM_OP_CANCEL) {
+        current_config40_fnv = fnv(r->data + FCAM_STARTUP_CONTROL_STATE_CONFIG_OFFSET, FCAM_STARTUP_CONTROL_CONFIG_BYTES);
+        current_config_generation = get64(r->data + FCAM_S_GENERATION);
+        current_frame_generation = get64(r->data + FCAM_S_FRAME_GENERATION);
+        current_config40_known = 1;
+    } else if (op == FCAM_OP_STARTUP_CONTROL) {
+        current_config_generation = get64(r->data + FCAM_VDF_R_CONFIG_GENERATION);
+        current_frame_generation = get64(r->data + FCAM_VDF_R_FRAME_GENERATION);
+    } else current_config40_known = 0;
     return 0;
 }
 static int public_op(uint32_t op, const void *input, size_t n) {
@@ -354,6 +385,8 @@ static int public_op(uint32_t op, const void *input, size_t n) {
     case FCAM_OP_BB_STARTUP_CONFIG: return n == FCAM_BB_INPUT_BYTES;
     case FCAM_OP_HISTOGRAM: return n == FCAM_HIST_INPUT_BYTES;
     case FCAM_OP_VDF_BIT_WIDTH: return n == FCAM_BIT_WIDTH_INPUT_BYTES;
+    case FCAM_OP_STILL_FORMAT: return n == FCAM_STILL_FORMAT_INPUT_BYTES;
+    case FCAM_OP_STARTUP_CONTROL: return n == FCAM_STARTUP_CONTROL_INPUT_BYTES;
     case FCAM_OP_AUTOFOCUS: return n == FCAM_AF_BYTES;
     case FCAM_OP_STILL: return n == 16 || n == 144;
     case FCAM_OP_AP_SOURCE_SNAPSHOT: {
@@ -386,7 +419,9 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
         return leave(-EINVAL, saved_errno);
     if ((op == FCAM_OP_BB_STARTUP_CONFIG && capacity < FCAM_BB_RESULT_BYTES) ||
         (op == FCAM_OP_HISTOGRAM && capacity < FCAM_HIST_RESULT_BYTES) ||
-        (op == FCAM_OP_VDF_BIT_WIDTH && capacity < FCAM_BIT_WIDTH_RESULT_BYTES))
+        (op == FCAM_OP_VDF_BIT_WIDTH && capacity < FCAM_BIT_WIDTH_RESULT_BYTES) ||
+        (op == FCAM_OP_STILL_FORMAT && capacity < FCAM_STILL_FORMAT_RESULT_BYTES) ||
+        (op == FCAM_OP_STARTUP_CONTROL && capacity < FCAM_STARTUP_CONTROL_RESULT_BYTES))
         return leave(-ENOSPC, saved_errno);
     const struct fcam_native_origin native = *origin;
     if (!native.source || !native.destination || !native.bytes) return leave(-EINVAL, saved_errno);
@@ -395,6 +430,22 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
         if (!zero_bytes(p + 1, FCAM_BIT_WIDTH_INPUT_BYTES - 1) ||
             native.command != 0x015eu || native.bytes != 10) return leave(-EINVAL, saved_errno);
         if (p[0] != FCAM_BIT_WIDTH_SOFTWARE_RGB888_SELECTOR) return leave(-ENOTSUP, saved_errno);
+    }
+    if (op == FCAM_OP_STILL_FORMAT) {
+        if (native.command != 0x402du || native.bytes != 24 ||
+            native.source != UINT32_C(0x80020002) || native.destination != UINT32_C(0x90030001))
+            return leave(-EINVAL, saved_errno);
+        if (!fcam_still_format_input_valid(input)) return leave(-ENOTSUP, saved_errno);
+    }
+    if (op == FCAM_OP_STARTUP_CONTROL) {
+        const unsigned char *p = input;
+        if (native.source != UINT32_C(0x80020002) || native.destination != UINT32_C(0x90030001) ||
+            !((native.command == FCAM_STARTUP_CONTROL_CMD_MODE && native.bytes == 24) ||
+              (native.command == FCAM_STARTUP_CONTROL_CMD_SETTINGS && native.bytes == 12)) ||
+            native.command != ((uint32_t)p[0] | (uint32_t)p[1] << 8)) return leave(-EINVAL, saved_errno);
+        if (!fcam_startup_control_validate_basic(p)) return leave(-ENOTSUP, saved_errno);
+        if (!current_config40_known) return leave(-ENODATA, saved_errno);
+        if (get64(p + FCAM_STARTUP_CONTROL_I_CONFIG_FNV) != current_config40_fnv) return leave(-ESTALE, saved_errno);
     }
     const uint32_t flags = op == FCAM_OP_AP_SOURCE_SNAPSHOT ? FCAM_ORIGIN_API40_SOURCE_SNAPSHOT : 0;
     if (flags) {

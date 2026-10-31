@@ -1,0 +1,121 @@
+{
+  "scope": "frozen PRETEST checker-only zd4 framing contract; posttest result must be separate",
+  "source_facts": {
+    "scope": "parent STATIC collected checker integration and originalbytes/archive binding only; NO parse/content/tests/build/VM execution",
+    "shared_agent": "1cca1b57-27e4-4363-896e-aa4f12961620 SETTLED_FINAL_RECOVERED",
+    "shared_owned_session": "2026-10-30T14-08-28-527Z_01a18d23-fd6f-73be-834c-cb0a36a5c6de.jsonl",
+    "shared_tool_reference_error": "Agent is not running; no redelegation",
+    "graph_agent": "82f6ad68-26ff-4afb-a703-8402cfaf8a67 COMPLETED_FINAL_COLLECTED",
+    "AST_four_files_pass": true,
+    "source_hashes": {
+      "report/functional-camera-evidence/check_evidence.py": "94ede4872e553e95690a65faf0bbf8a457c3f7a0e6514e695b7672221301277c",
+      "report/functional-camera-evidence/test_evidence.py": "313c371e6c0243e7c493b2704aec5f092dae826657f5dbd3d772c0f002b148f2",
+      "report/functional-graph-evidence/check_graph.py": "644b4ad5919b926abff453f0adc788ce6465de1749582ae804571c48c356b287",
+      "report/functional-graph-evidence/test_graph.py": "960977b3d3ed00f4d6689e7f20eab7f9e670b9ef3aa43e3b04bea31c4ce4dc2e"
+    },
+    "new_shared_test_groups": 6,
+    "new_graph_test_groups": 4,
+    "target_raw_LF": [
+      16371,
+      16372
+    ],
+    "target_legacy_splitlines": [
+      17328,
+      17329
+    ],
+    "target_original_offset": [
+      1750654,
+      1750963
+    ],
+    "exact_literal_bytes": 242,
+    "exact_host_warning_bytes": 67,
+    "selected10_frozen_archive_members_readback_pass": true,
+    "source_tuple6_file_sha256": "59f55b6c977aa2ae96db618a34dd208c8f5856bd954440359a55bc41d58ea15b",
+    "Main_sha256": "56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f",
+    "original_formal_FAIL_sha256": "4313ed1a4dd4305a19c92eea42a87df4f8374b543ddf0ed93cf90dd45a623bdf",
+    "original_formal_FAIL_preserved": true,
+    "capture_verified": false,
+    "checked_at_ns": 1793371807617051924
+  },
+  "shared_fix": {
+    "actual_failed_tag": "FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS",
+    "not_failed_family": "still-format11recordsunchanged",
+    "raw_LF": 20231,
+    "legacy_splitlines": 21224,
+    "offset": 2682970,
+    "raw_bytes": 444,
+    "raw_sha256": "973d878657d5ff04a4bc6a8ae4f30160825767eaf43e12efe459397876e896aa",
+    "complete_formatter_fields": 15,
+    "exact_kernel_kind": "UDIF cdev_ioctl Line100 uipc warning ret=-1022",
+    "kernel_cause": "unknown",
+    "unknown_suffix_ret_truncation_duplicate_still_refused": true,
+    "malformed_record_result": "MissingEvidence withactualfamily/tag/line",
+    "owner_model_generation_ticket_lifecycle_guards_unchanged": true,
+    "child_pureparse_count_before_after": [
+      923,
+      923
+    ],
+    "child_changed_records": 1,
+    "new_test_groups": 6,
+    "childtests_executed": false
+  },
+  "graph_fix": {
+    "rootcause": "exact67Bhostvvfatwarning splitstargettag, initial relevant false",
+    "target": "FULL_IMAGING_CONTROL_CONNECT_COMMIT",
+    "canonical_literal_fields": 11,
+    "canonical_guest_bytes_withCRLF": 242,
+    "canonical_guest_sha256": "524d87f5488f2ab2f1f8ad2dbfdeb91172fda9675c51ebc0be4f8d5a2b955868",
+    "raw_offset": [
+      1750654,
+      1750963
+    ],
+    "raw_LF": [
+      16371,
+      16372
+    ],
+    "legacy_splitlines": [
+      17328,
+      17329
+    ],
+    "candidate_scope": "only nonemptytagprefixofexacttarget and preexistingexacthostwarnings",
+    "whole_reconstructed_record_must_equal_producer_literal": true,
+    "endings": [
+      "LF",
+      "CRLF"
+    ],
+    "raw_and_warning_ranges_sha_hex_lf_preserved": true,
+    "cause": "unknown",
+    "guest_bytes_invented": false,
+    "original_edge2_actual_consuming_verifier_required": true,
+    "bind_repairs_exact_line_raw_join_required": true,
+    "manual_proof_row_or_literal_only_join_added": false,
+    "duplicate_record_wire_owner_free_order_guards_unchanged": true,
+    "new_host_test_groups": 4,
+    "parent_tests_executed": false
+  },
+  "business_scope": {
+    "Main_sha256": "56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f",
+    "source_tuples": 6,
+    "tuple_file_sha256": "59f55b6c977aa2ae96db618a34dd208c8f5856bd954440359a55bc41d58ea15b",
+    "runtime_sources_changed": false,
+    "production_observer_policy": "mustremainbd6af3457056005ebc6bdce253c859021e44c0d865ce5beabf045c0e31d2c49e",
+    "host_model_and_media_unchanged": true,
+    "original_formal_FAIL_unchanged": true,
+    "no_same_business_guest_or_VM_repeat": true,
+    "sourceMregistration_independent_not_gate_prerequisite": true
+  },
+  "validation_at_freeze": {
+    "AST4files_pass": true,
+    "selected10frozen_source_members_readback": true,
+    "shared_child_singlepureparse_only": true,
+    "graph_child_singlehistoricalpureparse_only": true,
+    "parent_actual_graph_transport_content_check_executed": false,
+    "new_pytest_C_build_ABI_VM_executed": false,
+    "new_test_groups": 10,
+    "next": "ONE complete unified batch and parent archives/actualbinaries/dualABI readback; no native rerun for checker-only"
+  },
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "historical_source_scope_failures_preserved": true,
+  "frozen_at_ns": 1793372041776466370
+}

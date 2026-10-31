@@ -5,20 +5,26 @@ from menu_live import FirmwareFault, FirmwareMonitor
 
 
 SOURCE = b"OBS FUNCTIONAL_FACE_SOURCE_RETAINED_FAULT "
+FORMAT = b"OBS FUNCTIONAL_STILL_FORMAT_INTEGRATION_FAULT "
+STARTUP = b"OBS FUNCTIONAL_STARTUP_CONTROL_INTEGRATION_FAULT "
 
 
-@pytest.mark.parametrize("cut", [1, 12, len(SOURCE) - 1])
-def test_source_fault_split_across_reads_keeps_original_frame_reason(tmp_path, cut):
+@pytest.mark.parametrize("marker,reason", [(SOURCE, "功能源快照.*调用栈和资源已保留"),
+                                          (FORMAT, "功能照片格式.*调用和资源状态已保留"),
+                                          (STARTUP, "功能启动配置.*调用和资源状态已保留")])
+@pytest.mark.parametrize("cut", [1, 12, 'last-byte'])
+def test_source_fault_split_across_reads_keeps_original_frame_reason(tmp_path, cut, marker, reason):
+    cut = len(marker) - 1 if cut == 'last-byte' else cut
     console = tmp_path / "console.log"
-    console.write_bytes(b"boot complete\n" + SOURCE[:cut])
+    console.write_bytes(b"boot complete\n" + marker[:cut])
     monitor = FirmwareMonitor(console)
     monitor.check()
     with console.open("ab") as writer:
-        writer.write(SOURCE[cut:] + b"rc=-5 claimed=1 original_sender_started=0\n")
-    with pytest.raises(FirmwareFault, match="功能源快照.*调用栈和资源已保留"):
+        writer.write(marker[cut:] + b"rc=-5 claimed=1 original_sender_started=0\n")
+    with pytest.raises(FirmwareFault, match=reason):
         monitor.check()
     console.write_bytes(b"later log rotation\n")
-    with pytest.raises(FirmwareFault, match="功能源快照.*调用栈和资源已保留"):
+    with pytest.raises(FirmwareFault, match=reason):
         monitor.check()
 
 
@@ -33,7 +39,9 @@ def test_original_firmware_and_gui_faults_still_stop_input(tmp_path, marker):
 
 def test_source_success_or_quoted_marker_cannot_create_fault(tmp_path):
     console = tmp_path / "console.log"
-    console.write_bytes(b"OBS FUNCTIONAL_FACE_SOURCE_SNAPSHOT_RESULT rc=0\nquoted " + SOURCE + b"ignored\n")
+    console.write_bytes(b"OBS FUNCTIONAL_FACE_SOURCE_SNAPSHOT_RESULT rc=0\nquoted " + SOURCE +
+                        b"ignored\nOBS FUNCTIONAL_STILL_FORMAT event=CYCLE faults=0\nquoted " + FORMAT +
+                        b"ignored\nOBS FUNCTIONAL_STARTUP_CONTROL event=CYCLE faults=0\nquoted " + STARTUP + b"ignored\n")
     monitor = FirmwareMonitor(console)
     monitor.check()
     assert not monitor.failed

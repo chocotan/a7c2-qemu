@@ -57,7 +57,7 @@ def test_actual_central_quit_checks_host_disk_before_writing_wire(tmp_path, monk
                        proc=proc,out=tmp_path,stream=Stream(),json=json,
                        host_sd_fd=40 if backing=='raw' else None,
                        directory_sd_fd=41 if backing=='directory' else None,
-                       host_sd_export_verified=[mode=='verified'])
+                       host_sd_export_verified=[mode=='verified'],qmp_quit_attempted=[False])
             exec(compile(ast.Module(body=[function],type_ignores=[]),str(source),'exec'),scope)
             if mode=='verified':
                 assert scope['qmp']('quit')=={'return':{}}

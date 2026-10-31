@@ -69,6 +69,13 @@ int functional_vdf_path_bind_refresh_queue(unsigned int source){
  refresh_bind_calls++;refresh_bound_source=source;errno=E2BIG;return refresh_bind_result;
 }
 int functional_histogram_bind_queue(unsigned int source){(void)source;assert(0);return -EINVAL;}
+static unsigned int functional_still_format_used,functional_startup_control_used;
+static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this VDF fixture");
+}
+static void native_still_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(0);
+}
 static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_background_start_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;
@@ -504,6 +511,7 @@ int main(int argc,char **argv){
    assert(rc==expected && !owner_calls && !bridge_calls && !dispatch_calls);
   }
  }else return 2;
+ assert(!functional_startup_control_used);
  puts("PASS actual VDF setup/ticket hooks");return 0;
 }
 '''

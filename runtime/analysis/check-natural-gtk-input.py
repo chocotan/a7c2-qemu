@@ -568,6 +568,7 @@ def main():
         read_fd, write_fd = os.pipe()
         xvfb = subprocess.Popen(['Xvfb', '-displayfd', str(write_fd), '-screen', '0',
                                  '2560x1600x24', '-nolisten', 'tcp'], pass_fds=(write_fd,),
+                                stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL, start_new_session=True)
         os.close(write_fd)
         with os.fdopen(read_fd) as stream:
@@ -1326,7 +1327,7 @@ def main():
             if not temp_owner.retain and child is not None:
                 try:
                     close_launcher(child, geometry, env.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE)
-                except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+                except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
                     retain_resources('Launcher shutdown not confirmed; own GUI/VM retained, no SIGKILL: ' + str(error))
             if proof_path:
                 proof_path.write_text(json.dumps(proof, indent=2) + '\n')

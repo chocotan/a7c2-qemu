@@ -1,0 +1,113 @@
+{
+  "scope": "snapshot after OP14 integration and targeted component tests, before complete batch/native acceptance",
+  "opcode": 14,
+  "input_bytes": 32,
+  "result_bytes": 192,
+  "result_config_offset": 160,
+  "result_class": 9,
+  "frame": {
+    "width": 640,
+    "height": 480,
+    "stride": 1920,
+    "bytes": 921600,
+    "independent_sink": true
+  },
+  "canonical32": {
+    "command": "u16le@0",
+    "body_bytes": "u16le@2",
+    "body16": "bytes@4",
+    "reserved4": "zero@20",
+    "current_config_FNV": "u64le@24 actual STATE128[8:48]"
+  },
+  "supported": {
+    "4014": {
+      "request_bytes": 24,
+      "body16": "00000100010000000100000000000000"
+    },
+    "4057": {
+      "request_bytes": 12,
+      "body16": "00000000000000000000000000000000",
+      "semantics": "request0 copies and reads back current config40 checkpoint"
+    }
+  },
+  "proof": {
+    "consumer_kind": 4,
+    "result_bytes": 192,
+    "result_fnv": "full actual192",
+    "token": 0
+  },
+  "guard_index": 31,
+  "predecessor_windows": [
+    "before STATE",
+    "after STATE before OP14",
+    "after OP14 before request free"
+  ],
+  "predecessor_OP13_binding": "fresh check_still_format, latest prior transfer, exact complete cycle/model/AP consumed, all4 lifecycle lines before receipt",
+  "immutable_ticket": "bind before real_send; full native ACK lease; clear within realfree0 before owner APconsumed",
+  "old_diagnostic_preserved": {
+    "C": "07a876a94776240c2bd8c3c651f690417bc0feed04af98b5f6c5df9627e863fd",
+    "H": "b40f7580cb36b4bfc4cdfa55caa28ebad6c1bf1405351d317cd7323c28642cd5"
+  },
+  "sources": {
+    "runtime/analysis/functional-startup-control-abi.h": "9aa42c35904539a1defeaa5a0b5cfde27b4222d338abd202e88b05854eac94e2",
+    "runtime/analysis/functional-camera-abi.h": "edb16abd18581e85419ece820d74f09a6a346cfbfc367568f3bd4323e575e413",
+    "runtime/analysis/functional-camera-bridge.c": "c5cfaaac05934f1a486416ba6de4904c9fdb4f476b4c5fce12f27f60eca70af4",
+    "runtime/analysis/functional-camera-bridge.h": "c714ee04ac1ea93fc56cd0e461189e4167c9a50d9d12febc1ca1d0d56fb4f12b",
+    "runtime/analysis/device-models/functional-startup-control.h": "f3cd94592fc6ace37876cfbba6b6acb5a126f7f6bf9f2127887755530b7ba302",
+    "runtime/analysis/device-models/functional-startup-control.c": "07cc3ae11d4298a49af11cf8236bca2838206f6015e80014456b127fe562e991",
+    "runtime/analysis/device-models/test-functional-startup-control.c": "4be4d300b8079abff36bc99c7c711e17597eef52ec059cf4422e0daf71ddb3bb",
+    "runtime/analysis/test_functional_startup_control_core.py": "18d7b5ea0f61102a771ac390f40493b3fb0d985685d4e14075c2c8ae06effb5c",
+    "runtime/analysis/test-functional-startup-control-core.c": "7dca1dff8134aee4c7ccfda55f4990c3bf26dc537a79dd967b3d812d0c16c58e",
+    "runtime/analysis/test_functional_startup_control.py": "b105a71c975aa216af488302a72f7ec635b9a2eae3fc870299a791a397eb8103",
+    "runtime/analysis/test_functional_startup_control_wiring.py": "7a1c581607b2bc767e55983f88917509a770055fa19e6fcfbeb709584c87dd21",
+    "runtime/analysis/menu-observe.c": "ccac63643d3ea5b2a57e09c3d4c74812c6812e92ecbbd9bfc22ec953d310d8b3",
+    "runtime/analysis/menu_live.py": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
+    "runtime/analysis/functional_camera_broker.py": "5c4f6429394c31c7ce19dc6344b9981860032d8cf0dfa8643bd4186b2134db1e",
+    "runtime/analysis/backup_profile.py": "360936c6a0cb27529b20f200be82841e6bb4f495a237d09d9b84b12dc9ebe833",
+    "runtime/analysis/build-observers.sh": "f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8",
+    "runtime/analysis/build-functional-camera-model.py": "95fe488492c132fe9f2645b37317a35594d7f0aafd577b044934a778495e0c19",
+    "runtime/analysis/scratch/validate-unified-camera.py": "40c2a3c4d09db5791f7b4fe12d953cf76cda1177ee1c810d6a20ab722b7a9f27",
+    "runtime/analysis/scratch/verify_hdmi_edge.py": "f3695bab70eb98a8fc6538a319a662ec2897d665cbe720d6b5414049edb84d25",
+    "runtime/analysis/scratch/test_verify_hdmi_edge.py": "4be1976d6331e0b470655869684187870176ee0f0e465916a53fc34c27758dfe",
+    "report/functional-camera-core/functional-camera-core.c": "1067ab082dd68bab2901af76a5fa7169788d917198b04de5d9415f05c2c9c647",
+    "report/functional-camera-core/functional-camera-core.h": "166ce64e4a6aa7abe9218d09b90dc8450e07a2fdcc6d797623d5f0af965702ca",
+    "report/functional-camera-evidence/check_evidence.py": "b0928e8adae3cf59586362a0b66ff307cf327c6b660a1e3df4c65e9117c86fcb",
+    "report/functional-camera-evidence/test_evidence.py": "2a493e5a94004dee2a0a94bdfef39b1dadaeccdb2e7d96692e11a1a6fbf25d75",
+    "report/functional-graph-evidence/check_graph.py": "081ca51e3c5f8f0d888ceaf0fb1d51e8fb78eaa3c203b5d31ea5b208fbe4412a",
+    "report/camera-input-coverage/source-pins.json": "dbc3fab2f373bb68205d5c4db7160d00bd9eb1c427cb63ae7ebbe53e981e8181"
+  },
+  "targeted_scopes": {
+    "Core_strict_SAN": 10,
+    "bridge_startup_strict_SAN": 70,
+    "owner_strict_SAN": 70,
+    "Main_extracted_strict_SAN": 80,
+    "fixture_profile_unique": 971,
+    "Host_profile_first": 232,
+    "fault_runner_Host": {
+      "passed": 277,
+      "subtests": 260
+    },
+    "checker_predecessor_startup": {
+      "passed": 18,
+      "subtests": 418
+    },
+    "checker_neighbor_still_format": {
+      "passed": 14,
+      "subtests": 282
+    }
+  },
+  "central_joint": {
+    "passed": 809,
+    "subtests_passed": 1400,
+    "returncode": 0,
+    "inputs_stable": 25,
+    "scope": "Core/owner/Main/Host/Monitor/HDMI/history/graph/input and actual OP13-bound startup checker",
+    "receipt": "analysis/scratch/functional-startup-control-central-joint-v2/joint.json",
+    "first_dispatch": "pre-pytest FileNotFoundError, preserved in functional-startup-control-central-joint/dispatch-failure.json"
+  },
+  "complete_batch_accepted": false,
+  "native_OP14_executed": false,
+  "original_MPR_Fsys_media_save_verified": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false
+}

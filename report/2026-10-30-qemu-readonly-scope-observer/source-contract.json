@@ -1,0 +1,30 @@
+{
+  "scope": "collected pre-unified contract, actual host build and readonly import audit only; no runtime PASS",
+  "source_sha256": {
+    "scope-observer.c": "e576f7c7af4108abc29f936a8fae2c320bc381c9013060d0ad670bf2e195fe65",
+    "late-sites.inc": "3d40e594153007633bd88fecd03eeff672e898e90e927ab04bab8f1b00c3da34",
+    "build-plugin.sh": "c4b2697549ea4f5c0dd317f2ced1c30151130012f1d95e033c3fe4fa6579be06"
+  },
+  "schema_sha256": "8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c",
+  "qemu_sha256": "4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4",
+  "host_plugin_sha256": "dd0520214401a3e1f498b5ebe6d7a375cb767f4a404e595379d8b762d32c3b92",
+  "build_receipt_sha256": "0db97de8b9aed1128a8815e070a598b7026d09a56240659c2a65dca2ab4ef485",
+  "readonly_imports_verified": true,
+  "unified_tests_run": false,
+  "original_camera_acceptance_run": false,
+  "parent_python_AST_passed": 15,
+  "Main_unchanged": true,
+  "scope_budget_failures_preserved": [
+    "27:4224>4096",
+    "4179",
+    "4622",
+    "9456",
+    "9240",
+    "806",
+    "6>5"
+  ],
+  "known_remaining_validation": "strict/SAN mocks, actual synthetic API/content, all existing tests/ARM/dualABI then runtime binding",
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "at_ns": 1793387457968706813
+}

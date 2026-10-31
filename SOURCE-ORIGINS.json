@@ -13881,6 +13881,29 @@
       "capture_verified": false
     }
   },
+  "scope_source_port": {
+    "date": "2026-10-31",
+    "source_origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+    "source_batch": "unified-camera-arzj0n5v",
+    "source_inputs_sha256": "a42366141d1efd70764ccb8ad82c52c001e5dbfc0a28a4f09596fe6b3a6555ce",
+    "source_ready_sha256": "ecf3dc6dacb8e5d539fe4939ed8cb88e96cd4e54852adda034977242a8395332",
+    "source_archive_sha256": "647dcc26436aa31fd5d8cb3f311173e59de01d0ec646c621f3b216055fb15216",
+    "files_manifest": {
+      "path": "tools/source-port-20261031.json",
+      "sha256": "91bf998fc3b5898ddfc7ca4805261680efa3f996b4f21ab6a870845ac650b451",
+      "files": 139,
+      "exact_frozen_members": 104,
+      "adapted_or_package_only_files": 35
+    },
+    "report": "report/2026-10-31-source-publication/PUBLICATION.md",
+    "public_bounded_host_tests_passed": 227,
+    "public_bounded_host_subtests_passed": 672,
+    "public_model_test_modules": 219,
+    "scope": "Verified immutable source members plus explicit public adapters; no research receipts, firmware, private settings, binaries, run/card or media data",
+    "test_scope": "Bounded syntax and synthetic host tests only; full public host/model suites and original ABI/actual API/native capture require separate integration verification",
+    "original_AP_capture_verified": false,
+    "physical_ASIC_verified": false
+  },
   "display_source_port": {
     "date": "2026-10-30",
     "source_origin": "a7c2-re/report/2026-10-17-qemu-native-camera",

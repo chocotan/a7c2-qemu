@@ -1,8 +1,8 @@
 # 启动流程 11 · 成像与录像：功能模型及原固件成片前沿
 
-**2026-10-29：尚无原固件生成的有效 JPG/MP4，`capture_verified=false`。** 已有实际软件像素、光学/对比度AF、JPEG/H.264核心、原SDK适配及多轮原生VDF消费；它们尚未与原AP→源帧→encoder→原MPR/Fsys→虚拟SD连成成片闭环。最新功能profile还需完整首启复验，不能由旧默认HUD/MENU短时通过推断当前稳定主界面。
+**2026-10-31：尚无原固件生成并独立解码通过的 JPG/MP4，`capture_verified=false`。** 原界面、菜单及部分输入已实际运行，原 AP 源数据和软件显示配置已有历史消费证据；最近原运行仍是 J-FINE 33M / AF-S 黑预览、卡仅数据库/XML。实际软件像素、光学/对比度 AF、JPEG/H.264 核心与原生 VDF 消费尚未连成原 AP→CMOS→编码→原 MPR/Fsys→虚拟 SD 的成片闭环。
 
-完整功能矩阵与分阶段时间线见[当前进度](2026-10-29-current-progress.md)。变量见[索引](README.md)；本页只整理已有源码/报告，没有新实验。native与完整dump路线分别记账，不互借动态结论。
+完整功能与验证边界见[当前进度](2026-10-31-current-progress.md)。变量见[索引](README.md)；本页只整理已有源码/报告，没有新实验。native 与完整 dump 路线分别记账，不互借动态结论。
 
 坐标约定：AppFw 用 ELF VA（按 PT_LOAD 换算）；`av-cam.bin` 记为 K，
 地址是 raw 文件偏移，运行 VA = `0xffffffc001000000 + raw`；
@@ -21,7 +21,7 @@ CP 用 `CPVA = raw + 0x108000`。三套坐标不能混用。
 | 原JPEG适配 | 独立Main/MainComp、原reply-free/长度读回、同文件EXIF Main/Thumb及普通可读VMA guard已组件验证 | 原MainP、key104a/P128 writer、ResizeEnc1500 cmd2、retained RGB及1006/event9自然producer未闭合 |
 | 原媒体保存 | MPR/Fsys源范围/回调/原读回/导出/解码checker已实现 | 没有本轮原媒体作业或最终JPG/MP4 |
 
-最近完整基线为`unified-camera-4b3kb4kd`：5568 tests /7057 subtests、host/guest构建和双原glibc2.25 ABI通过。后台3006、队列绑定/记录/checker及完整首启修复已纳新整批；原AP新运行与成片验收仍未完成。旧694个owner组件和其它定向结果保持各自范围，不相加作完整新总数。
+最新完整研究批次为 `unified-camera-arzj0n5v`：9070 tests / 10006 subtests、host/guest 构建和双原 glibc 2.25 ABI 通过，公开包测试另验。随后同次原运行的内容复核仍 INCOMPLETE，原正式 capture/graph FAIL 保留。上表与第 1–8 节保留 10 月 29 日的技术调查；其中的“最新”“待验”只指当时状态，后续结果以[当前进度](2026-10-31-current-progress.md)为准。
 
 ## 1. HUD 和控制回复 ≠ 成像启动
 
@@ -114,7 +114,7 @@ Movie 走另一条 API（`Fsys_Write`/`Fsys_WriteAndFlush`），
 注意：full 早期"通知未到达"的说法已被后续挂载实证推翻，引用旧报告
 要保留时间和范围。
 
-## 8. 最新原生等待：后台3006先于local21
+## 8. 历史原生等待：后台3006先于local21（10 月 29 日）
 
 `run-qqu0q5oe` 的语言24步实际LCD消费通过，但温度确认模态误被标作shooting；原system error30c早于S2。两条完整保存FP链与原BL字节确认：原CameraBackground339等待更早24B `3006` / 动态source `810261c4` 的回复，串行本地21被挡，Common382在future等待。本轮未到3003、VDF或codec，不以更早run的成功为本轮补证。
 
@@ -130,8 +130,8 @@ Movie 走另一条 API（`Fsys_Write`/`Fsys_WriteAndFlush`），
 
 ## 证据入口
 
-- [当前矩阵、阶段时间线与JPG下一缺口](2026-10-29-current-progress.md)。
-- [完整基线SHA与最新原生负例摘要](../../validation/2026-10-29-progress.json)。
+- [当前矩阵、已验数据消费与拍摄阻塞](2026-10-31-current-progress.md)。
+- [完整研究批次 SHA 与原生失败摘要](../../validation/2026-10-31-progress.json)。
 - [媒体前沿](10-media-frontier.md)、[存储分层](07-storage.md)与[调试/退出证据](12-debugging.md)。
 - [本包验证记录](../../validation/README.md)：历史实验与当前组件批次分别计数。
 

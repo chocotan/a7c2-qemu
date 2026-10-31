@@ -4,6 +4,8 @@
 #include "functional-camera-abi.h"
 #include "functional-bb-startup-abi.h"
 #include "functional-vdf-bit-width-abi.h"
+#include "functional-still-format-abi.h"
+#include "functional-startup-control-abi.h"
 #include "functional-face-source-snapshot-abi.h"
 
 /* Facts supplied by the actual original-request adapter, not host-created
@@ -33,7 +35,19 @@ int fcam_bridge_init(void (*record)(const char *, const char *));
  * original015e native10-byte origin. Full class7/config/sink/generation/tail
  * validation and caller destination readback precede success; token must be
  * zero. Selector0 is only the explicit software RGB888 bus policy; physical
- * depth is unknown. Other operations retain legacy flag0. This API supplies no error-
+ * depth is unknown. OP13 takes canonical16/returns StillFormat176/class8;
+ * requires flag0/native402d/24B/source80020002/destination90030001. Exact
+ * tuple, complete sink/route/generation/config16 and caller readback precede
+ * success with token0; physical format/CP selectors remain unknown.
+ * OP14 takes canonical32/returns StartupControl192/class9 under flag0 with
+ * native4014/24B or4057/12B, source80020002/destination90030001. First obtain
+ * actual STATE from this bridge instance and hash its bytes8..47. Full32 tail,
+ * current config40 fingerprint, route/frame/sink/generation and caller readback
+ * are checked, including before-generations against the actual State128.
+ * A successful OP14 advances that cache; other non-State128 operations
+ * invalidate it until a new State128 is returned. There is no old176/class5/
+ * class8 fallback or native ACK.
+ * Other operations retain legacy flag0. This API supplies no error-
  * stage receipt: an errno alone cannot prove a remote result was cancelled. */
 int fcam_bridge_call(const struct fcam_native_origin *, uint32_t opcode,
     const void *input, size_t input_bytes, void *output, size_t output_capacity,

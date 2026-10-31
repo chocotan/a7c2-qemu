@@ -25,13 +25,14 @@ NATIVE = Path(__file__).resolve().parents[2]
 RUNTIME = NATIVE / 'runtime/analysis'
 PROFILE = 'virtual-functional-camera-v1'
 QEMU_SHA256 = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+READONLY_SCOPE_QEMU_SHA256 = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
 MAX_FILE = 256 * 1024**2
 MAX_LOG = 64 * 1024**2
 MAX_EVENTS = 100000
 DATA_BYTES = 65024
 OPS = {1: (0, 48), 2: (0,), 3: (48,), 4: (32,), 5: (16,), 6: (8,), 7: (32,), 8: (16,),
        9: (32,), 10: (8,), 11: tuple(360 + 8 * (cp + sdk) for cp in (100, 13, 14) for sdk in (1, 2)),
-       12: (8,), 16: (16, 144),
+       12: (8,), 13: (16,), 14: (32,), 16: (16, 144),
        32: (48,), 33: (0,), 34: (0,), 64: (24,), 65: (16,), 66: (0,)}
 VDF_POLICY = {
     'vdf_path_policy': 'canonical-0138-single-RGB-sink-readback-before-1138',
@@ -73,6 +74,25 @@ BIT_WIDTH_POLICY = {
     'display_bit_width_supported_selectors': [0],
     'display_bit_width_selector_mapping': 'explicit-software-only-physical-selector-meaning-unverified',
     'display_bit_width_physical_mapping_verified': False,
+}
+STILL_FORMAT_POLICY = {
+    'still_format_policy': 'original402d-observed-L-Fine-dual-slot-RGB-identity-readback-before-echo-f000',
+    'still_format_commands': [0x402d],
+    'still_format_request_bytes': 24,
+    'still_format_canonical16_hex': '02000001000100000001000100000000',
+    'still_format_opaque_tail_policy': 'preserve-original22-23-not-consumed-canonical-tail-zero',
+    'still_format_initial_diagnostic_policy': 'preserved-one-shot-before-functional-model-active',
+    'still_format_physical_selector_mapping_verified': False,
+}
+STILL_FORMAT_CANONICAL = bytes.fromhex(STILL_FORMAT_POLICY['still_format_canonical16_hex'])
+STARTUP_CONTROL_POLICY = {
+    'startup_control_policy': 'original4014-observed-and4057-load-current-virtual-config-before-echo-f000',
+    'startup_control_commands': [0x4014, 0x4057],
+    'startup_control_canonical_layout': 'cmd16-length16-body16-reserved4-current-config40-FNV64',
+    'startup_control_config_fingerprint': 'actual-STATE128-bytes8:48-FNV1a64',
+    'startup_control_settings_policy': 'request0-independent-current-config40-checkpoint-no-MR-profile',
+    'startup_control_initial_diagnostic_policy': 'preserved-one-shot-before-functional-successor',
+    'startup_control_physical_mapping_verified': False,
 }
 BB_POLICY = {
     'bb_startup_config_policy': 'initial-C-config-banks-RGB-readback-before-independent-reply',
@@ -132,7 +152,9 @@ BB_COMMANDS = {0x111: 36, 0x166: 36, 0x167: 10, 0x15f: 12, 0x128: 20}
 VDF_OPERATIONS = {5: ({0x138: 24}, 160), 6: ({0x153: 14}, 168), 7: ({0x14c: 40}, 192),
                   8: ({0x141: 8, 0x152: 16, 0x162: 10}, 176), 9: (BB_COMMANDS, 192),
                   12: ({0x15e: 10}, 168)}
-CONFIG_OPERATIONS = {**VDF_OPERATIONS, 10: ({0x148: 12}, 1192)}
+CONFIG_OPERATIONS = {**VDF_OPERATIONS, 10: ({0x148: 12}, 1192), 13: ({0x402d: 24}, 176),
+                     14: ({0x4014: 24, 0x4057: 12}, 192)}
+STARTUP_CONTROL_MODE_BODY = bytes.fromhex('00000100010000000100000000000000')
 HIST_CANONICAL = bytes.fromhex('4801040001010000')
 PUBLIC_LIBRARIES = {
     'usr/lib/appFw.so': '2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b',
@@ -919,8 +941,8 @@ def check_profile(manifest):
         'physical_Xsync_capability_verified')})
     backup = manifest.get('backup_transport')
     needed(type(backup) is dict, 'runtime-manifest.json: backup_transport')
-    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, DISPLAY_POLICY, BIT_WIDTH_POLICY,
-                   BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY):
+    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, DISPLAY_POLICY, BIT_WIDTH_POLICY, STILL_FORMAT_POLICY,
+                   STARTUP_CONTROL_POLICY, BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY):
         if any('functional_camera_' + key in manifest or 'functional_camera_' + key in backup for key in policy):
             expected.update(policy)
     for key, value in expected.items():
@@ -933,6 +955,78 @@ def check_profile(manifest):
             'functional capture requires the explicit 256GB directory SD')
     return {'verified': True, 'profile': PROFILE, 'image_bus': expected['image_bus'],
             'physical_asic_compatibility_verified': False, 'original_CP_executed': False}
+
+
+def check_readonly_scope_observer(manifest, qemu_sha256, frozen=None):
+    """Bind the explicit observer assets; the launch gate owns the import audit."""
+    scope, files = manifest.get('readonly_scope_observer'), manifest.get('files')
+    require(qemu_sha256 == READONLY_SCOPE_QEMU_SHA256 and type(scope) is dict and
+            scope.get('profile') in ('qemu-readonly-scope-v1', 'qemu-readonly-scope-v2', 'qemu-readonly-scope-v3') and
+            scope.get('identity_binding') == 'unverified' and
+            scope.get('qemu_sha256') == qemu_sha256 and scope.get('capture_verified') is False and
+            scope.get('physical_asic_compatibility_verified') is False and type(files) is dict,
+            'readonly scope requires its exact candidate/profile and unverified claims')
+    version = {'qemu-readonly-scope-v1': 1, 'qemu-readonly-scope-v2': 2,
+               'qemu-readonly-scope-v3': 3}[scope['profile']]
+    source_root = NATIVE / ('report/2026-10-31-qemu-M-writer-observer-v3' if version == 3 else
+                            'report/2026-10-30-qemu-readonly-scope-observer')
+    sources = scope.get('source_sha256')
+    source_names = ('scope-observer.c', 'late-sites.inc', 'build-plugin.sh')
+    if version in (2, 3):
+        source_names += (f'log-schema-v{version}.json', f'source-contract-v{version}.json',
+            f'check_run_context_v{version}.py', 'check_run_context.py',
+            f'integration/scope_trace_checks_v{version}.py', 'integration/scope_trace_checks.py')
+    require(type(sources) is dict and set(sources) == set(source_names),
+            'readonly scope complete versioned source set required')
+    if version in (2, 3):
+        require(scope.get('trace_schema') == f'readonly_scope_v{version}' and
+                not {'schema_sha256', 'log_schema_sha256'} & scope.keys() and
+                scope.get('trace_schema_sha256') == sources[f'log-schema-v{version}.json'] and
+                scope.get('trace_schema_sha256') != '8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c' and
+                scope.get('source_contract_sha256') == sources[f'source-contract-v{version}.json'],
+                f'readonly scope v{version} schema/source-contract binding differs')
+    for name, expected in sources.items():
+        expected = writeback.hash_hex(expected, 64)
+        path = str(source_root / name)
+        require(files.get(path) == expected and (frozen is None or frozen.get(path) == expected),
+                'readonly scope source not indexed/frozen: ' + name)
+        digest_binding(read_absolute(path, 16 * 1024**2), expected, 'readonly scope source ' + name)
+    assets = {}
+    for key, limit in (('library', MAX_FILE), ('build_receipt', writeback.MAX_JSON)):
+        path = writeback.absolute_path(scope.get(key))
+        expected = writeback.hash_hex(scope.get(key + '_sha256'), 64)
+        require(files.get(str(path)) == expected, 'readonly scope asset not indexed: ' + key)
+        assets[key] = read_absolute(path, limit)
+        digest_binding(assets[key], expected, 'readonly scope actual ' + key)
+    writeback.absolute_path(scope.get('log'))
+    header_sha256 = writeback.hash_hex(scope.get('qemu_header_sha256'), 64)
+    header = NATIVE / 'source/build/qemu-SRBXNK/qemu-11.1.2/include/plugins/qemu-plugin.h'
+    digest_binding(read_absolute(header, 16 * 1024**2), header_sha256, 'readonly scope actual QEMU API header')
+    receipt = object_json(assets['build_receipt'])
+    require(receipt.get('schema') == scope['profile'] and type(receipt.get('plugin_api')) is int and
+            receipt['plugin_api'] == 7 and receipt.get('readonly_imports_verified') is True and
+            receipt.get('runtime_verified') is False and receipt.get('capture_verified') is False and
+            receipt.get('physical_asic_compatibility_verified') is False and
+            receipt.get('library_sha256') == scope['library_sha256'] and
+            receipt.get('qemu_sha256') == qemu_sha256 and receipt.get('qemu_header_sha256') == header_sha256 and
+            typed_equal(receipt.get('source_sha256'), sources),
+            'readonly scope build receipt/profile/source/asset binding differs')
+    if version in (2, 3):
+        require(not {'schema_sha256', 'log_schema_sha256'} & receipt.keys() and
+                all(typed_equal(receipt.get(name), scope.get(name)) for name in
+                    ('trace_schema', 'trace_schema_sha256', 'source_contract_sha256')),
+                f'readonly scope v{version} receipt schema binding differs')
+
+
+def check_qemu_files(manifest, frozen=None):
+    backup, files = manifest['backup_transport'], manifest['files']
+    selected = backup.get('binary_sha256')
+    require(selected in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256) and files.get(backup.get('binary')) == selected,
+            'manifest QEMU differs from accepted unchanged executable or exact readonly candidate')
+    digest_binding(read_absolute(backup['binary']), selected, 'actual accepted QEMU')
+    if selected == READONLY_SCOPE_QEMU_SHA256 or manifest.get('readonly_scope_observer') is not None:
+        check_readonly_scope_observer(manifest, selected, frozen)
+    return selected
 
 
 def check_batch(run, batch, manifest):
@@ -1018,10 +1112,7 @@ def check_batch(run, batch, manifest):
     for name, digest in files.items():
         if name in frozen:
             require(digest == frozen[name], 'manifest frozen source drift: ' + name)
-    backup = manifest['backup_transport']
-    require(backup.get('binary_sha256') == QEMU_SHA256 and files.get(backup.get('binary')) == QEMU_SHA256,
-            'manifest QEMU differs from accepted unchanged executable')
-    digest_binding(read_absolute(backup['binary']), QEMU_SHA256, 'actual accepted QEMU')
+    qemu_sha256 = check_qemu_files(manifest, frozen)
     require(model.get('profile') == PROFILE and model.get('capture_verified') is False and
             model.get('physical_asic_compatibility_verified') is False and model.get('sources'), 'host-model scope differs')
     for name, digest in model['sources'].items():
@@ -1066,7 +1157,7 @@ def check_batch(run, batch, manifest):
     return {'ready_sha256': sha(ready_raw), 'batch': str(batch), 'tests_passed': tests,
             'observer_sha256': abi['observer_sha256'], 'source_count': len(sources),
             'model_sha256': model['library_sha256'], 'model_build_sha256': sha(raw['functional-camera-model-build.json']),
-            'model_source_archive_sha256': model['source_archive_sha256'], 'qemu_sha256': QEMU_SHA256,
+            'model_source_archive_sha256': model['source_archive_sha256'], 'qemu_sha256': qemu_sha256,
             'public_original_libraries': PUBLIC_LIBRARIES, 'host_build_source_index_omissions': host_index_omissions,
             'current_frozen_sources_equal': True}, frozen
 
@@ -1329,25 +1420,247 @@ def mp4_samples(raw):
     return {'parameters': parameters, 'samples': samples, 'extents': extents, 'geometry': (width, height)}
 
 
+def frame_console_kernel(item, byte_offset, raw_lf_line):
+    """Split only approved C producer grammars and their paired exact UIPC trailers."""
+    joined = re.fullmatch(
+        rb'((?:FUNCTIONAL_CAMERA_CONTROL_COMMIT|FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE|'
+        rb'FUNCTIONAL_CAMERA_TRANSFER|FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS|'
+        rb'FUNCTIONAL_FACE_DMM_SOURCE_BOUND|NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES|'
+        rb'FUNCTIONAL_VDF_PATH_(?:REQUEST_FREE|SEND|COMPLETE|RECEIVE|AP_FREE)) [^\r\n]*)'
+        rb'(\[ (?:0|[1-9][0-9]{0,9})\.[0-9]{6}\] (?:'
+        rb'UDIF: cdev_ioctl\(\) Line 100: uipc: warning ret = -1022|'
+        rb'\[K\]\*\*UIPC ERROR\*\* free_dynamic_msgq_id: QID\[[0-9a-f]{8}\] M=1 C=0 S=0 A=1))(\r?\n)', item)
+    if joined is None:
+        return item, None
+    payload, kernel, ending = joined.groups()
+    if ((payload.startswith(b'FUNCTIONAL_VDF_PATH_') or
+            payload.startswith(b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE ')) !=
+            (b'] [K]**UIPC ERROR** free_dynamic_msgq_id:' in kernel) or console_producer_fields(payload) is None):
+        return item, None
+    return payload + ending, dict(raw=kernel.decode('ascii'), bytes=len(kernel), sha256=sha(kernel),
+        byte_offset=byte_offset + len(payload), raw_lf_line=raw_lf_line, cause='unknown',
+        line_ending=ending.decode('ascii'), payload=dict(raw=payload.decode('ascii'), bytes=len(payload),
+            sha256=sha(payload), byte_offset=byte_offset))
+
+
+def console_producer_fields(payload):
+    """Exact formatter fields only; actual broker/content/lifecycle joins remain separate."""
+    tag, *parts = payload.decode('ascii', 'strict').split(' ')
+    if not all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*=[!-~]+', part) for part in parts):
+        return None
+    fields = writeback.unique_object(part.split('=', 1) for part in parts)
+    vdf = tag in {'FUNCTIONAL_VDF_PATH_' + name for name in ('REQUEST_FREE', 'SEND', 'COMPLETE', 'RECEIVE', 'AP_FREE')}
+    if vdf:
+        schema = ('pid:pid tid:tid phase:u32 cycle:u64 requests:u32 completed_cycles:u32 busy:u32 guard:u32 faults:u32 '
+            'source:hex32 destination:hex32 command:hex32 bytes:u32 original_fnv1a:digest '
+            'refresh_queue_bound:u32 refresh_queue_source:hex32 model_instance:u64 config_generation:u64 '
+            'before_config_generation:u64 frame_generation:u64 before_frame_generation:u64 lease_generation:u64 '
+            'init_rc:i32 bridge_rc:i32 validation_rc:i32 request_owned:u32 request_retained:pointer request_freed:u32 '
+            'ack_retained:pointer queued:u32 received:u32 AP_consumed:u32 send_inflight:u32 releasing:u32 '
+            'sender_tid:tid receiver_tid:tid free_tid:tid allocate_rc:i32 allocation_returned:pointer allocation_alias:u32 '
+            'request_free_rc:i32 send_rc:i32 free_rc:i32 model_complete:u32 functional_model:1 original_CP_FIFO_verified:0 '
+            'physical_CP_RTOS_verified:0 original_selector_verified:0 physical_ASIC_verified:0 capture_verified:0 '
+            'raw:raw ack_wire:raw12 canonical_config:raw16 canonical_zebra8:raw8 canonical_layout32:raw32 '
+            'canonical_display16:raw16 canonical_bb32:raw32 canonical_bit_width8:raw8 model_result_bytes:u32 '
+            'realresultbytes:u32 model_result_fnv1a64:digest model_result_hex:raw')
+    elif tag == 'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE':
+        # menu-observe.c:tracked_native_reserve_resources; only complete unchanged reads are framed.
+        schema = ('pid:pid tid:tid appfw_base:hex64 table_va:0x5f66b08 address:hex64 bytes:144 '
+            'reads:144/144 unchanged:1 atomic_snapshot:0 raw_before:raw144 raw_after:raw144 ownership_verified:0')
+    elif tag == 'FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS':
+        schema = ('pid:pid tid:tid accepted:bit initial_mode_requests:u32 initial_mode_AP_consumed:u32 '
+            'initial_settings_requests:u32 initial_settings_AP_consumed:u32 all13_AP_consumed:bit VDF_AP_consumed:u32 '
+            'still_format_AP_consumed:u32 still_format_cycle:u64 model_instance:u64 source_business_equivalent:0 '
+            'physical_ASIC_verified:0 capture_verified:0')
+    elif tag == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES':
+        # menu-observe.c:audit_cp_background_input emits at most128 bytes per chunk.
+        schema = 'pid:pid tid:tid sequence:u32 offset:u32 bytes:u32 raw:raw'
+    elif tag == 'FUNCTIONAL_FACE_DMM_SOURCE_BOUND':
+        # menu-observe.c:functional_face_original_caller preserves failed reads/rc too.
+        schema = ('pid:pid tid:tid op:hex32 caller_pc:pointer caller_va:hex64 library_base:pointer '
+            'source:hex32 reads:reads first:hex32 second:hex32 rc:i32 '
+            'producer:process-local-software-owner original_cp_verified:0 capture_verified:0')
+    elif tag == 'FUNCTIONAL_CAMERA_TRANSFER':
+        schema = ('seq:interval op:u32 source:hex32 destination:hex32 command:hex32 bytes:u32 native_fnv:hex64 '
+            'request_bytes:u64 request_fnv:hex64 returned_bytes:u64 returned_fnv:hex64 required:u64 '
+            'destination_written_bytes:u64 destination_fnv:hex64 model_instance:hex64 token:hex64 '
+            'readback_closed:bit error:i32 origin_kind:origin')
+    elif tag == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT':
+        schema = ('pid:pid tid:tid phase:u32 index:u32 role:u32 bytes:u32 destination:hex32 source:hex32 '
+            'wire_fnv1a:digest queued:u32 received:u32 freed:u32 consumed:u32 send_inflight:u32 releasing:u32 '
+            'lease_cycle_id:u64 sender_tid:tid receiver_tid:tid free_tid:tid allocate_rc:i32 send_rc:i32 free_rc:i32 '
+            'retained:pointer faults:u32 busy:u32 guard:u32 probe_run_id:u64 init_run_id:u64 state_run_id:u64 '
+            'bridge_rc:i32 probe_rc:i32 native_source:hex32 native_destination:hex32 native_command:hex32 '
+            'native_bytes:u32 native_fnv1a:digest model_initialized:u32 probe_attempts:u32 probe_successes:u32 '
+            'probe_refusals:u32 model_instance:u64 config_generation:u64 rendered:u64 frame_generation:u64 '
+            'start_complete:u32 mode1_complete:u32 defined_mask:u32 full_layout_copied:u32 model_defined:u32 '
+            'defined_blocks:u32 projected_blocks:u32 zero_policy_blocks:u32 publication_copied:u32 '
+            'xsync_defined:u32 xsync_source_fps:u32 xsync_word:u32 xsync_half:u32 xsync_source_generation:u64 '
+            'published_generation:u32 shadow_generation:u32 notification_queued:u32 notification_received:u32 '
+            'notification_AP_consumed:u32 cycle_id:u64 cycle_generation:u32 ack_only:u32 mode1_requests:u32 '
+            'cycles_completed:u32 ack_only_requests:u32 ack_only_completed:u32 full_queued:u32 full_consumed:u32 '
+            'notification_mode:u32 business_ready:u32 functional_model:1 original_CP:0 physical_ASIC_verified:0 '
+            'fixed_optics_policy:integrated-noneLIF LIF_tuple:0,0,0 cache4:0 original_getters_executed:0 '
+            'original_source_proof:0 EE:0 frame:0 capture:0')
+    else:
+        return None
+    schema = [part.split(':', 1) for part in schema.split()]
+    if list(fields) != [key for key, _ in schema]:
+        return None
+    for key, kind in schema:
+        text = fields[key]
+        if kind in ('u32', 'u64', 'pid', 'tid', 'i32', 'hex32', 'hex64'):
+            pattern = (r'(?:0|0x[1-9a-f][0-9a-f]{0,15})' if kind.startswith('hex') else
+                       r'(?:0|-?[1-9][0-9]{0,18})' if kind in ('tid', 'i32') else r'(?:0|[1-9][0-9]{0,19})')
+            if not re.fullmatch(pattern, text):
+                return None
+            value = int(text, 16 if text.startswith('0x') else 10)
+            bits = 64 if kind in ('u64', 'tid', 'hex64') else 32
+            lower, upper = (-(1 << (bits - 1)), 1 << (bits - 1)) if kind in ('tid', 'i32', 'pid') else (0, 1 << bits)
+            if not lower <= value < upper or kind == 'pid' and value <= 0:
+                return None
+        elif kind == 'raw':
+            if not re.fullmatch(r'(?:[0-9a-f]{2})+', text):
+                return None
+        elif kind.startswith('raw'):
+            if not re.fullmatch(r'[0-9a-f]{' + str(2 * int(kind[3:])) + '}', text):
+                return None
+        elif kind == 'digest':
+            if not re.fullmatch(r'[0-9a-f]{16}', text):
+                return None
+        elif kind == 'pointer':
+            if text != '(nil)' and not re.fullmatch(r'0x[1-9a-f][0-9a-f]{0,15}', text):
+                return None
+        elif kind == 'interval':
+            interval = re.fullmatch(r'([1-9][0-9]{0,19})\.\.([1-9][0-9]{0,19})', text)
+            if interval is None or not 0 < int(interval[1]) <= int(interval[2]) < 2**64:
+                return None
+        elif kind == 'bit':
+            if text not in ('0', '1'):
+                return None
+        elif kind == 'origin':
+            if text not in ('native-osal', 'api40-source-snapshot'):
+                return None
+        elif kind == 'reads':
+            if not re.fullmatch(r'(?:0|-?[1-9][0-9]{0,18})/(?:0|-?[1-9][0-9]{0,18})', text) or any(
+                    not -2**63 <= int(part) < 2**63 for part in text.split('/')):
+                return None
+        elif text != kind:
+            return None
+    if vdf:
+        commands = {command: (size, result_bytes) for mapping, result_bytes in VDF_OPERATIONS.values()
+                    for command, size in mapping.items()}
+        command = number(fields['command'])
+        if command not in commands:
+            return None
+        native_bytes, result_bytes = commands[command]
+        if (number(fields['bytes']) != native_bytes or len(fields['raw']) != 2 * native_bytes or
+                number(fields['model_result_bytes']) != result_bytes or number(fields['realresultbytes']) != result_bytes or
+                len(fields['model_result_hex']) != 2 * result_bytes):
+            return None
+    elif tag == 'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE':
+        base = number(fields['appfw_base'])
+        if (not 0x10000 <= base < 0x7ff0000000 or number(fields['address']) != base + 0x5f66b08 or
+                fields['raw_before'] != fields['raw_after']):
+            return None
+    elif tag == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES':
+        count, offset = number(fields['bytes']), number(fields['offset'])
+        if not (number(fields['sequence']) and 0 < count <= 128 and offset % 128 == 0 and
+                offset + count <= 4096 and len(fields['raw']) == 2 * count):
+            return None
+    elif tag == 'FUNCTIONAL_FACE_DMM_SOURCE_BOUND':
+        callsites = {0x20: 0x35522a4, 0x21: 0x3552c60, 0x23: 0x35524a8, 0x24: 0x3552694, 0x25: 0x35528ac}
+        if callsites.get(number(fields['op'])) != number(fields['caller_va']):
+            return None
+    elif tag == 'FUNCTIONAL_CAMERA_TRANSFER':
+        op = int(fields['op'])
+        if op not in OPS or op in (64, 65) or int(fields['request_bytes']) not in OPS[op] or any(
+                number(fields[key]) == 0 for key in ('source', 'destination', 'bytes', 'model_instance')) or (
+                fields['origin_kind'] == 'api40-source-snapshot') != (op == 11) or (
+                fields['readback_closed'] == '1') != (fields['error'] == '0'):
+            return None
+        if op == 11 and (number(fields['command']) != 0x2820746 or fields['bytes'] != '40'):
+            return None
+    return fields
+
+
+def frame_console_transfer_echo(item, byte_offset, raw_lf_line):
+    """Frame only the two observed exact prefixes; retain the prefix as unknown-cause evidence."""
+    prefixes = (b"'; elOBS ", b"/OBS ")
+    prefix = next((p for p in prefixes if item.startswith(p + b'FUNCTIONAL_CAMERA_TRANSFER ')), None)
+    if prefix is None:
+        return item, None
+    require(item.endswith(b'\n'), 'truncated evidence trace')
+    joined = re.fullmatch(rb'([^\r\n]*)(\r?\n)', item[len(prefix):])
+    if joined is None or console_producer_fields(joined[1]) is None:
+        return item, None
+    payload, ending = joined.groups()
+    return payload + ending, dict(raw=prefix.decode('ascii'), bytes=len(prefix), sha256=sha(prefix),
+        byte_offset=byte_offset, raw_lf_line=raw_lf_line, cause='unknown', line_ending=ending.decode('ascii'),
+        payload=dict(raw=payload.decode('ascii'), bytes=len(payload), sha256=sha(payload),
+                     byte_offset=byte_offset + len(prefix)))
+
+
+# pin-peer-connection.inc:317, with EDGE_TAG="ADF" in adf-connection.c.
+ADF_NATIVE_FREE_PAYLOAD = re.compile(
+    rb'FULL_ADF_CONNECT_NATIVE_REPLY_FREE pid=[1-9][0-9]{0,9} tid=(?:0|-?[1-9][0-9]{0,18}) '
+    rb'sender=(?:0|-?[1-9][0-9]{0,18}) waiter=[01] destination=(?:0|0x[1-9a-f][0-9a-f]{0,7}) '
+    rb'expected=(?:0|0x[1-9a-f][0-9a-f]{0,7}) reply=(?:\(nil\)|0x[1-9a-f][0-9a-f]{0,15}) '
+    rb'bytes=56 command=0x8001 rc=(?:0|-?[1-9][0-9]{0,9}) faults=(?:0|[1-9][0-9]{0,9}) '
+    rb'ap_consumed=[01] capture_verified=0')
+ADF_HOST_WARNINGS = tuple(b'qemu-system-aarch64: warning: vvfat: host directory commit ' + state + b'\n'
+                          for state in (b'pending', b'complete'))
+
+
+def frame_console_adf_host(item, byte_offset, raw_lf_line, following):
+    warning = next((w for w in ADF_HOST_WARNINGS if item.endswith(w)), None)
+    if warning is None:
+        return item, None
+    payload = item[:-len(warning)]
+    if ADF_NATIVE_FREE_PAYLOAD.fullmatch(payload) is None:
+        return item, None
+    fields = dict(part.split('=', 1) for part in payload.decode('ascii').split(' ')[1:])
+    bounds = {'pid': (1, 2**31), 'tid': (-2**63, 2**63), 'sender': (-2**63, 2**63),
+              'rc': (-2**31, 2**31), 'faults': (0, 2**32)}
+    if any(not lower <= int(fields[key]) < upper for key, (lower, upper) in bounds.items()):
+        return item, None
+    needed(following is not None, 'ADF/vvfat boundary lacks the original guest ending')
+    require(following == b'\r\n', 'ADF/vvfat boundary has an unproved guest ending')
+    return payload + following, dict(raw=warning.decode('ascii'), bytes=len(warning), sha256=sha(warning),
+        byte_offset=byte_offset + len(payload), raw_lf_line=raw_lf_line, cause='unknown',
+        line_ending='\r\n', line_ending_byte_offset=byte_offset + len(item), ending_raw_lf_line=raw_lf_line + 1,
+        guest_bytes_invented=False, payload=dict(raw=payload.decode('ascii'), bytes=len(payload),
+            sha256=sha(payload), byte_offset=byte_offset))
+
+
 def parse_console(raw):
     require(len(raw) <= MAX_LOG, 'console exceeds budget')
-    rows = []
-    for line, item in enumerate(raw.splitlines(keepends=True), 1):
+    rows, byte_offset, raw_lf_line = [], 0, 1
+    fragments, skip_host_ending = raw.splitlines(keepends=True), False
+    for line, item in enumerate(fragments, 1):
         require(len(item) <= 8192, 'console line exceeds budget')
+        start, physical_line = byte_offset, raw_lf_line
+        byte_offset += len(item)
+        raw_lf_line += item.count(b'\n')
+        if skip_host_ending:
+            skip_host_ending = False
+            continue
+        item, echo_diagnostic = frame_console_transfer_echo(item, start, physical_line)
+        if echo_diagnostic is not None:
+            start = echo_diagnostic['payload']['byte_offset']
         if item.startswith(b'/ # OBS '):
-            item = item[4:]  # Interactive ash can leave its prompt before an observer record.
-        item = item[4:] if item.startswith(b'OBS ') else item
-        kernel_diagnostic = None
-        joined = re.fullmatch(
-            rb'(FUNCTIONAL_CAMERA_CONTROL_COMMIT [^\r\n]* capture=0)'
-            rb'(\[ [0-9]{1,10}\.[0-9]{6}\] UDIF: cdev_ioctl\(\) Line 100: uipc: warning ret = -1022)(\r?\n)', item)
-        if joined:
-            kernel = joined[2]
-            kernel_diagnostic = dict(raw=kernel.decode('ascii'), bytes=len(kernel), sha256=sha(kernel))
-            item = joined[1] + joined[3]
+            item, start = item[4:], start + 4  # Interactive ash can leave its prompt before an observer record.
+        if item.startswith(b'OBS '):
+            item, start = item[4:], start + 4
+        item, host_diagnostic = frame_console_adf_host(item, start, physical_line,
+                                                      fragments[line] if line < len(fragments) else None)
+        skip_host_ending = host_diagnostic is not None
+        item, kernel_diagnostic = frame_console_kernel(item, start, physical_line)
         tag = item.split(b' ', 1)[0].rstrip(b'\r\n')
         if not tag.startswith((b'FUNCTIONAL_', b'FSYS_WRITE_', b'MPR_WRITE_')) and tag.decode('ascii', 'ignore') not in (
-                *BACKGROUND_FREE_TAGS, 'NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK', 'NATIVE_CP302C_NOCONVERT_ALL13_READBACK'):
+                *BACKGROUND_FREE_TAGS, 'NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK', 'NATIVE_CP302C_NOCONVERT_ALL13_READBACK',
+                'NATIVE_CP_BACKGROUND_INPUT_AUDIT', 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES',
+                'NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'NATIVE_CP_STARTUP_DIAGNOSTIC_REPLY_FREE'):
             continue
         require(item.endswith(b'\n'), 'truncated evidence trace')
         parts = item.decode('ascii', 'strict').rstrip('\r\n').split(' ')
@@ -1361,6 +1674,10 @@ def parse_console(raw):
                      'fields': writeback.unique_object(part.split('=', 1) for part in parts[1:])})
         if kernel_diagnostic is not None:
             rows[-1]['kernel_diagnostic'] = kernel_diagnostic
+        if host_diagnostic is not None:
+            rows[-1]['host_diagnostic'] = host_diagnostic
+        if echo_diagnostic is not None:
+            rows[-1]['console_prefix_diagnostic'] = echo_diagnostic
         require(len(rows) <= MAX_EVENTS, 'trace record budget exceeded')
     return rows
 
@@ -1452,14 +1769,29 @@ def bb_config(canonical):
     return command
 
 
+def startup_control_config(canonical):
+    require(len(canonical) == 32, 'Startup control canonical must be exactly32 bytes')
+    command, size = struct.unpack_from('<2H', canonical)
+    require((command == 0x4014 and size == 16 and canonical[4:20] == STARTUP_CONTROL_MODE_BODY or
+             command == 0x4057 and size == 4 and canonical[4:20] == bytes(16)) and
+            canonical[20:24] == bytes(4), 'Startup control unsupported command/body/reserved bytes')
+    return command
+
+
 def vdf_result(raw, canonical, instance, opcode=5, route=None):
     """Parse the exact opcode-specific configuration result and current RGB route."""
     require(opcode in CONFIG_OPERATIONS, 'unknown VDF/BB/histogram configuration opcode')
     size = CONFIG_OPERATIONS[opcode][1]
     require(len(raw) == size and struct.unpack_from('<2I', raw) == (1, size),
             'VDF result size differs from its actual opcode')
-    if opcode in (6, 7, 8, 9, 10, 12):
-        if opcode == 12:
+    if opcode in (6, 7, 8, 9, 10, 12, 13, 14):
+        if opcode == 14:
+            startup_control_config(canonical)
+            require(raw[160:] == canonical, 'Startup control independent canonical32/save/readback differs')
+        elif opcode == 13:
+            require(canonical == STILL_FORMAT_CANONICAL and raw[160:] == canonical,
+                    'Still format canonical16/independent saved readback differs')
+        elif opcode == 12:
             require(canonical == bytes(8) and raw[160:] == canonical,
                     'Bit width selector0 canonical8/independent saved readback differs')
         elif opcode == 9:
@@ -1503,7 +1835,7 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
     require(value['model_instance'] == instance and instance > 0 and value['input_fnv'] == fnv(canonical) and
             raw[128:144] == route and value['endpoint'] == 0x90590819 and
             value['selected_mask'] == value['completed_mask'] == value['config_readback'] == value['committed'] == 1 and
-            value['class'] == ({9: 5, 10: 6, 12: 7}.get(opcode, active)) and
+            value['class'] == ({9: 5, 10: 6, 12: 7, 13: 8, 14: 9}.get(opcode, active)) and
             value['enabled'] == value['frame_consumed'] == value['retired'] == active and
             value['status'] == value['reserved'] == 0, 'VDF configuration readback/endpoint/commit differs')
     require(0 < value['before_config_generation'] < 2**64 - 1 and
@@ -1511,7 +1843,7 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
             value['frame_generation'] == value['before_frame_generation'] + active and
             0 < value['width'] <= 8192 and 0 < value['height'] <= 8192 and
             value['stride'] == value['width'] * 3, 'VDF configuration/frame generation or geometry differs')
-    if opcode in (7, 9, 10, 12):
+    if opcode in (7, 9, 10, 12, 13, 14):
         require(active == 1 and (value['width'], value['height'], value['stride']) == (640, 480, 1920) and
                 value['active_bytes'] == 921600, 'Layout/BB/histogram/bit width requires the active full 640x480 RGB software route')
     if opcode == 8:
@@ -1549,7 +1881,11 @@ def vdf_history(run, transport):
             geometry = struct.unpack_from('<2I', raw, 8)
         elif op in CONFIG_OPERATIONS:
             raw = transfer_output(run, tx)
-            value = vdf_result(raw, payload_read(run, tx['request_payload']), transport['model_instance'], op, route)
+            canonical = payload_read(run, tx['request_payload'])
+            value = vdf_result(raw, canonical, transport['model_instance'], op, route)
+            if op == 14:
+                require(parameters is not None and struct.unpack_from('<Q', canonical, 24)[0] == fnv(parameters),
+                        'Startup control fingerprint differs from actual State128 config40')
             require(value['before_config_generation'] == config and value['before_frame_generation'] == generation and
                     (value['width'], value['height']) == geometry and tx['token'] == 0,
                     'VDF before generations/geometry differ from actual model history')
@@ -1557,7 +1893,7 @@ def vdf_history(run, transport):
                     'VDF reused an old rendered RGB lease')
             values[tx['first']] = value
             config, generation, route = value['config_generation'], value['frame_generation'], raw[128:144]
-            preserve_parameters = preserve_parameters or op in (6, 7, 8, 9, 10, 12)
+            preserve_parameters = preserve_parameters or op in (6, 7, 8, 9, 10, 12, 13, 14)
         elif op == 4:
             preserve_parameters = False
         elif tx.get('frame') is not None:
@@ -1573,9 +1909,9 @@ def noncodec_proof(tx, value, transport, output):
     event = tx.get('frame')
     needed(type(event) is dict and type(event.get('proof')) is dict, 'actual noncodec RGB proof required')
     p, active = event['proof'], value['enabled']
-    kind = {5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4}.get(tx['opcode'])
-    # OP12 uses VDF kind4 but caches the complete typed configuration receipt.
-    result = output if tx['opcode'] in (9, 10, 12) else b''
+    kind = {5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4, 13: 4, 14: 4}.get(tx['opcode'])
+    # OP12/13/14 use VDF kind4 but cache the complete typed configuration receipt.
+    result = output if tx['opcode'] in (9, 10, 12, 13, 14) else b''
     require(kind is not None and p['version'] == 1 and p['struct_bytes'] == 376 and
             p['operation_status'] == 0 and p['model_lifetime'] > 0 and p['opcode'] == tx['opcode'] and
             p['consumer_kind'] == kind and p['model_instance'] == transport['model_instance'] and
@@ -1657,15 +1993,22 @@ def check_vdf_path(run, rows, transport):
     refreshes = [tx for tx in transfers if tx['origin']['command'] == 0x141]
     needed(len(bindings) >= len(refreshes), 'VDF each original0141 requires its own refresh queue binding receipt')
     require(len(bindings) == len(refreshes), 'VDF refresh binding/original0141 census differs')
-    history = vdf_history(run, transport)
+    required = set(('pid tid phase cycle requests completed_cycles busy guard source destination command bytes '
+        'model_instance config_generation before_config_generation frame_generation before_frame_generation '
+        'lease_generation ack_retained queued received AP_consumed send_inflight sender_tid receiver_tid free_tid').split())
     groups = {}
     for row in records:
+        missing = sorted(required - row['fields'].keys())
+        needed('diagnostic' not in row and not missing,
+               f'VDF {row["tag"]} line {row["line"]}: missing ' + (','.join(missing) or 'complete original formatter') +
+               ('; diagnostic=' + row['diagnostic'] if 'diagnostic' in row else ''))
         cycle = number(row['fields']['cycle'])
         group = groups.setdefault(cycle, {})
         require(cycle > 0 and row['tag'] not in group, 'VDF duplicate/zero/old cycle receipt')
         group[row['tag']] = row
     require(list(groups) == list(range(1, len(groups) + 1)) and len(groups) == len(transfers),
             'VDF original cycle/op5/op6/op7/op8/BB9/op12 census differs')
+    history = vdf_history(run, transport)
     previous_line, checked, refresh_source = 0, [], None
     refresh_bindings = iter(bindings)
     for (cycle, group), tx in zip(groups.items(), transfers):
@@ -1736,6 +2079,7 @@ def check_vdf_path(run, rows, transport):
                     'VDF raw request/ACK/config/result bytes differ')
             if zebra or layout or display or bb or bit_width:
                 key, count = ('canonical_bit_width8', 8) if bit_width else ('canonical_bb32', 32) if bb else ('canonical_display16', 16) if display else ('canonical_layout32', 32) if layout else ('canonical_zebra8', 8)
+                needed('model_result_bytes' in f, 'VDF typed result byte count missing')
                 require(raw_hex(f, key, count) == canonical and number(f['model_result_bytes']) == result_bytes,
                         'Zebra/layout/display/bit width canonical/result native receipt differs')
             elif 'model_result_bytes' in f:
@@ -1815,6 +2159,374 @@ def check_vdf_path(run, rows, transport):
             'original_Peaking_operator_verified': False, 'original_0162_feature_verified': False,
             'display_bit_width_physical_mapping_verified': False,
             'original_BB_C_configuration_work_verified': False, 'original_BB_C_configuration_units_verified': False}
+
+
+def check_startup_control_diagnostics(rows, transfers, pid):
+    result = {hex(command): 'not_observed' for command in (0x4014, 0x4057)}
+    observed = [r for r in rows if r['tag'] == 'NATIVE_CP_STARTUP_DIAGNOSTIC_REPLY_FREE' and
+                r['fields'].get('opcode') in result]
+    required = set(('pid opcode sender_tid waiter_tid requests busy guard faults source request_destination destination bytes '
+        'request cookie wire_fnv1a32 source_byte1_known reply freed_reply reply_free_destination reply_free_source reply_free_bytes '
+        'allocate_rc send_rc request_free_rc reply_free_rc queued request_freed reply_freed clean_completion ap_consumed '
+        'retained_request live_reply retained_cleanup diagnostic_only virtual_padding business_applied source_dependencies_closed '
+        'configured published generation native_cp EE frame capture').split())
+    seen = set()
+    for row in observed:
+        f = row['fields']
+        needed(required <= f.keys(), 'Startup initial diagnostic complete actual free receipt')
+        command = number(f['opcode'])
+        require(command not in seen and (not transfers or row['line'] < transfers[0]['line']),
+                'Startup initial diagnostic repeated/late')
+        seen.add(command)
+        size = 24 if command == 0x4014 else 12
+        wire = raw_hex(f, 'request', size)
+        ack = b'\x01\0' + struct.pack('<H', command) + wire[4:8] + struct.pack('<I', 0xf000)
+        sender = number(f['sender_tid'])
+        digest32 = 2166136261
+        for byte in wire:
+            digest32 = ((digest32 ^ byte) * 16777619) & 0xffffffff
+        require(wire[0] == 5 and struct.unpack_from('<H', wire, 2)[0] == command and
+                wire[8:] == (STARTUP_CONTROL_MODE_BODY if command == 0x4014 else bytes(4)) and
+                raw_hex(f, 'reply', 12) == raw_hex(f, 'freed_reply', 12) == ack and 0 < sender < 2**31 and
+                all(number(f[k]) == v for k, v in dict(pid=pid, waiter_tid=sender, requests=1, source=0x80020002,
+                    request_destination=0x90030001, destination=0x80020002, bytes=size,
+                    cookie=struct.unpack_from('<I', wire, 4)[0], wire_fnv1a32=digest32,
+                    source_byte1_known=int(command == 0x4057), reply_free_destination=0x80020002,
+                    reply_free_source=0x90030001, reply_free_bytes=12).items()) and
+                all(f[k] == '1' for k in ('queued', 'request_freed', 'reply_freed', 'clean_completion',
+                                         'ap_consumed', 'diagnostic_only', 'virtual_padding')) and
+                all(f[k] == '0' for k in ('busy', 'guard', 'faults', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc',
+                    'business_applied', 'source_dependencies_closed', 'configured', 'published', 'generation', 'native_cp', 'EE', 'frame', 'capture')) and
+                all(f[k] == '(nil)' for k in ('retained_request', 'live_reply', 'retained_cleanup')),
+                'Startup initial diagnostic raw wire/cookie/free truth must remain clean and transport-only')
+        result[hex(command)] = dict(status='transport_only', format_applied=False, mode_applied=False,
+                                    settings_checkpoint_loaded=False, line=row['line'])
+    return result
+
+
+def check_still_format(run, manifest, rows, transport):
+    return _check_cp_configuration(run, manifest, rows, transport)
+
+
+def check_startup_control(run, manifest, rows, transport):
+    return _check_cp_configuration(run, manifest, rows, transport, startup=True)
+
+
+def _check_cp_configuration(run, manifest, rows, transport, *, startup=False):
+    """Independent CP promises share ownership rules, never the dynamic VDF queues."""
+    opcode = 14 if startup else 13
+    commands, size = CONFIG_OPERATIONS[opcode]
+    prefix = 'FUNCTIONAL_STARTUP_CONTROL' if startup else 'FUNCTIONAL_STILL_FORMAT'
+    label = 'Startup control' if startup else 'Still format'
+    transfers = [tx for tx in transport['transfers'] if tx['opcode'] == opcode]
+    native = [tx for tx in transport['transfers'] if tx['origin']['destination'] == 0x90030001 and
+              tx['origin']['command'] in commands]
+    records = [r for r in rows if r['tag'].startswith(prefix)]
+    result = dict(required=bool(transfers or native or records), verified=False, status='not_observed',
+                  format_applied=False, AP_consumed=False, cycles=[], missing=[],
+                  initial_diagnostic='not_observed', capture_verified=False,
+                  physical_asic_compatibility_verified=False, original_CP_executed=False,
+                  original_CP_RAM_verified=False, original_RTOS_verified=False,
+                  still_format_physical_selector_mapping_verified=False)
+    if startup:
+        result.update(mode_applied=False, settings_checkpoint_loaded=False, startup_control_applied=False,
+                      startup_control_physical_mapping_verified=False)
+    if not result['required']:
+        return result
+    policy = STARTUP_CONTROL_POLICY if startup else STILL_FORMAT_POLICY
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and all(typed_equal(manifest.get('functional_camera_' + k), v) and
+            typed_equal(backup.get('functional_camera_' + k), v) for k, v in policy.items()),
+            label + ' operation lacks its exact typed software policy')
+    require(all(type(tx['opcode']) is int and tx['opcode'] in (2, opcode) for tx in native),
+            label + ' original CP request was relabelled as another operation')
+    for tx in transfers:
+        origin = tx['origin']
+        require(all(type(origin[k]) is int and origin[k] == v for k, v in
+                    (('source', 0x80020002), ('destination', 0x90030001))) and
+                type(origin['command']) is int and origin['command'] in commands and
+                type(origin['bytes']) is int and origin['bytes'] == commands[origin['command']] and
+                type(origin['producer_tid']) is int and 0 < origin['producer_tid'] < 2**31 and
+                type(origin['fnv1a64']) is int and 0 <= origin['fnv1a64'] < 2**64,
+                label + ' requires the complete original CP origin, never a general ACK')
+    history = vdf_history(run, transport)
+    if transfers:
+        check_frames(run, transport, require_media=False)
+    groups, tickets, predecessors, resources = {}, {}, [], []
+    for row in records:
+        tag, f = row['tag'], row['fields']
+        needed('diagnostic' not in row, f'{label} {tag} line {row["line"]}: missing complete original formatter' +
+               ('; diagnostic=' + row['diagnostic'] if 'diagnostic' in row else ''))
+        if tag == prefix:
+            cycle = number(f['cycle'])
+            require(cycle > 0 and f.get('event') in ('REQUEST_FREE', 'RECEIVE', 'SENDER_FREE', 'CYCLE', 'REFUSED'),
+                    'Still format unknown/zero-cycle owner event')
+            group = groups.setdefault(cycle, {})
+            require(f['event'] not in group, 'Still format duplicate cycle receipt')
+            group[f['event']] = row
+        elif tag == prefix + '_TICKET_BOUND':
+            cycle = number(f['cycle'])
+            require(cycle > 0 and cycle not in tickets, 'Still format duplicate/zero immutable ticket')
+            tickets[cycle] = row
+        elif tag == prefix + '_PREDECESSORS':
+            predecessors.append(row)
+        elif tag in (prefix + '_RESOURCE_DEPENDENCIES', prefix + '_RESOURCES_TTS_TABLE',
+                     prefix + '_RESOURCES_RESERVED'):
+            equivalent = dict(row, tag=tag.replace(prefix + '_', 'FUNCTIONAL_VDF_PATH_', 1))
+            require(vdf_resource_diagnostic(equivalent), 'Still format resource receipt differs')
+            resources.append(row)
+        else:
+            require(False, 'Still format failed/unknown native receipt: ' + tag)
+    result['status'] = 'incomplete'
+    diagnostic = [] if startup else [r for r in rows if r['tag'] == 'NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_REPLY_FREE']
+    if startup:
+        result['initial_diagnostic'] = check_startup_control_diagnostics(rows, transfers, transport['pid'])
+    if transfers and diagnostic:
+        require(len(diagnostic) == 1 and diagnostic[0]['line'] < transfers[0]['line'],
+                'Still format initial diagnostic is repeated/late')
+        d = diagnostic[0]['fields']
+        required = set(('pid sender_tid waiter_tid requests source destination bytes request cookie reply freed_reply '
+            'reply_free_destination reply_free_source reply_free_bytes busy guard faults allocate_rc send_rc request_free_rc '
+            'reply_free_rc queued request_freed reply_freed clean_completion ap_consumed retained_request live_reply '
+            'retained_cleanup diagnostic_only no_publication source_business_applied generation native_verified native_cp '
+            'CP_history_verified EE frame capture').split())
+        if not required <= d.keys():
+            result['missing'].append('complete original one-shot diagnostic free receipt')
+            return result
+        wire = raw_hex(d, 'request', 24)
+        first_m = bytes.fromhex('05002d402600008002000101010101000101010101000000')
+        ack = b'\x01\x00\x2d\x40' + wire[4:8] + struct.pack('<I', 0xf000)
+        require(wire[0] == 5 and wire[2:4] == b'\x2d\x40' and wire[8:22] == first_m[8:22] and
+                raw_hex(d, 'reply', 12) == raw_hex(d, 'freed_reply', 12) == ack and
+                all(number(d[k]) == v for k, v in dict(pid=transport['pid'], sender_tid=transfers[0]['origin']['producer_tid'],
+                    waiter_tid=transfers[0]['origin']['producer_tid'], requests=1, source=0x80020002, destination=0x90030001,
+                    bytes=24, cookie=struct.unpack_from('<I', wire, 4)[0], reply_free_destination=0x80020002,
+                    reply_free_source=0x90030001, reply_free_bytes=12).items()) and
+                all(d[k] == '1' for k in ('queued', 'request_freed', 'reply_freed', 'clean_completion', 'ap_consumed',
+                                         'diagnostic_only', 'no_publication')) and
+                all(d[k] == '0' for k in ('busy', 'guard', 'faults', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc',
+                    'source_business_applied', 'generation', 'native_verified', 'native_cp', 'CP_history_verified', 'EE', 'frame', 'capture')) and
+                all(d[k] == '(nil)' for k in ('retained_request', 'live_reply', 'retained_cleanup')),
+                'Still format initial M diagnostic must remain one-shot transport-only and clean/AP-free')
+        result['initial_diagnostic'] = dict(status='transport_only', format_applied=False, line=diagnostic[0]['line'])
+    if not transfers:
+        require(not tickets and all(set(g) <= {'REFUSED'} for g in groups.values()),
+                'Still format ACK/ownership without an actual typed OP13')
+        result['missing'].append('actual successful OP13/176 and original request/ACK lifecycle')
+        return result
+    require(not any('REFUSED' in g for g in groups.values()), 'Still format refused Core operation must not ACK')
+    if len(groups) != len(transfers) or len(tickets) != len(transfers):
+        result['missing'].append('one owner cycle and before-send immutable ticket for every OP13')
+        return result
+    require(list(groups) == list(range(1, len(transfers) + 1)) and set(tickets) == set(groups),
+            'Still format cycle/ticket census differs')
+    format_cycles, format_transfers = {}, []
+    if startup:
+        # Recheck the raw lifecycle; a caller's cached still_format summary is not evidence.
+        format_stage = check_still_format(run, manifest, rows, transport)
+        if not format_stage['verified']:
+            result['missing'].append('Startup control same-run complete OP13 lifecycle before predecessors')
+        else:
+            format_cycles = {c['first']: (c, max(r['line'] for r in rows if
+                r['tag'] == 'FUNCTIONAL_STILL_FORMAT' and number(r['fields']['cycle']) == c['cycle']))
+                for c in format_stage['cycles']}
+        format_transfers = [t for t in transport['transfers'] if t['opcode'] == 13]
+    owner_fields = set(('event pid tid cycle requests completed busy guard faults retained model_instance before_cfg cfg '
+        'before_frame frame lease state_rc state_validation_rc bridge_rc validation_rc transport_rc attempted model_complete '
+        'origin_fnv result_fnv used required token request reply req_free_rc alloc_rc send_rc reply_free_rc queued received '
+        'freed send_inflight sender_tid receiver_tid free_tid AP_consumed functional_only original_AP_verified original_CP '
+        'physical_ASIC_verified physical_CP_RTOS_verified capture_verified').split())
+    if startup:
+        owner_fields.update(('command', 'command_requests', 'command_completed', 'mode_applied', 'config40_fnv',
+                             'source_dependencies_closed', 'native_CP', 'EE'))
+    previous_line, command_counts, completed_counts, used_predecessors = 0, [0, 0], [0, 0], 0
+    for cycle, tx in enumerate(transfers, 1):
+        group, ticket = groups[cycle], tickets[cycle]
+        ticket_fields = set(('pid tid cycle pointer destination source bytes cookie reply before_actual_send '
+                             'physical_ASIC_verified capture_verified').split())
+        if (set(group) != {'REQUEST_FREE', 'RECEIVE', 'SENDER_FREE', 'CYCLE'} or
+                not ticket_fields <= ticket['fields'].keys() or any(
+                not owner_fields <= r['fields'].keys() for r in group.values())):
+            result['missing'].append('REQUEST_FREE/RECEIVE/SENDER_FREE/CYCLE with complete actual owner fields')
+            return result
+        at = {k: r['line'] for k, r in group.items()}
+        require(previous_line < tx['line'] < at['REQUEST_FREE'] < ticket['line'] <
+                min(at['RECEIVE'], at['SENDER_FREE'], at['CYCLE']) and at['RECEIVE'] < at['SENDER_FREE'],
+                'Still format typed result/request-free/ticket/receive/sender-free order differs')
+        origin, value = tx['origin'], history[tx['first']]
+        output, canonical = transfer_output(run, tx), payload_read(run, tx['request_payload'])
+        require(tx['first'] == tx['last'] and tx['token'] == 0 and tx.get('provider_kind') == 'core',
+                label + ' acquired a codec/source lease')
+        slot = int(origin['command'] == 0x4057)
+        if startup:
+            require(origin['command'] != 0x4057 or completed_counts[0] > 0,
+                    'Startup settings requires preceding functional4014 actual AP consumption')
+            command_counts[slot] += 1
+        before = transport['transfers'][transport['transfers'].index(tx) - 1]
+        require(before['opcode'] == 2 and before['origin'] == origin and previous_line < before['line'] < tx['line'],
+                'Still format requires its own preceding original-bound STATE128')
+        state = transfer_output(run, before)
+        require(struct.unpack_from('<Q', state, 56)[0] == value['before_config_generation'] and
+                struct.unpack_from('<Q', state, 112)[0] == value['before_frame_generation'] and
+                value['lease_generation'] >= struct.unpack_from('<Q', state, 64)[0] + 1 and
+                value['lease_generation'] >= value['frame_generation'],
+                'Still format STATE/config/frame/rendered lease history differs')
+        if startup:
+            require(len(state) == 128 and state[104:112] == bytes(8) and
+                    struct.unpack_from('<Q', canonical, 24)[0] == fnv(state[8:48]),
+                    'Startup control requires its actual preceding State128 config40 fingerprint')
+        audits = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and
+                  previous_line < r['line'] < before['line'] and r['fields'].get('destination') == '0x90030001' and
+                  r['fields'].get('bytes') == str(origin['bytes']) and r['fields'].get('tid') == str(origin['producer_tid'])]
+        candidates = []
+        for audit in audits:
+            f = audit['fields']
+            require(number(f['pid']) == transport['pid'], 'Still format original audit PID differs from this run')
+            chunks = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES' and
+                      audit['line'] < r['line'] < before['line'] and all(r['fields'].get(k) == f.get(k)
+                      for k in ('pid', 'tid', 'sequence'))]
+            if len(chunks) == 1 and chunks[0]['fields'].get('offset') == '0' and chunks[0]['fields'].get('bytes') == str(origin['bytes']):
+                wire = raw_hex(chunks[0]['fields'], 'raw', origin['bytes'])
+                if fnv(wire) == origin['fnv1a64']:
+                    candidates.append((audit, wire))
+        if not candidates:
+            result['missing'].append(label + ' same-cycle original CP audit and complete raw request/FNV')
+            return result
+        require(len(candidates) == 1, 'Still format duplicated original raw24 audit')
+        audit, wire = candidates[0]
+        if diagnostic:
+            require(diagnostic[0]['line'] < audit['line'], 'Still format request preceded initial diagnostic AP-free')
+        f = audit['fields']
+        require(number(f['pid']) == transport['pid'] and number(f['source']) == origin['source'] and f['entry'] == 'async' and
+                all(f.get(k) == '1' for k in ('size_known', 'source_known', 'bytes_complete', 'complete')) and
+                all(f.get(k) == '0' for k in ('consumed', 'state_verified', 'capture_verified')) and
+                wire[0] == 5 and struct.unpack_from('<H', wire, 2)[0] == origin['command'] and
+                (wire[8:] == canonical[4:origin['bytes'] - 4] if startup else wire[8:22] + bytes(2) == canonical),
+                label + ' original wire/body/source/destination differs')
+        cookie = struct.unpack_from('<I', wire, 4)[0]
+        ack = b'\x01\x00' + struct.pack('<H', origin['command']) + wire[4:8] + struct.pack('<I', 0xf000)
+        t = ticket['fields']
+        require(all(number(t[k]) == v for k, v in dict(pid=transport['pid'], tid=origin['producer_tid'], cycle=cycle,
+                destination=origin['source'], source=origin['destination'], bytes=12, cookie=cookie).items()) and
+                number(t['cookie']) < 2**32 and raw_hex(t, 'reply', 12) == ack and
+                t.get('before_actual_send') == '1' and t.get('physical_ASIC_verified') == t.get('capture_verified') == '0',
+                'Still format immutable ticket/full ACK/cookie/before-send binding differs')
+        pointer = number(t['pointer'])
+        require(0 < pointer <= 2**64 - 12, 'Still format missing independent live ACK pointer')
+        preds = [r for r in predecessors if audit['line'] < r['line'] < at['REQUEST_FREE']]
+        if startup:
+            require(len(preds) <= 3, 'Startup control duplicate predecessor checks')
+            used_predecessors += len(preds)
+        if not (any(r['line'] < before['line'] for r in preds) and
+                any(before['line'] < r['line'] < tx['line'] for r in preds) and
+                any(tx['line'] < r['line'] for r in preds)):
+            result['missing'].append(label + ' predecessor checks before STATE, after STATE and after typed result')
+        for pred in preds:
+            if startup:
+                expected = dict(pid=transport['pid'], tid=origin['producer_tid'], accepted=1,
+                    initial_mode_requests=1, initial_mode_AP_consumed=1, initial_settings_requests=1,
+                    initial_settings_AP_consumed=1, all13_AP_consumed=1, VDF_AP_consumed=1,
+                    still_format_AP_consumed=1, model_instance=transport['model_instance'],
+                    source_business_equivalent=0, physical_ASIC_verified=0, capture_verified=0)
+                fields = pred['fields']
+                schema = set(expected) | {'still_format_cycle'}
+                if not schema <= fields.keys():
+                    result['missing'].append('Startup control complete Main predecessor receipt')
+                    continue
+                require(set(fields) == schema and all(number(fields[k]) == v for k, v in expected.items()) and
+                        number(fields['still_format_cycle']) > 0,
+                        'Startup control prior diagnostics/all13/current VDF/format identity or scope differs')
+                latest = next((t for t in reversed(format_transfers) if t['line'] < pred['line']), None)
+                if latest is None or latest['first'] not in format_cycles:
+                    result['missing'].append('Startup control predecessor lacks its current complete OP13 lifecycle')
+                    continue
+                current, completion_line = format_cycles[latest['first']]
+                require(number(fields['still_format_cycle']) == current['cycle'] and
+                        current['model_instance'] == transport['model_instance'] and current['AP_consumed'] and
+                        completion_line < pred['line'],
+                        'Startup control current still_format_cycle/AP consumption not complete before predecessor')
+            else:
+                require(all(number(pred['fields'][k]) == v for k, v in dict(pid=transport['pid'], tid=origin['producer_tid'],
+                        accepted=1, initial_diagnostic_requests=1, initial_diagnostic_AP_consumed=1,
+                        VDF_AP_consumed=1, model_instance=transport['model_instance'], source_business_equivalent=0,
+                        physical_ASIC_verified=0, capture_verified=0).items()), 'Still format prior diagnostic/current VDF differs')
+        held_resources = [r for r in resources if audit['line'] < r['line'] < before['line']]
+        needed_resources = {r['tag'] for r in held_resources}
+        require(all(number(r['fields']['tid']) == origin['producer_tid'] and
+                    ('pid' not in r['fields'] or number(r['fields']['pid']) == transport['pid']) for r in held_resources),
+                'Still format resource guard30 owner differs')
+        if len(held_resources) != 3 or needed_resources != {prefix + '_' + n for n in
+                               ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}:
+            result['missing'].append(label + ' actual guard dependency/table/reserved receipts before STATE')
+            return result
+        table = next(r['fields'] for r in held_resources if r['tag'] == prefix + '_RESOURCES_TTS_TABLE')
+        require(number(audit['fields']['producer_return']) == number(table['appfw_base']) + 0x3535a68 and
+                0 < number(audit['fields']['pointer']) <= 2**64 - origin['bytes'],
+                'Still format original audited sender callsite/request pointer differs')
+        for name, row in group.items():
+            f, line = row['fields'], row['line']
+            require(all(f.get(k) == '0' for k in ('state_rc', 'state_validation_rc', 'bridge_rc', 'validation_rc',
+                    'transport_rc', 'faults', 'req_free_rc', 'alloc_rc', 'send_rc', 'reply_free_rc', 'token',
+                    'original_AP_verified', 'original_CP', 'physical_ASIC_verified', 'physical_CP_RTOS_verified',
+                    'capture_verified')) and all(f.get(k) == '1' for k in ('attempted', 'model_complete', 'functional_only')),
+                    'Still format failed/sticky native work or scope promotion')
+            require(all(number(f[k]) == v for k, v in dict(pid=transport['pid'], cycle=cycle, requests=cycle,
+                    model_instance=transport['model_instance'], before_cfg=value['before_config_generation'],
+                    cfg=value['config_generation'], before_frame=value['before_frame_generation'], frame=value['frame_generation'],
+                    lease=value['lease_generation'], used=size, required=size).items()) and
+                    int(writeback.hash_hex(f['origin_fnv'], 16), 16) == origin['fnv1a64'] and
+                    int(writeback.hash_hex(f['result_fnv'], 16), 16) == fnv(output),
+                    'Still format owner/origin/full176/generations differ')
+            queued, inflight, busy, guard = (number(f[k]) for k in ('queued', 'send_inflight', 'busy', 'guard'))
+            received, freed = int(line >= at['RECEIVE']), int(line >= at['SENDER_FREE'])
+            require(f['request'] == '(nil)' and all(v in (0, 1) for v in (queued, inflight, busy, guard)) and busy == guard,
+                    'Still format request free/guard/queue flags differ')
+            if name == 'REQUEST_FREE':
+                require(f['reply'] == '(nil)' and queued == inflight == 0 and busy == 1 and f['sender_tid'] == '0',
+                        'Still format ACK allocated before actual request free')
+            else:
+                require(queued + inflight == 1 and number(f['sender_tid']) == origin['producer_tid'] and
+                        f['reply'] == ('(nil)' if freed else t['pointer']), 'Still format ACK lease/actual send differs')
+            if line >= at['CYCLE']:
+                require(queued == 1 and inflight == busy == guard == 0, 'Still format CYCLE remains send-inflight/busy')
+            consumed = int(queued and received and freed and not inflight and not busy and not guard)
+            require(all(number(f[k]) == v for k, v in dict(received=received, freed=freed, AP_consumed=consumed,
+                    completed=cycle - 1 + consumed, retained=int(name != 'REQUEST_FREE' and not freed),
+                    free_tid=origin['producer_tid'] if freed else 0).items()), 'Still format receive/free/consumption state differs')
+            receiver = number(f['receiver_tid'])
+            if startup:
+                expected_completed = completed_counts.copy()
+                expected_completed[slot] += consumed
+                require(number(f['command']) == origin['command'] and f['mode_applied'] == '1' and
+                        [number(v) for v in f['command_requests'].split(',')] == command_counts and
+                        [number(v) for v in f['command_completed'].split(',')] == expected_completed and
+                        int(writeback.hash_hex(f['config40_fnv'], 16), 16) == fnv(state[8:48]) and
+                        all(f[k] == '0' for k in ('source_dependencies_closed', 'native_CP', 'EE')),
+                        'Startup control command/counters/actual config40 fingerprint or scope differs')
+            require((0 < receiver < 2**31 if received else receiver == 0) and
+                    number(f['tid']) == (receiver if name == 'RECEIVE' else origin['producer_tid']),
+                    'Still format original receiver/sender-free thread differs')
+        final = max(group.values(), key=lambda r: r['line'])
+        require(final['fields']['AP_consumed'] == '1', 'Still format actual original sender free not complete')
+        result['cycles'].append(dict(cycle=cycle, first=tx['first'], cookie=cookie, original_wire=wire.hex(),
+            original_fnv1a64=f'{origin["fnv1a64"]:016x}', result_fnv1a64=f'{fnv(output):016x}',
+            model_instance=transport['model_instance'], config_generation=value['config_generation'],
+            frame_generation=value['frame_generation'], lease_generation=value['lease_generation'],
+            receiver_tid=number(group['RECEIVE']['fields']['receiver_tid']), sender_tid=origin['producer_tid'],
+            ticket_line=ticket['line'], receive_line=at['RECEIVE'], free_line=at['SENDER_FREE'], AP_consumed=True))
+        if startup:
+            completed_counts[slot] += 1
+            result['cycles'][-1].update(command=origin['command'], config40_fnv1a64=f'{fnv(state[8:48]):016x}')
+        previous_line = final['line']
+    if startup and used_predecessors != len(predecessors):
+        result['missing'].append('Startup control predecessor receipt outside its original request/STATE/OP14 window')
+    if result['missing']:
+        return result
+    result.update(verified=True, status='complete', format_applied=not startup, AP_consumed=True)
+    if startup:
+        result.update(mode_applied=bool(completed_counts[0]), settings_checkpoint_loaded=bool(completed_counts[1]),
+                      startup_control_applied=True)
+    return result
 
 
 def check_histogram(run, rows, transport):
@@ -2157,9 +2869,17 @@ def check_layout_stage(run, manifest, rows, transport=None):
             bank_fnv1a64=f'{fnv(canonical):016x}', readback_verified=True, AP_consumed=True,
             receive_line=at['RECEIVE'], free_line=at['AP_FREE'], complete_line=previous))
     path_tags = {'FUNCTIONAL_VDF_PATH_' + name for name in names[1:]}
-    require(all(previous < row['line'] for row in rows if row['tag'] in path_tags or
-                row['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and number(row['fields']['op']) in VDF_OPERATIONS),
+    require(all(previous < row['line'] for row in rows if row['tag'] in path_tags),
             'startup layout register stage occurred after display route work')
+    for row in rows:
+        if row['tag'] != 'FUNCTIONAL_CAMERA_TRANSFER':
+            continue
+        f = row['fields']
+        needed('op' in f, f'startup layout transfer line {row["line"]}: missing op; diagnostic={row.get("diagnostic")!r}')
+        require('diagnostic' not in row and f.get('error') == '0' and f.get('readback_closed') == '1',
+                f'startup layout malformed/failed actual bridge transfer line {row["line"]}')
+        require(number(f['op']) not in VDF_OPERATIONS or previous < row['line'],
+                'startup layout register stage occurred after display route work')
     result.update(verified=True, status='staged-unapplied', owner_pid=owner, owner_bound_to_mailbox=False)
     seen, previous_application = set(), None
     for row, n in applied:
@@ -2241,6 +2961,8 @@ def mailbox_header(row, mailbox):
 
 
 def check_transport(run, manifest, rows, events, build):
+    require(build.get('qemu_sha256') in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256),
+            'transport QEMU is not an admitted batch executable')
     runner = json_file(run, 'functional-camera-runner.json')
     require(runner.get('schema') == 'functional-camera-runner-v1' and runner.get('profile') == PROFILE and
             runner.get('phase') == 'closed' and runner.get('error') is None and runner.get('broker_started') is True and
@@ -2254,7 +2976,7 @@ def check_transport(run, manifest, rows, events, build):
             'unsafe/failed cleanup or console changed after runner close')
     artifact = runner.get('artifact', {})
     for key, expected in (('library_sha256', build['model_sha256']), ('build_receipt_sha256', build['model_build_sha256']),
-                          ('source_archive_sha256', build['model_source_archive_sha256']), ('qemu_sha256', QEMU_SHA256)):
+                          ('source_archive_sha256', build['model_source_archive_sha256']), ('qemu_sha256', build['qemu_sha256'])):
         require(artifact.get(key) == expected, 'runner artifact differs from frozen batch: ' + key)
     require(artifact.get('library') == str(RUNTIME / 'functional-camera-model.so') and
             artifact.get('abi_header_sha256') == manifest.get('files', {}).get(str(RUNTIME / 'functional-camera-abi.h')) and
@@ -2277,7 +2999,7 @@ def check_transport(run, manifest, rows, events, build):
             'broker immutable payload policy differs')
     info = run.stat()
     require(config.get('run') == str(run) and config.get('run_identity') == [info.st_dev, info.st_ino] and
-            config.get('qemu_sha256') == QEMU_SHA256 and
+            config.get('qemu_sha256') == build['qemu_sha256'] and
             typed_equal(config.get('owner'), runner.get('owner')) and
             typed_equal(config.get('qemu'), runner.get('debugger_handoff', {}).get('qemu_identity')),
             'mixed-run/owner/QEMU transport binding')
@@ -2467,6 +3189,9 @@ def check_transport(run, manifest, rows, events, build):
         require(not covered & ids, 'duplicate/overlapping bridge transfer')
         covered |= ids
         tx = transactions[first]
+        require('origin_kind' not in f or f['origin_kind'] == (
+                    'api40-source-snapshot' if tx['source_call'] else 'native-osal'),
+                'bridge origin_kind differs from actual broker provider')
         require(number(f['model_instance']) == mailbox['nonce'] and number(f['op']) == tx['request']['opcode'] and
                 number(f['request_bytes']) == tx['request']['request_bytes'] and
                 number(f['request_fnv']) == tx['request']['request_fnv1a64'], 'bridge initial request differs from broker')
@@ -2577,13 +3302,20 @@ def check_transport(run, manifest, rows, events, build):
             typed_equal(manifest.get('functional_camera_' + key), value) and
             typed_equal(backup.get('functional_camera_' + key), value) for key, value in DISPLAY_POLICY.items()),
             'Display operation lacks the explicit disabled/off software policy')
-    for opcode, policy in ((9, BB_POLICY), (10, HIST_POLICY), (12, BIT_WIDTH_POLICY)):
+    for opcode, policy in ((9, BB_POLICY), (10, HIST_POLICY), (12, BIT_WIDTH_POLICY),
+                           (13, STILL_FORMAT_POLICY), (14, STARTUP_CONTROL_POLICY)):
         if any(tx['opcode'] == opcode for tx in checked):
             backup = manifest.get('backup_transport')
             require(type(backup) is dict and all(
                 typed_equal(manifest.get('functional_camera_' + key), value) and
                 typed_equal(backup.get('functional_camera_' + key), value) for key, value in policy.items()),
                 'BB/histogram/bit width operation lacks its exact typed software policy')
+    result['still_format'] = check_still_format(run, manifest, rows, result)
+    if result['still_format']['required'] and not result['still_format']['verified']:
+        result['verified'] = False
+    result['startup_control'] = check_startup_control(run, manifest, rows, result)
+    if result['startup_control']['required'] and not result['startup_control']['verified']:
+        result['verified'] = False
     result['histogram'] = check_histogram(run, rows, result)
     result['control'] = check_control(run, rows, result)
     if result['control']['required']:
@@ -2696,10 +3428,10 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
         require(all(value >= 0 for value in delta.values()), 'actual model counters regressed')
         output = transfer_output(run, tx)
         kind = p['consumer_kind']
-        result_data = b'' if kind in (0, 4) and op != 12 else output
+        result_data = b'' if kind in (0, 4) and op not in (12, 13, 14) else output
         require(p['result_bytes'] == len(result_data) and p['result_fnv1a64'] == fnv(result_data) and p['result_token'] == tx['token'],
                 'actual coded result is not this frame job output')
-        require(kind == {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4, 16: 1, 33: 2, 34: 3}.get(op), 'actual frame consumer kind differs')
+        require(kind == {1: 0, 5: 4, 6: 4, 7: 4, 8: 4, 9: 5, 10: 6, 12: 4, 13: 4, 14: 4, 16: 1, 33: 2, 34: 3}.get(op), 'actual frame consumer kind differs')
         if kind != 3 and (kind != 4 or vdf['enabled']):
             require(0 < p['width'] <= 8192 and 0 < p['height'] <= 8192 and p['stride'] >= p['width'] * 3 and
                     p['active_bytes'] == p['width'] * p['height'] * 3 and p['lease_generation'] > 0 and
@@ -3464,6 +4196,14 @@ def evaluate(run, batch):
                     detail='original 3006 remains pending; full actual model/response/AP-free closure required'))
         if transport['startup_layout_stage']['required']:
             result['evidence']['startup_layout_stage'] = transport['startup_layout_stage']
+        if transport['still_format']['required']:
+            result['evidence']['still_format'] = transport['still_format']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='still_format', detail=detail)
+                                     for detail in transport['still_format']['missing'])
+        if transport['startup_control']['required']:
+            result['evidence']['startup_control'] = transport['startup_control']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='startup_control', detail=detail)
+                                     for detail in transport['startup_control']['missing'])
         if transport['histogram']['required']:
             result['evidence']['histogram'] = transport['histogram']
         if transport['control']['required']:

@@ -1,0 +1,165 @@
+{
+  "schema": "a7c2-qemu-publication-validation-v1",
+  "date": "2026-10-31",
+  "status": "PASS_PUBLIC_PACKAGE_HOST_AND_MODELS",
+  "source_snapshot": "unified-camera-arzj0n5v",
+  "source_origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "research_reference": {
+    "tests_passed": 9070,
+    "subtests_passed": 10006,
+    "ready_sha256": "ecf3dc6dacb8e5d539fe4939ed8cb88e96cd4e54852adda034977242a8395332",
+    "parent_readback_sha256": "46d476c94d72e31217b7cab009292acd7894712ee4d83d96704d943cc149dd08",
+    "scope": "research source provenance only; not package test totals or native capture"
+  },
+  "tested_package_before_receipt": {
+    "files": 2352,
+    "checksum_entries": 2351,
+    "source_checksum_sha256": "a9bce24ec008548050d1abfd090d5ed847dd3b76c001eade686ada2bf9ccd0cd",
+    "frozen_source_unchanged": true
+  },
+  "stages": [
+    {
+      "stage": "script-sync",
+      "command": "analysis/sync_repo_scripts.sh --check (research workspace)",
+      "returncode": 0,
+      "counts": {},
+      "stdout_sha256": "4df707a940d6fde11b4675d18383ba135c02499e6c279db310d26955fca9a847",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "host-dependencies",
+      "command": "./tools/check-host.sh",
+      "returncode": 0,
+      "counts": {},
+      "stdout_sha256": "293f5a072e52f522280bbf2bc45016109aff9f9ca58cc5fa4645beb51d12048b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "source-patches",
+      "command": "python3 -B tools/check-source.py",
+      "returncode": 0,
+      "counts": {},
+      "stdout_sha256": "e063e5761822281df57788c8ee264592074b54d7e493e04ea3e53477145f0bc1",
+      "stderr_sha256": "9fd2ee14b1d88e5c4033503be817ac9ac5225a940a43682f314224d37925d297"
+    },
+    {
+      "stage": "host-suite",
+      "command": "python3 -B tools/test-host.py",
+      "returncode": 0,
+      "counts": {
+        "passed": 302,
+        "skipped": 34,
+        "subtests passed": 76
+      },
+      "stdout_sha256": "5a1c0905a87c6667fc2d577dbe5560aeec5e46ceb08feabbb9453f7d8ff23f93",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "software-model-suite",
+      "command": "python3 -B tools/test-public-models.py",
+      "returncode": 0,
+      "counts": {
+        "passed": 7871,
+        "skipped": 107,
+        "subtests passed": 9998
+      },
+      "stdout_sha256": "c1b301df903f18a61dd379fac4960b59f3d04c5940b1820e2dacdde54bfc5c7c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "stage": "diff-whitespace",
+      "command": "git diff --check",
+      "returncode": 0,
+      "counts": {},
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "host": {
+    "passed": 302,
+    "skipped": 34,
+    "subtests_passed": 76
+  },
+  "software_models": {
+    "modules": 219,
+    "passed": 7871,
+    "skipped": 107,
+    "subtests_passed": 9998
+  },
+  "skip_details": {
+    "host": {
+      "count": 34,
+      "reasons": {
+        "pass --runtime for actual Sony asset checks": 5,
+        "outside asset-free/build-free host scope; run full suite after build/import": 3,
+        "GTK display required: use xvfb-run": 24,
+        "Set A7C2_STARTUP_BASELINE and A7C2_STARTUP_NO_MENU": 2
+      },
+      "junit_sha256": "e5d0d13b481e96d762b0e5a32259a78acc619ec542830bddc832c072175a3d5c"
+    },
+    "software_models": {
+      "count": 107,
+      "reasons": {
+        "static private-workdir receipt is optional for readers": 1,
+        "pinned public CP original unavailable": 3,
+        "outside public host software-model scope: launcher rejection integration; validate with package adapters/native opt-in suite": 2,
+        "local original-run evidence absent": 1,
+        "same-run console is local evidence, not a redistributed fixture": 1,
+        "outside public host software-model scope: original Sony glibc and QEMU-user integration; validate with native asset opt-in suite": 7,
+        "private original e6mx console is not part of the public package": 1,
+        "private 05b0 console is excluded from the public package": 1,
+        "private original zd4 console is not part of the public package": 1,
+        "private original _zfq console is not part of the public package": 1,
+        "private zd4 console is excluded from the public package": 1,
+        "private retained Core stdout unavailable; no model is rebuilt": 1,
+        "private retained Core stdout is unavailable; no model is rebuilt": 1,
+        "private immutable xnod replay is not distributed": 1,
+        "explicit completed delayed-free-note run unavailable": 50,
+        "explicit successful HDMI11 run is unavailable": 8,
+        "explicit actual native UPM replay run is unavailable": 15,
+        "outside public host software-model scope: original Sony assets or ABI integration; outside host software-model publication": 10,
+        "outside public host software-model scope: launcher rejection integration; host byte/width/error-preservation tests run separately": 1
+      },
+      "junit_sha256": "ffc0770fcfc3cac937cf3b09e5618ea74dde400e80fffa2cda13bc3559b3f0bc"
+    }
+  },
+  "full_raw_test_logs_not_distributed": true,
+  "post_test_changes_scope": "publication metadata/docs/checksums and EOF-only normalization of three tests; all runtime code and all test Python ASTs unchanged",
+  "test_eof_normalizations": [
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_scope_trace_checks.py",
+      "before_sha256": "c7d358e993e1cf7d943663fcf553754edee7c4cb42a7dff486c6600003473b61",
+      "after_sha256": "fc96bb4ade403be0f1e0c5099c55d02a746b6814e8aaa51eafc98b8d4bc76fc8",
+      "python_ast_unchanged": true
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_run_context.py",
+      "before_sha256": "e3df7e3f93c8844bff931c8a3cb1d33555cca72d616fa9324a03e527d92a869b",
+      "after_sha256": "beef22950d821e04d5db2261b058034fc8cd93a08e9b8570fe7244af9f25e025",
+      "python_ast_unchanged": true
+    },
+    {
+      "path": "runtime/analysis/test_functional_still_format_wiring.py",
+      "before_sha256": "28b8364c8226ccfebd9f753a65902f8ec6daa2abbc066138a6a0ec4512cec68b",
+      "after_sha256": "bb78b7e4b6ddd2b3a993ee937da051795f9f40fe2f06c83819a4c4ebc18d7217",
+      "python_ast_unchanged": true
+    }
+  ],
+  "native_camera_VM_started": false,
+  "GUI_executed": false,
+  "physical_device_accessed": false,
+  "original_Sony_ABI_or_actual_API_reexecuted_in_package": false,
+  "original_AP_media_capture_verified": false,
+  "capture_verified": false,
+  "physical_ASIC_compatibility_verified": false,
+  "original_run64_formal_capture_verdict": "FAIL",
+  "original_run64_formal_graph_verdict": "FAIL",
+  "original_typed_content_verdict": "INCOMPLETE",
+  "known_remaining": [
+    "native pressed=1 capture call not verified",
+    "same actual CMOS frame to codec to original MPR/Fsys to virtual SD with independent decode not verified",
+    "research-only CONTROL_COMMIT pairing and opcode audit followup not part of this published snapshot"
+  ],
+  "parent_test_result_sha256": "4aaefb71b8a4a5e4c5ecd63ba71466ef31cbeaaf70df3a8f66b5b5a2ea377437",
+  "parent_test_finished_at_ns": 1793437991340667425
+}

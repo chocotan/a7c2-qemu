@@ -1,6 +1,7 @@
 """Original UPM observer; only optional dedicated receipt transport writes.
 
-Host API: start(run, owner_pid, {'upm': T, 'osal_uipc': O}, mailbox=None).
+Host API: start(run, owner_pid, {'upm': T, 'osal_uipc': O}, mailbox=None,
+                scope_build_receipt=None).
 Optional mailbox={'phys': actual_pagemap_page_pa, 'nonce': u64, 'pid': AP_pid}
 uses the frozen device-models/hdmi-upm-receipt.h ABI (256 bytes). Only this
 explicit transport permits writes: armed status, verified receipt, commit status.
@@ -30,16 +31,21 @@ import signal
 import stat
 import struct
 import subprocess
+import sys
 import threading
 import time
 
 BASE = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE))
+import scope_observer_profile
+
 RUNS = BASE / 'menu-runs'
 SOCKET = 'hdmi-upm-gdb.sock'
 PREFIX = 'hdmi-upm-watch'
 LIMIT = 64
 SECONDS = 120
 QEMU_SHA = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+READONLY_SCOPE_QEMU_SHA = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
 QUEUE = 0x80920572
 SOURCE = 0x909a015a
 MESSAGE = 0x00920117
@@ -244,7 +250,61 @@ def validate_run(run):
     return run, info
 
 
-def owned_config(run, owner_pid, module_texts, mailbox=None):
+def scope_binding(root, receipt_value, running_qemu_sha256):
+    """Bind the reviewed host build and this run's staged plugin to the owned exe."""
+    require(running_qemu_sha256 == READONLY_SCOPE_QEMU_SHA,
+            'Scope observer requires the exact reviewed running QEMU executable')
+    manifest = parse_json(checked_read(root / 'runtime-manifest.json', 4 * 1024 * 1024))
+    require(type(manifest) is dict, 'Scope observer requires the actual run manifest')
+    scope, backup, files = (manifest.get(name) for name in ('readonly_scope_observer', 'backup_transport', 'files'))
+    require(type(scope) is dict and type(scope.get('profile')) is str and
+            scope['profile'] in scope_observer_profile.SOURCE_SETS and
+            scope.get('identity_binding') == 'unverified' and scope.get('capture_verified') is False and
+            scope.get('physical_asic_compatibility_verified') is False and
+            scope.get('log') == str(root / 'readonly-scope-trace.log') and
+            type(backup) is dict and type(backup.get('binary')) is str and type(files) is dict,
+            'Scope observer manifest profile/binary/files binding missing or changed')
+    receipt_path, binary = Path(receipt_value), Path(backup['binary'])
+    require(receipt_path.is_absolute() and receipt_path.resolve() == receipt_path and
+            scope.get('build_receipt') == str(receipt_path) and
+            binary.is_absolute() and binary.resolve() == binary,
+            'Scope observer requires the same canonical receipt and host candidate paths')
+    # /proc/PID/exe is deliberately hashed separately, never passed as an ordinary file.
+    build = scope_observer_profile.validate_build(BASE.parents[1], receipt_path, binary)
+    require(build['qemu_sha256'] == running_qemu_sha256 and
+            backup.get('binary_sha256') == running_qemu_sha256,
+            'Scope observer candidate differs from the actual running QEMU')
+    for name in ('profile', 'build_receipt', 'build_receipt_sha256', 'qemu_sha256',
+                 'qemu_header_sha256', 'source_sha256', 'library_sha256'):
+        require(scope.get(name) == build[name], 'Scope observer manifest build binding changed: ' + name)
+    if build['profile'] in (scope_observer_profile.PROFILE_V2, scope_observer_profile.PROFILE_V3):
+        for name in ('trace_schema', 'trace_schema_sha256', 'source_contract_sha256'):
+            require(scope.get(name) == build[name],
+                    'Scope observer ' + build['profile'][-2:] + ' manifest schema binding changed: ' + name)
+        if build['profile'] == scope_observer_profile.PROFILE_V3:
+            require(not {'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256',
+                         'source_root', 'Source_root', 'sourceDependencyFrozen'} & scope.keys(),
+                    'Scope observer v3 manifest has a schema digest/root alias')
+    require(hashlib.sha256(checked_read(receipt_path, 1024 * 1024)).hexdigest() == build['build_receipt_sha256'],
+            'Scope observer build receipt changed during validation')
+    staged = root / 'readonly-scope-observer.so'
+    require(scope.get('library') == str(staged) and
+            hashlib.sha256(checked_read(staged, 16 * 1024 * 1024)).hexdigest() == build['library_sha256'],
+            'Scope observer staged library differs from the reviewed build')
+    source_root = scope_observer_profile.source_root(BASE.parents[1], build['profile'])
+    bound_files = {str(binary): running_qemu_sha256, str(receipt_path): build['build_receipt_sha256'],
+                   str(staged): build['library_sha256'],
+                   **{str(source_root / name): digest for name, digest in build['source_sha256'].items()}}
+    require(all(files.get(path) == digest for path, digest in bound_files.items()),
+            'Scope observer manifest.files differs from the actual bound assets')
+    bound = dict(build, staged_library=str(staged), qemu_binary=str(binary))
+    if 'plan_binding' in scope:
+        require(type(scope['plan_binding']) is dict, 'Scope observer plan binding must be an object')
+        bound['plan_binding'] = scope['plan_binding']
+    return bound
+
+
+def owned_config(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
     root, info = validate_run(run)
     ctx = context(module_texts)
     if mailbox is not None:
@@ -302,9 +362,13 @@ def owned_config(run, owner_pid, module_texts, mailbox=None):
     exe = Path('/proc') / str(qemu['pid']) / 'exe'
     executable = exe.stat()
     require(stat.S_ISREG(executable.st_mode) and executable.st_uid == os.getuid() and
-            not executable.st_mode & 0o022 and hashlib.sha256(exe.read_bytes()).hexdigest() == QEMU_SHA,
-            'Untrusted actual running QEMU executable')
-    return dict(running_QEMU_sha256=QEMU_SHA, run=str(root), run_device=info.st_dev, run_inode=info.st_ino,
+            not executable.st_mode & 0o022, 'Untrusted actual running QEMU executable')
+    actual_qemu_sha256 = hashlib.sha256(exe.read_bytes()).hexdigest()
+    expected_qemu_sha256 = QEMU_SHA if scope_build_receipt is None else READONLY_SCOPE_QEMU_SHA
+    require(actual_qemu_sha256 == expected_qemu_sha256, 'Untrusted actual running QEMU executable')
+    scope = None if scope_build_receipt is None else scope_binding(root, scope_build_receipt, actual_qemu_sha256)
+    return dict(running_QEMU_sha256=actual_qemu_sha256, run=str(root), run_device=info.st_dev, run_inode=info.st_ino,
+                scope_build_receipt=None if scope is None else scope['build_receipt'], readonly_scope_observer=scope,
                 socket_device=sock.st_dev, socket_inode=sock.st_ino,
                 owner_pid=owner_pid, owner_starttime=owner['starttime'], owner_exe=owner['exe'],
                 qemu_pid=qemu['pid'], qemu_starttime=qemu['starttime'], qemu_exe=qemu['exe'],
@@ -312,7 +376,8 @@ def owned_config(run, owner_pid, module_texts, mailbox=None):
 
 
 def revalidate(config):
-    actual = owned_config(config['run'], config['owner_pid'], config['context']['module_texts'], config.get('mailbox'))
+    actual = owned_config(config['run'], config['owner_pid'], config['context']['module_texts'],
+                          config.get('mailbox'), config.get('scope_build_receipt'))
     require(actual == config, 'Run/process/socket/module binding changed')
     return actual
 
@@ -547,8 +612,8 @@ def ack_receipt(run, bridge_seq):
 
 
 class Watch:
-    def __init__(self, run, owner_pid, module_texts, mailbox=None):
-        self.config = owned_config(run, owner_pid, module_texts, mailbox)
+    def __init__(self, run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
+        self.config = owned_config(run, owner_pid, module_texts, mailbox, scope_build_receipt)
         self.run = Path(self.config['run'])
         self.process = self.log = None
         self.cleanup = None
@@ -556,14 +621,17 @@ class Watch:
         require(executable is not None, 'Installed AArch64 GDB required')
         self.executable = executable
         config_path = self.run / (PREFIX + '-config.json')
-        with config_path.open('x', encoding='ascii') as output:
-            json.dump(self.config, output)
+        config_raw = json.dumps(self.config).encode('ascii')
+        with config_path.open('xb') as output:
+            output.write(config_raw)
+        config_sha256 = hashlib.sha256(config_raw).hexdigest()
         script = self.run / (PREFIX + '.gdb')
         code = ('set pagination off\nset confirm off\nset architecture aarch64\nset language c\n'
-                'set remotetimeout 4\npython\nimport importlib.util\n'
+                'set remotetimeout 4\npython\nimport importlib.util, sys\n'
+                f'sys.path.insert(0, {str(BASE)!r})\n'
                 f's=importlib.util.spec_from_file_location("hdmi_upm_watch", {str(Path(__file__).resolve())!r})\n'
                 'm=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n'
-                f'm.gdb_main({str(config_path)!r})\nend\n')
+                f'm.gdb_main({str(config_path)!r}, config_sha256={config_sha256!r})\nend\n')
         with script.open('x', encoding='ascii') as output:
             output.write(code)
         try:
@@ -642,17 +710,22 @@ class Watch:
         return self.cleanup
 
 
-def start(run, owner_pid, module_texts, mailbox=None):
-    return Watch(run, owner_pid, module_texts, mailbox)
+def start(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
+    return Watch(run, owner_pid, module_texts, mailbox, scope_build_receipt)
 
 
-def gdb_main(config_path):
+def gdb_main(config_path, config_sha256=None):
     import gdb
-    config = parse_json(checked_read(config_path, 16384))
+    config_raw = checked_read(config_path, 16384)
+    require(config_sha256 is None or hashlib.sha256(config_raw).hexdigest() == config_sha256,
+            'Watcher configuration changed before GDB reload')
+    config = parse_json(config_raw)
     revalidate(config)
     root = Path(config['run'])
     tracker = Correlator(config['context']['module_texts'], config.get('mailbox'))
     result = dict(connected=False, armed=False, detached=False,
+                  running_QEMU_sha256=config.get('running_QEMU_sha256'),
+                  readonly_scope_observer=config.get('readonly_scope_observer'),
                   observations_only=config.get('mailbox') is None,
                   dedicated_receipt_transport=config.get('mailbox') is not None, events=0)
     breakpoints, stops = {}, []

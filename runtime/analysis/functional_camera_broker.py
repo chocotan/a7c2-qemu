@@ -36,7 +36,11 @@ MAGIC, VERSION = 0x314d4346, 1
 IDLE, REQUEST, RESPONSE, CLOSED, DETACHED = range(5)
 INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG = 1, 2, 3, 4, 5, 6, 7, 8
 BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT = 9, 10, source_snapshot.OP
-VDF_BIT_WIDTH = 12
+VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL = 12, 13, 14
+STARTUP_CONTROL_INPUT_BYTES, STARTUP_CONTROL_RESULT_BYTES = 32, 192
+STARTUP_CAP_MODE_BODY = bytes.fromhex('00000100010000000100000000000000')
+STILL_FORMAT_INPUT = bytes.fromhex('02000001000100000001000100000000')
+STILL_FORMAT_INPUT_BYTES, STILL_FORMAT_RESULT_BYTES = 16, 176
 BIT_WIDTH_INPUT_BYTES, BIT_WIDTH_RESULT_BYTES = 8, 168
 BB_INPUT_BYTES, BB_RESULT_BYTES = 32, 192
 BB_0166_OBSERVED_INITIAL_BODY = bytes.fromhex('00010000000000000000000008000000070000000100000001000000')
@@ -45,7 +49,7 @@ LAYOUT_INITIAL_BODY = bytes.fromhex('07010100000000008002e0010000000000000000000
 STILL, VIDEO_BEGIN, VIDEO_FRAME, VIDEO_END = 16, 32, 33, 34
 READ_RESULT, RELEASE_RESULT, CANCEL = 64, 65, 66
 OPS = {INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG,
-       BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL, VIDEO_BEGIN, VIDEO_FRAME,
+       BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL, STILL, VIDEO_BEGIN, VIDEO_FRAME,
        VIDEO_END, READ_RESULT, RELEASE_RESULT, CANCEL}
 FNV_SEED = 0xcbf29ce484222325
 
@@ -67,6 +71,15 @@ def u32(raw, offset):
 
 def u64(raw, offset):
     return int.from_bytes(raw[offset:offset + 8], 'little')
+
+
+def startup_control_input_valid(data, fingerprint):
+    if len(data) != STARTUP_CONTROL_INPUT_BYTES or fingerprint is None or u64(data, 24) != fingerprint:
+        return False
+    command, count = struct.unpack_from('<2H', data)
+    return data[20:24] == bytes(4) and (
+        command == 0x4014 and count == 16 and data[4:20] == STARTUP_CAP_MODE_BODY or
+        command == 0x4057 and count == 4 and data[4:20] == bytes(16))
 
 
 def origin(raw):
@@ -259,6 +272,7 @@ def validate_request(raw, data, mailbox, previous):
     require(fnv64(data) == u64(raw, 56), 'Request FNV differs')
     sizes = {INIT: (0, 48), STATE: (0,), CONFIGURE: (48,), AUTOFOCUS: (32,), VDF_PATH: (16,), VDF_ZEBRA: (8,), VDF_LAYOUT: (32,), VDF_DISPLAY_CONFIG: (16,),
              BB_STARTUP_CONFIG: (BB_INPUT_BYTES,), HISTOGRAM: (HIST_INPUT_BYTES,), VDF_BIT_WIDTH: (BIT_WIDTH_INPUT_BYTES,),
+             STILL_FORMAT: (STILL_FORMAT_INPUT_BYTES,), STARTUP_CONTROL: (STARTUP_CONTROL_INPUT_BYTES,),
              AP_SOURCE_SNAPSHOT: range(360, 1177, 8), STILL: (16, 144),
              VIDEO_BEGIN: (48,), VIDEO_FRAME: (0,), VIDEO_END: (0,), READ_RESULT: (24,),
              RELEASE_RESULT: (16,), CANCEL: (0,)}
@@ -678,10 +692,12 @@ class Core:
         if op in (INIT, STATE, CONFIGURE, VIDEO_BEGIN, CANCEL):
             require(result.used == 128 and not result.token and u32(actual, 0) == VERSION and
                     u64(actual, 48) == instance and actual[120:] == bytes(8), 'Actual core state identity/size differs')
-        elif op in (VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
+            self.configuration_fingerprint = fnv64(actual[8:48])
+        elif op in (VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL):
             expected_bytes = {VDF_PATH: 160, VDF_ZEBRA: 168, VDF_LAYOUT: 192, VDF_DISPLAY_CONFIG: 176,
                               BB_STARTUP_CONFIG: BB_RESULT_BYTES, HISTOGRAM: HIST_RESULT_BYTES,
-                              VDF_BIT_WIDTH: BIT_WIDTH_RESULT_BYTES}[op]
+                              VDF_BIT_WIDTH: BIT_WIDTH_RESULT_BYTES, STILL_FORMAT: STILL_FORMAT_RESULT_BYTES,
+                              STARTUP_CONTROL: STARTUP_CONTROL_RESULT_BYTES}[op]
             require(result.used == expected_bytes and not result.token and u32(actual, 0) == VERSION and
                     u32(actual, 4) == expected_bytes and u64(actual, 8) == instance and
                     u64(actual, 40) == fnv64(data) and actual[120:128] == bytes(8),
@@ -690,7 +706,13 @@ class Core:
             if op == VDF_PATH:
                 require(len(data) == 16 and route == data, 'Actual VDF route readback differs')
             else:
-                if op == VDF_BIT_WIDTH:
+                if op == STARTUP_CONTROL:
+                    require(startup_control_input_valid(data, getattr(self, 'configuration_fingerprint', None)) and
+                            actual[160:] == data, 'Actual startup control tuple/current STATE configuration fingerprint/readback differs')
+                elif op == STILL_FORMAT:
+                    require(data == STILL_FORMAT_INPUT and actual[160:] == data,
+                            'Actual observed-L/Fine software still-format configuration/readback differs')
+                elif op == VDF_BIT_WIDTH:
                     require(data == bytes(BIT_WIDTH_INPUT_BYTES) and actual[160:] == data,
                             'Actual software bit-width0 RGB888 configuration/readback differs')
                 elif op == VDF_ZEBRA:
@@ -723,16 +745,16 @@ class Core:
                 committed_route = getattr(self, 'vdf_route', None)
                 require(route == (committed_route if committed_route is not None else b'\x00\x01\x01' + bytes(13)),
                         'VDF configuration operation changed the committed VDF route')
-                if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
+                if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL):
                     require((u32(actual, 72), u32(actual, 76), u32(actual, 80)) == (640, 480, 1920),
-                            'Actual BB/histogram/bit-width supported RGB geometry differs')
-                if op in (VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH):
+                            'Actual BB/histogram/bit-width/still-format supported RGB geometry differs')
+                if op in (VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL):
                     require(committed_route is not None and route[:3] == b'\x01\x05\x05',
                             'Display configuration requires a committed active VDF route')
             require(route[:3] in (b'\x01\x05\x05', b'\x00\x01\x01') and route[4] <= 2 and
                     route[13:] == bytes(3), 'Actual core accepted an unsupported VDF route')
             active = route[0] == 1
-            result_class = 7 if op == VDF_BIT_WIDTH else 5 if op == BB_STARTUP_CONFIG else 6 if op == HISTOGRAM else int(active)
+            result_class = 9 if op == STARTUP_CONTROL else 8 if op == STILL_FORMAT else 7 if op == VDF_BIT_WIDTH else 5 if op == BB_STARTUP_CONFIG else 6 if op == HISTOGRAM else int(active)
             require(u32(actual, 84) == 0x90590819 and u32(actual, 88) == u32(actual, 92) == 1 and
                     u32(actual, 96) == result_class and u32(actual, 100) == int(active) and
                     u32(actual, 104) == u32(actual, 108) == 1 and
@@ -778,6 +800,7 @@ class Core:
         if self.model:
             self.library.fcam_model_destroy(self.model)
             self.model = self.instance = self.vdf_route = None
+            self.configuration_fingerprint = None
 
     def close(self):
         self.destroy_model()
@@ -1130,10 +1153,10 @@ class Broker:
             return error, data, result
         proof = self.core.proof_snapshot()  # Read only, after the one original call, under broker serialization.
         previous = self.last_frame['serial'] if self.last_frame else 0
-        if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH) and not error:
+        if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL) and not error:
             require(proof is not None and proof['serial'] == previous + 1 and
-                    proof['consumer_kind'] == (4 if op == VDF_BIT_WIDTH else 5 if op == BB_STARTUP_CONFIG else 6),
-                    'Actual BB/histogram/bit-width success lacks its own noncodec frame proof')
+                    proof['consumer_kind'] == (4 if op in (VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL) else 5 if op == BB_STARTUP_CONFIG else 6),
+                    'Actual BB/histogram/bit-width/still-format success lacks its own noncodec frame proof')
         if proof is not None:
             require(proof['serial'] in (previous, previous + 1), 'Actual C proof sequence changed unexpectedly')
             if proof['serial'] == previous and self.last_frame is not None:

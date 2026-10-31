@@ -20,9 +20,11 @@ import time
 
 from backup_profile import FUNCTIONAL_CAMERA_PROFILE
 import functional_camera_broker as transport
+import scope_observer_profile
 from menu_live import FirmwareFault, FirmwareMonitor
 
 QEMU_SHA256 = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+READONLY_SCOPE_QEMU_SHA256 = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
 RECEIPT = 'functional-camera-runner.json'
 GDB = 'hdmi-upm-gdb.sock'
 QMP = 'hdmi-upm-control.sock'
@@ -105,7 +107,7 @@ def check_library_abi(raw):
             if name in {b'fcam_model_create', b'fcam_model_destroy', b'fcam_model_request'})}
 
 
-def validate_artifact(base, qemu_binary):
+def validate_artifact(base, qemu_binary, *, scope_build_receipt=None):
     base = Path(base).absolute()
     root = base.parents[1]
     metadata_path = base / 'functional-camera-model-build.json'
@@ -162,14 +164,20 @@ def validate_artifact(base, qemu_binary):
             with archive.extractfile(member) as stream:
                 require(digest(stream.read(member.size + 1)) == sources[member.name], 'Model archived source differs')
         require(seen == set(sources), 'Model archive omits a source/ABI file')
-    require(digest(checked_read(qemu_binary, 256 * 1024 * 1024)) == QEMU_SHA256,
-            'Functional camera requires the accepted unchanged QEMU executable')
+    qemu_sha256 = digest(checked_read(qemu_binary, 256 * 1024 * 1024))
+    if scope_build_receipt is None:
+        require(qemu_sha256 == QEMU_SHA256,
+                'Functional camera requires the accepted unchanged QEMU executable')
+    else:
+        require(qemu_sha256 == READONLY_SCOPE_QEMU_SHA256,
+                'Scope functional camera requires the exact reviewed plugin-enabled QEMU')
+        scope_observer_profile.validate_build(root, scope_build_receipt, qemu_binary)
     return {'library': str(base / 'functional-camera-model.so'), 'library_sha256': digest(raw),
             'build_receipt': str(metadata_path), 'build_receipt_sha256': digest(metadata_raw),
             'source_archive': str(work / 'functional-model-sources.tar.gz'),
             'source_archive_sha256': digest(archive_raw), 'compile_receipt_sha256': digest(compile_raw),
             'abi_header_sha256': sources['runtime/analysis/functional-camera-abi.h'],
-            'abi': check_library_abi(raw), 'qemu_sha256': QEMU_SHA256}
+            'abi': check_library_abi(raw), 'qemu_sha256': qemu_sha256}
 
 
 def parse_mailbox(console):
@@ -857,11 +865,12 @@ class FunctionalCameraRunner:
                 signal.signal(number, previous)
 
 
-def prepare(profile, base, run, qemu_binary):
+def prepare(profile, base, run, qemu_binary, *, scope_build_receipt=None):
     require(profile in ('', FUNCTIONAL_CAMERA_PROFILE), 'Unknown functional-camera runner profile')
     if not profile:
         return None
-    return FunctionalCameraRunner(run, validate_artifact(base, qemu_binary))
+    return FunctionalCameraRunner(run, validate_artifact(base, qemu_binary,
+        scope_build_receipt=scope_build_receipt))
 
 
 def read_receipts(run):

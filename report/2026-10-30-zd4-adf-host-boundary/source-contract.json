@@ -1,0 +1,93 @@
+{
+  "scope": "frozen PRETEST C006 exacthost boundary and strict P001 unknownprefix rejection; no posttest refresh",
+  "static_parent_review": {
+    "scope": "STATIC inventory69members/fixedbytes/AST check only; no parse/contentverifier/tests/build/VM",
+    "inventory_files_checked": 69,
+    "inventory_pre_post_stamps_equal": true,
+    "C006_fixture_equal_original": true,
+    "C006_target_bytes": 276,
+    "C006_sha256": "5a9205d146106d868d3e92723f18897ec3f15ee7efa048dd7ef23c5092b4fdf2",
+    "P001_unknown0_prefix_bytes_preserved": true,
+    "P001_still_rejected_no_graph_code_change": true,
+    "new_shared_host_frame_groups": 4,
+    "new_graph_unknownprefix_negative_groups": 1,
+    "new_code_hashes": {
+      "report/functional-camera-evidence/check_evidence.py": "f5126eb6a6d00da8f1eff8ad99eb818c5913a06f855915b9dbea90db3574548c",
+      "report/functional-camera-evidence/test_evidence.py": "1d1fd433465b1f91b0050d3a0bb8c82dcaebf117828566fea09b5e53ae18668a",
+      "report/functional-graph-evidence/test_graph.py": "3f104b9bec4e57f02fa4e34099299d85b53c2dd8df56dbeef431c1587c676bad"
+    },
+    "graph_parser_sha256_unchanged": "644b4ad5919b926abff453f0adc788ce6465de1749582ae804571c48c356b287",
+    "source_Main_sha256": "56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f",
+    "tests_executed": false,
+    "capture_verified": false,
+    "checked_at_ns": 1793376301289387319
+  },
+  "runtime_Main_unchanged": true,
+  "six_exact_source_tuples_unchanged": true,
+  "C006": {
+    "tag": "FULL_ADF_CONNECT_NATIVE_REPLY_FREE",
+    "raw_LF": [
+      17871,
+      17872
+    ],
+    "legacy_splitlines": [
+      18830,
+      18831
+    ],
+    "offset": [
+      1924780,
+      1925056
+    ],
+    "bytes": 276,
+    "sha256": "5a9205d146106d868d3e92723f18897ec3f15ee7efa048dd7ef23c5092b4fdf2",
+    "formatter_fields": 13,
+    "known_warning_kinds": [
+      "exact-vvfat-pending",
+      "exact-vvfat-complete"
+    ],
+    "required_original_separate_ending": "CRLF",
+    "numeric_types_bounds_and_order_required": true,
+    "dynamic_rc_faults_ap_consumed_preserved_not_filled": true,
+    "cause": "unknown",
+    "old_legacy_line_numbers_and_raw_ranges_retained": true,
+    "all13_owner_sender_wire_free_order_content_guards_unchanged": true
+  },
+  "P001": {
+    "unknown_extra_byte": "0",
+    "extra_offset": 2078483,
+    "OBS_offset": 2078484,
+    "raw_LF": 18467,
+    "legacy_splitlines": 19429,
+    "raw_bytes": 804,
+    "sha256": "30e7d86b1d3046a9fb8c1c93a842f47dbbda95fdf59a060ab793ea279fc2021e",
+    "origin": "unknown",
+    "prefix_removed": false,
+    "graph_Log_boundary_relaxed": false,
+    "table_manually_injected_into_proof": false,
+    "graph_parser_unchanged": true,
+    "still_strictly_rejected": true
+  },
+  "inventory": {
+    "logical_instances": 9,
+    "raw_LF_fragments": 16,
+    "shared_rows": 923,
+    "remaining_shared_diagnostics_before_fix": 1,
+    "graph_repaired_instances": 7,
+    "initial81_unclaimed_candidates_were_tailspace_comparison_falsepositives": true,
+    "delivered_files_parent_checked": 69,
+    "source_input_fixity": true
+  },
+  "tests": {
+    "new_shared_groups": 4,
+    "new_graph_negative_groups": 1,
+    "AST_pass": true,
+    "pytest_C_build_ABI_VM_executed_at_freeze": false,
+    "actual_background_consumer_and_identity_negatives_included": true
+  },
+  "implementation_no_new_guest_or_VM": true,
+  "original_formalFAIL_unchanged": true,
+  "entry_probe_scope_failure_preserved": true,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "frozen_at_ns": 1793376915101536848
+}

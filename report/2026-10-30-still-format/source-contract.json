@@ -1,0 +1,104 @@
+{
+  "scope": "original second402d explicit functional still-format, not physical CP/ASIC format",
+  "profile": "virtual-functional-camera-v1",
+  "native_origin": {
+    "source": "0x80020002",
+    "destination": "0x90030001",
+    "command": "0x402d",
+    "bytes": 24
+  },
+  "observed_request": "05002d403b00008002000001000100000001000100000000",
+  "initial_diagnostic_policy": "retain original one-shot firstM path; require original request/reply clean/AP free before functional successor",
+  "opaque_tail": "preserve actual wire22-23 and full24 FNV; canonical14-15 software zero, original meaning unknown",
+  "opcode": 13,
+  "canonical16": "02000001000100000001000100000000",
+  "result_bytes": 176,
+  "result_class": 8,
+  "config_readback_offset": 160,
+  "proof": {
+    "consumer_kind": 4,
+    "result_bytes": 176,
+    "result_fnv": "FNV1a64 of actual176",
+    "result_token": 0
+  },
+  "actual_content": "prior actual INIT/current active640x480 RGB888 stride1920, render/copy/independent921600B readback/retire/config16 readback/commit each cycle",
+  "config_frame_generation_increment": 1,
+  "reply12": "01002d403b00008000f00000",
+  "cookie_policy": "echo full actual per-cycle u32, no inferred numerical ordering",
+  "lifecycle": "typed validated176 before takeover; original request free0 before independent ACK allocate; before-real-send immutable ticket; actual receive may be another thread; original sender free0; no sendinflight or retained fault",
+  "ticket_retirement": "underlying actual original free0 clears matching bound ticket before owner publishes AP consumption",
+  "model_binding": "actual owner STATE instance must match same-process original consumed VDF instance",
+  "current_validation": {
+    "core_and_bridge_targeted": "host passed, see analysis/scratch/functional-still-format-core/RESULT.md",
+    "broker_typed_boundaries": {
+      "passed": 177,
+      "rc": 0,
+      "scope": "new OP13 plus adjacent existing VDF broker boundary fixtures"
+    },
+    "full_new_batch_accepted": false,
+    "original_VM_verified": false,
+    "owner_actual_Core": {
+      "passed": 232,
+      "rc": 0,
+      "scope": "116 fresh-process scenarios x strict/ASanUBSan, actual old diagnostic + Core"
+    },
+    "main_related_joint": {
+      "passed": 723,
+      "subtests": 260,
+      "rc": 0,
+      "stable_inputs": 14,
+      "receipt": "analysis/scratch/functional-still-format-main-wiring/with-fault-exit.json"
+    },
+    "evidence_targeted": {
+      "passed": 29,
+      "subtests": 567,
+      "rc": 0,
+      "new_tests": 14,
+      "scope": "pure Python checker and retained actual Core readonly crosscheck"
+    },
+    "first_full_attempt": {
+      "batch": "unified-camera-lv42f0_y",
+      "returncode": 1,
+      "passed": 7117,
+      "failed": 10,
+      "subtests_passed": 7632,
+      "input_groups_unchanged": true,
+      "build_and_original_ABI_executed": false,
+      "ready_written": false,
+      "failure_categories": {
+        "historical_HDMI_observer_binding": 9,
+        "host_menu_live_wholefile_pin": 1
+      },
+      "original_failure_receipt": "analysis/scratch/functional-still-format-full-gate/failure-reconciliation.json"
+    },
+    "host_pin_after_semantic_identity_check": {
+      "passed": 199,
+      "subtests": 3,
+      "returncode": 0,
+      "source_proof": "4yvz original archive, all AST outside FirmwareMonitor and four input symbol hashes unchanged"
+    },
+    "identity_fixes_joint": {
+      "passed": 346,
+      "subtests_passed": 657,
+      "returncode": 0,
+      "stable_inputs": 13,
+      "scope": "HDMI actual historical guest/newc/graph/input/monitor/controller",
+      "receipt": "analysis/scratch/functional-still-format-central-fix-joint/joint.json"
+    },
+    "HDMI_history_fix": {
+      "passed": 98,
+      "returncode": 0,
+      "actual_image_sha256": "a660d798a36159b08fd337e1aca9d697d511fa6718602d4aec024a22d550d5f8",
+      "same_bytes_newc_verification": true,
+      "approved_source_sets": "only old complete or new complete exact four-source tuple; mixed or unknown rejected",
+      "original_kind3_lifecycle_unchanged": true
+    }
+  },
+  "source_dependency_closed": false,
+  "physical_selector_mapping_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "original_CP_RTOS_verified": false,
+  "original_MPR_Fsys_media_save_verified": false,
+  "capture_verified": false,
+  "fault_exit": "exact FUNCTIONAL_STILL_FORMAT_INTEGRATION_FAULT from owned stickyfault or ticket clear error; existing FirmwareMonitor/FirmwareFault safe cancellation; never clear original errors"
+}

@@ -45,9 +45,18 @@ def test_main_routes_only_fixed_owned_experiment(arguments, target, monkeypatch)
 
 
 @pytest.mark.parametrize('startup_failure', [False, True])
-def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_path, monkeypatch, startup_failure):
+@pytest.mark.parametrize('scope_profile', [None, 'qemu-readonly-scope-v1', 'qemu-readonly-scope-v2', 'qemu-readonly-scope-v3'])
+def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_path, monkeypatch, startup_failure, scope_profile):
+    scope_enabled = scope_profile is not None
     (tmp_path / 'console.log').write_text('OBS FULL_HDMI_UPM_MAILBOX_INIT pid=258 physical=0x50d7ff000 nonce=0x123 upm_text=0xffffff800095b000 osal_text=0xffffff80004be000\n')
-    (tmp_path / 'runtime-manifest.json').write_text('{"host_control_owner_pid":1234}')
+    manifest = {'host_control_owner_pid': 1234}
+    receipt = tmp_path / 'scope-build.json'
+    receipt.write_text(json.dumps({'schema': scope_profile or 'qemu-readonly-scope-v1'}))
+    if scope_enabled:
+        manifest['readonly_scope_observer'] = {
+            'profile': scope_profile, 'build_receipt': str(receipt),
+            'build_receipt_sha256': M.hdmi_upm_watch.hashlib.sha256(receipt.read_bytes()).hexdigest()}
+    (tmp_path / 'runtime-manifest.json').write_text(json.dumps(manifest))
     class Finished:
         def is_set(self): return False
         def wait(self, timeout): return False
@@ -63,12 +72,19 @@ def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_pat
             return None
     class Watch:
         process = Process()
+        config = {'running_QEMU_sha256': M.hdmi_upm_watch.READONLY_SCOPE_QEMU_SHA if scope_enabled else M.hdmi_upm_watch.QEMU_SHA,
+                  'readonly_scope_observer': manifest.get('readonly_scope_observer')}
         def stop(self):
             assert self.process.delivered == 2, 'coordinator interrupted the second mailbox commit'
             return {'safe_to_close': True, 'detached': True}
     watcher = Watch()
     unsafe = {'safe_to_close': False, 'detached': False, 'debugger_stopped': False}
+    calls = []
     def start(*args, **kwargs):
+        calls.append((args, kwargs))
+        assert args == (tmp_path, 1234, {'upm': 0xffffff800095b000, 'osal_uipc': 0xffffff80004be000})
+        assert kwargs == {'mailbox': {'phys': 0x50d7ff000, 'nonce': 0x123, 'pid': 258},
+                          'scope_build_receipt': str(receipt) if scope_enabled else None}
         if startup_failure:
             error = TimeoutError('startup timeout')
             error.hdmi_upm_watcher = watcher
@@ -78,14 +94,37 @@ def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_pat
     monkeypatch.setattr(M, 'gdbserver', lambda run: 'owned')
     monkeypatch.setattr(M.hdmi_upm_watch, 'start', start)
     monkeypatch.setattr(M.hdmi_upm_watch, 'read_receipts', lambda run: [{'published': 1}, {'published': 2}])
+    monkeypatch.setattr(M.subprocess, 'Popen', lambda *args, **kwargs: pytest.fail('observe must use its single owned watcher'))
     result = {}
     M.observe(tmp_path, Finished(), result)
+    assert len(calls) == 1
     saved = json.loads((tmp_path / 'hdmi-upm-coordinator.json').read_text())
     if startup_failure:
         assert result['retained_watcher'] is watcher and result['startup_cleanup'] is unsafe
         assert saved['retained_debugger_pid'] == 777 and saved['cleanup']['safe_to_close'] is False
     else:
         assert watcher.process.polls >= 3 and result['cleanup']['safe_to_close'] is True
+        assert saved['running_QEMU_sha256'] == watcher.config['running_QEMU_sha256']
+        assert saved['readonly_scope_observer'] == watcher.config['readonly_scope_observer']
+
+
+@pytest.mark.parametrize('scope', [True, {}, {'profile': 'other', 'build_receipt': '/unbound'},
+                                  {'profile': 'qemu-readonly-scope-v4', 'build_receipt': '/unbound'},
+                                  {'profile': [], 'build_receipt': '/unbound'},
+                                  {'profile': 'qemu-readonly-scope-v3', 'build_receipt': True},
+                                  {'profile': 'qemu-readonly-scope-v1', 'build_receipt': True}])
+def test_coordinator_records_bad_scope_binding_without_starting_a_debugger(tmp_path, monkeypatch, scope):
+    (tmp_path / 'console.log').write_text('OBS FULL_HDMI_UPM_MAILBOX_INIT pid=258 physical=0x50d7ff000 nonce=0x123 upm_text=0xffffff800095b000 osal_text=0xffffff80004be000\n')
+    (tmp_path / 'runtime-manifest.json').write_text(json.dumps({
+        'host_control_owner_pid': 1234, 'readonly_scope_observer': scope}))
+    finished = threading.Event()
+    monkeypatch.setattr(M, 'gdbserver', lambda *args: pytest.fail('invalid scope must fail before GDB'))
+    monkeypatch.setattr(M.hdmi_upm_watch, 'start', lambda *args, **kwargs: pytest.fail('unbound watcher'))
+    result = {'armed': False, 'capture_verified': False}
+    M.observe(tmp_path, finished, result)
+    saved = json.loads((tmp_path / 'hdmi-upm-coordinator.json').read_text())
+    assert saved['error'] == 'invalid manifest-bound scope observer receipt'
+    assert saved['armed'] is False and saved['capture_verified'] is False
 
 
 @pytest.mark.parametrize('bad', [False, True])

@@ -47,6 +47,19 @@ static struct functional_face_runtime_snapshot diagnostic;
 static int dmm_enabled;
 static _Thread_local unsigned int native_receive_depth;
 static unsigned int functional_mpr_codec_used,functional_vdf_path_used,functional_layout_stage_used;
+static unsigned int functional_still_format_used,functional_startup_control_used;
+static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this face fixture");
+}
+static int native_functional_startup_control_release(unsigned int id,void *p,int *result){
+ (void)id;(void)p;(void)result;assert(!"startup-control is disabled in this face fixture");return 0;
+}
+static void native_still_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(0);
+}
+static int native_functional_still_format_release(unsigned int id,void *p,int *result){
+ (void)id;(void)p;(void)result;assert(0);return 0;
+}
 static _Thread_local struct {void *pointer;unsigned int destination;uint64_t cycle;} functional_vdf_ticket;
 static _Thread_local struct {void *pointer;unsigned int destination;uint64_t cycle;} functional_layout_stage_ticket;
 
@@ -570,5 +583,6 @@ int main(int argc,char **argv){
  }else negative_test(mode);
  /* Fault tests retain model leases until process teardown; reclaim only host transport here. */
  for(unsigned int i=0;i<128;i++)if(messages[i].wire)destroy(&messages[i]);
+ assert(!functional_startup_control_used);
  free(object);printf("FACE_WIRING_HOSTTEST_PASS mode=%s\n",mode);return 0;
 }

@@ -412,6 +412,7 @@ def bb_constructor(tmp_path_factory):
     directory=tmp_path_factory.mktemp('bb-constructor-gate')
     code=directory/'constructor.c'
     code.write_text(r'''
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -428,7 +429,19 @@ def bb_constructor(tmp_path_factory):
 #include "device-models/cp-parameter-state.h"
 #include "device-models/cp-state-publication.h"
 #include "functional-camera-abi.h"
+#include "device-models/functional-startup-control.h"
 static int functional_camera_enabled,functional_camera_init_calls;
+static unsigned int still_format_ticket_pid,startup_control_ticket_pid;
+static unsigned int still_format_init_calls,startup_control_init_calls;
+int functional_still_format_owner_init(void) {
+ assert(functional_camera_init_calls==1);still_format_init_calls++;
+ return getenv("FIXTURE_STILL_FORMAT_OWNER_FAIL")?-ENODATA:0;
+}
+int functional_startup_control_owner_init(void) {
+ assert(functional_camera_init_calls==1 && still_format_init_calls==1);
+ assert(!getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL") && !getenv("FIXTURE_STILL_FORMAT_OWNER_FAIL"));
+ startup_control_init_calls++;return getenv("FIXTURE_STARTUP_CONTROL_OWNER_FAIL")?-ENODATA:0;
+}
 int native_functional_camera_control_owner_init(void) {
  functional_camera_init_calls++;return getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL")?-ENODATA:0;
 }
@@ -622,8 +635,9 @@ int main(int argc,char **argv) {
     adf_set_input_enabled=atoi(argv[1]);bb_rc=atoi(argv[2]);imaging_rc=atoi(argv[3]);control_rc=atoi(argv[4]);adf_rc=atoi(argv[5]);vef_rc=atoi(argv[6]);vef_control_rc=atoi(argv[7]);pinmem_input_rc=atoi(argv[8]);
     pinmem_control_rc=atoi(argv[9]);scalar_rc=atoi(argv[10]);adf_connection_rc=atoi(argv[11]);drawinfo_rc=atoi(argv[12]);hdmi_audio_rc=atoi(argv[13]);
     hdmi_state_rc=atoi(argv[14]);video_rc=atoi(argv[15]);osd_rc=atoi(argv[16]);cp302c_rc=atoi(argv[17]);constructor_gate();
-    printf("FUNCTIONAL_RESULT enabled=%u local_init_calls=%u backend_RPC=0 capture_verified=0\n",
-           (unsigned int)functional_camera_enabled,(unsigned int)functional_camera_init_calls);
+    assert(still_format_ticket_pid==(unsigned int)getpid() && startup_control_ticket_pid==(unsigned int)getpid());
+    printf("FUNCTIONAL_RESULT enabled=%u local_init_calls=%u startup_init_calls=%u backend_RPC=0 physical_ASIC_verified=0 capture_verified=0\n",
+           (unsigned int)functional_camera_enabled,(unsigned int)functional_camera_init_calls,startup_control_init_calls);
     printf("RESULT output=%d bb=%d output_init=%d bb_init=%d imaging=%d imaging_init=%d control=%d control_init=%d adf=%d adf_init=%d vef=%d vef_init=%d vef_control=%d vef_control_init=%d pinmem_input=%d pinmem_input_init=%d pinmem_control=%d pinmem_control_init=%d pinmem_peers=%d scalar_init=%d pinmem_adf_init=%d drawinfo_init=%d hdmi_audio=%d hdmi_audio_init=%d video=%d video_init=%d hdmi_state_init=%d osd=%d osd_init=%d cp302c=%d cp302c_init=%d diagnostic=%d diagnostic_init=%d notification=%d notification_init=%d capture_format=%d capture_format_init=%d startup=%d startup_init=%d ee_controls=%d ee_controls_init=%d movie_format=%d movie_format_init=%d owned_state=%d owned_state_init=%d\n",
         full_adf_set_output_enabled,full_bb_set_mode_enabled,output_calls,bb_calls,
         imaging_pin_connection_enabled,imaging_calls,imaging_control_connection_enabled,control_calls,

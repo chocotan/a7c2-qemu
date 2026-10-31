@@ -4,6 +4,8 @@
 
 #include "../../runtime/analysis/functional-bb-startup-abi.h"
 #include "../../runtime/analysis/functional-vdf-bit-width-abi.h"
+#include "../../runtime/analysis/functional-still-format-abi.h"
+#include "../../runtime/analysis/functional-startup-control-abi.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,6 +107,25 @@ void fcam_model_destroy(struct fcam_model *model);
  * then commits/readbacks its separate8-byte display-bus bank and advances both
  * generations once. Later VDF consumers enforce this saved bus domain. Other
  * selectors return ENOTSUP. No Config48, older banks or State128 ABI changes.
+ * STILL_FORMAT(canonical16) returns StillFormat176/class8, using the same
+ * actual VDF proof consumer4 and result176/FNV/token0. Only the exact second
+ * original402d tuple is supported as a software full-frame/FINE RGB identity
+ * policy; Config48 and explicit per-job JPEG geometry/quality stay intact.
+ * Requires prior INIT and active640x480; every repeat consumes/readbacks and
+ * retires a real frame before independent config16 readback and generation
+ * commit. Saved valid/config state is enforced by VDF/JPEG/video consumers.
+ * STATE/CANCEL preserve this bank and previous proof. Physical tag2/CP
+ * selectors/file formats/publication remain unknown; no RAW/HIF or CP ready.
+ * STARTUP_CONTROL(canonical32) returns StartupControl192/class9. Only observed
+ * 4014/body16 and 4057/request0 are supported; the last8 input bytes must hash
+ * actual State128 bytes8..47 from this instance. INIT and active640x480 are
+ * required. Each repeat consumes/readbacks/retires a real independent RGB
+ * sink, then saves/readbacks a separate mode/settings bank32 and commits both
+ * generations once. 4057 also copies/readbacks independent current config40.
+ * Saved banks/checkpoint are sealed to instance/lifetime/generation and checked
+ * at VDF/JPEG/video boundaries; legitimate Configure leaves the old checkpoint
+ * intact without requiring live equality. No original CP enum, queues, ready,
+ * physical/EE/capture equivalence is claimed. See the independent ABI header.
  * BB_STARTUP_CONFIG(canonical32) returns BB192/class5; HISTOGRAM(canonical8)
  * returns Hist1192/class6. Policies and wire offsets are specified in
  * functional-bb-startup-abi.h. Both require the active 640x480 route, consume

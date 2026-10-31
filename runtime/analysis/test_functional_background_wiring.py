@@ -181,6 +181,13 @@ int functional_background_start_release_cycle(unsigned int id,void *p,uint64_t c
  *result=release_result?release_result:!cycle?-ESTALE:release(id,p);return 1;
 }
 /* Unrelated receive observers are deliberately inert; the actual parent receive gate is executed. */
+static unsigned int functional_still_format_used,functional_startup_control_used;
+static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this background fixture");
+}
+static void native_still_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(0);
+}
 static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_histogram_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){(void)id;(void)p;(void)source;(void)bytes;}
 int functional_vdf_layout_stage_observe_receive_cycle(unsigned int id,void *p,unsigned int source,unsigned int bytes,uint64_t *ticket){
@@ -414,6 +421,7 @@ int main(int argc,char **argv){
    }
   }
  }
+ assert(!functional_startup_control_used);
  free(request_wire);free(object);puts("PASS HOSTTEST actual background main C wiring; native/Core not verified");return 0;
 }
 '''

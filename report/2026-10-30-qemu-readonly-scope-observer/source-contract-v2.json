@@ -1,0 +1,300 @@
+{
+  "schema": "readonly_scope_source_contract_v2",
+  "profile": "qemu-readonly-scope-v2",
+  "trace_schema": "readonly_scope_v2",
+  "state": "DRAFT_IMPLEMENTATION_NOT_TESTED_BUILT_OR_RUNTIME_VERIFIED",
+  "flavor": null,
+  "inherited_contract": {
+    "path": "analysis/scratch/functional-05b0-M-producer-observer-contract/contract.json",
+    "sha256": "25eff5684249396c3e53123cbf29972509e9d1d5005bcb6db0fff18158060b69"
+  },
+  "inherited_inputs": [
+    {
+      "path": "analysis/scratch/functional-05b0-M-producer-observer-contract/contract.json",
+      "bytes": 23209,
+      "sha256": "25eff5684249396c3e53123cbf29972509e9d1d5005bcb6db0fff18158060b69",
+      "mtime_ns": 1793399205549810892,
+      "read_scope": "inherited_contract_or_host_source_only"
+    },
+    {
+      "path": "analysis/scratch/functional-05b0-M-producer-observer-contract/RESULT.md",
+      "bytes": 13261,
+      "sha256": "a41950855c883259fd32427be2b51518296157c38d8829ddc5aab89d9a8cb42a",
+      "mtime_ns": 1793399318720167657,
+      "read_scope": "inherited_contract_or_host_source_only"
+    },
+    {
+      "path": "analysis/scratch/functional-05b0-M-producer-observer-contract/source-ledger.json",
+      "bytes": 8892,
+      "sha256": "30412b40f55ca4bbe02f3fdf88d27d5ea5b12ee5962dedd6e4d9a324d4f0a06c",
+      "mtime_ns": 1793399373670334084,
+      "read_scope": "inherited_contract_or_host_source_only"
+    }
+  ],
+  "inherited_v1_schema_sha256": "8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c",
+  "v2_schema_sha256": "14ddc18327f3257af7fcfc4d598f4e647c9a3384cd4f8f78bfefb57e4bdc9a4b",
+  "build_source_binding": "No C/library/build/actualAPI PASS is supplied. The final actual v2 receipt must pin source_sha256 and this schema with a fresh parent ready.",
+  "source": {
+    "saved_raw_file": "analysis/scratch/functional-model17c-poweron-fields/windows.json",
+    "saved_raw_file_bytes": 2449,
+    "saved_raw_file_sha256": "255110be2f3621263a139b7acc4f09541ea4304ad025bfe911766ffa4ab2f530",
+    "saved_raw_selector": "id=code-0276e710",
+    "boundaries_file": "analysis/scratch/functional-model17c-poweron-fields/function-boundaries.json",
+    "boundaries_sha256": "5e5e4aadbf4b9921c2c1ad61baee0ed6733e05f44413ff17004a36c26858bbfa",
+    "source_report": "analysis/scratch/functional-model17c-poweron-fields/RESULT.md",
+    "source_report_sha256": "2ab5c176917f47e7111c5929b568c292f5c1b091f3a906a68591af11c63d8673",
+    "appfw_sha256_inherited_only": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+    "original_elf_opened": false,
+    "function_start": "0x276e710",
+    "function_end_exclusive": "0x276e728",
+    "complete_body_bytes": 24,
+    "hex": "01b702d0216013912168409120f002b920f802b9c0035fd6",
+    "sha256": "3db23e642b92d1592250e675534b988d42c41a0b43581f10aa72d3085a02e74d",
+    "boundary_proof": "Inherited complete entry-through-RET linear body; no LDR, call or branch; not inferred from a neighboring function or index size alone. No claim about all possible indirect entries.",
+    "instructions": [
+      {
+        "va": "0x276e710",
+        "hex_le": "01b702d0",
+        "word": "0xd002b701",
+        "asm": "adrp x1, 0x7e50000"
+      },
+      {
+        "va": "0x276e714",
+        "hex_le": "21601391",
+        "word": "0x91136021",
+        "asm": "add x1, x1, #0x4d8"
+      },
+      {
+        "va": "0x276e718",
+        "hex_le": "21684091",
+        "word": "0x91406821",
+        "asm": "add x1, x1, #0x1a, lsl #12"
+      },
+      {
+        "va": "0x276e71c",
+        "hex_le": "20f002b9",
+        "word": "0xb902f020",
+        "asm": "str w0, [x1, #0x2f0]"
+      },
+      {
+        "va": "0x276e720",
+        "hex_le": "20f802b9",
+        "word": "0xb902f820",
+        "asm": "str w0, [x1, #0x2f8]"
+      },
+      {
+        "va": "0x276e724",
+        "hex_le": "c0035fd6",
+        "word": "0xd65f03c0",
+        "asm": "ret"
+      }
+    ],
+    "input_abi": "w0 is a direct u32 value. Incoming x0 is never dereferenced by this body. full64 x0 must be retained; only low32 is the STR operand. Neither zero upper32 nor pointer semantics is required.",
+    "input_pointer_case": "This producer is not the pointer case. If future inherited source only establishes a pointer argument, retain raw register only, proposed_u32=unknown and input_kind=unknown_pointer; do not dereference it or add a site without closed source.",
+    "memory_edges_inherited": [
+      "0x276e71c -> u32[0x7e6a7c8]",
+      "0x276e720 -> u32[0x7e6a7d0], same w0"
+    ],
+    "callback_slot_inherited": "0x5591998 -> 0x276e710",
+    "getter_inherited": "0x28649e4 -> 0x7e6a7c8:u32",
+    "formal_name": null,
+    "M_business_id": null,
+    "normal_registration_consumer": null,
+    "record_start_stride_grammar": null,
+    "normal_event_key_current_contract": null
+  },
+  "sites": [
+    {
+      "site": "entry",
+      "event_offset": "0x276e710",
+      "instruction_index": 0,
+      "opcode_hex_le": "01b702d0",
+      "phase": "before_instruction",
+      "required_registers": [
+        "pc",
+        "x0",
+        "x30",
+        "cpsr"
+      ],
+      "raw_input_u32": "uint32_t(x0_raw) from the same exact8 x0 read",
+      "proposed_u32": "unknown; entry names the raw argument, not a reached store",
+      "caller_raw": "exact8 full64 x30; no mask, tag removal, caller range gate, invented callsite or LR allowlist"
+    },
+    {
+      "site": "pre_M_store",
+      "event_offset": "0x276e71c",
+      "instruction_index": 3,
+      "opcode_hex_le": "20f002b9",
+      "phase": "before_instruction",
+      "required_registers": [
+        "pc",
+        "x0",
+        "x1",
+        "x30",
+        "cpsr"
+      ],
+      "raw_input_u32": "uint32_t(x0_raw)",
+      "proposed_u32": "uint32_t(x0_raw), the actual source register of the pending original STR",
+      "destination_rule": "Record full64 x1_raw. Checked uint64 addition x1_raw+0x2f0 must equal B+0x7e6a7c8 without overflow; expected x1=B+0x7e6a4d8. Do not dereference destination. A mismatch is a bounded fault and no complete successful pre-store row.",
+      "caller_raw": "exact8 full64 x30; source body has no BL or LR write, but do not pair this row to an entry invocation by ordinal alone",
+      "committed_store": false,
+      "second_store_observed": false,
+      "return_observed": false
+    }
+  ],
+  "translation": {
+    "same_tb_only": true,
+    "anchor_offset": "0x276e710",
+    "anchor_length": 24,
+    "anchor_instructions": 6,
+    "exact_instruction_bytes": 4,
+    "event_pc": "Copied insn_vaddr for the selected instruction in the exact same-TB six-instruction anchor; no cross-TB reconstruction.",
+    "base": "B=anchor_entry-0x276e710; nonzero, page aligned, untagged zero-extended low48, complete anchor and checked static destinations within uint64/allowed low48 bounds.",
+    "copy_api": "Official API7 qemu_plugin_insn_data(insn, local4, 4) must return exactly 4 for each size4 instruction with continuous addresses. Compare all 24 inherited bytes, including uninstrumented second STR and RET.",
+    "callbacks": "Only before-instruction QEMU_PLUGIN_CB_R_REGS at indices 0 and 3. No callback for second STR or RET.",
+    "pc_semantics": "gdb_pc_raw is exact8 but may be lazy at either site. event_pc comes from immutable translation metadata. Do not require raw PC equality or silently replace it with event_pc; actualAPI fixture must demonstrate correct operand registers at both taps.",
+    "userdata": "Use the existing flat64-host opaque packed eventPC/site integer convention; derive B/site with checked fixed offsets, never dereference userdata. No retained insn handle, guest pointer, per-TB heap allocation or mutable callback metadata.",
+    "ordinary_collisions": "Before an exact producer anchor is known, low12 mismatch/partial TB/size/copy/byte mismatch is silent and consumes no success or fault quota. Unrelated PCs remain silent after binding. Exact known producer entry changing bytes/shape/continuity/remaining span disables evidence as producer_anchor_changed.",
+    "scope_unchanged": "Existing scope/poweron/late raw semantics remain; this proposal adds only independent producer candidate state and conflict checks. Existing poweron multi-base raw rows remain unbound."
+  },
+  "register_contract": {
+    "required": "Clear GByteArray storage and length before each read; descriptor found is independent of handle!=NULL. Official qemu_plugin_read_register returns bool true and exact length: pc/x0/x1/x30=8, cpsr=4. Same exact8 read feeds x30_raw and caller_raw; no truncated reread.",
+    "optional": [
+      "sp",
+      "TTBR0_EL1",
+      "TPIDR_EL0"
+    ],
+    "optional_present": "Enumerated descriptor -> attempted read must bool true/exact8, otherwise fault rejects the entire row.",
+    "optional_absent": "available=0x0, raw=unknown, read_length=0x0, api_ok=unknown; never zero-fill a token.",
+    "context_fields": "cpsr_raw 8 hex digits; cpsr_m=cpsr_raw&0x1f 2 digits; nzcv=cpsr_raw&0xf0000000 8 digits; nzcv_mask=0xf0000000. nRW bit0x10 must be clear; modes 0,4,5,8,9,12,13 retained. CPU0 only.",
+    "other_value_fields": "x0_raw,x1_raw,x30_raw,caller_raw,gdb_pc_raw,event_pc,candidate_base use full 16 lowercase hex digits after 0x; raw_input_u32/proposed_u32 use 8 when known; no value filtering, no W0==1 assumption.",
+    "prestore_read_budget_max": "8 attempted reads, 60 target bytes: pc/x0/x1/x30/sp/TTBR0/TLS 7*8 plus CPSR4; absent optional reads are not attempted.",
+    "entry_read_budget_max": "7 attempted reads, 52 target bytes: omit x1; x1 fields absent in entry site schema.",
+    "guest_memory_bytes": 0
+  },
+  "candidate_and_identity": {
+    "producer_candidate_state": "At first complete exact producer translation freeze one provisional entry/base independently of scope candidate. This is an unclaimed code-pattern candidate, never a module/AP identity. Store only fixed bounded state; no producer_candidate record family is required.",
+    "early_execution": "Register callbacks immediately even before scope is discovered. On actual callback, emit observed full64 registers and tokens with scope_anchor_seen=0x0, identity=unknown,binding=unbound. Never delay, replay, fill or rewrite these rows.",
+    "late_scope": "Later scope candidate must equal provisional producer B. Same-B early raw rows remain unchanged; new reader may report retrospective_context_match_only, with earlier_AP_identity_unknown=true, if actual same-run Main/poweron and exact context tokens match. No fabricated earlier Main observation or earlier scope anchor.",
+    "fail_closed": [
+      "Any second exact producer anchor at a different B disables the whole new evidence set, including earlier rows, even before scope discovery.",
+      "Producer B and scope B conflict in either discovery order: disable, retain conflicting full64 bases and an ambiguity fault/end state, no join.",
+      "Existing second scope B or known-anchor changes retain existing fail-closed behavior.",
+      "No exact producer callback records means normal input/caller/proposed value unknown, even when an anchor was translated.",
+      "No same-run Main binding, absent/short token or mode mismatch leaves raw producer rows uncorrelated; it is not proof of missing initialization/write."
+    ],
+    "context_join": "Parent validates frozen same-run assets/normal owned exit/full immutable trace. Original Main 35-field dispatch base/controller/caller/raw joins actual poweron record as before. Producer B must equal bound Main/scope B; CPU0, cpsr_m=0 EL0t, enumerated+successful exact8 TTBR0_EL1 and TPIDR_EL0 must numerically match that bound context. Exact raw tokens and availability are mandatory, absent != absent. Existing scope/late later-order rule is preserved; early producer matches get a distinct retrospective status only.",
+    "EL1": "Retain raw known AArch64 EL1 modes as other_aarch64 and unbound; never normalize to EL0t or claim original AP. AArch32/reserved or invalid mode is a bounded fault; no complete successful row.",
+    "caller_followup": "A correlated actual entry raw caller LR is the next precise source-selection key. Keep full64 raw, optionally derive LR-B arithmetically if checked in-range; LR-4 is only a candidate call instruction address, not proof of BL/BLR or dispatch. A future separately bounded inherited-source check must show that actual instruction and registration/slot consumer before assigning M ID/key/record grammar. No broad caller/writer/table scan is authorized by this contract.",
+    "normality": "The plugin observes invocation; 'normal original caller' requires later source/event evidence. Main context correlation alone does not establish normal dispatch or a transaction ID.",
+    "PID_TID": "Always unknown in plugin. Parent may cite same-run Main raw LF/PID/TID as reported line references, never label token or producer callback with proven PID/TID."
+  },
+  "generation2": {
+    "new_schema_file_proposed": "log-schema-v2.json",
+    "new_trace_schema_name": "readonly_scope_v2",
+    "new_profile_name": "qemu-readonly-scope-v2",
+    "new_source_contract_file_proposed": "source-contract-v2.json",
+    "new_reader_file_proposed": "check_run_context_v2.py",
+    "reader_routing": "Explicit schema/profile version selected from actual begin plus reviewed runtime receipt; schema SHA must equal the new frozen ready pin. Reject unknown versions and v1 logs supplied as v2. Keep existing check_run_context.py and v1 schema/README/historical receipts/logs unmodified. Share/factor only smallest safe token/parser logic if necessary, preserving strict v1 schema, exact keys, bounds and validation.",
+    "new_family": "kind=M_producer; site=entry|pre_M_store",
+    "common_fields": "Same identity=unknown,binding=unbound,pid=unknown,tid=unknown,status=native_unverified,capture=0x0,physical=0x0 on every row.",
+    "common_family_keys": [
+      "site",
+      "vcpu",
+      "ordinal",
+      "producer_sequence",
+      "callback_phase",
+      "event_pc",
+      "gdb_pc_raw",
+      "candidate_base",
+      "scope_anchor_seen",
+      "anchor_length",
+      "input_kind",
+      "x0_raw",
+      "raw_input_u32",
+      "proposed_u32",
+      "x30_raw",
+      "caller_raw",
+      "cpsr_raw",
+      "cpsr_m",
+      "context_mode",
+      "nzcv",
+      "nzcv_mask",
+      "sp_available",
+      "sp_raw",
+      "sp_read_length",
+      "sp_api_ok",
+      "ttbr0_el1_available",
+      "ttbr0_el1_raw",
+      "ttbr0_el1_read_length",
+      "ttbr0_el1_api_ok",
+      "tpidr_el0_available",
+      "tpidr_el0_raw",
+      "tpidr_el0_read_length",
+      "tpidr_el0_api_ok",
+      "gdb_pc_read_length",
+      "gdb_pc_api_ok",
+      "x0_read_length",
+      "x0_api_ok",
+      "x30_read_length",
+      "x30_api_ok",
+      "cpsr_read_length",
+      "cpsr_api_ok",
+      "api_ok"
+    ],
+    "pre_store_extra_keys": [
+      "x1_raw",
+      "x1_read_length",
+      "x1_api_ok",
+      "effective_destination_raw",
+      "destination_match"
+    ],
+    "constant_family_values": "callback_phase=before_instruction, anchor_length=0x18,input_kind=u32_value; entry proposed_u32=unknown, pre_M_store proposed_u32=low32(x0_raw), destination_match=0x1 only after checked equality. No fabricated current_M or committed_M field.",
+    "begin_additions": "schema=readonly_scope_v2, producer_sites=0x2, producer_quota=0x10, producer_anchor_length=0x18; no new RPC/guest event channel.",
+    "end_additions": "producer_anchor_found, producer_base, producer_conflicting_base, producer0_records, producer1_records, producer_sequence; producer counts count only successfully emitted complete flushed rows. stop/ambiguity cover new conflict/anchor_changed reasons. No row does not mean no invocation or write.",
+    "limits": "16 successful rows per producer site, independent of two scope16, poweron16 and three late16. Existing shared fault budget32, saturating fault/suppression counts, line<2048, body formatting bounds and exclusive wx host log retained. No added producer_candidate line; maximum=131+2*16=163 lines, at most 333824 bytes using the conservative existing 2048-byte line envelope. Parent must verify formatter body1536 still accommodates longest producer row.",
+    "default": "Off without explicit matched v2 build receipt under existing single-vCPU functional profile; do not silently opt existing v1 build/run into v2.",
+    "legacy_schema_sha256_forbidden_for_v2": "8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c",
+    "v1_originals_mutated": false
+  },
+  "caller_followup": "Observed full64 LR is only a next bounded source-selection key. LR-B or LR-4, if checked later, remains a candidate; no registered consumer/ID/key/enum/normality can be assigned.",
+  "remaining_unknown": [
+    "normal registration/dispatch consumer",
+    "M formal ID/name/key/default/enum",
+    "record grammar and table boundaries",
+    "causal pairing of distinct entry and pre-store records without adequate actual sequence/context evidence",
+    "store retirement/completion",
+    "second store execution",
+    "callee return",
+    "reason late M was zero",
+    "earlier module/AP identity and global PID/TID/address-space uniqueness",
+    "capture and physical ASIC compatibility"
+  ],
+  "historical_context": "Original05b0 seven-line evidence and earlier rc0 are inherited conclusions only; no original run/log/console/card was reopened and no consumer rerun.",
+  "flags": {
+    "cap": false,
+    "physical": false,
+    "branchretirement": false,
+    "storecompletion": false,
+    "capture_verified": false,
+    "physical_asic_compatibility_verified": false,
+    "instruction_retirement_verified": false,
+    "original_store_or_return_verified": false,
+    "tests_run": false,
+    "build_run": false,
+    "actualAPI_run": false,
+    "existing_v1_or_runtime_or_run_files_modified": false
+  },
+  "actual_build_source_names_required": [
+    "scope-observer.c",
+    "late-sites.inc",
+    "build-plugin.sh",
+    "log-schema-v2.json",
+    "source-contract-v2.json",
+    "check_run_context_v2.py",
+    "check_run_context.py",
+    "integration/scope_trace_checks_v2.py",
+    "integration/scope_trace_checks.py"
+  ],
+  "inherited_overall_lineage_budget_clean": false
+}

@@ -1,0 +1,53 @@
+{
+  "scope": "all related implementations collected before ONE full batch; no individualpytest or C-harness execution",
+  "based_on_run": "run-e6mx3j3f",
+  "original_formal_verdict": "FAIL preserved",
+  "original_formal_sha256": "14a90d7859a9f1582c3e2c49341739942afc8b2a4591a9a143bac1eb230edb8c",
+  "original_console_sha256": "845f3de194621180c687bedabdd65fdc456cce5389b5419588868c64eca71ff3",
+  "source_line_identity": {
+    "raw_LF": 20041,
+    "legacy_splitlines_line": 21043,
+    "distinct": true
+  },
+  "implemented": {
+    "TRANSFER_CONTROL_framing": "complete exact producer/schema/canonical numbers/order+exact UIPC-1022 and originalending, rawpayload+kerneloffset/SHA/causeunknown retained",
+    "layout_missing_op": "structured missing/error, cannot skip failedtransfer",
+    "provider_kind": "actualbroker sourceprovider join",
+    "restore": "pinned2aa31bc first3 instructions replay; exact fourthADRP originalPC2aa31c8 decode tobase8352000/literalreadback/x19 restore/continue2aa31cc",
+    "publish": "pinned2aeff5c first4nonPCrel replay, entryinputu32/current/saved/descriptor readonly, continue2aeff6c",
+    "baseline": "ordered current/saved/descriptor0-8-10 reads before arm, aliasunproven",
+    "direct12Bsetter": "2767978 NOT hooked; 16Bpatch would overwrite neighbour",
+    "alignment": "two4-aligned entry stubs use4u32stores and complete readback",
+    "format_buffer": "1536 after max1058 staticbound, allfieldsretained"
+  },
+  "sources": {
+    "runtime/analysis/menu-observe.c": "2b399aa1191ecd3882c13b2729c1ac639d03c2187414025673a09d153af241af",
+    "runtime/analysis/test_model17c_observation.py": "4a29fa417cd213de0cd1771fef0bdfd7fe8a42a36c6e1ec1cb16dc09ea370840",
+    "runtime/analysis/test_s2_capture_observation.py": "c92b050a521fb45585397f585c93fe08db0824e2c3ed53f951c04b4c20da2691",
+    "runtime/analysis/test_shutter_route_trace.py": "ada64e8237f7c45454d66e81f24ec4f96583a664db1ba4e0ecad95304cdfc16c",
+    "runtime/analysis/qemu-menu-probe.py": "4f0f1ee413ef56cabb6d048dd6887373605df226ab07c398eb10273ce3caeef2",
+    "runtime/analysis/scratch/verify_hdmi_edge.py": "bf3d45f723e4b157f04edc1da1663daa92f9b731f558ab23197451673377d320",
+    "runtime/analysis/scratch/test_verify_hdmi_edge.py": "2ffb732d185954a1cb2f9f094a66de8e8d231abd49db66ce657dec7fd813f1e9",
+    "runtime/analysis/scratch/validate-unified-camera.py": "e0bbce6d36c5728cc2aebd104343c78bc172156ae964037ff79e5080b4e649cb",
+    "report/functional-camera-evidence/check_evidence.py": "6562b0b1d47f0875082201398433a447311a8f2fe55a9525562e738dc61cab85",
+    "report/functional-camera-evidence/test_evidence.py": "ad1f6b19b730e54843a837e826f5ba5f7eb3f8d1f1bc02dd9059c37867cde5db"
+  },
+  "new_source_package": "analysis/scratch/functional-model17c-direct-writers/RESULT.md",
+  "new_source_parent_default_RO": "analysis/scratch/functional-model17c-source-batch/direct-writers-parent-readonly.json",
+  "source_budget_failure_lineage_preserved": true,
+  "no_implementable_device_owner_or_forced_gate_proposed": true,
+  "parent_completion": "analysis/scratch/functional-model17c-restore-observation/RESULT.md",
+  "parent_static_syntax": {
+    "all_passed": true,
+    "initial_failure_preserved": true,
+    "pytest_executed": false,
+    "C_binary_executed": false,
+    "inline_asm_runtime_verified": false
+  },
+  "source_tuple_review": "analysis/scratch/functional-model17c-restore-observation/parent-completion/final-source-review.json",
+  "next_plan": "runtime/analysis/scratch/functional-model17c-restore-plan-next/plan.json",
+  "next_nonce_decimal": "8339664446636224505",
+  "intent_published": false,
+  "capture_verified": false,
+  "physical_asic_verified": false
+}

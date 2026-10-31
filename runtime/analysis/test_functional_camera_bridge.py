@@ -590,6 +590,49 @@ def test_socket_connect_failure_closes_directory_fd(tmp_path, monkeypatch):
             os.fstat(fd)
 
 
+STARTUP_CONTROL_SCENARIOS = (
+    'startup', 'startup-validation', 'startup-class5', 'startup-class8',
+    'startup-size176', 'startup-short', 'startup-tailbody', 'startup-tailreserved',
+    'startup-tailfp', 'startup-inputfnv', 'startup-sink', 'startup-active',
+    'startup-width', 'startup-heightstride', 'startup-endpoint', 'startup-selectedcompleted',
+    'startup-route', 'startup-generations', 'startup-lease', 'startup-enabled',
+    'startup-readback', 'startup-commit', 'startup-consume', 'startup-retire',
+    'startup-status', 'startup-instance', 'startup-token', 'startup-errorpayload',
+    'startup-upstream', 'startup-fnv', 'startup-copy', 'startup-flags', 'startup-origin',
+    'startup-declared', 'startup-overflow')
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', STARTUP_CONTROL_SCENARIOS)
+def test_actual_c_startup_control_bridge_contracts(guest_builds, mode, scenario):
+    # Host-only wire fixture: actual STATE128 config40 fingerprint, no broker/socket/VM.
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
+STILL_FORMAT_SCENARIOS = (
+    'stillformat', 'stillformat-validation', 'stillformat-class7', 'stillformat-class5',
+    'stillformat-badabi', 'stillformat-baddeclared', 'stillformat-size168', 'stillformat-badsize',
+    'stillformat-badinputfnv', 'stillformat-badsink', 'stillformat-badactive',
+    'stillformat-badwidth', 'stillformat-badheight', 'stillformat-badstride',
+    'stillformat-badendpoint', 'stillformat-badselected', 'stillformat-badcompleted',
+    'stillformat-badenabled', 'stillformat-badreadback', 'stillformat-badcommit',
+    'stillformat-badconsume', 'stillformat-badretire', 'stillformat-badstatus',
+    'stillformat-badreserved', 'stillformat-badlease', 'stillformat-badframe',
+    'stillformat-badconfig', 'stillformat-overflowframe', 'stillformat-overflowconfig',
+    'stillformat-badroute', 'stillformat-badroutepin', 'stillformat-badroutemode',
+    'stillformat-badroutetail', 'stillformat-badtail', 'stillformat-badslot',
+    'stillformat-badinstance', 'stillformat-upstream', 'stillformat-errorpayload',
+    'stillformat-badtoken', 'stillformat-badfnv', 'stillformat-badflags',
+    'stillformat-badsource', 'stillformat-baddestination', 'stillformat-badorigin', 'stillformat-copy')
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', STILL_FORMAT_SCENARIOS)
+def test_actual_c_still_format_bridge_contracts(guest_builds, mode, scenario):
+    # Host-only typed wire fixture; no broker, QMP/RSP endpoint or native completion.
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
 C_SCENARIOS = ('bitwidth', 'bitwidth-validation', 'bitwidth-badclass', 'bitwidth-badsize',
                'bitwidth-badtail', 'bitwidth-badinputfnv', 'bitwidth-badsink', 'bitwidth-badinstance',
                'bitwidth-badreserved', 'bitwidth-badframe', 'bitwidth-badgeneration', 'bitwidth-badroute',
@@ -616,9 +659,11 @@ def guest_builds(tmp_path_factory):
     for name, flags in [('normal', ['-O2']), ('sanitized', ['-O1', '-g', '-fsanitize=address,undefined',
                          '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-fno-pie', '-no-pie'])]:
         executable = directory / name
-        subprocess.run(cc + ['-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-pthread'] + flags +
-                       [str(HERE / 'test-functional-camera-bridge.c'), '-o', str(executable)],
-                       check=True, capture_output=True, timeout=45)
+        process = subprocess.run(cc + ['-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-pthread'] + flags +
+                                 [str(HERE / 'test-functional-camera-bridge.c'), '-o', str(executable)],
+                                 capture_output=True, timeout=45)
+        (directory / (name + '.compile.log')).write_bytes(process.stdout + process.stderr)
+        assert process.returncode == 0, process.stderr.decode(errors='replace')
         result[name] = executable
     return result
 
@@ -627,7 +672,10 @@ def guest_builds(tmp_path_factory):
 @pytest.mark.parametrize('scenario', C_SCENARIOS)
 def test_actual_c_bridge_contracts(guest_builds, mode, scenario):
     env = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:abort_on_error=1', UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')
-    process = subprocess.run([str(guest_builds[mode]), scenario], env=env, capture_output=True, timeout=8)
+    executable = guest_builds[mode]
+    process = subprocess.run([str(executable), scenario], env=env, capture_output=True, timeout=8)
+    (executable.parent / (mode + '-' + scenario + '.stdout.bin')).write_bytes(process.stdout)
+    (executable.parent / (mode + '-' + scenario + '.stderr.log')).write_bytes(process.stderr)
     assert process.returncode == 0, process.stderr.decode(errors='replace')
     assert b'Sanitizer' not in process.stderr and b'runtime error:' not in process.stderr
 

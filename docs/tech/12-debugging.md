@@ -5,6 +5,8 @@
 
 变量见[索引](README.md)。本次只回读源码与报告，没有连接任何调试端点。
 
+**10 月 31 日状态**：完整研究批次 9070 tests / 10006 subtests 与独立内容读回通过；对原 run64 的新内容复核仍 INCOMPLETE，阻塞在控制记录/精确内核尾注分帧和研究工具所需的原模块只读验证。最新原运行的严格收尾通过，原正式 capture/graph FAIL 与无媒体结果保留。详见[当前进度](2026-10-31-current-progress.md)和[摘要](../../validation/2026-10-31-progress.json)；下文第 9 节保留 10 月 29 日的等待与退出问题，不将其当作最新运行结论。
+
 先声明边界：观测不是零干扰。入口探针会改装载中的代码，GDB 硬件断点会暂停 CPU，
 首写观察会显式延迟初始化。所以"定位证据"不等于"功能恢复"，
 本页也不提供改寄存器、改内存、调 setter 的捷径。
@@ -110,7 +112,7 @@ REC 提示的变化另行记账。禁止用断点改值"验证"业务。
 但库没重建也曾制造假阴性）。入口 ready 只表示探针布置完成，
 不能叫相机 ready。
 
-## 9. 当前后台初始化与退出证据
+## 9. 历史后台初始化与退出证据（截至 10 月 29 日）
 
 2026-10-29 最新完整基线为`unified-camera-4b3kb4kd`：5568 tests /7057 subtests、host/guest构建与双原glibc2.25 ABI通过。BEGIN、同锁唯一snapshot ID、真实receive/free ticket、cache128/readback128和退休后下一周期source绑定已纳本批；集中1051项通过，native内容checker的严格join也已接入。旧1KiB日志预算失败和随后strlen声明构建失败分别保留，新批通过不回填旧记录。原AP/SDK新VM及成片仍未验。
 
@@ -127,7 +129,7 @@ REC 提示的变化另行记账。禁止用断点改值"验证"业务。
 
 ## 证据入口
 
-- [当前阶段、原生FP/BL定位与新组件范围](2026-10-29-current-progress.md)。
+- [当前阶段、内容检查器阻塞与原生边界](2026-10-31-current-progress.md)。
 - [本包历史媒体访问器与首写纠正](../../validation/README.md#媒体只读诊断访问器层修正)。
 - [地址/资产身份](01-firmware-assets.md)与[当前首启判据](04-app-and-first-setup.md)。
 

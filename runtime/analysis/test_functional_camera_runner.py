@@ -1,5 +1,6 @@
 """Stdlib fixtures for the actual runner helper; no VM, C model or media request."""
 import ast
+from contextlib import ExitStack, nullcontext
 import copy
 import io
 import json
@@ -17,6 +18,7 @@ import unittest
 from unittest import mock
 
 import functional_camera_runner as runner
+from scope_observer_profile import record_exit as record_scope_exit
 
 HERE = Path(__file__).resolve().parent
 PROFILE = runner.FUNCTIONAL_CAMERA_PROFILE
@@ -179,6 +181,102 @@ class ArtifactTests(unittest.TestCase):
         archive.write_bytes(raw)
         with mock.patch.object(runner, 'QEMU_SHA256', '0' * 64), self.assertRaisesRegex(ValueError, 'unchanged QEMU'):
             runner.validate_artifact(self.fixture.base, self.fixture.qemu)
+
+    def test_scope_candidate_needs_explicit_receipt_and_reports_actual_hash(self):
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        receipt = self.fixture.root / 'reviewed-scope-build.json'
+        with mock.patch.object(runner, 'READONLY_SCOPE_QEMU_SHA256', actual), \
+                mock.patch.object(runner.scope_observer_profile, 'validate_build') as validate_scope:
+            with self.assertRaisesRegex(ValueError, 'unchanged QEMU'):
+                runner.validate_artifact(self.fixture.base, self.fixture.qemu)
+            validate_scope.assert_not_called()
+            accepted = runner.validate_artifact(self.fixture.base, self.fixture.qemu,
+                scope_build_receipt=receipt)
+            validate_scope.assert_called_once_with(self.fixture.root, receipt, self.fixture.qemu)
+            self.assertEqual(accepted['qemu_sha256'], actual)
+            self.assertNotEqual(accepted['qemu_sha256'], runner.QEMU_SHA256)
+
+    def test_real_v1_v2_v3_scope_validation_is_used_by_the_artifact_caller_without_loading(self):
+        profile = runner.scope_observer_profile
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        header = self.fixture.root / 'source/build/qemu-SRBXNK/qemu-11.1.2/include/plugins/qemu-plugin.h'
+        header.parent.mkdir(parents=True)
+        header.write_bytes(b'HOST_TEST API7 header, never compiled')
+        library = self.fixture.root / 'scope-observer.so'
+        elf = bytearray(32)
+        elf[:6] = b'\x7fELF\x02\x01'
+        struct.pack_into('<HH', elf, 16, 3, 62)
+        library.write_bytes(elf)
+        receipt = self.fixture.root / 'reviewed-scope-build.json'
+        for version in (profile.PROFILE, profile.PROFILE_V2, profile.PROFILE_V3):
+            with self.subTest(version=version):
+                source = profile.source_root(self.fixture.root, version)
+                for name in profile.SOURCE_SETS[version]:
+                    path = source / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(b'HOST_TEST source ' + name.encode())
+                if version == profile.PROFILE_V3:
+                    schema = source / 'log-schema-v3.json'
+                    schema.write_text(json.dumps(dict(schema='readonly_scope_v3', profile=version)))
+                    (source / 'source-contract-v3.json').write_text(json.dumps(dict(
+                        schema='readonly_scope_source_contract_v3', profile=version, trace_schema='readonly_scope_v3',
+                        trace_schema_sha256=profile.sha(schema),
+                        actual_build_source_names_required=list(profile.SOURCE_NAMES_V3))))
+                sources = {name: profile.sha(source / name) for name in profile.SOURCE_SETS[version]}
+                data = dict(schema=version, plugin_api=7, readonly_imports_verified=True,
+                    source_sha256=sources, qemu_header_sha256=profile.sha(header), qemu_sha256=actual,
+                    library=str(library), library_sha256=profile.sha(library))
+                if version != profile.PROFILE:
+                    suffix = version[-2:]
+                    data.update(trace_schema='readonly_scope_' + suffix,
+                        trace_schema_sha256=sources['log-schema-' + suffix + '.json'],
+                        source_contract_sha256=sources['source-contract-' + suffix + '.json'],
+                        runtime_verified=False, capture_verified=False, physical_asic_compatibility_verified=False)
+                receipt.write_text(json.dumps(data))
+                with mock.patch.object(runner, 'READONLY_SCOPE_QEMU_SHA256', actual), \
+                        mock.patch.object(profile, 'V3_QEMU_SHA256', actual), \
+                        mock.patch.object(profile, 'V3_HEADER_SHA256', profile.sha(header)), \
+                        mock.patch.object(profile, 'validate_build', wraps=profile.validate_build) as validate, \
+                        mock.patch.object(runner.transport, 'Core', side_effect=AssertionError('must not load a model')):
+                    accepted = runner.validate_artifact(self.fixture.base, self.fixture.qemu, scope_build_receipt=receipt)
+                    validate.assert_called_once_with(self.fixture.root, receipt, self.fixture.qemu)
+                    self.assertEqual(accepted['qemu_sha256'], actual)
+                    data['source_sha256']['scope-observer.c'] = '0' * 64
+                    receipt.write_text(json.dumps(data))
+                    with self.assertRaisesRegex(ValueError, 'source identity changed'):
+                        runner.validate_artifact(self.fixture.base, self.fixture.qemu, scope_build_receipt=receipt)
+                    self.assertFalse(any(self.fixture.root.glob('**/readonly-scope-observer.so')))
+                    self.assertFalse(any(self.fixture.root.glob('**/readonly-scope-trace.log')))
+
+    def test_scope_candidate_does_not_accept_unknown_or_legacy_binary(self):
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        with mock.patch.object(runner.scope_observer_profile, 'validate_build') as validate_scope:
+            for legacy_pin in (runner.QEMU_SHA256, actual):
+                with self.subTest(legacy_pin=legacy_pin), mock.patch.object(runner, 'QEMU_SHA256', legacy_pin), \
+                        self.assertRaisesRegex(ValueError, 'exact reviewed plugin-enabled QEMU'):
+                    runner.validate_artifact(self.fixture.base, self.fixture.qemu,
+                        scope_build_receipt=self.fixture.root / 'build.json')
+            validate_scope.assert_not_called()
+
+    def test_scope_build_validation_failure_is_not_downgraded(self):
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        with mock.patch.object(runner, 'READONLY_SCOPE_QEMU_SHA256', actual), \
+                mock.patch.object(runner.scope_observer_profile, 'validate_build',
+                    side_effect=ValueError('actual scope source mismatch')), \
+                self.assertRaisesRegex(ValueError, 'actual scope source mismatch'):
+            runner.validate_artifact(self.fixture.base, self.fixture.qemu,
+                scope_build_receipt=self.fixture.root / 'build.json')
+
+    def test_prepare_forwards_the_explicit_scope_receipt(self):
+        receipt = self.fixture.root / 'build.json'
+        with mock.patch.object(runner, 'validate_artifact', return_value={'qemu_sha256': 'bound'}) as validate, \
+                mock.patch.object(runner, 'FunctionalCameraRunner') as factory:
+            result = runner.prepare(PROFILE, self.fixture.base, self.fixture.root, self.fixture.qemu,
+                scope_build_receipt=receipt)
+            validate.assert_called_once_with(self.fixture.base, self.fixture.qemu,
+                scope_build_receipt=receipt)
+            factory.assert_called_once_with(self.fixture.root, {'qemu_sha256': 'bound'})
+            self.assertIs(result, factory.return_value)
 
     def test_missing_model_abi_export_is_rejected(self):
         raw = fake_elf().replace(b'fcam_model_request', b'fcam_wrong_request')
@@ -608,6 +706,193 @@ class LifecycleTests(unittest.TestCase):
         self.instance.thread = mock.Mock()
         with self.assertRaisesRegex(ValueError, 'already started'):
             self.instance.start(self.proc)
+
+    def _probe_close_fixture(self, body='pass'):
+        tree = ast.parse((HERE/'qemu-menu-probe.py').read_text())
+        outer = next(node for node in tree.body if isinstance(node, ast.With) and
+                     any(isinstance(item.optional_vars, ast.Name) and item.optional_vars.id == 'console'
+                         for item in node.items))
+        shutdown = next(node for node in outer.body if isinstance(node, ast.Try))
+        channel = next(node for node in shutdown.body if isinstance(node, ast.With))
+        stream_block = next(node for node in channel.body if isinstance(node, ast.With))
+        function = next(node for node in stream_block.body if isinstance(node, ast.FunctionDef) and node.name == 'qmp')
+        attempted = next(node for node in outer.body if isinstance(node, ast.Assign) and
+                         any(isinstance(target, ast.Name) and target.id == 'qmp_quit_attempted' for target in node.targets))
+        events = []
+
+        class Stream:
+            closed = False
+            error = None
+            def __enter__(self): return self
+            def __exit__(self, *_):
+                self.closed = True
+                events.append('stream-close')
+            def write(self, raw):
+                events.append(('write', json.loads(raw)))
+                if self.closed: raise ValueError('write to closed file')
+                if self.error is not None: raise self.error
+            def flush(self): events.append('flush')
+            def readline(self): events.append('ack'); return b'{"return":{}}'
+
+        stream = Stream()
+        sock = mock.MagicMock()
+        sock.__enter__.return_value = sock
+        sock.makefile.return_value = stream
+        sock.__exit__.side_effect = lambda *_: events.append('socket-close')
+        def waited(*, timeout):
+            self.assertEqual(timeout, 5)
+            self.assertFalse(stream.closed)
+            sock.__exit__.assert_not_called()
+            events.append('wait-exit')
+            self.proc.poll.return_value = 0
+            return 0
+        self.proc.wait.side_effect = waited
+        sockets = mock.Mock(AF_UNIX=1)
+        sockets.socket.return_value = sock
+        scope = dict(functional_camera=self.instance, early_media_watch=None, proc=self.proc,
+                     out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess,
+                     nullcontext=nullcontext, ExitStack=ExitStack, socket=sockets, live_fd=True,
+                     host_sd_fd=None, directory_sd_fd=40, host_sd_export_verified=[True],
+                     scope_observer=None, record_scope_exit=record_scope_exit)
+        exec(compile(ast.Module(body=[attempted, function], type_ignores=[]), '<actual-qmp>', 'exec'), scope)
+        # Keep the real resource contexts and finalizer; replace only launch/boot/live work.
+        stream_block.body = ast.parse(body).body
+        channel.body = [stream_block]
+        shutdown.body = [channel]
+        outer.body = [shutdown]
+        program = compile(ast.Module(body=[outer], type_ignores=[]), '<actual-qmp-lifetime>', 'exec')
+        final = compile(ast.Module(body=shutdown.finalbody, type_ignores=[]), '<actual-qmp-finally>', 'exec')
+        return scope, program, final, events, stream
+
+    def test_HOST_closed_cleanup_waits_before_releasing_qmp_and_repeated_stop_is_safe(self):
+        broker = self.broker()
+        scope, program, final, events, stream = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaises(SystemExit) as stopped:
+                exec(program, scope)
+            self.assertEqual(stopped.exception.code, 0)
+            self.assertTrue(stream.closed)
+            prior = list(events)
+            exec(final, scope)
+            self.assertEqual(events, prior)
+        self.assertEqual(events, [('write', {'execute':'quit'}), 'flush', 'ack',
+                                  'wait-exit', 'stream-close', 'socket-close'])
+        broker.stop.assert_called_once_with()
+        self.proc.wait.assert_called_once_with(timeout=5)
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+        self.assertFalse((self.run/'host-sd-quit-error.json').exists())
+        self.assertFalse(self.instance.receipt('closed')['capture_verified'])
+
+    def test_HOST_scope_exit_receipt_is_written_after_actual_wait_and_cleanup(self):
+        self._scope_exit_after_wait('qemu-readonly-scope-v2')
+
+    def test_HOST_v3_scope_exit_receipt_preserves_the_same_before_close_order(self):
+        self._scope_exit_after_wait('qemu-readonly-scope-v3')
+
+    def _scope_exit_after_wait(self, version):
+        self.broker()
+        self.proc.pid = 456
+        scope, program, _, events, stream = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+        scope['scope_observer'] = {'profile': version, 'library_sha256': 'd' * 64}
+        (self.run / 'readonly-scope-trace.log').write_bytes(b'host-only fixture bytes\n')
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaises(SystemExit):
+                exec(program, scope)
+        receipt = json.loads((self.run / 'readonly-scope-exit.json').read_bytes())
+        self.assertEqual(receipt['profile'], scope['scope_observer']['profile'])
+        self.assertEqual(receipt['returncode'], 0)
+        self.assertEqual(receipt['owned_wrapper_pid'], 456)
+        self.assertEqual(receipt['log_sha256'], runner.digest(b'host-only fixture bytes\n'))
+        self.assertTrue(stream.closed)
+        self.assertIn('wait-exit', events)
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_startup_failure_keeps_qmp_open_for_existing_guarded_finalizer(self):
+        self.broker()
+        scope, program, _, events, stream = self._probe_close_fixture("raise RuntimeError('original startup failure')")
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'original startup failure'):
+                exec(program, scope)
+        self.assertTrue(stream.closed)
+        self.assertEqual(events, [('write', {'execute':'quit'}), 'flush', 'ack',
+                                  'wait-exit', 'stream-close', 'socket-close'])
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+        self.assertFalse((self.run/'host-sd-quit-error.json').exists())
+
+    def test_HOST_quit_write_failure_is_preserved_without_retry_or_false_success(self):
+        broker = self.broker()
+        scope, program, final, events, stream = self._probe_close_fixture("qmp('quit')")
+        original = ValueError('host fake quit write failed')
+        stream.error = original
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaises(ValueError) as failed:
+                exec(program, scope)
+            self.assertIs(failed.exception, original)
+            receipt = (self.run/'host-sd-quit-error.json').read_bytes()
+            exec(final, scope)
+            self.assertEqual((self.run/'host-sd-quit-error.json').read_bytes(), receipt)
+        self.assertEqual(json.loads(receipt), {'error':str(original), 'force_kill_authorized':False})
+        self.assertEqual(events, [('write', {'execute':'quit'}), 'wait-exit', 'stream-close', 'socket-close'])
+        self.assertTrue(scope['qmp_quit_attempted'][0])
+        broker.stop.assert_called_once_with()
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_ack_without_actual_exit_never_replays_quit_or_kills_directory_sd_owner(self):
+        self.broker()
+        scope, program, _, events, _ = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+        self.proc.wait.side_effect = subprocess.TimeoutExpired('host fake owner', 5)
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'still running'):
+                exec(program, scope)
+            with self.assertRaisesRegex(RuntimeError, 'already attempted'):
+                scope['qmp']('quit')
+        self.assertIsNone(self.proc.poll())
+        self.assertEqual([event for event in events if isinstance(event, tuple)], [('write', {'execute':'quit'})])
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_actual_probe_quit_refuses_undetached_or_mismatched_owner_nonce(self):
+        scope, _, _, events, _ = self._probe_close_fixture()
+        for mutation in ('undetached', 'nonce', 'owner-start', 'qemu-pid', 'qemu-start', 'qemu-exe'):
+            broker = self.broker({**SAFE, 'mailbox_detached':False} if mutation == 'undetached' else None)
+            receipts = copy.deepcopy(self.receipts())
+            if mutation == 'nonce': receipts[-1]['model_instance'] += 1
+            elif mutation == 'owner-start': receipts[0]['config']['owner']['starttime'] += 1
+            elif mutation.startswith('qemu-'):
+                key = {'pid':'pid', 'start':'starttime', 'exe':'exe'}[mutation.removeprefix('qemu-')]
+                receipts[0]['config']['qemu'][key] = 'reused-vm' if key == 'exe' else receipts[0]['config']['qemu'][key] + 1
+            with self.subTest(mutation=mutation), mock.patch.object(runner.transport, 'read_receipts', return_value=receipts):
+                with self.assertRaises(runner.UnsafeCameraClose):
+                    scope['qmp']('quit')
+            broker.stop.assert_called_once_with()
+            self.assertFalse(self.instance.closed)
+            self.assertFalse(scope['qmp_quit_attempted'][0])
+            self.assertEqual(events, [])
+        self.proc.wait.assert_not_called()
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_closed_runner_rechecks_owner_pid_start_and_exe_before_duplicate_quit(self):
+        self.broker()
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()):
+            self.instance.before_close('host-safe-close')
+        scope, _, _, events, _ = self._probe_close_fixture()
+        scope['qmp_quit_attempted'][0] = True
+        for key, value in (('pid', self.owner['pid'] + 1), ('starttime', 2), ('exe', 'reused-owner')):
+            with self.subTest(key=key), mock.patch.object(runner.transport, 'process_identity', return_value={**self.owner, key:value}):
+                with self.assertRaisesRegex(ValueError, 'owner changed'):
+                    scope['qmp']('quit')
+            self.assertEqual(events, [])
+        self.proc.wait.assert_not_called()
 
     def test_qmp_preserves_pause_intent_and_does_not_resume_on_failed_cont(self):
         with self.instance.qmp_command('stop'):
@@ -1083,7 +1368,8 @@ finally:instance.guard_shutdown(child,sys.exc_info()[1])
         early = mock.Mock()
         scope = {'functional_camera': self.instance, 'proc': self.proc, 'sys': __import__('sys'),
                  'early_media_watch': early, 'host_sd_fd': None, 'directory_sd_fd': 40,
-                 'host_sd_export_verified': [False], 'out': self.run, 'subprocess': __import__('subprocess')}
+                 'host_sd_export_verified': [False], 'out': self.run, 'subprocess': __import__('subprocess'),
+                 'scope_observer': None, 'record_scope_exit': record_scope_exit}
         with mock.patch.object(runner.signal, 'signal', return_value=None), self.assertRaises(runner.UnsafeCameraClose):
             exec(compile(ast.Module(body=block, type_ignores=[]), '<actual-finally-guard>', 'exec'), scope)
         self.proc.wait.assert_called_once_with()

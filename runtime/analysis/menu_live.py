@@ -133,6 +133,14 @@ class FirmwareMonitor:
                     self.failed = True
                     self.failure_message = '功能源快照发生集成故障，原调用栈和资源已保留；详情见 console.log'
                     raise FirmwareFault(self.failure_message)
+                if re.search(rb'(?:^|\n)OBS FUNCTIONAL_STILL_FORMAT_INTEGRATION_FAULT ', data):
+                    self.failed = True
+                    self.failure_message = '功能照片格式发生集成故障，原调用和资源状态已保留；详情见 console.log'
+                    raise FirmwareFault(self.failure_message)
+                if re.search(rb'(?:^|\n)OBS FUNCTIONAL_STARTUP_CONTROL_INTEGRATION_FAULT ', data):
+                    self.failed = True
+                    self.failure_message = '功能启动配置发生集成故障，原调用和资源状态已保留；详情见 console.log'
+                    raise FirmwareFault(self.failure_message)
                 if re.search(rb'(?:^|\n)(?:Entering exception monitor\.|Exception>|OBS GUI_MODEL_FAILED )', data):
                     self.failed = True
                     raise FirmwareFault(self.failure_message)

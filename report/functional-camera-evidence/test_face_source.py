@@ -36,7 +36,8 @@ def source_fixture(root, monkeypatch, width=8, initially_paused=False, inband_ca
     qemu = dict(pid=178, starttime=101, ppid=177, exe='/HOST_TEST/qemu-system-aarch64')
     broker.config = dict(run=str(run), run_identity=[run.stat().st_dev, run.stat().st_ino],
                          qemu_sha256=checker.QEMU_SHA256, owner=owner, qemu=qemu)
-    build = dict(model_sha256='a' * 64, model_build_sha256='b' * 64, model_source_archive_sha256='c' * 64)
+    build = dict(model_sha256='a' * 64, model_build_sha256='b' * 64,
+                 model_source_archive_sha256='c' * 64, qemu_sha256=checker.QEMU_SHA256)
     broker.emit('binding', mailbox=mailbox, actual_core_sha256=build['model_sha256'], config=broker.config,
         payload_policy=dict(directory='functional-camera-data', per_file_bytes=64 * 1024**2,
                             total_bytes=512 * 1024**2, max_files=65536, source_kind='actual_hardware_transfer'))

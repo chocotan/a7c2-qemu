@@ -18,6 +18,7 @@ import io
 from pathlib import Path
 import struct
 import tarfile
+from types import SimpleNamespace
 
 BASE = Path(__file__).resolve().parents[1]
 PREFIX = 'FULL_PINMEM_HDMI_VIDEO_CONNECT'
@@ -31,6 +32,39 @@ CONDITION_SOURCE = 0x91ca0816
 CONDITION_SID = 0x802a0116
 IDS = (0, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12, 0x11, 0x23, 0x22, 0x21, 0x30)
 _WATCH = None
+MAX_RETAINED_IMAGE = 768 * 1024**2
+RUN_BINDINGS = {
+    'source-snapshot-run-binding.json': ('functional-source-snapshot-run-v1',),
+    'readonly-scope-run-binding.json': ('functional-M-v2-run-v2', 'functional-M-v3-run-v3'),
+}
+RUN_FALSE_FIELDS = ('capture_verified', 'native_verified', 'native_AP_provider',
+                    'physical_asic_compatibility_verified', 'original_Fsys_save_verified')
+SCOPE_FALSE_FIELDS = RUN_FALSE_FIELDS + ('sony_branch_verified', 'sony_store_verified',
+    'original_poweron_or_late_runtime_verified', 'cap', 'physical', 'branchretirement', 'storecompletion')
+SCOPE_PLAN_FIELDS = ('nonce', 'batch', 'batch_ready_sha256', 'runtime_ready', 'parent_readback',
+    'fresh_guest', 'runtime_assets_sha256', 'scope_observer_expected', 'synthetic_fixture_manifest', 'actual_api_contract')
+SCOPE_SOURCE_NAMES = ('scope-observer.c', 'late-sites.inc', 'build-plugin.sh', 'log-schema-v2.json',
+    'source-contract-v2.json', 'check_run_context_v2.py', 'check_run_context.py',
+    'integration/scope_trace_checks_v2.py', 'integration/scope_trace_checks.py')
+SCOPE_SOURCE_NAMES_V3 = ('scope-observer.c', 'late-sites.inc', 'build-plugin.sh', 'log-schema-v3.json',
+    'source-contract-v3.json', 'check_run_context_v3.py', 'check_run_context.py',
+    'integration/scope_trace_checks_v3.py', 'integration/scope_trace_checks.py')
+SCOPE_BINDING_VERSIONS = {'functional-M-v2-run-v2': 2, 'functional-M-v3-run-v3': 3}
+
+
+class _ImageBytes:
+    """Let the existing newc verifier consume the exact bytes already hashed."""
+    def __init__(self, raw):
+        self.raw = raw
+
+    def open(self, mode):
+        require(mode == 'rb', 'condition image reader is read-only')
+        return io.BytesIO(self.raw)
+
+    def stat(self):
+        return SimpleNamespace(st_size=len(self.raw))
+
+
 # Exact reviewed ledger, receive/free hooks and linking recipe; new versions need review.
 CONDITION_LEDGER_SOURCES = {
     'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
@@ -40,9 +74,38 @@ CONDITION_LEDGER_SOURCES = {
 }
 
 
+SOURCE_SETS = (CONDITION_LEDGER_SOURCES, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '370909f58d73951d6be4bbb54adaab9e3e45cf97eaebc94e02abbbd4d3f86b59',
+    'build-observers.sh': 'b023e1b2b2b10e53ef8dcc4c7ddde1d8e49eede62e404cbcf5ca0d5ce790c45f',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': 'ccac63643d3ea5b2a57e09c3d4c74812c6812e92ecbbd9bfc22ec953d310d8b3',
+    'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '68006c1667712c76af96b08d042e37cd888ebf7a98cafd63630fe8943e161009',
+    'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '2b399aa1191ecd3882c13b2729c1ac639d03c2187414025673a09d153af241af',
+    'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f',
+    'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+})
+
+
 def require(value, reason):
     if not value:
         raise ValueError('HDMI11: ' + str(reason))
+
+
+def _condition_source_set(sources):
+    selected = {name: sources[str(BASE / name)]['sha256'] for name in CONDITION_LEDGER_SOURCES}
+    require(selected in SOURCE_SETS, 'unreviewed condition ledger/hook source set')
+    return selected
 
 
 def eq(record, **expected):
@@ -98,6 +161,132 @@ def _kind(log, suffix, kind):
     return [r for r in log.rows(STATE + '_' + suffix) if r['fields'].get('kind') == str(kind)]
 
 
+def _condition_binding_name(run):
+    names = [name for name in RUN_BINDINGS if (run / name).exists() or (run / name).is_symlink()]
+    require(len(names) == 1, 'condition source/run binding missing or ambiguous')
+    return names[0]
+
+
+def _condition_binding(graph, run, observer):
+    name = _condition_binding_name(run)
+    original = graph.read(run / name, graph.MAX_JSON)
+    binding = graph.object_json(original)
+    require(binding.get('schema') in RUN_BINDINGS[name] and binding.get('run') == str(run) and
+            binding.get('observer_sha256') == observer, 'condition source/run binding differs')
+    require(type(binding.get('nonce')) is int and 0 < binding['nonce'] < 2**64,
+            'condition source/run nonce invalid')
+    for key in ('batch_ready_sha256', 'observer_sha256', 'guest_sha256', 'intent_sha256', 'launch_binding_sha256'):
+        digest = binding.get(key)
+        require(type(digest) is str and len(digest) == 64 and set(digest) <= set('0123456789abcdef'),
+                'condition source/run digest invalid: ' + key)
+    require(binding.get('claimed_fault_result') == 'FAIL' and
+            all(binding.get(key) is False for key in RUN_FALSE_FIELDS), 'condition source/run scope promoted')
+    graph.absolute(binding['batch'])
+    return name, binding, original
+
+
+def _condition_scope_binding(graph, reader, run, binding, manifest, build, tested):
+    """Provenance only; AP transactions still require the original content checks."""
+    version = SCOPE_BINDING_VERSIONS[binding['schema']]
+    fields = SCOPE_PLAN_FIELDS + ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')
+    required = set(fields) | set(SCOPE_FALSE_FIELDS) | {
+        'schema', 'run', 'intent_sha256', 'launch_binding_sha256', 'claimed_fault_result', 'popen_live_sha256'}
+    require(set(binding) == required and all(binding.get(k) is False for k in SCOPE_FALSE_FIELDS),
+            'condition scope binding fields/claims differ')
+    snapshots = {}
+
+    def receipt(path, digest):
+        path = graph.absolute(path)
+        original = graph.read(path, graph.MAX_JSON)
+        require(graph.sha(original) == digest, 'condition scope receipt digest differs: ' + str(path))
+        snapshots[path] = original
+        return graph.object_json(original)
+
+    fresh_ref = binding['fresh_guest']
+    require(type(fresh_ref) is dict and set(fresh_ref) == {'path', 'sha256'} and
+            Path(fresh_ref['path']).name == 'fresh-public-guest.json', 'condition fresh guest reference differs')
+    fresh = receipt(fresh_ref['path'], fresh_ref['sha256'])
+    work = graph.absolute(fresh_ref['path']).parent
+    intent = receipt(work / 'intent.json', binding['intent_sha256'])
+    launch = receipt(work / 'launch-binding.json', binding['launch_binding_sha256'])
+    require(intent.get('schema') == f'functional-M-v{version}-intent-v{version}' and
+            launch.get('schema') == f'functional-M-v{version}-launch-v{version}' and
+            all(reader.typed_equal(binding[key], intent.get(key)) and
+                reader.typed_equal(binding[key], launch.get(key)) for key in fields) and
+            launch.get('intent_sha256') == binding['intent_sha256'] and
+            intent.get('plan') == launch.get('plan') == str(work / 'plan.json') and
+            intent.get('plan_sha256') == launch.get('plan_sha256') and
+            all(row.get('claimed_fault_result') == 'FAIL' and all(row.get(k) is False for k in SCOPE_FALSE_FIELDS)
+                for row in (intent, launch)), 'condition scope intent/launch provenance differs')
+    guest_source = graph.absolute(intent['guest_image'])
+    require(manifest.get('probe_args', {}).get('initramfs_file') == str(guest_source) and
+            manifest['files'].get(str(guest_source)) == binding['guest_sha256'] and
+            fresh.get('guest_image') == str(guest_source) and fresh.get('guest_sha256') == binding['guest_sha256'] and
+            fresh.get('ready_sha256') == binding['batch_ready_sha256'] and
+            fresh.get('runtime_ready_sha256') == binding['runtime_ready']['sha256'] and
+            type(fresh.get('returncode')) is int and fresh['returncode'] == 0 and
+            fresh.get('compiled3_unchanged') is True and fresh.get('capture_verified') is False and
+            reader.typed_equal(fresh.get('compiled_before'), fresh.get('compiled_after')) and
+            fresh.get('compiled_before', {}).get(str(BASE / 'menu-observe.so')) == binding['observer_sha256'],
+            'condition scope selected guest/frozen observer differs')
+    expected = binding['scope_observer_expected']
+    source_names = SCOPE_SOURCE_NAMES_V3 if version == 3 else SCOPE_SOURCE_NAMES
+    require(type(expected.get('source_sha256')) is dict and set(expected['source_sha256']) == set(source_names),
+            'condition scope source set differs')
+    scope = manifest.get('readonly_scope_observer', {})
+    plan_binding = {key: binding[key] for key in SCOPE_PLAN_FIELDS}
+    metadata_fields = ('profile', 'build_receipt', 'build_receipt_sha256', 'library_sha256', 'qemu_sha256',
+        'qemu_header_sha256', 'source_sha256', 'identity_binding', 'capture_verified',
+        'physical_asic_compatibility_verified', 'trace_schema', 'trace_schema_sha256', 'source_contract_sha256')
+    require(set(scope) == set(metadata_fields) | {'library', 'log', 'plan_binding'} and
+            all(reader.typed_equal(scope.get(key), expected.get(key)) for key in metadata_fields
+                if key not in ('identity_binding', 'capture_verified', 'physical_asic_compatibility_verified')),
+            'condition scope complete metadata/expected identity differs')
+    require(reader.typed_equal(scope, dict(expected['build_metadata'],
+                library=str(run / 'readonly-scope-observer.so'), log=str(run / 'readonly-scope-trace.log'),
+                plan_binding=plan_binding)) and
+            scope.get('profile') == f'qemu-readonly-scope-v{version}' and
+            scope.get('trace_schema') == f'readonly_scope_v{version}' and
+            scope.get('identity_binding') == 'unverified' and scope.get('capture_verified') is False and
+            scope.get('physical_asic_compatibility_verified') is False and
+            reader.typed_equal(scope.get('source_sha256'), expected['source_sha256']) and
+            manifest['selected_initramfs_verified_files'].get('usr/lib/appFw.so') == expected['original_appfw_sha256'] and
+            expected['Main_source_sha256'] == build['sources'][str(BASE / 'menu-observe.c')]['sha256'],
+            'condition scope actual manifest/module source differs')
+    frozen = {}
+    for group in tested['groups'].values():
+        for name, digest in group.items():
+            require(name not in frozen or frozen[name] == digest, 'condition scope frozen source conflict')
+            frozen[name] = digest
+    root = graph.absolute(expected['source_root'])
+    source_component = ('report/2026-10-31-qemu-M-writer-observer-v3' if version == 3 else
+                        'report/2026-10-30-qemu-readonly-scope-observer')
+    require(root == graph.NATIVE / source_component and
+            frozen.get(str(BASE / 'functional_camera_runner.py')) == expected['functional_runner_source_sha256'],
+            'condition scope source root/runner differs')
+    for name, digest in expected['source_sha256'].items():
+        path = graph.absolute(root / name)
+        require(path.is_relative_to(root) and frozen.get(str(path)) == digest,
+                'condition scope module source is not frozen: ' + name)
+        original = graph.read(path)
+        require(graph.sha(original) == digest, 'condition scope module source differs: ' + name)
+        snapshots[path] = original
+    candidate = binding['candidate_qemu']
+    require(type(candidate) is dict and set(candidate) == {'path', 'sha256'} and
+            str(graph.absolute(candidate['path'])) == manifest['backup_transport']['binary'] and
+            candidate['sha256'] == manifest['backup_transport']['binary_sha256'] == expected['qemu_sha256'] and
+            manifest['files'].get(candidate['path']) == candidate['sha256'], 'condition scope selected QEMU differs')
+    live = receipt(run / 'readonly-scope-popen-live.json', binding['popen_live_sha256'])
+    info = run.stat()
+    context = dict(schema=f'functional-M-v{version}-live-context-v{version}', run=str(run), run_device=info.st_dev, run_inode=info.st_ino,
+        **{key: binding[key] for key in ('nonce', 'batch', 'batch_ready_sha256', 'intent_sha256',
+                                       'launch_binding_sha256', 'candidate_qemu', 'card')}, scope=plan_binding)
+    require(live.get('schema') == f'functional-M-v{version}-popen-live-v{version}' and
+            reader.typed_equal(live.get('context'), context) and
+            all(live.get(key) is False for key in SCOPE_FALSE_FIELDS), 'condition scope same-run Popen context differs')
+    return guest_source, snapshots
+
+
 def _condition_source_proof(log, run):
     """Read the actual evidence, never a caller-supplied approval or current C shape."""
     graph_path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
@@ -106,17 +295,18 @@ def _condition_source_proof(log, run):
     spec.loader.exec_module(graph)
     run = graph.absolute(run)
     modules = ('report/functional-camera-evidence/check_evidence.py',
-               'runtime/analysis/scratch/evaluate-five-edges-native.py')
+               'runtime/analysis/scratch/evaluate-five-edges-native.py',
+               'runtime/analysis/initramfs_identity.py')
     frozen = {str(graph.NATIVE / name): graph.sha(graph.read(graph.NATIVE / name)) for name in modules}
-    reader, legacy = [graph.source_module(name, frozen) for name in modules]
+    reader, legacy, image = [graph.source_module(name, frozen) for name in modules]
     inputs = {name: graph.read(run / name, graph.MAX_JSON) for name in
-              ('observer-build-inputs.json', 'runtime-manifest.json', 'source-snapshot-run-binding.json')}
-    build, manifest, binding = [graph.object_json(value) for value in inputs.values()]
+              ('observer-build-inputs.json', 'runtime-manifest.json')}
+    build, manifest = [graph.object_json(value) for value in inputs.values()]
     require(reader.typed_equal(build, manifest.get('compiled_observer')) and
             manifest.get('selected_observer_matches_build') is True, 'condition source/run build differs')
     observer = build['observer_sha256']
-    require(binding.get('schema') == 'functional-source-snapshot-run-v1' and binding.get('run') == str(run) and
-            binding.get('observer_sha256') == observer, 'condition source/run binding differs')
+    binding_name, binding, inputs_binding = _condition_binding(graph, run, observer)
+    inputs[binding_name] = inputs_binding
     batch = graph.absolute(binding['batch'])
     ready_raw, batch_raw = [graph.read(batch / name, graph.MAX_JSON) for name in ('ready.json', 'inputs.json')]
     ready, tested = map(graph.object_json, (ready_raw, batch_raw))
@@ -125,7 +315,8 @@ def _condition_source_proof(log, run):
     sources = build['sources']
     require({name: entry['sha256'] for name, entry in sources.items()} == tested['groups']['production'],
             'condition build/tested production source set differs')
-    for name, digest in CONDITION_LEDGER_SOURCES.items():
+    selected_sources = _condition_source_set(sources)
+    for name, digest in selected_sources.items():
         entry = sources[str(BASE / name)]
         require(entry['sha256'] == digest and entry['archive_path'] ==
                 str((BASE / name).relative_to(graph.NATIVE.parent.parent)), 'unreviewed condition ledger/hook source: ' + name)
@@ -140,8 +331,35 @@ def _condition_source_proof(log, run):
     require(files.get(str(BASE / 'observer-build-inputs.json')) == graph.sha(inputs['observer-build-inputs.json']) and
             files.get(str(BASE / 'menu-observe.so')) == observer == selected.get('simulation/menu-observe.so'),
             'condition actual/selected observer manifest differs')
-    for path in (BASE / 'menu-observe.so', BASE / 'menu-root/simulation/menu-observe.so'):
-        reader.digest_binding(reader.read_absolute(path), observer, 'condition actual observer')
+    guest_source, scope_inputs = BASE / 'menu-initramfs.cpio', {}
+    if binding['schema'] in SCOPE_BINDING_VERSIONS:
+        guest_source, scope_inputs = _condition_scope_binding(graph, reader, run, binding, manifest, build, tested)
+    retained = run / 'selected-initramfs.cpio'
+    retention_path = run / 'selected-initramfs-retention.json'
+    if scope_inputs:
+        require(retained.is_file() and retention_path.is_file(), 'condition scope retained image pair missing')
+    observer_basis, image_sha, retention_raw = 'current', None, None
+    if any(path.exists() or path.is_symlink() for path in (retained, retention_path)):
+        retention_raw = graph.read(retention_path, graph.MAX_JSON)
+        retention = graph.object_json(retention_raw)
+        image_sha = files.get(str(guest_source))
+        require(retention.get('selected_initramfs_sha256') == image_sha == binding.get('guest_sha256') and
+                retention.get('source_path') == str(guest_source) and
+                retention.get('retained_path') == str(retained) and retention.get('batch') == str(batch) and
+                retention.get('batch_ready_sha256') == graph.sha(ready_raw) and
+                retention.get('capture_verified') is False and binding.get('capture_verified') is False and
+                ready.get('capture_verified') is False and tested.get('capture_verified') is False and
+                type(retention.get('bytes')) is int and 0 < retention['bytes'] <= MAX_RETAINED_IMAGE,
+                'condition retained image/run/batch binding differs')
+        image_raw = graph.read(retained, MAX_RETAINED_IMAGE)
+        require(len(image_raw) == retention['bytes'], 'condition retained image size differs')
+        reader.digest_binding(image_raw, image_sha, 'condition retained initramfs')
+        image.verify_image(_ImageBytes(image_raw), {'simulation/menu-observe.so': observer})
+        observer_basis = 'image'
+        del image_raw
+    else:
+        for path in (BASE / 'menu-observe.so', BASE / 'menu-root/simulation/menu-observe.so'):
+            reader.digest_binding(reader.read_absolute(path), observer, 'condition actual observer')
     archive_raw = reader.read(run, 'observer-build-sources.tar.gz')
     reader.digest_binding(archive_raw, build['source_archive_sha256'], 'condition original source archive')
     index = {entry['archive_path']: entry['sha256'] for entry in sources.values()}
@@ -167,14 +385,21 @@ def _condition_source_proof(log, run):
     require(scope(log.records) == scope(legacy.Log(parsed).records), 'condition trace differs from original same-run bytes')
     for name, value in inputs.items():
         require(graph.read(run / name, graph.MAX_JSON) == value, 'condition source binding changed: ' + name)
+    for path, value in scope_inputs.items():
+        require(graph.read(path) == value, 'condition scope binding changed: ' + str(path))
+    require(_condition_binding_name(run) == binding_name, 'condition source/run binding selection changed')
+    if retention_raw is not None:
+        require(graph.read(retention_path, graph.MAX_JSON) == retention_raw, 'condition image retention changed')
     require(graph.read(batch / 'ready.json', graph.MAX_JSON) == ready_raw and
             graph.read(batch / 'inputs.json', graph.MAX_JSON) == batch_raw and
             graph.read(batch / 'abi.json', graph.MAX_JSON) == abi_raw, 'condition batch changed')
-    return {'run': str(run), 'source_sha256': dict(CONDITION_LEDGER_SOURCES),
-            'observer_sha256': observer, 'source_archive_sha256': graph.sha(archive_raw),
+    return {'run': str(run), 'source_sha256': selected_sources,
+            'observer_sha256': observer, 'observer_basis': observer_basis, 'selected_initramfs_sha256': image_sha,
+            'source_archive_sha256': graph.sha(archive_raw),
             'build_inputs_sha256': graph.sha(inputs['observer-build-inputs.json']),
             'manifest_sha256': graph.sha(inputs['runtime-manifest.json']),
-            'run_binding_sha256': graph.sha(inputs['source-snapshot-run-binding.json']),
+            'run_binding_sha256': graph.sha(inputs[binding_name]),
+            'run_binding_path': str(run / binding_name), 'run_binding_schema': binding['schema'],
             'batch_ready_sha256': graph.sha(ready_raw), 'abi_sha256': graph.sha(abi_raw),
             'console_sha256': graph.sha(console),
             'basis': 'real free success then mutex retirement/active-alias guard; free note after unlock',

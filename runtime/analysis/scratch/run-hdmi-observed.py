@@ -80,9 +80,20 @@ def observe(run, finished, result):
                     raise ValueError('multiple native UPM mailbox identities')
                 pid, physical, nonce, upm, osal = bindings[0]
                 manifest = json.loads((run / 'runtime-manifest.json').read_text())
+                scope = manifest.get('readonly_scope_observer')
+                if scope is not None and (type(scope) is not dict or
+                        type(scope.get('profile')) is not str or
+                        scope['profile'] not in (hdmi_upm_watch.scope_observer_profile.PROFILE,
+                            hdmi_upm_watch.scope_observer_profile.PROFILE_V2,
+                            hdmi_upm_watch.scope_observer_profile.PROFILE_V3) or
+                        type(scope.get('build_receipt')) is not str or not scope['build_receipt']):
+                    raise ValueError('invalid manifest-bound scope observer receipt')
                 result['GDB_listener'] = gdbserver(run)
                 watcher = hdmi_upm_watch.start(run, manifest['host_control_owner_pid'],
-                    {'upm': upm, 'osal_uipc': osal}, mailbox={'phys': physical, 'nonce': nonce, 'pid': pid})
+                    {'upm': upm, 'osal_uipc': osal}, mailbox={'phys': physical, 'nonce': nonce, 'pid': pid},
+                    scope_build_receipt=None if scope is None else scope['build_receipt'])
+                result['running_QEMU_sha256'] = watcher.config['running_QEMU_sha256']
+                result['readonly_scope_observer'] = watcher.config.get('readonly_scope_observer')
                 result['armed'] = True
                 print('HDMI_UPM_NATIVE_OBSERVER_ARMED', run.name, flush=True)
                 break

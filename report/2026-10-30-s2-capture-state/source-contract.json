@@ -1,0 +1,54 @@
+{
+  "scope": "all related implementations collected before ONE full batch; no individual pytest executed",
+  "based_on_run": "run-xmqjhwk4",
+  "original_formal_verdict": "FAIL preserved",
+  "capture_verified": false,
+  "physical_asic_verified": false,
+  "fullpress_state": {
+    "AP_model": "0x17c",
+    "current_storage": "appFw+0x7e5d570",
+    "original_entry_snapshot": 1,
+    "actual_original_branch_observed": false,
+    "actual_writer_observed": false,
+    "normal_release_conditions_closed": false,
+    "raw_gate_write_performed": false
+  },
+  "source_packages": {
+    "first": "analysis/scratch/functional-xmqj-s2-state-producer",
+    "continuation": "analysis/scratch/functional-s2-model17c-prewrite",
+    "parent_default_RO_batch": "analysis/scratch/functional-s2-source-batch",
+    "both_rc0_and_SHA_mtime_stable": true,
+    "inherited_budget_failure_preserved": true,
+    "no_implementable_device_owner_proposed": true
+  },
+  "implemented_fixes": {
+    "graph": "exact HDMI successful native-free/UIPC grammar plus original request/wire/queue/commit/free/readback content joins; warning retained unknown",
+    "normal_close": "ExitStack keeps QMP alive through guardedfinally, one quit attempted latch, actualwait, no SIGKILL directorySD",
+    "event7e": "independent16 per existing enqueue/schedule callbacks; genericquota retained; createvoid identityunknown",
+    "model17c": "entry-only safe267b698 first16 replay; callback read-only16quota; ADRP restore2aa31bc explicitly ENOTSUP"
+  },
+  "sources": {
+    "runtime/analysis/menu-observe.c": "68006c1667712c76af96b08d042e37cd888ebf7a98cafd63630fe8943e161009",
+    "runtime/analysis/test_s2_capture_observation.py": "c92b050a521fb45585397f585c93fe08db0824e2c3ed53f951c04b4c20da2691",
+    "runtime/analysis/test_model17c_observation.py": "adbe00e855a3fc0f773f774050abaf568e6e51d3e21acf4a2f552282dbd25e02",
+    "runtime/analysis/test_shutter_route_trace.py": "ada64e8237f7c45454d66e81f24ec4f96583a664db1ba4e0ecad95304cdfc16c",
+    "runtime/analysis/qemu-menu-probe.py": "4f0f1ee413ef56cabb6d048dd6887373605df226ab07c398eb10273ce3caeef2",
+    "runtime/analysis/test_functional_camera_runner.py": "56c947f19d6e8bb49e2993135f0a5a608aaa7ed531ca030422a1098d6aef3a07",
+    "runtime/analysis/test_host_sd_guard.py": "3ae1455e97ca076be1d01c5f0050cd3b424637a260649b2d7aac14c723cadf54",
+    "runtime/analysis/test_menu_control.py": "4547286db27bfb35ddf1e51a6a38964389b37cc62e2ff8025d651fe4cda86486",
+    "runtime/analysis/test_host_sd_lifecycle.py": "37bb74506fbecf2d20d94ec95fe94c0654dba44e3eac59ebbfc91e8528ec4f04",
+    "runtime/analysis/test_media_initial_write.py": "def5918bad25fa4b31fba4cc859c0c131975edf335f955e90a8f9db34a3f5d3c",
+    "runtime/analysis/scratch/verify_hdmi_edge.py": "d6b93b454df92b7fd01c1a8c567db9ace21f1f9ea4df2dab6724865c88249375",
+    "runtime/analysis/scratch/test_verify_hdmi_edge.py": "8d65bbf95ec7fa8f255a575c699d9b8d90922229382ab20840db0a50a74f220e",
+    "runtime/analysis/scratch/validate-unified-camera.py": "592bcdff5e7eb6b9eb45c3c90543d568489d2a7829c00c9ed6233417833c8607",
+    "report/functional-graph-evidence/check_graph.py": "7387e05b184b7ebbb6e7cb458f49c16a55fd606d613b4f68460be96eb47ca021",
+    "report/functional-graph-evidence/test_graph.py": "30dac55b6aefaed1e2651301b54c8bde1f9d952237f9d59908e0ebbfc4598631"
+  },
+  "pytest_executed_for_this_batch": false,
+  "native_execution_for_this_batch": false,
+  "source_tuple_review": "analysis/scratch/functional-s2-observation-source-review/final-comparison.json",
+  "current_new_plan": "runtime/analysis/scratch/functional-s2-state-plan-next/plan.json",
+  "plan_nonce_decimal": "11857067515099704438",
+  "plan_prepared": false,
+  "old_xfq_card_or_ready_reusable": false
+}

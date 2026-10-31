@@ -57,6 +57,13 @@ static int full_hdmi_public_backup_read(int fd,unsigned int key,void *out,unsign
  if(!length || (cap && !out))return -1021;
  *length=1;if(cap)((unsigned char *)out)[0]=0x7b;return 0;
 }
+static unsigned int functional_still_format_used,functional_startup_control_used;
+static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this graph fixture");
+}
+static void native_still_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(0);
+}
 static void native_functional_face_received(unsigned int id,void *p){(void)id;(void)p;}
 static void native_background_start_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;
@@ -163,6 +170,7 @@ int main(void) {
  native_cp_state_received(16,&message,-1);assert(functional_received==2 && mpr_received==1 && errno==ERANGE);
  functional_camera_enabled=0;
  native_cp_state_received(16,&message,0);assert(publication_received==3 && functional_received==2 && mpr_received==1 && errno==ERANGE);
+ assert(!functional_startup_control_used);
  puts("PASS actual bounded Backup, unknown absence, errno, real receive, nested receive and failure boundaries");
  return 0;
 }

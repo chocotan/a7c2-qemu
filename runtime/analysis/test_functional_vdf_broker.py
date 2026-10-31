@@ -97,13 +97,34 @@ def bit_width_response():
     return data, route, bytes(raw)
 
 
+def still_format_response():
+    data, (route, base) = b.STILL_FORMAT_INPUT, response()
+    raw = bytearray(base + data)
+    struct.pack_into('<I', raw, 4, 176)
+    struct.pack_into('<I', raw, 96, 8)
+    struct.pack_into('<Q', raw, 40, b.fnv64(data))
+    return data, route, bytes(raw)
+
+
+def startup_control_response(command=0x4014):
+    body = b.STARTUP_CAP_MODE_BODY if command == 0x4014 else bytes(16)
+    data = struct.pack('<2H', command, 16 if command == 0x4014 else 4) + body + bytes(4) + struct.pack('<Q', b.fnv64(bytes(40)))
+    route, base = response()
+    raw = bytearray(base + data)
+    struct.pack_into('<I', raw, 4, 192)
+    struct.pack_into('<I', raw, 96, 9)
+    struct.pack_into('<Q', raw, 40, b.fnv64(data))
+    return data, route, bytes(raw)
+
+
 def core_with_reply(raw):
     class Library:
         def fcam_model_request(self, model, opcode, incoming, size, outgoing, capacity, result):
             assert opcode in (b.VDF_PATH, b.VDF_ZEBRA, b.VDF_LAYOUT, b.VDF_DISPLAY_CONFIG,
-                              b.BB_STARTUP_CONFIG, b.HISTOGRAM, b.VDF_BIT_WIDTH) and capacity >= len(raw)
+                              b.BB_STARTUP_CONFIG, b.HISTOGRAM, b.VDF_BIT_WIDTH, b.STILL_FORMAT, b.STARTUP_CONTROL) and capacity >= len(raw)
             assert size == {b.VDF_PATH: 16, b.VDF_ZEBRA: 8, b.VDF_LAYOUT: 32, b.VDF_DISPLAY_CONFIG: 16,
-                            b.BB_STARTUP_CONFIG: 32, b.HISTOGRAM: 8, b.VDF_BIT_WIDTH: 8}[opcode]
+                            b.BB_STARTUP_CONFIG: 32, b.HISTOGRAM: 8, b.VDF_BIT_WIDTH: 8, b.STILL_FORMAT: 16,
+                            b.STARTUP_CONTROL: 32}[opcode]
             ctypes.memmove(outgoing, raw, len(raw))
             result._obj.used = len(raw)
             return 0
@@ -356,6 +377,51 @@ def test_display_rejects_unmodelled_features_even_with_consistent_mock_readback(
         core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, bytes(data), 176)
 
 
+@pytest.mark.parametrize('command', [0x4014, 0x4057])
+def test_startup_control_requires_actual_STATE_fingerprint_and_active_route(command):
+    data, route, raw = startup_control_response(command)
+    core = core_with_reply(raw)
+    core.vdf_route = route
+    with pytest.raises(ValueError, match='STATE configuration fingerprint'):
+        core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
+    core.configuration_fingerprint = b.fnv64(bytes(40))
+    assert core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)[1] == raw
+    core.configuration_fingerprint ^= 1
+    with pytest.raises(ValueError, match='STATE configuration fingerprint'):
+        core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
+    core.configuration_fingerprint = b.fnv64(bytes(40))
+    core.vdf_route = None
+    with pytest.raises(ValueError, match='committed VDF route'):
+        core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
+
+
+@pytest.mark.parametrize('offset', [0, 4, 8, 16, 24, 32, 40, 56, 64, 72, 80, 84, 92, 96,
+                                   100, 104, 108, 112, 116, 120, 128, 144, 152, 160, 191])
+def test_startup_control_corrupt_full192_class_or_readback_rejected(offset):
+    data, route, raw = startup_control_response()
+    changed = bytearray(raw)
+    changed[offset] ^= 1
+    if offset == 32:
+        changed[32:40] = bytes(8)
+    core = core_with_reply(bytes(changed))
+    core.vdf_route, core.configuration_fingerprint = route, b.fnv64(bytes(40))
+    with pytest.raises(ValueError):
+        core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
+
+
+def test_startup_control_consistent_echo_cannot_authorize_unknown_tuple():
+    data, route, raw = startup_control_response()
+    for offset in range(32):
+        incoming, output = bytearray(data), bytearray(raw)
+        incoming[offset] ^= 1
+        output[160:] = incoming
+        struct.pack_into('<Q', output, 40, b.fnv64(incoming))
+        core = core_with_reply(bytes(output))
+        core.vdf_route, core.configuration_fingerprint = route, b.fnv64(bytes(40))
+        with pytest.raises(ValueError, match='startup control tuple'):
+            core.execute(INSTANCE, b.STARTUP_CONTROL, bytes(incoming), 192)
+
+
 def test_bit_width0_requires_independent_readback_and_fixed_committed_rgb_route():
     data, route, raw = bit_width_response()
     core = core_with_reply(raw)
@@ -401,7 +467,47 @@ def test_bit_width_consistent_echo_does_not_authorize_another_software_domain(of
         core.execute(INSTANCE, b.VDF_BIT_WIDTH, bytes(data), 168)
 
 
+def test_still_format_requires_full_rgb_readback_and_keeps_route():
+    data, route, raw = still_format_response()
+    core = core_with_reply(raw)
+    with pytest.raises(ValueError, match='committed VDF route'):
+        core.execute(INSTANCE, b.STILL_FORMAT, data, 176)
+    core.vdf_route = route
+    code, copied, result = core.execute(INSTANCE, b.STILL_FORMAT, data, 176)
+    assert code == 0 and copied == raw and result.used == 176 and not result.token
+    assert copied[160:] == data and core.vdf_route == route
+
+
+@pytest.mark.parametrize('offset', [0, 4, 8, 16, 24, 32, 40, 56, 64, 72, 80, 84, 92, 96,
+                                   100, 104, 108, 112, 116, 120, 128, 144, 152, 160, 175])
+def test_still_format_corrupt_class_tail_or_rgb_copy_rejected(offset):
+    data, route, raw = still_format_response()
+    changed = bytearray(raw)
+    changed[offset] ^= 1
+    if offset == 32:
+        changed[32:40] = bytes(8)
+    core = core_with_reply(bytes(changed))
+    core.vdf_route = route
+    with pytest.raises(ValueError):
+        core.execute(INSTANCE, b.STILL_FORMAT, data, 176)
+    assert core.vdf_route == route
+
+
+def test_still_format_consistent_echo_does_not_authorize_other_tuple():
+    data, route, raw = still_format_response()
+    for offset in range(16):
+        changed_input, changed_result = bytearray(data), bytearray(raw)
+        changed_input[offset] ^= 1
+        changed_result[160:] = changed_input
+        struct.pack_into('<Q', changed_result, 40, b.fnv64(changed_input))
+        core = core_with_reply(bytes(changed_result))
+        core.vdf_route = route
+        with pytest.raises(ValueError, match='observed-L/Fine'):
+            core.execute(INSTANCE, b.STILL_FORMAT, bytes(changed_input), 176)
+
+
 @pytest.mark.parametrize('opcode,data,capacity', [
+    (b.STILL_FORMAT, b.STILL_FORMAT_INPUT, 176),
     (b.VDF_BIT_WIDTH, bytes(8), 168),
     (b.VDF_PATH, bytes((1, 5, 5)) + bytes(13), 160),
     (b.VDF_ZEBRA, bytes((3, 0, 0x20, 75, 65)) + bytes(3), 168),
@@ -416,13 +522,16 @@ def test_vdf_request_requires_exact_body(opcode, data, capacity):
     struct.pack_into('<4I', raw, 0, b.MAGIC, b.VERSION, mailbox['pid'], b.REQUEST)
     struct.pack_into('<QQIII', raw, 16, INSTANCE, 1, opcode, len(data), capacity)
     struct.pack_into('<Q', raw, 56, b.fnv64(data))
-    if opcode == b.VDF_DISPLAY_CONFIG:
+    if opcode == b.STILL_FORMAT:
+        command, native_bytes = 0x402d, 24
+    elif opcode == b.VDF_DISPLAY_CONFIG:
         command, body_bytes = struct.unpack_from('<2I', data)
         native_bytes = 8 + body_bytes
     else:
         command, native_bytes = {b.VDF_PATH: (0x138, 24), b.VDF_ZEBRA: (0x153, 14), b.VDF_LAYOUT: (0x14c, 40),
                                  b.VDF_BIT_WIDTH: (0x15e, 10)}[opcode]
-    struct.pack_into('<5I', raw, 96, 1235, 0x81cf61c4, 0x92840747, command, native_bytes)
+    origin = (0x80020002, 0x90030001) if opcode == b.STILL_FORMAT else (0x81cf61c4, 0x92840747)
+    struct.pack_into('<5I', raw, 96, 1235, *origin, command, native_bytes)
     struct.pack_into('<16Q', raw, 128, *mailbox['pages'])
     assert b.validate_request(bytes(raw), data, mailbox, 0) == (opcode, capacity)
     struct.pack_into('<I', raw, 36, len(data) - 1)

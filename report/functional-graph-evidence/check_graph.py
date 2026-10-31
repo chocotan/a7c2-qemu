@@ -23,6 +23,7 @@ MAX_JSON = 4 * 1024**2
 MAX_LOG = 64 * 1024**2
 MAX_SOURCE = 16 * 1024**2
 SELECTED_QEMU_SHA256 = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+READONLY_SCOPE_QEMU_SHA256 = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
 PRODUCTION_QEMU_SHA256 = 'e23589c44386c19417551c982e394b7a4e779f8e68a72f2964b705aca1e96c0d'
 ALLLANG_SHA256 = '3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'
 PUBLIC_CP_SHA256 = 'f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428'
@@ -59,6 +60,11 @@ BROKER_RECEIPTS = 'functional-camera-broker-receipts.jsonl'
 RUN_FILES = ('runtime-manifest.json', 'console.log', 'functional-camera-runner.json', BROKER_RECEIPTS) + UPM_FILES
 WARNINGS = tuple(b'qemu-system-aarch64: warning: vvfat: host directory commit ' + state + b'\n'
                  for state in (b'pending', b'complete'))
+# imaging-control-connection.c:195 emits this exact eleven-field literal.
+IMAGING_CONTROL_COMMIT_TAG = b'OBS FULL_IMAGING_CONTROL_CONNECT_COMMIT '
+IMAGING_CONTROL_COMMIT = (IMAGING_CONTROL_COMMIT_TAG +
+    b'connections=1 source_state=0 peer_state=0 source_pending=0 marker_readback=1 posthook_no_format=1 '
+    b'prior_data_edge_preserved=1 unique_reply=1 original_cp_executed=0 frames_verified=0 capture_verified=0')
 # pin-registry-core.c: only the complete canonical slot-8 OSD Get COMMIT.
 PINMEM_OSD_GET_COMMIT = re.compile(
     rb'OBS FULL_PINMEM_COMMIT tid=[1-9][0-9]{0,9} slot=8 type=1 dir=3 index=0 pin_state=1 '
@@ -67,6 +73,14 @@ PINMEM_OSD_GET_COMMIT = re.compile(
 PIN_QUERY_GET = re.compile(
     rb'OBS PIN_QUERY tid=[1-9][0-9]{0,9} destination=0x[1-9a-f][0-9a-f]{0,7} '
     rb'source=0x[1-9a-f][0-9a-f]{0,7} bytes=48 raw=[0-9a-f]{96}')
+# pin_registry_dispatch: complete VEF Get REQUEST printf; no suffix fields.
+VEF_GET_REQUEST = re.compile(
+    rb'OBS FULL_VEF_REQUEST tid=[1-9][0-9]{0,9} destination=0x905a0048 '
+    rb'source=0x8[0-9a-f]{7} reply_destination=0x8[0-9a-f]{7} bytes=48 raw=[0-9a-f]{96}')
+# vef-device.c: all sixteen full canonical keys and their actual registry slots.
+VEF_GET_SLOTS = {key + (0x905a0048,): slot for slot, key in enumerate(
+    tuple((0, 1, index) for index in range(7)) + tuple((0, 2, index) for index in range(7)) +
+    ((8, 1, 0), (8, 2, 0)))}
 # pinmem-osd-connection.c: complete create_format and wire_from printf bodies.
 OSD_FORMAT_WRITTEN = re.compile(
     rb'OBS FULL_PINMEM_OSD_CONNECT_FORMAT_WRITTEN bank=[0-3] ordinal=[0-3] '
@@ -79,14 +93,35 @@ OSD_DMM_MESSAGE = re.compile(
     rb'source=0x[1-9a-f][0-9a-f]{0,7} destination=0x[1-9a-f][0-9a-f]{0,7} '
     rb'pointer=0x[1-9a-f][0-9a-f]{0,15} bytes=(?:40|152) raw=(?:[0-9a-f]{80}|[0-9a-f]{304}) '
     rb'virtual_local_transport=1 original_CP_executed=0 original_CP_pages_verified=0 frames_verified=0 capture_verified=0')
+# pin_registry_dispatch: PinMem's complete successful 56-byte Get queue printf.
+PINMEM_GET_REPLY_QUEUED = re.compile(
+    rb'OBS FULL_PINMEM_REPLY_QUEUED tid=[1-9][0-9]{0,9} source=0x90590818 '
+    rb'destination=0x8[0-9a-f]{7} reply=0x[1-9a-f][0-9a-f]{0,15} '
+    rb'lease=[1-9][0-9]{0,19} bytes=56 raw=[0-9a-f]{112}')
 # pin_registry_release uses this identical printf for these actual owner names.
 REGISTRY_GET_FREE = re.compile(
     rb'OBS FULL_(?:INFRABB|INFRAIMAGING|VEF|PINMEM|SCALAR|ADF|DRAWINFO|HDMIPIN|OSDPIN)_NATIVE_REPLY_FREE '
     rb'tid=[1-9][0-9]{0,9} sender=[1-9][0-9]{0,9} waiter=[01] '
     rb'destination=0x[1-9a-f][0-9a-f]{0,7} expected=0x[1-9a-f][0-9a-f]{0,7} '
     rb'reply=0x[1-9a-f][0-9a-f]{0,15} lease=[1-9][0-9]{0,19} bytes=56 rc=0')
+# hdmi-device.c: successful full_hdmi_release_reply; command/size/status are coupled.
+HDMI_NATIVE_FREE = re.compile(
+    rb'OBS FULL_HDMI_NATIVE_REPLY_FREE tid=[1-9][0-9]{0,9} sender=[1-9][0-9]{0,9} waiter=[01] '
+    rb'destination=0x8[0-9a-f]{7} expected=0x8[0-9a-f]{7} '
+    rb'reply=0x[1-9a-f][0-9a-f]{0,15} lease=[1-9][0-9]{0,19} '
+    rb'(?:command=0x10a bytes=12 status=1|command=0x(?:101|117) bytes=12 status=0|'
+    rb'command=0x20a bytes=16 status=0|command=0x201 bytes=20 status=0) rc=0')
+RESOURCE_TTS_FIELDS = (
+    rb'pid=[1-9][0-9]{0,9} tid=[1-9][0-9]{0,9} '
+    rb'appfw_base=0x[1-9a-f][0-9a-f]{0,15} table_va=0x5f66b08 address=0x[1-9a-f][0-9a-f]{0,15} '
+    rb'bytes=144 reads=144/144 unchanged=1 atomic_snapshot=0 '
+    rb'raw_before=(?P<table>[0-9a-f]{288}) raw_after=(?P=table) ownership_verified=0')
+SCALAR_TTS_TABLE = re.compile(rb'OBS FULL_SCALAR_CONNECT_RESOURCES_TTS_TABLE ' + RESOURCE_TTS_FIELDS)
 UIPC_BOUNDARIES = {
+    'FULL_HDMI_NATIVE_REPLY_FREE': ('HdmiNativeFree', HDMI_NATIVE_FREE),
+    'FULL_SCALAR_CONNECT_RESOURCES_TTS_TABLE': ('ScalarTtsTable', SCALAR_TTS_TABLE),
     'FULL_PINMEM_COMMIT': ('PinMem', PINMEM_OSD_GET_COMMIT),
+    'FULL_PINMEM_REPLY_QUEUED': ('PinMemGetReply', PINMEM_GET_REPLY_QUEUED),
     'PIN_QUERY': ('PinQuery', PIN_QUERY_GET),
     'FULL_PINMEM_OSD_CONNECT_FORMAT_WRITTEN': ('OsdFormat', OSD_FORMAT_WRITTEN),
     **{'FULL_PINMEM_OSD_CONNECT_DMM_' + kind: ('OsdDmm', OSD_DMM_MESSAGE) for kind in ('REQUEST', 'REPLY')},
@@ -118,6 +153,16 @@ GRAPH_BARE_REASONS = {
 
 class SourceMissing(ValueError):
     pass
+
+
+class UnjoinedRepairs(ValueError):
+    def __init__(self, repairs):
+        super().__init__('repaired record lacks an actual content-verifier join')
+        self.repairs = [{'kind': r['kind'], 'parsed_line': r['parsed_line'],
+                         'tag': r['repaired_record'].split(' ', 2)[1],
+                         'repaired_record_sha256': r['repaired_record_sha256'],
+                         **{k: r[k] for k in ('raw_record_start', 'raw_lf_line', 'raw_warning_start') if k in r}}
+                        for r in repairs]
 
 
 def require(ok, detail):
@@ -237,15 +282,18 @@ def load_content_helpers(frozen):
     return batch, hdmi, osd
 
 
-def check_qemu_files(reader, manifest):
+def check_qemu_files(reader, manifest, frozen=None):
     backup, files = manifest['backup_transport'], manifest['files']
-    require(backup.get('binary_sha256') == SELECTED_QEMU_SHA256 and
-            files.get(backup.get('binary')) == SELECTED_QEMU_SHA256,
-            'selected candidate QEMU must be a0d; e235 is the production reference')
-    reader.digest_binding(reader.read_absolute(backup['binary']), SELECTED_QEMU_SHA256, 'actual selected candidate QEMU')
+    selected = backup.get('binary_sha256')
+    require(selected in (SELECTED_QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256) and
+            files.get(backup.get('binary')) == selected,
+            'selected candidate QEMU must be a0d or the exact readonly candidate; e235 is the production reference')
+    reader.digest_binding(reader.read_absolute(backup['binary']), selected, 'actual selected candidate QEMU')
+    if selected == READONLY_SCOPE_QEMU_SHA256 or manifest.get('readonly_scope_observer') is not None:
+        reader.check_readonly_scope_observer(manifest, selected, frozen)
     production = RUNTIME.parent / 'sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64'
     reader.digest_binding(reader.read_absolute(production), PRODUCTION_QEMU_SHA256, 'unchanged production QEMU reference')
-    return {'selected_candidate_sha256': SELECTED_QEMU_SHA256, 'unchanged_production_sha256': PRODUCTION_QEMU_SHA256}
+    return {'selected_candidate_sha256': selected, 'unchanged_production_sha256': PRODUCTION_QEMU_SHA256}
 
 
 def check_current_batch(reader, run, batch, manifest):
@@ -338,7 +386,7 @@ def check_current_batch(reader, run, batch, manifest):
     for name, digest in files.items():
         if name in frozen:
             require(digest == frozen[name], 'manifest frozen source differs: ' + name)
-    check_qemu_files(reader, manifest)
+    qemu = check_qemu_files(reader, manifest, frozen)
     require(model.get('profile') == 'virtual-functional-camera-v1' and model.get('capture_verified') is False and
             model.get('physical_asic_compatibility_verified') is False and model.get('sources'), 'host-model scope differs')
     for name, digest in model['sources'].items():
@@ -363,7 +411,7 @@ def check_current_batch(reader, run, batch, manifest):
     return {'batch': str(batch), 'ready_sha256': sha(ready_raw), 'tests_passed': count,
             'observer_sha256': abi['observer_sha256'], 'source_count': len(sources),
             'model_sha256': model['library_sha256'], 'model_build_sha256': sha(raw['functional-camera-model-build.json']),
-            'model_source_archive_sha256': model['source_archive_sha256'], 'qemu_sha256': SELECTED_QEMU_SHA256,
+            'model_source_archive_sha256': model['source_archive_sha256'], 'qemu_sha256': qemu['selected_candidate_sha256'],
             'unchanged_production_qemu_sha256': PRODUCTION_QEMU_SHA256,
             'host_build_source_index_omissions': omissions, 'current_frozen_sources_equal': True}, frozen
 
@@ -433,17 +481,21 @@ def console_records(raw):
     """
     require(type(raw) is bytes and len(raw) <= MAX_LOG, 'console read budget exceeded')
     output, repairs, raw_offset, parsed_line = [], [], 0, 0
-    lines = raw.splitlines(keepends=True)
+    lines = raw.split(b'\n')
+    lines = [line + b'\n' for line in lines[:-1]] + ([lines[-1]] if lines[-1] else [])
     index = 0
     while index < len(lines):
-        record, start = lines[index], raw_offset
+        record, start, raw_lf_line = lines[index], raw_offset, index + 1
         raw_offset += len(lines[index]); index += 1
         pending = []
         match = re.match(rb'OBS ([A-Z][A-Z0-9_]*) ', record)
         tag = match[1].decode() if match else ''
         relevant = tag.startswith(GRAPH_ROOTS) or tag in ('PIN_QUERY', 'PIN_CONTROL_REQUEST')
+        partial_commit_tag = any(record.endswith(w) and
+            len(b'OBS ') < len(record) - len(w) < len(IMAGING_CONTROL_COMMIT_TAG) and
+            IMAGING_CONTROL_COMMIT_TAG.startswith(record[:-len(w)]) for w in WARNINGS)
         # Unrelated diagnostics remain raw and cannot become graph evidence.
-        while relevant and any(record.endswith(w) for w in WARNINGS):
+        while (relevant or partial_commit_tag) and any(record.endswith(w) for w in WARNINGS):
             warning = next(w for w in WARNINGS if record.endswith(w))
             position = start + len(record) - len(warning) + sum(r['removed_bytes'] for r in pending)
             needed(index < len(lines), 'console ends inside an OBS/host-warning interleaving')
@@ -453,6 +505,37 @@ def console_records(raw):
             record = record[:-len(warning)] + lines[index]
             raw_offset += len(lines[index]); index += 1
             require(len(record) <= 16384 and len(pending) <= 8, 'interleaving reconstruction budget exceeded')
+        if partial_commit_tag:
+            require(record in (IMAGING_CONTROL_COMMIT + b'\n', IMAGING_CONTROL_COMMIT + b'\r\n'),
+                    'unproved imaging-control COMMIT producer literal after tag repair')
+            tag, _ = parse_record(record)
+            relevant = True
+            for repair in pending:
+                repair.update(cause='unknown', raw_record_start=start, raw_record_end=raw_offset,
+                              raw_lf_line=raw_lf_line, raw_lf_end=index,
+                              raw_record_hex=raw[start:raw_offset].hex(), raw_record_sha256=sha(raw[start:raw_offset]),
+                              guest_payload_unchanged=True)
+        if tag in ('FULL_SCALAR_CONNECT_RESOURCES_TTS_TABLE', 'FULL_HDMI_NATIVE_REPLY_FREE',
+                   'FULL_PINMEM_REPLY_QUEUED'):
+            boundary, grammar = UIPC_BOUNDARIES[tag]
+            payload = record.partition(b'[')[0] if b'UDIF:' in record else record.rstrip(b'\r\n')
+            require(grammar.fullmatch(payload),
+                    f'unproved complete {boundary} record: malformed OBS field or suffix')
+            fields = parse_record(payload + b'\r\n')[1]
+            if boundary == 'ScalarTtsTable':
+                base = int(fields['appfw_base'], 16)
+                require(all(int(fields[name]) < 2**31 for name in ('pid', 'tid')) and
+                        0x10000 <= base < 0x7ff0000000 and int(fields['address'], 16) == base + 0x5f66b08,
+                        'ScalarTtsTable producer integer/address bounds differ')
+            elif boundary == 'PinMemGetReply':
+                require(int(fields['tid']) < 2**31 and int(fields['lease']) < 2**64 and
+                        int(fields['destination'], 16) & 0xfffffff,
+                        'PinMemGetReply producer integer/destination bounds differ')
+            else:
+                require(all(int(fields[name]) < 2**31 for name in ('tid', 'sender')) and int(fields['lease']) < 2**64 and
+                        fields['destination'] == fields['expected'] and int(fields['destination'], 16) & 0xfffffff and
+                        int(fields['waiter']) == int(fields['tid'] == fields['sender']),
+                        'HdmiNativeFree successful producer integer/ownership bounds differ')
         host = b''
         if tag in UIPC_BOUNDARIES and b'UDIF:' in record:
             boundary, grammar = UIPC_BOUNDARIES[tag]
@@ -487,6 +570,11 @@ def console_records(raw):
                             'raw_guest_ending_start': raw_offset, 'raw_guest_ending_end': raw_offset + 2,
                             'kernel_record': kernel.decode().rstrip('\r\n'), 'removed_bytes': 0,
                             'framing_bytes_inserted': 0, 'guest_bytes_invented': False})
+            original = raw[start:raw_offset]
+            pending[-1].update(cause='unknown', raw_lf_line=raw_lf_line,
+                               raw_record_hex=original.hex(), raw_record_sha256=sha(original),
+                               kernel_raw_hex=kernel.hex(), kernel_sha256=sha(kernel),
+                               guest_payload_unchanged=True)
             record, host = guest + lines[index], kernel
             raw_offset += len(lines[index]); index += 1
         # One complete guest record can immediately precede a complete host DFS record.
@@ -614,6 +702,366 @@ def check_repaired_queries(log, repairs, proof, batch):
     return joins
 
 
+def check_repaired_vef_gets(log, repairs, proof, batch):
+    """Consume repaired VEF requests using the unchanged canonical Get verifier."""
+    joins = []
+    for repair in repairs:
+        if repair['kind'] != 'exact-host-vvfat-diagnostic' or not repair['repaired_record'].startswith('OBS FULL_VEF_REQUEST '):
+            continue
+        require(VEF_GET_REQUEST.fullmatch(repair['repaired_record'].encode()),
+                'repaired VEF request differs from complete producer grammar')
+        rows = [row for row in log.rows('FULL_VEF_REQUEST') if row['line'] == repair['parsed_line'] and
+                row['raw'] == repair['repaired_record']]
+        require(len(rows) == 1, 'repaired VEF request lost its exact parsed record')
+        request = rows[0]
+        require(parse_record(request['raw'].encode() + b'\r\n') == (request['tag'], request['fields']),
+                'repaired VEF fields differ from actual record bytes')
+        wire = batch.raw_bytes(request, 48)
+        key = struct.unpack_from('<3I', wire, 32) + (0x905a0048,)
+        require(key in VEF_GET_SLOTS, 'repaired VEF request has an unsupported canonical key')
+        identity = proof['identity']
+        require(len(identity) == 2 and all(str(int(value)) == value and 1 < int(value) < 2**31 for value in identity),
+                'repaired VEF Get lacks a canonical original AP identity')
+        edges = proof['edges']
+        matches = [index for index in range(1, len(edges)) if
+                   edges[index - 1]['REPLY_FREE']['line'] < request['line'] < edges[index]['REQUEST']['line']]
+        require(len(matches) == 1, 'repaired VEF Get lacks one adjacent completed graph edge')
+        index = matches[0]
+        edge, predecessor = edges[index], edges[index - 1]
+        ordered = batch.six.SPECS + batch.NEW
+        specs = {spec[0]: spec for spec in ordered}
+        adjacent = {(left[0] + '_REQUEST', right[0] + '_REQUEST') for left, right in zip(ordered, ordered[1:])}
+        require((predecessor['REQUEST']['tag'], edge['REQUEST']['tag']) in adjacent,
+                'repaired VEF Get canonical predecessor differs')
+        require(key in (tuple(edge['source_pin']), tuple(edge['sink_pin'])),
+                'repaired VEF Get key differs from actual adjacent edge roles')
+        for anchor in (predecessor, edge):
+            prefix = anchor['REQUEST']['tag'].removesuffix('_REQUEST')
+            require(prefix in specs and (tuple(anchor['source_pin']), tuple(anchor['sink_pin'])) == specs[prefix][3:],
+                    'repaired VEF Get adjacent edge is not canonical')
+            require(anchor['REPLY_FREE']['tag'] == prefix + '_REPLY_FREE', 'repaired VEF Get adjacent AP free tag differs')
+            for name in ('REQUEST', 'REPLY_FREE'):
+                require(log.one(anchor[name]['tag']) is anchor[name], 'repaired VEF Get borrowed an adjacent edge record')
+            check_role_messages(anchor, identity)
+            _, caller = batch.old.request_bytes(anchor['REQUEST'], anchor['source_pin'], anchor['sink_pin'])
+            require(caller == anchor['caller'] and anchor['REQUEST']['line'] < anchor['REPLY_FREE']['line'],
+                    'repaired VEF Get adjacent original caller/order differs')
+            batch.fields_equal(anchor['REPLY_FREE'], destination=hex(caller), expected=hex(caller), faults=0)
+        caller = edge['caller']
+        after, before = predecessor['REPLY_FREE']['line'], edge['REQUEST']['line']
+        queries = [row for row in log.rows('PIN_QUERY') if after < row['line'] < request['line'] and
+                   row['fields'].get('tid') == identity[1] and row['fields'].get('raw') == wire.hex()]
+        require(len(queries) == 1, 'repaired VEF Get lacks one original AP query in its edge interval')
+        before = min(before, batch.old.next_pin_send(log, queries[0]))
+        namespace = dict(batch.verify_get.__globals__, SLOTS={**batch.SLOTS, **VEF_GET_SLOTS})
+        verify_get = types.FunctionType(batch.verify_get.__code__, namespace)
+        content = verify_get(log, key, identity, caller, after, before)
+        require(content['request'] is request and content['original_AP_query'] is queries[0],
+                'repaired VEF request borrowed another Get record')
+        content.update(connection_prefix=edge['REQUEST']['tag'].removesuffix('_REQUEST'),
+                       predecessor_AP_free_line=after, connection_request_line=edge['REQUEST']['line'])
+        joins.append(content)
+    return joins
+
+
+def check_repaired_hdmi_frees(log, repairs, proof, batch):
+    """Consume exact repaired HDMI configuration frees, never a graph/media ACK."""
+    joins = []
+    for repair in repairs:
+        if not repair['repaired_record'].startswith('OBS FULL_HDMI_NATIVE_REPLY_FREE '):
+            continue
+        require(HDMI_NATIVE_FREE.fullmatch(repair['repaired_record'].encode()),
+                'repaired HDMI free differs from complete producer grammar')
+        rows = [row for row in log.rows('FULL_HDMI_NATIVE_REPLY_FREE') if
+                row['line'] == repair['parsed_line'] and row['raw'] == repair['repaired_record']]
+        require(len(rows) == 1, 'repaired HDMI free lost its exact parsed record')
+        freed = rows[0]
+        f = freed['fields']
+        require(all(int(f[name]) < 2**31 for name in ('tid', 'sender')) and int(f['lease']) < 2**64 and
+                int(f['destination'], 16) & 0xfffffff, 'repaired HDMI free producer integer bounds exceeded')
+        tid, command = proof['identity'][1], int(f['command'], 16)
+        batch.fields_equal(freed, tid=tid, sender=tid, waiter=1, rc=0, expected=f['destination'])
+        require(freed['line'] < proof['edges'][0]['REQUEST']['line'], 'repaired HDMI free is not a pre-graph configuration')
+        transaction = {}
+        for name in ('REPLY_QUEUED', 'COMMIT', 'NATIVE_REPLY_FREE'):
+            matches = [row for row in log.rows('FULL_HDMI_' + name) if row['fields'].get('lease') == f['lease']]
+            require(len(matches) == 1, 'missing/duplicate repaired HDMI transaction ' + name)
+            row = matches[0]
+            batch.fields_equal(row, tid=tid, command=f['command'], reply=f['reply'], lease=f['lease'], status=f['status'])
+            transaction[name] = row
+        queued, commit = transaction['REPLY_QUEUED'], transaction['COMMIT']
+        previous = max((row['line'] for row in log.rows('FULL_HDMI_REPLY_QUEUED') if row['line'] < queued['line']), default=0)
+        requests = [row for row in log.rows('FULL_HDMI_REQUEST') if previous < row['line'] < queued['line']]
+        require(len(requests) == 1, 'missing/duplicate original repaired HDMI request')
+        request = requests[0]
+        batch.fields_equal(request, tid=tid, source=f['destination'], destination='0x909a015a', command=f['command'])
+        batch.fields_equal(queued, source='0x909a015a', destination=f['destination'], bytes=f['bytes'])
+        batch.fields_equal(commit, request_free_rc=0, hdmi_output_verified=0, camera_startup_verified=0)
+        require(request['line'] < queued['line'] < commit['line'] < freed['line'] and
+                transaction['NATIVE_REPLY_FREE'] is freed, 'repaired HDMI request/queue/commit/native-free order differs')
+        size = {0x10a: 12, 0x20a: 8, 0x101: 16, 0x201: 8, 0x117: 12}[command]
+        wire = batch.raw_bytes(request, size)
+        require(struct.unpack_from('<4H', wire) == (0x2500, command, size, 1), 'repaired HDMI original request envelope differs')
+        reply = batch.raw_bytes(queued, int(f['bytes']))
+        require(reply[:12] == struct.pack('<4HI', 0x2500, command | 0x8000, len(reply), 1, int(f['status'])),
+                'repaired HDMI complete reply envelope/status differs')
+        c = commit['fields']
+        if command in (0x10a, 0x20a):
+            value = wire[8] if command == 0x10a else 0
+            readback = value if value < 6 else 0
+            if command == 0x20a:
+                readback = int(c['readback'])
+                require(0 <= readback < 6, 'repaired HDMI definition readback out of bounds')
+                batch.fields_equal(commit, known_before=1, readback_before=readback)
+                require(reply[12:] == bytes([readback, 0, 0, 0]), 'repaired HDMI definition reply/readback differs')
+            batch.fields_equal(commit, requested=value, known_after=1, readback=readback)
+        elif command in (0x101, 0x201):
+            resolution = wire[8:14] if command == 0x101 else reply[12:18]
+            batch.fields_equal(commit, resolution=resolution.hex(), resolution_known=1)
+            if command == 0x201:
+                require(reply[18:] == bytes(2), 'repaired HDMI resolution reply padding differs')
+        else:
+            selector, rate, dp_selector, dp_rate = wire[8:]
+            batch.fields_equal(commit, selector=selector, rate=rate, dp_selector=dp_selector, dp_rate=dp_rate,
+                               dp_applied=0, matched=int(selector < 5), readback=rate if selector < 5 else 0)
+            require(re.fullmatch('[0-9a-f]{10}', c['rates']) and re.fullmatch('(?:0|0x[1-9a-f][0-9a-f]?)', c['known_mask']),
+                    'repaired HDMI rate cache encoding differs')
+            mask = int(c['known_mask'], 0)
+            require(mask < 32 and (selector >= 5 or mask & (1 << selector) and bytes.fromhex(c['rates'])[selector] == rate),
+                    'repaired HDMI rate cache/readback differs')
+        joins.append({'original_request': request, 'queued_reply': queued, 'commit': commit,
+                      'actual_same_sender_free': freed, 'configuration_only': True,
+                      'hdmi_output_verified': False, 'capture_verified': False})
+    return joins
+
+
+def check_repaired_resources(log, repairs, proof, batch):
+    """Join sampled guards to Speech ownership and the completed native edge.
+
+    HDMI progress can reserve again on another AP thread while event6 is pending;
+    these are separate guard observations, not duplicate requests or new frees.
+    """
+    joins = []
+    for prefix in ('FULL_VEF_PINMEM_INPUT_CONNECT', 'FULL_PINMEM_HDMI_VIDEO_CONNECT'):
+        tags = tuple(prefix + suffix for suffix in ('_RESOURCE_DEPENDENCIES', '_RESOURCES_TTS_TABLE', '_RESOURCES_RESERVED'))
+        wanted = {(r['parsed_line'], r['repaired_record']) for r in repairs
+                  if r['repaired_record'].split(' ', 2)[1] in tags}
+        if not wanted:
+            continue
+        edges = [e for e in proof['edges'] if e['REQUEST']['tag'] == prefix + '_REQUEST']
+        require(len(edges) == 1, 'repaired resource lacks one completed native edge')
+        edge = edges[0]
+        for name in ('REQUEST', 'REPLY_FREE'):
+            row = edge[name]
+            require(log.rows(row['tag']) == [row], 'resource join lacks one exact original request/AP free')
+        check_role_messages(edge, proof['identity'])
+        rows = [r for r in log.records if r['tag'] in tags]
+        require(all(sum((r['line'], r['raw']) == key for r in rows) == 1 for key in wanted),
+                'repaired resource lost its exact parsed record')
+        speech = proof['legacy_histories']['Speech']
+        require(speech['ap_pid'] == int(proof['identity'][0]) and speech['initial_speech_lifecycle_verified'] is True and
+                speech['resource_release_authorized'] is False, 'repaired resource lacks original Speech ownership')
+        for tid in dict.fromkeys(r['fields'].get('tid') for r in rows):
+            require(tid is not None and re.fullmatch('[1-9][0-9]*', tid) and 1 < int(tid) < 2**31,
+                    'repaired resource thread is not canonical')
+            thread = [r for r in rows if r['fields'].get('tid') == tid]
+            require(len(thread) % 3 == 0 and [r['tag'] for r in thread] == list(tags) * (len(thread) // 3),
+                    'missing/duplicate/out-of-order resource dependency/table/reservation')
+            for index in range(0, len(thread), 3):
+                dependencies, table, reserved = thread[index:index + 3]
+                if not any((r['line'], r['raw']) in wanted for r in (dependencies, table, reserved)):
+                    continue
+                for row in (dependencies, table, reserved):
+                    require(parse_record(row['raw'].encode() + b'\r\n') == (row['tag'], row['fields']),
+                            'resource fields differ from actual record bytes')
+                expected_dependencies = dict(pid=proof['identity'][0], tid=tid, accepted=1, proc_ap_consumed=1,
+                    input_ap_consumed=1, output_ap_consumed=1, output_faults=0, current_request_retained_expected=1, capture_verified=0)
+                require(set(dependencies['fields']) == set(expected_dependencies), 'resource dependency fields differ')
+                batch.fields_equal(dependencies, **expected_dependencies)
+                require(re.fullmatch(RESOURCE_TTS_FIELDS, table['raw'].split(' ', 2)[2].encode()),
+                        'resource table differs from complete producer grammar')
+                batch.fields_equal(table, pid=proof['identity'][0], tid=tid, appfw_base=speech['appfw_base'])
+                base = int(table['fields']['appfw_base'], 16)
+                require(0x10000 <= base < 0x7ff0000000 and int(table['fields']['address'], 16) == base + 0x5f66b08 and
+                        sha(bytes.fromhex(table['fields']['raw_before'])) == speech['table_sha256'],
+                        'resource table differs from original Speech bytes/address')
+                pending = reserved['line'] > edge['REQUEST']['line']
+                require(dependencies['line'] < table['line'] < reserved['line'], 'resource snapshot order differs')
+                if prefix == 'FULL_VEF_PINMEM_INPUT_CONNECT':
+                    anchor = proof['resources'][prefix]
+                    require(not pending and tid == proof['identity'][1] and reserved == anchor,
+                            'sixth resource is not the actual admitted guard')
+                    allocations = 3
+                else:
+                    anchor = proof['edges'][9]['resources']
+                    allocations = 4
+                    if pending:
+                        require(edge['EVENT6_ENQUEUED']['line'] < dependencies['line'] and
+                                reserved['line'] < edge['PEER_REPLY']['line'], 'HDMI resource is outside pending event6')
+                    else:
+                        require(tid == proof['identity'][1] and edge['predecessor_free_line'] < dependencies['line'],
+                                'HDMI cold resource owner/predecessor differs')
+                batch.fields_equal(anchor, accepted=1, allocations=allocations, releases=allocations, control_live=0, control_faults=0)
+                expected_resources = dict(tid=tid, accepted=1, dmm_enabled=1, dmm_bound=1, dmm_slots='1/1', dmm_opens='1/1',
+                    dmm_handles='0x8400/0x8401', dmm_generations='1/1', dmm_epochs='1/2', dmm_creators='1/1',
+                    dmm_allocation_count=2, dmm_lifecycle_changed=0, dmm_domain=2, foreign_speech_kept=1, data_frozen=0,
+                    control_bound=1, control_live=0, control_faults=0, allocations=allocations, releases=allocations,
+                    connection_started=1, connections=1, format_pending=0, blocked=0, format_consumed=1, buffer_released=1,
+                    connection_reply_frees=1, connection_faults=0, vef_init=1, vef_owner='0x905a0048', vef_objects=16,
+                    vef_pending=0, vef_live=0, vef_retained=0, vef_faults=0, pinmem_init=1, pinmem_owner='0x90590818',
+                    pinmem_objects=13, pinmem_pending=int(pending), pinmem_live=0, pinmem_retained=0, pinmem_faults=0,
+                    global_dmm_idle_verified=0, original_cp_executed=0, capture_verified=0)
+                require(set(reserved['fields']) == set(expected_resources), 'resource reservation fields differ')
+                batch.fields_equal(reserved, **expected_resources)
+                joins.append({'prefix': prefix, 'pending_event6': pending, 'resource_dependencies': dependencies,
+                              'table_snapshot': table, 'reservation': reserved, 'original_request': edge['REQUEST'],
+                              'actual_AP_reply_free': edge['REPLY_FREE'], 'initial_Speech_table_sha256': speech['table_sha256'],
+                              'resource_release_authorized': False, 'capture_verified': False})
+    return joins
+
+
+def check_repaired_adf_controls(log, repairs, proof, batch):
+    """Consume two cold ADF effects through their real request/reply lifetimes.
+
+    The legacy verifier never read these records. Source literals alone cannot
+    join a repair: both original AP transactions and the intervening work must
+    agree before any record is returned to bind_repairs().
+    """
+    targets = ('FULL_ADF_PROC_INPUT_QUEUED', 'FULL_ADF_SET_INPUT_HOTSHOE')
+    wanted = [r for r in repairs if r['repaired_record'].split(' ', 2)[1] in targets]
+    if not wanted:
+        return []
+    for repair in wanted:
+        require(repair['kind'] == 'exact-host-vvfat-diagnostic', 'unsupported ADF repair kind')
+        rows = [r for r in log.records if r['line'] == repair['parsed_line'] and
+                r['raw'] == repair['repaired_record']]
+        require(len(rows) == 1 and rows[0]['tag'] in targets, 'repaired ADF effect lost its exact parsed record')
+    identity = proof['identity']
+    require(len(identity) == 2 and all(type(v) is str and re.fullmatch('[1-9][0-9]*', v) and
+            1 < int(v) < 2**31 for v in identity), 'ADF repair lacks a canonical original AP identity')
+    first = proof['edges'][0]['REQUEST']['line']
+    caller = proof['edges'][0]['caller']
+    require(type(caller) is int and 0x80000000 < caller < 0x90000000, 'ADF repair lacks a local graph caller')
+    zeros = ('original_cp_executed=0 hardware_verified=0 native_frequency_verified=0 '
+             'original_event_identity_verified=0 pcm_verified=0 frames_verified=0 capture_verified=0')
+
+    def exact(prefix, suffix, body, tid, scope):
+        row = log.one(prefix + '_' + suffix)
+        require(parse_record(row['raw'].encode('ascii') + b'\r\n') == (row['tag'], row['fields']),
+                'ADF fields differ from actual record bytes')
+        expected = f"OBS {prefix}_{suffix} {body} pid={identity[0]} tid={tid} scope={scope} {zeros}"
+        require(row['raw'] == expected, 'ADF complete producer fields/suffix differ: ' + row['tag'])
+        return row
+
+    transactions = []
+    for generation, prefix, scope, size, request_raw, reply_raw in (
+            (1, 'FULL_ADF_PROC', 'virtualSource7ControlOnly', 12,
+             '0d2023030c00018000000000', '0d2023130c00018000005800'),
+            (2, 'FULL_ADF_SET_INPUT', 'virtualInputConfigurationS0', 14,
+             '0d2036030e000180000200000000', '0d2036130c00018000005800')):
+        request = log.one(prefix + '_REQUEST')
+        queued = log.one(prefix + '_QUEUED')
+        pointer, reply, worker = request['fields']['request'], queued['fields']['reply'], queued['fields']['tid']
+        require(all(re.fullmatch('0x[1-9a-f][0-9a-f]{0,15}', v) for v in (pointer, reply)) and pointer != reply,
+                'ADF request/reply allocations alias or exceed producer bounds')
+        require(re.fullmatch('[1-9][0-9]*', worker) and 1 < int(worker) < 2**31 and worker != identity[1],
+                'ADF work lacks its actual worker thread')
+        request_tail = ('request_accepted=1 policy=virtual-source7-control-events-v1 policy_period_ns=1000000 normal_completion=0'
+                        if generation == 1 else 'known_AB_failure_preserved=1 metadata_completion_only=1 normal_completion=0')
+        queue_tail = 'events=4 queued=1' if generation == 1 else 'AB_status=1 AIP_task_rc=0x1004 metadata_completion=1'
+        commit_tail = ' events=4 work_complete=1' if generation == 1 else ''
+        free_tail = 'events=4' if generation == 1 else 'AB_status=1 AIP_task_rc=0x1004 metadata_completion_only=1'
+        rows = {
+            'request': exact(prefix, 'REQUEST', f'generation={generation} caller={hex(caller)} request={pointer} bytes={size} raw={request_raw} {request_tail}', identity[1], scope),
+            'reply': exact(prefix, 'QUEUED', f'generation={generation} destination={hex(caller)} source=0x92840747 reply={reply} bytes=12 raw={reply_raw} {queue_tail}', worker, scope),
+            'commit': exact(prefix, 'COMMIT', f'generation={generation} request={pointer} request_free_rc=0 retained_request=0 clean_completion=1 queued=1 ap_consumed=0{commit_tail}', worker, scope),
+            'actual_AP_free': exact(prefix, 'REPLY_FREE', f'generation={generation} destination={hex(caller)} expected={hex(caller)} pointer={reply} kind=queued-reply rc=0 faults=0 retained=0 ap_consumed=1 {free_tail}', identity[1], scope),
+        }
+        require(batch.raw_bytes(rows['request'], size) == bytes.fromhex(request_raw) and
+                batch.raw_bytes(rows['reply'], 12) == bytes.fromhex(reply_raw), 'ADF complete wire envelope differs')
+        order = [r['line'] for r in rows.values()]
+        require(order == sorted(set(order)) and order[-1] < first, 'ADF request/queue/commit/AP-free order differs')
+        require(not any(r['tag'].startswith(prefix + '_') and
+                (r['tag'] == prefix + '_PENDING' or r['tag'].endswith(('_FAULT', '_REFUSED', '_REJECT', '_UNSUPPORTED', '_RECOVERY_FREE')))
+                for r in log.records), 'ADF fault or incomplete lifetime retained')
+        events = log.rows(prefix + '_EVENT')
+        require(len(events) == 4, 'ADF source7 event count differs')
+        for index, event in enumerate(events):
+            sequence = index + (1 if generation == 1 else 5)
+            batch.fields_equal(event, pid=identity[0], tid=worker, generation=generation,
+                event=sequence, hardware_counter=sequence, hardware_source=7, software_source=5,
+                guest_timerfd_expirations=1, policy_period_ns=1000000, getter_advances=0)
+            if generation == 1:
+                batch.fields_equal(event, hardware_epoch=sequence, fb_counter=sequence, fb_epoch=sequence,
+                                   cache_counter=sequence, cache_epoch=sequence)
+            else:
+                batch.fields_equal(event, epoch=sequence, subscriber='0x9058003f', sender='0x928c0786',
+                                   queued=index + 1, consumed=index + 1)
+            deadline, observed = (event['fields'][k] for k in ('deadline_ns', 'observed_ns'))
+            require(all(re.fullmatch('(?:0|[1-9][0-9]*)', v) for v in (deadline, observed)) and
+                    0 < int(deadline) <= int(observed) < 2**64, 'ADF timerfd deadline/observation differs')
+        event_lines = [r['line'] for r in events]
+        require(event_lines == sorted(set(event_lines)) and order[0] < event_lines[0] < event_lines[-1] < order[1],
+                'ADF source7 event identity/order differs')
+        rows.update(worker_tid=worker, events=events)
+        transactions.append(rows)
+    proc, input_ = transactions
+    require(proc['actual_AP_free']['line'] < input_['request']['line'], 'SetInput preceded original AP0323 free')
+    p, s = 'FULL_ADF_PROC', 'FULL_ADF_SET_INPUT'
+    ps, ss = 'virtualSource7ControlOnly', 'virtualInputConfigurationS0'
+    queued = exact(p, 'INPUT_QUEUED', 'generation=1 event=3 after_priority=4 selector=0 input_state=1 parameter=0 priority=2 registered=1 scheduler_consumed=0 next_source5_pass_required=1', proc['worker_tid'], ps)
+    drained = exact(p, 'INPUT_DRAINED', 'generation=1 event=4 priority=2 scheduler_consumed=1 control30_consumed=1 callback_status=0 callbacks=1 control31_parameter=0 control31_callback=0 request=0 pending=0 submitted=0 registered=0 listener_removed=1 complete=1', proc['worker_tid'], ps)
+    applied = log.one(p + '_APPLIED')
+    batch.fields_equal(applied, pid=identity[0], tid=proc['worker_tid'], generation=1,
+        input_complete=1, events=4, config_commits=1, inner_consumed=1, outer_status='0x580000')
+    stages = log.rows(p + '_AVIO_STAGE')
+    require(len(stages) == 3, 'ADF AVIO stage count differs')
+    for index, stage in enumerate(stages):
+        batch.fields_equal(stage, pid=identity[0], tid=proc['worker_tid'], generation=1,
+            event=index + 1, stage=index, priority=4, consumed=index + 1, remaining=2 - index,
+            output_finished=int(index == 2), callbacks=int(index == 2))
+        require(proc['events'][index]['line'] < stage['line'] < proc['events'][index + 1]['line'],
+                'ADF AVIO/source7 stage order differs')
+    require(stages[-1]['line'] < queued['line'] < proc['events'][3]['line'] < drained['line'] <
+            applied['line'] < proc['reply']['line'], 'ADF input queue was not drained on the next source5 pass')
+    proc.update(input_queued=queued, input_drained=drained, applied=applied, avio_stages=stages)
+    bodies = (
+        ('DEPENDENCIES', 'generation=2 original_AP0323_reply_freed=1 same_hotshoe_owner=1 same_glee_owner=1 same_command_buffer=1 same_source7_clock=1 counter_before=4 epoch_before=4 capability_word7=0 capability_word8=1 output_target=8'),
+        ('METADATA', 'generation=2 glee_callback_status=0 owner_request_generation=1 hotshoe_callback_running=1 queued_commands=3 active_cache=00020000 completion_mask_consumed=1 digital_pending=0 config_commits=1 inner_queued=1 inner_raw=042001840c00010000000000 AIP102_queued=0 outer_published=0'),
+        ('GLEE', 'generation=2 same_initialized_owner=1 owner_request_generation=1 control30_notes=1 control0_callbacks=1 control1_type=0 control1_source=1 control1_callback=0 input_ring=0 kind_cache=0 power20=0 power21=0 power22=0 power_state=2 synchronous_reference_branch=1'),
+        ('CONTROL102', 'generation=2 metadata_already_committed=1 control141_queries=2 control141_value=1 selector=2 source_parameters=3/0/0/0/0/0/0/1/0/0 queued=B8/03/02/11/B6/B7 command_count=9 body_bytes=132 control110_parameter=1 existing7c=1 opcode42_queued=0'),
+        ('HOTSHOE', 'generation=2 owner_request_generation=1 callbacks=1 callback_returned=1 fifo_popped_before_callback=1 current_type_committed_after_callback=1 current_type=0 busy=0 fifo_count=0 asynchronous_power_work=0'),
+    )
+    callbacks = {suffix: exact(s, suffix, body, input_['worker_tid'], ss) for suffix, body in bodies}
+    lines = [input_['request']['line']] + [r['line'] for r in callbacks.values()] + [input_['events'][0]['line']]
+    require(lines == sorted(set(lines)), 'ADF callback/metadata/type-commit order differs')
+    applied = log.one(s + '_APPLIED')
+    batch.fields_equal(applied, pid=identity[0], tid=input_['worker_tid'], generation=2,
+        metadata_cache='00020000', config_commits=1, hotshoe_callbacks=1, glee_callbacks=1,
+        control1_readbacks=1, inner_consumed=1, outer_status='0x580000', AB_status=1,
+        AIP_first_task_rc='0x1004', AIP_uninspected=7, AB_register_writes=0, hardware_audio_success=0)
+    dispatches = log.rows(s + '_AIP_DISPATCH')
+    require(len(dispatches) == 4, 'ADF known AB failure dispatch count differs')
+    for index, dispatch in enumerate(dispatches):
+        batch.fields_equal(dispatch, pid=identity[0], tid=input_['worker_tid'], generation=2,
+            event=index + 5, dispatches=index + 1, commands_interpreted=9, AB_status=1,
+            task_rc='0x1004' if index == 0 else 0, first_uninspected_preserved=7,
+            snapshot_count=9 if index == 0 else 0, checked=2 if index == 0 else 0,
+            cursor_words=6 if index == 0 else 0, failure_history_preserved=1, old_tail_rechecked=0, ring_read=9, ring_write=9)
+        before = input_['events'][index + 1]['line'] if index < 3 else applied['line']
+        require(input_['events'][index]['line'] < dispatch['line'] < before, 'ADF dispatch/event order differs')
+    require(dispatches[-1]['line'] < applied['line'] < input_['reply']['line'], 'ADF reply preceded completed data work')
+    input_.update(callbacks=callbacks, applied=applied, known_AB_failure_dispatches=dispatches)
+    return [{'proc': proc, 'set_input': input_, 'source_references': {
+                'runtime/analysis/device-models/adf-proc-device.c': ['event', 'backend', 'full_adf_proc_dispatch', 'full_adf_proc_release_reply', 'full_adf_proc_claim_input'],
+                'runtime/analysis/device-models/adf-set-input-device.c': ['event', 'backend', 'glee_complete', 'hotshoe_complete', 'worker', 'full_adf_set_input_dispatch', 'full_adf_set_input_release_reply'],
+                'runtime/analysis/device-models/adf-set-input-cold-owners.c': ['full_adf_hotshoe_set_type', 'full_adf_glee_input_control0'],
+                'runtime/analysis/menu-observe.c': ['record']},
+             'scope': 'cold virtual ADF control transactions; known AB failure retained',
+             'capture_verified': False, 'physical_asic_compatibility_verified': False,
+             'original_CP_executed': False, 'original_event_identity_verified': False}]
+
+
 def bind_repairs(proof, repairs):
     consumed = set()
     def collect(value):
@@ -626,14 +1074,17 @@ def bind_repairs(proof, repairs):
             for item in value:
                 collect(item)
     collect(proof)
+    unjoined = [r for r in repairs if (r['parsed_line'], r['repaired_record']) not in consumed]
+    if unjoined:
+        raise UnjoinedRepairs(unjoined)
     for repair in repairs:
-        require((repair['parsed_line'], repair['repaired_record']) in consumed,
-                'repaired record lacks an actual content-verifier join')
         repair['content_verifier_joined'] = True
     return repairs
 
 
 def check_run_binding(reader, run, manifest, runner, raw_console, proof, build):
+    require(build.get('qemu_sha256') in (SELECTED_QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256),
+            'run binding QEMU is not an admitted batch executable')
     require(runner.get('schema') == 'functional-camera-runner-v1' and
             runner.get('profile') == 'virtual-functional-camera-v1' and runner.get('phase') == 'closed' and
             runner.get('error') is None and runner.get('broker_started') is True and
@@ -787,6 +1238,10 @@ def evaluate(run, batch):
         stage = 'graph_content'
         proof = check_graph_content(log, run, graph, hdmi, osd)
         proof['repaired_early_BB_Get_joins'] = check_repaired_queries(log, repairs, proof, graph)
+        proof['repaired_VEF_Get_joins'] = check_repaired_vef_gets(log, repairs, proof, graph)
+        proof['repaired_HDMI_reply_free_joins'] = check_repaired_hdmi_frees(log, repairs, proof, graph)
+        proof['repaired_resource_snapshot_joins'] = check_repaired_resources(log, repairs, proof, graph)
+        proof['repaired_ADF_input_control_joins'] = check_repaired_adf_controls(log, repairs, proof, graph)
         bind_repairs(proof, repairs)
         stage = 'same_run_owner'
         runner = object_json(originals['functional-camera-runner.json'])
@@ -809,6 +1264,8 @@ def evaluate(run, batch):
         result['missing'].append({'code': 'SOURCE_MISSING' if stage in ('inputs', 'helper_sources') and missing else
                                   'TRACE_MISSING' if missing else 'EVIDENCE_INVALID',
                                   'stage': stage, 'detail': f'{type(error).__name__}: {error}'})
+        if isinstance(error, UnjoinedRepairs):
+            result['missing'][-1]['unjoined_repairs'] = error.repairs
         result['verdict'] = 'SOURCE/TRACE_MISSING' if missing else 'FAIL'
     return result
 

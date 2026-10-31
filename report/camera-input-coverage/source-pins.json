@@ -45,9 +45,9 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
-      "previous_sha256": "2307cdbae8a3c2043b8b3ef9057e1361a096a60cf5e039dcfdc57ecf91a7c2bd",
-      "change_scope": "FirmwareMonitor recognizes the explicit functional source retained-fault marker and preserves its reason for owner cleanup; input definitions and wire values remain unchanged."
+      "sha256": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
+      "previous_sha256": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
+      "change_scope": "FirmwareMonitor preserves source-snapshot, still-format and startup-control integration faults for existing owner cleanup; input definitions and wire values remain unchanged."
     },
     {
       "path": "runtime/analysis/menu_control.py",

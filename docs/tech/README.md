@@ -4,7 +4,7 @@
 从本机 `./start.sh` 到进入拍摄主界面的启动链路：每一步由哪个文件做、
 做什么、以什么为完成标志、当前走到哪里。
 
-**当前公开增量请先读[图像源与显示配置](functional-source-and-display.md)。** 本包本次只执行host/source/package检查，原厂JPG/MP4和物理ASIC仍未验证。下文及[上一轮进度](2026-10-29-current-progress.md)保留历史启动与研究结果，不作为本次新VM验收。
+**当前状态先读[10 月 31 日进展](2026-10-31-current-progress.md)与[机器可读摘要](../../validation/2026-10-31-progress.json)。** 原界面和菜单已有实际运行证据，最新完整研究批次通过 9070 tests / 10006 subtests；后续同次运行的内容复核仍 INCOMPLETE，原厂 JPG/MP4 与物理 ASIC 兼容性尚未通过。研究结果与公开包测试分别记账，公开包实际范围见 [validation](../../validation/README.md)；[图像源与显示配置](functional-source-and-display.md)说明软件策略。以下启动笔记及[10 月 29 日快照](2026-10-29-current-progress.md)保留当时结果，不作为本次新 VM 验收。
 
 ## 阅读前先定范围
 
@@ -187,7 +187,8 @@ CreateScreen、OSD 提交、输入队列等。
 
 | 文档 | 覆盖的启动阶段 |
 | --- | --- |
-| [2026-10-29-current-progress](2026-10-29-current-progress.md) | 当前功能矩阵、阶段时间线、完整基线与新组件边界、JPG下一缺口 |
+| [2026-10-31-current-progress](2026-10-31-current-progress.md) | 当前功能/验证/阻塞矩阵、研究批次与原拍摄边界 |
+| [2026-10-29-current-progress](2026-10-29-current-progress.md) | 历史快照：阶段时间线与当时的基线/失败 |
 | [01-firmware-assets](01-firmware-assets.md) | 第 1 步：BODYDATA 解密、缓存、资产与 initramfs |
 | [02-qemu-boot](02-qemu-boot.md) | 第 2–5 步：控制台、运行器、QEMU/DTB 装配、内核到 shell |
 | [03-guest-environment](03-guest-environment.md) | 第 6 步：挂载、模块依赖序、seed、服务、媒体接入 |
@@ -201,7 +202,9 @@ CreateScreen、OSD 提交、输入队列等。
 | [11-imaging-frontier](11-imaging-frontier.md) | 成像、编码、录像（未闭合） |
 | [12-debugging](12-debugging.md) | 横切：地址校准与只读观测纪律 |
 
-## 当前进度矩阵（启动视角）
+## 历史进度矩阵（截至 10 月 29 日，启动视角）
+
+最新结果及不能外推的范围见[10 月 31 日矩阵](2026-10-31-current-progress.md#现在能做什么)。
 
 | 阶段 | 状态 |
 | --- | --- |
@@ -238,7 +241,7 @@ CreateScreen、OSD 提交、输入队列等。
 ## 证据入口与版本顺序
 
 - [本包说明](../../README.md) 与 [本包验收](../../validation/README.md)：独立包实际范围。
-- [当前进度](2026-10-29-current-progress.md)与[机器可读摘要](../../validation/2026-10-29-progress.json)：当前完整基线、最新负例、组件结果与后续验收。
+- [当前进度](2026-10-31-current-progress.md)与[机器可读摘要](../../validation/2026-10-31-progress.json)：最新已验研究快照、原生失败、数据消费与后续验收；[10 月 29 日摘要](../../validation/2026-10-29-progress.json)保留历史基线。
 - 其他机型、严格物理profile及完整系统dump路线须分别核原件身份、调用链和动态证据，不抵扣当前ALLLANG功能profile缺口。
 
 报告通常保留旧失败和旧“待验”；先看“最新结果/更正”，再读过程。

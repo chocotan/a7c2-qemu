@@ -65,7 +65,7 @@ The complete retained `selected-initramfs.cpio` must match the selected image’
 
 ## Content actually checked
 
-Only existing content functions are reused:
+Existing content helpers are reused unchanged:
 
 | Content | Unchanged functions |
 | --- | --- |
@@ -97,6 +97,14 @@ The `run-epi38kew` component-only read confirms host-control **443314 / 16348666
 
 
 No historical `evaluate()`, `verify_build()`, source-lineage baseline, SD check, EE snapshot, lock check or normalization function is called. The imported historical module’s startup pins only check its unchanged **pure dependency source files**, which must additionally be frozen in this current batch. These constants are neither rewritten nor monkeypatched. The OSD helper’s existing isolated `FunctionType` implementation remains untouched. The new early BB query check follows that existing pattern: it runs the unchanged `verify_get` body with a private owner/slot map and the source-defined BB outer reply SID expectation. Neither helper globals nor supplied wire bytes change; no function-text surgery is performed.
+
+### Cold ADF control repair joins
+
+`check_repaired_adf_controls(log, repairs, proof, batch)` adds a content check for repaired `FULL_ADF_PROC_INPUT_QUEUED` / `FULL_ADF_SET_INPUT_HOTSHOE` records. The old `verify_legacy()` did not read these records, so its successful return cannot establish their exact `(line, raw)` consumption. The new check returns the original rows only after validating both source-defined AP0323 / AP0336 requests, complete replies, allocation identities, worker versus AP threads, ordered commits and AP frees, all eight source7 events, three AVIO stages, next-pass input drain, callback/metadata/type-commit order, and the retained four-dispatch AB failure history. The two target records and transaction/callback records must exactly match the complete producer format, including ordered fields and all false scope flags. Extra suffix fields, duplicate keys, truncated bytes, wrong identities, missing/duplicate records or a borrowed line/raw fail.
+
+The source anchors are `device-models/adf-proc-device.c`, `adf-set-input-device.c`, `adf-set-input-cold-owners.c` and `menu-observe.c:record`; their names are returned as references, not as an independent source-verification receipt. The outer current-batch production-source closure remains required. `evaluate()` stores the checked rows in `repaired_ADF_input_control_joins` before the unchanged `bind_repairs()` call. Callers that invoke individual APIs must make that same call on the newly computed proof before binding. This does not accept either tag by name alone or widen `console_records()` transport grammar.
+
+This addition is a **source-only draft with unexecuted HOST_TEST source**. It supplies no new native verdict. The preserved run-64f9ieca formal / graph FAIL and its two unjoined repairs remain unchanged. A parent checker-only batch must freeze these changed checker/test/documentation bytes and write fresh output; it must never backfill the original result. Capture, physical compatibility, original CP/event identity, branch retirement and storage completion claims remain false.
 
 ## Current raw-console interleavings
 

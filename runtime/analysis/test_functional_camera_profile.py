@@ -93,6 +93,27 @@ def test_functional_intent_is_software_hardware_not_runtime_acceptance():
     assert selected['functional_camera_display_bit_width_selector_mapping'] == 'explicit-software-only-physical-selector-meaning-unverified'
     assert selected['functional_camera_display_bit_width_physical_mapping_verified'] is False
     assert off['functional_camera_display_bit_width_physical_mapping_verified'] is None
+    assert selected['functional_camera_still_format_policy'] == 'original402d-observed-L-Fine-dual-slot-RGB-identity-readback-before-echo-f000'
+    assert selected['functional_camera_still_format_commands'] == [0x402d]
+    assert selected['functional_camera_still_format_request_bytes'] == 24
+    assert selected['functional_camera_still_format_canonical16_hex'] == '02000001000100000001000100000000'
+    assert selected['functional_camera_still_format_opaque_tail_policy'] == 'preserve-original22-23-not-consumed-canonical-tail-zero'
+    assert selected['functional_camera_still_format_initial_diagnostic_policy'] == 'preserved-one-shot-before-functional-model-active'
+    assert selected['functional_camera_still_format_physical_selector_mapping_verified'] is False
+    assert off['functional_camera_still_format_physical_selector_mapping_verified'] is None
+    startup = {
+        'policy': 'original4014-observed-and4057-load-current-virtual-config-before-echo-f000',
+        'commands': [0x4014, 0x4057],
+        'canonical_layout': 'cmd16-length16-body16-reserved4-current-config40-FNV64',
+        'config_fingerprint': 'actual-STATE128-bytes8:48-FNV1a64',
+        'settings_policy': 'request0-independent-current-config40-checkpoint-no-MR-profile',
+        'initial_diagnostic_policy': 'preserved-one-shot-before-functional-successor',
+        'physical_mapping_verified': False,
+    }
+    prefix = 'functional_camera_startup_control_'
+    assert {key: value for key, value in selected.items() if key.startswith(prefix)} == {
+        prefix + key: value for key, value in startup.items()}
+    assert all(off[prefix + key] is None for key in startup)
     assert selected['functional_camera_display_config_commands'] == [0x141, 0x152, 0x162]
     assert selected['functional_camera_peaking_enabled_supported'] is False
     assert selected['functional_camera_display_flag_enabled_supported'] is False
@@ -187,8 +208,8 @@ def test_functional_profile_rejects_non_natural_boot(tmp_path):
         launcher.profile_environment(environment(tmp_path), natural_boot=False)
 
 
-@pytest.mark.parametrize('failure', ['', 'FIXTURE_FUNCTIONAL_OWNER_FAIL',
-    'FIXTURE_CP_OWNED_PROVIDER_FAIL', 'FIXTURE_CP_OWNED_INPUTS_FAIL',
+@pytest.mark.parametrize('failure', ['', 'FIXTURE_FUNCTIONAL_OWNER_FAIL', 'FIXTURE_STILL_FORMAT_OWNER_FAIL',
+    'FIXTURE_STARTUP_CONTROL_OWNER_FAIL', 'FIXTURE_CP_OWNED_PROVIDER_FAIL', 'FIXTURE_CP_OWNED_INPUTS_FAIL',
     'FIXTURE_CP_MOVIE_FORMAT_OWNER_FAIL', 'profile-off'])
 def test_actual_functional_constructor_is_local_only(tmp_path, bb_constructor, failure):
     launcher = load_script('functional_camera_constructor', 'start-menu.py')
@@ -204,8 +225,10 @@ def test_actual_functional_constructor_is_local_only(tmp_path, bb_constructor, f
     values = dict(part.split('=', 1) for part in next(
         line for line in text.splitlines() if line.startswith('FUNCTIONAL_RESULT ')).split()[1:])
     assert values['enabled'] == ('0' if failure else '1')
-    assert values['local_init_calls'] == ('1' if failure in ('', 'FIXTURE_FUNCTIONAL_OWNER_FAIL') else '0')
-    assert values['backend_RPC'] == values['capture_verified'] == '0'
+    assert values['local_init_calls'] == ('1' if failure in (
+        '', 'FIXTURE_FUNCTIONAL_OWNER_FAIL', 'FIXTURE_STILL_FORMAT_OWNER_FAIL', 'FIXTURE_STARTUP_CONTROL_OWNER_FAIL') else '0')
+    assert values['startup_init_calls'] == ('1' if failure in ('', 'FIXTURE_STARTUP_CONTROL_OWNER_FAIL') else '0')
+    assert values['backend_RPC'] == values['physical_ASIC_verified'] == values['capture_verified'] == '0'
     if failure != 'profile-off':
         line = next(line for line in text.splitlines() if line.startswith('FUNCTIONAL_CAMERA_PROFILE '))
         assert 'backend_initialized=0 constructor_RPC=0 physical_ASIC_verified=0 original_CP=0 capture_verified=0' in line

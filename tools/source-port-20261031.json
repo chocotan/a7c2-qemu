@@ -1,0 +1,1446 @@
+{
+  "schema": "a7c2-qemu-source-port-v1",
+  "date": "2026-10-31",
+  "source_origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "source_batch": "unified-camera-arzj0n5v",
+  "source_inputs_sha256": "a42366141d1efd70764ccb8ad82c52c001e5dbfc0a28a4f09596fe6b3a6555ce",
+  "source_ready_sha256": "ecf3dc6dacb8e5d539fe4939ed8cb88e96cd4e54852adda034977242a8395332",
+  "source_archive_sha256": "647dcc26436aa31fd5d8cb3f311173e59de01d0ec646c621f3b216055fb15216",
+  "source_test_results": {
+    "scope": "immutable research-batch provenance, not a new public-package execution",
+    "tests_passed": 9070,
+    "subtests_passed": 10006,
+    "modules": 225,
+    "inputs": 1162,
+    "original_ABIs_passed": 2,
+    "actual_API_cases": {
+      "v2": 6,
+      "v3": 7
+    }
+  },
+  "public_bounded_check": {
+    "scope": "static syntax and synthetic host-only scope/package regression",
+    "tests_passed": 227,
+    "subtests_passed": 672,
+    "Python_AST_files": 78,
+    "shell_syntax_files": 6,
+    "full_host_suite_run": false,
+    "full_model_suite_run": false,
+    "original_ABI_run": false,
+    "actual_API_run": false
+  },
+  "public_model_test_modules": 219,
+  "explicitly_separate_external_test_modules": [
+    "runtime/analysis/test_model17c_original_asset.py",
+    "report/2026-10-30-qemu-readonly-scope-observer/integration/test_fixture_compile.py",
+    "report/2026-10-30-qemu-readonly-scope-observer/test_scope_observer.py",
+    "report/2026-10-30-qemu-readonly-scope-observer/integration/test_actual_scope_plugin.py",
+    "report/2026-10-31-qemu-M-writer-observer-v3/test_scope_observer.py",
+    "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_actual_scope_plugin.py",
+    "report/2026-10-30-qemu-readonly-scope-observer/test_late_sites.py",
+    "report/2026-10-31-qemu-M-writer-observer-v3/test_late_callbacks.py"
+  ],
+  "exclusions": [
+    "firmware and Sony-derived assets",
+    "private settings",
+    "historical ready/fullgate/actual-run records",
+    "decompilation corpus",
+    "ELF/plugins/build products",
+    "VM/media/card/disk/log outputs",
+    "unverified later checker edits"
+  ],
+  "original_AP_capture_verified": false,
+  "physical_ASIC_compatibility_verified": false,
+  "files": [
+    {
+      "path": "report/2026-10-27-unified-camera/lif-mode-property-source.json",
+      "source": "report/2026-10-27-unified-camera/lif-mode-property-source.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "281e2fdf59653e5290bdf0a7ca3879b4fb541fe56ce1d1c2791fe4b07783abb2",
+      "newDestSHA": "281e2fdf59653e5290bdf0a7ca3879b4fb541fe56ce1d1c2791fe4b07783abb2",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-disp-bit-width/source-contract.json",
+      "source": "report/2026-10-30-disp-bit-width/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "20694329e873a8263a4d83496b590d2dc9654a4fa9429f89e916800458f4027d",
+      "newDestSHA": "20694329e873a8263a4d83496b590d2dc9654a4fa9429f89e916800458f4027d",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-model17c-initializer/source-contract.json",
+      "source": "report/2026-10-30-model17c-initializer/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "8ee02639139216ae5a5354b21d865074fa213e1e8fb3f712ba1ab42818373cb6",
+      "newDestSHA": "8ee02639139216ae5a5354b21d865074fa213e1e8fb3f712ba1ab42818373cb6",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-model17c-restore/source-contract.json",
+      "source": "report/2026-10-30-model17c-restore/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "082eacf0aea3b25cb0293fdc43fa4145a8db3514386c411e8593f018711e00b0",
+      "newDestSHA": "082eacf0aea3b25cb0293fdc43fa4145a8db3514386c411e8593f018711e00b0",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-poweron-entry-observer/source-contract.json",
+      "source": "report/2026-10-30-poweron-entry-observer/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "edc6b91918e03af4eb06db3607c6a668eda8e08d8ceb2745176e6da7df40fb5e",
+      "newDestSHA": "edc6b91918e03af4eb06db3607c6a668eda8e08d8ceb2745176e6da7df40fb5e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/build-plugin.sh",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/build-plugin.sh",
+      "oldDestSHA": null,
+      "newSourceSHA": "d6a2f13691e0c4bc198a4907d5b2b5d4315320fa64b6075c17086aa98d7e35e4",
+      "newDestSHA": "851aba1c3165119e21e71063338800440411a051156bf389e2dc8c260afb572a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/build-runtime.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/build-runtime.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "c1afb3aa943a75f2efbfdc410ccbca3590e894db303679f958195ff477655268",
+      "newDestSHA": "60bd8d4ac26384868ad6115508033f6bc336bf559a75231431be0cc9240686da",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/check_run_context.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/check_run_context.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "1febb435e0a085a22bd24013d89e42897ca99c0b609e699aab36dd9099d2bb47",
+      "newDestSHA": "1febb435e0a085a22bd24013d89e42897ca99c0b609e699aab36dd9099d2bb47",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/check_run_context_v2.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/check_run_context_v2.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "9ddb46f9e42ef9f9075ae58b251152d0365ab6f59d4fb2416e07d9c1cbfa9fe7",
+      "newDestSHA": "9ddb46f9e42ef9f9075ae58b251152d0365ab6f59d4fb2416e07d9c1cbfa9fe7",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/fixture-source-pins.json",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/fixture-source-pins.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "2bfc64634c0ccf8415267f39d02d1da80321467f55cc520288b609f717d6657a",
+      "newDestSHA": "2bfc64634c0ccf8415267f39d02d1da80321467f55cc520288b609f717d6657a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/fixture.S",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/fixture.S",
+      "oldDestSHA": null,
+      "newSourceSHA": "701171a83203153047745e89d16a7089165b7d9647fa3ee6efac1cbefe310917",
+      "newDestSHA": "701171a83203153047745e89d16a7089165b7d9647fa3ee6efac1cbefe310917",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/host_test_scope_v2_fixture.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/host_test_scope_v2_fixture.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "ae9ad525561106f58836d1d714b0da90a583d47fe442616a80701d314187201f",
+      "newDestSHA": "ae9ad525561106f58836d1d714b0da90a583d47fe442616a80701d314187201f",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/link.ld",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/link.ld",
+      "oldDestSHA": null,
+      "newSourceSHA": "14999df6cc659dfbcfbd8b657ec7c5025ae60395933fade19864f76c6ecee017",
+      "newDestSHA": "14999df6cc659dfbcfbd8b657ec7c5025ae60395933fade19864f76c6ecee017",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/run_fixture.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/run_fixture.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "76566247c9b6bdfa8e4328f56f06ae48e435c539c13b86fdb4494852c27a265e",
+      "newDestSHA": "c24a31b3845bf48f5d680398461a38e6d0ca3443748122afdd318e7af8289957",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/scope_trace_checks.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/scope_trace_checks.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "a6804ac5a3a3299ec386b9aa0dfc5bdc3d2562eabeaf48f72185dcad302297e8",
+      "newDestSHA": "a6804ac5a3a3299ec386b9aa0dfc5bdc3d2562eabeaf48f72185dcad302297e8",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/scope_trace_checks_v2.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/scope_trace_checks_v2.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "fc0baad36e071cdc97fb429c6739c90850cc667d18a7353a542cb261102ada0b",
+      "newDestSHA": "fc0baad36e071cdc97fb429c6739c90850cc667d18a7353a542cb261102ada0b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_actual_scope_plugin.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_actual_scope_plugin.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "5f47e6d457d0350fe54dbfa5805290910cc20d5345541918967c291002f2410f",
+      "newDestSHA": "5f47e6d457d0350fe54dbfa5805290910cc20d5345541918967c291002f2410f",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_fixture_compile.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_fixture_driver.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "5cf72da04acb4faad4aa2a8d16d8e1bdd21a10a9e51119e082e1b5a86794bc2f",
+      "newDestSHA": "966c6bf9f4cf47331fc1bd10e2e73006041cd1ebc4496efee3f47615832df48c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_fixture_driver.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_fixture_driver.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "5cf72da04acb4faad4aa2a8d16d8e1bdd21a10a9e51119e082e1b5a86794bc2f",
+      "newDestSHA": "11b8eb86ba73db5de631d3ebc699f42809602328d864f0af73981dbd3dac757b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_scope_trace_checks.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_scope_trace_checks.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "458bd0fb521d626c18817f90eac50880c5a6fcda43f825200c7999949bb49332",
+      "newDestSHA": "458bd0fb521d626c18817f90eac50880c5a6fcda43f825200c7999949bb49332",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_scope_trace_checks_v2.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/integration/test_scope_trace_checks_v2.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "2cd87ab55bb8aacfc76c6436456b4f241c1905da7ced1893c56828d485c2fd89",
+      "newDestSHA": "2cd87ab55bb8aacfc76c6436456b4f241c1905da7ced1893c56828d485c2fd89",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/late-sites.inc",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/late-sites.inc",
+      "oldDestSHA": null,
+      "newSourceSHA": "3d40e594153007633bd88fecd03eeff672e898e90e927ab04bab8f1b00c3da34",
+      "newDestSHA": "3d40e594153007633bd88fecd03eeff672e898e90e927ab04bab8f1b00c3da34",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/log-schema-v2.json",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/log-schema-v2.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "14ddc18327f3257af7fcfc4d598f4e647c9a3384cd4f8f78bfefb57e4bdc9a4b",
+      "newDestSHA": "14ddc18327f3257af7fcfc4d598f4e647c9a3384cd4f8f78bfefb57e4bdc9a4b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/log-schema.json",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/log-schema.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c",
+      "newDestSHA": "8b6e2bf3576e7e4e5566fa215d2758e088ae8867ed6b3c36ea7b90f38767e50c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/mock/glib.h",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/mock/glib.h",
+      "oldDestSHA": null,
+      "newSourceSHA": "b5558ed57572722def77ac01a6700c1c7b545a216670f4474a19041e2c9d8b4d",
+      "newDestSHA": "b5558ed57572722def77ac01a6700c1c7b545a216670f4474a19041e2c9d8b4d",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/scope-observer.c",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/scope-observer.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "b1468863e15fe67a7f5d8b17156d286a68b05d1ae3a9c8f7666f2a880bd3c1fb",
+      "newDestSHA": "b1468863e15fe67a7f5d8b17156d286a68b05d1ae3a9c8f7666f2a880bd3c1fb",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/source-contract-v2.json",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/source-contract-v2.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "32062dc001ba713fc5211d15f07207aa662777f8d9517d9ec05620b7560994d7",
+      "newDestSHA": "32062dc001ba713fc5211d15f07207aa662777f8d9517d9ec05620b7560994d7",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/source-contract.json",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "c11988ccbfff30a358883aa2faa17651640fe9f114fec3d9c22bc9e103ce0550",
+      "newDestSHA": "c11988ccbfff30a358883aa2faa17651640fe9f114fec3d9c22bc9e103ce0550",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test-late-sites.c",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test-late-sites.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "ec3852b4d12b168b2c345b36e2be52c894b144b55e2c68d4b1b12d2ca3332c33",
+      "newDestSHA": "ec3852b4d12b168b2c345b36e2be52c894b144b55e2c68d4b1b12d2ca3332c33",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test-scope-observer.c",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test-scope-observer.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "4c0ee4c69efae5aa033e2c9c2a8706658ff98bbfbad0d1f3ae57d05fcbe4f205",
+      "newDestSHA": "4c0ee4c69efae5aa033e2c9c2a8706658ff98bbfbad0d1f3ae57d05fcbe4f205",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test_build_runtime.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test_build_runtime.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "cdf72f91b2e73d0a7ce73c7bf0a1567e994c2a7509c20b969495456de5674966",
+      "newDestSHA": "9995ceda8d4fc32b490e48b3a1ecaf188451049b02e7a6700dff93c13d91b4c7",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test_late_sites.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test_late_sites.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "ed34142248abd9b03983a80d3b3854493329bbba5d6ee340d80c734cd0159c79",
+      "newDestSHA": "9cbfb4a2bf47eb6a5cd6bb259cb4f2b818f47872fd84d99f36b1f66b6ceaa83b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test_run_context.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test_run_context.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "d61c856c738c396398d5d72e04e51c151d9ea5968a3a97f196f7328f1f5e798e",
+      "newDestSHA": "d61c856c738c396398d5d72e04e51c151d9ea5968a3a97f196f7328f1f5e798e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test_run_context_v2.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test_run_context_v2.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "e804e6a8e25c58373fce9e59649ce824536c72357bb672274942fa4dcb0e8448",
+      "newDestSHA": "e804e6a8e25c58373fce9e59649ce824536c72357bb672274942fa4dcb0e8448",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-qemu-readonly-scope-observer/test_scope_observer.py",
+      "source": "report/2026-10-30-qemu-readonly-scope-observer/test_scope_observer.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "b3c78c2f51257039adf4dc350c3d06548c46e2d6bd70a0c8303774ff5f37c6b2",
+      "newDestSHA": "cbd713f2fc9d6b457d499efef747bf3f1104d8a1d483cc0de14fd5b9554f6031",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-30-s2-capture-state/source-contract.json",
+      "source": "report/2026-10-30-s2-capture-state/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "78f4cdc7b3359d597d6e2bf9bce2c7550c13a4a61b261e4c8088f225ef1718b6",
+      "newDestSHA": "78f4cdc7b3359d597d6e2bf9bce2c7550c13a4a61b261e4c8088f225ef1718b6",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-startup-control/source-contract.json",
+      "source": "report/2026-10-30-startup-control/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "0cdd9adbf6ce56acde2d40b4b020d8843d86c4b6d874b2a523dde66f9d224610",
+      "newDestSHA": "0cdd9adbf6ce56acde2d40b4b020d8843d86c4b6d874b2a523dde66f9d224610",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-still-format/source-contract.json",
+      "source": "report/2026-10-30-still-format/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "98265f47674a6814f094135d5cc1d1fc60add9d00dfb7a2a157af640dbdf5d31",
+      "newDestSHA": "98265f47674a6814f094135d5cc1d1fc60add9d00dfb7a2a157af640dbdf5d31",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-zd4-adf-host-boundary/source-contract.json",
+      "source": "report/2026-10-30-zd4-adf-host-boundary/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "e522364e7fa5d7e7e4c55a95f4dc3b7d4dcbcaa6484236d07c47ed566a35be0a",
+      "newDestSHA": "e522364e7fa5d7e7e4c55a95f4dc3b7d4dcbcaa6484236d07c47ed566a35be0a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-30-zd4-console-framing/source-contract.json",
+      "source": "report/2026-10-30-zd4-console-framing/source-contract.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "65a709011e9b13febb44be5f0a135f53f7434e43ab099976f873445d45b229b4",
+      "newDestSHA": "65a709011e9b13febb44be5f0a135f53f7434e43ab099976f873445d45b229b4",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/build-plugin.sh",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/build-plugin.sh",
+      "oldDestSHA": null,
+      "newSourceSHA": "3d3020b0bf30e38c58e1f6f330d8695783e571d787040c42a60c38369a68366f",
+      "newDestSHA": "85609815a58e937f794437bacccab2ddbd306495588f8a7bc32d324081a4b98b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/build-runtime.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/build-runtime.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "ed86facc57683620d2415a902fb04e2e3f31629dcf693250212606784ed31dfe",
+      "newDestSHA": "ae5a4d03d591c961a44122c72cc32526b76d5a674eca4f0682fcfb0464e159fb",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/check_run_context.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/check_run_context.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "1febb435e0a085a22bd24013d89e42897ca99c0b609e699aab36dd9099d2bb47",
+      "newDestSHA": "1febb435e0a085a22bd24013d89e42897ca99c0b609e699aab36dd9099d2bb47",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/check_run_context_v3.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/check_run_context_v3.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "0acf668e42f8c04d033ecdc394bd5d9957bd92e3ebd5fc30b5850be1f6ae1a20",
+      "newDestSHA": "0acf668e42f8c04d033ecdc394bd5d9957bd92e3ebd5fc30b5850be1f6ae1a20",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/fixture-source-pins.json",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/fixture-source-pins.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "c2830c3ef79d66a4e3749020d32d6bb7df4510b62f76783b847ef3877f8996d1",
+      "newDestSHA": "c2830c3ef79d66a4e3749020d32d6bb7df4510b62f76783b847ef3877f8996d1",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/fixture.S",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/fixture.S",
+      "oldDestSHA": null,
+      "newSourceSHA": "be6e238482238ff09958ebb1481922aca5cff18a3d9f030aacb26a2c805eb9c5",
+      "newDestSHA": "be6e238482238ff09958ebb1481922aca5cff18a3d9f030aacb26a2c805eb9c5",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/link.ld",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/link.ld",
+      "oldDestSHA": null,
+      "newSourceSHA": "46d31bddfc213ed2c6b0da61a9d78534369e70aafc4dd966edaac3409466049e",
+      "newDestSHA": "46d31bddfc213ed2c6b0da61a9d78534369e70aafc4dd966edaac3409466049e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/run_fixture.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/run_fixture.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "1fa17058616ec1df96fe5213741195c53585d778023bee5cb294f5d508308e5f",
+      "newDestSHA": "fc3b64bce870a4b2b382b6be59246c02c90bddfb3d9fbce26b769a3f6707042e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/scope_trace_checks.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/scope_trace_checks.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "a6804ac5a3a3299ec386b9aa0dfc5bdc3d2562eabeaf48f72185dcad302297e8",
+      "newDestSHA": "a6804ac5a3a3299ec386b9aa0dfc5bdc3d2562eabeaf48f72185dcad302297e8",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/scope_trace_checks_v3.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/scope_trace_checks_v3.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "b8a6b243a23d9da3e2e9adf4e8a9b652116d7f66276d132364cb112e6a8a4d13",
+      "newDestSHA": "b8a6b243a23d9da3e2e9adf4e8a9b652116d7f66276d132364cb112e6a8a4d13",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_actual_scope_plugin.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_actual_scope_plugin.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "37dd264a845cd11e9c812aae7901c06fb088a338820a026c6a251e35d86427b5",
+      "newDestSHA": "37dd264a845cd11e9c812aae7901c06fb088a338820a026c6a251e35d86427b5",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_fixture_driver.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_fixture_driver.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "e14a9aadae1b52fe0bfbabb4ea15a5beb4313b5820fdc2d72d497eb15234bd5a",
+      "newDestSHA": "733b7cb7ccb7b776b93fc7d12081fe2c722143dfe3a523c651c02cd8b3486840",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_scope_trace_checks.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_scope_trace_checks.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "16fbc91ed15eb5359e42370f1206b971e9af9dd06f963f4c0cb752c698d807a0",
+      "newDestSHA": "fc96bb4ade403be0f1e0c5099c55d02a746b6814e8aaa51eafc98b8d4bc76fc8",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation; EOF-only whitespace normalization after testing, Python AST unchanged"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/late-sites.inc",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/late-sites.inc",
+      "oldDestSHA": null,
+      "newSourceSHA": "3d40e594153007633bd88fecd03eeff672e898e90e927ab04bab8f1b00c3da34",
+      "newDestSHA": "3d40e594153007633bd88fecd03eeff672e898e90e927ab04bab8f1b00c3da34",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/log-schema-v3.json",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/log-schema-v3.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "4cb0f6033cae3d79ec58e9bb9c6bf45ff2e2e87f79c169f0a27ea5f3da4df036",
+      "newDestSHA": "4cb0f6033cae3d79ec58e9bb9c6bf45ff2e2e87f79c169f0a27ea5f3da4df036",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/scope-observer.c",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/scope-observer.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "f30982b1e0707c77d072b0bcebac961afcf32f2320c7f3c03d8fe8e1d3032dea",
+      "newDestSHA": "f30982b1e0707c77d072b0bcebac961afcf32f2320c7f3c03d8fe8e1d3032dea",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/source-contract-v3.json",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/source-contract-v3.json",
+      "oldDestSHA": null,
+      "newSourceSHA": "4f590db456f6ccad8bb01c76d6b201d5ef5c1b85d65548c83b7947b217eb9707",
+      "newDestSHA": "4f590db456f6ccad8bb01c76d6b201d5ef5c1b85d65548c83b7947b217eb9707",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test-late-sites.c",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test-late-sites.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "ec3852b4d12b168b2c345b36e2be52c894b144b55e2c68d4b1b12d2ca3332c33",
+      "newDestSHA": "ec3852b4d12b168b2c345b36e2be52c894b144b55e2c68d4b1b12d2ca3332c33",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test-scope-observer.c",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test-scope-observer.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "84336c569437cbe3f674ddf62ae70db0a9c3f4c2addb9a421d27e4578e1b7759",
+      "newDestSHA": "84336c569437cbe3f674ddf62ae70db0a9c3f4c2addb9a421d27e4578e1b7759",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_build_runtime.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test_build_runtime.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "4c6d65cd9f7e0fa2d7f644e46cb58ca46b1b2aba7fd439625eb5f47da2c1f828",
+      "newDestSHA": "efa90d64e04a68721f101ddb81fd4f3ae0ce9c59e18af9f50ca688ea3876c992",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_late_callbacks.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test_late_callbacks.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "769ff1cd81502759f0b1e38ef404e512b59f7af001e1a1106a88ffff499b1e65",
+      "newDestSHA": "e683caa499c2359154ed639c944ec971fb569e86b8fdc6c83b6fd58320a5792b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_late_sites.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test_late_sites.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "6df5332e6fff9f0f5f2506364a7fad215cb826ce50b15243cd3df61507d03c09",
+      "newDestSHA": "6df5332e6fff9f0f5f2506364a7fad215cb826ce50b15243cd3df61507d03c09",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_run_context.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test_run_context.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "e3df7e3f93c8844bff931c8a3cb1d33555cca72d616fa9324a03e527d92a869b",
+      "newDestSHA": "beef22950d821e04d5db2261b058034fc8cd93a08e9b8570fe7244af9f25e025",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "EOF-only whitespace normalization after testing; immutable source SHA retained, Python AST unchanged"
+    },
+    {
+      "path": "report/2026-10-31-qemu-M-writer-observer-v3/test_scope_observer.py",
+      "source": "report/2026-10-31-qemu-M-writer-observer-v3/test_scope_observer.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "1fa5e98c733bb9859bbce99baf12a2f9e560f3a1d52273467095622fee829c01",
+      "newDestSHA": "fc8491e1198882f7bd7e264a7248030fdb4c8d5070bfb9946c8149181460ada5",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/2026-10-31-source-publication/PUBLICATION.md",
+      "source": null,
+      "oldDestSHA": null,
+      "newSourceSHA": null,
+      "newDestSHA": "6183335b8f20d2e931ad3ad9128d2c26ee8782fa462dbae307a3c7afc49524af",
+      "source_batch": null,
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/camera-input-coverage/source-pins.json",
+      "source": "report/camera-input-coverage/source-pins.json",
+      "oldDestSHA": "27639a89ed6f74c37798b209975f34dc3ba269825a44029413140b4b3139437e",
+      "newSourceSHA": "dbc3fab2f373bb68205d5c4db7160d00bd9eb1c427cb63ae7ebbe53e981e8181",
+      "newDestSHA": "d1b07cb23a904f96c34caf91770bb57206c22e69e92242fe6d760317b8cddfc4",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "report/functional-camera-core/functional-camera-core.c",
+      "source": "report/functional-camera-core/functional-camera-core.c",
+      "oldDestSHA": "6b562ccf15d32a9f551521fd9d48fffe7d49d61ff9a604f41d1fb7843a554d3b",
+      "newSourceSHA": "1067ab082dd68bab2901af76a5fa7169788d917198b04de5d9415f05c2c9c647",
+      "newDestSHA": "1067ab082dd68bab2901af76a5fa7169788d917198b04de5d9415f05c2c9c647",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-camera-core/functional-camera-core.h",
+      "source": "report/functional-camera-core/functional-camera-core.h",
+      "oldDestSHA": "f967edc521a011641e5e834d5f7e6fac23d895b7f35bbbebed52c2187f36fcae",
+      "newSourceSHA": "166ce64e4a6aa7abe9218d09b90dc8450e07a2fdcc6d797623d5f0af965702ca",
+      "newDestSHA": "166ce64e4a6aa7abe9218d09b90dc8450e07a2fdcc6d797623d5f0af965702ca",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-camera-evidence/check_evidence.py",
+      "source": "report/functional-camera-evidence/check_evidence.py",
+      "oldDestSHA": "abd36180d8c76e10d318b375886196b2d8ed1062d282aad837c8e6b6e2d4670a",
+      "newSourceSHA": "a808b0bc0be2802cb6efacd7502345e10c596cb542343c3f959ff183e94d1b8a",
+      "newDestSHA": "a808b0bc0be2802cb6efacd7502345e10c596cb542343c3f959ff183e94d1b8a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-camera-evidence/test_evidence.py",
+      "source": "report/functional-camera-evidence/test_evidence.py",
+      "oldDestSHA": "c55b92c90fe7cafbde53de72c7a8b4ded15a876820e4f7bf614cf12ce933de93",
+      "newSourceSHA": "d4bfd54212b9eb97616f0cf544c7f6ad818ef5bf789e23793a607ba387ed08f1",
+      "newDestSHA": "d4bfd54212b9eb97616f0cf544c7f6ad818ef5bf789e23793a607ba387ed08f1",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-camera-evidence/test_face_source.py",
+      "source": "report/functional-camera-evidence/test_face_source.py",
+      "oldDestSHA": "bf0f16be40ac2d6aca860bd05b9b337667cbec1e108772d998992d946fa9e2ad",
+      "newSourceSHA": "0347adf1527e32600f61ed003ea39515f72afec8cabed5cd088f7d0756c89e17",
+      "newDestSHA": "0347adf1527e32600f61ed003ea39515f72afec8cabed5cd088f7d0756c89e17",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-graph-evidence/README.md",
+      "source": "report/functional-graph-evidence/README.md",
+      "oldDestSHA": "8e2524b89bb5f017ca303b222ce8231f15b10959ed80763f83e4cbf05370cd7c",
+      "newSourceSHA": "61f5eb4625cb8b84dbd9b77a9437b74be1dfc2c1bd700773a943459521f83556",
+      "newDestSHA": "61f5eb4625cb8b84dbd9b77a9437b74be1dfc2c1bd700773a943459521f83556",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-graph-evidence/check_graph.py",
+      "source": "report/functional-graph-evidence/check_graph.py",
+      "oldDestSHA": "e500b12a7e0878b1a768336becf977cb46f6793a3a17915037914515751ebfb5",
+      "newSourceSHA": "a6a2a7d883bd146c73a90eff200d306cfe634fc99514a04f6cdeb4337a95eea1",
+      "newDestSHA": "a6a2a7d883bd146c73a90eff200d306cfe634fc99514a04f6cdeb4337a95eea1",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "report/functional-graph-evidence/test_graph.py",
+      "source": "report/functional-graph-evidence/test_graph.py",
+      "oldDestSHA": "6331e1de7ea5781643eb69d38df96dd8d03c7f81fcd6dbf0d69d7b10de286b5d",
+      "newSourceSHA": "089c32f656d7a704d7da35c47ba369c49b0680bb941a18554af09154b41494f1",
+      "newDestSHA": "089c32f656d7a704d7da35c47ba369c49b0680bb941a18554af09154b41494f1",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/backup_profile.py",
+      "source": "runtime/analysis/backup_profile.py",
+      "oldDestSHA": "fd9f1667607703fb97d105fc955e64b352374adbfc976e506f53ec2936848f53",
+      "newSourceSHA": "360936c6a0cb27529b20f200be82841e6bb4f495a237d09d9b84b12dc9ebe833",
+      "newDestSHA": "360936c6a0cb27529b20f200be82841e6bb4f495a237d09d9b84b12dc9ebe833",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/build-functional-camera-model.py",
+      "source": "runtime/analysis/build-functional-camera-model.py",
+      "oldDestSHA": "4e1f0c5e81a7c29613c3ff6394b349218d395856959aea26f1b60a743d6d0feb",
+      "newSourceSHA": "95fe488492c132fe9f2645b37317a35594d7f0aafd577b044934a778495e0c19",
+      "newDestSHA": "95fe488492c132fe9f2645b37317a35594d7f0aafd577b044934a778495e0c19",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/build-observers.sh",
+      "source": "runtime/analysis/build-observers.sh",
+      "oldDestSHA": "a9f33123ee99178589dc73377b378f90bfc2c053e43b582870709e495f75bd1d",
+      "newSourceSHA": "f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8",
+      "newDestSHA": "f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/build-rc-reference.sh",
+      "source": "runtime/analysis/build-rc-reference.sh",
+      "oldDestSHA": "a01341d38c0493cf34cf43dede42c583411aff6d3a11e7ed542ce1de4a9cd5ba",
+      "newSourceSHA": "fe5bb1f2454f87c9384574b1a0aeae777e8f69ee01d66981fc4e55099b17ae6a",
+      "newDestSHA": "a01341d38c0493cf34cf43dede42c583411aff6d3a11e7ed542ce1de4a9cd5ba",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/check-natural-gtk-input.py",
+      "source": "runtime/analysis/check-natural-gtk-input.py",
+      "oldDestSHA": "1797ad60d1a1e9c8f31adb745260f127c920e2b7ac5d13219e3ce2d5abde6f2b",
+      "newSourceSHA": "8dcc1f3f8a2c4473c1f6d87394f9dc68ad0f83590ec6491c23b52ff7d8391729",
+      "newDestSHA": "8dcc1f3f8a2c4473c1f6d87394f9dc68ad0f83590ec6491c23b52ff7d8391729",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/functional-startup-control.c",
+      "source": "runtime/analysis/device-models/functional-startup-control.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "07cc3ae11d4298a49af11cf8236bca2838206f6015e80014456b127fe562e991",
+      "newDestSHA": "07cc3ae11d4298a49af11cf8236bca2838206f6015e80014456b127fe562e991",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/functional-startup-control.h",
+      "source": "runtime/analysis/device-models/functional-startup-control.h",
+      "oldDestSHA": null,
+      "newSourceSHA": "f3cd94592fc6ace37876cfbba6b6acb5a126f7f6bf9f2127887755530b7ba302",
+      "newDestSHA": "f3cd94592fc6ace37876cfbba6b6acb5a126f7f6bf9f2127887755530b7ba302",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/functional-still-format.c",
+      "source": "runtime/analysis/device-models/functional-still-format.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "538ff9ccfabcbf03d70260e210812fc1aeabb1973aef74271c686c918f19b267",
+      "newDestSHA": "538ff9ccfabcbf03d70260e210812fc1aeabb1973aef74271c686c918f19b267",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/functional-still-format.h",
+      "source": "runtime/analysis/device-models/functional-still-format.h",
+      "oldDestSHA": null,
+      "newSourceSHA": "8b975363b3b6d8830bfc1220a09b92f29d65073fa5b6ab574a2488e63ba74717",
+      "newDestSHA": "8b975363b3b6d8830bfc1220a09b92f29d65073fa5b6ab574a2488e63ba74717",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/test-functional-startup-control.c",
+      "source": "runtime/analysis/device-models/test-functional-startup-control.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "4be4d300b8079abff36bc99c7c711e17597eef52ec059cf4422e0daf71ddb3bb",
+      "newDestSHA": "4be4d300b8079abff36bc99c7c711e17597eef52ec059cf4422e0daf71ddb3bb",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/device-models/test-functional-still-format.c",
+      "source": "runtime/analysis/device-models/test-functional-still-format.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "9d5bc81fab92d9091165bc8862f90c141e010f9d374f48cd3d3bb27ae619590b",
+      "newDestSHA": "9d5bc81fab92d9091165bc8862f90c141e010f9d374f48cd3d3bb27ae619590b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional-camera-abi.h",
+      "source": "runtime/analysis/functional-camera-abi.h",
+      "oldDestSHA": "81e1d4be23353998958c8287d38699dcd2ecbdce78eedd711e001f1b24da117e",
+      "newSourceSHA": "edb16abd18581e85419ece820d74f09a6a346cfbfc367568f3bd4323e575e413",
+      "newDestSHA": "edb16abd18581e85419ece820d74f09a6a346cfbfc367568f3bd4323e575e413",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional-camera-bridge.c",
+      "source": "runtime/analysis/functional-camera-bridge.c",
+      "oldDestSHA": "db0e1296553582da72a48eaffea88beae226ecf02fe435340ecf2057bc6aa23d",
+      "newSourceSHA": "c5cfaaac05934f1a486416ba6de4904c9fdb4f476b4c5fce12f27f60eca70af4",
+      "newDestSHA": "c5cfaaac05934f1a486416ba6de4904c9fdb4f476b4c5fce12f27f60eca70af4",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional-camera-bridge.h",
+      "source": "runtime/analysis/functional-camera-bridge.h",
+      "oldDestSHA": "b2ee10b35c3d1eee2ed7c5851893f05653881e7c89a1745e253706b6337d93bb",
+      "newSourceSHA": "c714ee04ac1ea93fc56cd0e461189e4167c9a50d9d12febc1ca1d0d56fb4f12b",
+      "newDestSHA": "c714ee04ac1ea93fc56cd0e461189e4167c9a50d9d12febc1ca1d0d56fb4f12b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional-startup-control-abi.h",
+      "source": "runtime/analysis/functional-startup-control-abi.h",
+      "oldDestSHA": null,
+      "newSourceSHA": "9aa42c35904539a1defeaa5a0b5cfde27b4222d338abd202e88b05854eac94e2",
+      "newDestSHA": "9aa42c35904539a1defeaa5a0b5cfde27b4222d338abd202e88b05854eac94e2",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional-still-format-abi.h",
+      "source": "runtime/analysis/functional-still-format-abi.h",
+      "oldDestSHA": null,
+      "newSourceSHA": "54f27f4b98a0ece89fc7f09f4cca38d2e05fd9c0ee84843210fa16822413d51c",
+      "newDestSHA": "54f27f4b98a0ece89fc7f09f4cca38d2e05fd9c0ee84843210fa16822413d51c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional_camera_broker.py",
+      "source": "runtime/analysis/functional_camera_broker.py",
+      "oldDestSHA": "b75d5be73cbd4ad02311f830fc4698148409008b250ac4147808d89f9d8431d2",
+      "newSourceSHA": "5c4f6429394c31c7ce19dc6344b9981860032d8cf0dfa8643bd4186b2134db1e",
+      "newDestSHA": "5c4f6429394c31c7ce19dc6344b9981860032d8cf0dfa8643bd4186b2134db1e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/functional_camera_runner.py",
+      "source": "runtime/analysis/functional_camera_runner.py",
+      "oldDestSHA": "26be93f1cfa28ec041ce0eb3ccc4f4d78da59c910e525f06811451dfa914aca0",
+      "newSourceSHA": "0b0bf5e3a164e09891c3ec3a243e5c6328409197bad0154d6bea3905d051c64a",
+      "newDestSHA": "0b0bf5e3a164e09891c3ec3a243e5c6328409197bad0154d6bea3905d051c64a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/hdmi_upm_watch.py",
+      "source": "runtime/analysis/hdmi_upm_watch.py",
+      "oldDestSHA": "356c7545f34e29661b99286fba0b39fb07aabe7bf11e39c69a1486df91dcb5f6",
+      "newSourceSHA": "33cb1ffa88b6d183a5ce9e816cae8e9c273d749780bd69f57f466741263947d1",
+      "newDestSHA": "33cb1ffa88b6d183a5ce9e816cae8e9c273d749780bd69f57f466741263947d1",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/menu-observe.c",
+      "source": "runtime/analysis/menu-observe.c",
+      "oldDestSHA": "27fb41f08d389c54beda4a9e97980c8edb8a71c7769f969ea2f7634e8c691ae9",
+      "newSourceSHA": "56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f",
+      "newDestSHA": "56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/menu_control.py",
+      "source": "runtime/analysis/menu_control.py",
+      "oldDestSHA": "5624042cf7aaa8ad7ad711d4f41c6252befbdd8906d7434525ee4248579cc0ea",
+      "newSourceSHA": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
+      "newDestSHA": "5624042cf7aaa8ad7ad711d4f41c6252befbdd8906d7434525ee4248579cc0ea",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "source": "runtime/analysis/menu_live.py",
+      "oldDestSHA": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
+      "newSourceSHA": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
+      "newDestSHA": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/prepare-menu-initramfs.sh",
+      "source": "runtime/analysis/prepare-menu-initramfs.sh",
+      "oldDestSHA": "66c6373465668ea774b81153093cff8863e2e6fa79f482f97db75789ec8aa2bb",
+      "newSourceSHA": "78fe0709188163526104c8b44864e701511b7eba0c8d39584a42487c8ee561cc",
+      "newDestSHA": "66c6373465668ea774b81153093cff8863e2e6fa79f482f97db75789ec8aa2bb",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/qemu-kernel-probe.sh",
+      "source": "runtime/analysis/qemu-kernel-probe.sh",
+      "oldDestSHA": "66ec793ecf13e2acd2e3188442a73dc29ae51b9fbf2901a5c7d0d833a86a450e",
+      "newSourceSHA": "68e8c4a272bf52b5328c30f97bdd3d7d6c0585e5b091e73c6cc6685436e108df",
+      "newDestSHA": "68e8c4a272bf52b5328c30f97bdd3d7d6c0585e5b091e73c6cc6685436e108df",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/qemu-menu-probe.py",
+      "source": "runtime/analysis/qemu-menu-probe.py",
+      "oldDestSHA": "877ab39e82f4ec2fe56a5589f38e5405437e4e9c03f2d8b3a9b368110c2bb6cc",
+      "newSourceSHA": "9c037a75ae5c3b6a64af289b8bf22d4f176261810f8a6427341c0210e08beb15",
+      "newDestSHA": "9c037a75ae5c3b6a64af289b8bf22d4f176261810f8a6427341c0210e08beb15",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/scope_observer_profile.py",
+      "source": "runtime/analysis/scope_observer_profile.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "c5240152484df162d3abbdfbc9b45ba9927fe332a8d64240e206e64e1bbb2564",
+      "newDestSHA": "c5240152484df162d3abbdfbc9b45ba9927fe332a8d64240e206e64e1bbb2564",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/scratch/run-hdmi-observed.py",
+      "source": "runtime/analysis/scratch/run-hdmi-observed.py",
+      "oldDestSHA": "706fbe377c9e755a9b396af14e6105591f08dcf29ec72f6e8e4683113d552e5d",
+      "newSourceSHA": "3808e30d6a464004fc9a5d05e1f37d6083c98e87d8b054f0b852ebfa6cb06816",
+      "newDestSHA": "3808e30d6a464004fc9a5d05e1f37d6083c98e87d8b054f0b852ebfa6cb06816",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/scratch/test_run_hdmi_observed.py",
+      "source": "runtime/analysis/scratch/test_run_hdmi_observed.py",
+      "oldDestSHA": "3c58cce711046c0be5b6917c966df8cf7e21821e828e5b8073959b5e2bbf6e56",
+      "newSourceSHA": "78d295c18951dc3d127980a4aeb5cb582190619d94ec8754a835bbfa73243459",
+      "newDestSHA": "78d295c18951dc3d127980a4aeb5cb582190619d94ec8754a835bbfa73243459",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/scratch/test_verify_hdmi_edge.py",
+      "source": "runtime/analysis/scratch/test_verify_hdmi_edge.py",
+      "oldDestSHA": "131bfedac6467fb160ee55c0b2422ef06d05375ba8059c051b8b915277a8157f",
+      "newSourceSHA": "c20cba6bd00691f037ce1168f554f1ac94bb0c52a857f4021eac156abd1cac3d",
+      "newDestSHA": "c20cba6bd00691f037ce1168f554f1ac94bb0c52a857f4021eac156abd1cac3d",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/scratch/validate-unified-camera.py",
+      "source": "runtime/analysis/scratch/validate-unified-camera.py",
+      "oldDestSHA": "3a4c11e826e684ce54c70197440a911d681357eaa48ca0654d8c3405f75487f7",
+      "newSourceSHA": "73d69e62de53308b5fc227a3b5dcdf9c1edff463706c6cff1101752a922ef03f",
+      "newDestSHA": "3a4c11e826e684ce54c70197440a911d681357eaa48ca0654d8c3405f75487f7",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/scratch/verify_hdmi_edge.py",
+      "source": "runtime/analysis/scratch/verify_hdmi_edge.py",
+      "oldDestSHA": "695e7091cf0cd9b1d269418abf2cd3eeb545842a4f977f140f93a9196baa5ff7",
+      "newSourceSHA": "0a2f6760186ba899741649ae0305de06e571713efc340bce55f295aad4244f3a",
+      "newDestSHA": "0a2f6760186ba899741649ae0305de06e571713efc340bce55f295aad4244f3a",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/start-menu.py",
+      "source": "runtime/analysis/start-menu.py",
+      "oldDestSHA": "749b92b1d6f53bcf235b3631c3ffcde37c5439c7dbb4f8fb5842a0a8faeec60f",
+      "newSourceSHA": "7789be548bf77fa25b05742ecb38f263c3bc0a1600073eb25db0c0bcaa070a9a",
+      "newDestSHA": "749b92b1d6f53bcf235b3631c3ffcde37c5439c7dbb4f8fb5842a0a8faeec60f",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/test-functional-camera-bridge.c",
+      "source": "runtime/analysis/test-functional-camera-bridge.c",
+      "oldDestSHA": "53c82f15bcf6c37c8137aa463782bfc2465789ffdb49bab02967842c9c60d221",
+      "newSourceSHA": "4c5c397a617bbfb9a4fe00769496a28b9859b5e30c098431b9c238efbc36f3e4",
+      "newDestSHA": "4c5c397a617bbfb9a4fe00769496a28b9859b5e30c098431b9c238efbc36f3e4",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test-functional-face-wiring.c",
+      "source": "runtime/analysis/test-functional-face-wiring.c",
+      "oldDestSHA": "377e2ec81f6d2b066d698b1dde97c8c772afff80b4677f1333b7a2cd25d20204",
+      "newSourceSHA": "dee9cf14b83a5592e14ae09655ed2f67a3e26e2b14737444c05730743852ae78",
+      "newDestSHA": "dee9cf14b83a5592e14ae09655ed2f67a3e26e2b14737444c05730743852ae78",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test-functional-startup-control-core.c",
+      "source": "runtime/analysis/test-functional-startup-control-core.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "7dca1dff8134aee4c7ccfda55f4990c3bf26dc537a79dd967b3d812d0c16c58e",
+      "newDestSHA": "7dca1dff8134aee4c7ccfda55f4990c3bf26dc537a79dd967b3d812d0c16c58e",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test-functional-still-format-core.c",
+      "source": "runtime/analysis/test-functional-still-format-core.c",
+      "oldDestSHA": null,
+      "newSourceSHA": "b32ee41a0c6287240a32b7ead01df288ef56f962424144dab7e939b916b5e705",
+      "newDestSHA": "b32ee41a0c6287240a32b7ead01df288ef56f962424144dab7e939b916b5e705",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_adf_set_output_profile.py",
+      "source": "runtime/analysis/test_adf_set_output_profile.py",
+      "oldDestSHA": "113133ba7b386afd3c4d3203112774ad4534e130b0dd1df05d64164781625318",
+      "newSourceSHA": "e94dcbbe4c040e10c1b4adf8fbf424df8a4dbf7f9ddd504b3fb48d5c6182ce69",
+      "newDestSHA": "e94dcbbe4c040e10c1b4adf8fbf424df8a4dbf7f9ddd504b3fb48d5c6182ce69",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_bb_set_mode_profile.py",
+      "source": "runtime/analysis/test_bb_set_mode_profile.py",
+      "oldDestSHA": "8ebcfb9f4fc6d8e04e9535e38f9e85d30c941b883a088d9576bd81f4daec85bc",
+      "newSourceSHA": "fb31e61679a5d47814c1c0a50b483f2bc1af8c4c3ce53287494ebea2acb06fe2",
+      "newDestSHA": "fb31e61679a5d47814c1c0a50b483f2bc1af8c4c3ce53287494ebea2acb06fe2",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_final_graph_observer_wiring.py",
+      "source": "runtime/analysis/test_final_graph_observer_wiring.py",
+      "oldDestSHA": "8d48e055e67c65ff2359c5be95568a27d01195ca3bd7113107d0395f845f9066",
+      "newSourceSHA": "9c5f94daa6007dd31fa92a585f3d1281bb42c4a2055279c89583910251395980",
+      "newDestSHA": "9c5f94daa6007dd31fa92a585f3d1281bb42c4a2055279c89583910251395980",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_background_wiring.py",
+      "source": "runtime/analysis/test_functional_background_wiring.py",
+      "oldDestSHA": "0386ac8626a75d0e17887d182b334997820630ae4a44f919cbef6fbeeaa44a66",
+      "newSourceSHA": "f42a021ba84d77143724a67b87d2e118a63715ce453ec12e391e24ffbbfb9168",
+      "newDestSHA": "f42a021ba84d77143724a67b87d2e118a63715ce453ec12e391e24ffbbfb9168",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_camera_bridge.py",
+      "source": "runtime/analysis/test_functional_camera_bridge.py",
+      "oldDestSHA": "84c147391ee8f28e085b459774dee0b4bbfb41de559250389bd6d20206787862",
+      "newSourceSHA": "b0f5b58cc37458f27b9adfdf1c22b7552284043fc3212d46bcc980c483cf730c",
+      "newDestSHA": "b0f5b58cc37458f27b9adfdf1c22b7552284043fc3212d46bcc980c483cf730c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_camera_profile.py",
+      "source": "runtime/analysis/test_functional_camera_profile.py",
+      "oldDestSHA": "297287c5a746f65593cb0d33cdcf1474502feaf66dcaeaf389caa977241dd718",
+      "newSourceSHA": "9afc98c72b42166a6371c4f5c34f32962096a03d8e98ed5a0c55fd423332a094",
+      "newDestSHA": "9afc98c72b42166a6371c4f5c34f32962096a03d8e98ed5a0c55fd423332a094",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_camera_runner.py",
+      "source": "runtime/analysis/test_functional_camera_runner.py",
+      "oldDestSHA": "113f0f2a78c7dcdd03fae54236aa671097b3d8956b633997913762cba4f734a5",
+      "newSourceSHA": "d7d1ff8f884756a51f99f38419b385c6c89726746ff8a2a88435dcbae65c4f07",
+      "newDestSHA": "d7d1ff8f884756a51f99f38419b385c6c89726746ff8a2a88435dcbae65c4f07",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_face_sdk_origin.py",
+      "source": "runtime/analysis/test_functional_face_sdk_origin.py",
+      "oldDestSHA": "1be7a52775038809ddbe0b1c0da4d8518a62b076c51fd7b27da46c0d814e1f39",
+      "newSourceSHA": "ac979333d35f7f207c18bd4769914a055ef1bbb8c9c8bc131fd496f0d2f09cd0",
+      "newDestSHA": "1be7a52775038809ddbe0b1c0da4d8518a62b076c51fd7b27da46c0d814e1f39",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/test_functional_face_source_fault.py",
+      "source": "runtime/analysis/test_functional_face_source_fault.py",
+      "oldDestSHA": "bd54565dcdaeaa5b89c1ff4b7e4308ffe5113fe66acb9abecbad8fdc237016c8",
+      "newSourceSHA": "235cb38523dde6f7e6279e9620c4be3bbd199c6344597ca220532e1c8fb3b96d",
+      "newDestSHA": "235cb38523dde6f7e6279e9620c4be3bbd199c6344597ca220532e1c8fb3b96d",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_face_source_main.py",
+      "source": "runtime/analysis/test_functional_face_source_main.py",
+      "oldDestSHA": "01b41b084e9e033855ce3c1836fcd09f185a210342967702c4107458bc04e7f6",
+      "newSourceSHA": "dae2c3c070dd2e338e8afa6ebb2a89e7da71f08bc68ff9606eae47f7d14e6909",
+      "newDestSHA": "01b41b084e9e033855ce3c1836fcd09f185a210342967702c4107458bc04e7f6",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/test_functional_face_source_snapshot.py",
+      "source": "runtime/analysis/test_functional_face_source_snapshot.py",
+      "oldDestSHA": "43c2e97f517c5eba245b87766c372d18abf237af9697106ab7a275a8599524ac",
+      "newSourceSHA": "555f9791518a0f8693c2f009ddea62342af49e23d1376ae662df3db50e6af730",
+      "newDestSHA": "43c2e97f517c5eba245b87766c372d18abf237af9697106ab7a275a8599524ac",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/test_functional_startup_control.py",
+      "source": "runtime/analysis/test_functional_startup_control.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "b105a71c975aa216af488302a72f7ec635b9a2eae3fc870299a791a397eb8103",
+      "newDestSHA": "114aaf85973f6d9858f1764fbda076f5d5ca8a609e25a43ede9f735cb3940de0",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "runtime/analysis/test_functional_startup_control_core.py",
+      "source": "runtime/analysis/test_functional_startup_control_core.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "18d7b5ea0f61102a771ac390f40493b3fb0d985685d4e14075c2c8ae06effb5c",
+      "newDestSHA": "18d7b5ea0f61102a771ac390f40493b3fb0d985685d4e14075c2c8ae06effb5c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_startup_control_wiring.py",
+      "source": "runtime/analysis/test_functional_startup_control_wiring.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "7a1c581607b2bc767e55983f88917509a770055fa19e6fcfbeb709584c87dd21",
+      "newDestSHA": "5b5fbb0d356a24592cb9d8b972485f408aefc8073538a31f4861995da222d017",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "runtime/analysis/test_functional_still_format.py",
+      "source": "runtime/analysis/test_functional_still_format.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "1f6378771cefbb2c3bcf0610c7435eef3289ed89ff72152619e36b8ba14f16b8",
+      "newDestSHA": "4b6cef8086deb46f2c87105bc3eff878cf120035d37ad9c1b9651fceccc2cf5c",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "runtime/analysis/test_functional_still_format_core.py",
+      "source": "runtime/analysis/test_functional_still_format_core.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "483593441710771b110b60370329927b40d132755063b9a9880c7329452c8ed0",
+      "newDestSHA": "483593441710771b110b60370329927b40d132755063b9a9880c7329452c8ed0",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_still_format_wiring.py",
+      "source": "runtime/analysis/test_functional_still_format_wiring.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "28b8364c8226ccfebd9f753a65902f8ec6daa2abbc066138a6a0ec4512cec68b",
+      "newDestSHA": "bb78b7e4b6ddd2b3a993ee937da051795f9f40fe2f06c83819a4c4ebc18d7217",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "EOF-only whitespace normalization after testing; immutable source SHA retained, Python AST unchanged"
+    },
+    {
+      "path": "runtime/analysis/test_functional_vdf_bit_width.py",
+      "source": "runtime/analysis/test_functional_vdf_bit_width.py",
+      "oldDestSHA": "3afd6840f3356b95501c557a2c0791507da15e6c627fc614931aa31bdc075320",
+      "newSourceSHA": "5b1b49af93bb1f1a80e523e41340cc4e0cfc034c4ff670697f7ba9f0f86754e2",
+      "newDestSHA": "3afd6840f3356b95501c557a2c0791507da15e6c627fc614931aa31bdc075320",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Preserve existing public root, official-asset, lifecycle or host-output adapter"
+    },
+    {
+      "path": "runtime/analysis/test_functional_vdf_broker.py",
+      "source": "runtime/analysis/test_functional_vdf_broker.py",
+      "oldDestSHA": "e25ec7cbe072e7836e8d185940cba4c2b002373ed6a6ff6c206e52b7ee9d8f63",
+      "newSourceSHA": "2ee0a829f538ae7c6ee4a2d7fbd9a349107624cbedaa493983a4e4ccfe8ccaf4",
+      "newDestSHA": "2ee0a829f538ae7c6ee4a2d7fbd9a349107624cbedaa493983a4e4ccfe8ccaf4",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_functional_vdf_wiring.py",
+      "source": "runtime/analysis/test_functional_vdf_wiring.py",
+      "oldDestSHA": "2e5bdb45f0a3c1e2e2404e78c1d9b7c405aee06138182bbd1ab1d32717d40e13",
+      "newSourceSHA": "7fd0de14581c9bb21550f411a99fa08d0cbf610008bbb7998562e850378508a9",
+      "newDestSHA": "7fd0de14581c9bb21550f411a99fa08d0cbf610008bbb7998562e850378508a9",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_hdmi_upm_watch.py",
+      "source": "runtime/analysis/test_hdmi_upm_watch.py",
+      "oldDestSHA": "75ea51731330885db8014d4c09044c7b4980a609c3b8e701f158f0a6fb0b2b64",
+      "newSourceSHA": "e0db523f66d980be56d192a1bcd72df26cd0e71a64c48e6b862866d24116f9a0",
+      "newDestSHA": "e0db523f66d980be56d192a1bcd72df26cd0e71a64c48e6b862866d24116f9a0",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_host_sd_guard.py",
+      "source": "runtime/analysis/test_host_sd_guard.py",
+      "oldDestSHA": "c560d44675dfc8ea5646dab6cb6ef206c6d9f791d5bc361d8fe4bf3056c818c6",
+      "newSourceSHA": "3ae1455e97ca076be1d01c5f0050cd3b424637a260649b2d7aac14c723cadf54",
+      "newDestSHA": "3ae1455e97ca076be1d01c5f0050cd3b424637a260649b2d7aac14c723cadf54",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_menu_control.py",
+      "source": "runtime/analysis/test_menu_control.py",
+      "oldDestSHA": "8dfbbcd44483f6fd5801ae66df1470da09cfede353773a94f1404197aa70f450",
+      "newSourceSHA": "eb6c69668b9153adc1f41d6906ce55712993fa1703c05617979d643f021dcb9b",
+      "newDestSHA": "eb6c69668b9153adc1f41d6906ce55712993fa1703c05617979d643f021dcb9b",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_model17c_observation.py",
+      "source": "runtime/analysis/test_model17c_observation.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "4a29fa417cd213de0cd1771fef0bdfd7fe8a42a36c6e1ec1cb16dc09ea370840",
+      "newDestSHA": "fcfac4a5d3bcd7260781088b8a0fc5d81af52c32c230406064e1a531ec5973c5",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "runtime/analysis/test_model17c_original_asset.py",
+      "source": "runtime/analysis/test_model17c_observation.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "4a29fa417cd213de0cd1771fef0bdfd7fe8a42a36c6e1ec1cb16dc09ea370840",
+      "newDestSHA": "dd10075d3d4ac9de93feae9de0d68dee58e72afd4da40cecfec06c54192af597",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    },
+    {
+      "path": "runtime/analysis/test_poweron_observation.py",
+      "source": "runtime/analysis/test_poweron_observation.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "79344d40cc3f0925fc68fd947242c6e63d0562cf83deeda864efbc246462dc57",
+      "newDestSHA": "79344d40cc3f0925fc68fd947242c6e63d0562cf83deeda864efbc246462dc57",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_s2_capture_observation.py",
+      "source": "runtime/analysis/test_s2_capture_observation.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "c92b050a521fb45585397f585c93fe08db0824e2c3ed53f951c04b4c20da2691",
+      "newDestSHA": "c92b050a521fb45585397f585c93fe08db0824e2c3ed53f951c04b4c20da2691",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "runtime/analysis/test_scope_observer_profile.py",
+      "source": "runtime/analysis/test_scope_observer_profile.py",
+      "oldDestSHA": null,
+      "newSourceSHA": "66baf02ed71ef4aebe86368cd9d8506d4c4f88e57588b074d3b33ff5ad427ebf",
+      "newDestSHA": "66baf02ed71ef4aebe86368cd9d8506d4c4f88e57588b074d3b33ff5ad427ebf",
+      "source_batch": "unified-camera-arzj0n5v",
+      "adapted": false,
+      "reason": "Exact immutable archive-member source bytes; no archive metadata"
+    },
+    {
+      "path": "tools/public-model-tests.json",
+      "source": null,
+      "oldDestSHA": "762f517a434f9df6a5ba56912b66461f842316b92e0bcf4470f0f49b3df60c33",
+      "newSourceSHA": null,
+      "newDestSHA": "e3a33c161c437d2c46aad439c451a3287dcf37ffb6d37a808f48a01cbaab4de5",
+      "source_batch": null,
+      "adapted": true,
+      "reason": "Package-local output/root, source provenance or explicit host/external-test separation"
+    }
+  ]
+}

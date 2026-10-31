@@ -423,6 +423,30 @@ runpy.run_path(str(Path(sys.argv[1])/'native_rc_board.py'))['require_binary'](
     Path(sys.argv[2]),reference=sys.argv[3]=='1',handoff=sys.argv[4]=='1',sa_data=sys.argv[5]=='1',sa_complete=sys.argv[6]=='1')
 PY
 fi
+scope_bind=()
+scope_args=()
+if [[ -n "${QEMU_SCOPE_OBSERVER_PLUGIN:-}" ]]; then
+  [[ "$cpu_count" == 1 && "$native_window" == 1 && "${MENU_FUNCTIONAL_CAMERA:-}" == virtual-functional-camera-v1 &&
+     "${QEMU_SCOPE_OBSERVER_SHA256:-}" =~ ^[0-9a-f]{64}$ ]] || {
+    echo 'Scope observer requires its bound single-vCPU functional host profile' >&2; exit 2;
+  }
+  python3 - "$QEMU_SCOPE_OBSERVER_PLUGIN" "$QEMU_SCOPE_OBSERVER_SHA256" "$output_dir/readonly-scope-trace.log" <<'PY'
+from pathlib import Path
+import hashlib,os,stat,sys
+plugin=Path(sys.argv[1])
+if not plugin.is_absolute() or plugin.is_symlink() or not stat.S_ISREG(plugin.stat().st_mode):
+    raise ValueError('Scope observer plugin is not an absolute ordinary file')
+with plugin.open('rb') as stream:
+    if hashlib.file_digest(stream,'sha256').hexdigest()!=sys.argv[2]:
+        raise ValueError('Scope observer plugin changed before sandbox bind')
+if os.path.lexists(sys.argv[3]):
+    raise ValueError('Scope observer refuses a reused trace file')
+PY
+  scope_bind=(--ro-bind "$QEMU_SCOPE_OBSERVER_PLUGIN" /scope-observer.so)
+  scope_args=(-plugin /scope-observer.so,log=/out/readonly-scope-trace.log)
+elif [[ -n "${QEMU_SCOPE_OBSERVER_SHA256:-}" ]]; then
+  echo 'Scope observer digest has no matched plugin' >&2; exit 2
+fi
 observation_seconds="${QEMU_TIMEOUT_SECONDS:-15}"
 [[ "$observation_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid timeout' >&2; exit 2; }
 # Exit 124 means the observation window elapsed; zero allows an interactive session.
@@ -441,12 +465,14 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
     "${timer_environment[@]}" \
     "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
+    "${scope_bind[@]}" \
     "/tools/$binary_relative" \
       -machine virt,secure=off,gic-version=2 -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
       ${QEMU_ICOUNT_ARGS:-} \
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
       "${debug_args[@]}" \
+      "${scope_args[@]}" \
       "${loader_args[@]}" -kernel /kernel.img -initrd /initrd.img \
       -append "$cmdline" \
       -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log

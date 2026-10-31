@@ -372,6 +372,13 @@ def test_observer_prior_snapshots_never_take_current_endpoint_mutex(tmp_path):
 #include <unistd.h>
 #include "adf-set-output-device.h"
 #include "adf-set-input-device.h"
+#include "functional-still-format.h"
+#include "functional-startup-control.h"
+static unsigned int functional_still_format_used,functional_startup_control_used;
+void functional_still_format_snapshot(struct functional_still_format_snapshot *s) {(void)s;assert(0);}
+void functional_startup_control_snapshot(struct functional_startup_control_snapshot *s) {
+ (void)s;assert(!"startup-control is disabled in this ADF fixture");
+}
 static struct full_adf_proc_snapshot proc;
 static struct full_adf_set_input_snapshot input;
 static struct full_adf_set_output_snapshot output;
@@ -406,7 +413,7 @@ int main(void) {
  REJECT_POINTER(input,retained_reply);REJECT_POINTER(input,retained_cleanup);
  proc.owner_pid++;assert(tracked_native_reserve_resources(3)==-1021);proc.owner_pid--;
  input.owner_pid++;assert(tracked_native_reserve_resources(3)==-1021);input.owner_pid--;
- assert(!tracked_native_reserve_resources(3));return 0;
+ assert(!tracked_native_reserve_resources(3) && !functional_startup_control_used);return 0;
 }
 '''
     path=tmp_path/'guard.c';path.write_text(prefix+guard+suffix)

@@ -65,6 +65,8 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "device-models/cp-property-stage-file.h"
 #include "device-models/cp-state-publication.h"
 #include "device-models/functional-camera-control.h"
+#include "device-models/functional-still-format.h"
+#include "device-models/functional-startup-control.h"
 #include "functional-camera-bridge.h"
 #include "functional-camera-events.h"
 #include "functional-mpr-codec.h"
@@ -164,6 +166,14 @@ static int cp_owned_state_enabled;
 static unsigned int cp_owned_state_used;
 static int functional_camera_enabled,functional_camera_setup_error;
 static unsigned int functional_camera_control_used,functional_mpr_codec_used,functional_vdf_path_used;
+static unsigned int functional_still_format_used,still_format_ticket_ready,still_format_ticket_pid;
+static unsigned long still_format_ticket_pointer;
+static unsigned int still_format_ticket_destination;
+static uint64_t still_format_ticket_cycle;
+static unsigned int functional_startup_control_used,startup_control_ticket_ready,startup_control_ticket_pid;
+static unsigned long startup_control_ticket_pointer;
+static unsigned int startup_control_ticket_destination;
+static uint64_t startup_control_ticket_cycle;
 static unsigned int functional_mpr_binding,functional_vdf_binding;
 static unsigned int functional_histogram_binding,functional_histogram_used;
 static int functional_histogram_owner_pid;
@@ -1143,6 +1153,10 @@ static void initialize(void) {
     const char *functional_profile=getenv("MENU_FUNCTIONAL_CAMERA");
     functional_camera_enabled=same_name(functional_profile,FCAM_PROFILE) && cp_owned_state_enabled;
     if(functional_camera_enabled && native_functional_camera_control_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && functional_still_format_owner_init())functional_camera_enabled=0;
+    still_format_ticket_pid=(unsigned int)getpid();
+    if(functional_camera_enabled && functional_startup_control_owner_init())functional_camera_enabled=0;
+    startup_control_ticket_pid=(unsigned int)getpid();
     if(functional_profile){
         char text[360];snprintf(text,sizeof text,
             "requested=%s enabled=%u pid=%d abi=1 functional_model=1 image_bus=RGB888 before_any_input=1 backend_initialized=0 constructor_RPC=0 physical_ASIC_verified=0 original_CP=0 capture_verified=0",
@@ -1205,7 +1219,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_",
             "FULL_DMM_UNIT_",
-            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
+            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
             "GUI_PROPERTY_",
@@ -1891,8 +1905,8 @@ PROBE_RESTORE_ARGS
 "    br x16\n"
 );
 extern void queue_loop_probe_trampoline(void), dep_wait_probe_trampoline(void);
-static void arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
-                            void *continue_address, const char *label);
+static int arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
+                           void *continue_address, const char *label);
 static int dep_wait_probe_armed;
 static void install_dep_wait_probe(unsigned long base) {
     if (dep_wait_probe_armed) return;
@@ -2252,8 +2266,9 @@ static void install_assert_probe(unsigned long base) {
     *(unsigned long *)(base + 0x5bc27c8UL) = (unsigned long)assert_probe_trampoline;
     record("ASSERT_PROBE_ARMED ", "appFw __assert_fail GOT slot 0x5bc27c8");
 }
-static void arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
-                            void *continue_address, const char *label) {
+static int arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
+                           void *continue_address, const char *label) {
+    (void)continue_address;
     unsigned long page = target & ~0xfffUL;
     for (int i = 0; i < 4; ++i) {
         if (((const unsigned int *)target)[i] != expected[i]) {
@@ -2262,17 +2277,26 @@ static void arm_entry_probe(unsigned long target, const unsigned int expected[4]
                      ((const unsigned int *)target)[i], expected[i]);
             record("ENTRY_PROBE_MISMATCH ", label);
             record("ENTRY_PROBE_MISMATCH_DETAIL ", text);
-            return;
+            return -EILSEQ;
         }
     }
-    if (mprotect((void *)page, 4096, 7) != 0) { record("ENTRY_PROBE_FAILED ", label); return; }
+    if (mprotect((void *)page, 4096, 7) != 0) {
+        int error = *__errno_location();
+        record("ENTRY_PROBE_FAILED ", label);
+        return -error;
+    }
     unsigned int *code = (unsigned int *)target;
     code[0] = 0x58000050;                        /* ldr x16, [pc, #8] */
     code[1] = 0xd61f0200;                        /* br  x16 */
     *(unsigned long *)(target + 8) = (unsigned long)trampoline;
     clear_cache_range((void *)target, 16);
-    if (mprotect((void *)page, 4096, 5) != 0) record("ENTRY_PROBE_REPROTECT_FAILED ", label);
+    int rc = 0;
+    if (mprotect((void *)page, 4096, 5) != 0) {
+        rc = -*__errno_location();
+        record("ENTRY_PROBE_REPROTECT_FAILED ", label);
+    }
     record("ENTRY_PROBE_ARMED ", label);
+    return rc;
 }
 /* Original request objects are observed only during their owning call. */
 static unsigned int liveview_request_count, liveview_consume_count, liveview_run_count;
@@ -2567,6 +2591,319 @@ static void install_shutter_route_trace(unsigned long base) {
     arm_entry_probe(base+offsets[3],expected[3],shutter_event_trampoline,
                     shutter_event_continue,"shutter business event 0x1e79d64");
     install_shutter_detail_trace(base);
+}
+/* model17c entry observations precede the original setter's prerequisite call and stores. */
+static unsigned int model17c_observer_enabled, model17c_observer_seen;
+static void *model17c_setter_continue;
+static const unsigned int model17c_setter_expected[4] = {
+    0xa9bd7bfd, 0xd2800084, 0x910003fd, 0xa90153f3
+};
+static long model17c_observe_read(int fd, unsigned long pointer, unsigned long offset,
+                                void *value, unsigned long size, int *error) {
+    if (fd < 0 || !pointer) { *error = fd < 0 ? EBADF : EFAULT; return -1; }
+    if (pointer > 0x7fffffffffffffffUL || offset > 0x7fffffffffffffffUL - pointer ||
+        size - 1 > 0x7fffffffffffffffUL - pointer - offset) {
+        *error = EOVERFLOW;
+        return -1;
+    }
+    long bytes = pread(fd, value, size, (long)(pointer + offset));
+    *error = bytes < 0 ? *__errno_location() : 0;
+    return bytes;
+}
+void capture_model17c_setter(unsigned long transaction, unsigned int new_value,
+                             unsigned long caller) {
+    int saved_errno = *__errno_location();
+    if (!__atomic_load_n(&model17c_observer_enabled, __ATOMIC_RELAXED) ||
+        __atomic_load_n(&model17c_observer_seen, __ATOMIC_RELAXED) >= 16) return;
+    unsigned long current = 0, descriptor = 0, scope = 0, descriptor8 = 0;
+    unsigned int model_id = 0, descriptor10 = 0, before = 0;
+    long reads[7] = {-1,-1,-1,-1,-1,-1,-1};
+    int errors[7] = {ENODATA,ENODATA,ENODATA,ENODATA,ENODATA,ENODATA,ENODATA};
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0;
+    reads[2] = model17c_observe_read(fd, transaction, 0x10, &model_id, 4, &errors[2]);
+    reads[0] = model17c_observe_read(fd, transaction, 0, &current, 8, &errors[0]);
+    int id_match = reads[2] == 4 && model_id == 0x17c;
+    int pointer_match = reads[0] == 8 && current == appfw_base + 0x7e5d570UL;
+    if (!id_match && !pointer_match && reads[2] == 4 && reads[0] == 8) {
+        if (fd >= 0) close(fd);
+        *__errno_location() = saved_errno;
+        return;
+    }
+    unsigned int n = __atomic_add_fetch(&model17c_observer_seen, 1, __ATOMIC_RELAXED);
+    if (n > 16) {
+        if (fd >= 0) close(fd);
+        *__errno_location() = saved_errno;
+        return;
+    }
+    reads[1] = model17c_observe_read(fd, transaction, 8, &descriptor, 8, &errors[1]);
+    reads[3] = model17c_observe_read(fd, transaction, 0x18, &scope, 8, &errors[3]);
+    if (reads[1] == 8) {
+        reads[4] = model17c_observe_read(fd, descriptor, 8, &descriptor8, 8, &errors[4]);
+        reads[5] = model17c_observe_read(fd, descriptor, 0x10, &descriptor10, 4, &errors[5]);
+    }
+    if (reads[0] == 8)
+        reads[6] = model17c_observe_read(fd, current, 0, &before, 4, &errors[6]);
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    long caller_offset = caller >= appfw_base && caller - appfw_base < 0x6000000UL ?
+        (long)(caller - appfw_base) : -1;
+    char text[1024];
+    snprintf(text, sizeof text,
+             "site=setter n=%u pid=%d tid=%ld caller_raw=%#lx caller_app=%#lx w1=%#x txn=%#lx current_ptr=%#lx descriptor_ptr=%#lx model_id=%#x scope=%#lx descriptor8=%#lx descriptor10=%#x current_before=%#x identity=%s open_rc=%d open_errno=%d reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld read_errno=%d/%d/%d/%d/%d/%d/%d close_rc=%d close_errno=%d quota=model17c16 observation_only=1 atomic_snapshot=0 phase=before_store original_store_observed=0 return_not_observed=1 original_return_observed=0",
+             n, getpid(), syscall(178), caller, caller_offset, new_value, transaction,
+             current, descriptor, model_id, scope, descriptor8, descriptor10, before,
+             id_match ? "model_id" : pointer_match ? "current_ptr" : "unresolved",
+             fd, open_error, reads[0], reads[1], reads[2], reads[3], reads[4], reads[5], reads[6],
+             errors[0], errors[1], errors[2], errors[3], errors[4], errors[5], errors[6],
+             close_rc, close_error);
+    record("SHUTTER_DETAIL_MODEL17C ", text);
+    *__errno_location() = saved_errno;
+}
+static unsigned int model17c_restore_enabled, model17c_restore_seen;
+static unsigned long model17c_restore_base, model17c_restore_adrp_page;
+static void *model17c_restore_continue __attribute__((used));
+static const unsigned int model17c_restore_expected[4] = {
+    0xa9be7bfd, 0x910003fd, 0xf9000bf3, 0xf002c573
+};
+/* This decodes only the pinned fourth instruction at its original PC, never a relocator. */
+static int model17c_restore_page(unsigned long base, unsigned int opcode, unsigned long *page) {
+    if (!page || !base) return -EFAULT;
+    if (base & 0xfffUL) return -ENOTSUP;
+    if (base > 0x7fffffffffffffffUL - 0x835f8d3UL) return -EOVERFLOW;
+    if (opcode != 0xf002c573u || (opcode & 0x9f00001fu) != 0x90000013u) return -ENOTSUP;
+    unsigned int imm21 = ((opcode >> 29) & 3u) | (((opcode >> 5) & 0x7ffffu) << 2);
+    long displacement = ((long)(imm21 ^ 0x100000u) - 0x100000L) * 4096L;
+    unsigned long original_page = (unsigned long)((long)(0x2aa31c8UL & ~0xfffUL) + displacement);
+    unsigned long runtime_page = (unsigned long)((long)((base + 0x2aa31c8UL) & ~0xfffUL) + displacement);
+    if (original_page != 0x8352000UL || runtime_page != base + original_page) return -ENOTSUP;
+    *page = runtime_page;
+    return 0;
+}
+static unsigned int model17c_publish_enabled, model17c_publish_seen;
+static unsigned long model17c_publish_base;
+static void *model17c_publish_continue __attribute__((used));
+static const unsigned int model17c_publish_expected[4] = {
+    0xa9b97bfd, 0x910003fd, 0xa90153f3, 0xaa0003f3
+};
+/* site 0=restore, 1=pre-arm baseline, 2=descriptor publication; all reads are ordered, not atomic. */
+static void model17c_observe_values(unsigned long base, unsigned long caller,
+                                   unsigned int n, unsigned int site, unsigned long input) {
+    int saved_errno = *__errno_location();
+    unsigned int current = 0, saved = 0, descriptor0 = 0, descriptor10 = 0, input_value = 0;
+    unsigned long descriptor8 = 0;
+    long reads[5];
+    int errors[5], input_error = ENODATA;
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0;
+    long input_bytes = site == 2 ? model17c_observe_read(fd, input, 0, &input_value, 4, &input_error) : -1;
+    reads[0] = model17c_observe_read(fd, base, 0x7e5d570, &current, 4, errors);
+    reads[1] = model17c_observe_read(fd, base, 0x835f8d0, &saved, 4, errors + 1);
+    reads[2] = model17c_observe_read(fd, base, 0x7e5d578, &descriptor0, 4, errors + 2);
+    reads[3] = model17c_observe_read(fd, base, 0x7e5d580, &descriptor8, 8, errors + 3);
+    reads[4] = model17c_observe_read(fd, base, 0x7e5d588, &descriptor10, 4, errors + 4);
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    long caller_offset = base && caller >= base && caller - base < 0x6000000UL ?
+        (long)(caller - base) : -1;
+    char text[1536];
+    snprintf(text, sizeof text,
+             "site=%s n=%u pid=%d tid=%ld base=%#lx caller_raw=%#lx caller_app=%#lx model_id=0x17c input_ptr=%#lx input_u32=%#x input_rc=%ld input_errno=%d current_before=%#x saved_u32=%#x descriptor0=%#x descriptor8=%#lx descriptor10=%#x saved_source=descriptor0_via_2aa319c alias_unproven=1 read_order=current_u32/saved_u32/descriptor0_u32/descriptor8_u64/descriptor10_u32 input_read_before_fields=%u open_rc=%d open_errno=%d reads=%ld/%ld/%ld/%ld/%ld read_errno=%d/%d/%d/%d/%d close_rc=%d close_errno=%d quota=%s observation_only=1 atomic_snapshot=0 phase=%s original_store_observed=0 return_not_observed=1 original_return_observed=0 return_unknown=1",
+             site == 1 ? "baseline" : site == 2 ? "publish" : "restore", n, getpid(), syscall(178), base,
+             caller, caller_offset, input, input_value, input_bytes, input_error,
+             current, saved, descriptor0, descriptor8, descriptor10, site == 2,
+             fd, open_error, reads[0], reads[1], reads[2], reads[3], reads[4],
+             errors[0], errors[1], errors[2], errors[3], errors[4], close_rc, close_error,
+             site == 1 ? "install_attempt" : site == 2 ? "model17c_publish16" : "model17c_restore16",
+             site == 1 ? "install_before_arm" : "before_store");
+    record(site == 1 ? "SHUTTER_DETAIL_MODEL17C_BASELINE " : "SHUTTER_DETAIL_MODEL17C ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_model17c_restore(unsigned long caller) {
+    if (!__atomic_load_n(&model17c_restore_enabled, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&model17c_restore_seen, __ATOMIC_RELAXED) >= 16) return;
+    unsigned int n = __atomic_add_fetch(&model17c_restore_seen, 1, __ATOMIC_RELAXED);
+    if (n <= 16) model17c_observe_values(model17c_restore_base, caller, n, 0, 0);
+}
+void capture_model17c_publish(unsigned long input, unsigned long caller) {
+    if (!__atomic_load_n(&model17c_publish_enabled, __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&model17c_publish_seen, __ATOMIC_RELAXED) >= 16) return;
+    unsigned int n = __atomic_add_fetch(&model17c_publish_seen, 1, __ATOMIC_RELAXED);
+    if (n <= 16) model17c_observe_values(model17c_publish_base, caller, n, 2, input);
+}
+__asm__(".text\n"
+".globl model17c_setter_trampoline\n"
+".type model17c_setter_trampoline, %function\n"
+"model17c_setter_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x2, x30\n"
+"    bl capture_model17c_setter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0xd2800084\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, model17c_setter_continue\n"
+"    ldr x16, [x16, #:lo12:model17c_setter_continue]\n"
+"    br x16\n"
+".globl model17c_restore_trampoline\n"
+".type model17c_restore_trampoline, %function\n"
+"model17c_restore_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x0, x30\n"
+"    bl capture_model17c_restore\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    adrp x16, model17c_restore_adrp_page\n"
+"    ldr x19, [x16, #:lo12:model17c_restore_adrp_page]\n"
+"    adrp x16, model17c_restore_continue\n"
+"    ldr x16, [x16, #:lo12:model17c_restore_continue]\n"
+"    br x16\n"
+".globl model17c_publish_trampoline\n"
+".type model17c_publish_trampoline, %function\n"
+"model17c_publish_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x30\n"
+"    bl capture_model17c_publish\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b97bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, model17c_publish_continue\n"
+"    ldr x16, [x16, #:lo12:model17c_publish_continue]\n"
+"    br x16\n"
+);
+extern void model17c_setter_trampoline(void);
+extern void model17c_restore_trampoline(void);
+extern void model17c_publish_trampoline(void);
+/* These two entries are only 4-byte aligned; keep the house stub but store its literal as u32s. */
+static int model17c_arm_readonly_entry(unsigned long target, const unsigned int expected[4],
+                                      void (*trampoline)(void), const char *label) {
+    if (memcmp((const void *)target, expected, 16)) return -EILSEQ;
+    unsigned long page = target & ~0xfffUL;
+    if (mprotect((void *)page, 4096, 7) != 0) return -*__errno_location();
+    unsigned int *code = (unsigned int *)target;
+    unsigned long address = (unsigned long)trampoline;
+    code[0] = 0x58000050u;
+    code[1] = 0xd61f0200u;
+    code[2] = (unsigned int)address;
+    code[3] = (unsigned int)(address >> 32);
+    clear_cache_range((void *)target, 16);
+    int rc = mprotect((void *)page, 4096, 5) != 0 ? -*__errno_location() : 0;
+    record("ENTRY_PROBE_ARMED ", label);
+    return rc;
+}
+static void install_model17c_restore_observer(unsigned long base) {
+    int saved_errno = *__errno_location();
+    unsigned int original[4] = {0}, patched[4] = {0};
+    unsigned long decoded_page = 0, literal_readback = 0;
+    long literal_bytes = -1, patch_bytes = -1;
+    int literal_error = ENODATA, patch_error = ENODATA, arm_rc = 0, arm_attempted = 0;
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0, read_error = 0;
+    long bytes = model17c_observe_read(fd, base, 0x2aa31bc, original, 16, &read_error);
+    int rc = fd < 0 ? -open_error : bytes != 16 ? -(read_error ? read_error : EIO) :
+        memcmp(original, model17c_restore_expected, sizeof original) ? -EILSEQ :
+        model17c_restore_page(base, original[3], &decoded_page);
+    if (!rc && model17c_restore_base && model17c_restore_base != base) rc = -ENOTSUP;
+    if (!rc) {
+        model17c_restore_base = base;
+        model17c_restore_adrp_page = decoded_page;
+        model17c_restore_continue = (void *)(base + 0x2aa31ccUL);
+        literal_bytes = model17c_observe_read(fd, (unsigned long)&model17c_restore_adrp_page,
+                                            0, &literal_readback, 8, &literal_error);
+        if (literal_bytes != 8) rc = -(literal_error ? literal_error : EIO);
+        else if (literal_readback != decoded_page) rc = -EILSEQ;
+    }
+    if (!rc) {
+        __atomic_store_n(&model17c_restore_enabled, 1, __ATOMIC_RELEASE);
+        arm_attempted = 1;
+        arm_rc = model17c_arm_readonly_entry(base + 0x2aa31bcUL, model17c_restore_expected,
+            model17c_restore_trampoline, "model17c restore 0x2aa31bc");
+        patch_bytes = model17c_observe_read(fd, base, 0x2aa31bc, patched, 16, &patch_error);
+        const unsigned long stub[2] = {0xd61f020058000050UL, (unsigned long)model17c_restore_trampoline};
+        rc = arm_rc ? arm_rc : patch_bytes != 16 ? -(patch_error ? patch_error : EIO) :
+            memcmp(patched, stub, sizeof patched) ? -EILSEQ : 0;
+    }
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    char text[768];
+    snprintf(text, sizeof text,
+             "site=restore pid=%d target=appFw+0x2aa31bc base=%#lx rc=%d errno=%d open_rc=%d open_errno=%d read_rc=%ld read_errno=%d original_words=%08x/%08x/%08x/%08x decoded_page=%#lx literal_read_rc=%ld literal_read_errno=%d literal_readback=%#lx arm_attempted=%d arm_rc=%d arm_errno=%d patch_read_rc=%ld patch_read_errno=%d patch_words=%08x/%08x/%08x/%08x close_rc=%d close_errno=%d observation_only=1 original_store_observed=0 return_not_observed=1",
+             getpid(), base, rc, rc < 0 ? -rc : 0, fd, open_error, bytes, read_error,
+             original[0], original[1], original[2], original[3], decoded_page,
+             literal_bytes, literal_error, literal_readback, arm_attempted, arm_rc,
+             arm_rc < 0 ? -arm_rc : 0, patch_bytes, patch_error,
+             patched[0], patched[1], patched[2], patched[3], close_rc, close_error);
+    record("SHUTTER_DETAIL_MODEL17C_PROBE ", text);
+    *__errno_location() = saved_errno;
+}
+static void install_model17c_publish_observer(unsigned long base) {
+    int saved_errno = *__errno_location();
+    unsigned int original[4] = {0}, patched[4] = {0};
+    int arm_attempted = 0, arm_rc = 0, patch_error = ENODATA;
+    long patch_bytes = -1;
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0, read_error = 0;
+    long bytes = model17c_observe_read(fd, base, 0x2aeff5c, original, 16, &read_error);
+    int rc = fd < 0 ? -open_error : bytes != 16 ? -(read_error ? read_error : EIO) :
+        memcmp(original, model17c_publish_expected, sizeof original) ? -EILSEQ :
+        !base ? -EFAULT : (base & 0xfffUL) ? -ENOTSUP :
+        base > 0x7fffffffffffffffUL - 0x835f8d3UL ? -EOVERFLOW : 0;
+    if (!rc && model17c_publish_base && model17c_publish_base != base) rc = -ENOTSUP;
+    if (!rc) {
+        model17c_publish_base = base;
+        model17c_publish_continue = (void *)(base + 0x2aeff6cUL);
+        __atomic_store_n(&model17c_publish_enabled, 1, __ATOMIC_RELEASE);
+        arm_attempted = 1;
+        arm_rc = model17c_arm_readonly_entry(base + 0x2aeff5cUL, model17c_publish_expected,
+            model17c_publish_trampoline, "model17c publish 0x2aeff5c");
+        patch_bytes = model17c_observe_read(fd, base, 0x2aeff5c, patched, 16, &patch_error);
+        const unsigned long stub[2] = {0xd61f020058000050UL, (unsigned long)model17c_publish_trampoline};
+        rc = arm_rc ? arm_rc : patch_bytes != 16 ? -(patch_error ? patch_error : EIO) :
+            memcmp(patched, stub, sizeof patched) ? -EILSEQ : 0;
+    }
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    char text[768];
+    snprintf(text, sizeof text,
+             "site=publish pid=%d target=appFw+0x2aeff5c base=%#lx rc=%d errno=%d open_rc=%d open_errno=%d read_rc=%ld read_errno=%d original_words=%08x/%08x/%08x/%08x arm_attempted=%d arm_rc=%d arm_errno=%d patch_read_rc=%ld patch_read_errno=%d patch_words=%08x/%08x/%08x/%08x close_rc=%d close_errno=%d observation_only=1 original_store_observed=0 return_not_observed=1",
+             getpid(), base, rc, rc < 0 ? -rc : 0, fd, open_error, bytes, read_error,
+             original[0], original[1], original[2], original[3], arm_attempted, arm_rc,
+             arm_rc < 0 ? -arm_rc : 0, patch_bytes, patch_error,
+             patched[0], patched[1], patched[2], patched[3], close_rc, close_error);
+    record("SHUTTER_DETAIL_MODEL17C_PROBE ", text);
+    *__errno_location() = saved_errno;
+}
+static void install_model17c_observer(unsigned long base) {
+    int saved_errno = *__errno_location();
+    model17c_observe_values(base, 0, 0, 1, 0);
+    unsigned int original[4] = {0};
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0, read_error = 0;
+    long bytes = model17c_observe_read(fd, base, 0x267b698, original, 16, &read_error);
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    int rc = fd < 0 ? -open_error : bytes != 16 ? -(read_error ? read_error : EIO) :
+        memcmp(original, model17c_setter_expected, sizeof original) ? -EILSEQ : 0;
+    if (!rc) {
+        model17c_setter_continue = (void *)(base + 0x267b6a8UL);
+        __atomic_store_n(&model17c_observer_enabled, 1, __ATOMIC_RELAXED);
+        rc = arm_entry_probe(base + 0x267b698UL, model17c_setter_expected,
+            model17c_setter_trampoline, model17c_setter_continue, "model17c setter 0x267b698");
+    }
+    char text[512];
+    snprintf(text, sizeof text,
+             "site=setter pid=%d target=appFw+0x267b698 rc=%d errno=%d open_rc=%d open_errno=%d read_rc=%ld read_errno=%d close_rc=%d close_errno=%d original_words=%08x/%08x/%08x/%08x observation_only=1 original_store_observed=0",
+             getpid(), rc, rc < 0 ? -rc : 0, fd, open_error, bytes, read_error, close_rc,
+             close_error, original[0], original[1], original[2], original[3]);
+    record("SHUTTER_DETAIL_MODEL17C_PROBE ", text);
+    install_model17c_restore_observer(base);
+    install_model17c_publish_observer(base);
+    *__errno_location() = saved_errno;
 }
 /* Read-only shutter detail probes.  The receiver-return probe at 0x1e79158
    was retired after an isolated AppFw instruction fault; final handlers are
@@ -3022,9 +3359,10 @@ void capture_mode_dependency(unsigned long object, unsigned long predecessor,
 void capture_mode_schedule(unsigned long manager, unsigned long object,
                            unsigned int id, unsigned long caller) {
     int saved_errno = *__errno_location();
-    if (id != 0x2f) { *__errno_location() = saved_errno; return; }
-    static unsigned int seen;
-    unsigned int n = __atomic_add_fetch(&seen, 1, __ATOMIC_RELAXED);
+    if (id != 0x2f && id != 0x7e) { *__errno_location() = saved_errno; return; }
+    /* Startup mode traffic must not spend the capture observation quota. */
+    static unsigned int seen[2];
+    unsigned int n = __atomic_add_fetch(&seen[id == 0x7e], 1, __ATOMIC_RELAXED);
     if (n > 16) { *__errno_location() = saved_errno; return; }
     int group = -1;
     unsigned long current = 0, queued = 0, control = 0;
@@ -3047,12 +3385,12 @@ void capture_mode_schedule(unsigned long manager, unsigned long object,
             current_id_bytes = pread(fd, &current_id, 4, (long)(control + 0x8));
     }
     if (fd >= 0) close(fd);
-    char text[448];
+    char text[640];
     snprintf(text, sizeof text,
-             "n=%u tid=%ld sequence_id=%#x group=%d current_id=%#x queued=%lu stop=%#x manager=%#lx object=%#lx group_base=%#lx caller=appFw+%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1",
+             "n=%u tid=%ld sequence_id=%#x group=%d current_id=%#x queued=%lu stop=%#x manager=%#lx object=%#lx group_base=%#lx caller=appFw+%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1 quota=%s caller_raw=%#lx atomic_snapshot=0 original_return_observed=0 original_branch_observed=0",
              n, syscall(178), id, group, current_id, queued, stop, manager, object,
              group_base, caller - appfw_base, group_bytes, current_bytes, stop_bytes,
-             queued_bytes, control_bytes, current_id_bytes);
+             queued_bytes, control_bytes, current_id_bytes, id == 0x7e ? "target7e" : "generic", caller);
     record("MODE_SCHEDULE ", text);
     *__errno_location() = saved_errno;
 }
@@ -3903,6 +4241,140 @@ extern void ee_sequence_still_send_trampoline(void), ee_sequence_movie_send_tram
 extern void sequence_create_trampoline(void), mode_factory_table_trampoline(void), mode_factory_direct_trampoline(void);
 extern void mode_dependency_trampoline(void), mode_schedule_trampoline(void), clock_sequence_trampoline(void);
 static void enable_sequence_queue_observer(unsigned long base);
+/* Read-only power-on entry observations. */
+static unsigned int poweron_observer_enabled[2], poweron_observer_seen[2];
+static unsigned long poweron_observer_base;
+static void *poweron_dispatch_continue __attribute__((used));
+static void *poweron_callback_continue __attribute__((used));
+static const unsigned int poweron_dispatch_expected[4] = {
+    0xa9bc7bfdu, 0x910003fdu, 0xa90153f3u, 0xaa0003f3u
+};
+static const unsigned int poweron_callback_expected[4] = {
+    0xa9be7bfdu, 0x52800001u, 0x910003fdu, 0xf9000bf3u
+};
+static void poweron_observe_gate(unsigned long controller, unsigned int raw,
+                                 unsigned long caller, unsigned int site, unsigned int n) {
+    int saved_errno = *__errno_location();
+    unsigned long vptr = 0;
+    unsigned short field300 = 0;
+    unsigned char field302 = 0, field303 = 0;
+    unsigned int current17c = 0, model_m = 0, model_k = 0;
+    long reads[7];
+    int errors[7];
+    int fd = open("/proc/self/mem", 0);
+    int open_error = fd < 0 ? *__errno_location() : 0;
+    reads[0] = model17c_observe_read(fd, controller, 0, &vptr, 8, errors);
+    reads[1] = model17c_observe_read(fd, controller, 0x300, &field300, 2, errors + 1);
+    reads[2] = model17c_observe_read(fd, controller, 0x302, &field302, 1, errors + 2);
+    reads[3] = model17c_observe_read(fd, controller, 0x303, &field303, 1, errors + 3);
+    reads[4] = model17c_observe_read(fd, poweron_observer_base, 0x7e5d570, &current17c, 4, errors + 4);
+    reads[5] = model17c_observe_read(fd, poweron_observer_base, 0x7e6a7c8, &model_m, 4, errors + 5);
+    reads[6] = model17c_observe_read(fd, poweron_observer_base, 0x7e739a8, &model_k, 4, errors + 6);
+    int close_rc = fd < 0 ? -1 : close(fd);
+    int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+    char text[1536];
+    snprintf(text, sizeof text,
+             "site=%s n=%u pid=%d tid=%ld base=%#lx controller=%#lx caller_raw=%#lx caller_app=%#lx raw_u32=%#x raw_known=%u numeric_route_match=%u vptr=%#lx field300=%#x field302=%#x field303=%#x current17c=%#x model_m=%#x model_k=%#x open_rc=%d open_errno=%d reads=%ld/%ld/%ld/%ld/%ld/%ld/%ld read_errno=%d/%d/%d/%d/%d/%d/%d close_rc=%d close_errno=%d quota=poweron_entry16 observation_only=1 atomic_snapshot=0 phase=entry original_branch_observed=0 original_store_observed=0 original_return_observed=0 event_id_unverified=1 producer_unknown=1 capture_verified=0",
+             site ? "callback" : "dispatch", n, getpid(), syscall(178), poweron_observer_base,
+             controller, caller, caller >= poweron_observer_base ? caller - poweron_observer_base : ~0UL,
+             raw, site ? 0u : 1u, site ? 0u : 1u, vptr, (unsigned int)field300,
+             (unsigned int)field302, (unsigned int)field303, current17c, model_m, model_k,
+             fd, open_error, reads[0], reads[1], reads[2], reads[3], reads[4], reads[5], reads[6],
+             errors[0], errors[1], errors[2], errors[3], errors[4], errors[5], errors[6], close_rc, close_error);
+    record("SHUTTER_DETAIL_POWERON ", text);
+    *__errno_location() = saved_errno;
+}
+void capture_poweron_dispatch(unsigned long controller, unsigned int raw, unsigned long caller) {
+    if (!__atomic_load_n(&poweron_observer_enabled[0], __ATOMIC_ACQUIRE) ||
+        (raw & 0xff000fffu) != 0x01000090u ||
+        __atomic_load_n(&poweron_observer_seen[0], __ATOMIC_RELAXED) >= 16) return;
+    unsigned int n = __atomic_add_fetch(&poweron_observer_seen[0], 1, __ATOMIC_RELAXED);
+    if (n <= 16) poweron_observe_gate(controller, raw, caller, 0, n);
+}
+void capture_poweron_callback(unsigned long controller, unsigned long caller) {
+    if (!__atomic_load_n(&poweron_observer_enabled[1], __ATOMIC_ACQUIRE) ||
+        __atomic_load_n(&poweron_observer_seen[1], __ATOMIC_RELAXED) >= 16) return;
+    unsigned int n = __atomic_add_fetch(&poweron_observer_seen[1], 1, __ATOMIC_RELAXED);
+    if (n <= 16) poweron_observe_gate(controller, 0, caller, 1, n);
+}
+__asm__(
+".text\n"
+".globl poweron_dispatch_trampoline\n"
+".type poweron_dispatch_trampoline, %function\n"
+"poweron_dispatch_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov w1, w2\n"
+"    mov x2, x30\n"
+"    bl capture_poweron_dispatch\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, poweron_dispatch_continue\n"
+"    ldr x16, [x16, #:lo12:poweron_dispatch_continue]\n"
+"    br x16\n"
+".globl poweron_callback_trampoline\n"
+".type poweron_callback_trampoline, %function\n"
+"poweron_callback_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x1, x30\n"
+"    bl capture_poweron_callback\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9be7bfd\n"
+"    .inst 0x52800001\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9000bf3\n"
+"    adrp x16, poweron_callback_continue\n"
+"    ldr x16, [x16, #:lo12:poweron_callback_continue]\n"
+"    br x16\n"
+);
+extern void poweron_dispatch_trampoline(void);
+extern void poweron_callback_trampoline(void);
+static void install_poweron_observers(unsigned long base) {
+    int saved_errno = *__errno_location();
+    const unsigned long offsets[2] = {0x1951844UL, 0x209f300UL};
+    const unsigned int *expected[2] = {poweron_dispatch_expected, poweron_callback_expected};
+    void (*trampolines[2])(void) = {poweron_dispatch_trampoline, poweron_callback_trampoline};
+    void **continuations[2] = {&poweron_dispatch_continue, &poweron_callback_continue};
+    int invalid = !base ? -EFAULT : (base & 0xfffUL) ? -ENOTSUP :
+        base > 0x7fffffffffffffffUL - 0x7e739abUL ? -EOVERFLOW :
+        poweron_observer_base && poweron_observer_base != base ? -ENOTSUP : 0;
+    for (unsigned int site = 0; site < 2; site++) {
+        unsigned int original[4] = {0}, patched[4] = {0};
+        int fd = invalid ? -1 : open("/proc/self/mem", 0);
+        int open_error = invalid ? ENODATA : fd < 0 ? *__errno_location() : 0;
+        int read_error = invalid ? -invalid : ENODATA, patch_error = ENODATA;
+        long bytes = invalid ? -1 : model17c_observe_read(fd, base, offsets[site], original, 16, &read_error);
+        long patch_bytes = -1;
+        int arm_attempted = 0, arm_rc = 0;
+        int rc = invalid ? invalid : fd < 0 ? -open_error : bytes != 16 ? -(read_error ? read_error : EIO) :
+            memcmp(original, expected[site], sizeof original) ? -EILSEQ : 0;
+        if (!rc) {
+            poweron_observer_base = base;
+            *continuations[site] = (void *)(base + offsets[site] + 16UL);
+            arm_attempted = 1;
+            arm_rc = model17c_arm_readonly_entry(base + offsets[site], expected[site], trampolines[site],
+                site ? "poweron callback 0x209f300" : "poweron dispatcher 0x1951844");
+            patch_bytes = model17c_observe_read(fd, base, offsets[site], patched, 16, &patch_error);
+            const unsigned long stub[2] = {0xd61f020058000050UL, (unsigned long)trampolines[site]};
+            rc = arm_rc ? arm_rc : patch_bytes != 16 ? -(patch_error ? patch_error : EIO) :
+                memcmp(patched, stub, sizeof patched) ? -EILSEQ : 0;
+        }
+        __atomic_store_n(&poweron_observer_enabled[site], rc ? 0u : 1u, __ATOMIC_RELEASE);
+        int close_rc = fd < 0 ? -1 : close(fd);
+        int close_error = fd < 0 ? EBADF : close_rc < 0 ? *__errno_location() : 0;
+        char text[768];
+        snprintf(text, sizeof text,
+                 "site=%s pid=%d target=appFw+%#lx base=%#lx rc=%d errno=%d open_rc=%d open_errno=%d read_rc=%ld read_errno=%d original_words=%08x/%08x/%08x/%08x arm_attempted=%d arm_rc=%d arm_errno=%d patch_read_rc=%ld patch_read_errno=%d patch_words=%08x/%08x/%08x/%08x close_rc=%d close_errno=%d observation_only=1 original_branch_observed=0 original_store_observed=0 original_return_observed=0",
+                 site ? "callback" : "dispatch", getpid(), offsets[site], base, rc, rc < 0 ? -rc : 0,
+                 fd, open_error, bytes, read_error, original[0], original[1], original[2], original[3],
+                 arm_attempted, arm_rc, arm_rc < 0 ? -arm_rc : 0, patch_bytes, patch_error,
+                 patched[0], patched[1], patched[2], patched[3], close_rc, close_error);
+        record("SHUTTER_DETAIL_POWERON_PROBE ", text);
+    }
+    *__errno_location() = saved_errno;
+}
 static void install_shutter_detail_trace(unsigned long base) {
     const char *mode = getenv("MENU_INPUT_ROUTE_DETAIL");
     if (!mode) return; /* Experimental detail probes are independently opt-in. */
@@ -4129,6 +4601,8 @@ static void install_shutter_detail_trace(unsigned long base) {
     if (selected[48]) arm_entry_probe(base+offsets[48],expected[48],clock_sequence_trampoline,
                     clock_sequence_continue,"sequence clock run 0x306f494");
     if (flows) enable_sequence_queue_observer(base);
+    if (flows) install_model17c_observer(base);
+    if (flows) install_poweron_observers(base);
 }
 /* Natural startup frontier: mode transition, enter-rec-still and boot run_i return.
    Separate from MENU_ENTRY_PROBES so the known BOOT_FULFIL +8 continuation hazard is not enabled.
@@ -4660,14 +5134,16 @@ void capture_sequence_queue_enter(const unsigned char *queue,const unsigned long
             record("SEQUENCE_QUEUE ",text);
         }
     }
-    else if(id==0x2f || id==0x12a || id==0x297 || id==0x2b7) {
-        static unsigned int seen;
-        unsigned int n=__atomic_add_fetch(&seen,1,__ATOMIC_RELAXED);
-        if(n<=32) {
-            char text[448];
-            snprintf(text,sizeof text,"site=enqueue n=%u tid=%ld request_id=%#x queue_app=%#lx vector=%#lx request=%#lx predicate=%#lx request_flag=%#x caller_app=%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1",
-                n,syscall(178),id,(unsigned long)queue-appfw_base,vector,request,predicate,
-                request_flag,caller-appfw_base,hv,iv,ri,ib,pb,fb);
+    else if(id==0x2f || id==0x12a || id==0x297 || id==0x2b7 || id==0x7e) {
+        static unsigned int seen[2];
+        unsigned int n=__atomic_add_fetch(&seen[id==0x7e],1,__ATOMIC_RELAXED);
+        if(n<=(id==0x7e?16U:32U)) {
+            char text[640];
+            long tid=syscall(178);
+            snprintf(text,sizeof text,"site=enqueue n=%u tid=%ld request_id=%#x queue_app=%#lx vector=%#lx request=%#lx predicate=%#lx request_flag=%#x caller_app=%#lx reads=%ld/%ld/%ld/%ld/%ld/%ld observation_only=1 quota=%s producer_tid=%ld caller_raw=%#lx atomic_snapshot=0 original_return_observed=0 predicate_return_observed=0",
+                n,tid,id,(unsigned long)queue-appfw_base,vector,request,predicate,
+                request_flag,caller-appfw_base,hv,iv,ri,ib,pb,fb,
+                id==0x7e?"target7e":"generic",tid,caller);
             record("SEQUENCE_QUEUE ",text);
         }
     }
@@ -7011,9 +7487,26 @@ static int tracked_native_reserve_resources(int adf) {
         "FULL_PINMEM_HDMI_VIDEO_CONNECT","FULL_PINMEM_OSD_CONNECT","FULL_ADF_HDMI_AUDIO_CONNECT",
         "NATIVE_CP302C_NOCONVERT","NATIVE_CP_NOTIFICATION","NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC",
         "NATIVE_CP_STARTUP_DIAGNOSTIC","NATIVE_CP_EE_DIAGNOSTIC","NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC","NATIVE_CP_STATE_PUBLICATION",
-        "FUNCTIONAL_CAMERA_CONTROL","FUNCTIONAL_VDF_PATH","FUNCTIONAL_CP_ZOOM","FUNCTIONAL_HISTOGRAM","FUNCTIONAL_BACKGROUND_START"};
+        "FUNCTIONAL_CAMERA_CONTROL","FUNCTIONAL_VDF_PATH","FUNCTIONAL_CP_ZOOM","FUNCTIONAL_HISTOGRAM","FUNCTIONAL_BACKGROUND_START",
+        "FUNCTIONAL_STILL_FORMAT","FUNCTIONAL_STARTUP_CONTROL"};
     if(adf<0 || (unsigned int)adf>=sizeof prefixes/sizeof prefixes[0] || !prefixes[adf])return -1021;
     const char *prefix=prefixes[adf];char tag[100];
+    if(adf!=31 && __atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE)) {
+        struct functional_startup_control_snapshot startup={0};functional_startup_control_snapshot(&startup);
+        if(startup.owner_pid!=getpid() || !startup.initialized || startup.busy || startup.guard_held || startup.faults ||
+           startup.retained || (startup.requests && !startup.ap_consumed)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_startup_control_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
+    if(adf!=30 && __atomic_load_n(&functional_still_format_used,__ATOMIC_ACQUIRE)) {
+        struct functional_still_format_snapshot format={0};functional_still_format_snapshot(&format);
+        if(format.owner_pid!=getpid() || !format.initialized || format.busy || format.guard_held || format.faults ||
+           format.retained || (format.requests && !format.ap_consumed)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_still_format_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
     /* Only prior owners are inspected; current endpoint callbacks need no private lock. */
     if(adf>=2) {
         struct full_adf_proc_snapshot procSnapshot={0};
@@ -7322,6 +7815,31 @@ static int cp_capture_format_predecessors_ready_for(long sender) {
         (unsigned int)policy.config_consumed,policy.known_mask);
     record("NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_PREDECESSORS ",text);return ready;
 }
+static int functional_still_format_reserve_resources(void) {return tracked_native_reserve_resources(30);}
+static int functional_still_format_predecessors_ready(void) {
+    long sender=syscall(178);
+    if(!cp_capture_format_predecessors_ready_for(sender) || !cp302c_no_transition_predecessors_ready())return 0;
+    struct native_cp_capture_format_diagnostic_snapshot prior={0};
+    struct functional_vdf_path_snapshot path={0};
+    struct functional_still_format_snapshot format={0};
+    native_cp_capture_format_diagnostic_snapshot(&prior);functional_vdf_path_snapshot(&path);
+    functional_still_format_snapshot(&format);
+    int ready=prior.owner_pid==getpid() && prior.initialized && prior.requests==1 && prior.diagnostic_only &&
+        prior.no_publication && prior.clean_completion && prior.ap_consumed && prior.request_freed && prior.reply_freed &&
+        !prior.busy && !prior.guard_held && !prior.faults && !prior.send_rc && !prior.request_free_rc && !prior.reply_free_rc &&
+        !prior.retained_request && !prior.live_reply && !prior.retained_cleanup && prior.sender_tid==sender &&
+        prior.waiter_tid==sender && prior.reply_free_destination==0x80020002u && prior.reply_free_source==0x90030001u &&
+        prior.reply_free_bytes==12 && !memcmp(prior.reply_wire,prior.freed_reply_wire,12) &&
+        path.owner_pid==getpid() && path.initialized && path.model_initialized && path.model_complete && path.ap_consumed &&
+        path.model_instance && (!format.state_valid || format.model_instance==path.model_instance) &&
+        path.canonical_config[0]==1 && path.canonical_config[1]==5 && path.canonical_config[2]==5 &&
+        !path.busy && !path.guard_held && !path.faults && !path.leases[0].pointer && !path.leases[1].pointer &&
+        !path.leases[0].releasing && !path.leases[1].releasing && !path.leases[1].send_inflight;
+    char text[320];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u initial_diagnostic_requests=%u initial_diagnostic_AP_consumed=%u VDF_AP_consumed=%u model_instance=%llu source_business_equivalent=0 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),sender,(unsigned int)ready,prior.requests,prior.ap_consumed,path.ap_consumed,(unsigned long long)path.model_instance);
+    record("FUNCTIONAL_STILL_FORMAT_PREDECESSORS ",text);return ready;
+}
 static int cp_capture_format_predecessors_ready(void) {return cp_capture_format_predecessors_ready_for(syscall(178));}
 static int cp_startup_controls_reserve_resources(void) {return tracked_native_reserve_resources(21);}
 static int cp_startup_controls_predecessors_ready_for(long sender) {
@@ -7380,6 +7898,41 @@ static int cp_ee_controls_predecessors_ready(void) {
         "pid=%d tid=%ld accepted=%u predecessor_sender=%ld required_controls=%u completed=%u diagnostic_only=1 data_3003_supported=0 business_applied=0 EE_verified=0 capture_verified=0",
         getpid(),syscall(178),(unsigned int)ready,sender,required,prior.completed);
     record("NATIVE_CP_EE_DIAGNOSTIC_PREDECESSORS ",text);return ready;
+}
+static int functional_startup_control_reserve_resources(void) {return tracked_native_reserve_resources(31);}
+static int functional_startup_control_predecessors_ready(void) {
+    int initial_ready=cp_ee_controls_predecessors_ready();
+    int graph_ready=cp302c_no_transition_predecessors_ready();
+    struct native_cp_startup_controls_diagnostic_snapshot prior={0};
+    struct functional_vdf_path_snapshot path={0};
+    struct functional_still_format_snapshot format={0};
+    struct functional_startup_control_snapshot startup={0};
+    native_cp_startup_controls_diagnostic_snapshot(&prior);functional_vdf_path_snapshot(&path);
+    functional_still_format_snapshot(&format);functional_startup_control_snapshot(&startup);
+    unsigned int mode_requests=0,mode_consumed=0,settings_requests=0,settings_consumed=0;
+    for(unsigned int i=0;i<CP_STARTUP_CONTROLS_COMMANDS;i++) {
+        if(prior.leases[i].opcode==0x4014) {mode_requests=prior.leases[i].requests;mode_consumed=prior.leases[i].ap_consumed;}
+        if(prior.leases[i].opcode==0x4057) {settings_requests=prior.leases[i].requests;settings_consumed=prior.leases[i].ap_consumed;}
+    }
+    int ready=initial_ready==1 && graph_ready==1 && mode_requests==1 && mode_consumed==1 &&
+        settings_requests==1 && settings_consumed==1 &&
+        path.owner_pid==getpid() && path.initialized && path.model_initialized && path.model_complete && path.ap_consumed &&
+        path.model_instance && path.canonical_config[0]==1 && path.canonical_config[1]==5 && path.canonical_config[2]==5 &&
+        !path.busy && !path.guard_held && !path.faults && !path.leases[0].pointer && !path.leases[1].pointer &&
+        !path.leases[0].releasing && !path.leases[1].releasing && !path.leases[1].send_inflight &&
+        format.owner_pid==getpid() && format.initialized && format.state_valid && format.model_complete &&
+        format.requests && format.completed_cycles==format.requests && format.ap_consumed &&
+        !format.busy && !format.guard_held && !format.faults && !format.retained &&
+        !format.leases[0].pointer && !format.leases[1].pointer && format.leases[0].freed && format.leases[1].freed &&
+        !format.leases[0].releasing && !format.leases[1].releasing && !format.leases[1].send_inflight &&
+        format.model_instance==path.model_instance && startup.owner_pid==getpid() && startup.initialized &&
+        (!startup.state_valid || startup.model_instance==path.model_instance);
+    char text[600];snprintf(text,sizeof text,
+        "pid=%d tid=%ld accepted=%u initial_mode_requests=%u initial_mode_AP_consumed=%u initial_settings_requests=%u initial_settings_AP_consumed=%u all13_AP_consumed=%u VDF_AP_consumed=%u still_format_AP_consumed=%u still_format_cycle=%llu model_instance=%llu source_business_equivalent=0 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned int)ready,mode_requests,mode_consumed,settings_requests,settings_consumed,
+        (unsigned int)(graph_ready==1),path.ap_consumed,format.ap_consumed,(unsigned long long)format.cycle,
+        (unsigned long long)path.model_instance);
+    record("FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS ",text);return ready;
 }
 static int cp_movie_format_reserve_resources(void) {return tracked_native_reserve_resources(23);}
 static int cp_movie_format_predecessors_ready(void) {
@@ -8268,10 +8821,192 @@ static int native_histogram_release(unsigned int id,void *message,int *result) {
     if(handled && !*result && selected>=0)__atomic_store_n(&functional_histogram_tickets[selected].ready,0,__ATOMIC_RELEASE);
     return handled;
 }
+static uint64_t native_still_format_ticket_for(unsigned int destination,void *pointer) {
+    if(__atomic_load_n(&still_format_ticket_ready,__ATOMIC_ACQUIRE)!=2 ||
+       __atomic_load_n(&still_format_ticket_pid,__ATOMIC_RELAXED)!=(unsigned int)getpid())return 0;
+    uint64_t cycle=__atomic_load_n(&still_format_ticket_cycle,__ATOMIC_RELAXED);
+    unsigned long address=__atomic_load_n(&still_format_ticket_pointer,__ATOMIC_RELAXED);
+    unsigned int target=__atomic_load_n(&still_format_ticket_destination,__ATOMIC_RELAXED);
+    return cycle && address==(unsigned long)pointer && target==destination &&
+        __atomic_load_n(&still_format_ticket_ready,__ATOMIC_ACQUIRE)==2 &&
+        __atomic_load_n(&still_format_ticket_cycle,__ATOMIC_RELAXED)==cycle?cycle:0;
+}
+static void native_still_format_report_fault(void) {
+    int saved_errno=*__errno_location();
+    struct functional_still_format_snapshot s={0};functional_still_format_snapshot(&s);
+    if(s.owner_pid==getpid() && ((s.request_owned && s.faults) || functional_camera_setup_error)) {
+        char text[320];snprintf(text,sizeof text,
+            "pid=%d tid=%ld cycle=%llu request_owned=%u faults=%u retained=%u transport_rc=%d setup_error=%d original_state_preserved=1 capture_verified=0",
+            getpid(),syscall(178),(unsigned long long)s.cycle,s.request_owned,s.faults,s.retained,s.transport_rc,
+            functional_camera_setup_error);
+        record("FUNCTIONAL_STILL_FORMAT_INTEGRATION_FAULT ",text);
+    }
+    *__errno_location()=saved_errno;
+}
+static int native_still_format_real_free(unsigned int destination,void *pointer) {
+    uint64_t cycle=native_still_format_ticket_for(destination,pointer);
+    int rc=real_free_msg(destination,pointer),saved_errno=*__errno_location();
+    if(!rc && cycle) {
+        unsigned int expected=2;
+        if(__atomic_compare_exchange_n(&still_format_ticket_ready,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
+            if(__atomic_load_n(&still_format_ticket_cycle,__ATOMIC_RELAXED)==cycle &&
+               __atomic_load_n(&still_format_ticket_pointer,__ATOMIC_RELAXED)==(unsigned long)pointer &&
+               __atomic_load_n(&still_format_ticket_destination,__ATOMIC_RELAXED)==destination) {
+                /* Clear before the owner publishes AP consumption and admits its next cycle. */
+                __atomic_store_n(&still_format_ticket_pointer,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&still_format_ticket_destination,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&still_format_ticket_cycle,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&still_format_ticket_ready,0,__ATOMIC_RELEASE);
+            } else {
+                __atomic_store_n(&still_format_ticket_ready,2,__ATOMIC_RELEASE);
+                functional_camera_setup_error=-ESTALE;
+                record("FUNCTIONAL_STILL_FORMAT_TICKET_CLEAR_REFUSED ","cycle_identity_changed=1 actual_original_free_rc=0 capture_verified=0");
+            }
+        } else {
+            functional_camera_setup_error=-ESTALE;
+            record("FUNCTIONAL_STILL_FORMAT_TICKET_CLEAR_REFUSED ","ticket_not_stable=1 actual_original_free_rc=0 capture_verified=0");
+        }
+    }
+    *__errno_location()=saved_errno;return rc;
+}
+static int native_still_format_send(unsigned int destination,void *pointer) {
+    int saved_errno=*__errno_location();
+    struct functional_still_format_snapshot s={0};functional_still_format_snapshot(&s);
+    if(s.owner_pid!=getpid() || !s.initialized || !s.request_owned || !s.model_complete || !s.leases[0].freed ||
+       !s.cycle || s.leases[1].pointer!=pointer || s.leases[1].destination!=destination ||
+       s.leases[1].source!=FUNCTIONAL_STILL_FORMAT_SID || s.leases[1].bytes!=12 ||
+       s.leases[1].sender_tid!=syscall(178) || !s.leases[1].send_inflight || s.faults ||
+       !real_msg_size || !real_get_source || real_msg_size(pointer)!=12 ||
+       real_get_source(pointer)!=FUNCTIONAL_STILL_FORMAT_SID || memcmp(pointer,s.reply_wire,12) ||
+       __atomic_load_n(&still_format_ticket_pid,__ATOMIC_RELAXED)!=(unsigned int)getpid()) {
+        *__errno_location()=saved_errno;return -EPROTO;
+    }
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&still_format_ticket_ready,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
+        *__errno_location()=saved_errno;return -EBUSY;
+    }
+    __atomic_store_n(&still_format_ticket_pointer,(unsigned long)pointer,__ATOMIC_RELAXED);
+    __atomic_store_n(&still_format_ticket_destination,destination,__ATOMIC_RELAXED);
+    __atomic_store_n(&still_format_ticket_cycle,s.cycle,__ATOMIC_RELAXED);
+    __atomic_store_n(&still_format_ticket_ready,2,__ATOMIC_RELEASE);
+    unsigned int cookie=s.reply_wire[4]|(unsigned int)s.reply_wire[5]<<8|
+        (unsigned int)s.reply_wire[6]<<16|(unsigned int)s.reply_wire[7]<<24;
+    char reply[25],text[400];
+    for(unsigned int i=0;i<12;i++)snprintf(reply+2*i,3,"%02x",s.reply_wire[i]);
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld cycle=%llu pointer=%p destination=%#x source=%#x bytes=12 cookie=%#x reply=%s before_actual_send=1 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned long long)s.cycle,pointer,destination,FUNCTIONAL_STILL_FORMAT_SID,cookie,reply);
+    record("FUNCTIONAL_STILL_FORMAT_TICKET_BOUND ",text);
+    *__errno_location()=saved_errno;return real_send_msg(destination,pointer);
+}
+static void native_still_format_received(unsigned int destination,void *pointer,unsigned int source,unsigned int bytes) {
+    uint64_t cycle=native_still_format_ticket_for(destination,pointer);
+    (void)functional_still_format_observe_receive_cycle(destination,pointer,source,bytes,cycle);
+    native_still_format_report_fault();
+}
+static int native_functional_still_format_release(unsigned int destination,void *pointer,int *result) {
+    uint64_t cycle=native_still_format_ticket_for(destination,pointer);
+    int handled=functional_still_format_release_cycle(destination,pointer,native_still_format_real_free,record,result,cycle);
+    if(handled)native_still_format_report_fault();
+    return handled;
+}
+static uint64_t native_startup_control_ticket_for(unsigned int destination,void *pointer) {
+    if(__atomic_load_n(&startup_control_ticket_ready,__ATOMIC_ACQUIRE)!=2 ||
+       __atomic_load_n(&startup_control_ticket_pid,__ATOMIC_RELAXED)!=(unsigned int)getpid())return 0;
+    uint64_t cycle=__atomic_load_n(&startup_control_ticket_cycle,__ATOMIC_RELAXED);
+    unsigned long address=__atomic_load_n(&startup_control_ticket_pointer,__ATOMIC_RELAXED);
+    unsigned int target=__atomic_load_n(&startup_control_ticket_destination,__ATOMIC_RELAXED);
+    return cycle && address==(unsigned long)pointer && target==destination &&
+        __atomic_load_n(&startup_control_ticket_ready,__ATOMIC_ACQUIRE)==2 &&
+        __atomic_load_n(&startup_control_ticket_cycle,__ATOMIC_RELAXED)==cycle?cycle:0;
+}
+static void native_startup_control_report_fault(void) {
+    int saved_errno=*__errno_location();
+    struct functional_startup_control_snapshot s={0};functional_startup_control_snapshot(&s);
+    if(s.owner_pid==getpid() && ((s.request_owned && s.faults) || functional_camera_setup_error)) {
+        char text[320];snprintf(text,sizeof text,
+            "pid=%d tid=%ld cycle=%llu request_owned=%u faults=%u retained=%u transport_rc=%d setup_error=%d original_state_preserved=1 capture_verified=0",
+            getpid(),syscall(178),(unsigned long long)s.cycle,s.request_owned,s.faults,s.retained,s.transport_rc,
+            functional_camera_setup_error);
+        record("FUNCTIONAL_STARTUP_CONTROL_INTEGRATION_FAULT ",text);
+    }
+    *__errno_location()=saved_errno;
+}
+static int native_startup_control_real_free(unsigned int destination,void *pointer) {
+    uint64_t cycle=native_startup_control_ticket_for(destination,pointer);
+    int rc=real_free_msg(destination,pointer),saved_errno=*__errno_location();
+    if(!rc && cycle) {
+        unsigned int expected=2;
+        if(__atomic_compare_exchange_n(&startup_control_ticket_ready,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
+            if(__atomic_load_n(&startup_control_ticket_cycle,__ATOMIC_RELAXED)==cycle &&
+               __atomic_load_n(&startup_control_ticket_pointer,__ATOMIC_RELAXED)==(unsigned long)pointer &&
+               __atomic_load_n(&startup_control_ticket_destination,__ATOMIC_RELAXED)==destination) {
+                /* Clear before the owner publishes AP consumption and admits its next cycle. */
+                __atomic_store_n(&startup_control_ticket_pointer,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&startup_control_ticket_destination,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&startup_control_ticket_cycle,0,__ATOMIC_RELAXED);
+                __atomic_store_n(&startup_control_ticket_ready,0,__ATOMIC_RELEASE);
+            } else {
+                __atomic_store_n(&startup_control_ticket_ready,2,__ATOMIC_RELEASE);
+                functional_camera_setup_error=-ESTALE;
+                record("FUNCTIONAL_STARTUP_CONTROL_TICKET_CLEAR_REFUSED ","cycle_identity_changed=1 actual_original_free_rc=0 capture_verified=0");
+            }
+        } else {
+            functional_camera_setup_error=-ESTALE;
+            record("FUNCTIONAL_STARTUP_CONTROL_TICKET_CLEAR_REFUSED ","ticket_not_stable=1 actual_original_free_rc=0 capture_verified=0");
+        }
+    }
+    *__errno_location()=saved_errno;return rc;
+}
+static int native_startup_control_send(unsigned int destination,void *pointer) {
+    int saved_errno=*__errno_location();
+    struct functional_startup_control_snapshot s={0};functional_startup_control_snapshot(&s);
+    if(s.owner_pid!=getpid() || !s.initialized || !s.request_owned || !s.model_complete || !s.leases[0].freed ||
+       !s.cycle || s.leases[1].pointer!=pointer || s.leases[1].destination!=destination ||
+       s.leases[1].source!=FUNCTIONAL_STARTUP_CONTROL_SID || s.leases[1].bytes!=12 ||
+       s.leases[1].sender_tid!=syscall(178) || !s.leases[1].send_inflight || s.faults ||
+       !real_msg_size || !real_get_source || real_msg_size(pointer)!=12 ||
+       real_get_source(pointer)!=FUNCTIONAL_STARTUP_CONTROL_SID || memcmp(pointer,s.reply_wire,12) ||
+       __atomic_load_n(&startup_control_ticket_pid,__ATOMIC_RELAXED)!=(unsigned int)getpid()) {
+        *__errno_location()=saved_errno;return -EPROTO;
+    }
+    unsigned int expected=0;
+    if(!__atomic_compare_exchange_n(&startup_control_ticket_ready,&expected,1,0,__ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)) {
+        *__errno_location()=saved_errno;return -EBUSY;
+    }
+    __atomic_store_n(&startup_control_ticket_pointer,(unsigned long)pointer,__ATOMIC_RELAXED);
+    __atomic_store_n(&startup_control_ticket_destination,destination,__ATOMIC_RELAXED);
+    __atomic_store_n(&startup_control_ticket_cycle,s.cycle,__ATOMIC_RELAXED);
+    __atomic_store_n(&startup_control_ticket_ready,2,__ATOMIC_RELEASE);
+    unsigned int cookie=s.reply_wire[4]|(unsigned int)s.reply_wire[5]<<8|
+        (unsigned int)s.reply_wire[6]<<16|(unsigned int)s.reply_wire[7]<<24;
+    char reply[25],text[400];
+    for(unsigned int i=0;i<12;i++)snprintf(reply+2*i,3,"%02x",s.reply_wire[i]);
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld cycle=%llu pointer=%p destination=%#x source=%#x bytes=12 cookie=%#x reply=%s before_actual_send=1 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),(unsigned long long)s.cycle,pointer,destination,FUNCTIONAL_STARTUP_CONTROL_SID,cookie,reply);
+    record("FUNCTIONAL_STARTUP_CONTROL_TICKET_BOUND ",text);
+    *__errno_location()=saved_errno;return real_send_msg(destination,pointer);
+}
+static void native_startup_control_received(unsigned int destination,void *pointer,unsigned int source,unsigned int bytes) {
+    uint64_t cycle=native_startup_control_ticket_for(destination,pointer);
+    (void)functional_startup_control_observe_receive_cycle(destination,pointer,source,bytes,cycle);
+    native_startup_control_report_fault();
+}
+static int native_functional_startup_control_release(unsigned int destination,void *pointer,int *result) {
+    uint64_t cycle=native_startup_control_ticket_for(destination,pointer);
+    int handled=functional_startup_control_release_cycle(destination,pointer,native_startup_control_real_free,record,result,cycle);
+    if(handled)native_startup_control_report_fault();
+    return handled;
+}
 static void native_cp_state_received(unsigned int id,void **message,int result) {
     if((!cp_owned_state_enabled && !functional_camera_enabled) || result || !message || !*message || !real_get_source || !real_msg_size)return;
     int saved_errno=*__errno_location();
     if(functional_camera_enabled){
+        if(__atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE))
+            native_startup_control_received(id,*message,real_get_source(*message),real_msg_size(*message));
+        if(__atomic_load_n(&functional_still_format_used,__ATOMIC_ACQUIRE))
+            native_still_format_received(id,*message,real_get_source(*message),real_msg_size(*message));
         native_functional_face_received(id,*message);
         native_background_start_received(id,*message,real_get_source(*message),real_msg_size(*message));
         native_histogram_received(id,*message,real_get_source(*message),real_msg_size(*message));
@@ -8579,6 +9314,10 @@ int osal_free_msg(unsigned int id, void *message) {
     if (!real_free_msg) __builtin_trap();
     int media_mount_trace=trace_media_mount_completion("FULL_MEDIA_MOUNT_FREE_ENTER ",id,message);
     int vdf_result;
+    if(__atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE) &&
+       native_functional_startup_control_release(id,message,&vdf_result))return vdf_result;
+    if(__atomic_load_n(&functional_still_format_used,__ATOMIC_ACQUIRE) &&
+       native_functional_still_format_release(id,message,&vdf_result))return vdf_result;
     if(native_functional_face_release(id,message,&vdf_result))return vdf_result;
     if(native_background_start_release(id,message,&vdf_result))return vdf_result;
     if(__atomic_load_n(&functional_histogram_used,__ATOMIC_ACQUIRE) &&
@@ -9041,6 +9780,27 @@ int osal_snd_msg(unsigned int id, void *message) {
         if(native_cp_notification_dispatch(id,message,&io,&guard,1,&result))return result;
         if(cp_parameter_config_receive(id,message,&result))return result;
     }
+    if(functional_camera_enabled && id==FUNCTIONAL_STILL_FORMAT_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==5 && wire[2]==0x2d && wire[3]==0x40) {
+            if(bytes!=24)return -ENOTSUP;
+            struct native_cp_capture_format_diagnostic_snapshot prior={0};
+            native_cp_capture_format_diagnostic_snapshot(&prior);
+            if(prior.requests) {
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                const struct full_imaging_io io={real_allocate_msg,native_still_format_real_free,real_set_source,
+                    native_still_format_send,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_still_format_reserve_resources,
+                    full_vef_resources_unlock,functional_still_format_predecessors_ready};
+                __atomic_store_n(&functional_still_format_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(functional_still_format_dispatch(id,message,&io,&guard,1,&result)) {
+                    native_still_format_report_fault();return result;
+                }
+                return -ENOTSUP;
+            }
+        }
+    }
     if(cp_capture_format_enabled && id==NATIVE_CP_CAPTURE_FORMAT_SID) {
         __atomic_store_n(&cp_capture_format_used,1,__ATOMIC_RELEASE);
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
@@ -9071,6 +9831,31 @@ int osal_snd_msg(unsigned int id, void *message) {
                 cp_ee_controls_after_movie_predecessors_ready:cp_ee_controls_predecessors_ready};
         int result;
         if(native_cp_ee_controls_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(functional_camera_enabled && id==FUNCTIONAL_STARTUP_CONTROL_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        unsigned int command=bytes>=4?wire[2]|(unsigned int)wire[3]<<8:0;
+        if(bytes>=4 && wire[0]==5 && (command==0x4014 || command==0x4057)) {
+            if(bytes!=(command==0x4014?24u:12u))return -ENOTSUP;
+            struct native_cp_startup_controls_diagnostic_snapshot prior={0};
+            native_cp_startup_controls_diagnostic_snapshot(&prior);
+            unsigned int attempted=0;
+            for(unsigned int i=0;i<CP_STARTUP_CONTROLS_COMMANDS;i++)
+                if(prior.leases[i].opcode==command)attempted=prior.leases[i].requests;
+            if(attempted) {
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                const struct full_imaging_io io={real_allocate_msg,native_startup_control_real_free,real_set_source,
+                    native_startup_control_send,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_startup_control_reserve_resources,
+                    full_vef_resources_unlock,functional_startup_control_predecessors_ready};
+                __atomic_store_n(&functional_startup_control_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(functional_startup_control_dispatch(id,message,&io,&guard,1,&result)) {
+                    native_startup_control_report_fault();return result;
+                }
+                return -ENOTSUP;
+            }
+        }
     }
     if(cp_startup_controls_enabled && id==NATIVE_CP_STARTUP_CONTROLS_SID) {
         __atomic_store_n(&cp_startup_controls_used,1,__ATOMIC_RELEASE);
