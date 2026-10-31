@@ -1,0 +1,70 @@
+{
+  "schema": "readonly_shutter_gate_v1",
+  "profile": "qemu-readonly-shutter-gate-v1",
+  "encoding": "ASCII unique key=value pairs; single spaces; mandatory LF; no CR",
+  "field_order": "kind, kind/site/reason fields in declared order, common fields in declared order",
+  "common_fields_every_line": {
+    "status": "native_unverified",
+    "identity": "unknown",
+    "binding": "unbound",
+    "pid": "unknown",
+    "tid": "unknown",
+    "capture": "0x0",
+    "physical": "0x0",
+    "retirement": "0x0"
+  },
+  "begin_fixed": {
+    "schema": "readonly_shutter_gate_v1",
+    "plugin_api": "0x7",
+    "max_vcpus": "0x1",
+    "sites": "0x4",
+    "site_quota": "0x10",
+    "fault_quota": "0x20",
+    "register_byte_order": "little",
+    "identity_limit": "raw_context_only_no_pid_tid_module_identity"
+  },
+  "kinds": {
+    "begin": ["schema", "plugin_api", "max_vcpus", "sites", "site_quota", "fault_quota", "register_byte_order", "identity_limit"],
+    "end": ["stop", "ambiguous", "candidate_found", "candidate_base", "conflicting_base", "anchor_seen_mask", "site0_records", "site1_records", "site2_records", "site3_records", "gate_sequence", "site0_suppressed", "site1_suppressed", "site2_suppressed", "site3_suppressed", "fault_lines", "faults", "suppressed_faults", "close_result", "site0_unbound_callbacks", "site1_unbound_callbacks", "site2_unbound_callbacks", "site3_unbound_callbacks"]
+  },
+  "shutter_gate_common_fields": ["site", "vcpu", "ordinal", "gate_sequence", "callback_phase", "event_pc", "gdb_pc_raw", "candidate_base", "anchor_length", "entry_anchor", "x0_raw", "x30_raw", "cpsr_raw", "cpsr_m", "context_mode", "nzcv", "nzcv_mask", "sp_available", "sp_raw", "sp_read_length", "sp_api_ok", "ttbr0_el1_available", "ttbr0_el1_raw", "ttbr0_el1_read_length", "ttbr0_el1_api_ok", "tpidr_el0_available", "tpidr_el0_raw", "tpidr_el0_read_length", "tpidr_el0_api_ok", "gdb_pc_read_length", "gdb_pc_api_ok", "x0_read_length", "x0_api_ok", "x30_read_length", "x30_api_ok", "cpsr_read_length", "cpsr_api_ok", "api_ok"],
+  "site_additional_fields": {
+    "final_entry": ["x1_raw", "x1_read_length", "x1_api_ok", "x2_raw", "x2_read_length", "x2_api_ok", "x3_raw", "x3_read_length", "x3_api_ok", "trigger_low32"],
+    "d570_cbnz_pre": ["x19_raw", "x19_read_length", "x19_api_ok", "x22_raw", "x22_read_length", "x22_api_ok", "x23_raw", "x23_read_length", "x23_api_ok", "x29_raw", "x29_read_length", "x29_api_ok", "loaded_w0", "source_taken_prediction", "source_next_pc", "source_next_basis"],
+    "successor_1724_pre": ["x19_raw", "x19_read_length", "x19_api_ok", "x22_raw", "x22_read_length", "x22_api_ok", "x23_raw", "x23_read_length", "x23_api_ok", "x29_raw", "x29_read_length", "x29_api_ok"],
+    "successor_1838_pre": ["x19_raw", "x19_read_length", "x19_api_ok", "x22_raw", "x22_read_length", "x22_api_ok", "x23_raw", "x23_read_length", "x23_api_ok", "x29_raw", "x29_read_length", "x29_api_ok"]
+  },
+  "fault_kinds": {
+    "register_read": ["reason", "site", "reg", "required_length", "read_attempted", "read_length", "api_ok"],
+    "unknown_register": ["reason", "reg", "required_length", "read_attempted", "read_length", "api_ok"],
+    "duplicate_register": ["reason", "reg"],
+    "register_list": ["reason", "descriptor_count"],
+    "vcpu_limit": ["reason", "vcpu", "reinitialized"],
+    "invalid_callback_context": ["reason", "packed_raw", "vcpu"],
+    "invalid_mode": ["reason", "site", "cpsr_raw", "cpsr_m"],
+    "base_conflict": ["reason", "candidate_base", "conflicting_base"],
+    "anchor_changed": ["reason", "site", "translated_pc", "remaining_insns"],
+    "registers_not_ready": ["reason"],
+    "target_requires_aarch64_little_endian": ["reason"],
+    "plugin_api_range": ["reason"],
+    "system_emulation_required": ["reason"],
+    "single_vcpu_required": ["reason"]
+  },
+  "sites": {
+    "final_entry": {"ordinal": 0, "event_offset": "0x1af16dc", "anchor_offset": "0x1af16dc", "anchor_lengths": [16, 8]},
+    "d570_cbnz_pre": {"ordinal": 1, "event_offset": "0x1af1834", "anchor_offset": "0x1af1830", "anchor_lengths": [8]},
+    "successor_1724_pre": {"ordinal": 2, "event_offset": "0x1af1724", "anchor_offset": "0x1af1724", "anchor_lengths": [8]},
+    "successor_1838_pre": {"ordinal": 3, "event_offset": "0x1af1838", "anchor_offset": "0x1af1838", "anchor_lengths": [8]}
+  },
+  "file_contract": {
+    "maximum_file_lines": 98,
+    "maximum_line_bytes_exclusive": 2048,
+    "maximum_file_bytes_conservative": 200704,
+    "quota_per_site": 16,
+    "maximum_success_rows": 64,
+    "maximum_fault_lines": 32
+  },
+  "raw_widths": {"register64": 16, "cpsr_and_low32": 8, "cpsr_m": 2, "counts": "minimal lowercase hexadecimal"},
+  "close_result": "unknown; require separately owned normal wrapper exit and unchanged readback",
+  "identity_limit": "raw_context_candidate_match only; no PID/TID/Main/branch-edge/retirement proof"
+}

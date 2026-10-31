@@ -141,8 +141,11 @@ raise SystemExit(module.main())
 
 def input_submission(state, previous, name, mouse, position=None):
     """Match completed host receipts only; original guest consumption stays separate."""
+    pointer_shutter=name=='SHUTTER' and mouse and position is None
     events={event['id']:event for event in state.get('events',[]) if event['id']>previous}
     if not state.get('input_lifecycle'):
+        if pointer_shutter:
+            return False
         submitted=name+(' '+position if position is not None else '')
         return any(event['kind']=='input' and event['message'].startswith(submitted+'：')
                    for event in events.values())
@@ -163,7 +166,8 @@ def input_submission(state, previous, name, mouse, position=None):
         if request.get('key')!=name:
             continue
         source=request.get('source','')
-        if request.get('op')=='tap' and (source=='activation' if mouse else source.startswith(prefix)):
+        if (not pointer_shutter and request.get('op')=='tap'
+                and (source=='activation' if mouse else source.startswith(prefix))):
             return True
         if request.get('op')=='press' and source.startswith(prefix):
             released={'action':'camera_input','op':'release','source':source}
@@ -894,7 +898,14 @@ def main():
                         else:
                             x,y=button_positions[name]
                         xdo('mousemove', '--window', window, x, y)
-                        xdo('click', 1)
+                        if name=='SHUTTER':
+                            try:
+                                xdo('mousedown', 1)
+                                time.sleep(.1)  # Input pacing only; not evidence of AF/ready or guest hold time.
+                            finally:
+                                xdo('mouseup', 1)
+                        else:
+                            xdo('click', 1)
                     else:
                         xdo('key', {'UP': 'Up', 'DOWN': 'Down', 'ENTER': 'Return','MENU':'m','DELETE':'Delete'}[name])
                     if name=='MODE' and position is None:return previous
@@ -1072,13 +1083,9 @@ def main():
                                 wait_lcd_settled(proof['images'][-1],lambda label:capture(label,'any'),wait,
                                     'natural-shutter-ready',
                                     lambda image:image['firstboot_ui']['page']=='shooting',changed=False)
-                                state=idle();previous=max(e['id'] for e in state['events'])
-                                request=geometry.with_suffix('.action.tmp')
-                                request.write_text(json.dumps({'action':'shutter_cycle'}))
-                                os.replace(request,geometry.with_suffix('.action'))
-                                wait(lambda s:any(e['id']>previous and e['kind']=='input' and
-                                                  '自然快门序列已提交' in e['message'] for e in s.get('events',[])),45)
+                                action('SHUTTER',True)
                                 proof['natural_shutter']={'input_submission_event_verified':True,
+                                    'gesture_source':'GTK SHUTTER pointer press/hold/release',
                                     'consumer_verified':False,'still_capture_verified':False}
                                 proof_path.write_text(json.dumps(proof,indent=2)+'\n')
                                 deadline=time.monotonic()+15

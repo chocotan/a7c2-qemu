@@ -1,0 +1,54 @@
+{
+  "schema": "readonly_shutter_gate_source_contract_v1",
+  "profile": "qemu-readonly-shutter-gate-v1",
+  "trace_schema": "readonly_shutter_gate_v1",
+  "trace_schema_sha256": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
+  "state": "SOURCE_DRAFT_NOT_BUILT_TESTED_OR_READY",
+  "component": "2026-10-31-qemu-shutter-gate-observer-v1",
+  "fixed_future_source_root": "report/2026-10-31-qemu-shutter-gate-observer-v1",
+  "actual_build_source_names_required": [
+    "scope-observer.c", "build-plugin.sh", "build-runtime.py", "log-schema-shutter-gate-v1.json", "source-contract-shutter-gate-v1.json", "check_shutter_gate_v1.py", "integration/shutter_gate_trace_checks_v1.py"
+  ],
+  "actual_fixture_source_names_required": [
+    "integration/fixture.S", "integration/link.ld", "integration/run_fixture.py", "integration/test_fixture_driver.py", "integration/test_actual_scope_plugin.py", "integration/test_shutter_gate_trace_checks_v1.py", "integration/shutter_gate_trace_checks_v1.py"
+  ],
+  "host_C_tests": ["test-scope-observer.c", "test_scope_observer.py", "test_build_runtime.py", "test_run_context.py"],
+  "actualAPI_cases": ["original_entry", "existing_main_stub_entry", "one_byte_gate_mutation", "short_tb"],
+  "actualAPI_environment_names": [
+    "A7C2_SHUTTER_GATE_V1_TEST_QEMU", "A7C2_SHUTTER_GATE_V1_TEST_PLUGIN", "A7C2_SHUTTER_GATE_V1_TEST_OUTPUT", "A7C2_SHUTTER_GATE_V1_TEST_SCHEMA", "A7C2_SHUTTER_GATE_V1_TEST_RECEIPT", "A7C2_SHUTTER_GATE_V1_TEST_FIXTURE_SOURCES"
+  ],
+  "exact_qemu_imports": [
+    "qemu_plugin_get_registers", "qemu_plugin_read_register", "qemu_plugin_register_vcpu_init_cb", "qemu_plugin_register_vcpu_tb_trans_cb", "qemu_plugin_register_vcpu_insn_exec_cb", "qemu_plugin_register_atexit_cb", "qemu_plugin_tb_n_insns", "qemu_plugin_tb_get_insn", "qemu_plugin_insn_vaddr", "qemu_plugin_insn_size", "qemu_plugin_insn_data"
+  ],
+  "import_policy": "qemu_plugin_* undefined symbols equal exact_qemu_imports; ordinary libc/GLib imports and DT_NEEDED recorded separately",
+  "qemu_plugin_api": 7,
+  "qemu_sha256_inherited_only": "4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4",
+  "qemu_header_sha256": "335d4e472067e914add598b60d1f7cf0dc029cd48f62f66656d6a88c54d8d9f9",
+  "source_hash_policy": "trace_schema_sha256 binds the actual completed schema source bytes. This contract must not contain its own source_contract_sha256. Builder computes actual source7/fixture7 after integration; receipts independently bind both files.",
+  "external_schema_digest_field": "trace_schema_sha256",
+  "forbidden_receipt_root_aliases": ["source_root", "Source_root", "sourceDependencyFrozen", "schema_sha256", "log_schema_sha256", "v3_schema_sha256"],
+  "sites": [
+    {"site": "final_entry", "ordinal": 0, "event_offset": "0x1af16dc", "anchor_offset": "0x1af16dc", "original16": "fd7bbba9fd030091f55b02a9f603012a", "existing_main_stub8": "5000005800021fd6", "instruction_index": 0},
+    {"site": "d570_cbnz_pre", "ordinal": 1, "event_offset": "0x1af1834", "anchor_offset": "0x1af1830", "hex_le": "000040b980f7ff35", "instruction_index": 1},
+    {"site": "successor_1724_pre", "ordinal": 2, "event_offset": "0x1af1724", "anchor_offset": "0x1af1724", "hex_le": "b3230191e00313aa", "instruction_index": 0},
+    {"site": "successor_1838_pre", "ordinal": 3, "event_offset": "0x1af1838", "anchor_offset": "0x1af1838", "hex_le": "e00313aa44b12894", "instruction_index": 0}
+  ],
+  "base_discriminator": "Only the exact site1 LDR/CBNZ window may bind or conflict B. Weak exact anchors always register immutable opaque callbacks. Before binding or at another B, only increment saturating siteN_unbound_callbacks; no register reads, rows, quota or disable. Cached callbacks remain usable after binding.",
+  "translation": "Same TB only; each continuous size4 instruction copies exactly4 and matches all bytes. Complete changed known exact PC disables; a short TB is silent. Two declared entry forms may transition. No cross-TB reconstruction, retained handle or per-TB allocation.",
+  "base_envelope": "Nonzero page-aligned zero-extended low48; checked subtraction and all full-anchor/event/prediction additions through B+0x1af183f.",
+  "userdata": "Flat64 host; low48 aligned eventPC, low2 site ordinal, bit48 only entry stub. No dereference or register/guest-memory write.",
+  "register_union": ["pc", "x0", "x1", "x2", "x3", "x19", "x22", "x23", "x29", "x30", "cpsr", "sp", "TTBR0_EL1", "TPIDR_EL0"],
+  "optional_registers": ["sp", "TTBR0_EL1", "TPIDR_EL0"],
+  "register_reads": "Descriptor found independent of handle; NULL x0 valid. Clear backing bytes and length each attempt. bool true plus exact8 for PC/GPR/token/SP; CPSR exact4. Present optional failure rejects row; absent stays unknown. No partial successful row or counter advance.",
+  "mode": "Only CPSR.M=0 is EL0t. 4/5/8/9/12/13 remain other_aarch64. A32 or reserved rejects with raw CPSR fault; unreadable mode unknown. Preserve raw NZCV.",
+  "prediction": "Same exact8 x0 read feeds full64 x0_raw and loaded_w0=low32. CBNZ prediction uses low32!=0 only; nonzero B+0x1af1724, zero B+0x1af1838. No NZCV/full64 condition or branch retirement inference.",
+  "guest_memory_bytes": 0,
+  "limits": {"quota_per_site": 16, "maximum_success_rows": 64, "maximum_fault_lines": 32, "maximum_rows": 98, "maximum_line_bytes_exclusive": 2048, "maximum_file_bytes_conservative": 200704, "maximum_descriptors": 4096},
+  "raw_preservation": "Direct parser returns rows/raw_ledger/begin/end. Ledger retains original LF-inclusive raw hex/ascii, SHA256, byte offset/length and ordered canonical pairs, including refusal evidence; no conversion to legacy raw.",
+  "close": "End close_result unknown; reader requires owned normal wrapper returncode0, unchanged full trace/assets and no scope_observer_host_error diagnostic.",
+  "direct_assertion": "assert_shutter_gate_trace_v1(raw_log,declaration,expected), where the explicit frozen expected object contains case/site_rows/minimum_suppressed/discriminator_expected. Compare all required full64 xN, actual CPSR/NZCV, available independent SP/tokens, exact event and entry form, ordered first16 rows per site; bool never substitutes for int.",
+  "context_candidates": "Enumerate every entry/internal raw-index combination with same B/CPU0/EL0t, both available exact8 tokens equal, x23=entry x0, low32 x22=low32 entry x1, checked x19=x29+0x48; when either SP available require both and checked entrySP-0x50=internalSP=x29. Do not choose nearest or ordinal match. LR match is a separate raw candidate flag.",
+  "Main_FLOW": "Strict original Main35 formatter supplies numeric B/LF/reported PID/TID only. Full x0..x3 uniquely matching same-run SHUTTER_FLOW final code2070000 is a content candidate. Four-site plugin supplies no Main-to-token bridge.",
+  "maximum_claim": "raw_context_candidate_match; invocation_pairing unknown; missing callbacks unknown",
+  "flags": {"runtime_verified": false, "Main_identity_verified": false, "AP_identity_verified": false, "PID_TID_uniqueness_verified": false, "address_space_uniqueness_verified": false, "branch_edge_verified": false, "instruction_retirement_verified": false, "branchretirement": false, "retirement": false, "capture_verified": false, "physical_asic_compatibility_verified": false, "physical": false}
+}

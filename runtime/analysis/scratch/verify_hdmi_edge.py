@@ -35,7 +35,8 @@ _WATCH = None
 MAX_RETAINED_IMAGE = 768 * 1024**2
 RUN_BINDINGS = {
     'source-snapshot-run-binding.json': ('functional-source-snapshot-run-v1',),
-    'readonly-scope-run-binding.json': ('functional-M-v2-run-v2', 'functional-M-v3-run-v3'),
+    'readonly-scope-run-binding.json': ('functional-M-v2-run-v2', 'functional-M-v3-run-v3',
+                                      'functional-shutter-gate-v1-run-v1'),
 }
 RUN_FALSE_FIELDS = ('capture_verified', 'native_verified', 'native_AP_provider',
                     'physical_asic_compatibility_verified', 'original_Fsys_save_verified')
@@ -50,6 +51,24 @@ SCOPE_SOURCE_NAMES_V3 = ('scope-observer.c', 'late-sites.inc', 'build-plugin.sh'
     'source-contract-v3.json', 'check_run_context_v3.py', 'check_run_context.py',
     'integration/scope_trace_checks_v3.py', 'integration/scope_trace_checks.py')
 SCOPE_BINDING_VERSIONS = {'functional-M-v2-run-v2': 2, 'functional-M-v3-run-v3': 3}
+SHUTTER_GATE_RUN = 'functional-shutter-gate-v1-run-v1'
+SHUTTER_GATE_PROFILE = 'qemu-readonly-shutter-gate-v1'
+SHUTTER_GATE_COMPONENT = 'report/2026-10-31-qemu-shutter-gate-observer-v1'
+SHUTTER_GATE_PLAN_FIELDS = SCOPE_PLAN_FIELDS + ('shutter_gate_reader_expected',)
+SHUTTER_GATE_FALSE_FIELDS = SCOPE_FALSE_FIELDS + ('runtime_verified', 'originalMain',
+    'Main_identity_verified', 'AP_identity_verified', 'branch_edge_verified', 'retirement',
+    'instruction_retirement_verified', 'invocation_pairing_verified')
+SHUTTER_GATE_READER_FIELDS = ('qemu_sha256', 'library_sha256', 'source_sha256',
+    'fixture_source_sha256', 'qemu_header_sha256', 'observer_sha256', 'Main_source_sha256',
+    'original_appfw_sha256', 'trace_schema_sha256', 'build_receipt_sha256', 'readonly_import_audit_sha256')
+SHUTTER_GATE_SOURCE_NAMES = ('scope-observer.c', 'build-plugin.sh', 'build-runtime.py',
+    'log-schema-shutter-gate-v1.json', 'source-contract-shutter-gate-v1.json',
+    'check_shutter_gate_v1.py', 'integration/shutter_gate_trace_checks_v1.py')
+SHUTTER_GATE_FIXTURE_NAMES = ('integration/fixture.S', 'integration/link.ld', 'integration/run_fixture.py',
+    'integration/test_fixture_driver.py', 'integration/test_actual_scope_plugin.py',
+    'integration/test_shutter_gate_trace_checks_v1.py', 'integration/shutter_gate_trace_checks_v1.py')
+SHUTTER_GATE_ALIASES = frozenset(('source_root', 'Source_root', 'root', 'sourceDependencyFrozen',
+    'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256'))
 
 
 class _ImageBytes:
@@ -187,6 +206,8 @@ def _condition_binding(graph, run, observer):
 
 def _condition_scope_binding(graph, reader, run, binding, manifest, build, tested):
     """Provenance only; AP transactions still require the original content checks."""
+    if binding['schema'] == SHUTTER_GATE_RUN:
+        return _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested)
     version = SCOPE_BINDING_VERSIONS[binding['schema']]
     fields = SCOPE_PLAN_FIELDS + ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')
     required = set(fields) | set(SCOPE_FALSE_FIELDS) | {
@@ -287,6 +308,271 @@ def _condition_scope_binding(graph, reader, run, binding, manifest, build, teste
     return guest_source, snapshots
 
 
+def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested):
+    """Provenance for the independent observer; never interpret its raw sites as UPM proof."""
+    fields = SHUTTER_GATE_PLAN_FIELDS + ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')
+    required = set(fields) | set(SHUTTER_GATE_FALSE_FIELDS) | {
+        'schema', 'run', 'intent_sha256', 'launch_binding_sha256', 'claimed_fault_result', 'popen_live_sha256'}
+    require(set(binding) == required and all(binding.get(k) is False for k in SHUTTER_GATE_FALSE_FIELDS),
+            'shutter gate run fields/claims differ')
+    snapshots = {}
+
+    def receipt(path, digest=None):
+        path = graph.absolute(path)
+        original = graph.read(path, graph.MAX_JSON)
+        require(digest is None or graph.sha(original) == digest, 'shutter gate receipt digest differs: ' + str(path))
+        require(path not in snapshots or snapshots[path] == original, 'shutter gate receipt changed: ' + str(path))
+        snapshots[path] = original
+        return reader.object_json(original)
+
+    def reference(value):
+        require(type(value) is dict and set(value) == {'path', 'sha256'} and
+                type(value['sha256']) is str and len(value['sha256']) == 64 and
+                set(value['sha256']) <= set('0123456789abcdef'), 'shutter gate exact receipt reference required')
+        return receipt(value['path'], value['sha256'])
+
+    fresh_ref = binding['fresh_guest']
+    fresh = reference(fresh_ref)
+    work = graph.absolute(fresh_ref['path']).parent
+    require(Path(fresh_ref['path']).name == 'fresh-public-guest.json', 'shutter gate fresh guest path differs')
+    intent = receipt(work / 'intent.json', binding['intent_sha256'])
+    launch = receipt(work / 'launch-binding.json', binding['launch_binding_sha256'])
+    plan = receipt(work / 'plan.json', intent['plan_sha256'])
+    require(intent.get('schema') == 'functional-shutter-gate-v1-intent-v1' and
+            launch.get('schema') == 'functional-shutter-gate-v1-launch-v1' and
+            plan.get('schema') == 'functional-shutter-gate-v1-plan-v1' and
+            intent.get('plan') == launch.get('plan') == str(work / 'plan.json') and
+            intent['plan_sha256'] == launch.get('plan_sha256') and
+            launch.get('intent_sha256') == binding['intent_sha256'] and
+            all(reader.typed_equal(binding[key], row.get(key)) for row in (intent, launch) for key in fields) and
+            all(row.get('claimed_fault_result') == 'FAIL' and
+                all(row.get(k) is False for k in SHUTTER_GATE_FALSE_FIELDS) for row in (plan, intent, launch)),
+            'shutter gate plan/intent/launch provenance differs')
+    plan_fields = ('nonce', 'batch', 'batch_ready_sha256', 'runtime_ready', 'parent_readback',
+                   'fresh_guest', 'runtime_assets_sha256', 'actual_api_contract', 'candidate_qemu', 'card')
+    require(all(reader.typed_equal(plan.get(key), binding[key]) for key in plan_fields) and
+            reader.typed_equal(plan.get('actual_api_manifest'), binding['synthetic_fixture_manifest']),
+            'shutter gate plan generation differs')
+    guest_source = graph.absolute(intent['guest_image'])
+    require(plan.get('guest_image') == str(guest_source) and
+            manifest.get('probe_args', {}).get('initramfs_file') == str(guest_source) and
+            manifest['files'].get(str(guest_source)) == binding['guest_sha256'] and
+            fresh.get('guest_image') == str(guest_source) and fresh.get('guest_sha256') == binding['guest_sha256'] and
+            fresh.get('ready_sha256') == binding['batch_ready_sha256'] and
+            fresh.get('runtime_ready_sha256') == binding['runtime_ready']['sha256'] and
+            type(fresh.get('returncode')) is int and fresh['returncode'] == 0 and
+            fresh.get('compiled3_unchanged') is True and fresh.get('capture_verified') is False and
+            reader.typed_equal(fresh.get('compiled_before'), fresh.get('compiled_after')) and
+            fresh.get('compiled_before', {}).get(str(BASE / 'menu-observe.so')) == binding['observer_sha256'],
+            'shutter gate selected guest/frozen observer differs')
+    batch = graph.absolute(binding['batch'])
+    runtime = reference(binding['runtime_ready'])
+    parent = reference(binding['parent_readback'])
+    require(binding['runtime_ready']['path'] == str(batch / 'readonly-shutter-gate-v1-runtime-ready.json') and
+            runtime.get('status') == 'PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT' and
+            parent.get('status') == 'PASS_OFFLINE_SHUTTER_GATE_V1_COHORT_READBACK' and
+            reader.typed_equal(runtime.get('offline_readback'), binding['parent_readback']) and
+            reader.typed_equal(binding['actual_api_contract'], binding['parent_readback']) and
+            reader.typed_equal(runtime.get('generic_ready'),
+                dict(path=str(batch / 'ready.json'), sha256=binding['batch_ready_sha256'])) and
+            parent.get('batch') == str(batch) and parent.get('ready_sha256') == binding['batch_ready_sha256'],
+            'shutter gate runtime-ready/offline parent generation differs')
+    for row in (runtime, parent):
+        require(reader.typed_equal(row.get('launch_runtime_preflight'),
+                    dict(passed=False, inspected=False, launch_authorized=False)) and
+                all(row.get(k) is False for k in ('runtime_verified', 'capture_verified', 'physical',
+                    'physical_asic_compatibility_verified', 'originalMain', 'retirement',
+                    'instruction_retirement_verified', 'Main_identity_verified', 'AP_identity_verified',
+                    'branch_edge_verified', 'invocation_pairing_verified', 'original_camera_VM_started',
+                    'originalUI_onceplan_prepared', 'intent_published', 'card_prepared')),
+                'shutter gate offline parent promotes runtime claims')
+    for row in (plan, intent, launch, runtime, parent):
+        require(not SHUTTER_GATE_ALIASES & row.keys(), 'shutter gate external schema/root alias')
+    expected = binding['scope_observer_expected']
+    projection = binding['shutter_gate_reader_expected']
+    expected_keys = set(SHUTTER_GATE_READER_FIELDS) | {'profile', 'trace_schema', 'source_contract_sha256',
+        'build_receipt', 'library_source', 'build_metadata', 'functional_runner_source_sha256'}
+    require(type(expected) is dict and set(expected) == expected_keys and type(projection) is dict and
+            set(projection) == set(SHUTTER_GATE_READER_FIELDS) and
+            reader.typed_equal(projection, {key: expected[key] for key in SHUTTER_GATE_READER_FIELDS}) and
+            reader.typed_equal(projection, parent.get('expected_original_run_assets')) and
+            reader.typed_equal(projection, runtime.get('expected_original_run_assets')) and
+            not SHUTTER_GATE_ALIASES & expected.keys() and
+            expected.get('profile') == SHUTTER_GATE_PROFILE and expected.get('trace_schema') == 'readonly_shutter_gate_v1',
+            'shutter gate exact independent reader/parent operands differ')
+    fixture = reference(binding['synthetic_fixture_manifest'])
+    require(reader.typed_equal(parent.get('gate_actual_api', {}).get('manifest'), binding['synthetic_fixture_manifest']) and
+            not SHUTTER_GATE_ALIASES & fixture.keys() and
+            fixture.get('status') == 'PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V1_FIXTURE' and fixture.get('failure') is None and
+            fixture.get('profile') == SHUTTER_GATE_PROFILE and fixture.get('trace_schema') == 'readonly_shutter_gate_v1' and
+            fixture.get('trace_schema_sha256') == projection['trace_schema_sha256'] and
+            reader.typed_equal(fixture.get('fixture_source_sha256'), projection['fixture_source_sha256']) and
+            all(reader.typed_equal(fixture.get('inputs', {}).get('source:' + name),
+                    dict(path=str(graph.NATIVE / SHUTTER_GATE_COMPONENT / name), sha256=value))
+                for name, value in projection['source_sha256'].items()) and
+            all(reader.typed_equal(fixture.get('inputs', {}).get('fixture-source:' + name),
+                    dict(path=str(graph.NATIVE / SHUTTER_GATE_COMPONENT / name), sha256=value))
+                for name, value in projection['fixture_source_sha256'].items()) and
+            set(fixture.get('variants', {})) == {'original_entry', 'existing_main_stub_entry', 'one_byte_gate_mutation', 'short_tb'} and
+            all(fixture.get(k) is False for k in ('capture_verified', 'physical_asic_compatibility_verified',
+                'Main_identity_verified', 'AP_identity_verified', 'instruction_retirement_verified',
+                'branch_edge_verified', 'retirement')), 'shutter gate actualAPI manifest differs')
+    frozen = {}
+    require(set(tested['groups']) == {'production', 'host', 'observer', 'test'}, 'shutter gate source groups differ')
+    for group in tested['groups'].values():
+        for name, digest in group.items():
+            require(name not in frozen or frozen[name] == digest, 'shutter gate frozen source conflict')
+            frozen[name] = digest
+    require(len(frozen) == parent.get('all_source_members_verified') == 1193 and
+            len(tested['modules']) == len(set(tested['modules'])) == 242 and set(tested['modules']) <= frozen.keys(),
+            'shutter gate complete source1193/modules242 closure differs')
+    root = graph.NATIVE / SHUTTER_GATE_COMPONENT
+    for key, names in (('source_sha256', SHUTTER_GATE_SOURCE_NAMES),
+                       ('fixture_source_sha256', SHUTTER_GATE_FIXTURE_NAMES)):
+        sources = expected[key]
+        require(type(sources) is dict and set(sources) == set(names), 'shutter gate exact source7/fixture7 roles differ')
+        for name, digest in sources.items():
+            path = graph.absolute(root / name)
+            original = graph.read(path)
+            require(frozen.get(str(path)) == digest == graph.sha(original),
+                    'shutter gate actual/frozen source differs: ' + name)
+            snapshots[path] = original
+    for name in ('functional_camera_runner.py', 'scope_observer_profile.py'):
+        path = BASE / name
+        original = graph.read(path)
+        require(frozen.get(str(path)) == graph.sha(original), 'shutter gate actual/frozen host source differs: ' + name)
+        snapshots[path] = original
+    require(expected['functional_runner_source_sha256'] == frozen[str(BASE / 'functional_camera_runner.py')] and
+            expected['observer_sha256'] == binding['observer_sha256'] and
+            expected['Main_source_sha256'] == build['sources'][str(BASE / 'menu-observe.c')]['sha256'] and
+            manifest['selected_initramfs_verified_files'].get('usr/lib/appFw.so') == expected['original_appfw_sha256'],
+            'shutter gate Main/runner/appFw operands differ')
+    driver = graph.absolute(plan['driver'])
+    require(driver == BASE / 'scratch/run-functional-current-batch.py' and
+            all(row.get('driver') == str(driver) and row.get('driver_sha256') == plan['driver_sha256'] for row in (intent, launch)) and
+            graph.sha(graph.read(driver)) == plan['driver_sha256'], 'shutter gate original UI driver differs')
+    snapshots[driver] = graph.read(driver)
+    candidate = binding['candidate_qemu']
+    require(type(candidate) is dict and set(candidate) == {'path', 'sha256'} and
+            str(graph.absolute(candidate['path'])) == manifest['backup_transport']['binary'] and
+            candidate['sha256'] == manifest['backup_transport']['binary_sha256'] == expected['qemu_sha256'] and
+            manifest['files'].get(candidate['path']) == candidate['sha256'], 'shutter gate selected QEMU differs')
+    profile = graph.source_module('runtime/analysis/scope_observer_profile.py', frozen)
+    metadata = profile.validate_build(graph.NATIVE, expected['build_receipt'], candidate['path'])
+    require(reader.typed_equal(expected['build_metadata'], metadata) and
+            expected['library_source'] == metadata['library'] and
+            all(reader.typed_equal(expected[key], metadata[key]) for key in
+                ('profile', 'trace_schema', 'trace_schema_sha256', 'source_contract_sha256', 'source_sha256',
+                 'fixture_source_sha256', 'build_receipt', 'build_receipt_sha256', 'qemu_sha256',
+                 'qemu_header_sha256', 'library_sha256', 'readonly_import_audit_sha256')) and
+            reader.typed_equal(runtime.get('gate_build_receipt'), parent.get('gate_build_receipt')) and
+            reader.typed_equal(plan.get('scope_build'), parent.get('gate_build_receipt')) and
+            reader.typed_equal(plan['scope_build'], dict(path=metadata['build_receipt'], sha256=metadata['build_receipt_sha256'])),
+            'shutter gate complete actual build metadata differs')
+    scope = manifest.get('readonly_scope_observer')
+    plan_binding = {key: binding[key] for key in SHUTTER_GATE_PLAN_FIELDS}
+    require(reader.typed_equal(scope, dict(metadata, library=str(run / 'readonly-scope-observer.so'),
+                log=str(run / 'readonly-scope-trace.log'), plan_binding=plan_binding)),
+            'shutter gate complete manifest metadata/plan binding differs')
+    receipt(metadata['build_receipt'], metadata['build_receipt_sha256'])
+    plugin_work = graph.absolute(metadata['build_receipt']).parent
+    audit_path = graph.absolute(candidate['path']).parents[1] / 'binary-static-audit.json'
+    audit = receipt(audit_path, metadata['candidate_static_audit_sha256'])
+    require(audit.get('binary') == candidate['path'] and audit.get('binary_sha256') == candidate['sha256'] and
+            audit.get('missing_required_exports') == [] and
+            reader.typed_equal(audit.get('protected_binaries_unchanged'), dict(candidate=True, production=True)) and
+            all(audit.get(k) is False for k in ('runtime_library_closure_verified', 'plugin_runtime_verified',
+                'capture_verified', 'physical_asic_compatibility_verified')), 'shutter gate candidate static audit differs')
+    for path, digest in ((plugin_work / 'plugin-build-command.json', metadata['plugin_build_command_sha256']),
+                         (plugin_work / 'readonly-import-audit.json', metadata['readonly_import_audit_sha256'])):
+        receipt(path, digest)
+    for path, digest in ((Path(metadata['library']), metadata['library_sha256']),
+                         (run / 'readonly-scope-observer.so', metadata['library_sha256'])):
+        original = graph.read(path)
+        require(graph.sha(original) == digest, 'shutter gate actual library differs')
+        snapshots[path] = original
+    assets = binding['runtime_assets_sha256']
+    require(reader.typed_equal(assets, dict(parent['legacy_runtime_assets_sha256'],
+                **parent['gate_added_runtime_assets_sha256'])) and
+            all(assets.get(str(path)) == digest for path, digest in (
+                (audit_path, metadata['candidate_static_audit_sha256']),
+                (plugin_work / 'plugin-build-command.json', metadata['plugin_build_command_sha256']),
+                (plugin_work / 'readonly-import-audit.json', metadata['readonly_import_audit_sha256']),
+                (Path(metadata['build_receipt']), metadata['build_receipt_sha256']),
+                (Path(metadata['library']), metadata['library_sha256']))), 'shutter gate runtime audit assets differ')
+    for path, digest in ((Path(metadata['build_receipt']), metadata['build_receipt_sha256']),
+                         (run / 'readonly-scope-observer.so', metadata['library_sha256']),
+                         *((root / name, value) for name, value in expected['source_sha256'].items())):
+        require(manifest['files'].get(str(path)) == digest, 'shutter gate actual manifest files differ')
+    info = run.stat()
+    context = dict(schema='functional-shutter-gate-v1-live-context-v1', run=str(run),
+        run_device=info.st_dev, run_inode=info.st_ino, scope=plan_binding,
+        **{key: binding[key] for key in ('nonce', 'batch', 'batch_ready_sha256', 'intent_sha256',
+                                       'launch_binding_sha256', 'candidate_qemu', 'card')})
+    live = receipt(run / 'readonly-scope-popen-live.json', binding['popen_live_sha256'])
+    ancestry = receipt(run / 'readonly-scope-live-ancestry.json')
+    callback = receipt(run / 'readonly-scope-popen-exit-binding.json')
+    exited = receipt(run / 'readonly-scope-exit.json')
+    trace_path = run / 'readonly-scope-trace.log'
+    trace = graph.read(trace_path, 200704)
+    snapshots[trace_path] = trace
+    require(set(exited) == {'profile', 'run', 'owned_wrapper_pid', 'returncode', 'log_available',
+                'log_sha256', 'library_sha256', 'capture_verified', 'physical_asic_compatibility_verified'} and
+            exited.get('log_sha256') == graph.sha(trace), 'shutter gate original exit/trace bytes differ')
+    popen_keys = ({'schema', 'context', 'wrapper', 'owner', 'control', 'actual_Popen_pid', 'birth_sample',
+                   'launch_policy', 'control_mode', 'probe_source_sha256'},
+                  {'schema', 'context', 'chain', 'qemu', 'wrapper', 'owner', 'control', 'launch_owner',
+                   'execution', 'control_mode', 'popen_live_sha256', 'run_binding_sha256', 'captured_while_alive'},
+                  {'schema', 'context', 'wrapper', 'actual_Popen_pid', 'returncode', 'popen_live_sha256',
+                   'ancestry_sha256', 'original_exit_sha256'})
+    for row, keys in zip((live, ancestry, callback), popen_keys):
+        require(set(row) == keys | set(SHUTTER_GATE_FALSE_FIELDS), 'shutter gate exact Popen receipt fields differ')
+    for row, schema in ((live, 'functional-shutter-gate-v1-popen-live-v1'),
+                        (ancestry, 'functional-shutter-gate-v1-live-ancestry-v1'),
+                        (callback, 'functional-shutter-gate-v1-popen-exit-v1')):
+        require(row.get('schema') == schema and reader.typed_equal(row.get('context'), context) and
+                all(row.get(k) is False for k in SHUTTER_GATE_FALSE_FIELDS), 'shutter gate same-run Popen context differs')
+    chain = ancestry.get('chain')
+    require(type(chain) is list and 2 <= len(chain) <= 16, 'shutter gate saved Popen ancestry missing')
+    for node in [*chain, live['wrapper'], live['owner'], live['control'], ancestry['launch_owner']]:
+        require(type(node) is dict and set(node) == {'pid', 'ppid', 'starttime', 'exe'} and
+                all(type(node[k]) is int and node[k] > 0 for k in ('pid', 'ppid', 'starttime')) and
+                type(node['exe']) is str and Path(node['exe']).is_absolute(), 'shutter gate saved Popen generation invalid')
+    require(len({node['pid'] for node in chain}) == len(chain) and
+            reader.typed_equal(chain[0], ancestry.get('qemu')) and
+            reader.typed_equal(chain[-1], ancestry['launch_owner']) and
+            all(child['ppid'] == parent_node['pid'] and child['starttime'] >= parent_node['starttime']
+                for child, parent_node in zip(chain, chain[1:])) and
+            live['owner'] in chain and live['control'] in chain and
+            any(all(node[k] == live['wrapper'][k] for k in ('pid', 'ppid', 'starttime')) for node in chain) and
+            reader.typed_equal(ancestry.get('execution', {}).get('birth'), live.get('birth_sample')) and
+            reader.typed_equal(ancestry.get('execution', {}).get('policy'), live.get('launch_policy')) and
+            ancestry.get('execution', {}).get('dual_read_stable') is True and
+            type(ancestry['execution'].get('actual_Popen_pid')) is int and
+            ancestry['execution']['actual_Popen_pid'] == live['actual_Popen_pid'] and
+            reader.typed_equal(live.get('birth_sample', {}).get('identity'), live['wrapper']),
+            'shutter gate saved Popen ancestry/exec links differ')
+    require(type(live.get('actual_Popen_pid')) is int and live['actual_Popen_pid'] > 1 and
+            type(callback.get('actual_Popen_pid')) is int and type(exited.get('owned_wrapper_pid')) is int and
+            live['actual_Popen_pid'] == live['wrapper']['pid'] == callback.get('actual_Popen_pid') == exited.get('owned_wrapper_pid') and
+            reader.typed_equal(callback.get('wrapper'), live['wrapper']) and
+            all(reader.typed_equal(ancestry.get(key), live.get(key)) for key in ('wrapper', 'owner', 'control', 'control_mode')) and
+            reader.typed_equal(ancestry.get('launch_owner'), launch.get('launch_owner')) and
+            ancestry.get('captured_while_alive') is True and
+            ancestry.get('run_binding_sha256') == graph.sha(graph.read(run / 'readonly-scope-run-binding.json', graph.MAX_JSON)) and
+            ancestry.get('popen_live_sha256') == callback.get('popen_live_sha256') == binding['popen_live_sha256'] and
+            callback.get('ancestry_sha256') == graph.sha(snapshots[run / 'readonly-scope-live-ancestry.json']) and
+            callback.get('original_exit_sha256') == graph.sha(snapshots[run / 'readonly-scope-exit.json']) and
+            type(callback.get('returncode')) is int and type(exited.get('returncode')) is int and
+            callback['returncode'] == exited['returncode'] and exited.get('profile') == SHUTTER_GATE_PROFILE and
+            exited.get('run') == str(run) and exited.get('library_sha256') == metadata['library_sha256'] and
+            live.get('probe_source_sha256') == graph.sha(graph.read(BASE / 'qemu-menu-probe.py')) and
+            exited.get('log_available') is True and
+            exited.get('capture_verified') is False and exited.get('physical_asic_compatibility_verified') is False,
+            'shutter gate actual Popen generation/exit links differ')
+    return guest_source, snapshots
+
+
 def _condition_source_proof(log, run):
     """Read the actual evidence, never a caller-supplied approval or current C shape."""
     graph_path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
@@ -332,7 +618,7 @@ def _condition_source_proof(log, run):
             files.get(str(BASE / 'menu-observe.so')) == observer == selected.get('simulation/menu-observe.so'),
             'condition actual/selected observer manifest differs')
     guest_source, scope_inputs = BASE / 'menu-initramfs.cpio', {}
-    if binding['schema'] in SCOPE_BINDING_VERSIONS:
+    if binding['schema'] in SCOPE_BINDING_VERSIONS or binding['schema'] == SHUTTER_GATE_RUN:
         guest_source, scope_inputs = _condition_scope_binding(graph, reader, run, binding, manifest, build, tested)
     retained = run / 'selected-initramfs.cpio'
     retention_path = run / 'selected-initramfs-retention.json'
@@ -393,7 +679,12 @@ def _condition_source_proof(log, run):
     require(graph.read(batch / 'ready.json', graph.MAX_JSON) == ready_raw and
             graph.read(batch / 'inputs.json', graph.MAX_JSON) == batch_raw and
             graph.read(batch / 'abi.json', graph.MAX_JSON) == abi_raw, 'condition batch changed')
-    return {'run': str(run), 'source_sha256': selected_sources,
+    return {**({'shutter_gate_config_scope': dict(binding['scope_observer_expected']['build_metadata'],
+                staged_library=str(run / 'readonly-scope-observer.so'),
+                qemu_binary=binding['candidate_qemu']['path'],
+                plan_binding={key: binding[key] for key in SHUTTER_GATE_PLAN_FIELDS})}
+                if binding['schema'] == SHUTTER_GATE_RUN else {}),
+            'run': str(run), 'source_sha256': selected_sources,
             'observer_sha256': observer, 'observer_basis': observer_basis, 'selected_initramfs_sha256': image_sha,
             'source_archive_sha256': graph.sha(archive_raw),
             'build_inputs_sha256': graph.sha(inputs['observer-build-inputs.json']),
@@ -587,7 +878,19 @@ def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3):
     receipts = w.read_receipts(run)
     require(len(receipts) == 2, 'requires exactly two validated native UPM receipts')
     root, _ = w.validate_run(run)
-    config = w.parse_json(w.checked_read(root / (w.PREFIX + '-config.json'), 16384))
+    config = w.read_config(root / (w.PREFIX + '-config.json'))
+    source_proof = None
+    scope = config.get('readonly_scope_observer')
+    named_binding = root / 'readonly-scope-run-binding.json'
+    gate_binding = (named_binding.exists() and w.parse_json(w.checked_read(named_binding, 4 * 1024**2)).get('schema') == SHUTTER_GATE_RUN)
+    if gate_binding or type(scope) is dict and scope.get('profile') == SHUTTER_GATE_PROFILE:
+        source_proof = _condition_source_proof(log, root)
+        require(type(scope) is dict and source_proof['run_binding_schema'] == SHUTTER_GATE_RUN and
+                config.get('running_QEMU_sha256') == w.READONLY_SCOPE_QEMU_SHA and
+                config.get('scope_build_receipt') == scope.get('build_receipt') and
+                w.json.dumps(scope, sort_keys=True, allow_nan=False) ==
+                w.json.dumps(source_proof['shutter_gate_config_scope'], sort_keys=True, allow_nan=False),
+                'shutter gate native config/source binding differs')
     result = w.parse_json(w.checked_read(root / (w.PREFIX + '-result.json'), 16384))
     coordinator = w.parse_json(w.checked_read(root / 'hdmi-upm-coordinator.json', 1024 * 1024))
     require(result.get('detached') is True and not result.get('error') and result.get('receipts') == 2 and
@@ -643,6 +946,7 @@ def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3):
                     items[0]['sent']['line'] < p['line'], 'native lifetime reused before final retirement')
     return {'receipts': receipts, 'mailbox': init, 'guest_consumed': consumed,
             'GDB_result': result, 'coordinator': coordinator,
+            **({'source_proof': source_proof} if source_proof is not None else {}),
             'scope': 'two native UPM lifetimes only; no condition/AP completion claim',
             'native_UPM_verified': True, 'full_edge_verified': False}
 

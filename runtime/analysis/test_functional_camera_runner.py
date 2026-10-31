@@ -791,6 +791,9 @@ class LifecycleTests(unittest.TestCase):
     def test_HOST_v3_scope_exit_receipt_preserves_the_same_before_close_order(self):
         self._scope_exit_after_wait('qemu-readonly-scope-v3')
 
+    def test_HOST_shutter_gate_scope_exit_receipt_preserves_the_same_before_close_order(self):
+        self._scope_exit_after_wait('qemu-readonly-shutter-gate-v1')
+
     def _scope_exit_after_wait(self, version):
         self.broker()
         self.proc.pid = 456

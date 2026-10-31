@@ -231,6 +231,30 @@ def checked_read(path, limit, owner=True):
         os.close(fd)
 
 
+def read_config(path, config_sha256=None):
+    """Select a parsing budget only; live ownership is still checked by revalidate."""
+    raw = checked_read(path, 32 * 1024)
+    require(config_sha256 is None or hashlib.sha256(raw).hexdigest() == config_sha256,
+            'Watcher configuration changed before GDB reload')
+    config = parse_json(raw)
+    require(type(config) is dict, 'Watcher configuration must be a JSON object')
+    scope = config.get('readonly_scope_observer')
+    profile = scope.get('profile') if type(scope) is dict else None
+    shutter_gate = profile == scope_observer_profile.PROFILE_SHUTTER_GATE_V1
+    require(len(raw) <= (32 * 1024 if shutter_gate else 16 * 1024),
+            'Watcher configuration exceeded profile byte bound')
+    if shutter_gate:
+        config = scope_observer_profile.shutter_gate_json(raw)
+        require(scope.get('trace_schema') == 'readonly_shutter_gate_v1' and
+                not scope_observer_profile.SHUTTER_GATE_ALIASES & scope.keys(),
+                'Shutter gate configuration schema/root alias differs')
+        scope_observer_profile.shutter_gate_file(path)
+    elif scope is not None:
+        require(type(profile) is str and profile in scope_observer_profile.SOURCE_SETS,
+                'Unknown scope observer profile')
+    return config
+
+
 def process_identity(pid):
     require(type(pid) is int and 1 < pid < 2**31, 'Invalid owner/QEMU PID')
     proc = Path('/proc') / str(pid)
@@ -285,9 +309,20 @@ def scope_binding(root, receipt_value, running_qemu_sha256):
             require(not {'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256',
                          'source_root', 'Source_root', 'sourceDependencyFrozen'} & scope.keys(),
                     'Scope observer v3 manifest has a schema digest/root alias')
+    if build['profile'] == scope_observer_profile.PROFILE_SHUTTER_GATE_V1:
+        require(not scope_observer_profile.SHUTTER_GATE_ALIASES & scope.keys(),
+                'Shutter gate manifest has a schema digest/root alias')
+        for name in ('trace_schema', 'trace_schema_sha256', 'source_contract_sha256',
+                     'fixture_source_sha256', 'plugin_build_command_sha256',
+                     'readonly_import_audit_sha256', 'candidate_static_audit_sha256'):
+            require(scope.get(name) == build[name],
+                    'Shutter gate manifest schema/audit binding changed: ' + name)
+        scope_observer_profile.shutter_gate_directory(root)
     require(hashlib.sha256(checked_read(receipt_path, 1024 * 1024)).hexdigest() == build['build_receipt_sha256'],
             'Scope observer build receipt changed during validation')
     staged = root / 'readonly-scope-observer.so'
+    if build['profile'] == scope_observer_profile.PROFILE_SHUTTER_GATE_V1:
+        scope_observer_profile.shutter_gate_file(staged)
     require(scope.get('library') == str(staged) and
             hashlib.sha256(checked_read(staged, 16 * 1024 * 1024)).hexdigest() == build['library_sha256'],
             'Scope observer staged library differs from the reviewed build')
@@ -585,7 +620,7 @@ class Correlator:
 
 def read_receipts(run):
     root, info = validate_run(run)
-    config = parse_json(checked_read(root / (PREFIX + '-config.json'), 16384))
+    config = read_config(root / (PREFIX + '-config.json'))
     require(config['run'] == str(root) and config['limit'] == LIMIT and
             config['run_device'] == info.st_dev and config['run_inode'] == info.st_ino,
             'Receipt run/config differs')
@@ -716,10 +751,7 @@ def start(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
 
 def gdb_main(config_path, config_sha256=None):
     import gdb
-    config_raw = checked_read(config_path, 16384)
-    require(config_sha256 is None or hashlib.sha256(config_raw).hexdigest() == config_sha256,
-            'Watcher configuration changed before GDB reload')
-    config = parse_json(config_raw)
+    config = read_config(config_path, config_sha256=config_sha256)
     revalidate(config)
     root = Path(config['run'])
     tracker = Correlator(config['context']['module_texts'], config.get('mailbox'))

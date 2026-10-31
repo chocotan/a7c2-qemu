@@ -1,4 +1,32 @@
 {
+  "shutter_gate_verified_host_publication": {
+    "date": "2026-10-31",
+    "source_inventory_sha256": "14b98f8993dee8fa07b49712ac018552d9ab6f85eb3b494b638935aa6a6e94ee",
+    "fixed_source_files": 2378,
+    "validation": "validation/2026-10-31-shutter-gate-host-package.json",
+    "report": "report/2026-10-31-shutter-gate-publication/README.md",
+    "result_sha256": "1304bc588673289413a543aeeed3880b3508416882e9fb4f9389938f32b91a24",
+    "parent_acceptance_sha256": "6fcdaed5451450139b4e464d71b69325b7a0a3a02ab550f613e14dc39718bd1a",
+    "scope": "Accepted frozen source and host-package validation only; two new publication documents and four metadata exceptions receive separate static checks; external execution and capture remain unverified",
+    "historical_origins_and_failures_retained": true,
+    "new_native_14_source_batch_included": false,
+    "published": false,
+    "capture_verified": false,
+    "physical_asic_compatibility_verified": false
+  },
+  "shutter_gate_config_content_source_port": {
+    "path": "tools/source-port-shutter-config-content-v1.json",
+    "scope": "source-reviewed correction; combined public validation pending; previous complete research batch does not accept these new sources",
+    "source_approval_sha256": "98d71c6620467989c728e7c1e2be7583795c44da2c1df6066d0c6e5fa0b06a7e",
+    "overrides_only_listed_file_hashes": true
+  },
+  "shutter_gate_v1_source_port": {
+    "path": "tools/source-port-shutter-gate-v1.json",
+    "validation": "validation/2026-10-31-shutter-gate-v1-publication.json",
+    "source_batch": "unified-camera-pvebt_i6",
+    "scope": "source-only isolated candidate; no reused runtime receipts or publication claim",
+    "source_approval_sha256": "b7c824b32137c2bb455ddf40b5100b1846d240c789c541cb8af0af2fce98538d"
+  },
   "external_inputs": {
     "source/vendor/qemu-11.1.2.tar.xz": {
       "download_url": "https://download.qemu.org/qemu-11.1.2.tar.xz",

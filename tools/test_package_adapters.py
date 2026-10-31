@@ -93,7 +93,7 @@ def test_reference_resolver_uses_package_receipt_and_validates_explicit_stage(tm
     package = tmp_path / 'package with spaces'
     analysis = package / 'runtime/analysis'
     analysis.mkdir(parents=True)
-    stage = package / 'source/build/qemu-current'
+    stage = package / 'source/build/public-current'
     required = ('build/build.ninja', 'qemu-11.1.2/hw/arm/virt.c', 'qemu-11.1.2/hw/misc/meson.build',
                 'qemu-11.1.2/hw/intc/arm_gic_common.c', 'qemu-11.1.2/include/hw/intc/arm_gic_common.h',
                 'qemu-11.1.2/hw/misc/sony-pcidma/sony_regfile.c')
@@ -102,7 +102,7 @@ def test_reference_resolver_uses_package_receipt_and_validates_explicit_stage(tm
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('synthetic reference source prerequisite\n')
     receipt = package / 'source/pci-hardware-build.json'
-    receipt.write_text(json.dumps({'build_directory': 'source/build/qemu-current'}))
+    receipt.write_text(json.dumps({'build_directory': 'source/build/public-current'}))
     text = (ANALYSIS / 'build-rc-reference.sh').read_text()
     resolver = text[text.index('stage="$(python3'):text.index('src="$stage/qemu-11.1.2"')]
     command = 'set -euo pipefail\nanalysis_dir=$1\nshift\n' + resolver + '\nprintf "%s\\n" "$stage"\n'

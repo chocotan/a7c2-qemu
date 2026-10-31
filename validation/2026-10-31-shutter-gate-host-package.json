@@ -1,0 +1,367 @@
+{
+  "schema": "a7c2-qemu-shutter-gate-verified-host-publication-v1",
+  "date": "2026-10-31",
+  "status": "PASS_HOST_PUBLIC_PACKAGE_ONLY",
+  "published": false,
+  "host_public_package_only": true,
+  "overall_external_validation_passed": false,
+  "inputs_stable": true,
+  "source_snapshot": {
+    "original_public_head": "9984543b69134d857076c42c9676ba2e4f4f8b21",
+    "fixed_source_files": 2378,
+    "frozen_inventory_sha256": "14b98f8993dee8fa07b49712ac018552d9ab6f85eb3b494b638935aa6a6e94ee",
+    "frozen_source_sha256sums": {
+      "entries": 2377,
+      "path": "SOURCE-SHA256SUMS",
+      "sha256": "5c4058f8a34424ae0eaef510025a0cc0b879ede7a1521c84b6f272e8a43d82ff"
+    },
+    "original_validation_applies_to": "Frozen 2378-source inventory with separately declared 424 host prerequisites and 1404 external assets; not the documentation-decorated checkout",
+    "post_validation_new_documents": [
+      "report/2026-10-31-shutter-gate-publication/README.md",
+      "validation/2026-10-31-shutter-gate-host-package.json"
+    ],
+    "post_validation_metadata_exceptions": [
+      "SOURCE-ORIGINS.json",
+      "SOURCE-SHA256SUMS",
+      "SOURCES.md",
+      "validation/README.md"
+    ],
+    "frozen_metadata_before": {
+      "SOURCE-ORIGINS.json": {
+        "bytes": 822681,
+        "mode": 420,
+        "sha256": "afae0a7791e285fbc6e007a70f55ebca3d003ce9f02224048bf4c6f47747c090"
+      },
+      "SOURCE-SHA256SUMS": {
+        "bytes": 266247,
+        "mode": 420,
+        "sha256": "5c4058f8a34424ae0eaef510025a0cc0b879ede7a1521c84b6f272e8a43d82ff"
+      },
+      "SOURCES.md": {
+        "bytes": 6514,
+        "mode": 420,
+        "sha256": "4414badcbb86eb70b44ba32d97ecbb8cefcc4b03c584678d9ee4b7aa95bd6dac"
+      },
+      "validation/README.md": {
+        "bytes": 39778,
+        "mode": 420,
+        "sha256": "82180e8f5e114477a6f6abb7cb7a64d431abd8b991a257f029babcd1cf05a3fc"
+      }
+    },
+    "all_other_frozen_files_remain_exact": 2374,
+    "final_source_files": 2380,
+    "final_source_checksum_entries": 2379,
+    "source_checksum_excludes_itself": true,
+    "full_suite_rerun_after_documentation": false,
+    "new_native_14_source_batch_included": false,
+    "deletions": 0
+  },
+  "evidence": {
+    "eight_stage_run_id": "official-eight-stage-b26de404b2fa4ab181359b7cde251dab",
+    "result_sha256": "1304bc588673289413a543aeeed3880b3508416882e9fb4f9389938f32b91a24",
+    "parent_acceptance_sha256": "6fcdaed5451450139b4e464d71b69325b7a0a3a02ab550f613e14dc39718bd1a",
+    "parent_all_content_readback_sha256": "1d520604284dcc7707aa812fc1723203dfd0826555455bb9fb0db428022abe77",
+    "parent_status": "PARENT_INDEPENDENT_ALL4206_CONTENT_READBACK_PUBLIC_HOST_EIGHT_STAGE_PASS_ONLY",
+    "parent_records": 4206,
+    "parent_readback_checks": [
+      "actual content SHA-256",
+      "bytes",
+      "mode",
+      "UID",
+      "nlink",
+      "matching control ledgers"
+    ],
+    "local_evidence_files_distributed": false
+  },
+  "stages": [
+    {
+      "stage": "crypto-import",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "script-sync",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "host-dependencies",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "source-patches",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "adapters",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 81,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "host",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 302,
+        "skipped": 34,
+        "subtests_passed": 76
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "models",
+      "returncode": 0,
+      "expected_returncode": 0,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 0,
+        "passed": 8477,
+        "skipped": 106,
+        "subtests_passed": 10420
+      },
+      "inputs_stable": true
+    },
+    {
+      "stage": "actual-api-missing-env",
+      "returncode": 1,
+      "expected_returncode": 1,
+      "expected_status": true,
+      "counts": {
+        "errors": 0,
+        "failed": 1,
+        "passed": 0,
+        "skipped": 0,
+        "subtests_passed": 0
+      },
+      "inputs_stable": true
+    }
+  ],
+  "missing_env_negative_case": {
+    "precisely_one_failure": true,
+    "returncode": 1,
+    "positive_actual_api_executed": false
+  },
+  "dependency_and_asset_boundary": {
+    "source_files": 2378,
+    "host_prerequisites": 424,
+    "host_prerequisites_manifest_sha256": "80b077b06fc51d6e1d4b857bd996dbd81d160dc8d711730d78ab9ef26754040a",
+    "host_prerequisites_distributed": false,
+    "external_entries": 1404,
+    "external_manifest_sha256": "1ff21c0fac4069700644fd7ba94d7f95c044341d249fa0b9e382c498167534a9",
+    "external_assets_distributed": false,
+    "guest_symlinks": 155,
+    "sony_original_or_derived_entries": 1290,
+    "external_regular_bytes": 3032646539,
+    "requirements": [
+      "capstone>=5,<6",
+      "pyelftools",
+      "Pillow>=10,<13",
+      "pycryptodomex>=3.10"
+    ],
+    "third_party_RECORD": "Local dependency index metadata only; no vendored site-packages or dependency binaries are added to Git",
+    "reader_assets": "Obtain official ILCE-7CM2 2.01 ALLLANG from Sony and prepare locally using the package instructions",
+    "bodydata_sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31",
+    "model_modules": 231,
+    "explicit_outside_host_scope_nodes": 24
+  },
+  "source_provenance": {
+    "ledgers": [
+      "tools/source-port-shutter-gate-v1.json",
+      "tools/source-port-shutter-config-content-v1.json"
+    ],
+    "override_order": "config-content ledger overrides only its listed paths/dependency correction fields; final SOURCE-SHA256SUMS binds the assembled tree",
+    "source7_and_fixture7": "Public adapted bytes retained exactly; original runtime receipts not reused",
+    "new_profile": "qemu-readonly-shutter-gate-v1, default off and read only",
+    "config_budget": "Exact new profile: 32768 bytes; legacy profiles: 16384 bytes; content/live revalidation retained",
+    "research_config_correction_0eod": {
+      "batch": "unified-camera-0eod_0o9",
+      "tests_passed": 10403,
+      "subtests_passed": 10581,
+      "modules": 242,
+      "source_inputs": 1193,
+      "parent_completion_acceptance_sha256": "c7092654dc19f4b573a510a135253ac9e14616f957e5ecd047ee8ed6b0fdf366",
+      "parent_readback_sha256": "bf07c0f8a984e81239bf1698b36627470a44a592d266803cafe60dcda0d75a63",
+      "ready_sha256": "319dabc6315704c3086de535d7152bb056bc663084c8a55210d207f336c6bebc",
+      "source_inventory_sha256": "5c77785b7723c569bb89d76e5fca5dcb83e3235da1b2b8b435b3cbe16a7bad58",
+      "source_archive_sha256": "ff5cdb1d7d00ab75107abff4fb85cfcf2c5969711a51823affb414d9a45e3a36",
+      "self_owned_actual_api_cases": [
+        "original_entry",
+        "existing_main_stub_entry",
+        "one_byte_gate_mutation",
+        "short_tb"
+      ],
+      "scope": "Accepted offline research provenance, including original ABI/self-owned API checks; not positive execution acceptance for this adapted public package"
+    },
+    "historical_pvebt_counts": {
+      "tests_passed": 10203,
+      "subtests_passed": 10581,
+      "historical_ledger_unchanged": true
+    },
+    "original_doc4": {
+      "status": "FAIL_NO_JPG",
+      "returncode": 1,
+      "original_failed_evidence_unchanged": true,
+      "terminal_metadata_sha256": "519beeb9326ace4b9ce866b309992567f65b77387f4eddfdd427f1fe1bca04ad",
+      "capture_verified": false,
+      "physical_asic_compatibility_verified": false
+    },
+    "earlier_public_failure_files_unchanged": [
+      "report/2026-10-31-qemu-shutter-gate-observer-v1/PUBLIC-VALIDATION.md",
+      "validation/2026-10-31-shutter-gate-v1-publication.json"
+    ]
+  },
+  "external_stages": [
+    {
+      "stage": "sony-original-assets",
+      "status": "NOT_RUN_EXTERNAL_STAGE"
+    },
+    {
+      "stage": "sony-original-libc-2.25",
+      "status": "NOT_RUN_EXTERNAL_STAGE"
+    },
+    {
+      "stage": "qemu-user-native-abi",
+      "status": "NOT_RUN_EXTERNAL_STAGE"
+    },
+    {
+      "stage": "actual-api7-positive",
+      "status": "NOT_RUN_EXTERNAL_STAGE"
+    },
+    {
+      "stage": "gtk-desktop-runtime",
+      "status": "NOT_RUN_EXTERNAL_STAGE"
+    }
+  ],
+  "assembly_static_checks": {
+    "status": "PASS_STATIC_SOURCE_SYNC_AND_DIFF_CHECKS",
+    "full_pytest_repeated": false,
+    "checkout_source_without_archive": {
+      "argv": [
+        "python3",
+        "-B",
+        "tools/check-source.py"
+      ],
+      "returncode": 1,
+      "expected_returncode": 1,
+      "scope": "Source-only detached checkout: expected missing pinned external archive rejection; raw stdout/stderr retained locally"
+    },
+    "source_patches": {
+      "argv": [
+        "python3",
+        "-B",
+        "<verified-prepared-package>/tools/check-source.py"
+      ],
+      "returncode": 0,
+      "scope": "Read-only verified prepared source root with its pinned archive; all consumed project source bytes match the detached checkout. Patch staging writes only to this publication task's temporary directory. Archive and dependencies are not imported into Git."
+    },
+    "script_sync": {
+      "argv": [
+        "sh",
+        "analysis/sync_repo_scripts.sh",
+        "--check"
+      ],
+      "returncode": 0,
+      "scope": "Root publication rule; exact read-only CLI with A7C2_REPO unset"
+    },
+    "diff_check": {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "returncode": 0,
+      "scope": "Detached worktree only"
+    },
+    "local_receipts_include_exact_argv_cwd_returncodes_and_raw_output_sha256": true,
+    "full_eight_stage_rerun_on_final_2380_files": false,
+    "source_ledger": {
+      "status": "PASS",
+      "layered_paths": 40,
+      "source7": 7,
+      "fixture7": 7,
+      "negative_cases": [
+        {
+          "case": "config-content byte mutation",
+          "rejected": true
+        },
+        {
+          "case": "frozen source mode mutation",
+          "rejected": true
+        },
+        {
+          "case": "unlisted Sony/guest asset path injection",
+          "rejected": true
+        },
+        {
+          "case": "stale pre-correction ledger digest",
+          "rejected": true
+        }
+      ],
+      "unchanged_snapshot_files": 2374,
+      "host_and_external_entries_in_checkout": 0,
+      "historical_origin_members_unchanged": true,
+      "new_documents_no_machine_paths_or_secret_signatures": true
+    }
+  },
+  "VM": false,
+  "QEMU_or_VM_started": false,
+  "native": false,
+  "native_ui_verified": false,
+  "original_main_verified": false,
+  "original_library_execution_verified": false,
+  "capture": false,
+  "capture_verified": false,
+  "physical": false,
+  "physical_asic_compatibility_verified": false
+}

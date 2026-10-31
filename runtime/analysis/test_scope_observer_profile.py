@@ -19,7 +19,10 @@ class ScopeProfileTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.native = self.root / 'native'
+        self.native = self.root / 'package'
+        public_root = mock.patch.object(profile, 'PUBLIC_NATIVE_ROOT', self.native)
+        public_root.start()
+        self.addCleanup(public_root.stop)
         self.source = self.native / 'report/2026-10-30-qemu-readonly-scope-observer'
         self.source.mkdir(parents=True)
         for name in profile.SOURCE_NAMES:
@@ -83,6 +86,321 @@ class ScopeProfileTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.write_receipt()
+
+    def use_shutter_gate_receipt(self):
+        self.source = profile.source_root(self.native, profile.PROFILE_SHUTTER_GATE_V1)
+        for name in set(profile.SOURCE_NAMES_SHUTTER_GATE_V1 + profile.FIXTURE_NAMES_SHUTTER_GATE_V1):
+            path = self.source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'HOST_TEST shutter-gate source ' + name.encode())
+        schema = self.source / profile.SHUTTER_GATE_SCHEMA_FILE
+        schema.write_text(json.dumps(dict(schema='readonly_shutter_gate_v1', profile=profile.PROFILE_SHUTTER_GATE_V1)))
+        self.contract = dict(schema='readonly_shutter_gate_source_contract_v1', profile=profile.PROFILE_SHUTTER_GATE_V1,
+            trace_schema='readonly_shutter_gate_v1', trace_schema_sha256=profile.sha(schema),
+            actual_build_source_names_required=list(profile.SOURCE_NAMES_SHUTTER_GATE_V1),
+            actual_fixture_source_names_required=list(profile.FIXTURE_NAMES_SHUTTER_GATE_V1),
+            actualAPI_cases=list(profile.SHUTTER_GATE_CASES), actualAPI_environment_names=list(profile.SHUTTER_GATE_API_ENV))
+        (self.source / profile.SHUTTER_GATE_CONTRACT_FILE).write_text(json.dumps(self.contract))
+        work = self.native / 'runtime/analysis/scratch/functional-shutter-gate-v1-readonly-plugin/build-HOST_TEST'
+        work.mkdir(parents=True)
+        self.library = self.library.rename(work / 'scope-observer.so')
+        self.receipt.unlink()
+        self.receipt = work / 'build-receipt.json'
+        imports = profile.SHUTTER_GATE_IMPORTS | {'fwrite', 'g_byte_array_set_size'}
+        self.import_audit = {
+            'imports': dict(command=['nm', '-D', '--undefined-only', str(self.library)], returncode=0,
+                            stdout='\n'.join(' U ' + name for name in sorted(imports)), stderr=''),
+            'exports': dict(command=['nm', '-D', '--defined-only', str(self.binary)], returncode=0,
+                            stdout='\n'.join(' T ' + name for name in sorted(profile.SHUTTER_GATE_IMPORTS)), stderr=''),
+            'needed': dict(command=['readelf', '-d', str(self.library)], returncode=0,
+                           stdout=' (NEEDED) Shared library: [libc.so.6]\n (NEEDED) Shared library: [libglib-2.0.so.0]\n', stderr=''),
+            'qemu_plugin_imports': sorted(profile.SHUTTER_GATE_IMPORTS),
+            'ordinary_imports': ['fwrite', 'g_byte_array_set_size'], 'dt_needed': ['libc.so.6', 'libglib-2.0.so.0']}
+        (work / 'readonly-import-audit.json').write_text(json.dumps(self.import_audit))
+        (work / 'plugin-build-command.json').write_text(json.dumps(dict(command=['sh', str(self.source / 'build-plugin.sh')],
+            returncode=0, stdout=str(self.library) + '\n', stderr='')))
+        (self.root / 'candidate-static-audit.json').write_text('{"HOST_TEST":"not actual evidence"}')
+        sources = {name: profile.sha(self.source / name) for name in profile.SOURCE_NAMES_SHUTTER_GATE_V1}
+        self.data.update(schema=profile.PROFILE_SHUTTER_GATE_V1, source_sha256=sources,
+            fixture_source_sha256={name: profile.sha(self.source / name) for name in profile.FIXTURE_NAMES_SHUTTER_GATE_V1},
+            trace_schema='readonly_shutter_gate_v1', trace_schema_sha256=profile.sha(schema),
+            source_contract_sha256=profile.sha(self.source / profile.SHUTTER_GATE_CONTRACT_FILE),
+            library=str(self.library), qemu=str(self.binary),
+            plugin_build_command_sha256=profile.sha(work / 'plugin-build-command.json'),
+            readonly_import_audit_sha256=profile.sha(work / 'readonly-import-audit.json'),
+            candidate_static_audit_sha256=profile.sha(self.root / 'candidate-static-audit.json'),
+            runtime_verified=False, capture_verified=False, physical_asic_compatibility_verified=False)
+        for name, value in (('V3_QEMU_SHA256', self.data['qemu_sha256']),
+                            ('V3_HEADER_SHA256', self.data['qemu_header_sha256'])):
+            patcher = mock.patch.object(profile, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.write_receipt()
+
+    def rehash_shutter_contract(self):
+        path = self.source / profile.SHUTTER_GATE_CONTRACT_FILE
+        path.write_text(json.dumps(self.contract))
+        self.data['source_sha256'][profile.SHUTTER_GATE_CONTRACT_FILE] = profile.sha(path)
+        self.data['source_contract_sha256'] = profile.sha(path)
+        self.write_receipt()
+
+    def test_shutter_gate_json_rejects_duplicate_and_non_finite_extra_fields(self):
+        with self.assertRaisesRegex(ValueError, 'Duplicate shutter-gate JSON'):
+            profile.shutter_gate_json('{"unused":1,"unused":2}')
+        for value in ('NaN', 'Infinity', '-Infinity', '1e999'):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Non-finite shutter-gate JSON'):
+                profile.shutter_gate_json('{"unused":{"number":' + value + '}}')
+        self.assertEqual(profile.shutter_gate_json('{"diagnostic":1.25}'), {'diagnostic': 1.25})
+
+    def test_shutter_gate_uses_explicit_schema_and_new_fixed_root_with_legacy_closures_unchanged(self):
+        self.assertEqual(profile.PROFILE_SHUTTER_GATE_V1, 'qemu-readonly-shutter-gate-v1')
+        self.assertEqual(profile.source_root(self.native, profile.PROFILE_SHUTTER_GATE_V1),
+                         self.native / 'report/2026-10-31-qemu-shutter-gate-observer-v1')
+        self.assertEqual(profile.SHUTTER_GATE_SCHEMA_FILE, 'log-schema-shutter-gate-v1.json')
+        self.assertEqual(len(profile.SOURCE_NAMES_SHUTTER_GATE_V1), 7)
+        self.assertEqual(len(profile.FIXTURE_NAMES_SHUTTER_GATE_V1), 7)
+        self.assertEqual(len(profile.SOURCE_NAMES), 3)
+        self.assertEqual(len(profile.SOURCE_NAMES_V2), 9)
+        self.assertEqual(len(profile.SOURCE_NAMES_V3), 9)
+        for unknown in ('qemu-readonly-shutter-gate-v2', 'qemu-readonly-shutter-gate-v1/other'):
+            with self.assertRaises(ValueError):
+                profile.source_root(self.native, unknown)
+
+    def test_shutter_gate_actual_staging_metadata_and_exit_preserve_raw_returncode(self):
+        self.use_shutter_gate_receipt()
+        for index, rc in enumerate((0, -15, 9, None)):
+            output = self.root / ('shutter-run-' + str(index))
+            output.mkdir()
+            env = self.env.copy()
+            env[profile.BUILD_ENV] = str(self.receipt)
+            result = profile.prepare(self.native, env, output)
+            self.assertEqual(result['profile'], profile.PROFILE_SHUTTER_GATE_V1)
+            self.assertEqual(result['trace_schema'], 'readonly_shutter_gate_v1')
+            self.assertEqual(result['trace_schema_sha256'], profile.sha(self.source / profile.SHUTTER_GATE_SCHEMA_FILE))
+            self.assertEqual(result['source_sha256'], self.data['source_sha256'])
+            self.assertEqual(result['fixture_source_sha256'], self.data['fixture_source_sha256'])
+            self.assertEqual(len(result['source_sha256']), 7)
+            self.assertEqual(len(result['fixture_source_sha256']), 7)
+            self.assertEqual(result['readonly_import_audit_sha256'], self.data['readonly_import_audit_sha256'])
+            self.assertEqual(Path(result['library']).read_bytes(), self.library.read_bytes())
+            self.assertEqual(Path(result['library']).stat().st_mode & 0o777, 0o400)
+            self.assertEqual(env[profile.CHILD_ENV[0]], result['library'])
+            self.assertEqual(env[profile.CHILD_ENV[1]], result['library_sha256'])
+            self.assertFalse(Path(result['log']).exists())
+            profile.record_exit(output, result, SimpleNamespace(pid=12345, poll=lambda: rc))
+            exited = json.loads((output / 'readonly-scope-exit.json').read_bytes())
+            self.assertEqual(exited['profile'], profile.PROFILE_SHUTTER_GATE_V1)
+            self.assertEqual(exited['returncode'], rc)
+            self.assertIs(exited['capture_verified'], False)
+            self.assertIs(exited['physical_asic_compatibility_verified'], False)
+            self.assertEqual((output / 'readonly-scope-exit.json').stat().st_mode & 0o777, 0o600)
+            self.assertIs(exited['log_available'], False)
+
+    def test_shutter_gate_exit_trace_is_read_back_and_actual_change_rejects(self):
+        self.use_shutter_gate_receipt()
+        self.env[profile.BUILD_ENV] = str(self.receipt)
+        result = profile.prepare(self.native, self.env, self.output)
+        log = self.output / 'readonly-scope-trace.log'
+        log.write_bytes(b'HOST_TEST immutable raw trace\n')
+        original_sha = profile.sha
+        reads = []
+        def changing_sha(path):
+            value = original_sha(path)
+            if Path(path) == log:
+                reads.append(value)
+                if len(reads) == 1:
+                    log.write_bytes(b'HOST_TEST changed raw trace\n')
+            return value
+        with mock.patch.object(profile, 'sha', side_effect=changing_sha), \
+                self.assertRaisesRegex(ValueError, 'trace changed while recording'):
+            profile.record_exit(self.output, result, SimpleNamespace(pid=12345, poll=lambda: 0))
+        self.assertEqual(len(reads), 2)
+        exited = json.loads((self.output / 'readonly-scope-exit.json').read_bytes())
+        self.assertEqual(exited['log_sha256'], reads[0])
+        self.assertNotEqual(exited['log_sha256'], original_sha(log))
+        self.assertIs(exited['capture_verified'], False)
+
+    def test_shutter_gate_original_functional_artifact_admission_keeps_explicit_receipt_and_default_pin(self):
+        self.use_shutter_gate_receipt()
+        tree = ast.parse(Path(__file__).with_name('functional_camera_runner.py').read_text())
+        blocks = [node for node in ast.walk(tree) if isinstance(node, ast.If) and
+                  ast.unparse(node.test) == 'scope_build_receipt is None']
+        self.assertEqual(len(blocks), 1)
+        code = compile(ast.Module(body=blocks, type_ignores=[]), '<HOST_TEST original artifact admission>', 'exec')
+        pins = {node.targets[0].id: node.value.value for node in tree.body if isinstance(node, ast.Assign) and
+                len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) and
+                isinstance(node.value, ast.Constant) and node.targets[0].id in
+                ('QEMU_SHA256', 'READONLY_SCOPE_QEMU_SHA256')}
+        self.assertEqual(pins['QEMU_SHA256'], 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02')
+        self.assertEqual(pins['READONLY_SCOPE_QEMU_SHA256'],
+                         '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4')
+        def require(condition, message):
+            if not condition:
+                raise ValueError(message)
+        namespace = dict(require=require, scope_build_receipt=None, qemu_sha256=self.data['qemu_sha256'],
+            QEMU_SHA256=pins['QEMU_SHA256'], READONLY_SCOPE_QEMU_SHA256=self.data['qemu_sha256'],
+            scope_observer_profile=profile, root=self.native, qemu_binary=self.binary)
+        with mock.patch.object(profile, 'validate_build', wraps=profile.validate_build) as validate:
+            with self.assertRaisesRegex(ValueError, 'accepted unchanged QEMU'):
+                exec(code, namespace)
+            validate.assert_not_called()
+            namespace['qemu_sha256'] = pins['QEMU_SHA256']
+            exec(code, namespace)
+            validate.assert_not_called()
+            namespace.update(scope_build_receipt=self.receipt, qemu_sha256=self.data['qemu_sha256'])
+            exec(code, namespace)
+            validate.assert_called_once_with(self.native, self.receipt, self.binary)
+            self.data['source_sha256']['build-runtime.py'] = '0' * 64
+            self.write_receipt()
+            with self.assertRaisesRegex(ValueError, 'source identity changed'):
+                exec(code, namespace)
+        self.assertEqual(list(self.output.iterdir()), [])
+
+    def test_shutter_gate_default_off_and_raw_child_environment_no_fallback(self):
+        self.use_shutter_gate_receipt()
+        self.env[profile.BUILD_ENV] = str(self.receipt)
+        env = {key: value for key, value in self.env.items() if key != profile.BUILD_ENV}
+        self.assertIsNone(profile.prepare(self.native, env, self.output))
+        for name in profile.CHILD_ENV:
+            for value in ('unbound', ''):
+                with self.subTest(name=name, value=value), self.assertRaises(ValueError):
+                    profile.prepare(self.native, dict(self.env, **{name: value}), self.output)
+        self.assertEqual(list(self.output.iterdir()), [])
+
+    def test_shutter_gate_aliases_mixed_maps_placeholder_and_promoted_claims_reject(self):
+        self.use_shutter_gate_receipt()
+        original = json.loads(json.dumps(self.data))
+        mutations = [('trace_schema', 'readonly_scope_v1'), ('trace_schema_sha256', None),
+            ('trace_schema_sha256', profile.LEGACY_SCHEMA_SHA256), ('source_contract_sha256', '0' * 64),
+            ('readonly_imports_verified', False), ('plugin_api', 7.0), ('runtime_verified', True),
+            ('capture_verified', True), ('physical_asic_compatibility_verified', 0),
+            ('fixture_source_sha256', None), ('candidate_static_audit_sha256', None),
+            ('source_sha256', {**original['source_sha256'], 'late-sites.inc': '0' * 64}),
+            ('fixture_source_sha256', {**original['fixture_source_sha256'], 'integration/scope_trace_checks.py': '0' * 64})]
+        mutations += [(name, str(self.source)) for name in profile.SHUTTER_GATE_ALIASES]
+        for key, value in mutations:
+            self.data = dict(original, **{key: value})
+            self.write_receipt()
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                profile.validate_build(self.native, self.receipt, self.binary)
+        for field, names in (('source_sha256', profile.SOURCE_NAMES_SHUTTER_GATE_V1),
+                             ('fixture_source_sha256', profile.FIXTURE_NAMES_SHUTTER_GATE_V1)):
+            for name in names:
+                self.data = json.loads(json.dumps(original))
+                del self.data[field][name]
+                self.write_receipt()
+                with self.subTest(field=field, missing=name), self.assertRaises(ValueError):
+                    profile.validate_build(self.native, self.receipt, self.binary)
+        self.data = original
+        self.write_receipt()
+        self.assertEqual(list(self.output.iterdir()), [])
+
+    def test_shutter_gate_same_v1_suffix_old_schema_cannot_be_rehashed_into_new_receipt(self):
+        self.use_shutter_gate_receipt()
+        (self.source / 'log-schema-v1.json').write_text(json.dumps(dict(schema='readonly_shutter_gate_v1',
+                                                                     profile=profile.PROFILE_SHUTTER_GATE_V1)))
+        schema = self.source / profile.SHUTTER_GATE_SCHEMA_FILE
+        schema.write_text(json.dumps(dict(schema='readonly_scope_v1', profile=profile.PROFILE_SHUTTER_GATE_V1)))
+        self.data['source_sha256'][profile.SHUTTER_GATE_SCHEMA_FILE] = profile.sha(schema)
+        self.data['trace_schema_sha256'] = profile.sha(schema)
+        self.contract['trace_schema_sha256'] = profile.sha(schema)
+        self.rehash_shutter_contract()
+        with self.assertRaisesRegex(ValueError, 'actual schema/source-contract'):
+            profile.validate_build(self.native, self.receipt, self.binary)
+
+    def test_shutter_gate_source_contract_names_cases_environment_and_no_self_hash_are_exact(self):
+        self.use_shutter_gate_receipt()
+        original = dict(self.contract)
+        mutations = [('schema', 'source-contract-shutter-gate-v1'), ('profile', profile.PROFILE),
+            ('source_contract_sha256', None), ('actual_build_source_names_required', list(profile.SOURCE_NAMES_V3)),
+            ('actual_fixture_source_names_required', list(profile.FIXTURE_NAMES_SHUTTER_GATE_V1[:-1])),
+            ('actualAPI_cases', list(profile.SHUTTER_GATE_CASES) + ['anchor']),
+            ('actualAPI_environment_names', list(profile.SHUTTER_GATE_API_ENV[:-1]))]
+        for key, value in mutations:
+            self.contract = dict(original, **{key: value})
+            self.rehash_shutter_contract()
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'actual schema/source-contract'):
+                profile.validate_build(self.native, self.receipt, self.binary)
+        self.contract = original
+        self.rehash_shutter_contract()
+
+    def test_shutter_gate_import_audit_requires_exact_eleven_and_real_zero_rc_even_when_rehashed(self):
+        self.use_shutter_gate_receipt()
+        original = json.loads(json.dumps(self.import_audit))
+        for kind in ('missing', 'extra', 'unexported', 'rc', 'ordinary', 'needed'):
+            audit = json.loads(json.dumps(original))
+            if kind == 'missing':
+                audit['imports']['stdout'] = audit['imports']['stdout'].replace(' U qemu_plugin_read_register', '')
+            elif kind == 'extra':
+                audit['imports']['stdout'] += '\n U qemu_plugin_read_memory_vaddr'
+            elif kind == 'unexported':
+                audit['exports']['stdout'] = ''
+            elif kind == 'rc':
+                audit['imports']['returncode'] = -15
+            elif kind == 'ordinary':
+                audit['ordinary_imports'] = []
+            else:
+                audit['dt_needed'] = []
+            path = self.library.parent / 'readonly-import-audit.json'
+            path.write_text(json.dumps(audit))
+            self.data['readonly_import_audit_sha256'] = profile.sha(path)
+            self.write_receipt()
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                profile.validate_build(self.native, self.receipt, self.binary)
+        path.write_text(json.dumps(original))
+        self.data['readonly_import_audit_sha256'] = profile.sha(path)
+        self.write_receipt()
+        self.assertEqual(profile.validate_build(self.native, self.receipt, self.binary)['profile'],
+                         profile.PROFILE_SHUTTER_GATE_V1)
+
+    def test_shutter_gate_every_source_fixture_and_audit_must_be_ordinary_single_link(self):
+        self.use_shutter_gate_receipt()
+        paths = [self.source / name for name in dict.fromkeys(profile.SOURCE_NAMES_SHUTTER_GATE_V1 +
+                                                             profile.FIXTURE_NAMES_SHUTTER_GATE_V1)]
+        paths += [self.receipt, self.library, self.library.parent / 'readonly-import-audit.json',
+                  self.library.parent / 'plugin-build-command.json']
+        for path in paths:
+            saved = path.with_name(path.name + '.saved')
+            path.rename(saved)
+            with self.subTest(missing=path), self.assertRaises((OSError, ValueError)):
+                profile.validate_build(self.native, self.receipt, self.binary)
+            path.symlink_to(saved)
+            with self.subTest(symlink=path), self.assertRaises(ValueError):
+                profile.validate_build(self.native, self.receipt, self.binary)
+            path.unlink()
+            saved.rename(path)
+            profile.os.link(path, saved)
+            with self.subTest(hardlink=path), self.assertRaises(ValueError):
+                profile.validate_build(self.native, self.receipt, self.binary)
+            saved.unlink()
+
+    def test_shutter_gate_old_exit_and_trace_symlinks_are_refused(self):
+        self.use_shutter_gate_receipt()
+        self.env[profile.BUILD_ENV] = str(self.receipt)
+        exit_path = self.output / 'readonly-scope-exit.json'
+        exit_path.symlink_to(self.root / 'absent')
+        with self.assertRaisesRegex(ValueError, 'old exit receipt'):
+            profile.prepare(self.native, self.env, self.output)
+        exit_path.unlink()
+        result = profile.prepare(self.native, self.env, self.output)
+        (self.output / 'readonly-scope-trace.log').symlink_to(self.receipt)
+        with self.assertRaises(ValueError):
+            profile.record_exit(self.output, result, SimpleNamespace(pid=12345, poll=lambda: 0))
+        self.assertFalse(exit_path.exists())
+
+    def test_shutter_gate_fixture_or_audit_changed_during_staging_never_exports_child_env(self):
+        self.use_shutter_gate_receipt()
+        self.env[profile.BUILD_ENV] = str(self.receipt)
+        original_sha = profile.sha
+        def changing_sha(path):
+            result = original_sha(path)
+            if Path(path) == self.output / 'readonly-scope-observer.so':
+                (self.source / 'integration/fixture.S').write_bytes(b'HOST_TEST changed during stage')
+            return result
+        with mock.patch.object(profile, 'sha', side_effect=changing_sha), self.assertRaises(ValueError):
+            profile.prepare(self.native, self.env, self.output)
+        self.assertTrue((self.output / 'readonly-scope-observer.so').exists())
+        self.assertFalse(any(name in self.env for name in profile.CHILD_ENV))
 
     def test_actual_manifest_caller_hashes_every_version_source_from_its_fixed_root(self):
         tree = ast.parse(Path(__file__).with_name('qemu-menu-probe.py').read_text())
