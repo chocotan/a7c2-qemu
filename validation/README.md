@@ -1,5 +1,11 @@
 # 本包验证记录
 
+## 11月6日文档更新
+
+新增[当前研究进展](../docs/tech/2026-11-06-current-progress.md)与[进度JSON](2026-11-06-progress.json)。研究完整离线批`unified-camera-vxju27_y`实际通过**22,952 tests／20,213 subtests**，JUnit 43,165、0 failure／error／skip，1,388 sources／277 modules；四个gate阶段、双原ABI／actualAPI与独立读回通过。原3dgq完整批**21,557／20,131（14 failure／1,390 error）保持FAIL**，必要失败项复查**1,431／1,698 PASS**。原固件QEMU运行`run-ehgdk5qp`在晚期4000（OP22）返回240B、config 24→25，4057完成，下一4072发送断言失败，UI1／FirmwareFault；卡无JPEG／MP4，`capture_verified=false`。
+
+**本次只发布文档，公开运行源码和测试源码保持10月31日移交版本（运行源码基线 `d6fb503`）。** 研究侧的22,952等数量不能在本公开checkout直接复现；最新OP20／21／22／23实现未随本次同步，旧公开shutter-gate源码发布保留。校验范围与实际命令见[文档发布说明](../report/2026-11-06-documentation-publication/README.md)及[发布收据](2026-11-06-documentation-publication.json)；以下11月4日及更早记录保持原日期和范围。
+
 ## 11月4日文档更新
 
 新增[当前研究进展](../docs/tech/2026-11-04-current-progress.md)与[进度JSON](2026-11-04-progress.json)。研究完整批16,462 tests／12,819 subtests、934项once及原huti输入／13图／关闭读回分别记录，媒体仍为空，`capture_verified=false`。正式focus／transport仍在VDF完整记录与kernel共行处拒绝，403e查询的数据语义仍待核实。

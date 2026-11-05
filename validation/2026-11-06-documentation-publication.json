@@ -1,0 +1,107 @@
+{
+  "schema": "a7c2-qemu-documentation-publication-v1",
+  "date": "2026-11-06",
+  "status": "VALIDATED_DOC_ONLY_CONTENT_READY_FOR_NORMAL_PUBLICATION",
+  "scope": "documentation_only_no_runtime_or_test_source_changes",
+  "base_commit": "d6fb503e3e2f670cd85d5900c92b33eb4ff7a36e",
+  "public_working_tree_clean_when_read": true,
+  "changed_paths": [
+    "README.md",
+    "docs/tech/README.md",
+    "docs/tech/2026-11-06-current-progress.md",
+    "report/2026-11-06-documentation-publication/README.md",
+    "validation/README.md",
+    "validation/2026-11-06-progress.json",
+    "validation/2026-11-06-documentation-publication.json"
+  ],
+  "parent_updates": [
+    "SOURCE-SHA256SUMS"
+  ],
+  "checksum_update": "parent_updated_exact7_document_rows_and_verified_all2387_members",
+  "source_inputs_outside_document_allowlist_unchanged": true,
+  "source_identity_comparison": "public HEAD d6fb503 with clean working tree; existing README.md, docs/tech/README.md and validation/README.md matched their captured before-SHA; all four new paths were absent; no runtime or test source was edited",
+  "checks": [
+    {
+      "name": "draft_read_only_checks",
+      "receipt": "analysis/scratch/qemu-docs-publication-20261106-draft/draft-checks.json",
+      "covers": [
+        "exact 7-file package allowlist",
+        "8 authoritative source-document size and SHA-256 readback",
+        "2 JSON parses",
+        "markdown relative links",
+        "forbidden path, conflict-marker and nonce scan",
+        "public before-SHA and new-path absence",
+        "SOURCE-SHA256SUMS not pre-updated"
+      ],
+      "returncode": 0
+    },
+    {
+      "name": "legacy-script-sync",
+      "returncode": 0,
+      "stdout_sha256": "4df707a940d6fde11b4675d18383ba135c02499e6c279db310d26955fca9a847",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "public-offline-source",
+      "returncode": 0,
+      "stdout_sha256": "e063e5761822281df57788c8ee264592074b54d7e493e04ea3e53477145f0bc1",
+      "stderr_sha256": "9fd2ee14b1d88e5c4033503be817ac9ac5225a940a43682f314224d37925d297"
+    },
+    {
+      "name": "public-checksum",
+      "returncode": 0,
+      "members_verified": 2387,
+      "prior_non_doc_members_unchanged": 2380,
+      "stdout_sha256": "1b4f861b4baf23494e300b1ea8fa76eca4a663532e476798784c836153157f63",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "markdown_checks": [
+    {
+      "path": "README.md",
+      "sha256": "2f19577ae9b3b6b164e99e5e7f9118f43564d0d82a2fdd4e97d258a693967e7c",
+      "new_broken_links": []
+    },
+    {
+      "path": "docs/tech/README.md",
+      "sha256": "e13d87df0efcef75fbc6795877bfcc5ef31dca79e3030cdf4603268779597a07",
+      "new_broken_links": []
+    },
+    {
+      "path": "docs/tech/2026-11-06-current-progress.md",
+      "sha256": "09c3663316fd84e80ff489f1a3e3f25bcfb8b3ad7570ca9a1ea087c20386e3a3",
+      "new_broken_links": []
+    },
+    {
+      "path": "report/2026-11-06-documentation-publication/README.md",
+      "sha256": "23658b341b4bbe36b2f38adcf7f549e40abf5c9c395b8d4db88c5a5dd4fc5c50",
+      "new_broken_links": []
+    },
+    {
+      "path": "validation/README.md",
+      "sha256": "d44bb6920259bc517ca7c681c6083c885aad3680cb981997eb171b9e12745838",
+      "new_broken_links": []
+    }
+  ],
+  "json_checked": true,
+  "no_new_broken_markdown_links": true,
+  "complete_host_suite_run": false,
+  "complete_model_suite_run": false,
+  "vm_run": false,
+  "original_abi_or_api_run": false,
+  "original_media_decoded": false,
+  "research_counts_are_not_public_package_test_counts": true,
+  "public_checkout_contains_latest_op22_op23_implementation": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "minimal_business_patch": null,
+  "publication_steps_remaining_when_receipt_created": [
+    "normal commit and push without force, then independent remote readback"
+  ],
+  "notes": [
+    "The 22,952-test offline cohort and the original AP 4072 failure are research-side results; they are not run or reproduced by this public checkout.",
+    "The public runtime and test sources remain the 2026-10-31 handover; only documentation and JSON summaries are added.",
+    "No firmware, private setting, virtual card, guest, nonce, serial, credential or raw log is included.",
+    "The parent refreshed SOURCE-SHA256SUMS and verified all members; this pre-commit receipt embeds no future commit or checksum-manifest hash."
+  ]
+}

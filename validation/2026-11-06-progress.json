@@ -1,0 +1,290 @@
+{
+  "schema": "a7c2-qemu-documentation-research-progress-v1",
+  "date": "2026-11-06",
+  "release_scope": "documentation_only_no_new_runtime_sources",
+  "public_runtime_source_commit": "d6fb503e3e2f670cd85d5900c92b33eb4ff7a36e",
+  "public_runtime_note": "Public runtime and test sources remain the 2026-10-31 handover; the latest OP20/21/22/23 implementations and the 22,952-test cohort are research-side only and are not reproducible from this checkout.",
+  "source_project": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "source_documents": [
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-jky-late4000-full-cohort-vxju/README.md",
+      "bytes": 11933,
+      "sha256": "4276fdfbcf590857df1e79f9d6aa642fddf5e924d3a7bde9a139873c1010a326",
+      "describes": "full offline cohort, original 3dgq failure, Once tool fix"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-jky-late4000-full-cohort-vxju/validation.json",
+      "bytes": 9558,
+      "sha256": "ba9bbc2d3ec297eeebdf0766921edbaa4c9dbb316d9dc962865ced177e84a5a6",
+      "describes": "machine-readable offline cohort validation"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-native-shutter-ehg/README.md",
+      "bytes": 6131,
+      "sha256": "edd4ba2368ea21fb0e5ac8e370de640240ed8d6a4bda226193fe25e73b3c8f5e",
+      "describes": "original EHG run, OP22 content, 4072 send failure, closeout"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-native-shutter-ehg/validation.json",
+      "bytes": 4586,
+      "sha256": "d606c8f497f1089af4b872e18075c1c4d0248bcffc1809acd1c9757891a8fe25",
+      "describes": "machine-readable original run validation"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-jky-late4000-full-cohort-3dgq/README.md",
+      "bytes": 2825,
+      "sha256": "506b44a43f3158d0eae99520ba5bdf56e71e7abbcd793f82549c4b705a9ea57f",
+      "describes": "original 3dgq failure preservation"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-jky-late4000-full-cohort-3dgq/RECHECK.md",
+      "bytes": 2425,
+      "sha256": "9b04305cc568149b82194814577e452ac6aa57a1acc33765aaf26ae2beba1013",
+      "describes": "necessary failure recheck"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-06-jky-late4000-full-cohort-3dgq/necessary-validation.json",
+      "bytes": 2611,
+      "sha256": "d0f95b5e4cffb8b2e7fbcbf65defa0001056814fa77d12e0414df33af32ed560",
+      "describes": "1,431/1,698 necessary recheck"
+    },
+    {
+      "path": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-11-05-native-shutter-jky/functional-movie-format.md",
+      "bytes": 6635,
+      "sha256": "b9d1cd0e704f6c1a10e63ff2d3f6b07193a7ef5353cc8979e219a530bb11155b",
+      "describes": "OP22 late4000 functional movie-format contract"
+    }
+  ],
+  "offline_cohort": {
+    "name": "unified-camera-vxju27_y",
+    "gate_status": "PASS_OFFLINE_SHUTTER_GATE_V2_COHORT",
+    "gate_returncode": 0,
+    "stage_returncodes": {
+      "unified-camera": 0,
+      "shutter-gate-actualapi": 0,
+      "shutter-gate-v2-actualapi": 0,
+      "readback": 0
+    },
+    "tests_passed": 22952,
+    "subtests_passed": 20213,
+    "junit_tests": 43165,
+    "junit_failures": 0,
+    "junit_errors": 0,
+    "junit_skipped": 0,
+    "source_count": 1388,
+    "module_count": 277,
+    "source_and_external_assets_unchanged": true,
+    "ready_sha256": "9f7597840f51cc232d9ad036de4d861bef01b4951339011edfa4a347118c237c",
+    "parent_acceptance_status": "PASS_OFFLINE_SHUTTER_GATE_V2_COHORT_READBACK",
+    "parent_acceptance_sha256": "aa6131e19e0f723f70bd97b80a965ba166e66b6c79a73ca74d64929dad603c36",
+    "offline_operand_readback_status": "PARENT_ACTUAL_NEW_COHORT_OFFLINE_OPERAND_READER_COMPATIBILITY_PASS_NO_RUN",
+    "offline_operand_files": 1725,
+    "offline_operand_bytes": 398103274,
+    "original_camera_VM_started": false,
+    "card_prepared": false,
+    "intent_published": false
+  },
+  "source_review": {
+    "sha256": "edc7a9ad5cb65ce7d0fdaf243ba63c9804e8756d1a4bc8b193efd0eec27d3d14",
+    "bytes": 400268,
+    "changed_vs_r8_baseline": 32,
+    "added_vs_r8_baseline": 2,
+    "unchanged_vs_r8_baseline": 1354,
+    "changed_vs_failed_3dgq": 3,
+    "unchanged_vs_failed_3dgq": 1385
+  },
+  "model": {
+    "member_count": 25,
+    "old_library_sha256": "9834c57b9515eff0486b6afe283a5860e5ace20b9515026064a8619c80a93471",
+    "new_library_sha256": "14941e64ce5c48e28f3889c8748f7b4519f7986de183b87d988f6241c4a59cd5",
+    "changed_members": 3,
+    "added_members": 0,
+    "removed_members": 0,
+    "three_libraries_equal": true,
+    "two_model_archives_exact_25": true,
+    "dual_actual_api_contracts_pass": true
+  },
+  "necessary_recheck": {
+    "tests_passed": 1431,
+    "subtests_passed": 1698,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "original_failed_nodes": 1396,
+    "additional_dependent_nodes": 35,
+    "repair_sources": 3
+  },
+  "original_3dgq_failure": {
+    "batch": "unified-camera-3dgqnjj4",
+    "tests_passed": 21557,
+    "subtests_passed": 20131,
+    "junit_failures": 14,
+    "junit_errors": 1390,
+    "junit_skipped": 0,
+    "failed_nodes": 1396,
+    "unified_camera_stage_returncode": 1,
+    "ready_published": false,
+    "preserved_files": 74,
+    "preserved_bytes": 33769360,
+    "preservation_sha256": "b67266031b664ffc316faf5b6edc84204e417e87060e6bd7d7096024f8d1b626",
+    "source_review_sha256": "89a47040ef5eb1eaa7ae9ceec5658ea3780dd27754bb5893c8b675938de82ce6",
+    "backfilled_as_success": false
+  },
+  "once_tool": {
+    "initial_generator_returncode": 1,
+    "failure_stage": "prepare",
+    "failure_cause": "WORK directory literal relocation outside AST allowlist in validate_plan/create_plan",
+    "failure_files": 31,
+    "failure_bytes": 3337264,
+    "failure_preservation_sha256": "a670e2fa460a69a7818bd9c9e2d676d6e5adc18711585f7049e19781c4541dac",
+    "fixed_generator_sources": 1,
+    "fixed_generator_sha256": "483fbda00decdd34e2b024fc79caa81d1593d129a3b07dc82901602b24a8ec40",
+    "exact_work_literals": 2,
+    "guard_cases_passed": 5,
+    "derive_returncode": 0,
+    "historical_guards": 14,
+    "current_guards": 15,
+    "run35_byteidentical": true,
+    "preserve_byteidentical": true,
+    "once4_derive_stdout": "JKY_LATE4000_ONCE4_DRAFT_STAGED_ACTUAL_NEW_FULL_BOUND_PARENT_REVIEW_AND_PURE_PENDING"
+  },
+  "actualpure": {
+    "status": "PASS_MOCK_ONLY",
+    "cases": 1897,
+    "inherited_cases": 340,
+    "v2_cases": 1557,
+    "old_1728_identity_retained": true,
+    "builds": 0,
+    "actualAPI_runs": 0,
+    "VM_starts": 0,
+    "is_original_ap_pass": false
+  },
+  "resource_prewrite_refusal": {
+    "refused": true,
+    "stage": "install-tested-guest-observer",
+    "reason": "active system QEMU",
+    "before_backup_or_first_write": true,
+    "guest_card_nonce_intent_created": false,
+    "original_VM_started": false,
+    "parent_QMP_calls": 0,
+    "parent_signals": 0,
+    "resume_status": "completed_EHG_original_AP_run_failed_and_safely_closed",
+    "prewrite_refusal_reclassified_as_started_or_success": false
+  },
+  "original_run": {
+    "execution_environment": "isolated_local_QEMU_original_Sony_AP",
+    "run": "run-ehgdk5qp",
+    "original_UI_returncode": 1,
+    "original_scope_returncode": 0,
+    "UI_terminal": "FirmwareFault",
+    "late_4000_OP22": {
+      "input_bytes": 20,
+      "input_hex": "0500004061000080050100000000000000000100",
+      "reply_hex": "010000406100008000f00000",
+      "core_bytes": 240,
+      "returned_bytes": 240,
+      "getter_bytes": 240,
+      "native_receipt_bytes": 240,
+      "config_generation_before": 24,
+      "config_generation_after": 25,
+      "frame_generation": 22,
+      "rendered": 22,
+      "consumed": 21,
+      "jpeg_encoded": 0,
+      "video_encoded": 0,
+      "c_buffer_bytes": 65024,
+      "c_receipt_bytes": 240,
+      "c_zero_tail_bytes": 64784
+    },
+    "following_4057_OP14": {
+      "sequence": 54,
+      "completed": true,
+      "sender": 384,
+      "receiver": 356,
+      "request_free": 0,
+      "reply_free": 0,
+      "ap_consumed": 1
+    },
+    "next_4072": {
+      "wire_hex": "050072406100008000000000",
+      "type": 5,
+      "command": "0x4072",
+      "bytes": 12,
+      "audit_140_input_matches_active_stack": true,
+      "actual_FP_frames": 14,
+      "send_assert": true,
+      "model_consumed": false,
+      "source_inferred_send_rc": -1023,
+      "runtime_numeric_send_rc": null
+    },
+    "movie_content": {
+      "event_count": 12,
+      "event_fields": 106,
+      "bytes_count": 6,
+      "bytes_fields": 19,
+      "resource35_tags_verified": 3,
+      "receiver_received_inflight": true,
+      "sender_freed_request_and_reply": true,
+      "complete": 1,
+      "retained_nil": true
+    },
+    "formal_blockers": {
+      "movie_13_profile_declarations_missing": true,
+      "movie_initial_history_contains_opcode_3012": true,
+      "scoped_content_positive": true,
+      "formal_full_movie_pass": false,
+      "global_graph_verified": false,
+      "graph_error": "EVIDENCE_INVALID guest entered exception monitor"
+    },
+    "safety_closeout": {
+      "cancel_event": 1341,
+      "cancel_result": 0,
+      "cancel_bytes": 128,
+      "detach_confirmed": true,
+      "mailbox_confirmed": true,
+      "debugger_confirmed": true,
+      "cleanup_confirmed": true,
+      "normal_QMP_quit_requests": 1,
+      "normal_QMP_quit_ack": true,
+      "pidfd_exit_confirmed": true,
+      "QEMU_signals_sent": 0,
+      "GUI_normal_close": true,
+      "exclusive_Xvfb_SIGTERM": true,
+      "SIGKILL_used": false,
+      "strict_postexit_returncode": 0,
+      "raw_files": 297,
+      "run_tree_files": 1083,
+      "run_tree_bytes": 602166521,
+      "card_files": 2,
+      "media_files": [],
+      "owners_absent": 7,
+      "both_existing_locks_exclusive": true,
+      "preservation_sha256": "bd934ffecfab82d3e814eb2981a7c8272cf5692aa64247e1ead6ba112af1a78f",
+      "all_generation_resources_consumed": true
+    }
+  },
+  "next_implementation": {
+    "transaction": "OP23 independent late one-way OU-crank",
+    "request_bytes": 12,
+    "model_result_bytes": 224,
+    "resource": "resource36 + metadata",
+    "touched_layers": [
+      "Core", "bridge", "broker", "native_owner", "Main", "formal", "profile"
+    ],
+    "status": "GROUPED_SOURCE_INTEGRATION_NOT_YET_CONCENTRATED_TESTED",
+    "functional_profile": "virtual-functional-camera-v1",
+    "default_enabled": false,
+    "strict_owner_attempt_reset": false,
+    "ack_or_receive_model_added": false,
+    "new_model_and_source_build_verified": false,
+    "may_claim_new_original_ap_pass": false
+  },
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "minimal_business_patch": null,
+  "jpeg_or_mp4_produced": false,
+  "research_counts_are_not_public_package_test_counts": true,
+  "public_checkout_contains_latest_op22_op23_implementation": false,
+  "no_firmware_private_settings_virtual_card_guest_or_raw_logs": true,
+  "reproducibility": "Summary only; original firmware, receipts, run trees, cards and guest images are not distributed."
+}

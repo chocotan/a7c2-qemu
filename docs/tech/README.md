@@ -187,7 +187,8 @@ CreateScreen、OSD 提交、输入队列等。
 
 | 文档 | 覆盖的启动阶段 |
 | --- | --- |
-| [2026-10-31-current-progress](2026-10-31-current-progress.md) | 当前功能/验证/阻塞矩阵、研究批次与原拍摄边界 |
+| [2026-11-06-current-progress](2026-11-06-current-progress.md) | 最新：完整离线cohort、原固件QEMU4072发送失败、OP22控制内容与正式movie阻塞 |
+| [2026-10-31-current-progress](2026-10-31-current-progress.md) | 上一版功能/验证/阻塞矩阵、研究批次与原拍摄边界 |
 | [2026-10-29-current-progress](2026-10-29-current-progress.md) | 历史快照：阶段时间线与当时的基线/失败 |
 | [01-firmware-assets](01-firmware-assets.md) | 第 1 步：BODYDATA 解密、缓存、资产与 initramfs |
 | [02-qemu-boot](02-qemu-boot.md) | 第 2–5 步：控制台、运行器、QEMU/DTB 装配、内核到 shell |
@@ -204,7 +205,7 @@ CreateScreen、OSD 提交、输入队列等。
 
 ## 历史进度矩阵（截至 10 月 29 日，启动视角）
 
-最新结果及不能外推的范围见[10 月 31 日矩阵](2026-10-31-current-progress.md#现在能做什么)。
+最新结果及不能外推的范围见[11 月 6 日结果](2026-11-06-current-progress.md#最新结果)。
 
 | 阶段 | 状态 |
 | --- | --- |
@@ -241,7 +242,7 @@ CreateScreen、OSD 提交、输入队列等。
 ## 证据入口与版本顺序
 
 - [本包说明](../../README.md) 与 [本包验收](../../validation/README.md)：独立包实际范围。
-- [当前进度](2026-10-31-current-progress.md)与[机器可读摘要](../../validation/2026-10-31-progress.json)：最新已验研究快照、原生失败、数据消费与后续验收；[10 月 29 日摘要](../../validation/2026-10-29-progress.json)保留历史基线。
+- [当前进度](2026-11-06-current-progress.md)与[机器可读摘要](../../validation/2026-11-06-progress.json)：最新离线 cohort、原固件QEMU 4072 发送失败、关闭与后续验收；[10 月 31 日](2026-10-31-current-progress.md)／[10 月 29 日摘要](../../validation/2026-10-29-progress.json)保留历史基线。
 - 其他机型、严格物理profile及完整系统dump路线须分别核原件身份、调用链和动态证据，不抵扣当前ALLLANG功能profile缺口。
 
 报告通常保留旧失败和旧“待验”；先看“最新结果/更正”，再读过程。
