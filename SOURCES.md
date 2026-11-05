@@ -1,5 +1,7 @@
 # 来源与固定身份
 
+2026-10-31 shutter-gate v1 后续验包已由父会话接受：固定 **2378 项源码**、424 项 host 前置和 1404 项外部资产分别记账；后两组不随 Git 交付。公开 host 八阶段为 `PASS_HOST_PUBLIC_PACKAGE_ONLY`（adapters 81、host 302/34 skip/76 subtests、models 8477/106 skip/10420 subtests，actual API 缺环境精确单 fail/rc1 为预期拒绝）。逐文件来源继续按 `shutter_gate_v1_source_port` → `shutter_gate_config_content_source_port` 的有限覆盖层级读取；新增 `shutter_gate_verified_host_publication` 只追溯本次实际验包与文档装配。详见[自包含报告](report/2026-10-31-shutter-gate-publication/README.md)和[公开收据](validation/2026-10-31-shutter-gate-host-package.json)。两份新增发布文档及四项元数据例外只做后续静态检查；原八阶段没有对装配后 2380 项重跑。旧失败保留；原 JPG/MP4、native/physical 和外部实际执行未获通过，`published=false`。
+
 2026-10-31 更新把同一冻结批次 `unified-camera-arzj0n5v` 的 startup-control、still-format、只读 scope v2/v3、内容检查与有限测试依赖移交到本包。逐文件原始/最终摘要和保留的公开适配见 `SOURCE-ORIGINS.json::scope_source_port` 与 [源码清单](tools/source-port-20261031.json)，受限检查结果和独立资产/API 测试边界见 [本次移交说明](report/2026-10-31-source-publication/PUBLICATION.md)。本次实际只做静态源码与 synthetic host 检查；完整公开包回归、原 ABI、actual API 和原固件成片没有在此轮重验。
 
 2026-10-30 的前次选择性更新加入原 API40 图像源的完整读取/功能CP读回、`015e` 显示位宽的真实RGB消费与独立`115e`生命周期，并同步ABI、构建源归档、profile、正式内容检查和host测试。selector0仅定义为本功能模型的RGB888八位分量；Sony物理位深与f039效果未知。原厂JPG/MP4仍未完成。

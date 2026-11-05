@@ -24,6 +24,16 @@ OUTSIDE_HOST_SCOPE = {
     ('runtime/analysis/test_fsys_async_observer.py',
      'test_async_write_observer_is_explicit_passthrough_and_profile_gated'):
         'launcher rejection integration; validate with package adapters/native opt-in suite',
+    ('runtime/analysis/test_natural_start_trace.py',
+     'test_gate_is_validated_and_does_not_enable_legacy_entry_bundle'):
+        'launcher rejection integration; validate with package adapters/native opt-in suite',
+    ('runtime/analysis/test_request_queue_watch.py',
+     'test_debug_flags_are_rejected_before_VM_or_display_start'):
+        'launcher rejection integration; validate with package adapters/native opt-in suite',
+    ('runtime/analysis/test_tcin_device.py', 'test_explicit_profile_and_binding'):
+        'launcher rejection integration; other host C/sanitizer and optional asset pin tests remain enabled',
+    ('runtime/analysis/test_touch_panel.py', 'test_observer_and_profile_gates'):
+        'launcher rejection integration; other host C/sanitizer tests remain enabled',
     **{(path, test): 'original Sony assets or ABI integration; outside host software-model publication'
        for path, test in (
            ('runtime/analysis/test_functional_face_dmm.py', 'test_final_wire_source_pins'),
@@ -78,13 +88,14 @@ def main():
     paths = []
     for name in names:
         path = Path(name)
-        assert not path.is_absolute() and '..' not in path.parts and path.name.startswith('test_')
+        assert (not path.is_absolute() and '..' not in path.parts and
+                (path.name.startswith('test_') or name == 'runtime/analysis/test-menu-control.py'))
         resolved = (ROOT / path).resolve()
         assert resolved.is_relative_to(ROOT) and resolved.is_file(), name
         paths.append(str(resolved))
     TEMP.mkdir(parents=True, exist_ok=True)
-    # pytest adds test names below this root; AF_UNIX paths must fit in 107 bytes.
-    with tempfile.TemporaryDirectory(prefix='a7m-', dir='/var/tmp') as temporary:
+    # Respect the caller's isolated temp root; socket fixtures use directory FDs for long paths.
+    with tempfile.TemporaryDirectory(prefix='a7m-', dir=os.environ.get('TMPDIR') or '/var/tmp') as temporary:
         os.environ.update(TMPDIR=temporary, PYTHONDONTWRITEBYTECODE='1', DISPLAY='',
                           PYTEST_DISABLE_PLUGIN_AUTOLOAD='1')
         sys.addaudithook(guard)

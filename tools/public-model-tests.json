@@ -217,5 +217,17 @@
   "report/2026-10-31-qemu-M-writer-observer-v3/test_build_runtime.py",
   "report/2026-10-31-qemu-M-writer-observer-v3/test_late_sites.py",
   "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_fixture_driver.py",
-  "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_scope_trace_checks.py"
+  "report/2026-10-31-qemu-M-writer-observer-v3/integration/test_scope_trace_checks.py",
+  "runtime/analysis/test-menu-control.py",
+  "runtime/analysis/test_key_injection.py",
+  "runtime/analysis/test_natural_start_trace.py",
+  "runtime/analysis/test_reader_boot_wait.py",
+  "runtime/analysis/test_request_queue_watch.py",
+  "runtime/analysis/test_tcin_device.py",
+  "runtime/analysis/test_touch_panel.py",
+  "runtime/analysis/test_udate_distribution.py",
+  "runtime/analysis/test_shutter_gate_batch_inventory.py",
+  "report/2026-10-31-qemu-shutter-gate-observer-v1/test_build_runtime.py",
+  "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_fixture_driver.py",
+  "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_shutter_gate_trace_checks_v1.py"
 ]

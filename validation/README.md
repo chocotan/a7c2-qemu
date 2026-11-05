@@ -6,6 +6,14 @@
 
 **本次只发布文档，运行源码和测试源码没有同步研究侧后续改动。** 此次校验范围与实际命令见[文档发布说明](../report/2026-11-04-documentation-publication/README.md)及[发布收据](2026-11-04-documentation-publication.json)；本次不重跑完整软件模型或原VM，以下10月31日公开包测试保持原日期和范围。
 
+## Shutter-gate v1：后续冻结包 host 验收
+
+原冻结 **2378 个源码文件**的八阶段已完成，父独立核对 **2378 source + 424 host 前置 + 1404 external = 4206** 项实际内容和控制账本，结论为 `PASS_HOST_PUBLIC_PACKAGE_ONLY`。adapters **81 passed**；host **302 passed / 34 skipped / 76 subtests**；models **8477 passed / 106 skipped / 10420 subtests**；crypto/script-sync/host-dependencies/source-patches 均 rc0；actual-api-missing-env **精确 1 failed、0 errors、rc1**，是缺显式输入的预期拒绝。全部输入稳定，`overall_external_validation_passed=false`。
+
+固定原结果与父验收 SHA、source7/fixture7、32 KiB 精确 profile 配置边界和研究 r3 来源见[自包含报告](../report/2026-10-31-shutter-gate-publication/README.md)及[机器可读收据](2026-10-31-shutter-gate-host-package.json)。两个新发布文件与必要来源/索引/校验元数据单独做静态检查，不称八阶段对最终 2380 项再次运行。424 host 依赖、1404 外部资产（含 155 guest 链接）均不发布；读者从官方 2.01 ALLLANG 自行准备。
+
+原库、QEMU-user/native ABI、actual API7 正例、GTK 与原固件成片是本次未运行的独立外部阶段。原 doc4 仍 FAIL/no JPG，`capture_verified=false`、native/physical=false，`published=false`。下方旧记录和 shutter-gate 的旧失败文件均保留其当时结论，后续 host 成功不回填历史失败。
+
 ## 10 月 31 日公开包实测
 
 选择性同步已验证的 `arzj0n5v` 源码后，主会话冻结公开树并完成统一验包：

@@ -1,0 +1,283 @@
+{
+  "schema": "a7c2-qemu-shutter-gate-source-port-v1",
+  "source_batch_provenance": {
+    "batch": "unified-camera-pvebt_i6",
+    "tests_passed": 10203,
+    "subtests_passed": 10581,
+    "modules": 242,
+    "inputs": 1193,
+    "groups": [
+      491,
+      13,
+      9,
+      700
+    ],
+    "source_approval_sha256": "b7c824b32137c2bb455ddf40b5100b1846d240c789c541cb8af0af2fce98538d",
+    "parent_readback_sha256": "56da0eb5f899b73c8aa1e8483e966d0d22183875656589682e7641a25d1f0cbe",
+    "generic_ready_sha256": "3cd5a6c4005478a47ae7cde3db13f27928cd5f338489839a1f5a0c3ec94772d3",
+    "supplemental_ready_sha256": "de3a86e26dd8333ffdc06b0a27c39bb50336843c567e47f569cbb64adbc0c993",
+    "scope": "parent-accepted research provenance only; separate from public executions"
+  },
+  "original_public_head": "9984543b69134d857076c42c9676ba2e4f4f8b21",
+  "public_before_snapshot_sha256": "c32a88319bdcfbaddbb4b1b1a1030b375b8d514345ebaafb41dc0b9670e3f7da",
+  "candidate_manifest_sha256": "a900e71730bf2c9cee2283c0ef3540f964394a3e3770fc06d99255304c9805cd",
+  "files": {
+    "runtime/analysis/check-natural-gtk-input.py": {
+      "public_before_sha256": "8dcc1f3f8a2c4473c1f6d87394f9dc68ad0f83590ec6491c23b52ff7d8391729",
+      "candidate_sha256": "5ac1577aac70a30aabc8a67ac3c3fe10a901f7a6df85c7b3874bf63f69835123",
+      "public_after_sha256": "5ac1577aac70a30aabc8a67ac3c3fe10a901f7a6df85c7b3874bf63f69835123",
+      "research_source_sha256": "5ac1577aac70a30aabc8a67ac3c3fe10a901f7a6df85c7b3874bf63f69835123",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/scope_observer_profile.py": {
+      "public_before_sha256": "c5240152484df162d3abbdfbc9b45ba9927fe332a8d64240e206e64e1bbb2564",
+      "candidate_sha256": "4c0205c5321182b5e76f0556b54f82480c5718361b1bafbae7165a40329ceb8c",
+      "public_after_sha256": "4c0205c5321182b5e76f0556b54f82480c5718361b1bafbae7165a40329ceb8c",
+      "research_source_sha256": "ed3ef701068498f081ba96d1b23a06c7636b756d0158e4def97e4ae89b0d2a00",
+      "action": "adapt_from_source"
+    },
+    "runtime/analysis/hdmi_upm_watch.py": {
+      "public_before_sha256": "33cb1ffa88b6d183a5ce9e816cae8e9c273d749780bd69f57f466741263947d1",
+      "candidate_sha256": "5289832d9ca68f084f4e730ef81c199176d9f8bd1bf9c136bdd7f90348ee0668",
+      "public_after_sha256": "5289832d9ca68f084f4e730ef81c199176d9f8bd1bf9c136bdd7f90348ee0668",
+      "research_source_sha256": "5289832d9ca68f084f4e730ef81c199176d9f8bd1bf9c136bdd7f90348ee0668",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/scratch/run-hdmi-observed.py": {
+      "public_before_sha256": "3808e30d6a464004fc9a5d05e1f37d6083c98e87d8b054f0b852ebfa6cb06816",
+      "candidate_sha256": "f4d3c9c1cde6311c12a70447389a91edf22e5e8a96eb871a18715a26300555b5",
+      "public_after_sha256": "f4d3c9c1cde6311c12a70447389a91edf22e5e8a96eb871a18715a26300555b5",
+      "research_source_sha256": "f4d3c9c1cde6311c12a70447389a91edf22e5e8a96eb871a18715a26300555b5",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/scratch/validate-unified-camera.py": {
+      "public_before_sha256": "3a4c11e826e684ce54c70197440a911d681357eaa48ca0654d8c3405f75487f7",
+      "candidate_sha256": "62a74826cb4c9972243aa3601a9ff966d0dbd109773bee1b7e7844503a304737",
+      "public_after_sha256": "62a74826cb4c9972243aa3601a9ff966d0dbd109773bee1b7e7844503a304737",
+      "research_source_sha256": "7b074ef5f12a2cb19db4ec548de9e6fe17dfe803bd0f0e8a002781a45204e3d0",
+      "action": "preserve_public_adapter_and_merge"
+    },
+    "runtime/analysis/test_hdmi_upm_watch.py": {
+      "public_before_sha256": "e0db523f66d980be56d192a1bcd72df26cd0e71a64c48e6b862866d24116f9a0",
+      "candidate_sha256": "96821eaaae59dcfe2bec8f381e55f510ed7bf7745980587fd9c427fa3dc69d54",
+      "public_after_sha256": "96821eaaae59dcfe2bec8f381e55f510ed7bf7745980587fd9c427fa3dc69d54",
+      "research_source_sha256": "5eabcaf227a50ac85155e99bfb4c0f201e052c633ba36a1648646c28f0399149",
+      "action": "adapt_from_source"
+    },
+    "runtime/analysis/scratch/test_run_hdmi_observed.py": {
+      "public_before_sha256": "78d295c18951dc3d127980a4aeb5cb582190619d94ec8754a835bbfa73243459",
+      "candidate_sha256": "8e37c65162b511805ab67a3f191535650bdedf390614b5b8ca3fb62c0e172ab1",
+      "public_after_sha256": "8e37c65162b511805ab67a3f191535650bdedf390614b5b8ca3fb62c0e172ab1",
+      "research_source_sha256": "8e37c65162b511805ab67a3f191535650bdedf390614b5b8ca3fb62c0e172ab1",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/test_functional_camera_runner.py": {
+      "public_before_sha256": "d7d1ff8f884756a51f99f38419b385c6c89726746ff8a2a88435dcbae65c4f07",
+      "candidate_sha256": "f9d95a4e373d53e5482f413f4791f0e85a6ba666012baca8c323c4f6224a5e11",
+      "public_after_sha256": "f9d95a4e373d53e5482f413f4791f0e85a6ba666012baca8c323c4f6224a5e11",
+      "research_source_sha256": "f9d95a4e373d53e5482f413f4791f0e85a6ba666012baca8c323c4f6224a5e11",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/test_natural_gtk_input_receipts.py": {
+      "public_before_sha256": "b715a14d8a705dffb113d9187e53ad4d10017cc8a396cdadade37e85b1da3d36",
+      "candidate_sha256": "7a4050a90c2eed08980f4258c4c7c3b70e143fe09d5210a5b97c9b18cd533a14",
+      "public_after_sha256": "7a4050a90c2eed08980f4258c4c7c3b70e143fe09d5210a5b97c9b18cd533a14",
+      "research_source_sha256": "7a4050a90c2eed08980f4258c4c7c3b70e143fe09d5210a5b97c9b18cd533a14",
+      "action": "copy_exact"
+    },
+    "runtime/analysis/test_scope_observer_profile.py": {
+      "public_before_sha256": "66baf02ed71ef4aebe86368cd9d8506d4c4f88e57588b074d3b33ff5ad427ebf",
+      "candidate_sha256": "46362080134100f398124720ef6dcc85f7e4cd631d8f795fde478822c09c33c8",
+      "public_after_sha256": "46362080134100f398124720ef6dcc85f7e4cd631d8f795fde478822c09c33c8",
+      "research_source_sha256": "0857dc7936ef7f62d3b86ff5aa132fe8a50cb39c8e0cbafe6213dddc73853cac",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/README.md": {
+      "public_before_sha256": null,
+      "candidate_sha256": "1088b9b3dbc9ab9c804b57824546c572224bdaf778d2d1abddafc98dfef7924e",
+      "public_after_sha256": "1088b9b3dbc9ab9c804b57824546c572224bdaf778d2d1abddafc98dfef7924e",
+      "research_source_sha256": "4134eff90ff10b02fb34e1344e44587416278b52f23909ab86d457748c573c98",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/build-plugin.sh": {
+      "public_before_sha256": null,
+      "candidate_sha256": "701fc61e2bc44983d5f276570c9d189dd42089d00d13083137e88c70591cc6e3",
+      "public_after_sha256": "701fc61e2bc44983d5f276570c9d189dd42089d00d13083137e88c70591cc6e3",
+      "research_source_sha256": "9a2a8726bdf7edaa55caa0350e84f7ee539fb68f071ad3a74cb5469030e69dc1",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/build-runtime.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "e790c02a0ef5e7f328e5db86044f0a3b974a0719ba1355db9669ae14d79b262e",
+      "public_after_sha256": "e790c02a0ef5e7f328e5db86044f0a3b974a0719ba1355db9669ae14d79b262e",
+      "research_source_sha256": "d9835bc979534d055a85b10ef153bc11d5658e9c98b4af37c1abc8d0dfcca378",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/check_shutter_gate_v1.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "5d2dd13e139a545b885a0c858346225e00c8e0ea7d0710c9774f5e7145adb041",
+      "public_after_sha256": "5d2dd13e139a545b885a0c858346225e00c8e0ea7d0710c9774f5e7145adb041",
+      "research_source_sha256": "dc938395d58381354e44009aff9046a7b807d48790d5b04ec1d6d3dad736ee15",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/fixture.S": {
+      "public_before_sha256": null,
+      "candidate_sha256": "4b1ac70bdfb7719213ef78f8a6f43da5ff3420035df8be0619bd216e3018bcdb",
+      "public_after_sha256": "4b1ac70bdfb7719213ef78f8a6f43da5ff3420035df8be0619bd216e3018bcdb",
+      "research_source_sha256": "4b1ac70bdfb7719213ef78f8a6f43da5ff3420035df8be0619bd216e3018bcdb",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/link.ld": {
+      "public_before_sha256": null,
+      "candidate_sha256": "149eed9695378be613aa759b2cad06516e99313e9531f7ee0fb2b29af42262f5",
+      "public_after_sha256": "149eed9695378be613aa759b2cad06516e99313e9531f7ee0fb2b29af42262f5",
+      "research_source_sha256": "149eed9695378be613aa759b2cad06516e99313e9531f7ee0fb2b29af42262f5",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/run_fixture.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "2a0df3bb1b61f784695aca223992fba4d6f044275e82c4f86511c4e7f941683c",
+      "public_after_sha256": "2a0df3bb1b61f784695aca223992fba4d6f044275e82c4f86511c4e7f941683c",
+      "research_source_sha256": "cc959765ab649b83f9be949d0b39891457a72565b6ce09669679b4e0cef4cbfa",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/shutter_gate_trace_checks_v1.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "75345145c5f5fa25d9dd7595c2f99de0ded11bbcdddd4f54a80010ee6bc3c8e9",
+      "public_after_sha256": "75345145c5f5fa25d9dd7595c2f99de0ded11bbcdddd4f54a80010ee6bc3c8e9",
+      "research_source_sha256": "75345145c5f5fa25d9dd7595c2f99de0ded11bbcdddd4f54a80010ee6bc3c8e9",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "a32cf55e8c994b4dc16b7a07afcd0d184f966d676e46618f698026e536075019",
+      "public_after_sha256": "a32cf55e8c994b4dc16b7a07afcd0d184f966d676e46618f698026e536075019",
+      "research_source_sha256": "a32cf55e8c994b4dc16b7a07afcd0d184f966d676e46618f698026e536075019",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_fixture_driver.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "52bb8e95c616b69c3f7b8c7d2183ec797d156ffc9bcf22f917ae47071f51b9d4",
+      "public_after_sha256": "52bb8e95c616b69c3f7b8c7d2183ec797d156ffc9bcf22f917ae47071f51b9d4",
+      "research_source_sha256": "52bb8e95c616b69c3f7b8c7d2183ec797d156ffc9bcf22f917ae47071f51b9d4",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_shutter_gate_trace_checks_v1.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "582ef2e428913d948cc8547b28a727657f539eb15688ac8c59556e57000f6c20",
+      "public_after_sha256": "582ef2e428913d948cc8547b28a727657f539eb15688ac8c59556e57000f6c20",
+      "research_source_sha256": "582ef2e428913d948cc8547b28a727657f539eb15688ac8c59556e57000f6c20",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/log-schema-shutter-gate-v1.json": {
+      "public_before_sha256": null,
+      "candidate_sha256": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
+      "public_after_sha256": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
+      "research_source_sha256": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/scope-observer.c": {
+      "public_before_sha256": null,
+      "candidate_sha256": "02105fd5f0890e60ad4547efe018ba454a322ddbb83243994a56571d6e03ed4a",
+      "public_after_sha256": "02105fd5f0890e60ad4547efe018ba454a322ddbb83243994a56571d6e03ed4a",
+      "research_source_sha256": "02105fd5f0890e60ad4547efe018ba454a322ddbb83243994a56571d6e03ed4a",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/source-contract-shutter-gate-v1.json": {
+      "public_before_sha256": null,
+      "candidate_sha256": "4763ec1549a7744b85e13608a8e1b476b9ed066b826f1ea11d76715824e4195e",
+      "public_after_sha256": "4763ec1549a7744b85e13608a8e1b476b9ed066b826f1ea11d76715824e4195e",
+      "research_source_sha256": "9e248c5ed5bb1f7928846884bb5bda366ab68106821570d42557d90f166c21ff",
+      "action": "adapt_from_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/test-scope-observer.c": {
+      "public_before_sha256": null,
+      "candidate_sha256": "9c280acc172bf247bd6904ca477080091d87356e21947e0795b37f9530e1b419",
+      "public_after_sha256": "9c280acc172bf247bd6904ca477080091d87356e21947e0795b37f9530e1b419",
+      "research_source_sha256": "9c280acc172bf247bd6904ca477080091d87356e21947e0795b37f9530e1b419",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/test_build_runtime.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "2513eb69b867122a5ae735ae6ac19fde3389910b4e9f777f82a091b532db5f2b",
+      "public_after_sha256": "2513eb69b867122a5ae735ae6ac19fde3389910b4e9f777f82a091b532db5f2b",
+      "research_source_sha256": "551386a016826a857829f384e04e09c2597d88aeb7eedffe2fbb9304da67750f",
+      "action": "hold_pending_parent_revised_test_source"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/test_run_context.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "9e616ee285bff28f8795ed9128f82f6c2e9ed64262a5c3b20e5882f1b7e3cf86",
+      "public_after_sha256": "9e616ee285bff28f8795ed9128f82f6c2e9ed64262a5c3b20e5882f1b7e3cf86",
+      "research_source_sha256": "9e616ee285bff28f8795ed9128f82f6c2e9ed64262a5c3b20e5882f1b7e3cf86",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/test_scope_observer.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "7f5452ed7f105df0a977ea89cb420ced5e1158b92c101c990e000fc9920b4447",
+      "public_after_sha256": "7f5452ed7f105df0a977ea89cb420ced5e1158b92c101c990e000fc9920b4447",
+      "research_source_sha256": "f72fce46e3161bcf708a8e21f763e8eb76d2c559c3e1b0abff7470b30388f236",
+      "action": "adapt_from_source"
+    },
+    "runtime/analysis/test_shutter_gate_batch_inventory.py": {
+      "public_before_sha256": null,
+      "candidate_sha256": "ea8df0220fac0ff575d335afe6bff1ef48608913fd3145cb74e17ef3ec62e7fd",
+      "public_after_sha256": "ea8df0220fac0ff575d335afe6bff1ef48608913fd3145cb74e17ef3ec62e7fd",
+      "research_source_sha256": "ea8df0220fac0ff575d335afe6bff1ef48608913fd3145cb74e17ef3ec62e7fd",
+      "action": "copy_exact"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/fixture-source-pins.json": {
+      "public_before_sha256": null,
+      "candidate_sha256": "d19954e65e8adce10621ccd74a18617e31c11b18da14384e86e33fbd4f0d2b18",
+      "public_after_sha256": "d19954e65e8adce10621ccd74a18617e31c11b18da14384e86e33fbd4f0d2b18",
+      "research_source_sha256": null,
+      "action": "recomputed_from_adapted_actual_fixture7"
+    },
+    "tools/public-model-tests.json": {
+      "public_before_sha256": "e3a33c161c437d2c46aad439c451a3287dcf37ffb6d37a808f48a01cbaab4de5",
+      "candidate_sha256": "a9793467482cf55a9e59328f55df9ab79bfc5ce8185bfaeecd47a38e73ef984d",
+      "public_after_sha256": "a9793467482cf55a9e59328f55df9ab79bfc5ce8185bfaeecd47a38e73ef984d",
+      "research_source_sha256": null,
+      "action": "retained_exact_private_runner_draft"
+    },
+    "tools/test-public-models.py": {
+      "public_before_sha256": "d9224f319300d52f7dfa394ec4e14c23ea2945646edb0cb7dc285e2ca0696c95",
+      "candidate_sha256": "48f1d0d76de6db7bf2b5b49feba7252932324ab593e8e68bdf34dd18428e61f1",
+      "public_after_sha256": "2eec40db83eb87c21dd1ae1032fa4ae8e76af69eb298e9d508d489e98c00983a",
+      "research_source_sha256": null,
+      "action": "retained_exact_private_runner_draft"
+    },
+    "tools/test_public_models_runner.py": {
+      "public_before_sha256": "adb36d5b5dda68392b84f2e88c1104154c1299db61d82814e28d34b1470cad4d",
+      "candidate_sha256": "30bc50b3a94f13e3782301dfd747cdb77c65d3e7dc78a2a65ee407be7e5bf0ee",
+      "public_after_sha256": "61801de013b0e68435404e54de954874bea422759e07f572821e6693e85d808e",
+      "research_source_sha256": null,
+      "action": "retained_exact_private_runner_draft"
+    }
+  },
+  "public_model_modules": 231,
+  "explicit_host_scope_nodes": 24,
+  "public_validation": "validation/2026-10-31-shutter-gate-v1-publication.json",
+  "public_validation_sha256": "a50898f8d22e5ef5f36f251aab667eae3ade12438ce63043249a3e5bc148550c",
+  "source7": {
+    "scope-observer.c": "02105fd5f0890e60ad4547efe018ba454a322ddbb83243994a56571d6e03ed4a",
+    "build-plugin.sh": "701fc61e2bc44983d5f276570c9d189dd42089d00d13083137e88c70591cc6e3",
+    "build-runtime.py": "e790c02a0ef5e7f328e5db86044f0a3b974a0719ba1355db9669ae14d79b262e",
+    "log-schema-shutter-gate-v1.json": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
+    "source-contract-shutter-gate-v1.json": "4763ec1549a7744b85e13608a8e1b476b9ed066b826f1ea11d76715824e4195e",
+    "check_shutter_gate_v1.py": "5d2dd13e139a545b885a0c858346225e00c8e0ea7d0710c9774f5e7145adb041",
+    "integration/shutter_gate_trace_checks_v1.py": "75345145c5f5fa25d9dd7595c2f99de0ded11bbcdddd4f54a80010ee6bc3c8e9"
+  },
+  "fixture7": {
+    "integration/fixture.S": "4b1ac70bdfb7719213ef78f8a6f43da5ff3420035df8be0619bd216e3018bcdb",
+    "integration/link.ld": "149eed9695378be613aa759b2cad06516e99313e9531f7ee0fb2b29af42262f5",
+    "integration/run_fixture.py": "2a0df3bb1b61f784695aca223992fba4d6f044275e82c4f86511c4e7f941683c",
+    "integration/test_fixture_driver.py": "52bb8e95c616b69c3f7b8c7d2183ec797d156ffc9bcf22f917ae47071f51b9d4",
+    "integration/test_actual_scope_plugin.py": "a32cf55e8c994b4dc16b7a07afcd0d184f966d676e46618f698026e536075019",
+    "integration/test_shutter_gate_trace_checks_v1.py": "582ef2e428913d948cc8547b28a727657f539eb15688ac8c59556e57000f6c20",
+    "integration/shutter_gate_trace_checks_v1.py": "75345145c5f5fa25d9dd7595c2f99de0ded11bbcdddd4f54a80010ee6bc3c8e9"
+  },
+  "research_runtime_receipts_reused": false,
+  "published": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false
+}

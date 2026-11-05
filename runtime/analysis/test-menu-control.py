@@ -117,8 +117,12 @@ class ControlTests(unittest.TestCase):
     def test_natural_imaging_usb_conflict_fails_before_launch(self):
         vm = VM([sys.executable, '-c', 'raise SystemExit("must not launch")'],
                 natural_boot=True, usb_net=True)
-        with patch.dict(os.environ, {'A7C2_NATURAL_IMAGING_PROFILE': '1'}, clear=False):
+        with patch.dict(os.environ, {'A7C2_NATURAL_IMAGING_PROFILE': '1'}, clear=False), \
+                patch('menu_control.launcher.profile_environment',
+                      return_value={'A7C2_NATURAL_IMAGING_PROFILE': '1'}), \
+                patch('menu_control.subprocess.Popen') as popen:
             vm._run()
+            popen.assert_not_called()
         self.assertEqual(vm.state, 'error')
         self.assertIn('without USB networking', vm.error)
         self.assertIsNone(vm.owned_process)

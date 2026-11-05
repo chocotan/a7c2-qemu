@@ -2,7 +2,7 @@
   "schema": "a7c2-qemu-documentation-research-progress-v1",
   "date": "2026-11-04",
   "release_scope": "documentation_only_no_new_runtime_sources",
-  "public_runtime_source_commit": "9984543b69134d857076c42c9676ba2e4f4f8b21",
+  "public_runtime_source_commit": "b3d7c1fed349f1d918acc4259f1d2b3a7c52a500",
   "source_project": "a7c2-re/report/2026-10-17-qemu-native-camera",
   "source_huti_validation_sha256": "c2d196047fa29e920c574d90b76cdd6dc9bf6e83bd28d627573eb3f689a13d4c",
   "source_complete_summary_sha256": "47209ec6810354dbe58eec0f828d586422adf7e310b65cbef064c701fda1ed62",
@@ -62,5 +62,6 @@
   "capture_verified": false,
   "physical_asic_compatibility_verified": false,
   "minimal_business_patch": null,
-  "reproducibility": "Summary only; original firmware, receipts, run data and cards are not distributed."
+  "reproducibility": "Summary only; original firmware, receipts, run data and cards are not distributed.",
+  "pre_merge_documentation_commit": "90ea805be44131a14b42c8b22423aa6882e09795"
 }

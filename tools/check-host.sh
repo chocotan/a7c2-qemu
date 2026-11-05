@@ -32,6 +32,9 @@ if local.is_dir():
     print('LOCAL_CRYPTO_PREREQUISITE',local,'(ignored, not public source)')
 assert sys.version_info >= (3,12), 'Python 3.12+ required for the offline build'
 import PIL.Image
+import capstone.arm
+from elftools.elf.elffile import ELFFile
+import pytest
 import gi
 gi.require_version('Gtk','3.0')
 gi.require_foreign('cairo')

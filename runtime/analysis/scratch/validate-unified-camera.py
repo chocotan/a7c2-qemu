@@ -51,7 +51,8 @@ COMPONENTS = ('virtual-jpeg-engine', 'virtual-jpeg-sos', 'virtual-jpeg-hardware'
               'functional-camera-evidence', 'functional-graph-evidence',
               'functional-vdf-path', 'functional-vdf-layout-stage', 'native-movie-write-trace', 'functional-cp-zoom',
               'functional-histogram', 'functional-background-start',
-              'functional-face-source-snapshot', 'disp-bit-width')
+              'functional-face-source-snapshot', 'disp-bit-width',
+              '2026-10-31-qemu-shutter-gate-observer-v1')
 MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_cp_start_state_provider.py', 'test_cp_parameter_state.py',
                'test_cp_state_publication.py', 'test_cp_owned_state_profile.py',
@@ -78,6 +79,11 @@ MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_functional_vdf_integration.py', 'test_functional_bit_width_core.py', 'test_functional_vdf_bit_width.py',
                'test_functional_cp_zoom.py',
                'test_natural_gtk_input_receipts.py', 'test_mode_wheel_probe.py',
+               'test_body_control_probe.py', 'test_focus_controls_probe.py',
+               'test_media_predicate_watch.py', 'test_natural_start_trace.py',
+               'test_reader_boot_wait.py', 'test_request_queue_watch.py', 'test_tcin_device.py',
+               'test_touch_panel.py', 'test_udate_distribution.py', 'test_key_injection.py',
+               'test-menu-control.py', 'test_shutter_gate_batch_inventory.py',
                'test_menu_control.py', 'test_host_sd_guard.py', 'test_media_initial_write.py')
 
 
@@ -110,7 +116,9 @@ def main():
     modules += list(MODEL_TESTS)
     extras = [REPORT / 'capture-evidence/check_evidence.py',
               REPORT / '2026-10-27-unified-camera/lif-mode-property-source.json',
-              REPORT / '2026-10-27-unified-camera/cp-owned-input-stage.md']
+              REPORT / '2026-10-27-unified-camera/cp-owned-input-stage.md',
+              REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/fixture.S',
+              REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/link.ld']
     graph = ast.parse((REPORT / 'functional-graph-evidence/check_graph.py').read_text())
     dependency_node = next(node.value for node in graph.body if isinstance(node, ast.Assign)
                            and any(isinstance(target, ast.Name) and target.id == 'FROZEN_DEPENDENCIES'
@@ -129,7 +137,8 @@ def main():
         files = component_files(directory)
         extras += files
         # Only each component's explicit tests are collected, not private runtime evidence.
-        modules += [str(p) for p in files if p.name.startswith('test_') and p.suffix == '.py']
+        modules += [str(p) for p in files if p.name.startswith('test_') and p.suffix == '.py'
+                    and p != REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py']
     if missing:
         raise ValueError('batch is incomplete; finish these inputs before validation: ' + ', '.join(missing))
     modules = list(dict.fromkeys(str((BASE / p).resolve()) for p in modules))
@@ -138,7 +147,7 @@ def main():
     host = digests([*(Path(p) for p in baseline['host_profile_sources_before']), BASE / 'camera_ui.py',
                     BASE / 'build-functional-camera-model.py', BASE / 'functional_camera_broker.py',
                     BASE / 'functional_camera_runner.py', BASE / 'functional_face_source_snapshot.py', BASE / 'initramfs_identity.py',
-                    BASE / 'check-natural-gtk-input.py'])
+                    BASE / 'check-natural-gtk-input.py', BASE / 'scope_observer_profile.py'])
     observers = digests([*(Path(p) for p in baseline['observer_sources_before']),
                          BASE / 'snapshot-observer-sources.py', Path(__file__)])
     tests = digests([*(Path(p) for p in baseline['test_sources_before']),

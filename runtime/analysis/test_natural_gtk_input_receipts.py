@@ -110,6 +110,11 @@ def route(monkeypatch, tmp_path, gtk_ui, wire):
             button = ui.buttons[mouse_name[0]]
             button.emit('button-press-event', coverage.event(Gdk.EventType.BUTTON_PRESS))
             button.emit('button-release-event', coverage.event(Gdk.EventType.BUTTON_RELEASE))
+        elif args[0] in ('mousedown', 'mouseup'):
+            button = ui.buttons[mouse_name[0]]
+            pressed = args[0] == 'mousedown'
+            button.emit('button-press-event' if pressed else 'button-release-event',
+                        coverage.event(Gdk.EventType.BUTTON_PRESS if pressed else Gdk.EventType.BUTTON_RELEASE))
         elif args[0] == 'key':
             key = coverage.event(1, key=args[1], code=116)
             ui.window.emit('key-press-event', key)
@@ -204,10 +209,11 @@ def test_mismatched_reply_cannot_publish_a_receipt(route):
     assert route.vm.event_id == before and not route.sample()['input_receipts']
 
 
+@pytest.mark.parametrize('name', ['DOWN', 'SHUTTER'])
 @pytest.mark.parametrize('change', ['wrong-key', 'wrong-id', 'old-id', 'wrong-kind', 'wrong-label',
                                   'failed-reply', 'missing-release', 'other-source', 'reversed-edges'])
-def test_receipt_matching_rejects_unrelated_or_incomplete_evidence(route, change):
-    route.action('DOWN', True)
+def test_receipt_matching_rejects_unrelated_or_incomplete_evidence(route, change, name):
+    route.action(name, True)
     state = copy.deepcopy(route.sample())
     press, release = state['input_receipts']
     event = next(event for event in state['events'] if event['id'] == release['id'])
@@ -224,7 +230,27 @@ def test_receipt_matching_rejects_unrelated_or_incomplete_evidence(route, change
         for event in state['events']:
             if event['kind'] == 'input':
                 event['message'] = ('press' if event['id'] == press['id'] else 'release') + '：输入已提交；消费结果以固件为准'
-    assert not checker.input_submission(state, 1, 'DOWN', True)
+    assert not checker.input_submission(state, 1, name, True)
+
+
+def test_natural_shutter_rejects_cycle_event_activation_and_keyboard_receipts(route):
+    before = route.vm.event_id
+    route.vm.event('自然快门序列已提交；消费者与拍照结果待独立证据', kind='input')
+    state = route.sample()
+    assert not checker.input_submission(state, before, 'SHUTTER', True)
+    state['input_lifecycle'] = False
+    state['events'][-1]['message'] = 'SHUTTER：输入已提交'
+    assert not checker.input_submission(state, before, 'SHUTTER', True)
+    route.bindings.activate('SHUTTER')
+    route.step(.1)
+    assert not checker.input_submission(route.sample(), before, 'SHUTTER', True)
+    route.bindings.key_press('s', 39)
+    route.bindings.key_release(39)
+    route.step(.1)
+    route.step(.1)
+    state = route.sample()
+    assert checker.input_submission(state, before, 'SHUTTER', False)
+    assert not checker.input_submission(state, before, 'SHUTTER', True)
 
 
 @pytest.mark.parametrize('name,position', [('FRONT_RIGHT', None), ('MODE_STILL', None), ('MODE', 'MR2')])
@@ -654,6 +680,122 @@ def test_unknown_modal_never_receives_enter_and_never_becomes_ready(firstboot_ro
     assert not state.actions and not wire.statuses
 
 
+@pytest.fixture
+def natural_shutter_route(route, tmp_path):
+    branch = next(node for node in ast.walk(ast.parse((HERE/'check-natural-gtk-input.py').read_text()))
+                  if isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
+                  and isinstance(node.test.left, ast.Constant)
+                  and node.test.left.value == '--natural-shutter' and len(node.body) > 5)
+    frame = {'pixel_sha256':'shooting', 'firstboot_ui':checker.firstboot_frame(
+        glyph_frame('shooting'), screen_log(*SHOOTING_CHAIN))}
+    proof = {'ok':False, 'capture_verified':False, 'images':[frame]}
+    namespace = dict(route.namespace, proof=proof, proof_path=tmp_path/'proof.json',
+                     capture=lambda *_:frame, sys=SimpleNamespace(argv=['--natural-shutter']))
+    return SimpleNamespace(proof=proof, run=lambda:compile_nodes([branch], namespace))
+
+
+def test_natural_shutter_uses_button_pointer_hold_release_and_checked_same_source_receipts(
+        natural_shutter_route, route, wire, monkeypatch):
+    original_xdo = route.namespace['xdo']
+    edges = []
+
+    def xdo(*args):
+        if args[0] in ('mousedown', 'mouseup'):
+            assert 'natural_shutter' not in natural_shutter_route.proof
+            edges.append((args[0], route.clock[0]))
+        return original_xdo(*args)
+
+    monkeypatch.setitem(route.namespace, 'xdo', xdo)
+    natural_shutter_route.run()
+    state = route.sample()
+    assert route.calls == [('windowraise', 'owned-window'),
+                           ('windowfocus', '--sync', 'owned-window'),
+                           ('mousemove', '--window', 'owned-window', *state['button_positions']['SHUTTER']),
+                           ('mousedown', 1), ('mouseup', 1)]
+    assert [name for name, _ in edges] == ['mousedown', 'mouseup']
+    assert edges[1][1] - edges[0][1] == pytest.approx(.1)
+    press, release = state['input_receipts']
+    assert press['request']['key'] == 'SHUTTER' and press['request']['op'] == 'press'
+    assert press['ok'] is release['ok'] is True and press['id'] < release['id']
+    source = press['request']['source']
+    assert source.startswith('pointer:') and release['request'] == {
+        'action':'camera_input', 'op':'release', 'source':source}
+    assert wire.statuses == [(0x1f1,1), (0xa7,1), (0xa7,0), (0x1f1,0)]
+    assert all(event['queue'] == event['source'] == 0x5503e0 and event['bytes'] == 32 for event in wire.events)
+    assert not route.session.status()['held'] and not route.bindings.sources
+    assert natural_shutter_route.proof['natural_shutter'] == {
+        'input_submission_event_verified':True, 'gesture_source':'GTK SHUTTER pointer press/hold/release',
+        'consumer_verified':False, 'still_capture_verified':False}
+    assert natural_shutter_route.proof['capture_verified'] is False
+    assert not route.namespace['geometry'].with_suffix('.action').exists()
+
+
+def test_shutter_pointer_waits_for_existing_busy_and_pending_input_before_mousedown(route, wire, monkeypatch):
+    route.bindings.press('DOWN', 'pointer:earlier')
+    route.bindings.release('pointer:earlier')
+    route.vm.busy = 'snapshot'
+    route.sample()
+    original_xdo = route.namespace['xdo']
+
+    def xdo(*args):
+        assert not route.vm.busy and not route.vm.status()['pending']
+        return original_xdo(*args)
+
+    monkeypatch.setitem(route.namespace, 'xdo', xdo)
+    route.action('SHUTTER', True)
+    assert wire.statuses == [(0x30,1), (0x30,0), (0x1f1,1), (0xa7,1), (0xa7,0), (0x1f1,0)]
+
+
+@pytest.mark.parametrize('failure', ['mousedown', 'hold-timeout', 'receipt-timeout'])
+def test_natural_shutter_pointer_failures_release_without_promoting_proof(
+        natural_shutter_route, route, wire, monkeypatch, failure):
+    original_xdo = route.namespace['xdo']
+
+    def xdo(*args):
+        result = original_xdo(*args)
+        if failure == 'mousedown' and args[0] == 'mousedown':
+            raise subprocess.CalledProcessError(1, ['xdotool', 'mousedown', '1'])
+        return result
+
+    def sleep(seconds):
+        route.step(seconds)
+        if ('mousedown', 1) in route.calls and ('mouseup', 1) not in route.calls:
+            raise TimeoutError('pointer hold interrupted')
+
+    monkeypatch.setitem(route.namespace, 'xdo', xdo)
+    if failure == 'hold-timeout':
+        monkeypatch.setattr(route.namespace['time'], 'sleep', sleep)
+    elif failure == 'receipt-timeout':
+        monkeypatch.setattr(type(route.vm), 'event', route.namespace['original_event'])
+    with pytest.raises(subprocess.CalledProcessError if failure == 'mousedown' else TimeoutError):
+        natural_shutter_route.run()
+    assert [call for call in route.calls if call[0] in ('mousedown', 'mouseup')] == [
+        ('mousedown', 1), ('mouseup', 1)]
+    while not route.vm.commands.empty():
+        route.step(.1)
+    assert not route.session.status()['held'] and not route.bindings.sources
+    assert 'natural_shutter' not in natural_shutter_route.proof
+    assert natural_shutter_route.proof['ok'] is natural_shutter_route.proof['capture_verified'] is False
+    assert not route.namespace['geometry'].with_suffix('.action').exists()
+
+
+@pytest.mark.parametrize('failed_send', [1, 2, 3, 4])
+def test_natural_shutter_failed_contact_receipt_cannot_verify_pointer_or_capture(
+        natural_shutter_route, route, wire, failed_send):
+    wire.fail(failed_send)
+    with pytest.raises(RuntimeError, match='机身输入未完成'):
+        natural_shutter_route.run()
+    assert route.calls.count(('mousedown', 1)) == route.calls.count(('mouseup', 1)) == 1
+    assert 'natural_shutter' not in natural_shutter_route.proof
+    assert natural_shutter_route.proof['ok'] is natural_shutter_route.proof['capture_verified'] is False
+    wire.fail(0)
+    while not route.vm.commands.empty():
+        route.step(.1)
+    route.bindings.cleanup()
+    route.step(.1)
+    assert not route.session.status()['held']
+
+
 def test_current_system_error_stops_actual_natural_shutter_branch_before_mailbox(route, tmp_path):
     tree=ast.parse((HERE/'check-natural-gtk-input.py').read_text())
     branch=next(node for node in ast.walk(tree) if isinstance(node,ast.If)
@@ -662,11 +804,14 @@ def test_current_system_error_stops_actual_natural_shutter_branch_before_mailbox
     failed={'pixel_sha256':'error','firstboot_ui':checker.firstboot_frame(
         glyph_frame('system-error'),screen_log(*SHOOTING_CHAIN,(0x30c,3)))}
     proof={'ok':False,'capture_verified':False,'images':[failed]}
+    action = mock.Mock(side_effect=AssertionError('system error must block pointer input'))
     namespace=dict(vars(checker),proof=proof,geometry=tmp_path/'geometry.json',wait=route.wait,
-                   capture=lambda *_:failed,sys=SimpleNamespace(argv=['--natural-shutter']),run=tmp_path)
+                   capture=lambda *_:failed,action=action,
+                   sys=SimpleNamespace(argv=['--natural-shutter']),run=tmp_path)
     with pytest.raises(RuntimeError,match='Original UI failed'):
         compile_nodes([branch],namespace)
-    assert not namespace['geometry'].with_suffix('.action').exists()
+    action.assert_not_called()
+    assert not route.calls and not namespace['geometry'].with_suffix('.action').exists()
     assert 'natural_shutter' not in proof and proof['ok'] is proof['capture_verified'] is False
 
 

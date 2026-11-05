@@ -1,0 +1,105 @@
+{
+  "schema": "a7c2-qemu-shutter-config-content-source-port-v1",
+  "status": "SOURCE_REVIEWED_PENDING_COMBINED_PUBLIC_VALIDATION",
+  "environment_prerequisite_correction": {
+    "status": "SOURCE_REVIEWED_NEW_ISOLATED_CANDIDATE_NOT_TESTED",
+    "previous_collection_failure_result_sha256": "72fa415811b08c6ee2a253d825d2844943cc7ffbabd474ebb61483fd2efe8822",
+    "reason": "The fixed system Python lacked capstone at default model collection; expose all required imports in the host preflight and declared requirements.",
+    "prepared_local_dependency": "capstone==5.0.9",
+    "prepared_dependency_inputs_sha256": "5a2e084cad53a1645edea2e17832450d888d13cc45e391ffa48c70273f61ff96",
+    "prepared_dependency_files": 65,
+    "files": {
+      "requirements.txt": {
+        "before_sha256": "4c2e195ad8ce2477ca13aa2dd73388ab6e987e36c76349bffce24049cd68a6d9",
+        "public_after_sha256": "b24c8d42cd8be4cf693bd50e5c0dc9dea8cf982b11a5b6e42146bdbf80d274c2"
+      },
+      "tools/check-host.sh": {
+        "before_sha256": "ba00d4127ec0967333f8d5a853c4f95737a15b81e5babe2d236660d9dd96128f",
+        "public_after_sha256": "82cf79be863d304798f8e0ffdf2a3c3b640330f6c78b22abb726fe42c29a6bef"
+      }
+    },
+    "old_candidate_or_failure_modified": false,
+    "tests_executed": false,
+    "VM_started": false,
+    "capture_verified": false
+  },
+  "supersedes_only_listed_file_hashes_in": {
+    "path": "tools/source-port-shutter-gate-v1.json",
+    "sha256": "63edae76e850abc52d0e7fc30b1b293698d31e2c087b65f94465e962e591b9d8"
+  },
+  "original_public_head": "9984543b69134d857076c42c9676ba2e4f4f8b21",
+  "research_correction_provenance": {
+    "source_install_approval_sha256": "de6e19252de3409014654245827329c5540aced769bc413984fedb7913be9ef8",
+    "source_install_result_sha256": "a57be9970fd95afc6fa93982e2b720ecb4c4202be0b57267ca5e7b332f4ef888",
+    "source_cohort_approval_sha256": "98d71c6620467989c728e7c1e2be7583795c44da2c1df6066d0c6e5fa0b06a7e",
+    "scope": "Exact four-source static installation and new source freeze; complete cohort result is not claimed here",
+    "previous_complete_batch": "unified-camera-pvebt_i6",
+    "previous_complete_parent_sha256": "56da0eb5f899b73c8aa1e8483e966d0d22183875656589682e7641a25d1f0cbe",
+    "previous_complete_batch_accepts_new_correction": false
+  },
+  "public_source_only_handoff_sha256": "2d04dc2899edf713e6a81bcfc49d6324919c33fc9ff1b0f94ad5f947ccc95ec0",
+  "files": {
+    "runtime/analysis/hdmi_upm_watch.py": {
+      "public_before_sha256": "33cb1ffa88b6d183a5ce9e816cae8e9c273d749780bd69f57f466741263947d1",
+      "sealed_candidate_before_sha256": "5289832d9ca68f084f4e730ef81c199176d9f8bd1bf9c136bdd7f90348ee0668",
+      "public_after_sha256": "70350e274c8c322e125f6ea5bd1c002e67f859b56e84eef6a1faa646229f9297",
+      "research_source_sha256": "70350e274c8c322e125f6ea5bd1c002e67f859b56e84eef6a1faa646229f9297",
+      "action": "copy_exact",
+      "reason": "Shared config reader grants only the exact new profile a 32KiB parsing budget; legacy 16KiB and live revalidation remain"
+    },
+    "runtime/analysis/test_hdmi_upm_watch.py": {
+      "public_before_sha256": "e0db523f66d980be56d192a1bcd72df26cd0e71a64c48e6b862866d24116f9a0",
+      "sealed_candidate_before_sha256": "96821eaaae59dcfe2bec8f381e55f510ed7bf7745980587fd9c427fa3dc69d54",
+      "public_after_sha256": "e91100fa2c2473ee1d1f603fb58ae05767234eb2fc7e438b005f3b463440919f",
+      "research_source_sha256": "186353116cf428ca6dcf597e70dc1608c5f17ffb39422de6ac15c9b4893638bb",
+      "action": "adapt_from_source",
+      "reason": "Preserve existing public fixtures; new inert HOST_METADATA paths and parser-budget vectors"
+    },
+    "runtime/analysis/scratch/verify_hdmi_edge.py": {
+      "public_before_sha256": "0a2f6760186ba899741649ae0305de06e571713efc340bce55f295aad4244f3a",
+      "sealed_candidate_before_sha256": "0a2f6760186ba899741649ae0305de06e571713efc340bce55f295aad4244f3a",
+      "public_after_sha256": "c3eafd1322cc417a5c1a08b8fa80d6a90798a8438fe15301b216e3eb37cbeac8",
+      "research_source_sha256": "c3eafd1322cc417a5c1a08b8fa80d6a90798a8438fe15301b216e3eb37cbeac8",
+      "action": "copy_exact",
+      "reason": "Independent exact-source7/fixture7 shutter-gate provenance and the third shared config read; old source tuples and UPM/free checks preserved"
+    },
+    "runtime/analysis/scratch/test_verify_hdmi_edge.py": {
+      "public_before_sha256": "c20cba6bd00691f037ce1168f554f1ac94bb0c52a857f4021eac156abd1cac3d",
+      "sealed_candidate_before_sha256": "c20cba6bd00691f037ce1168f554f1ac94bb0c52a857f4021eac156abd1cac3d",
+      "public_after_sha256": "89da57bad53d197f8133e716935b0e9213c4ca1f10e3d603a526289453626bbc",
+      "research_source_sha256": "8e548c2ac69bad95075fadaf7bbf9b7d568f8f005d9f2a9e3e44cc373ba65ecb",
+      "action": "adapt_from_source",
+      "reason": "Public source bytes and temporary HOST_METADATA artifacts; only external validate_build boundary is substituted with independent frozen metadata. Full native replay remains external"
+    },
+    "runtime/analysis/test_functional_camera_bridge.py": {
+      "public_before_sha256": "b0f5b58cc37458f27b9adfdf1c22b7552284043fc3212d46bcc980c483cf730c",
+      "sealed_candidate_before_sha256": "d2e822d8c4de2ac07cc5394d4d4a71ff2e18326461af7e6ad83674a9f104d316",
+      "public_after_sha256": "b0f5b58cc37458f27b9adfdf1c22b7552284043fc3212d46bcc980c483cf730c",
+      "action": "restore_canonical_socket_fixture",
+      "reason": "Restore the two original normal Unix socket binds; retain the explicit long-path test and unchanged production socket guard"
+    },
+    "runtime/analysis/test-menu-control.py": {
+      "public_before_sha256": "90d5cbcc5bd504da269bd299b56e47b78625d0231cdf7675ee2d445d243ac1e7",
+      "sealed_candidate_before_sha256": "90d5cbcc5bd504da269bd299b56e47b78625d0231cdf7675ee2d445d243ac1e7",
+      "public_after_sha256": "8554604c7523dbf7afd87310f4e4204601827b0e1d4eb9a187d44caa121b5dfb",
+      "action": "isolate_public_host_fixture_prerequisite",
+      "reason": "Isolate profile prerequisite resolution so the conflict test reaches its unchanged USB-network rejection; assert Popen is never called"
+    },
+    "report/2026-10-31-qemu-shutter-gate-observer-v1/PUBLIC-HDMI-SOURCE-ADAPTATION.md": {
+      "public_before_sha256": null,
+      "sealed_candidate_before_sha256": null,
+      "public_after_sha256": "f5ac9a046b289bd79e3d98b954e7239b5ac79946bee96b563a842255729d719e",
+      "action": "public_adaptation_documentation",
+      "reason": "Records exact metadata-fixture limits and pending combined/external validation; no new execution acceptance"
+    }
+  },
+  "public_default_model_modules": 231,
+  "public_exact_outside_host_scope_nodes": 24,
+  "production_guard_or_scope_manifest_modified": false,
+  "tests_executed_for_this_correction": false,
+  "real_API7_execution_verified_for_public_package": false,
+  "Sony_or_original_ABI_assets_in_static_source_package": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "published": false
+}

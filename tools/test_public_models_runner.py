@@ -30,7 +30,9 @@ def test_short_private_root_supports_host_sockets_and_is_cleaned(tmp_path, monke
     monkeypatch.setattr(sys, 'argv', ['test-public-models.py'])
     hooks = []
     monkeypatch.setattr(sys, 'addaudithook', hooks.append)
-    for key in ('TMPDIR', 'PYTHONDONTWRITEBYTECODE', 'DISPLAY', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD'):
+    temporary_parent = Path(os.environ.get('TMPDIR') or '/var/tmp')
+    monkeypatch.setenv('TMPDIR', str(temporary_parent))
+    for key in ('PYTHONDONTWRITEBYTECODE', 'DISPLAY', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD'):
         monkeypatch.setenv(key, 'inherited')
     observed = []
 
@@ -38,7 +40,7 @@ def test_short_private_root_supports_host_sockets_and_is_cleaned(tmp_path, monke
         temporary = Path(os.environ['TMPDIR'])
         observed.append(temporary)
         info = temporary.lstat()
-        assert temporary.parent == Path('/var/tmp')
+        assert temporary.parent == temporary_parent
         assert stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
         assert info.st_uid == os.getuid() and not temporary.is_symlink()
         base = Path(arguments[arguments.index('--basetemp') + 1])
@@ -50,9 +52,15 @@ def test_short_private_root_supports_host_sockets_and_is_cleaned(tmp_path, monke
         directory = base / ('test_' + 'x' * 25 + '0')
         directory.mkdir(parents=True)
         path = directory / 'gdb.sock'
-        assert len(os.fsencode(path)) < 108
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
-            listener.bind(str(path))
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            endpoint = f'/proc/self/fd/{fd}/{path.name}'
+            assert len(os.fsencode(endpoint)) < 108
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as listener:
+                listener.bind(endpoint)
+            assert path.is_socket()
+        finally:
+            os.close(fd)
         if raises:
             raise RuntimeError('intentional pytest failure')
         return 7
@@ -113,6 +121,10 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
     expected = {
         ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'),
         ('runtime/analysis/test_vef_path_device.py', 'test_observer_resource_wiring_and_pre_vm_rejection'),
+        ('runtime/analysis/test_natural_start_trace.py', 'test_gate_is_validated_and_does_not_enable_legacy_entry_bundle'),
+        ('runtime/analysis/test_request_queue_watch.py', 'test_debug_flags_are_rejected_before_VM_or_display_start'),
+        ('runtime/analysis/test_tcin_device.py', 'test_explicit_profile_and_binding'),
+        ('runtime/analysis/test_touch_panel.py', 'test_observer_and_profile_gates'),
         ('runtime/analysis/test_functional_face_dmm.py', 'test_final_wire_source_pins'),
         ('runtime/analysis/test_functional_face_dmm.py', 'test_inherited_original_source_and_config_pins'),
         ('runtime/analysis/test_functional_face_dmm.py', 'test_aarch64_hand_declared_guest_libc_225'),
@@ -135,6 +147,8 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
     assert set(runner.OUTSIDE_HOST_SCOPE) == expected
     items = []
     for file, name in [*expected,
+                       *((file, name + '_host') for file, name in expected),
+                       *((('report/unlisted/' + Path(file).name), name) for file, name in expected),
                        ('runtime/analysis/other.py', 'test_observer_resource_wiring_and_pre_vm_rejection'),
                        ('runtime/analysis/test_cp_property_stage_file.py', 'test_missing_public_evidence'),
                        ('report/unlisted/test_other.py', 'test_all_modes_with_original_aarch64_libc')]:
@@ -148,6 +162,104 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
         if excluded:
             assert item.markers[0].name == 'skip'
             assert 'outside public host software-model scope' in item.markers[0].kwargs['reason']
+
+
+def test_model_list_preserves_host_callers_and_explicit_external_stages():
+    names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
+    assert isinstance(names, list) and len(names) == len(set(names)) == 231
+    assert {
+        'runtime/analysis/test-menu-control.py',
+        'runtime/analysis/test_key_injection.py',
+        'runtime/analysis/test_natural_start_trace.py',
+        'runtime/analysis/test_reader_boot_wait.py',
+        'runtime/analysis/test_request_queue_watch.py',
+        'runtime/analysis/test_tcin_device.py',
+        'runtime/analysis/test_touch_panel.py',
+        'runtime/analysis/test_udate_distribution.py',
+        'runtime/analysis/test_shutter_gate_batch_inventory.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/test_build_runtime.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_fixture_driver.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_shutter_gate_trace_checks_v1.py',
+        'runtime/analysis/test_menu_control.py',
+        'runtime/analysis/test_natural_gtk_input_receipts.py',
+        'runtime/analysis/test_functional_camera_runner.py',
+        'runtime/analysis/test_scope_observer_profile.py',
+        'report/2026-10-30-qemu-readonly-scope-observer/test_run_context.py',
+        'report/2026-10-31-qemu-M-writer-observer-v3/test_run_context.py',
+    } <= set(names)
+    assert not {
+        'runtime/analysis/test_body_control_probe.py',
+        'runtime/analysis/test_focus_controls_probe.py',
+        'runtime/analysis/test_media_predicate_watch.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/test_scope_observer.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/test_run_context.py',
+        'report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py',
+    } & set(names)
+
+
+@pytest.mark.parametrize('name', [
+    'runtime/analysis/test-menu-control.py',
+    'runtime/analysis/test_menu_control.py',
+    'report/2026-10-30-qemu-readonly-scope-observer/integration/test_actual_scope_plugin.py',
+    'report/2026-10-31-qemu-M-writer-observer-v3/integration/test_actual_scope_plugin.py',
+    'report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py',
+])
+def test_explicit_paths_reach_collection_without_basename_exclusions(tmp_path, monkeypatch, name):
+    (tmp_path / 'tools').mkdir()
+    case = tmp_path / name
+    case.parent.mkdir(parents=True)
+    case.write_text('raise AssertionError("synthetic module must not execute")\n')
+    (tmp_path / 'tools/public-model-tests.json').write_text(json.dumps([name]))
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    monkeypatch.setattr(runner, 'TEMP', tmp_path / 'validation/tmp/public-models')
+    monkeypatch.setattr(sys, 'argv', ['test-public-models.py'])
+    hooks = []
+    monkeypatch.setattr(sys, 'addaudithook', hooks.append)
+    monkeypatch.setenv('TMPDIR', os.environ.get('TMPDIR') or '/var/tmp')
+    for key in ('PYTHONDONTWRITEBYTECODE', 'DISPLAY', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD'):
+        monkeypatch.setenv(key, 'inherited')
+    collected = []
+
+    def collect(arguments, plugins):
+        assert arguments.count(str(case.resolve())) == 1
+        assert len(plugins) == 1 and isinstance(plugins[0], runner.HostScope)
+        markers = []
+        item = SimpleNamespace(path=case, name='test_real_qemu_shutter_gate_v1_direct_raw_and_independent_operands',
+                               add_marker=markers.append)
+        plugins[0].pytest_collection_modifyitems([item])
+        assert markers == []
+        collected.append(str(case.resolve()))
+        return 7
+
+    monkeypatch.setattr(pytest, 'main', collect)
+    assert runner.main() == 7
+    assert hooks == [runner.guard] and collected == [str(case.resolve())]
+
+
+@pytest.mark.parametrize('name', [
+    'runtime/analysis/test-other.py',
+    'runtime/analysis/test-menu-control-extra.py',
+    'report/other/test-menu-control.py',
+    'runtime/analysis/./test-menu-control.py',
+    'runtime/analysis/../analysis/test-menu-control.py',
+    pytest.param(None, id='existing-absolute-path'),
+])
+def test_existing_other_dash_or_escaping_paths_remain_errors(tmp_path, monkeypatch, name):
+    (tmp_path / 'tools').mkdir()
+    case = (tmp_path / (name or 'runtime/analysis/test_example.py')).resolve()
+    case.parent.mkdir(parents=True)
+    case.write_text('raise AssertionError("invalid path must not execute")\n')
+    if name is None:
+        name = str(case)
+    (tmp_path / 'tools/public-model-tests.json').write_text(json.dumps([name]))
+    monkeypatch.setattr(runner, 'ROOT', tmp_path)
+    monkeypatch.setattr(runner, 'TEMP', tmp_path / 'validation/tmp/public-models')
+    hooks = []
+    monkeypatch.setattr(sys, 'addaudithook', hooks.append)
+    monkeypatch.setattr(pytest, 'main', lambda *args, **kwargs: pytest.fail('invalid path reached collection'))
+    with pytest.raises(AssertionError):
+        runner.main()
+    assert hooks == [] and not runner.TEMP.exists()
 
 
 @pytest.mark.parametrize('name', ['runtime/analysis/test_missing.py', '../test_outside.py', '/test_absolute.py'])
