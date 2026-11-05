@@ -1,0 +1,89 @@
+{
+  "schema": "a7c2-qemu-documentation-publication-v1",
+  "date": "2026-11-04",
+  "scope": "documentation_only_no_runtime_or_test_source_changes",
+  "base_commit": "9984543b69134d857076c42c9676ba2e4f4f8b21",
+  "changed_paths": [
+    "README.md",
+    "SOURCE-SHA256SUMS",
+    "docs/tech/2026-11-04-current-progress.md",
+    "docs/tech/README.md",
+    "report/2026-11-04-documentation-publication/README.md",
+    "validation/2026-11-04-documentation-publication.json",
+    "validation/2026-11-04-progress.json",
+    "validation/README.md"
+  ],
+  "source_inputs_outside_document_allowlist_unchanged": true,
+  "checks": [
+    {
+      "argv": [
+        "bash",
+        "analysis/sync_repo_scripts.sh",
+        "--check"
+      ],
+      "returncode": 0,
+      "at_ns": 1793841545038489298,
+      "stdout_sha256": "4df707a940d6fde11b4675d18383ba135c02499e6c279db310d26955fca9a847",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "argv": [
+        "python3",
+        "-B",
+        "tools/check-source.py"
+      ],
+      "returncode": 0,
+      "at_ns": 1793841545054026769,
+      "stdout_sha256": "e063e5761822281df57788c8ee264592074b54d7e493e04ea3e53477145f0bc1",
+      "stderr_sha256": "9fd2ee14b1d88e5c4033503be817ac9ac5225a940a43682f314224d37925d297"
+    },
+    {
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "returncode": 0,
+      "at_ns": 1793841682263015359,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "markdown_checks": [
+    {
+      "path": "README.md",
+      "sha256": "6d8f36bba80f89a2dbc53c488b4deff02a2496a492319e24a26915c11cdef34a",
+      "new_broken_links": []
+    },
+    {
+      "path": "docs/tech/2026-11-04-current-progress.md",
+      "sha256": "5a2c11df0aff7402c5f4a68b086ec96b8622cf58d4e67ccbf096ed0988848a03",
+      "new_broken_links": []
+    },
+    {
+      "path": "docs/tech/README.md",
+      "sha256": "ecdc45d7ceb1a96750dea3cc0b42efd12d6d25813a3d5f9f7a7ae447a78af47f",
+      "new_broken_links": []
+    },
+    {
+      "path": "report/2026-11-04-documentation-publication/README.md",
+      "sha256": "f44bc8175576403c05951f7cd2e8ecde789a4a95aa8e5a1295f3dd17f3d635e1",
+      "new_broken_links": []
+    },
+    {
+      "path": "validation/README.md",
+      "sha256": "3186658d1bf11051e846742bfeff15f9f57be5ee189e5a6e855bbd2e5366dadc",
+      "new_broken_links": []
+    }
+  ],
+  "json_checked": true,
+  "no_new_broken_markdown_links": true,
+  "complete_host_suite_run": false,
+  "complete_model_suite_run": false,
+  "vm_run": false,
+  "original_abi_or_api_run": false,
+  "original_media_decoded": false,
+  "research_counts_are_not_public_package_test_counts": true,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false
+}

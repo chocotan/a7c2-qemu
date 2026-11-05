@@ -1,5 +1,11 @@
 # 本包验证记录
 
+## 11月4日文档更新
+
+新增[当前研究进展](../docs/tech/2026-11-04-current-progress.md)与[进度JSON](2026-11-04-progress.json)。研究完整批16,462 tests／12,819 subtests、934项once及原huti输入／13图／关闭读回分别记录，媒体仍为空，`capture_verified=false`。正式focus／transport仍在VDF完整记录与kernel共行处拒绝，403e查询的数据语义仍待核实。
+
+**本次只发布文档，运行源码和测试源码没有同步研究侧后续改动。** 此次校验范围与实际命令见[文档发布说明](../report/2026-11-04-documentation-publication/README.md)及[发布收据](2026-11-04-documentation-publication.json)；本次不重跑完整软件模型或原VM，以下10月31日公开包测试保持原日期和范围。
+
 ## 10 月 31 日公开包实测
 
 选择性同步已验证的 `arzj0n5v` 源码后，主会话冻结公开树并完成统一验包：

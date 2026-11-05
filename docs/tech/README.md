@@ -4,7 +4,7 @@
 从本机 `./start.sh` 到进入拍摄主界面的启动链路：每一步由哪个文件做、
 做什么、以什么为完成标志、当前走到哪里。
 
-**当前状态先读[10 月 31 日进展](2026-10-31-current-progress.md)与[机器可读摘要](../../validation/2026-10-31-progress.json)。** 原界面和菜单已有实际运行证据，最新完整研究批次通过 9070 tests / 10006 subtests；后续同次运行的内容复核仍 INCOMPLETE，原厂 JPG/MP4 与物理 ASIC 兼容性尚未通过。研究结果与公开包测试分别记账，公开包实际范围见 [validation](../../validation/README.md)；[图像源与显示配置](functional-source-and-display.md)说明软件策略。以下启动笔记及[10 月 29 日快照](2026-10-29-current-progress.md)保留当时结果，不作为本次新 VM 验收。
+**当前研究状态先读[11月4日进展](2026-11-04-current-progress.md)与[机器可读摘要](../../validation/2026-11-04-progress.json)。** 研究完整批通过16,462 tests／12,819 subtests，后继原Scene确认、标准快门／Movie／REC输入、13图和严格关闭均有新证据，卡仍无JPEG／MP4；403e状态查询及正式VDF共行拒绝仍待修复，`capture_verified=false`。本次仅更新文档，公开运行源码仍为10月31日移交版本；公开包既有实测见[validation](../../validation/README.md)。[10月31日快照](2026-10-31-current-progress.md)、[10月29日快照](2026-10-29-current-progress.md)及以下启动笔记保留各自当时范围，不作为本次新VM验收。
 
 ## 阅读前先定范围
 
