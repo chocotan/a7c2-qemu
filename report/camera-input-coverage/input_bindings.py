@@ -3,6 +3,7 @@
 Import with runtime/analysis on sys.path. This module starts no UI, VM or transport.
 """
 import math
+import time
 
 from menu_live import control_catalog, key_command, key_definition, key_status_command
 
@@ -184,6 +185,7 @@ class InputSession:
                         failure = None
                         try:
                             self.press(name, source)
+                            time.sleep(.05)
                         except (OSError, RuntimeError, ValueError) as error:
                             failure = error
                         try:

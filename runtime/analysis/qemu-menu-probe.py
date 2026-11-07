@@ -887,6 +887,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'request_queue_watch.py', base / 'resize_mmio_watch.py', base / 'check-natural-gtk-input.py',
              base / 'language_fonts.py',base / 'prepare-assets.py',
              base / 'firmware_overlay.py',base / 'camera_ui.py',base / 'bodydata-launch.py',
+             base / 'continuous_lcd.py',base / 'console_wakeup.py',base / 'persistent_app_input.py',
              *(base/'menu-root'/FONT_GUEST/name for name in FONT_SPECS),
              base / 'inject-key.c',base / 'menu-root/simulation/inject-key',
              base / 'fsys-file-test.c', base / 'file-media-config.c',
@@ -1130,6 +1131,9 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                 raise RuntimeError('QMP quit already attempted; do not resend')
                             # A failed write/flush may have sent bytes; never retry this quit.
                             qmp_quit_attempted[0]=True
+                            (out/'qmp-quit.json').write_text(json.dumps(dict(
+                                attempted=True,qmp_quit_confirmed=False,signals_sent=[],
+                                owner_pid=proc.pid,attempted_at=time.time()),indent=2)+'\n')
                         try:
                             stream.write((json.dumps(message) + "\n").encode())
                             stream.flush()
@@ -1138,6 +1142,10 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                 if "error" in result:
                                     raise RuntimeError(result["error"])
                                 if "return" in result:
+                                    if name=='quit':
+                                        receipt=json.loads((out/'qmp-quit.json').read_text())
+                                        receipt.update(qmp_quit_confirmed=True,reply=result,confirmed_at=time.time())
+                                        (out/'qmp-quit.json').write_text(json.dumps(receipt,indent=2)+'\n')
                                     return result
                         except Exception as error:
                             if name == 'quit' and (host_sd_fd is not None or directory_sd_fd is not None):
@@ -2397,18 +2405,18 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
             guard_host_sd(proc,out,host_sd_export_verified[0])
         if proc.poll() is None:
             if not qmp_quit_attempted[0]:
-                if host_sd_fd is not None or directory_sd_fd is not None:
-                    try:qmp('quit')
-                    except Exception as error:
-                        raise RuntimeError('Host-backed SD QMP quit failed; retain VM, do not terminate sandbox') from error
-                else:proc.terminate()
+                try:qmp('quit')
+                except Exception as error:
+                    raise RuntimeError('Camera QMP quit failed; retain VM and lease, never signal sandbox') from error
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                if host_sd_fd is not None or directory_sd_fd is not None or functional_camera is not None:
-                    raise RuntimeError('Owned camera VM still running; retain lease, never SIGKILL')
-                proc.kill()
-                proc.wait(timeout=5)
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired as error:
+                raise RuntimeError('Owned camera VM still running; retain lease, never TERM/KILL') from error
+        receipt_path=out/'qmp-quit.json'
+        if receipt_path.is_file():
+            receipt=json.loads(receipt_path.read_text())
+            receipt.update(returncode=proc.returncode,signals_sent=[])
+            receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
         finish_boot_receipt(out, boot_receipt)
         record_scope_exit(out, scope_observer, proc)
         if writer_observer is not None:

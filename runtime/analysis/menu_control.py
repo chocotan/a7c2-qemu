@@ -89,6 +89,8 @@ class VM:
         self.input_lifecycle = False
         self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
         self.native_display = native_display
+        self.continuous_display = native_display is not None and not self.mock
+        self.lcd_stream = None
         # The isolated USB-Ethernet switch only exists when this run launched with
         # the candidate build and the derived launcher/DTB.
         self.usb_net = bool(usb_net)
@@ -96,6 +98,7 @@ class VM:
         self.sd_card = None
         self.sd_pending = 0
         self.natural_boot=natural_boot
+        self.lcd_changed = None
         self.run_dir = ''
         self.custom_firmware=False
         self.sd_export=None
@@ -198,7 +201,9 @@ class VM:
                         can_start=not (self.thread and self.thread.is_alive()) and not (self.owned_process and self.owned_process.poll() is None)
                             and not self.cleanup_error and self.host_sd_context is None and self.instance_lease is None,
                         can_stop=self.state in ('starting','running','faulted'),
-                        native_display=self.native_display, mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
+                        native_display=self.native_display, continuous_display=self.continuous_display,
+                        lcd_stream_error=self.lcd_stream.error if self.lcd_stream else '',
+                        mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         wifi=self.wifi, usb_net=self.usb_net,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
@@ -230,6 +235,7 @@ class VM:
             self.custom_firmware=False
             self.sd_export=None
             self.shutdown_done.clear()
+            self.lcd_stream = None
             self.cancel.clear()
             self.commands = queue.Queue(maxsize=8)
             self.event('启动请求已接受；等待构建、锁与串口初始化完成')
@@ -321,7 +327,7 @@ class VM:
                 if owned is not None:
                     if self.host_sd_context is not None and owned.poll() is None and not self.cancel.is_set():
                         raise RuntimeError('宿主磁盘尚未通过保存；保留VM与租约，须先验证后正常QMP关闭')
-                    (wait_functional_camera_owner if self.functional_camera else
+                    (wait_functional_camera_owner if self.functional_camera or self.natural_boot else
                      terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(owned)
                 with self.lock:self._release_instance_lease(owned)
                 with self.lock:self._release_host_sd_lease(owned)
@@ -453,6 +459,15 @@ class VM:
                             if self.state!='stopping':self.state='faulted'
                 return False
 
+            if self.continuous_display:
+                from continuous_lcd import ContinuousLCD
+                def publish_lcd(png, info):
+                    with self.lock:
+                        self.png, self.snapshot = png, info
+                        self.stale = bool(self.firmware_fault)
+                    if self.lcd_changed is not None:
+                        self.lcd_changed()
+                self.lcd_stream = ContinuousLCD(run, process, publish_lcd).start()
             cancelled()
             with self.lock:
                 if self.cancel.is_set():
@@ -461,7 +476,7 @@ class VM:
                     self.state = 'faulted' if self.firmware_fault else 'running'
                 self.run_dir = reply.get('run', '')
                 self.event('串口初始化已完成；' + ('等待本次已校验快照' if self.native_display is None else '原生画面由 ramfb 更新'))
-                if self.native_display is None:
+                if self.native_display is None and not self.continuous_display:
                     self.commands.put_nowait({'action': 'snapshot'})
             while not cancelled():
                 if process.poll() is not None:
@@ -578,14 +593,21 @@ class VM:
                     self.state = 'error'
                     self.event('VM 错误：' + self.error)
         finally:
+            cleanup_error = None
+            if self.lcd_stream is not None:
+                try:
+                    self.lcd_stream.stop()
+                except RuntimeError as error:
+                    cleanup_error = str(error)
             parent.close()
             child.close()
-            cleanup_error = None
             if process is not None:
                 try:
+                    if cleanup_error:
+                        raise RuntimeError(cleanup_error)
                     if self.host_sd_context is not None and process.poll() is None and not self.cancel.is_set():
                         raise RuntimeError('宿主磁盘未完成保存；错误退出时保留VM与租约，不发送TERM')
-                    (wait_functional_camera_owner if self.functional_camera else
+                    (wait_functional_camera_owner if self.functional_camera or self.natural_boot else
                      terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(process)
                     with self.lock:self._release_instance_lease(process)
                     with self.lock:self._release_host_sd_lease(process)

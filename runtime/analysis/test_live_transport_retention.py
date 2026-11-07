@@ -9,6 +9,18 @@ class EndOfFixture(Exception):
     pass
 
 
+@pytest.fixture(autouse=True)
+def original_sender_boundary(monkeypatch):
+    import persistent_app_input
+    class Sender:
+        def __init__(self,proc,console,monitor):
+            self.proc,self.console,self.monitor=proc,console,monitor
+        def start(self):pass
+        def __call__(self,command):
+            return live.serial_command(self.proc,self.console,command,monitor=self.monitor)
+    monkeypatch.setattr(persistent_app_input,'PersistentAppInput',Sender)
+
+
 @pytest.mark.parametrize('failure',[TimeoutError('command still in flight'),OSError('transport failed'),RuntimeError('guest command failed')])
 @pytest.mark.parametrize('input_profile',['','virtual-input-s0-v1'])
 def test_SD_input_transport_fault_latches_and_keeps_export_channel(tmp_path,monkeypatch,failure,input_profile):

@@ -214,6 +214,30 @@ class FunctionalShutdown(unittest.TestCase):
         self.assertIsNotNone(vm.host_sd_context)
         self.assertIsNotNone(vm.owned_process)
 
+    def test_default_camera_early_eof_retains_owner_without_signals(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            vm = control.VM(natural_boot=True)
+            vm.state = 'starting'
+            process = mock.Mock(pid=456)
+            process.poll.return_value = None
+            process.wait.side_effect = subprocess.TimeoutExpired('camera-owner', 65)
+            with mock.patch.object(control, 'BASE', Path(temporary)), \
+                    mock.patch.object(control.launcher, 'profile_environment', return_value={}), \
+                    mock.patch.object(control.subprocess, 'Popen', return_value=process), \
+                    mock.patch.object(control, 'receive_message', side_effect=RuntimeError('VM 控制通道已关闭')), \
+                    mock.patch.object(control.os, 'killpg') as group, \
+                    mock.patch.object(control, 'terminate_owned') as terminate:
+                vm._run()
+            self.assertFalse(vm.functional_camera)
+            self.assertIs(vm.owned_process, process)
+            self.assertTrue(vm.cleanup_error)
+            self.assertFalse(vm.status()['can_start'])
+            process.wait.assert_called_once_with(timeout=65)
+            group.assert_not_called()
+            terminate.assert_not_called()
+            process.terminate.assert_not_called()
+            process.kill.assert_not_called()
+
     def test_functional_early_startup_failures_keep_owner_without_legacy_signals(self):
         failures = (
             RuntimeError('VM 控制通道已关闭'),
@@ -358,7 +382,7 @@ term_guard = next(node for node in probe.body if isinstance(node, ast.If) and
 exec(compile(ast.Module(body=[term_guard], type_ignores=[]), '<actual-launcher-term>', 'exec'))
 finalbody = next(node.finalbody for node in ast.walk(probe) if isinstance(node, ast.Try) and node.finalbody and
     any(isinstance(call, ast.Call) and ast.unparse(call.func)=='functional_camera.guard_shutdown' for call in ast.walk(node.finalbody[0])) and
-    any(isinstance(call, ast.Call) and ast.unparse(call.func)=='proc.kill' for item in node.finalbody for call in ast.walk(item)))
+    any(isinstance(call, ast.Call) and ast.unparse(call.func)=='finish_boot_receipt' for item in node.finalbody for call in ast.walk(item)))
 def qmp(name):
     assert name=='quit' and instance.closed and instance.cleanup['safe_to_close']
     record('quit-after-cleanup')

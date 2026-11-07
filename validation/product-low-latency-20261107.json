@@ -1,0 +1,595 @@
+{
+  "schema": "a7c2-product-continuous-lcd-original-input-checkpoint-v1",
+  "scope": "Product-native continuous LCD and original App32 input; strict latency and wakeup remain incomplete",
+  "product_repository": "chocotan/a7c2-qemu",
+  "firmware_sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31",
+  "external_content_inputs": [
+    "ILCE-7CM2 2.01 ALLLANG BODYDATA.DAT",
+    "qemu-11.1.2.tar.xz"
+  ],
+  "research_runtime_dependency": false,
+  "host": {
+    "core_workers": 8,
+    "core_all_groups_passed": true,
+    "core_groups": [
+      {
+        "name": "stream",
+        "returncode": 0,
+        "junit_cases": 11,
+        "skipped_cases": 0,
+        "skip_reasons": {}
+      },
+      {
+        "name": "window",
+        "returncode": 0,
+        "junit_cases": 32,
+        "skipped_cases": 24,
+        "skip_reasons": {
+          "GTK display required: use xvfb-run": 24
+        }
+      },
+      {
+        "name": "control",
+        "returncode": 0,
+        "junit_cases": 23,
+        "skipped_cases": 0,
+        "skip_reasons": {}
+      },
+      {
+        "name": "input",
+        "returncode": 0,
+        "junit_cases": 175,
+        "skipped_cases": 0,
+        "skip_reasons": {}
+      },
+      {
+        "name": "headless",
+        "returncode": 0
+      },
+      {
+        "name": "pixels",
+        "returncode": 0
+      },
+      {
+        "name": "guest-build",
+        "returncode": 0
+      },
+      {
+        "name": "bluetooth",
+        "returncode": 0,
+        "junit_cases": 2,
+        "skipped_cases": 0,
+        "skip_reasons": {}
+      }
+    ],
+    "core_result_sha256": "193b57f1e6e9908fbc5f1d3eb6fa81d72192e835be68773ac58110af3528de5c",
+    "release_workers": 8,
+    "release_initial_host_failed": 20,
+    "release_other_seven_passed": true,
+    "host_closure_passed": 323,
+    "host_closure_skipped": 34,
+    "host_closure_subtests_passed": 89,
+    "host_closure_skip_reasons": {
+      "pass --runtime for actual Sony asset checks": 5,
+      "outside asset-free/build-free host scope; run full suite after build/import": 3,
+      "GTK display required: use xvfb-run": 24,
+      "Set A7C2_STARTUP_BASELINE and A7C2_STARTUP_NO_MENU": 2
+    },
+    "host_closure_junit_sha256": "4813176c815422d57daaf4d07a8508c1349ee939ca03980c1672abd561d32421",
+    "legacy_script_sync_passed": true,
+    "skips_not_counted_as_dynamic_pass": true,
+    "initial_failures_preserved": true
+  },
+  "actual": {
+    "run": "run-u9x23cjn",
+    "virtual_hci_profile": "virtual-rom-v1",
+    "extra_input_route_trace": false,
+    "extra_natural_start_trace": false,
+    "original_app32_events": [
+      {
+        "number": 3,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 4,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 5,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 6,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 7,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 8,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 9,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 10,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 11,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 12,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 13,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 14,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 15,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 16,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 17,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 18,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 19,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 20,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 21,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 22,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 23,
+        "words": [
+          48,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 24,
+        "words": [
+          48,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 25,
+        "words": [
+          3,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "number": 26,
+        "words": [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "original_input_requests": 12,
+    "original_input_edges": 24,
+    "press_release_hold_ms": 50,
+    "timing": {
+      "schema": "a7c2-product-original-startup-navigation-latency-v1",
+      "scope": "language-list original focus and real GTK window",
+      "samples": [
+        {
+          "index": 0,
+          "key": "DOWN",
+          "started_monotonic_ns": 572597093403377,
+          "publish_to_native_ms": 94.92543898522854,
+          "publish_to_window_ms": 110.33572303131223,
+          "stable_confirmation_ms": 115.33752898685634,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 1,
+          "key": "UP",
+          "started_monotonic_ns": 572597371109771,
+          "publish_to_native_ms": 76.07274106703699,
+          "publish_to_window_ms": 96.21980902738869,
+          "stable_confirmation_ms": 100.97552405204624,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 2,
+          "key": "DOWN",
+          "started_monotonic_ns": 572597635044504,
+          "publish_to_native_ms": 68.97618807852268,
+          "publish_to_window_ms": 80.47664305195212,
+          "stable_confirmation_ms": 85.19175706896931,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 3,
+          "key": "UP",
+          "started_monotonic_ns": 572597883654554,
+          "publish_to_native_ms": 93.99997198488563,
+          "publish_to_window_ms": 121.0655519971624,
+          "stable_confirmation_ms": 125.41198392864317,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 4,
+          "key": "DOWN",
+          "started_monotonic_ns": 572598171792196,
+          "publish_to_native_ms": 73.28909903299063,
+          "publish_to_window_ms": 93.06933404877782,
+          "stable_confirmation_ms": 97.78739896137267,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 5,
+          "key": "UP",
+          "started_monotonic_ns": 572598432770677,
+          "publish_to_native_ms": 69.9344149325043,
+          "publish_to_window_ms": 84.93156498298049,
+          "stable_confirmation_ms": 89.6575499791652,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 6,
+          "key": "DOWN",
+          "started_monotonic_ns": 572598684545340,
+          "publish_to_native_ms": 88.25755002908409,
+          "publish_to_window_ms": 100.07377702277154,
+          "stable_confirmation_ms": 104.80126203037798,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 7,
+          "key": "UP",
+          "started_monotonic_ns": 572598951875688,
+          "publish_to_native_ms": 61.35512189939618,
+          "publish_to_window_ms": 68.23486299254,
+          "stable_confirmation_ms": 73.14842892810702,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 8,
+          "key": "DOWN",
+          "started_monotonic_ns": 572599186656697,
+          "publish_to_native_ms": 91.67286509182304,
+          "publish_to_window_ms": 101.77846904844046,
+          "stable_confirmation_ms": 105.90794903691858,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 9,
+          "key": "UP",
+          "started_monotonic_ns": 572599455921369,
+          "publish_to_native_ms": null,
+          "publish_to_window_ms": 82.94337103143334,
+          "stable_confirmation_ms": 87.01213099993765,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 10,
+          "key": "DOWN",
+          "started_monotonic_ns": 572599705842669,
+          "publish_to_native_ms": null,
+          "publish_to_window_ms": 98.4510249691084,
+          "stable_confirmation_ms": 103.11774897854775,
+          "press_release_hold_ms": 50
+        },
+        {
+          "index": 11,
+          "key": "UP",
+          "started_monotonic_ns": 572599971732007,
+          "publish_to_native_ms": 91.96603705640882,
+          "publish_to_window_ms": 102.7616469655186,
+          "stable_confirmation_ms": 107.76944400276989,
+          "press_release_hold_ms": 50
+        }
+      ],
+      "observation_backend": "X11 XGetImage of actual LCD window region",
+      "release_scheduler": "owned xdotool sleep 0.05 independent of pixel sampling",
+      "window_median_ms": 97.33541699824855,
+      "window_max_ms": 121.0655519971624,
+      "all_samples_under_100ms": false,
+      "native_frames_generated_on_host": false,
+      "capture_verified": false,
+      "full_boot_verified": false
+    },
+    "lcd": {
+      "valid_reads": 43155,
+      "content_changes": 119,
+      "elapsed_seconds": 359.892151667038,
+      "observed_valid_reads_per_second": 119.91092275867628,
+      "error": "",
+      "source": "original AP -> verified HOSDAP02 -> guest ramfb -> QMP -> GTK",
+      "source_content_fps_verified": false,
+      "capture_verified": false
+    },
+    "original_shooting_hud_manually_visible": true,
+    "original_shooting_screen": 0,
+    "original_shooting_controls": 565,
+    "original_strict_firstsetup_checker_passed": false,
+    "original_strict_checker_failure_preserved": true,
+    "system_error_screen_seen": false,
+    "system_error_masked": false,
+    "menu_verified_this_run": false,
+    "original_pre_power_off_seen": true,
+    "original_shutdown_screen_0x309_seen": true,
+    "power_off_factor_observed_this_run": false,
+    "original_apo_wakeup_verified": false,
+    "virtual_card": {
+      "bytes": 134217728,
+      "sha256": "d2862aac27e81214fd4fb387e3db47a0d0620565901c59356de8af691af5a517",
+      "fsck_rc": 0,
+      "cross_channel_chunks": 32,
+      "chunk_bytes": 4194304
+    },
+    "qmp_quit_confirmed": true,
+    "owner_returncode": 0,
+    "signals_sent": [],
+    "user_original_configuration_unchanged": true
+  },
+  "screenshots": [
+    {
+      "path": "docs/images/native-shooting-20261107.png",
+      "sha256": "6271a41bc9f473ad7dc394be93a083f30053fed5499794bcee37725b75bec4fe",
+      "width": 1360,
+      "height": 930,
+      "source": "same product original HUD before later power-off",
+      "contains_private_serial": false,
+      "rendered_camera_preview": false
+    }
+  ],
+  "runtime_sources": {
+    "continuous_lcd.py": "f84301e9e8e58f0fd8749e0f03396deec5275e01694887ffde4064e051e56814",
+    "console_wakeup.py": "8f4c1c425e817cac73bb3722f10ad4e188db452da53a141b9ed12e97ed0b75d3",
+    "persistent_app_input.py": "254157d1352c0f662ce61dc7fab522272cab3a3f6e53ffe9c53a1e7715d92ab9",
+    "menu_live.py": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
+    "menu_control.py": "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
+    "camera_ui.py": "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
+    "inject-key.c": "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7",
+    "ramfb-viewer.c": "ac5322c815afa27e1efc2cccb01cd51f145af3c169c116df7395dac700281201",
+    "headless-osd.c": "0f3e3040bc75c3ab31cd333c79fdf6be9a46f1c7a4c2fd351e001a7285b063d1",
+    "qemu-menu-probe.py": "fbbdedca80ac9f1ad710ee89c7b6b76c32bc9713bc4529e2433aa89c65d7394e",
+    "qemu-kernel-probe.sh": "1fd227c3cc3a842d37d342a8929a56fc09870a4f905650ad22b1bd8f6a8a2de3"
+  },
+  "incomplete": {
+    "strict_latency_target_unmet": true,
+    "source_content_fps_not_yet_verified": true,
+    "default_bluetooth_model_still_opt_in": true,
+    "full_boot_verified": false,
+    "usb_authentication_verified": false,
+    "p1_installation_verified": false,
+    "capture_verified": false
+  },
+  "overall_complete": false
+}

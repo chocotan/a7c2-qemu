@@ -26,6 +26,11 @@ static void put32(unsigned char *p, unsigned int n) { for (int i = 0; i < 4; ++i
 static void put64(unsigned char *p, unsigned long n) { for (int i = 0; i < 8; ++i) p[i] = n >> (8 * i); }
 unsigned long hosd_hash(const unsigned char *p, unsigned long n) {
     unsigned long h = 14695981039346656037UL;
+    while (n >= 8) {
+#pragma GCC unroll 8
+        for (unsigned int i=0;i<8;i++) h=(h^p[i])*1099511628211UL;
+        p+=8; n-=8;
+    }
     while (n--) { h ^= *p++; h *= 1099511628211UL; }
     return h;
 }
@@ -48,7 +53,7 @@ int hosd_persist(const char *path, const unsigned char *bytes, unsigned long len
         do { result = fsync(fd); } while (result && *__errno_location() == 4);
         ok = result == 0;
     }
-    unsigned char verify[4096];
+    unsigned char verify[65536];
     for (unsigned long offset = 0; ok && offset < length;) {
         unsigned long count = length - offset;
         if (count > sizeof verify) count = sizeof verify;

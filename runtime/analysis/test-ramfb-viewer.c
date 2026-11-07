@@ -43,7 +43,17 @@ static void kick(void *ctx, uint64_t addr) {
     if (m->mode != 2) putbe(m->pool + RAMFB_DMA, m->mode, 4);
 }
 static void pause_bus(void *ctx) { ++((struct mock *)ctx)->sleeps; }
+static uint64_t reference_hash(const unsigned char *p,unsigned n,int container) {
+    uint64_t h=UINT64_C(14695981039346656037);
+    for(unsigned i=0;i<n;i++)h=(h^((container && i>=40 && i<48)?0:p[i]))*UINT64_C(1099511628211);
+    return h;
+}
 int main(void) {
+    for(unsigned i=0;i<sizeof frame;i++)frame[i]=(unsigned char)(i*29+i/113);
+    for(unsigned n=0;n<=65;n++)for(int container=0;container<=1;container++)
+        assert(fnv(frame,n,container)==reference_hash(frame,n,container));
+    for(int container=0;container<=1;container++)
+        assert(fnv(frame,sizeof frame,container)==reference_hash(frame,sizeof frame,container));
     assert(reserved("x=1 memrsv=0x00500000@0x41e100000:uc y=2"));
     assert(reserved("memrsv=0x00900000@0x41e100000:uc"));
     assert(!reserved("memrsv=0x00500000@0x41e100000:uc memrsv=0x00900000@0x41e100000:uc"));
@@ -68,6 +78,15 @@ int main(void) {
                                     0,0,0,0, 0,0,136,0, 51,34,17,0};
     for(unsigned i=0;i<7;++i) putle(pixels+2*i,colors[i],2);
     convert(pixels,output); assert(!memcmp(output,expected,sizeof expected));
+    for(unsigned v=0;v<65536;++v) putle(pixels+2*v,v,2);
+    convert(pixels,output);
+    for(unsigned v=0;v<65536;++v) {
+        unsigned a=v&15;
+        assert(output[4*v]==(((v>>4)&15)*17*a+7)/15);
+        assert(output[4*v+1]==(((v>>8)&15)*17*a+7)/15);
+        assert(output[4*v+2]==((v>>12)*17*a+7)/15);
+        assert(output[4*v+3]==0);
+    }
     struct mock m={.id={3},.sig={'Q','E','M','U'}};
     m.pool=calloc(1,RAMFB_SIZE); assert(m.pool);
     putbe(m.directory,1,4); putbe(m.directory+4,28,4); putbe(m.directory+8,0x24,2);

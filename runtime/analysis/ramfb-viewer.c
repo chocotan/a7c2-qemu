@@ -50,11 +50,22 @@ static uint64_t be(const unsigned char *p, unsigned n) {
 static void putbe(unsigned char *p, uint64_t v, unsigned n) {
     while (n) { p[--n] = v; v >>= 8; }
 }
+static uint64_t fnv_bytes(const unsigned char *p, unsigned n, uint64_t h) {
+    while (n >= 8) {
+#pragma GCC unroll 8
+        for (unsigned i=0;i<8;i++) h=(h^p[i])*UINT64_C(1099511628211);
+        p+=8; n-=8;
+    }
+    while(n--)h=(h^*p++)*UINT64_C(1099511628211);
+    return h;
+}
 static uint64_t fnv(const unsigned char *p, unsigned n, int container) {
     uint64_t h = UINT64_C(14695981039346656037);
-    for (unsigned i = 0; i < n; ++i)
-        h = (h ^ ((container && i >= 40 && i < 48) ? 0 : p[i])) * UINT64_C(1099511628211);
-    return h;
+    if(!container || n<=40)return fnv_bytes(p,n,h);
+    h=fnv_bytes(p,40,h);
+    unsigned zero_end=n<48?n:48;
+    for(unsigned i=40;i<zero_end;i++)h*=UINT64_C(1099511628211);
+    return fnv_bytes(p+zero_end,n-zero_end,h);
 }
 static const char *header_error(const unsigned char *p) {
     uint64_t seq = le(p + 8, 8), source = le(p + 120, 8), phys = le(p + 32, 8);
@@ -77,14 +88,22 @@ static const char *validate(const unsigned char *p, size_t n) {
     if (err) return err;
     return fnv(p, n, 1) == le(p + 40, 8) ? NULL : "container hash";
 }
+static unsigned char conversion_table[65536][4];
+static int conversion_ready;
 static void convert(const unsigned char *p, unsigned char *out) {
-    /* Straight RGBA4444 over black, rounded to nearest 8-bit channel; X=0. */
+    if (!conversion_ready) {
+        for (unsigned v = 0; v < 65536; ++v) {
+            unsigned a = v & 15;
+            conversion_table[v][0] = (((v >> 4) & 15) * 17 * a + 7) / 15;
+            conversion_table[v][1] = (((v >> 8) & 15) * 17 * a + 7) / 15;
+            conversion_table[v][2] = ((v >> 12) * 17 * a + 7) / 15;
+            conversion_table[v][3] = 0;
+        }
+        conversion_ready = 1;
+    }
     for (unsigned i = 0; i < HOSD_PIXELS / 2; ++i) {
-        unsigned v = le(p + 2 * i, 2), a = v & 15;
-        out[4*i] = (((v >> 4) & 15) * 17 * a + 7) / 15;
-        out[4*i+1] = (((v >> 8) & 15) * 17 * a + 7) / 15;
-        out[4*i+2] = ((v >> 12) * 17 * a + 7) / 15;
-        out[4*i+3] = 0;
+        unsigned v = le(p + 2 * i, 2);
+        memcpy(out + 4*i, conversion_table[v], 4);
     }
 }
 static int config(unsigned char *cfg, unsigned char *dma, unsigned slot, unsigned selector) {
@@ -279,7 +298,7 @@ static int run(void) {
     record("INIT", init, raw, 0);
     unsigned slot = 1, ticks = 0;
     for (;;) {
-        usleep(100000); ++ticks;
+        usleep(10000); ++ticks;
         int next = open(HOSD_PATH, O_RDONLY | O_NONBLOCK | O_NOFOLLOW);
         if (next < 0) {
             if (ticks == 1 || ticks % 100 == 0) record("WAIT", "snapshot unavailable", s.header, slot);

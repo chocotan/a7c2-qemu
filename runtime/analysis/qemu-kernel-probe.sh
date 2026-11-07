@@ -499,6 +499,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       ${QEMU_ICOUNT_ARGS:-} \
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
+      -qmp unix:/out/lcd-qmp.sock,server=on,wait=off \
       "${debug_args[@]}" \
       "${scope_args[@]}" \
       "${writer_args[@]}" \

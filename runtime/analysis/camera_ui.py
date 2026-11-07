@@ -135,6 +135,8 @@ class SnapshotPoller:
         self.follow_up_at = now + delay
 
     def request(self, vm, state, now, force=False):
+        if state.get('continuous_display') and not force:
+            return False
         follow_up = self.follow_up_at is not None and (force or now >= self.follow_up_at)
         waiting_for_input = self.follow_up_at is not None and now < self.follow_up_at
         periodic = bool(self.interval) and now >= self.next_at and not waiting_for_input
@@ -188,6 +190,8 @@ class CameraUI:
         self.last_input = {}
         self.last_status = self.last_details = None
         self.source_id = 0
+        self.lcd_idle_pending = False
+        self.vm.lcd_changed = self._notify_lcd
         self.provider = Gtk.CssProvider()
         self.provider.load_from_data(CSS)
         self.window = Gtk.Window(title='α7C II · 单窗口相机控制')
@@ -218,7 +222,7 @@ class CameraUI:
         self.window.show_all()
         self.update(self.state)
         if timer:
-            self.source_id = GLib.timeout_add(50, self.tick)
+            self.source_id = GLib.timeout_add(16, self.tick)
 
     def _build_header(self):
         row = Gtk.Box(spacing=18)
@@ -667,6 +671,17 @@ class CameraUI:
             self.power(True)
         return False
 
+    def _notify_lcd(self):
+        if not self.closed and not self.lcd_idle_pending:
+            self.lcd_idle_pending = True
+            GLib.idle_add(self._present_lcd, priority=GLib.PRIORITY_HIGH_IDLE)
+
+    def _present_lcd(self):
+        self.lcd_idle_pending = False
+        if not self.closed:
+            self._read_frame(self.vm.status())
+        return False
+
     def _read_frame(self, state):
         # Retry a changed metadata version instead of pairing a PNG with the wrong frame.
         with self.vm.lock:
@@ -770,7 +785,9 @@ class CameraUI:
         self.wheel_note.set_text('控制轮 / ' + ('当前通道不可用' if self.reason('CONTROL_LEFT') else '外圈可拖动；语义以固件为准'))
         waiting = self.poller.inflight or bool(state.get('pending') or state.get('busy'))
         self.refresh.set_sensitive(not self.closing and state.get('state') == 'running' and not waiting)
-        if self.poller.inflight:
+        if state.get('continuous_display'):
+            capture_text = ('LCD：' + state['lcd_stream_error']) if state.get('lcd_stream_error') else '实时 LCD · 独立显示通道'
+        elif self.poller.inflight:
             capture_text = '正在校验新画面'
         elif self.poller.follow_up_at is not None and self.poller.interval:
             capture_text = '按键后刷新已计划'
@@ -788,7 +805,7 @@ class CameraUI:
             frame = self.display_frame
             freshness = '旧画面 / 当前画面未确认' if stale else '本次后端已校验快照'
             source=('模拟灰度预览 / AP已消费 / 非CP面板' if str(frame.get('source','')).startswith('AP VDT luma mirror') else
-                    '显示帧' if frame.get('source')=='QMP ramfb display' else
+                    '显示帧' if frame.get('source') in ('QMP ramfb display','continuous QEMU ramfb') else
                     '像素提交 '+str(frame.get('pixel_source_seq','?')))
             self.frame_label.set_text(prefix + freshness + f' / #{frame.get("number", "?")} / {source} / 640 x 480')
         else:

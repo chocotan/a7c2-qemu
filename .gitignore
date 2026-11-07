@@ -6,6 +6,7 @@
 /analysis/extracted/
 /runtime/bodydata-cache/
 /runtime/tmp/
+/runtime/diagnostics/
 /runtime/sources/
 /runtime/analysis/menu-root/
 /runtime/analysis/unpacked/
@@ -37,6 +38,7 @@
 /source/build/
 /source/vendor/*.tar.*
 /source/build-programs.sha256
+/source/pci-hardware-build.json
 /source/*.log
 /validation/*.log
 /validation/tmp/

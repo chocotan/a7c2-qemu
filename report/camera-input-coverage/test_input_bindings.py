@@ -605,11 +605,27 @@ def test_actual_live_owner_handles_queue_and_shutdown_cleanup_without_vm(monkeyp
     def serial(_proc, _console, command, **_):
         return b'' if command == 'true' else wire(command)
     monkeypatch.setattr(menu_live, 'serial_command', serial)
+    import persistent_app_input
+    transports = []
+    class OriginalSender:
+        def __init__(self, proc, console, monitor):
+            assert isinstance(proc, Proc) and console == tmp_path/'console.log'
+            assert isinstance(monitor, menu_live.FirmwareMonitor)
+            self.started = False
+            transports.append(self)
+        def start(self):self.started = True
+        def __call__(self, command):
+            assert self.started
+            return wire(command)
+    monkeypatch.setattr(persistent_app_input, 'PersistentAppInput', OriginalSender)
     def export():
         exported.append(list(wire.statuses))
         return {'ok': True}
     menu_live.run_live(Proc(), tmp_path, 999, sd_export=export)
     assert replies[0]['input_lifecycle'] is True
+    assert replies[0]['input_transport'] == ('original-app32-persistent-serial' if app else 'original-infra20-or-menu-mailbox')
+    assert len(transports) == int(app)
+    if app:assert transports[0].started
     assert replies[4]['type'] == 'error' and 'legacy tap' in replies[4]['error']
     assert replies[-1]['ok'] and not replies[-1]['input_state']['held']
     assert exported and exported[0][-2:] == [(0xa7, 0), (0x1f1, 0)]

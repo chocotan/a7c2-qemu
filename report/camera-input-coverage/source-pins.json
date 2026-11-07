@@ -37,7 +37,13 @@
     },
     {
       "path": "runtime/analysis/inject-key.c",
-      "sha256": "ae107d4e6f0653d9d73ffe49ed80aa521369581e3d344f9de385b8b7ee1f2c73"
+      "sha256": "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7",
+      "sha256_history": [
+        "ae107d4e6f0653d9d73ffe49ed80aa521369581e3d344f9de385b8b7ee1f2c73",
+        "1d969ab4a5d1b23cebebf80fac1235ff43dc08739700afbab44fbc2448bc13d6"
+      ],
+      "previous_sha256": "1d969ab4a5d1b23cebebf80fac1235ff43dc08739700afbab44fbc2448bc13d6",
+      "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived."
     },
     {
       "path": "runtime/analysis/test_app_key_remap.py",
@@ -45,23 +51,38 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "46c1053e4a08b98773167e997c3f45031fc131604036e13275962cf98d251681",
-      "previous_sha256": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
-      "change_scope": "Successful camera_input SHUTTER press/tap now sets the existing shutter_submitted flag so the requested passive sampler runs before export. The four pinned input definitions and encoders are byte-identical; collector errors and capture limits remain. Review: analysis/scratch/functional-jn70-bundle-parent/menu-live-pin-review.json. The 0vxs3wtp full batch and old pin are preserved; renewed source pin still requires the next combined full validation."
+      "sha256": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
+      "previous_sha256": "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a",
+      "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived. Sender real readiness is now required before reporting ready, after initial card status; no warmup key is sent.",
+      "sha256_history": [
+        "0713216483f2a4cd35fa8acbff67a2392b8d7186b339d6759ab6c28297e9b630",
+        "a5f27c6d6431c76e9b909829f4c5f7e82b36a2ce5dd14ec8f82c6ab183ea5438",
+        "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a"
+      ]
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "5624042cf7aaa8ad7ad711d4f41c6252befbdd8906d7434525ee4248579cc0ea",
+      "sha256": "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
       "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
       "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
-      "previous_sha256": "cc8f867aaf00d1e7ad6d0c6da19e79a5c08332074e2d26522875f574cc99f417",
-      "change_scope": "Functional-camera owner now waits for control EOF and verified broker detach before VM exit; input wire mappings are unchanged. Focused lifecycle and complete input regressions passed before renewing this host-only pin."
+      "previous_sha256": "e11b8999a30a60fca637e2b8e5f15faab0e51b935880fbb8a280012b3a89c229",
+      "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
+      "sha256_history": [
+        "9dec3a0d430f74587cf0860c5341eaf9481f6c44af90f837af3e10642e883617",
+        "cf54fb7afde53bd1070e9805274ba2c7166a8c8b5907f1e0c096f6e06454d46c",
+        "e11b8999a30a60fca637e2b8e5f15faab0e51b935880fbb8a280012b3a89c229"
+      ]
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "dbdb080ec170c332c2b7eeacad847fabd9b7cdff52a3ac61e513412274060d6c",
+      "sha256": "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
-      "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout."
+      "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",
+      "previous_sha256": "bf48881dc93dc4a6ec4e82dd03d0c2b50a7f7fc20db70c9bae16d6282a246f51",
+      "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
+      "sha256_history": [
+        "bf48881dc93dc4a6ec4e82dd03d0c2b50a7f7fc20db70c9bae16d6282a246f51"
+      ]
     }
   ],
   "raw_to_canonical": {

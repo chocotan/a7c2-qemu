@@ -288,6 +288,9 @@ def netdev_socket_alias(out):
 
 def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulted_cleanup=False):
     """Ignore echoed commands/prompts and require this command's exact RC sentinel."""
+    transport = getattr(proc, '_app_input_transport', None)
+    if transport is not None:
+        transport.pause()
     if getattr(proc, '_menu_serial_desynchronized', False):
         raise RuntimeError('Serial transaction boundary lost; retain VM for explicit recovery, no further commands')
     monitor = None if allow_faulted_cleanup else (monitor or FirmwareMonitor(console))
@@ -301,7 +304,8 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
         verified_yc_preview(console.parent)  # preserve input admission before dropping its one-time log
         with console.open('r+b') as old:
             old.truncate(0)
-    with console.open('rb') as reader:
+    from console_wakeup import ConsoleWakeup
+    with ConsoleWakeup(console) as wakeup, console.open('rb') as reader:
         reader.seek(0, 2)
         proc.stdin.write(wire)
         proc.stdin.flush()
@@ -322,7 +326,7 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
                 return bytes(data)
             if proc.poll() is not None:
                 raise RuntimeError('VM 进程提前退出')
-            time.sleep(.05)
+            wakeup.wait(.05 if deadline is None else min(.05, max(0, deadline - time.monotonic())))
     proc._menu_serial_desynchronized = True
     raise TimeoutError('串口命令缺少完成标记；停止 VM 以避免后续命令交错')
 
@@ -445,9 +449,16 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
         serial_command(proc, out / 'console.log', 'true', monitor=monitor)
         if os.environ.get('A7C2_MEDIA_INIT_WATCH') == '1' and os.environ.get('MENU_GUI_MODELS') == 'virtual-inline-v1':
             wait_initial_model_commit(proc, out/'console.log')
+        if input_session is not None and input_session.app_input:
+            from persistent_app_input import PersistentAppInput
+            input_session.input_fn = PersistentAppInput(proc, out/'console.log', monitor)
         card_state=sd_card.status() if sd_card is not None else None
+        if input_session is not None and input_session.app_input:
+            input_session.input_fn.start()
         send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state,
                                'input_lifecycle': input_session is not None,
+                               'input_transport': ('original-app32-persistent-serial' if input_session is not None and input_session.app_input
+                                                   else 'original-infra20-or-menu-mailbox'),
                                'input_state': input_session.status() if input_session else None})
         while True:
             fault=session_fault
