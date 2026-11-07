@@ -1,8 +1,8 @@
 # 来源与固定身份
 
-2026-11-07 从权威 `a7c2-re` 当前工作树选择性移交源码，保留原有平铺原生路线的公开适配，并新增 `report/2026-10-17-qemu-full-system/` 的原启动/持久盘/开发UI/USB/P1 U/D/E源码。OP20–23、BB timecode、保留帧与退出/内容校验依赖一并更新；不使用历史 `analysis/qemu-runtime`。逐文件原始/公开摘要、有限路径适配、保留的旧公开适配和外部依赖见 [source-port 清单](tools/source-port-20261107.json)；此记录仅覆盖清单列出的文件，旧来源记录保持历史身份。
+产品构建和运行仅使用本仓库的代码、用户提供的 ILCE-7CM2 2.01 ALLLANG `BODYDATA.DAT` 与 QEMU 11.1.2 源码归档。研究仓库是代码来源，不是运行时依赖；系统 dump、历史实验目录和整份嵌套源码快照不随产品分发。实际相机窗口、控制器、资源导入和所需虚拟设备均在本仓库构建。
 
-v35 source freeze1,016项与研究host/actual收据只作已闭合研究来源；本包重新执行的检查见[源码发布收据](validation/2026-11-07-source-publication.json)，不继承研究guest或构建成功。两个原Initialize返回0后原verifySum拒绝，receiver1、安装false和精确pre-dat4恢复均保留。完整系统路线需要读者提供原镜像/资源/库/固定构建收据；原件、密钥、私有native snapshot、历史运行产物和物理设备部署工具不分发。CBC与jiritsu的独立外部依赖保持明确阻塞，详见[完整系统README](report/2026-10-17-qemu-full-system/README.md)。
+最终产品文件身份由 `SOURCE-SHA256SUMS` 绑定，原始来源历史保留在 `SOURCE-ORIGINS.json`。产品运行结果与研究端的原 guest 结果分别记账，不因包含某个模型就宣称拍摄、完整启动或 USB 认证通过。
 
 以下为各次历史移交记录；相应的测试数与“本次”均指原日期。
 
@@ -42,7 +42,7 @@ v35 source freeze1,016项与研究host/actual收据只作已闭合研究来源�
 - 增加主机依赖检查、三段patch及DMA/ATU/PCI暂存身份检查、受限host测试入口和显式host编译模型自测；后者需要libjpeg及FFmpeg开发库。
 - 纯源码包缺少原ALLLANG seed时，settings的两处字节fixture明确skip；有文件但摘要错误仍失败，无资产的实例/路径测试继续执行。公开host入口不依赖分发原Backup。
 - `runtime/analysis/scratch/` 只随附公开检查器实际导入的有限研究脚本源码；旧baseline、绝对路径输入、意图、构建产物和运行数据均未移交。普通使用与软件模型自测分别走 `start.sh` 和 `tools/test-public-models.py`，不把历史driver当当前可直接运行的验收。
-- 原生移交当时排除两个只适用于 full-system、且依赖该路线启动器的 ADF/HDMI pin 校验脚本。11月7日新增独立full-system源码目录及其依赖，原生入口继续保留自己的布局与ALLLANG资产边界。
+- 产品入口使用本仓库自己的原生运行代码和 ALLLANG 资产。未集成的完整镜像调研启动器不随产品分发。
 
 设备协议、CP控制与SD adapter按本次显式来源快照移交，不因重新打包扩展验收结论。原固件和完整派生资产未纳入分发；报告中的有限字节锚点、反汇编与协议研究不冒称Sony原厂源码，也不由项目MIT许可证重新授权原内容。
 

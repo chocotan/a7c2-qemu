@@ -56,15 +56,6 @@ runtime/analysis/camera-instances/
 *.o
 *.ko
 
-# Complete-image research route: only selected authored source is public.
-/analysis/scratch/
-/analysis/output/
-/external/
-/report/2026-10-17-qemu-full-system/runtime/
-/report/2026-10-17-qemu-full-system/keys/
-/report/2026-10-17-qemu-full-system/persistent-flash/fixtures/
-/report/2026-10-17-qemu-full-system/camera-ui-rs/target/
-/report/2026-10-17-qemu-full-system/camera-ui-dioxus/target/
 *.img
 *.ext2
 *.cpio

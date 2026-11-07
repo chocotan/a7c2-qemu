@@ -18,10 +18,6 @@ EXTERNAL = frozenset({
         'usr/lib/libmpr.so', 'usr/lib/appFw.so', 'cp/cpapp-b.bin',
         'system/av-cam.bin', 'usr/codec/vcd_firmware_imola2.bin')},
     'runtime/analysis/menu-runs/run-4gqygshc/console.log',
-    'report/2026-10-17-qemu-full-system/keys/sony-update-public.pem',
-    'report/2026-10-17-qemu-full-system/persistent-flash/fixtures/usb-fresh3-identity.json',
-    'report/2026-10-17-qemu-full-system/persistent-flash/fixtures/usb-shared-gpio-identity.json',
-    'report/2026-10-17-qemu-full-system/persistent-flash/fixtures/legacy-build-identity.json',
 })
 
 

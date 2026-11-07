@@ -9,7 +9,7 @@ from boot_flow import evaluate, new_receipt, record_stage
 
 def validate_profile(profile, require_full=False):
     if profile != 'direct-bootin':
-        raise ValueError('The native probe executes direct-bootin only; use the full-system boot-session entry for the original boot chain')
+        raise ValueError('This product entry supports BODYDATA native startup only; the requested boot mode is not integrated')
     if require_full:
         raise ValueError('direct-bootin cannot satisfy full boot: loader, original init/chroot, CP and watchdog are not executed')
 

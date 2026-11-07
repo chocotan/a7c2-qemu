@@ -1,0 +1,49 @@
+{
+  "schema": "a7c2-product-standalone-validation-v1",
+  "status": "verified-build-import-start",
+  "inputs": {
+    "bodydata": {
+      "version": "ILCE-7CM2 2.01 ALLLANG",
+      "bytes": 1139929560,
+      "sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31"
+    },
+    "qemu_source": {
+      "version": "11.1.2",
+      "bytes": 141815216,
+      "sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016"
+    }
+  },
+  "fresh_product_directory": true,
+  "reused_qemu_binary": false,
+  "reused_firmware_cache": false,
+  "requires_research_repository": false,
+  "requires_system_dump": false,
+  "requires_historical_snapshot": false,
+  "qemu_build_returncode": 0,
+  "bodydata_import_returncode": 0,
+  "original_lcd_observed": "language selection",
+  "screenshot": "docs/images/startup-window-20261107.png",
+  "screenshot_sha256": "a3cf8e02347b4f7a63e1282d78057a3b1275ba1032755293331d52d8a3a6dace",
+  "screenshot_dimensions": [
+    1360,
+    930
+  ],
+  "test_workers": 8,
+  "entry_window_assets_and_usb_checks_closed": true,
+  "optional_original_protocol_checks_skipped": true,
+  "initial_test_failures_preserved": true,
+  "normal_window_close_requested": true,
+  "owned_gui_and_probe_processes_absent": true,
+  "vm_signals_sent": [],
+  "virtual_sd": {
+    "bytes": 134217728,
+    "sha256": "61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727",
+    "guest_host_chunk_readbacks": 32,
+    "filesystem_check_returncode": 0,
+    "published": true
+  },
+  "all_settings_verified": false,
+  "capture_verified": false,
+  "full_hardware_boot_verified": false,
+  "usb_authentication_verified": false
+}

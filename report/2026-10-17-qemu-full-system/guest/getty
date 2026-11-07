@@ -1,6 +1,0 @@
-#!/bin/busybox sh
-# init2's setup_console explicitly reopens ttyAMA0, ignoring its redirected stdin.
-# Keep only the diagnostic shell on that UART. This original login shell instead
-# reads init2's private open FIFO; the camera app continues on original IPC input.
-echo FULLSYSTEM_GETTY_CONSOLE_SEPARATED
-exec /bin/busybox ash --login

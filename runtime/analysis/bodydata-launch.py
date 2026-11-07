@@ -252,33 +252,6 @@ def prepare(entry, runtime, kit, runner=subprocess.run):
     runner(common+['--check-runtime'], check=True)
 
 
-def launch_system(args, runner=None):
-    """Use an explicit complete-image session; never relabel the menu probe."""
-    runner = runner or subprocess.run
-    if args.boot_profile == 'direct-bootin':
-        raise ValueError('Complete-image inputs require an original boot-chain profile')
-    if args.system_dump is None and args.system_runtime is None:
-        raise ValueError('The original boot chain needs --system-dump or --system-runtime')
-    if args.boot_output is None:
-        raise ValueError('The original boot chain needs a fresh --boot-output directory')
-    if args.bodydata is not None or args.overwrite_dir is not None:
-        raise ValueError('Use the full-system session input/overwrite manifest for complete-image experiments')
-    tool = regular(KIT.parents[1]/'report/2026-10-17-qemu-full-system/boot-session.py')
-    command = [sys.executable, '-B', str(tool), '--profile', args.boot_profile,
-               '--output', str(safe_path(args.boot_output)), '--seconds', str(args.seconds)]
-    if args.system_dump is not None:
-        command += ['--dump', str(safe_path(args.system_dump))]
-    if args.system_runtime is not None:
-        command += ['--runtime', str(safe_path(args.system_runtime))]
-    if args.sd_image is not None:
-        command += ['--sd-image', str(regular(args.sd_image))]
-    if args.prepare_only:
-        command.append('--prepare-only')
-    if args.require_full_boot:
-        command.append('--require-full-boot')
-    return runner(command, check=False).returncode
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bodydata', type=Path, help='file or directory containing one BODYDATA.DAT')
@@ -286,24 +259,11 @@ def main(argv=None):
     parser.add_argument('--fwtool', type=Path, default=KIT/'vendor/fwtool-sdk', help='complete fwtool SDK root, not FAT-only subset')
     parser.add_argument('--runtime', type=Path, default=KIT.parent)
     parser.add_argument('--runtime-analysis', type=Path, default=KIT, help='integration/testing: existing native analysis scripts')
-    parser.add_argument('--prepare-only', action='store_true', help='import/check assets without starting a VM')
-    parser.add_argument('--boot-profile', choices=('direct-bootin','original-init-cold','ram-hotboot','wbi-resume','sd-update'),
-                        default='direct-bootin', help='select a diagnostic or original boot-chain session')
-    parser.add_argument('--system-dump', type=Path, help='complete read-only camera image directory for the original boot chain')
-    parser.add_argument('--system-runtime', type=Path, help='existing complete-image runtime to clone into a new boot session')
-    parser.add_argument('--boot-output', type=Path, help='fresh isolated full-system session directory')
-    parser.add_argument('--seconds', type=int, default=90, help='bounded original boot-chain observation window')
-    parser.add_argument('--require-full-boot', action='store_true', help='fail unless all required original boot stages are verified')
+    parser.add_argument('--prepare-only', action='store_true', help='import/check assets and fonts without starting a VM')
     parser.add_argument('--overwrite-dir',type=Path,help='relative guest paths to replace in a derived initramfs; default product overwrite/')
     parser.add_argument('--sd-image',type=Path,help='regular virtual FAT image to copy into this guest; physical devices are not accepted')
     args = parser.parse_args(argv)
     try:
-        if args.boot_profile != 'direct-bootin':
-            return launch_system(args)
-        if args.system_dump is not None or args.system_runtime is not None or args.boot_output is not None:
-            raise ValueError('Complete-image inputs require --boot-profile original-init-cold or another original boot-chain profile')
-        if args.require_full_boot:
-            raise ValueError('direct-bootin is an AP diagnostic and cannot satisfy full boot coverage')
         if not args.prepare_only and safe_path(args.runtime_analysis).parent != safe_path(args.runtime):
             raise ValueError('Native entry uses its adjacent runtime; runtime-analysis must be RUNTIME/analysis')
         package = discover(args.bodydata)

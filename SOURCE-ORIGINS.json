@@ -14652,12 +14652,37 @@
     "source_inventory_sha256": "14b98f8993dee8fa07b49712ac018552d9ab6f85eb3b494b638935aa6a6e94ee",
     "validation": "validation/2026-10-31-shutter-gate-host-package.json"
   },
-  "working_tree_20261107_source_port": {
-    "files": 1111,
-    "original_assets_required_separately": true,
-    "path": "tools/source-port-20261107.json",
-    "public_layout": "existing flat native route plus authored full-system sources",
-    "publication": "validation/2026-11-07-source-publication.json",
-    "sha256": "88975558b85bff8332a771dd48593929f104f22d310cf61e0bec3c7c002b92fe"
+  "product_runtime_20261107": {
+    "previous_publication": "1e0e39186bf17a489d744d1d02bd5943d2d6bbdf",
+    "native_runtime_updates_retained": true,
+    "research_source_pack_removed": true,
+    "external_runtime_inputs": [
+      "ILCE-7CM2 2.01 ALLLANG BODYDATA.DAT",
+      "qemu-11.1.2.tar.xz"
+    ],
+    "research_repository_not_required": true
+  },
+  "documentation_screenshot_20261107": {
+    "path": "docs/images/startup-window-20261107.png",
+    "sha256": "a3cf8e02347b4f7a63e1282d78057a3b1275ba1032755293331d52d8a3a6dace",
+    "dimensions": [
+      1360,
+      930
+    ],
+    "source": "fresh clean product build/import/run after removal of unintegrated research code",
+    "bodydata_sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31",
+    "qemu_fresh_build": true,
+    "historical_image_used": false,
+    "native_lcd_redrawn": false,
+    "base_commit": "1e0e39186bf17a489d744d1d02bd5943d2d6bbdf",
+    "entry_source_sha256": {
+      "start.sh": "71892c2c72896312b57c7a374ba51658182e71c0650e2acb806b4b90b673eb94",
+      "build-qemu.sh": "25d87a30040972ac366ec7f0a20d29c4c8ab9f60e2ca684aebbecaccde8d08d5",
+      "runtime/analysis/bodydata-launch.py": "0615a7e0245a153bb8d94427161639fbf7cee34864c2532ac2f6ee124bfcc7fc",
+      "runtime/analysis/camera_ui.py": "af1277c301d6a1ee8ca222d15e723dcbb74df7660b0b99984aa7d9ff5a719e0e",
+      "runtime/analysis/qemu-menu-probe.py": "c396fa552249ebf56ec9db8ce42f216c7485ab80e085ef55a3f63d32012c9c54"
+    },
+    "system_dump_used": false,
+    "research_snapshot_used": false
   }
 }

@@ -540,7 +540,7 @@ class CameraUI:
         def worker():
             import runpy
             from pathlib import Path
-            tool = Path(__file__).resolve().parents[2]/'report/2026-10-17-qemu-full-system/usb_ui.py'
+            tool = Path(__file__).resolve().with_name('usb_ui.py')
             try:
                 result = runpy.run_path(str(tool))['action'](run, operation)
             except Exception as error:
