@@ -1,4 +1,5 @@
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import hashlib
 import os
 import subprocess
@@ -6,6 +7,7 @@ import subprocess
 HERE = Path(__file__).resolve().parent
 
 
+@requires_original_assets('seed-backup.bin')
 def test_actual_owned_inputs_helper_consumes_public_stage_and_parameter_copy(tmp_path):
     source = (HERE/'menu-observe.c').read_text()
     helper = source[source.index('static int cp_owned_bootstrap_inputs(void) {'):

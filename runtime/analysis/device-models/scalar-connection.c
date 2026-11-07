@@ -31,6 +31,9 @@ static int scalar_native_prerequisites(void){
 #define PEER_SNAPSHOT full_scalar_snapshot
 #define EDGE_DISPATCH full_scalar_connection_dispatch
 #define EDGE_RELEASE full_scalar_connection_release
+#define EDGE_RELEASE_TICKET full_scalar_connection_release_ticket
+#define EDGE_OBSERVE_ALLOCATE full_scalar_connection_observe_allocate
+#define EDGE_OBSERVE_RECEIVE full_scalar_connection_observe_receive
 #define EDGE_SNAPSHOT full_scalar_connection_snapshot
 #define EDGE_RESET full_scalar_connection_test_reset
 #include "pin-peer-connection.inc"

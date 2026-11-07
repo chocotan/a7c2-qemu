@@ -20,12 +20,14 @@ def vdf_wiring_binary(tmp_path_factory):
     sent = sent.replace('__builtin_return_address(0)', 'fixture_caller')
     tickets = '\n'.join(next(line for line in source.splitlines()
                              if line.startswith('static _Thread_local struct') and name in line)
-                        for name in ('functional_layout_stage_ticket', 'functional_vdf_ticket'))
+                        for name in ('functional_layout_stage_ticket', 'functional_vdf_ticket',
+                                     'functional_cp_parameter_bank_ticket'))
     snippets = '\n'.join(function(source, name) for name in (
         'functional_cp_zoom_prepare', 'functional_cp_zoom_reserve_resources',
         'functional_cp_zoom_release_resources', 'functional_layout_stage_prepare',
         'functional_layout_stage_bind_model', 'functional_camera_global_queue_bind', 'functional_vdf_prepare'))
-    snippets += '\n' + received + '\n' + function(source, 'u_osal_rcv_msg_tmo')
+    snippets += '\n' + received + '\n' + function(source, 'native_pin_peer_received')
+    snippets += '\n' + function(source, 'u_osal_rcv_msg_tmo')
     code = r'''
 #include <assert.h>
 #include <errno.h>
@@ -35,8 +37,46 @@ def vdf_wiring_binary(tmp_path_factory):
 #include <string.h>
 #include <unistd.h>
 #include "device-models/functional-vdf-path.h"
+#include "test-capture-inactive-fixture.h"
 #include "device-models/functional-vdf-layout-stage.h"
 #include "device-models/functional-cp-zoom.h"
+#include "device-models/functional-camera-control.h"
+/* Timecode is disabled in this older receive-hook fixture. */
+static unsigned int functional_bb_timecode_control_used;
+int full_bb_timecode_control_observe_receive(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!functional_bb_timecode_control_used);return 0;
+}
+static unsigned int functional_cp_movie_format_used=0;
+static void native_movie_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"movie-format is disabled in this VDF fixture");
+}
+static uint64_t native_movie_format_ticket_for(unsigned int id,void *p){
+ (void)id;(void)p;assert(!"movie-format is disabled in this VDF fixture");return 0;
+}
+int native_functional_camera_movie_format_release(unsigned int id,void *p,int (*release)(unsigned int,void *),
+ void (*logger)(const char *,const char *),int *result,uint64_t transaction,
+ const struct native_functional_camera_movie_format_receive *event){
+ (void)id;(void)p;(void)release;(void)logger;(void)result;(void)transaction;(void)event;
+ assert(!"movie-format is disabled in this VDF fixture");return 0;
+}
+static unsigned int functional_cp_parameter_bank_used,functional_cp_crank_control_used;
+static void native_crank_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"crank-control is disabled in this VDF fixture");
+}
+static uint64_t native_crank_ticket_for(unsigned int id,void *p){
+ (void)id;(void)p;assert(!"crank-control is disabled in this VDF fixture");return 0;
+}
+int native_functional_camera_crank_release(unsigned int id,void *p,int (*release)(unsigned int,void *),
+ void (*logger)(const char *,const char *),int *result,uint64_t transaction,
+ const struct native_functional_camera_crank_receive *event){
+ (void)id;(void)p;(void)release;(void)logger;(void)result;(void)transaction;(void)event;
+ assert(!"crank-control is disabled in this VDF fixture");return 0;
+}
+int native_functional_camera_parameter_release(unsigned int id,void *message,int (*release)(unsigned int,void *),
+ void (*logger)(const char *,const char *),int *result,uint64_t transaction){
+ (void)id;(void)message;(void)release;(void)logger;(void)result;(void)transaction;
+ assert(!"parameter-bank is disabled in this VDF fixture");return 0;
+}
 static int functional_camera_setup_error,owner_result,bridge_result,owner_calls,bridge_calls,release_result;
 static int functional_camera_enabled=1,graph_ready=1,dispatch_calls,path_dispatch_result;
 static unsigned char request_storage[40],*request_wire=request_storage;static unsigned int request_bytes=24;
@@ -44,6 +84,7 @@ static int release_request_in_dispatch;
 static unsigned long appfw_base=0x10000000UL;
 static void *fixture_caller=(void *)(0x10000000UL+0x34e4f3cUL);
 static unsigned int request_source=0x81cf61c4,expected_destination=0x81cf61c4;
+static unsigned char eframing_body[4];static unsigned int eframing_seen;
 static unsigned int refresh_globals[2]={0x80946189,0x80946189},refresh_bound_source;
 static int refresh_open_calls,refresh_read_calls,refresh_close_calls,refresh_bind_calls,refresh_bind_result;
 static int refresh_open_failure,refresh_bad_read=-1,refresh_read_result,refresh_logs;
@@ -165,6 +206,18 @@ int functional_vdf_path_dispatch(unsigned int id,void *message,const struct full
  assert(guard->reserve==functional_vdf_path_reserve_resources && guard->release==full_vef_resources_unlock);
  assert(guard->predecessor_ready==cp302c_no_transition_predecessors_ready);
  step('D');dispatch_calls++;*result=path_dispatch_result;
+ if(((unsigned char *)message)[2]==0x63){
+  assert(request_bytes==14 && request_source==0x81cf61ca);
+  const unsigned char *body=(const unsigned char *)message+8;
+  assert((!body[0] || (body[0]==1 && path_dispatch_result==-ENOTSUP)) && !memcmp(body+1,"\0\0\0\0\0",5));
+ }
+ if(request_bytes==12 && ((unsigned char *)message)[2]==0x70){
+  assert(request_source==0x81cf61c7);memcpy(eframing_body,(const unsigned char *)message+8,4);
+  if(!path_dispatch_result){
+   eframing_seen|=1u<<(eframing_body[0]|eframing_body[1]<<1|eframing_body[2]<<2);
+   assert(!eframing_body[3]);
+  }
+ }
  if(request_bytes==8 && ((unsigned char *)message)[2]==0x41)
   assert(refresh_bind_calls==1 && refresh_bound_source==0x80946189 && refresh_logs==1);
  if(release_request_in_dispatch){free(message);request_wire=0;}
@@ -243,6 +296,17 @@ static int functional_mpr_codec_observe_received(unsigned int id,void *message,c
 }
 int native_cp_state_publication_observe_receive(unsigned int id,void *message,unsigned int origin,unsigned int bytes){
  assert(id && message && origin==FUNCTIONAL_VDF_PATH_SID && bytes==12);return 0;
+}
+/* PinMem peers are disabled independently of the VDF feature under test. */
+static unsigned int pinmem_peer_connections_used=0,peer_receive_calls[3];
+static unsigned long long full_scalar_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[0]++;assert(!"PinMem scalar peer is disabled in this VDF fixture");return 0;
+}
+static unsigned long long full_adf_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[1]++;assert(!"PinMem ADF peer is disabled in this VDF fixture");return 0;
+}
+static unsigned long long full_pinmem_drawinfo_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[2]++;assert(!"PinMem drawinfo peer is disabled in this VDF fixture");return 0;
 }
 static void native_hdmi_video_received(unsigned int id,void **message,int result){(void)id;(void)message;(void)result;}
 static int receive_api(unsigned int id,void **message,long timeout){
@@ -359,7 +423,7 @@ int main(int argc,char **argv){
   }else if(!strcmp(argv[1],"stage-early-reject")){
    request_wire[4]=24;assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENOTSUP);
    layout_request();request_bytes=39;assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENOTSUP);
-   const unsigned int commands[]={0x38,0x53,0x52,0x62,0x41,0x5e},sizes[]={24,14,16,10,8,10};
+   const unsigned int commands[]={0x38,0x53,0x52,0x62,0x63,0x70,0x41,0x5e},sizes[]={24,14,16,10,14,12,8,10};
    for(size_t i=0;i<sizeof commands/sizeof *commands;i++){
     layout_request();request_wire[2]=(unsigned char)commands[i];request_wire[4]=(unsigned char)sizes[i];request_bytes=sizes[i];
     assert(actual_send(FUNCTIONAL_LAYOUT_STAGE_SID,request_wire)==-ENODATA);
@@ -497,21 +561,72 @@ int main(int argc,char **argv){
    if(strstr(argv[1],"-not-ready"))graph_ready=0;
    if(strstr(argv[1],"-disabled"))functional_camera_enabled=0;
   }
+  if(!strncmp(argv[1],"send-zero6",10)){
+   request_bytes=14;request_wire[2]=0x63;request_wire[4]=14;request_source=0x81cf61ca;
+   if(strstr(argv[1],"-short"))request_bytes=13;
+   if(strstr(argv[1],"-long"))request_bytes=15;
+   if(strstr(argv[1],"-bad-header"))request_wire[4]=12;
+   if(strstr(argv[1],"-not-ready"))graph_ready=0;
+   if(strstr(argv[1],"-disabled"))functional_camera_enabled=0;
+   if(strstr(argv[1],"-setup-error"))functional_camera_setup_error=-EIO;
+   if(strstr(argv[1],"-owner-error"))owner_result=-ENOMEM;
+   if(strstr(argv[1],"-dispatch-error"))path_dispatch_result=-EPERM;
+   if(strstr(argv[1],"-body-rejected")){request_wire[8]=1;path_dispatch_result=-ENOTSUP;}
+  }
+  if(!strncmp(argv[1],"send-eframing",13)){
+   request_bytes=12;request_wire[2]=0x70;request_wire[4]=12;request_source=0x81cf61c7;
+   if(strstr(argv[1],"-short"))request_bytes=11;
+   if(strstr(argv[1],"-long"))request_bytes=13;
+   if(strstr(argv[1],"-bad-header"))request_wire[4]=11;
+   if(strstr(argv[1],"-not-ready"))graph_ready=0;
+   if(strstr(argv[1],"-disabled"))functional_camera_enabled=0;
+   if(strstr(argv[1],"-setup-error"))functional_camera_setup_error=-EIO;
+   if(strstr(argv[1],"-owner-error"))owner_result=-ENOMEM;
+   if(strstr(argv[1],"-dispatch-error"))path_dispatch_result=-EPERM;
+   if(strstr(argv[1],"-body-rejected")){request_wire[8]=2;path_dispatch_result=-ENOTSUP;}
+   if(strstr(argv[1],"-body-flag2")){request_wire[9]=2;path_dispatch_result=-ENOTSUP;}
+   if(strstr(argv[1],"-body-reserved")){request_wire[11]=1;path_dispatch_result=-ENOTSUP;}
+  }
   if(!strcmp(argv[1],"send-short"))request_bytes=4;
   if(!strcmp(argv[1],"send-bad-header"))request_wire[4]=14;
   if(!strcmp(argv[1],"send-unrelated"))request_wire[2]=0x54;
   if(!strcmp(argv[1],"send-not-ready"))graph_ready=0;
   if(!strcmp(argv[1],"send-disabled"))functional_camera_enabled=0;
-  int rc=actual_send(id,request_wire);
-  if(!strcmp(argv[1],"send-bit-width") || !strcmp(argv[1],"send-path") || !strcmp(argv[1],"send-zebra") || !strcmp(argv[1],"send-layout") || !strcmp(argv[1],"send-peaking") || !strcmp(argv[1],"send-flag") || !strcmp(argv[1],"send-refresh") || (!strncmp(argv[1],"send-bb-",8) && !strstr(argv[1],"-short")))
+  int rc;
+  if(!strcmp(argv[1],"send-eframing")){
+   rc=0;
+   for(unsigned int bits=0;bits<8;bits++){
+    request_wire[8]=(unsigned char)(bits&1);request_wire[9]=(unsigned char)((bits>>1)&1);
+    request_wire[10]=(unsigned char)((bits>>2)&1);request_wire[11]=0;
+    assert(!actual_send(id,request_wire) && !memcmp(eframing_body,request_wire+8,4));
+   }
+  }else rc=actual_send(id,request_wire);
+  if(!strcmp(argv[1],"send-zero6-setup-error"))assert(rc==-EIO && !owner_calls && !bridge_calls && !dispatch_calls);
+  else if(!strcmp(argv[1],"send-zero6-owner-error"))assert(rc==-ENOMEM && owner_calls==1 && !bridge_calls && !dispatch_calls);
+  else if(!strcmp(argv[1],"send-zero6-dispatch-error") || !strcmp(argv[1],"send-zero6-body-rejected"))
+   assert(rc==path_dispatch_result && owner_calls==1 && bridge_calls==1 && dispatch_calls==1);
+  else if(!strcmp(argv[1],"send-eframing-setup-error"))
+   assert(rc==-EIO && !owner_calls && !bridge_calls && !dispatch_calls);
+  else if(!strcmp(argv[1],"send-eframing-owner-error"))
+   assert(rc==-ENOMEM && owner_calls==1 && !bridge_calls && !dispatch_calls);
+  else if(strstr(argv[1],"send-eframing") && (strstr(argv[1],"-dispatch-error") || strstr(argv[1],"-body")))
+   assert(rc==path_dispatch_result && owner_calls==1 && bridge_calls==1 && dispatch_calls==1);
+  else if(!strcmp(argv[1],"send-eframing"))
+   assert(!rc && owner_calls==1 && bridge_calls==1 && dispatch_calls==8 && call_order_bytes==8 &&
+          !memcmp(call_order,"DDDDDDDD",8) && eframing_seen==0xff);
+  else if(!strcmp(argv[1],"send-zero6") || !strcmp(argv[1],"send-bit-width") || !strcmp(argv[1],"send-path") || !strcmp(argv[1],"send-zebra") || !strcmp(argv[1],"send-layout") || !strcmp(argv[1],"send-peaking") || !strcmp(argv[1],"send-flag") || !strcmp(argv[1],"send-refresh") || (!strncmp(argv[1],"send-bb-",8) && !strstr(argv[1],"-short")))
    assert(!rc && owner_calls==1 && bridge_calls==1 && dispatch_calls==1);
   else{
    int expected=(strstr(argv[1],"-short") || strstr(argv[1],"-long") || strstr(argv[1],"-bad-header"))?-ENOTSUP:
        strstr(argv[1],"-not-ready")?-ENODATA:-999;
    assert(rc==expected && !owner_calls && !bridge_calls && !dispatch_calls);
   }
+  if(strstr(argv[1],"send-eframing"))
+   assert(!stage_owner_calls && !stage_dispatch_calls && !bb_calls && !refresh_bind_calls &&
+          !stage_snapshot_calls && !path_snapshot_calls && !bind_calls && !functional_layout_stage_used);
  }else return 2;
  assert(!functional_startup_control_used);
+ assert(!pinmem_peer_connections_used && !peer_receive_calls[0] && !peer_receive_calls[1] && !peer_receive_calls[2]);
  puts("PASS actual VDF setup/ticket hooks");return 0;
 }
 '''
@@ -533,6 +648,14 @@ int main(int argc,char **argv){
                                  'refresh-origin-read-error', 'refresh-origin-changing', 'refresh-origin-source',
                                  'refresh-origin-zero', 'refresh-origin-sentinel', 'refresh-origin-service',
                                  'refresh-origin-bind-failure',
+                                 'send-zero6', 'send-zero6-short', 'send-zero6-long', 'send-zero6-bad-header',
+                                 'send-zero6-not-ready', 'send-zero6-disabled', 'send-zero6-setup-error',
+                                 'send-zero6-owner-error', 'send-zero6-dispatch-error', 'send-zero6-body-rejected',
+                                 'send-eframing', 'send-eframing-short', 'send-eframing-long',
+                                 'send-eframing-bad-header', 'send-eframing-not-ready', 'send-eframing-disabled',
+                                 'send-eframing-setup-error', 'send-eframing-owner-error',
+                                 'send-eframing-dispatch-error', 'send-eframing-body-rejected',
+                                 'send-eframing-body-flag2', 'send-eframing-body-reserved',
                                  'send-bit-width', 'send-bit-width-short', 'send-bit-width-long',
                                  'send-bit-width-bad-header', 'send-bit-width-not-ready', 'send-bit-width-disabled',
                                  'send-path', 'send-zebra', 'send-layout', 'send-layout-short',

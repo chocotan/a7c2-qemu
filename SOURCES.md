@@ -1,5 +1,11 @@
 # 来源与固定身份
 
+2026-11-07 从权威 `a7c2-re` 当前工作树选择性移交源码，保留原有平铺原生路线的公开适配，并新增 `report/2026-10-17-qemu-full-system/` 的原启动/持久盘/开发UI/USB/P1 U/D/E源码。OP20–23、BB timecode、保留帧与退出/内容校验依赖一并更新；不使用历史 `analysis/qemu-runtime`。逐文件原始/公开摘要、有限路径适配、保留的旧公开适配和外部依赖见 [source-port 清单](tools/source-port-20261107.json)；此记录仅覆盖清单列出的文件，旧来源记录保持历史身份。
+
+v35 source freeze1,016项与研究host/actual收据只作已闭合研究来源；本包重新执行的检查见[源码发布收据](validation/2026-11-07-source-publication.json)，不继承研究guest或构建成功。两个原Initialize返回0后原verifySum拒绝，receiver1、安装false和精确pre-dat4恢复均保留。完整系统路线需要读者提供原镜像/资源/库/固定构建收据；原件、密钥、私有native snapshot、历史运行产物和物理设备部署工具不分发。CBC与jiritsu的独立外部依赖保持明确阻塞，详见[完整系统README](report/2026-10-17-qemu-full-system/README.md)。
+
+以下为各次历史移交记录；相应的测试数与“本次”均指原日期。
+
 2026-10-31 shutter-gate v1 后续验包已由父会话接受：固定 **2378 项源码**、424 项 host 前置和 1404 项外部资产分别记账；后两组不随 Git 交付。公开 host 八阶段为 `PASS_HOST_PUBLIC_PACKAGE_ONLY`（adapters 81、host 302/34 skip/76 subtests、models 8477/106 skip/10420 subtests，actual API 缺环境精确单 fail/rc1 为预期拒绝）。逐文件来源继续按 `shutter_gate_v1_source_port` → `shutter_gate_config_content_source_port` 的有限覆盖层级读取；新增 `shutter_gate_verified_host_publication` 只追溯本次实际验包与文档装配。详见[自包含报告](report/2026-10-31-shutter-gate-publication/README.md)和[公开收据](validation/2026-10-31-shutter-gate-host-package.json)。两份新增发布文档及四项元数据例外只做后续静态检查；原八阶段没有对装配后 2380 项重跑。旧失败保留；原 JPG/MP4、native/physical 和外部实际执行未获通过，`published=false`。
 
 2026-10-31 更新把同一冻结批次 `unified-camera-arzj0n5v` 的 startup-control、still-format、只读 scope v2/v3、内容检查与有限测试依赖移交到本包。逐文件原始/最终摘要和保留的公开适配见 `SOURCE-ORIGINS.json::scope_source_port` 与 [源码清单](tools/source-port-20261031.json)，受限检查结果和独立资产/API 测试边界见 [本次移交说明](report/2026-10-31-source-publication/PUBLICATION.md)。本次实际只做静态源码与 synthetic host 检查；完整公开包回归、原 ABI、actual API 和原固件成片没有在此轮重验。
@@ -36,7 +42,7 @@
 - 增加主机依赖检查、三段patch及DMA/ATU/PCI暂存身份检查、受限host测试入口和显式host编译模型自测；后者需要libjpeg及FFmpeg开发库。
 - 纯源码包缺少原ALLLANG seed时，settings的两处字节fixture明确skip；有文件但摘要错误仍失败，无资产的实例/路径测试继续执行。公开host入口不依赖分发原Backup。
 - `runtime/analysis/scratch/` 只随附公开检查器实际导入的有限研究脚本源码；旧baseline、绝对路径输入、意图、构建产物和运行数据均未移交。普通使用与软件模型自测分别走 `start.sh` 和 `tools/test-public-models.py`，不把历史driver当当前可直接运行的验收。
-- 排除两个只适用于 full-system、且依赖该路线启动器的 ADF/HDMI pin 校验脚本；本机原生运行链不使用它们。
+- 原生移交当时排除两个只适用于 full-system、且依赖该路线启动器的 ADF/HDMI pin 校验脚本。11月7日新增独立full-system源码目录及其依赖，原生入口继续保留自己的布局与ALLLANG资产边界。
 
 设备协议、CP控制与SD adapter按本次显式来源快照移交，不因重新打包扩展验收结论。原固件和完整派生资产未纳入分发；报告中的有限字节锚点、反汇编与协议研究不冒称Sony原厂源码，也不由项目MIT许可证重新授权原内容。
 

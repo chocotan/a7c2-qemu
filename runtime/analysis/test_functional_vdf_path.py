@@ -151,7 +151,24 @@ BB_SCENARIOS = tuple(
 )
 BB_0166_INITIAL_SCENARIOS = tuple(case.replace('bb0166-', 'bb0166-initial-', 1)
                                  for case in BB_SCENARIOS if case.startswith('bb0166-'))
-ALL_SCENARIOS = PRE_BB_SCENARIOS + BB_SCENARIOS + BB_0166_INITIAL_SCENARIOS
+ZERO6_SCENARIOS = tuple('zero6-' + case for case in
+    DISPLAY_SCENARIOS + tuple(f'invalid-body-{i}' for i in range(6)) +
+    ('missing-callback', 'missing-guard', 'guard-fail', 'guard-miss')) + tuple(
+    'zero6-fresh-request-lease' + suffix for suffix in
+    ('', '-inline-free', '-inline-send-fail', '-alloc-dirty-fail', '-alloc-short', '-alloc-long',
+     '-set-source-fail', '-ack-write-corrupt', '-send-fail', '-ack-free-fail', '-mixed', '-no-ticket', '-old-ticket')) + tuple(
+    f'zero6-alloc-constant-{index}' for index in range(3))
+# shortcut: request/ACK are both12, so fake dead-address aliases cannot prove allocator lifetime; use counted fresh leases.
+OUTPUT_SCENARIOS = tuple('output-' + case for case in DISPLAY_SCENARIOS + (
+    'invalid-reserved', 'source-zero', 'source-other-domain', 'bound-global-source',
+    'missing-callback', 'missing-guard', 'guard-fail', 'guard-miss', 'guard-lost',
+    'result-duplicate-frame',
+) + tuple(f'tuple-{mask}' for mask in range(8)) + tuple(
+    f'invalid-value-{offset}-{value}' for offset in range(3) for value in (2, 255)
+) + tuple(f'invalid-wire-flags-{bit}' for bit in range(16)) + tuple(
+    'fresh-request-lease' + suffix for suffix in ('', '-inline-free', '-inline-send-fail', '-send-fail', '-ack-free-fail')
+) + tuple(f'alloc-constant-{index}' for index in range(3)) if case not in ('alloc-alias', 'alloc-alias-interior'))
+ALL_SCENARIOS = PRE_BB_SCENARIOS + BB_SCENARIOS + BB_0166_INITIAL_SCENARIOS + ZERO6_SCENARIOS + OUTPUT_SCENARIOS
 
 
 @pytest.mark.parametrize("sanitized", (False, True), ids=("strict", "asan-ubsan"))

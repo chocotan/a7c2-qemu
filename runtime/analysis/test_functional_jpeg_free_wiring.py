@@ -22,6 +22,7 @@ def jpeg_free_binary(tmp_path_factory):
 #include <stdlib.h>
 #include <string.h>
 #include "functional-jpeg-codec.h"
+#include "test-capture-inactive-fixture.h"
 #include "functional-face-ap-observer.h"
 static _Thread_local struct functional_face_ap_observer functional_face_ap_state;
 static void functional_face_ap_record_event(enum functional_face_ap_event event,const struct functional_face_ap_observer *s){

@@ -1,0 +1,51 @@
+{
+  "scope": "Original ParameterControl source boundaries and metadata for the isolated native queue component; no AP or kernel registration claim",
+  "artifact": "libInfraAvbbc.so",
+  "artifact_bytes": 1738760,
+  "artifact_sha256": "676197567dbbefa54e08f528968efc6ca2aaffe8bee3ee3eae8164382ed5a7e5",
+  "object_bytes": 128,
+  "caller": {
+    "symbol": "_ZN17InfraStillEncoderC1Ev",
+    "va": 1145952,
+    "file_offset": 1145952,
+    "bytes": 292,
+    "sha256": "b068bbc9b1cef92040800e501ad64975b06bf734c00284670fd238173c14def8",
+    "allocation_pc": "0x117d14",
+    "table_address_instructions": ["0x117d20", "0x117d28"],
+    "native_ctor_call_pc": "0x117d30",
+    "queue": "0x80550123"
+  },
+  "constructor": {
+    "symbol": "_ZN14AvbbcParamCtrl16ParameterControlC1EPN12ParamCtrlDef11PARAM_TABLEEj",
+    "va": 673704,
+    "file_offset": 673704,
+    "bytes": 1236,
+    "words": 309,
+    "sha256": "d709995f258c0b3387e6855aa01c31fefbe16e4f0b768082a9ece612255a60f7",
+    "capstone_and_GNU_words_matched": true
+  },
+  "native_table": {
+    "va": 1801672,
+    "file_offset": 1736136,
+    "bytes": 360,
+    "sha256": "987e80f5fc2137fe2c3e985153839a0e474498a0f28f6d81a60169f75e94c0df",
+    "required_nonX_file_backed": true,
+    "record_bytes": 12,
+    "records_including_sentinel": 30,
+    "sentinel_id": "0x1000",
+    "consumer_roles": {
+      "0x1047": {"type": 11, "bytes": 120, "role": "copied output config C"},
+      "0x1048": {"type": 12, "bytes": 8, "role": "retained writable output config Cprime pointer"},
+      "0x104a": {"type": 11, "bytes": 128, "role": "copied input P128"},
+      "0x104c": {"type": 7, "bytes": 4, "role": "native codec result scalar"}
+    }
+  },
+  "setter_ABI": "SetValue callers ignore the return register. The saved 204-byte struct setter ends in a deallocation tail call and has no status contract; component declares setters void and verifies actual content with original GetValue.",
+  "first_fullcap_mapping_refusal_preserved": true,
+  "first_GNU_text_number_spelling_refusal_preserved": true,
+  "first_component_setter_status_assertion_failure_preserved": true,
+  "new_original_VM": false,
+  "original_AP": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false
+}

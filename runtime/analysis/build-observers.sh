@@ -28,8 +28,8 @@ clang "${common[@]}" -isystem /usr/aarch64-linux-gnu/include \
   -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$vdf_dir/system-sound-owner.c" "${libraries[@]}" \
   -o "$analysis_dir/menu-root/simulation/system-sound-owner"
-for device in vdf-device touch-panel-device tcin-device vef-path-device vef-resource-guard \
-              adf-proc-device adf-set-input-device adf-set-output-device bb-set-mode-device bb-mode-config bb-mode-work-queue imaging-pin-connection imaging-control-connection imaging-adf-connection infrabb-vef-connection infrabb-vef-control-connection vef-pinmem-input-connection vef-pinmem-control-connection scalar-connection adf-connection pinmem-drawinfo-connection adf-hdmi-audio-connection infrabb-vef-format infraimaging-format adf-public-config adf-input-state adf-set-input-cold-owners adf-hdmi-monitor adf-idle-resources adf-aip-input-config adf-aip-coefficients adf-aip-gates adf-aip-disable adf-aip-commands adf-avio-output adf-source7-clock \
+for device in vdf-device touch-panel-device tcin-device imaging-device vef-path-device vef-resource-guard \
+              adf-proc-device adf-set-input-device adf-set-output-device bb-set-mode-device bb-timecode-control bb-mode-config bb-mode-work-queue imaging-pin-connection imaging-control-connection imaging-adf-connection infrabb-vef-connection infrabb-vef-control-connection vef-pinmem-input-connection vef-pinmem-control-connection scalar-connection adf-connection pinmem-drawinfo-connection adf-hdmi-audio-connection infrabb-vef-format infraimaging-format adf-public-config adf-input-state adf-set-input-cold-owners adf-hdmi-monitor adf-idle-resources adf-aip-input-config adf-aip-coefficients adf-aip-gates adf-aip-disable adf-aip-commands adf-avio-output adf-source7-clock \
               hdmi-public-backup hdmi-upm-receipt hdmi-video-state pinmem-hdmi-video-connection osd-buffer-owner osd-pin-format pinmem-osd-connection \
               hdmi-device hdmi-pin-device audio-device audio-capabilities sound-table vef-device pinmem-device scalar-device adf-device pin-registry-core \
               pin-connection pin-buffer-owner pin-buffer-guest pin-buffer-wire pin-format \
@@ -43,13 +43,30 @@ done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include \
   -c "$vdf_dir/system-sound-owner.c" -o "$device_build/system-sound-owner.o"
-for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
+for owner in infrabb-registry osdpin-registry dig-level-device dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
   owner_flags=()
   case "$owner" in functional-face-*) owner_flags=(-DFULL_IMAGING_GUEST);; esac
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" \
     -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/$owner.c" \
     -o "$device_build/$owner.o"
 done
+for capture in capture-input capture-mapper capture-jpeg-input; do
+  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+    -isystem /usr/aarch64-linux-gnu/include \
+    -c "$source_dir/../../report/functional-capture-input/$capture.c" \
+    -o "$device_build/$capture.o"
+done
+for capture in capture-output-memory capture-notifications capture-delivery capture-save capture-dma; do
+  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+    -isystem /usr/aarch64-linux-gnu/include \
+    -I"$source_dir/../../report/functional-capture-input" \
+    -c "$source_dir/../../report/functional-capture-output/$capture.c" \
+    -o "$device_build/$capture.o"
+done
+clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+  -isystem /usr/aarch64-linux-gnu/include \
+  -c "$source_dir/../../report/functional-capture-queue/capture-resize-request.c" \
+  -o "$device_build/capture-resize-request.o"
 # Hidden sections keep the reused metadata parsers without host codec entry points.
 for parser in native-video-binding/native-video native-video-paramsets/native-paramsets \
               native-video-au-contract/native-au native-video-length-format/native-lengths; do

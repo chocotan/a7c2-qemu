@@ -4,6 +4,7 @@ No DSO/guest/device is built or run. The original callbacks and flush protocol
 are exercised; only their I/O destinations are redirected to this test's tmpdir.
 """
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import hashlib
 import json
 import os
@@ -317,6 +318,7 @@ def test_actual_runtime_sync_wrappers(tmp_path, sanitized):
         assert result.returncode == 0, f'mode={mode}\n{result.stdout}\n{result.stderr}'
 
 
+@requires_original_assets('usr/lib/libInfraFsys.so')
 def test_mutation_supplement_pins_public_original_windows():
     from elftools.elf.elffile import ELFFile
 

@@ -1,0 +1,166 @@
+@import "tailwindcss";
+@source "./src/**/*.rs";
+
+/* ==========================================================================
+   Camera body chrome.
+
+   Tailwind handles layout utilities in the Rust markup. The layered surfaces
+   below (gradients, insets, tick rings) are hand-written CSS because they are
+   product-render effects rather than utility combinations, which is the same
+   split rust-ui uses in its style/index.css layer.
+   ========================================================================== */
+
+.cam-root {
+  background: radial-gradient(120% 90% at 50% 0%, #1b1d20 0%, #0d0e10 55%, #07080a 100%);
+}
+
+.cam-body {
+  background:
+    linear-gradient(180deg, #4a4a4c 0%, #3a3a3c 18%, #2b2b2d 60%, #1f2022 100%);
+  box-shadow:
+    0 42px 80px -24px rgba(0, 0, 0, 0.85),
+    0 2px 0 rgba(255, 255, 255, 0.09) inset,
+    0 -30px 60px -30px rgba(0, 0, 0, 0.8) inset;
+}
+
+/* Top plate: brushed silver, lit from the upper left. */
+.cam-plate {
+  background:
+    linear-gradient(168deg, #f2f2f1 0%, #e7e7e5 26%, #d2d2d0 62%, #b9b9b7 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -14px 24px -18px rgba(0, 0, 0, 0.5) inset,
+    0 10px 22px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* EVF hump. */
+.cam-evf {
+  background: linear-gradient(160deg, #d8d8d6 0%, #b6b6b4 45%, #8e8e8c 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.75) inset,
+    0 8px 18px -8px rgba(0, 0, 0, 0.6);
+}
+
+.cam-evf-glass {
+  background:
+    radial-gradient(130% 90% at 30% 20%, #4b5560 0%, #232a31 42%, #0e1115 100%);
+  box-shadow:
+    0 10px 18px -8px rgba(0, 0, 0, 0.9) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+
+/* Mode dial: tick ring drawn with a repeating conic gradient. */
+.cam-dial-ring {
+  background:
+    repeating-conic-gradient(from -8deg, rgba(60, 60, 62, 0.85) 0deg 0.7deg, transparent 0.7deg 9deg),
+    linear-gradient(175deg, #f4f4f2 0%, #dcdcda 48%, #c2c2c0 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 -1px 2px rgba(0, 0, 0, 0.28) inset,
+    0 6px 14px -6px rgba(0, 0, 0, 0.6);
+}
+
+.cam-dial-face {
+  background: linear-gradient(170deg, #fafafa 0%, #e4e4e2 55%, #c9c9c7 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) inset;
+}
+
+/* Buttons. */
+.cam-key {
+  background: linear-gradient(180deg, #5a5b5e 0%, #414245 55%, #2e2f31 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 -2px 4px rgba(0, 0, 0, 0.55) inset,
+    0 3px 6px -2px rgba(0, 0, 0, 0.7);
+}
+.cam-key:active {
+  background: linear-gradient(180deg, #3b3c3f 0%, #2c2d2f 60%, #232426 100%);
+  transform: translateY(1px);
+}
+
+.cam-key-light {
+  background: linear-gradient(180deg, #fbfbfa 0%, #e6e6e4 52%, #cfcfcd 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -2px 5px rgba(0, 0, 0, 0.22) inset,
+    0 3px 7px -2px rgba(0, 0, 0, 0.45);
+  color: #1a1a1c;
+}
+.cam-key-light:active {
+  background: linear-gradient(180deg, #d9d9d7 0%, #c6c6c4 60%, #b4b4b2 100%);
+  transform: translateY(1px);
+}
+
+.cam-key-silver {
+  background: radial-gradient(120% 120% at 30% 22%, #fdfdfc 0%, #e3e3e1 46%, #bcbcba 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 -3px 7px rgba(0, 0, 0, 0.3) inset,
+    0 5px 12px -4px rgba(0, 0, 0, 0.6);
+}
+.cam-key-silver:active { transform: translateY(1px); }
+
+.cam-rec {
+  background: radial-gradient(120% 120% at 32% 24%, #ff6a52 0%, #d63a22 42%, #a81f0d 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 -3px 8px rgba(0, 0, 0, 0.45) inset,
+    0 0 0 2px rgba(178, 34, 18, 0.55),
+    0 0 18px rgba(214, 58, 34, 0.42);
+}
+.cam-rec-hole {
+  background: radial-gradient(120% 120% at 34% 26%, #d9d9d7 0%, #c4c4c2 55%, #a8a8a6 100%);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5) inset;
+}
+
+/* LCD: recessed, with a bezel shadow and a faint panel glow. */
+.cam-lcd-bezel {
+  background: linear-gradient(180deg, #1a1b1d 0%, #121315 55%, #0b0c0e 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 18px 36px -18px rgba(0, 0, 0, 0.9) inset,
+    0 8px 22px -10px rgba(0, 0, 0, 0.8);
+}
+.cam-lcd-screen {
+  background: #000;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 34px rgba(90, 130, 180, 0.10) inset;
+}
+
+/* D-pad. */
+.cam-dpad {
+  background: radial-gradient(120% 120% at 34% 26%, #4e4f52 0%, #3a3b3e 52%, #26272a 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.16) inset,
+    0 -4px 10px rgba(0, 0, 0, 0.6) inset,
+    0 6px 14px -6px rgba(0, 0, 0, 0.75);
+}
+.cam-dpad-ticks {
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.30) 0deg 0.5deg, transparent 0.5deg 4deg);
+  -webkit-mask: radial-gradient(circle, transparent 84%, #000 85%);
+  mask: radial-gradient(circle, transparent 84%, #000 85%);
+}
+.cam-tri-up    { border-left: 0.42em solid transparent; border-right: 0.42em solid transparent; border-bottom: 0.55em solid #e8e8e6; }
+.cam-tri-down  { border-left: 0.42em solid transparent; border-right: 0.42em solid transparent; border-top: 0.55em solid #e8e8e6; }
+.cam-tri-left  { border-top: 0.42em solid transparent; border-bottom: 0.42em solid transparent; border-right: 0.55em solid #e8e8e6; }
+.cam-tri-right { border-top: 0.42em solid transparent; border-bottom: 0.42em solid transparent; border-left: 0.55em solid #e8e8e6; }
+
+/* Status strip + log. */
+.cam-status {
+  background: linear-gradient(180deg, #e8e8e6 0%, #d3d3d1 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+/* Readiness dots, mirroring the reference image's hollow/solid convention. */
+.dot-ready {
+  background: #33d17a;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 7px rgba(51, 209, 122, 0.8);
+}
+.dot-unknown {
+  background: transparent;
+  box-shadow: 0 0 0 1.5px rgba(220, 220, 220, 0.5) inset;
+}
+
+.log-line { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.log-latest { background: rgba(80, 170, 255, 0.14); }

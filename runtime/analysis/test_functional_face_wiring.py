@@ -54,15 +54,50 @@ def extracted_source():
     # Actual first dispatch, then the original-free fallback for unrelated messages.
     freed = freed[:freed.index("    if(native_background_start_release(")]
     freed += "    (void)media_mount_trace;fallback_frees++;return real_free_msg(id,message);\n}\n"
+    peer_support = r'''
+/* PinMem peers are disabled independently of the face feature under test. */
+/* Only actual native_cp_state_received is extracted; no timecode resource statics. */
+static unsigned int functional_bb_timecode_control_used;
+int full_bb_timecode_control_observe_receive(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!functional_bb_timecode_control_used);return 0;
+}
+
+static unsigned int functional_cp_ou_crank_control_used=0;
+static int native_functional_ou_crank_release(unsigned int id,void *p,int *result){
+ (void)id;(void)p;(void)result;
+ assert(!"OU crank is disabled in this face fixture");return 0;
+}
+static unsigned int functional_cp_movie_format_used=0;
+static void native_movie_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"movie-format is disabled in this face fixture");
+}
+static unsigned int functional_cp_crank_control_used;
+static void native_crank_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"crank-control is disabled in this face fixture");
+}
+static unsigned int pinmem_peer_connections_used=0,peer_receive_calls[3];
+static unsigned long long full_scalar_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[0]++;assert(!"PinMem scalar peer is disabled in this face fixture");return 0;
+}
+static unsigned long long full_adf_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[1]++;assert(!"PinMem ADF peer is disabled in this face fixture");return 0;
+}
+static unsigned long long full_pinmem_drawinfo_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[2]++;assert(!"PinMem drawinfo peer is disabled in this face fixture");return 0;
+}
+'''
     return {"/* ACTUAL_FACE_DECLARATIONS */": declarations,
             "/* ACTUAL_AP_RECORD */": function(source, "functional_face_ap_record_event"),
             "/* ACTUAL_AP_SEND */": ap_sent,
             "/* ACTUAL_AP_FREE */": ap_freed,
             "/* ACTUAL_FACE_HELPERS */": helpers,
-            "/* ACTUAL_CP_RECEIVE */": "\n".join(function(source, name) for name in
-                                               ("native_cp_state_received", "u_osal_rcv_msg_tmo")),
+            "/* ACTUAL_CP_RECEIVE */": peer_support + "\n".join(function(source, name) for name in
+                                               ("native_cp_state_received", "native_pin_peer_received", "u_osal_rcv_msg_tmo")),
             "/* ACTUAL_FACE_FREE */": freed,
-            "/* ACTUAL_DMM_DISPATCH */": sent}
+            "/* ACTUAL_DMM_DISPATCH */": sent,
+            " assert(!functional_startup_control_used);":
+                " assert(!functional_startup_control_used);\n"
+                " assert(!pinmem_peer_connections_used && !peer_receive_calls[0] && !peer_receive_calls[1] && !peer_receive_calls[2]);"}
 
 
 @pytest.fixture(scope="module", params=[False, True], ids=["c11", "asan-ubsan"])

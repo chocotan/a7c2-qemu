@@ -25,7 +25,8 @@ def startup_build(tmp_path_factory, request):
         "virtual-optics/optics.c", "virtual-optical-frame-owner/optical-frame-owner.c",
         "virtual-jpeg-hardware/jpeg-hardware.c", "virtual-jpeg-hardware/jpeg-hardware-codec.c",
         "virtual-jpeg-sos/jpeg-sos.c", "virtual-video-engine/video-engine.c",
-        "virtual-camera-pipeline/camera-pipeline.c")]
+        "virtual-camera-pipeline/camera-pipeline.c",
+        "../runtime/analysis/device-models/cp-parameter-batch.c")]
     sanitize = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"] if request.param == "asan-ubsan" else []
     binary = directory / "startup-control"
     command = shlex.split(os.environ.get("CC", "cc")) + FLAGS + sanitize + [
@@ -79,9 +80,36 @@ def test_actual_full192_state_and_independent_rgb(startup_build):
     assert data["SETTINGS_INPUT"] == data["SETTINGS_REPEAT_INPUT"]
 
 
-@pytest.mark.parametrize("scenario", ("validation", "faults", "reload"))
+@pytest.mark.parametrize("scenario", ("validation", "faults", "reload", "focus-faults"))
 def test_rejections_faults_and_legal_configuration_reload(startup_build, scenario):
     assert run(startup_build, scenario) == b""
+
+
+def test_focus_off_real_rgb_and_independent_third_checkpoint(startup_build):
+    data = blobs(run(startup_build, "focus-reset"))
+    for prefix in ("FOCUS", "FOCUS2"):
+        before = data[prefix + "_BEFORE"]
+        source, sink, canonical = (data[prefix + suffix] for suffix in ("_SOURCE", "_SINK", "_INPUT"))
+        assert source == sink and len(source) == 921600
+        assert len(set(zip(source[0::3], source[1::3], source[2::3]))) > 1
+        assert canonical == struct.pack("<HH", 0x403f, 8) + bytes(20) + struct.pack("<Q", fnv(before[8:48]))
+        generation, frame = u64(before, 56) + 1, u64(before, 112) + 1
+        expected = bytearray(192)
+        struct.pack_into("<IIQQQQQQQQ", expected, 0, 1, 192, 77, generation, frame, frame,
+                         fnv(canonical), fnv(source), fnv(sink), len(source))
+        struct.pack_into("<14I", expected, 72, 640, 480, 1920, 0x90590819, 1, 1, 9, 1, 1, 1, 1, 1, 0, 0)
+        expected[128:144] = bytes([1, 5, 5, 0xa9, 2, 0, 0, 0, 0x67]) + bytes(7)
+        struct.pack_into("<QQ", expected, 144, frame - 1, generation - 1)
+        expected[160:] = canonical
+        assert data[prefix] == expected
+        state = bytearray(before)
+        for offset in (56, 64, 72, 112):
+            struct.pack_into("<Q", state, offset, u64(before, offset) + 1)
+        assert data[prefix + "_STATE"] == state
+    assert data["FOCUS_SOURCE"] != data["FOCUS2_SOURCE"]
+    assert data["FOCUS_INPUT"][24:] != data["FOCUS2_INPUT"][24:]
+    assert struct.unpack_from("<I", data["FOCUS2_BEFORE"], 28)[0] == 800
+    assert u64(data["FOCUS2_BEFORE"], 32) == 12345
 
 
 def test_saved_banks_checkpoint_and_real_codec_boundaries(startup_build):

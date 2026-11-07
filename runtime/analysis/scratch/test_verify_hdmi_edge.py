@@ -25,6 +25,13 @@ from test_adf_set_input_device import public_adf_input_seed
 from initramfs_identity import verify_image
 
 
+def archived_receipt(variable):
+    value = os.environ.get(variable)
+    if not value:
+        pytest.skip('historical original receipt and its exact dependency closure required: set ' + variable)
+    return Path(value)
+
+
 class Log:
     """Same record schema as the parent checker, without importing its build pins."""
     def __init__(self, text):
@@ -130,144 +137,80 @@ def synthetic_scope_binding(tmp_path, monkeypatch, request):
 
 @pytest.fixture
 def synthetic_shutter_binding(tmp_path, monkeypatch):
-    """HOST_METADATA only: public source bytes and owned fake artifacts, never a QEMU/API result."""
+    """Reuse the old envelope builder; real fixed source7/fixture7 and build assets, synthetic receipts."""
     f = make_scope_binding(tmp_path, monkeypatch, 2)
     native = BASE.parents[1]
     monkeypatch.setattr(f.graph, 'NATIVE', native)
     f.reader.object_json = f.graph.object_json
-    root = native / v.SHUTTER_GATE_COMPONENT
-    sources = {name: f.sha(root / name) for name in v.SHUTTER_GATE_SOURCE_NAMES}
-    fixtures = {name: f.sha(root / name) for name in v.SHUTTER_GATE_FIXTURE_NAMES}
-    plugin = f.work / 'HOST_METADATA-plugin'
-    candidate = f.work / 'HOST_METADATA-candidate'
-    plugin.mkdir(); (candidate / 'build').mkdir(parents=True)
-    library, binary = plugin / 'scope-observer.so', candidate / 'build/qemu-system-aarch64'
-    library.write_bytes(b'HOST_METADATA raw library bytes; not an executable ELF or actual API build\n')
-    binary.write_bytes(b'HOST_METADATA inert QEMU file bytes; never executed\n')
-    command = plugin / 'plugin-build-command.json'
-    import_audit = plugin / 'readonly-import-audit.json'
-    static_audit = candidate / 'binary-static-audit.json'
-    f.write(command, dict(evidence_kind='HOST_METADATA', command=[], executed=False))
-    f.write(import_audit, dict(evidence_kind='HOST_METADATA', imports=[], executed=False))
-    f.write(static_audit, dict(evidence_kind='HOST_METADATA', binary=str(binary), binary_sha256=f.sha(binary),
-        missing_required_exports=[], protected_binaries_unchanged=dict(candidate=True, production=True),
-        runtime_library_closure_verified=False, plugin_runtime_verified=False,
-        capture_verified=False, physical_asic_compatibility_verified=False))
-    header_sha = hashlib.sha256(b'HOST_METADATA no QEMU header imported').hexdigest()
-    receipt_path = plugin / 'build-receipt.json'
-    built = dict(schema=v.SHUTTER_GATE_PROFILE, evidence_kind='HOST_METADATA', library=str(library),
-        library_sha256=f.sha(library), qemu=str(binary), qemu_sha256=f.sha(binary), qemu_header_sha256=header_sha,
-        source_sha256=copy.deepcopy(sources), fixture_source_sha256=copy.deepcopy(fixtures),
-        trace_schema='readonly_shutter_gate_v1', trace_schema_sha256=sources['log-schema-shutter-gate-v1.json'],
-        source_contract_sha256=sources['source-contract-shutter-gate-v1.json'],
-        plugin_build_command_sha256=f.sha(command), readonly_import_audit_sha256=f.sha(import_audit),
-        candidate_static_audit_sha256=f.sha(static_audit))
-    f.write(receipt_path, built)
-    ref = dict(path=str(receipt_path), sha256=f.sha(receipt_path))
-    metadata = {key: copy.deepcopy(value) for key, value in built.items()
-                if key not in ('schema', 'evidence_kind', 'qemu')}
-    metadata.update(profile=v.SHUTTER_GATE_PROFILE, build_receipt=ref['path'], build_receipt_sha256=ref['sha256'],
-        identity_binding='unverified', capture_verified=False, physical_asic_compatibility_verified=False)
-    # Only external artifact validation is substituted; metadata mutations cannot rewrite this operand.
-    frozen_metadata = copy.deepcopy(metadata)
-    validate_calls = []
-    def validate_build(actual_native, actual_receipt, actual_qemu):
-        assert actual_native == native == BASE.parents[1]
-        assert actual_receipt == ref['path'] and actual_qemu == str(binary)
-        validate_calls.append((actual_native, actual_receipt, actual_qemu))
-        return copy.deepcopy(frozen_metadata)
-    source_module = f.graph.source_module
-    def scoped_source_module(relative, frozen):
-        if relative == 'runtime/analysis/scope_observer_profile.py':
-            path = native / relative
-            assert frozen[str(path)] == f.sha(path)
-            return SimpleNamespace(validate_build=validate_build)
-        return source_module(relative, frozen)
-    monkeypatch.setattr(f.graph, 'source_module', scoped_source_module)
-    observer = hashlib.sha256(b'HOST_METADATA observer, never loaded').hexdigest()
-    appfw = hashlib.sha256(b'HOST_METADATA original appFw operand, no Sony bytes').hexdigest()
-    projection = {key: copy.deepcopy(metadata[key]) for key in v.SHUTTER_GATE_READER_FIELDS
-                  if key not in ('observer_sha256', 'Main_source_sha256', 'original_appfw_sha256')}
-    projection.update(observer_sha256=observer, Main_source_sha256=f.sha(BASE / 'menu-observe.c'),
-        original_appfw_sha256=appfw)
-    expected = dict(copy.deepcopy(projection), profile=v.SHUTTER_GATE_PROFILE, trace_schema='readonly_shutter_gate_v1',
+    prototype = json.loads(archived_receipt('A7C2_SHUTTER_PARENT_RECEIPT').read_bytes())
+    ref = prototype['gate_build_receipt']
+    built = json.loads(Path(ref['path']).read_bytes())
+    keys = ('build_receipt', 'build_receipt_sha256', 'library_sha256', 'qemu_sha256', 'qemu_header_sha256',
+        'source_sha256', 'trace_schema', 'trace_schema_sha256', 'source_contract_sha256', 'fixture_source_sha256',
+        'plugin_build_command_sha256', 'readonly_import_audit_sha256', 'candidate_static_audit_sha256')
+    metadata = {key: copy.deepcopy(built[key]) for key in keys if key not in ('build_receipt', 'build_receipt_sha256')}
+    metadata.update(profile=v.SHUTTER_GATE_PROFILE, library=built['library'], build_receipt=ref['path'],
+        build_receipt_sha256=ref['sha256'], identity_binding='unverified', capture_verified=False,
+        physical_asic_compatibility_verified=False)
+    projection = copy.deepcopy(prototype['expected_original_run_assets'])
+    expected = dict(projection, profile=v.SHUTTER_GATE_PROFILE, trace_schema='readonly_shutter_gate_v1',
         source_contract_sha256=built['source_contract_sha256'], build_receipt=ref['path'],
-        library_source=str(library), build_metadata=metadata,
+        library_source=built['library'], build_metadata=metadata,
         functional_runner_source_sha256=f.sha(BASE / 'functional_camera_runner.py'))
-    production = {str(BASE / 'menu-observe.c'): projection['Main_source_sha256']}
-    host = {str(BASE / name): f.sha(BASE / name) for name in ('functional_camera_runner.py', 'scope_observer_profile.py')}
-    observer_sources = {str(root / name): value for name, value in sources.items()}
-    test_sources = {str(root / name): value for name, value in fixtures.items()}
-    frozen_names = set(production) | set(host) | set(observer_sources) | set(test_sources)
-    # Count-only HOST_METADATA members are not a claim that a real 1193-source batch ran.
-    for index in range(1193 - len(frozen_names)):
-        path = str(f.work / ('HOST_METADATA-source-%04d.py' % index))
-        test_sources[path] = hashlib.sha256(('HOST_METADATA source count: ' + str(index)).encode()).hexdigest()
-    f.tested = dict(groups=dict(production=production, host=host, observer=observer_sources, test=test_sources),
-        modules=sorted(set(production) | set(host) | set(observer_sources) | set(test_sources))[:242])
-    assets = {str(path): f.sha(path) for path in (binary, static_audit, command, import_audit, receipt_path, library)}
-    fixture_path = f.work / 'HOST_METADATA-fixture-manifest.json'
-    fixture = dict(evidence_kind='HOST_METADATA', status='PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V1_FIXTURE',
-        failure=None, profile=v.SHUTTER_GATE_PROFILE, trace_schema='readonly_shutter_gate_v1',
-        trace_schema_sha256=projection['trace_schema_sha256'], fixture_source_sha256=copy.deepcopy(fixtures),
-        inputs={kind + name: dict(path=str(root / name), sha256=value)
-                for kind, values in (('source:', sources), ('fixture-source:', fixtures)) for name, value in values.items()},
-        variants={name: dict(evidence_kind='HOST_METADATA', executed=False) for name in
-                  ('original_entry', 'existing_main_stub_entry', 'one_byte_gate_mutation', 'short_tb')},
-        **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
-    f.write(fixture_path, fixture)
+    baseline = Path(prototype['batch']) / 'inputs.json'
+    f.tested = json.loads(baseline.read_bytes())
+    for group in f.tested['groups'].values():
+        for path in group:
+            group[path] = f.sha(Path(path))
     b = f.binding
-    b.update(schema=v.SHUTTER_GATE_RUN, observer_sha256=observer,
-        scope_observer_expected=expected, shutter_gate_reader_expected=copy.deepcopy(projection),
-        candidate_qemu=dict(path=str(binary), sha256=f.sha(binary)), runtime_assets_sha256=assets,
-        synthetic_fixture_manifest=dict(path=str(fixture_path), sha256=f.sha(fixture_path)),
+    b.update(schema=v.SHUTTER_GATE_RUN, observer_sha256=projection['observer_sha256'],
+        scope_observer_expected=expected, shutter_gate_reader_expected=projection,
+        candidate_qemu=dict(path=built['qemu'], sha256=built['qemu_sha256']),
+        runtime_assets_sha256=dict(prototype['legacy_runtime_assets_sha256'], **prototype['gate_added_runtime_assets_sha256']),
+        synthetic_fixture_manifest=copy.deepcopy(prototype['gate_actual_api']['manifest']),
         **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
-    f.observer = observer
+    f.observer = b['observer_sha256']
     f.build['sources'][str(BASE / 'menu-observe.c')]['sha256'] = projection['Main_source_sha256']
-    f.manifest.update(backup_transport=dict(binary=str(binary), binary_sha256=f.sha(binary)))
-    f.manifest['selected_initramfs_verified_files']['usr/lib/appFw.so'] = appfw
-    f.manifest['files'][str(binary)] = f.sha(binary)
-    f.manifest['files'].update({str(root / name): value for name, value in sources.items()})
+    f.manifest.update(backup_transport=dict(binary=built['qemu'], binary_sha256=built['qemu_sha256']))
+    f.manifest['selected_initramfs_verified_files']['usr/lib/appFw.so'] = projection['original_appfw_sha256']
+    f.manifest['files'][built['qemu']] = built['qemu_sha256']
+    root = native / v.SHUTTER_GATE_COMPONENT
+    f.manifest['files'].update({str(root / name): value for name, value in built['source_sha256'].items()})
     f.manifest['files'][ref['path']] = ref['sha256']
-    (f.run / 'readonly-scope-observer.so').write_bytes(library.read_bytes())
-    f.manifest['files'][str(f.run / 'readonly-scope-observer.so')] = f.sha(library)
+    (f.run / 'readonly-scope-observer.so').write_bytes(Path(built['library']).read_bytes())
+    f.manifest['files'][str(f.run / 'readonly-scope-observer.so')] = built['library_sha256']
     batch = Path(b['batch']); batch.mkdir()
-    offline_false = dict.fromkeys(('runtime_verified', 'capture_verified', 'physical', 'physical_asic_compatibility_verified',
-        'originalMain', 'retirement', 'instruction_retirement_verified', 'Main_identity_verified',
-        'AP_identity_verified', 'branch_edge_verified', 'invocation_pairing_verified', 'original_camera_VM_started',
-        'originalUI_onceplan_prepared', 'intent_published', 'card_prepared'), False)
     parent_path = f.work / 'parent-readback.json'
-    parent = dict(evidence_kind='HOST_METADATA', status='PASS_OFFLINE_SHUTTER_GATE_V1_COHORT_READBACK',
-        batch=str(batch), ready_sha256=b['batch_ready_sha256'], expected_original_run_assets=copy.deepcopy(projection),
-        gate_actual_api=dict(manifest=copy.deepcopy(b['synthetic_fixture_manifest'])), gate_build_receipt=copy.deepcopy(ref),
-        all_source_members_verified=1193, legacy_runtime_assets_sha256={}, gate_added_runtime_assets_sha256=copy.deepcopy(assets),
-        launch_runtime_preflight=dict(passed=False, inspected=False, launch_authorized=False), **offline_false)
+    parent = copy.deepcopy(prototype)
+    parent.update(batch=str(batch), ready_sha256=b['batch_ready_sha256'])
     f.write(parent_path, parent)
     b['parent_readback'] = dict(path=str(parent_path), sha256=f.sha(parent_path))
     b['actual_api_contract'] = copy.deepcopy(b['parent_readback'])
     runtime_path = batch / 'readonly-shutter-gate-v1-runtime-ready.json'
-    runtime = dict(evidence_kind='HOST_METADATA', status='PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT',
+    runtime = dict(status='PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT',
         generic_ready=dict(path=str(batch / 'ready.json'), sha256=b['batch_ready_sha256']),
-        offline_readback=copy.deepcopy(b['parent_readback']), expected_original_run_assets=copy.deepcopy(projection),
-        gate_build_receipt=copy.deepcopy(ref), launch_runtime_preflight=dict(passed=False, inspected=False, launch_authorized=False),
-        **offline_false)
+        offline_readback=copy.deepcopy(b['parent_readback']), expected_original_run_assets=projection,
+        gate_build_receipt=ref, launch_runtime_preflight=dict(passed=False, inspected=False, launch_authorized=False),
+        **{key: False for key in ('runtime_verified', 'capture_verified', 'physical', 'physical_asic_compatibility_verified',
+            'originalMain', 'retirement', 'instruction_retirement_verified', 'Main_identity_verified',
+            'AP_identity_verified', 'branch_edge_verified', 'invocation_pairing_verified', 'original_camera_VM_started',
+            'originalUI_onceplan_prepared', 'intent_published', 'card_prepared')})
     f.write(runtime_path, runtime)
     b['runtime_ready'] = dict(path=str(runtime_path), sha256=f.sha(runtime_path))
     fresh_path = Path(b['fresh_guest']['path'])
     fresh = json.loads(fresh_path.read_bytes())
     fresh.update(runtime_ready_sha256=b['runtime_ready']['sha256'],
-        compiled_before={str(BASE / 'menu-observe.so'): observer}, compiled_after={str(BASE / 'menu-observe.so'): observer})
+        compiled_before={str(BASE / 'menu-observe.so'): f.observer}, compiled_after={str(BASE / 'menu-observe.so'): f.observer})
     f.write(fresh_path, fresh)
     b['fresh_guest']['sha256'] = f.sha(fresh_path)
     driver = BASE / 'scratch/run-functional-current-batch.py'
     plan = {key: copy.deepcopy(b[key]) for key in ('nonce', 'batch', 'batch_ready_sha256', 'runtime_ready',
         'parent_readback', 'fresh_guest', 'runtime_assets_sha256', 'actual_api_contract', 'candidate_qemu', 'card')}
-    plan.update(schema='functional-shutter-gate-v1-plan-v1', guest_image=str(f.guest), scope_build=copy.deepcopy(ref),
-        actual_api_manifest=copy.deepcopy(b['synthetic_fixture_manifest']), driver=str(driver), driver_sha256=f.sha(driver),
+    plan.update(schema='functional-shutter-gate-v1-plan-v1', guest_image=str(f.guest), scope_build=ref,
+        actual_api_manifest=b['synthetic_fixture_manifest'], driver=str(driver), driver_sha256=f.sha(driver),
         claimed_fault_result='FAIL', **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
     f.plan, f.parent, f.runtime = plan, parent, runtime
     f.metadata, f.expected, f.source_root = metadata, expected, root
-    f.validate_calls = validate_calls
     f.launch_owner = dict(pid=101, ppid=1, starttime=101, exe='/usr/bin/python3')
     refresh_shutter_binding(f)
     return f
@@ -276,38 +219,39 @@ def synthetic_shutter_binding(tmp_path, monkeypatch):
 def refresh_shutter_binding(f):
     """Rebind all synthetic hashes so a negative reaches its intended content guard."""
     b = f.binding
+    generation = getattr(f, 'generation', 'functional-shutter-gate-v1')
     f.write(f.work / 'plan.json', f.plan)
     fields = v.SHUTTER_GATE_PLAN_FIELDS + ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')
     common = {key: copy.deepcopy(b[key]) for key in fields}
     common.update(plan=str(f.work / 'plan.json'), plan_sha256=f.sha(f.work / 'plan.json'),
         driver=f.plan['driver'], driver_sha256=f.plan['driver_sha256'], claimed_fault_result='FAIL',
         **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
-    f.write(f.work / 'intent.json', dict(common, schema='functional-shutter-gate-v1-intent-v1', guest_image=str(f.guest)))
+    f.write(f.work / 'intent.json', dict(common, schema=generation + '-intent-v1', guest_image=str(f.guest)))
     b['intent_sha256'] = f.sha(f.work / 'intent.json')
-    f.write(f.work / 'launch-binding.json', dict(common, schema='functional-shutter-gate-v1-launch-v1',
+    f.write(f.work / 'launch-binding.json', dict(common, schema=generation + '-launch-v1',
         intent_sha256=b['intent_sha256'], launch_owner=f.launch_owner))
     b['launch_binding_sha256'] = f.sha(f.work / 'launch-binding.json')
     plan_binding = {key: copy.deepcopy(b[key]) for key in v.SHUTTER_GATE_PLAN_FIELDS}
     f.manifest['readonly_scope_observer'] = dict(f.metadata, library=str(f.run / 'readonly-scope-observer.so'),
         log=str(f.run / 'readonly-scope-trace.log'), plan_binding=plan_binding)
     info = f.run.stat()
-    context = dict(schema='functional-shutter-gate-v1-live-context-v1', run=str(f.run),
+    context = dict(schema=generation + '-live-context-v1', run=str(f.run),
         run_device=info.st_dev, run_inode=info.st_ino, scope=plan_binding,
         **{key: copy.deepcopy(b[key]) for key in ('nonce', 'batch', 'batch_ready_sha256', 'intent_sha256',
                                                'launch_binding_sha256', 'candidate_qemu', 'card')})
     f.context = context
-    live = dict(schema='functional-shutter-gate-v1-popen-live-v1', context=context,
+    live = dict(schema=generation + '-popen-live-v1', context=context,
         wrapper=dict(pid=202, ppid=201, starttime=202, exe='/usr/bin/bash'),
         owner=dict(pid=201, ppid=200, starttime=201, exe='/usr/bin/python3'),
         control=dict(pid=200, ppid=101, starttime=200, exe='/usr/bin/python3'),
         actual_Popen_pid=202, birth_sample={}, launch_policy={}, control_mode='probe-parent',
-        probe_source_sha256=f.sha(BASE / 'qemu-menu-probe.py'), **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
+        probe_source_sha256=f.sha(v.BASE / 'qemu-menu-probe.py'), **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
     live['birth_sample'] = dict(identity=copy.deepcopy(live['wrapper']))
     live['launch_policy'] = dict(model='approved-functional-shell-bwrap-v1')
     f.write(f.run / 'readonly-scope-popen-live.json', live)
     b['popen_live_sha256'] = f.sha(f.run / 'readonly-scope-popen-live.json')
     f.write(f.run / 'readonly-scope-run-binding.json', b)
-    ancestry = dict(schema='functional-shutter-gate-v1-live-ancestry-v1', context=context,
+    ancestry = dict(schema=generation + '-live-ancestry-v1', context=context,
         **{key: copy.deepcopy(live[key]) for key in ('wrapper', 'owner', 'control', 'control_mode')},
         launch_owner=f.launch_owner,
         chain=[dict(pid=204, ppid=203, starttime=204, exe='/tools/qemu-system-aarch64'),
@@ -320,23 +264,24 @@ def refresh_shutter_binding(f):
         **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
     f.write(f.run / 'readonly-scope-live-ancestry.json', ancestry)
     (f.run / 'readonly-scope-trace.log').write_bytes(b'synthetic raw observer bytes; no UPM or AP claim\n')
-    f.write(f.run / 'readonly-scope-exit.json', dict(profile=v.SHUTTER_GATE_PROFILE, run=str(f.run),
+    f.write(f.run / 'readonly-scope-exit.json', dict(profile=f.metadata['profile'], run=str(f.run),
         owned_wrapper_pid=202, returncode=0, library_sha256=f.metadata['library_sha256'],
         log_available=True, log_sha256=f.sha(f.run / 'readonly-scope-trace.log'), capture_verified=False,
         physical_asic_compatibility_verified=False))
-    callback = dict(schema='functional-shutter-gate-v1-popen-exit-v1', context=context, wrapper=live['wrapper'],
+    callback = dict(schema=generation + '-popen-exit-v1', context=context, wrapper=live['wrapper'],
         actual_Popen_pid=202, returncode=0, popen_live_sha256=b['popen_live_sha256'],
         ancestry_sha256=f.sha(f.run / 'readonly-scope-live-ancestry.json'),
         original_exit_sha256=f.sha(f.run / 'readonly-scope-exit.json'), **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
     f.write(f.run / 'readonly-scope-popen-exit-binding.json', callback)
 
 
-def scope_provenance(fixture):
+def scope_provenance(fixture, *, gate_v2_trust=None):
     name, binding, original = v._condition_binding(fixture.graph, fixture.run, fixture.observer)
     assert name == 'readonly-scope-run-binding.json'
     assert original == (fixture.run / name).read_bytes()
     return v._condition_scope_binding(fixture.graph, fixture.reader, fixture.run,
-        binding, fixture.manifest, fixture.build, fixture.tested)
+        binding, fixture.manifest, fixture.build, fixture.tested,
+        **({} if gate_v2_trust is None else {'gate_v2_trust': gate_v2_trust}))
 
 
 def refresh_shutter_parents(f):
@@ -362,13 +307,834 @@ def refresh_shutter_parents(f):
     refresh_shutter_binding(f)
 
 
+def make_gate_v2_binding(tmp_path, monkeypatch):
+    """Synthetic graph closure. Strict trace/ELF adapters are byte-checking spies, never QEMU receipts."""
+    f = make_scope_binding(tmp_path, monkeypatch, 2)
+    native, base = f.graph.NATIVE, f.graph.NATIVE / 'runtime/analysis'
+    monkeypatch.setattr(v, 'BASE', base)
+    f.generation = 'functional-shutter-gate-v2'
+    f.reader.object_json, f.reader.MAX_FILE = f.graph.object_json, 16 * 1024**2
+    f.tested = dict(groups={key: {} for key in ('production', 'host', 'observer', 'test')}, modules=[], capture_verified=False)
+    ref = lambda path: dict(path=str(path), sha256=f.sha(path))
+    def source(path, raw, group='observer'):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+        f.tested['groups'][group][str(path)] = f.sha(path)
+        return str(path)
+    def archive_check(raw, wanted):
+        with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+            members = {row.name: hashlib.sha256(archive.extractfile(row).read()).hexdigest() for row in archive}
+        assert members == wanted
+    f.reader.archive = archive_check
+    for name in ('functional_camera_runner.py', 'scope_observer_profile.py', 'hdmi_upm_watch.py',
+                 'scratch/verify_hdmi_edge.py', 'scratch/validate-unified-camera.py',
+                 'scratch/run-functional-current-batch.py', 'qemu-menu-probe.py'):
+        source(base / name, ('synthetic host source ' + name).encode(), 'host')
+    source(base / 'menu-observe.c', b'synthetic frozen Main source', 'production')
+    for name in ('scratch/test_verify_hdmi_edge.py', 'test_second_module.py'):
+        f.tested['modules'].append(source(base / name, b'# synthetic module\n', 'test'))
+    for relative in f.graph.FROZEN_DEPENDENCIES:
+        path = native / relative
+        if str(path) not in {name for group in f.tested['groups'].values() for name in group}:
+            source(path, ('synthetic frozen dependency ' + relative).encode())
+    observer = hashlib.sha256(b'synthetic observer').hexdigest()
+    f.binding.update(schema=v.SHUTTER_GATE_V2_RUN, observer_sha256=observer,
+        **dict.fromkeys(v.SHUTTER_GATE_FALSE_FIELDS, False))
+    f.observer = observer
+    f.build = dict(sources={name: dict(sha256=value) for name, value in f.tested['groups']['production'].items()},
+        source_archive_sha256=hashlib.sha256(b'synthetic observer source archive').hexdigest())
+    qemu = tmp_path / 'candidate/build/qemu-system-aarch64'
+    qemu.parent.mkdir(parents=True); qemu.write_bytes(b'synthetic candidate bytes')
+    production = tmp_path / 'protected-production'; production.write_bytes(b'synthetic production bytes')
+    legacy_default = tmp_path / 'protected-legacy-default'; legacy_default.write_bytes(b'synthetic legacy default bytes')
+    monkeypatch.setattr(f.graph, 'PRODUCTION_QEMU_SHA256', f.sha(production))
+    monkeypatch.setattr(v, 'SHUTTER_GATE_V2_LEGACY_DEFAULT_SHA', f.sha(legacy_default))
+    f.binding['candidate_qemu'] = ref(qemu)
+    audit_path = qemu.parents[1] / 'binary-static-audit.json'
+    f.write(audit_path, dict(binary=str(qemu), binary_sha256=f.sha(qemu), missing_required_exports=[],
+        protected_binaries_unchanged=dict(candidate=True, production=True),
+        **dict.fromkeys(('runtime_library_closure_verified', 'plugin_runtime_verified',
+                        'capture_verified', 'physical_asic_compatibility_verified'), False)))
+    f.metas, f.api, f.roots, f.helpers, f.parsers, f.adapter_calls = {}, {}, {}, {}, {}, []
+    specs = (('scope2', 'report/2026-10-30-qemu-readonly-scope-observer', 'qemu-readonly-scope-v2',
+        'readonly_scope_v2', v.SCOPE_SOURCE_NAMES, 2),
+        ('scope3', 'report/2026-10-31-qemu-M-writer-observer-v3', 'qemu-readonly-scope-v3',
+         'readonly_scope_v3', v.SCOPE_SOURCE_NAMES_V3, 3),
+        ('gate1', v.SHUTTER_GATE_COMPONENT, v.SHUTTER_GATE_PROFILE, 'readonly_shutter_gate_v1', v.SHUTTER_GATE_SOURCE_NAMES, 1),
+        ('gate2', v.SHUTTER_GATE_V2_COMPONENT, v.SHUTTER_GATE_V2_PROFILE, 'readonly_shutter_gate_v2', v.SHUTTER_GATE_V2_SOURCE_NAMES, 2))
+    for key, component, profile, schema, names, version in specs:
+        root = native / component
+        fixtures = (v.SHUTTER_GATE_V2_FIXTURE_NAMES if key == 'gate2' else v.SHUTTER_GATE_FIXTURE_NAMES
+                    if key == 'gate1' else ('integration/fixture.S', 'integration/link.ld',
+                        'integration/run_fixture.py', 'integration/test_fixture_driver.py',
+                        'integration/test_actual_scope_plugin.py', 'integration/scope_trace_checks.py',
+                        'integration/scope_trace_checks_v%d.py' % version, 'integration/test_scope_trace_checks_v%d.py' % version))
+        for name in set(names) | set(fixtures):
+            source(root / name, ('synthetic source ' + key + '/' + name).encode())
+        schema_name = ('log-schema-shutter-gate-v%d.json' if key.startswith('gate') else 'log-schema-v%d.json') % version
+        contract_name = ('source-contract-shutter-gate-v%d.json' if key.startswith('gate') else 'source-contract-v%d.json') % version
+        source(root / schema_name, json.dumps(dict(profile=profile, schema=schema)).encode())
+        source(root / contract_name, json.dumps(dict(profile=profile, trace_schema=schema)).encode())
+        sources, fixture_sources = ({name: f.sha(root / name) for name in values} for values in (names, fixtures))
+        pins = root / 'integration/fixture-source-pins.json'
+        source(pins, json.dumps(fixture_sources, sort_keys=True).encode())
+        plugin_work = tmp_path / ('plugin-' + key); plugin_work.mkdir()
+        library = plugin_work / 'scope-observer.so'; library.write_bytes(('synthetic library ' + key).encode())
+        for name in ('plugin-build-command.json', 'readonly-import-audit.json'):
+            f.write(plugin_work / name, dict(synthetic=key))
+        receipt_path = plugin_work / 'build-receipt.json'
+        metadata = dict(profile=profile, trace_schema=schema, library=str(library), library_sha256=f.sha(library),
+            build_receipt=str(receipt_path), qemu_sha256=f.sha(qemu), qemu_header_sha256=hashlib.sha256(b'header').hexdigest(),
+            source_sha256=sources, fixture_source_sha256=fixture_sources, trace_schema_sha256=f.sha(root / schema_name),
+            source_contract_sha256=f.sha(root / contract_name),
+            plugin_build_command_sha256=f.sha(plugin_work / 'plugin-build-command.json'),
+            readonly_import_audit_sha256=f.sha(plugin_work / 'readonly-import-audit.json'),
+            candidate_static_audit_sha256=f.sha(audit_path), identity_binding='unverified', capture_verified=False,
+            physical_asic_compatibility_verified=False)
+        f.write(receipt_path, metadata)
+        metadata['build_receipt_sha256'] = f.sha(receipt_path)
+        f.metas[key], f.roots[key] = metadata, root
+        folder = tmp_path / ('api-' + key); folder.mkdir()
+        inputs = dict(qemu=ref(qemu), plugin=ref(library), receipt=ref(receipt_path), schema=ref(root / schema_name))
+        inputs.update({'source:' + name: ref(root / name) for name in names})
+        inputs.update({'fixture-source:' + name: ref(root / name) for name in fixtures})
+        if key.startswith('gate'):
+            inputs['fixture_sources_file'] = ref(pins)
+        cases = v.SHUTTER_GATE_API_CASES if key.startswith('gate') else (
+            'anchor', 'one_byte_mutation', 'wrong_lr_only', 'producer', 'producer_corrupt', 'producer_short_tb')
+        if key == 'scope3':
+            cases = ('anchor', 'one_byte_mutation', 'wrong_lr_only', 'producer',
+                     'producer_reverse_order', 'producer_corrupt', 'producer_short_tb')
+        actual = dict(profile=profile, trace_schema=schema,
+            status=('PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V%d_FIXTURE' if key.startswith('gate')
+                    else 'PASS_SELF_OWNED_QEMU_SCOPE_V%d_FIXTURE') % version,
+            failure=None, inputs=inputs, variants={}, startup_negatives={}, commands=[], artifacts={},
+            fixture_source_sha256=fixture_sources, fixture_source_snapshots={}, trace_schema_sha256=f.sha(root / schema_name),
+            **dict.fromkeys(('capture_verified', 'physical_asic_compatibility_verified', 'Main_identity_verified',
+                'AP_identity_verified', 'instruction_retirement_verified', 'branch_edge_verified', 'retirement'), False))
+        summaries, expected_operands = {}, {}
+        producer_path = BASE.parents[1] / component / 'integration/run_fixture.py'
+        producer_spec = importlib.util.spec_from_file_location('_synthetic_command_oracle_' + key, producer_path)
+        command_oracle = importlib.util.module_from_spec(producer_spec)
+        producer_spec.loader.exec_module(command_oracle)
+        producer_function = next(node for node in ast.parse(producer_path.read_bytes()).body
+                                 if isinstance(node, ast.FunctionDef) and node.name == 'run_fixture')
+        compile_values = [node.value for node in ast.walk(producer_function) if isinstance(node, ast.Assign)
+                          and isinstance(node.value, ast.List) and any(isinstance(value, ast.Constant)
+                          and value.value == '--target=aarch64-linux-gnu' for value in node.value.elts)]
+        assert len(compile_values) == 1
+        compile_payload = compile(ast.Expression(compile_values[0]), str(producer_path), 'eval')
+        def command_receipt(directory, returncode):
+            is_gate = key.startswith('gate')
+            negative = directory in ('cases/missing_log_argument', 'cases/existing_log')
+            case = directory.split('/', 1)[1] if directory.startswith('build/') else (
+                ('original_entry' if is_gate else 'anchor') if negative else directory.split('/', 1)[1].rsplit('-', 1)[0])
+            short = case in ('short_tb', 'producer_short_tb')
+            built = ('original_entry' if is_gate else 'producer') if short else case
+            seconds = 60 if directory.startswith('build/') else 30
+            if directory.startswith('build/'):
+                payload = eval(compile_payload, {'__builtins__': {'int': int}}, dict(clang=command_oracle.tool('clang'),
+                    case=case, mutated=case == 'one_byte_mutation', wrong_only=case == 'wrong_lr_only',
+                    producer=case.startswith('producer'), producer_mutated=case == 'producer_corrupt',
+                    producer2_mutated=case == 'producer_corrupt', reverse=case == 'producer_reverse_order'))
+                mounts = [(folder / 'inputs', '/src')]
+            else:
+                options = [] if directory == 'cases/missing_log_argument' else (
+                    ['log=/out/plugin.log'] if directory.endswith('-plugin') or directory == 'cases/existing_log' else None)
+                payload = command_oracle.vm_command(options, short) if is_gate else command_oracle.vm_command(
+                    options, case.startswith('producer'), short)
+                mounts = [(qemu, '/qemu'), (library, '/observer.so'), (folder / ('build/' + built + '/fixture.elf'), '/in/fixture.elf')]
+            row = dict(command=command_oracle.sandbox(folder / directory, mounts) + [command_oracle.tool('timeout'),
+                '--signal=TERM', '--verbose', str(seconds) + 's'] + payload,
+                directory=directory, owned_pid_unreaped=None, returncode=returncode, limit_seconds=seconds)
+            if is_gate:
+                row.update(outer_timeout=False, payload_argv=payload)
+            return row
+        def artifact(name, raw, folder=folder, actual=actual):
+            path = folder / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(raw)
+            actual['artifacts'][name] = dict(bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest())
+        for case in cases:
+            gate = key.startswith('gate')
+            build_case = ('original_entry' if gate else 'producer') if case in ('short_tb', 'producer_short_tb') else case
+            elf_name = 'build/' + build_case + '/fixture.elf'
+            artifact(elf_name, ('synthetic elf ' + build_case).encode())
+            operands = dict(case=case)
+            expected_operands[case] = operands
+            raw = ('synthetic trace ' + key + ':' + case + '\n').encode()
+            consoles = json.dumps(operands, sort_keys=True).encode()
+            counters = dict(successful_callbacks=5 if key == 'gate2' else 4)
+            runs = {}
+            for mode in ('baseline', 'plugin'):
+                directory = 'cases/' + case + '-' + mode
+                artifact(directory + '/console.bin', consoles)
+                runs[mode] = dict(console=directory + '/console.bin', returncode=0,
+                    plugin_log=directory + '/plugin.log' if mode == 'plugin' else None)
+            artifact('cases/' + case + '-plugin/plugin.log', raw)
+            if gate:
+                operand_name = 'cases/' + case + '-baseline/independent-operands.json'
+                artifact(operand_name, consoles)
+                artifact('cases/' + case + '-baseline/boundary-metadata.json', b'{}')
+                summaries[case] = dict(trace_sha256=hashlib.sha256(raw).hexdigest(), rows=1,
+                    actual_callback_counts=counters, independent_console_operands=True)
+            else:
+                summaries[case] = dict(independent_console_operands=True)
+            actual['variants'][case] = dict(runs=runs, elf=elf_name, elf_sha256=f.sha(folder / elf_name),
+                program_baseline_equal=True, guest_selfcheck_and_code_readback_exact=True,
+                expected_operands='cases/' + case + '-baseline/independent-operands.json',
+                expected_operands_sha256=hashlib.sha256(consoles).hexdigest(), boundary_metadata={},
+                trace_adapter='shutter_gate_trace_checks_v%d.assert_shutter_gate_trace_v%d' % (version, version),
+                actual_callback_counts=counters, trace_sha256=hashlib.sha256(raw).hexdigest())
+            directories = ([] if case in ('short_tb', 'producer_short_tb') else ['build/' + case])
+            directories += ['cases/' + case + '-' + mode for mode in ('baseline', 'plugin')]
+            for directory in directories:
+                actual['commands'].append(command_receipt(directory, 0))
+                artifact(directory + '/stdout.bin', b'')
+                artifact(directory + '/stderr.bin', b'')
+        for name in ('missing_log_argument', 'existing_log'):
+            directory = 'cases/' + name
+            actual['commands'].append(command_receipt(directory, 1))
+            artifact(directory + '/stdout.bin', b'')
+            artifact(directory + '/stderr.bin', b'scope_observer_host_error')
+            actual['startup_negatives'][name] = dict(returncode=1, guest_started=False)
+            if key.startswith('gate'):
+                actual['startup_negatives'][name].update(normal_non_timeout_rejection=True, sentinel_unchanged=name == 'existing_log')
+        artifact('cases/existing_log/plugin.log', b'exclusive-shutter-gate-log-sentinel\n'
+                 if key.startswith('gate') else b'exclusive-log-sentinel\n')
+        api_path = folder / 'manifest.json'; f.write(api_path, actual)
+        f.api[key] = dict(manifest=ref(api_path), cases=summaries)
+        def validate(*args, inputs=copy.deepcopy(inputs), schema_path=root / schema_name, gate=key.startswith('gate'), **kwargs):
+            value = copy.deepcopy(inputs)
+            value.pop('fixture_sources_file', None)
+            return (value, json.loads(schema_path.read_bytes())) if gate else value
+        def parse(raw, declaration, key=key, schema=schema, expected_operands=expected_operands):
+            assert declaration['schema'] == schema
+            allowed = {('synthetic trace ' + key + ':' + case + '\n').encode() for case in expected_operands}
+            if key == 'gate2':
+                allowed.add(b'synthetic raw observer bytes; no UPM or AP claim\n')
+            assert raw in allowed
+            f.adapter_calls.append(('parse', key))
+            return dict(rows=[dict(synthetic=key)])
+        def assertion(raw, declaration, operands, parse=parse, key=key):
+            assert raw == ('synthetic trace ' + key + ':' + operands['case'] + '\n').encode()
+            return parse(raw, declaration)
+        helper = SimpleNamespace(RUNTIME_SOURCES=names, FIXTURE_SOURCE_NAMES=fixtures, BASE=0x40000000,
+            sandbox=command_oracle.sandbox, tool=command_oracle.tool, vm_command=command_oracle.vm_command,
+            validate_assets=validate, validate_v2_assets=validate, validate_v3_assets=validate,
+            verify_fixture_snapshots=lambda *args: {}, elf_layout=lambda *args: {},
+            check_console=lambda raw, sections, case: (dict(case=case), {}),
+            check_trace_counters=lambda *args, counters=counters: copy.deepcopy(counters),
+            expected_console=lambda sections, mutated, wrong: json.dumps(dict(case='one_byte_mutation'
+                if mutated else 'wrong_lr_only' if wrong else 'anchor'), sort_keys=True).encode(),
+            check_producer_console=lambda *args: ({}, None), scope_expectations=lambda *args: {})
+        checks = SimpleNamespace(parse_trace=parse, assert_shutter_gate_trace_v1=assertion, assert_shutter_gate_trace_v2=assertion,
+            assert_scope_trace_v2=lambda *args, **kwargs: None, assert_scope_trace_v3=lambda *args, **kwargs: None)
+        f.helpers[component + '/integration/run_fixture.py'] = helper
+        parser_name = ('integration/shutter_gate_trace_checks_v%d.py' if key.startswith('gate')
+                       else 'integration/scope_trace_checks_v%d.py') % version
+        f.parsers[component + '/' + parser_name] = checks
+        actual['_folder_for_test'] = str(folder)
+        f.api[key]['actual'] = actual
+    f.metadata, f.source_root = f.metas['gate2'], f.roots['gate2']
+    projection = {key: f.metadata[key] for key in v.SHUTTER_GATE_READER_FIELDS if key in f.metadata}
+    projection.update(observer_sha256=observer, Main_source_sha256=f.sha(base / 'menu-observe.c'),
+        original_appfw_sha256=hashlib.sha256(b'synthetic original appfw').hexdigest())
+    f.expected = dict(projection, profile=v.SHUTTER_GATE_V2_PROFILE, trace_schema='readonly_shutter_gate_v2',
+        source_contract_sha256=f.metadata['source_contract_sha256'], build_receipt=f.metadata['build_receipt'],
+        library_source=f.metadata['library'], build_metadata=f.metadata,
+        functional_runner_source_sha256=f.sha(base / 'functional_camera_runner.py'))
+    f.binding.update(scope_observer_expected=f.expected, shutter_gate_reader_expected=copy.deepcopy(projection))
+    (f.run / 'readonly-scope-observer.so').write_bytes(Path(f.metadata['library']).read_bytes())
+    f.manifest.update(backup_transport=dict(binary=str(qemu), binary_sha256=f.sha(qemu)))
+    media_digest = hashlib.sha256(b'synthetic original media').hexdigest()
+    f.manifest['selected_initramfs_verified_files'].update({'usr/lib/appFw.so': projection['original_appfw_sha256'],
+        'simulation/file-media-config.so': media_digest})
+    f.manifest['files'] = {str(f.guest): f.binding['guest_sha256'], str(qemu): f.sha(qemu),
+        f.metadata['build_receipt']: f.metadata['build_receipt_sha256'],
+        str(f.run / 'readonly-scope-observer.so'): f.metadata['library_sha256'],
+        **{str(f.source_root / name): value for name, value in f.metadata['source_sha256'].items()}}
+    flags = dict.fromkeys((*v.SHUTTER_GATE_FALSE_FIELDS, 'original_camera_VM_started', 'originalUI_onceplan_prepared',
+        'intent_published', 'card_prepared', 'native_CP_verified', 'original_M_producer_runtime_verified'), False)
+    parent_path = f.work / 'parent-readback.json'
+    f.binding['parent_readback'] = dict(path=str(parent_path), sha256='0' * 64)
+    f.binding['runtime_ready'] = dict(path=str(Path(f.binding['batch']) / 'readonly-shutter-gate-v2-runtime-ready.json'), sha256='0' * 64)
+    Path(f.binding['batch']).mkdir()
+    legacy = {str(qemu): f.sha(qemu), str(audit_path): f.sha(audit_path)}
+    for key in ('scope2', 'scope3'):
+        metadata = f.metas[key]
+        legacy.update({metadata['build_receipt']: metadata['build_receipt_sha256'], metadata['library']: metadata['library_sha256'],
+            str(Path(metadata['build_receipt']).with_name('readonly-import-audit.json')): metadata['readonly_import_audit_sha256']})
+    for index in range(13 - len(legacy)):
+        path = tmp_path / ('legacy-asset-%d' % index); path.write_bytes(str(index).encode()); legacy[str(path)] = f.sha(path)
+    groups = dict(legacy_runtime_assets_sha256=legacy)
+    for key, field in (('gate1', 'gate_added_runtime_assets_sha256'), ('gate2', 'gate_v2_added_runtime_assets_sha256')):
+        metadata = f.metas[key]
+        groups[field] = {metadata['build_receipt']: metadata['build_receipt_sha256'], metadata['library']: metadata['library_sha256'],
+            str(Path(metadata['build_receipt']).with_name('readonly-import-audit.json')): metadata['readonly_import_audit_sha256'],
+            str(Path(metadata['build_receipt']).with_name('plugin-build-command.json')): metadata['plugin_build_command_sha256']}
+    f.binding['runtime_assets_sha256'] = {name: digest for values in groups.values() for name, digest in values.items()}
+    common = dict(groups, protected_runtime_assets_sha256=copy.deepcopy(f.binding['runtime_assets_sha256']),
+        protected_qemu=dict(readonly_candidate=ref(qemu), production=ref(production), legacy_default=ref(legacy_default)), observer_builds={key: ref(Path(value['build_receipt']))
+            for key, value in f.metas.items()}, launch_runtime_preflight=dict(passed=False, inspected=False, launch_authorized=False), **flags)
+    f.parent = dict(copy.deepcopy(common), schema='functional-shutter-gate-v2-cohort-readback-v1',
+        status='PASS_OFFLINE_SHUTTER_GATE_V2_COHORT_READBACK', expected_original_run_assets=copy.deepcopy(projection),
+        observer_sha256=observer, media_sha256=media_digest, observer_archive_members_verified=len(f.build['sources']) + 1,
+        tests_passed=2, subtests_passed=1, full_inventory={})
+    f.runtime = dict(copy.deepcopy(common), schema='functional-shutter-gate-v2-runtime-ready-v1',
+        status='PASS_NEW_OFFLINE_SHUTTER_GATE_V2_SUPPLEMENT', expected_original_run_assets=copy.deepcopy(projection),
+        actualAPI_cases=list(v.SHUTTER_GATE_API_CASES), v2_actualAPI_compatibility_verified=True,
+        v3_actualAPI_compatibility_verified=True, synthetic_shutter_gate_API_verified=True, synthetic_shutter_gate_v2_API_verified=True)
+    f.plan = dict(copy.deepcopy(common), schema='functional-shutter-gate-v2-plan-v1', driver=str(base / 'scratch/run-functional-current-batch.py'),
+        driver_sha256=f.sha(base / 'scratch/run-functional-current-batch.py'), guest_image=str(f.guest),
+        scope_build=ref(Path(f.metadata['build_receipt'])), claimed_fault_result='FAIL')
+    f.launch_owner = dict(pid=101, ppid=1, starttime=101, exe='/usr/bin/python3')
+    f.regression = dict(returncode=0, tests_passed=2, subtests_passed=1, changed={key: [] for key in f.tested['groups']}, capture_verified=False)
+    marker = 'PASS: constructor thread and application-init wrapper preserved behavior'
+    command = ['/synthetic/original-libc-loader', 'LD_PRELOAD=/synthetic/menu-observe.so', '/synthetic/original-shell']
+    media_command = [arg.replace('LD_PRELOAD=', 'LD_PRELOAD=' + str(base / 'menu-root/simulation/file-media-config.so') + ':')
+                     if arg.startswith('LD_PRELOAD=') else arg for arg in command]
+    f.abi = dict(returncode=0, stdout=marker, command=command, capture_verified=False, observer_sha256=observer,
+        source_archive_sha256=f.build['source_archive_sha256'], source_count=len(f.build['sources']),
+        media_preload_sha256=media_digest, media_preload=dict(returncode=0, stdout=marker, command=media_command, bind_now=True))
+    f.ready = dict(capture_verified=False)
+    def refreeze():
+        frozen = {name: digest for group in f.tested['groups'].values() for name, digest in group.items()}
+        f.parent['full_inventory'] = dict(source_sha256=frozen, modules=copy.deepcopy(f.tested['modules']),
+            groups={key: sorted(group) for key, group in f.tested['groups'].items()})
+        for row in (f.parent, f.runtime, f.parent['full_inventory']):
+            row.update(source_count=len(frozen), module_count=len(f.tested['modules']))
+        f.parent['all_source_members_verified'] = len(frozen)
+        f.parent['tests_passed'] = f.regression['tests_passed'] = len(f.tested['modules'])
+        f.parent.pop('host_junit_coverage', None)
+    f.refreeze = refreeze
+    def refresh():
+        b, batch = f.binding, Path(f.binding['batch'])
+        f.write(batch / 'inputs.json', f.tested)
+        output = io.BytesIO()
+        with tarfile.open(fileobj=output, mode='w:gz') as archive:
+            for name in f.parent['full_inventory']['source_sha256']:
+                raw = Path(name).read_bytes()
+                member = tarfile.TarInfo(str(Path(name).relative_to(native))); member.size = len(raw)
+                archive.addfile(member, io.BytesIO(raw))
+        (batch / 'inputs.tar.gz').write_bytes(output.getvalue())
+        (batch / 'host-regression.log').write_bytes(('%d passed, %d subtests passed\n' %
+            (f.regression['tests_passed'], f.regression['subtests_passed'])).encode())
+        f.regression.update(inputs_sha256=f.sha(batch / 'inputs.json'), log_sha256=f.sha(batch / 'host-regression.log'))
+        f.write(batch / 'host-regression.json', f.regression)
+        f.abi['regression_sha256'] = f.sha(batch / 'host-regression.json')
+        f.write(batch / 'abi.json', f.abi)
+        f.ready.update(inputs_sha256=f.sha(batch / 'inputs.json'), all_input_archive_sha256=f.sha(batch / 'inputs.tar.gz'),
+            regression_sha256=f.sha(batch / 'host-regression.json'), abi_sha256=f.sha(batch / 'abi.json'))
+        f.write(batch / 'ready.json', f.ready); b['batch_ready_sha256'] = f.sha(batch / 'ready.json')
+        junit_path = batch / 'host-regression.junit.xml'
+        junit_path.write_bytes(('<testsuites><testsuite>' + ''.join(
+            '<testcase classname="synthetic.module%d" name="case%d"/>' % (index, index)
+            for index in range(len(f.tested['modules']))) + '</testsuite></testsuites>').encode())
+        coverage = dict(junit=ref(junit_path), modules={name: 1 for name in f.tested['modules']},
+            module_classnames={name: 'synthetic.module%d' % index for index, name in enumerate(f.tested['modules'])},
+            actual_testcases=len(f.tested['modules']), actual_pytest_tests_passed=f.parent['tests_passed'],
+            actual_pytest_subtests_passed=f.parent['subtests_passed'])
+        f.parent.setdefault('host_junit_coverage', coverage)
+        f.parent['host_junit_coverage']['junit'] = ref(junit_path)
+        f.runtime['host_junit'] = ref(junit_path)
+        for key, api in f.api.items():
+            actual = copy.deepcopy(api['actual']); actual.pop('_folder_for_test')
+            f.write(Path(api['manifest']['path']), actual); api['manifest'] = ref(Path(api['manifest']['path']))
+        f.parent['dual_actual_api'] = {str(version): {key: copy.deepcopy(f.api['scope%d' % version][key])
+            for key in ('manifest', 'cases')} for version in (2, 3)}
+        for key, field in (('gate1', 'gate_actual_api'), ('gate2', 'gate_v2_actual_api')):
+            f.parent[field] = {name: copy.deepcopy(f.api[key][name]) for name in ('manifest', 'cases')}
+        f.parent['gate_build_receipt'] = ref(Path(f.metas['gate1']['build_receipt']))
+        f.parent['gate_v2_build_receipt'] = ref(Path(f.metas['gate2']['build_receipt']))
+        f.runtime.update(gate_build_receipt=f.parent['gate_build_receipt'], gate_v2_build_receipt=f.parent['gate_v2_build_receipt'],
+            cohort_actual_api_manifests={key: copy.deepcopy(api['manifest']) for key, api in f.api.items()})
+        f.plan.update(cohort_actual_api_manifests=copy.deepcopy(f.runtime['cohort_actual_api_manifests']))
+        f.parent.update(batch=str(batch), ready_sha256=b['batch_ready_sha256'], source_inventory_sha256=f.ready['inputs_sha256'],
+            source_archive_sha256=f.ready['all_input_archive_sha256'])
+        f.write(Path(b['parent_readback']['path']), f.parent)
+        b['parent_readback'] = ref(Path(b['parent_readback']['path'])); b['actual_api_contract'] = copy.deepcopy(b['parent_readback'])
+        f.runtime.update(batch=str(batch), generic_ready=ref(batch / 'ready.json'), offline_readback=copy.deepcopy(b['parent_readback']))
+        f.write(Path(b['runtime_ready']['path']), f.runtime); b['runtime_ready'] = ref(Path(b['runtime_ready']['path']))
+        fresh_path = Path(b['fresh_guest']['path'])
+        f.write(fresh_path, dict(guest_image=str(f.guest), guest_sha256=b['guest_sha256'], ready_sha256=b['batch_ready_sha256'],
+            runtime_ready_sha256=b['runtime_ready']['sha256'], returncode=0, compiled3_unchanged=True, capture_verified=False,
+            compiled_before={str(base / 'menu-observe.so'): observer}, compiled_after={str(base / 'menu-observe.so'): observer}))
+        b['fresh_guest'] = ref(fresh_path); b['synthetic_fixture_manifest'] = copy.deepcopy(f.api['gate2']['manifest'])
+        f.plan.update({key: copy.deepcopy(b[key]) for key in v.SHUTTER_GATE_PLAN_FIELDS +
+            ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')})
+        f.plan['actual_api_manifest'] = copy.deepcopy(b['synthetic_fixture_manifest'])
+        refresh_shutter_binding(f)
+        f.trust = dict(plan=ref(f.work / 'plan.json'), intent=ref(f.work / 'intent.json'), parent_readback=copy.deepcopy(b['parent_readback']))
+    f.refresh = refresh
+    def source_module(relative, frozen):
+        assert frozen[str(native / relative)] == f.sha(native / relative)
+        if relative == 'runtime/analysis/scope_observer_profile.py':
+            def validate_build(native_arg, path, candidate):
+                assert native_arg == native and candidate == str(qemu)
+                selected = next(value for value in f.metas.values() if value['build_receipt'] == path)
+                assert f.sha(Path(path)) == selected['build_receipt_sha256']
+                return copy.deepcopy(selected)
+            return SimpleNamespace(validate_build=validate_build)
+        return f.helpers.get(relative) or f.parsers[relative]
+    monkeypatch.setattr(f.graph, 'source_module', source_module)
+    refreeze(); refresh()
+    return f
+
+
+@pytest.fixture
+def synthetic_gate_v2_binding(tmp_path, monkeypatch):
+    return make_gate_v2_binding(tmp_path, monkeypatch)
+
+
+def test_gate_v2_reads_bound_dynamic_cohort_and_all_four_api_closures(synthetic_gate_v2_binding):
+    f = synthetic_gate_v2_binding
+    guest, snapshots = scope_provenance(f, gate_v2_trust=f.trust)
+    assert guest == f.guest and f.work / 'plan.json' in snapshots
+    assert f.parent['source_count'] == len(f.parent['full_inventory']['source_sha256']) != 1193
+    assert f.parent['module_count'] == len(f.tested['modules']) != 242
+    assert 'source_count' not in f.ready and 'module_count' not in f.ready
+    assert set(f.parent['protected_qemu']) == {'production', 'legacy_default', 'readonly_candidate'}
+    assert len(f.binding['runtime_assets_sha256']) == 21
+    assert all(Path(api['manifest']['path']) in snapshots for api in f.api.values())
+    assert ('parse', 'gate2') in f.adapter_calls
+    assert f.binding['claimed_fault_result'] == 'FAIL' and all(f.binding[key] is False for key in v.SHUTTER_GATE_FALSE_FIELDS)
+
+
+def test_gate_v2_can_enter_its_own_frozen_cohort_without_embedded_future_hashes(synthetic_gate_v2_binding):
+    f = synthetic_gate_v2_binding
+    first = copy.deepcopy(f.trust)
+    scope_provenance(f, gate_v2_trust=first)
+    source = v.BASE / 'scratch/verify_hdmi_edge.py'
+    source.write_bytes(source.read_bytes() + b'# next synthetic approved cohort\n')
+    f.tested['groups']['host'][str(source)] = f.sha(source)
+    extra = v.BASE / 'test_third_module.py'; extra.write_bytes(b'# additional frozen module\n')
+    f.tested['groups']['test'][str(extra)] = f.sha(extra)
+    f.tested['modules'].append(str(extra))
+    before_count = f.parent['source_count']
+    f.refreeze(); f.refresh()
+    assert f.parent['source_count'] == before_count + 1 and f.parent['module_count'] == 3
+    assert f.trust != first
+    scope_provenance(f, gate_v2_trust=f.trust)
+    with pytest.raises(ValueError, match='trust|digest'):
+        scope_provenance(f, gate_v2_trust=first)
+
+
+@pytest.mark.parametrize('damage', ['missing-trust', 'extra-trust', 'plan-hash', 'intent-hash', 'parent-hash', 'foreign-plan', 'foreign-intent'])
+def test_gate_v2_trust_must_be_explicit_exact_and_same_run(synthetic_gate_v2_binding, damage):
+    f = synthetic_gate_v2_binding
+    trust = copy.deepcopy(f.trust)
+    if damage == 'missing-trust':
+        trust = None
+    elif damage == 'extra-trust':
+        trust['ready'] = copy.deepcopy(f.binding['runtime_ready'])
+    elif damage.endswith('-hash'):
+        trust[damage.removesuffix('-hash') if damage != 'parent-hash' else 'parent_readback']['sha256'] = '0' * 64
+    else:
+        trust['plan' if damage == 'foreign-plan' else 'intent']['path'] = str(f.work / 'foreign.json')
+    with pytest.raises((ValueError, KeyError, OSError)):
+        scope_provenance(f, gate_v2_trust=trust)
+
+
+@pytest.mark.parametrize('where', ['run', 'plan', 'intent', 'launch'])
+def test_gate_v2_rejects_old_provenance_schemas_even_with_new_caller_hashes(synthetic_gate_v2_binding, where):
+    f = synthetic_gate_v2_binding
+    if where == 'run':
+        f.binding['schema'] = v.SHUTTER_GATE_RUN
+        f.write(f.run / 'readonly-scope-run-binding.json', f.binding)
+    elif where == 'plan':
+        f.plan['schema'] = 'functional-shutter-gate-v1-plan-v1'
+        f.refresh()
+    else:
+        path = f.work / ('intent.json' if where == 'intent' else 'launch-binding.json')
+        data = json.loads(path.read_bytes())
+        data['schema'] = 'functional-shutter-gate-v1-' + ('intent-v1' if where == 'intent' else 'launch-v1')
+        f.write(path, data)
+        f.binding['intent_sha256' if where == 'intent' else 'launch_binding_sha256'] = f.sha(path)
+        f.write(f.run / 'readonly-scope-run-binding.json', f.binding)
+        if where == 'intent':
+            f.trust['intent']['sha256'] = f.sha(path)
+    with pytest.raises((ValueError, KeyError, OSError)):
+        scope_provenance(f, gate_v2_trust=f.trust)
+
+
+def test_gate_v2_native_entry_forwards_trust_before_original_upm_content(synthetic_gate_v2_binding, monkeypatch):
+    f = synthetic_gate_v2_binding
+    scope = dict(f.metadata, staged_library=str(f.run / 'readonly-scope-observer.so'),
+        qemu_binary=f.binding['candidate_qemu']['path'], plan_binding=copy.deepcopy(f.context['scope']))
+    config = dict(readonly_scope_observer=scope, running_QEMU_sha256=f.metadata['qemu_sha256'],
+                  scope_build_receipt=f.metadata['build_receipt'])
+    class ReachedOriginalUPMRead(RuntimeError):
+        pass
+    def read(path, limit):
+        if path.name == 'hdmi-upm-watch-result.json':
+            raise ReachedOriginalUPMRead('v2 source/config join completed; original UPM content remains required')
+        return path.read_bytes()
+    calls = []
+    def source_proof(log, run, *, gate_v2_trust):
+        assert run == f.run and gate_v2_trust is f.trust
+        scope_provenance(f, gate_v2_trust=gate_v2_trust)
+        calls.append(gate_v2_trust)
+        return dict(run_binding_schema=v.SHUTTER_GATE_V2_RUN, shutter_gate_config_scope=copy.deepcopy(scope))
+    monkeypatch.setattr(v, '_condition_source_proof', source_proof)
+    monkeypatch.setattr(v, '_WATCH', SimpleNamespace(read_receipts=lambda run: [None, None],
+        validate_run=lambda run: (f.run, None), read_config=lambda path: copy.deepcopy(config),
+        checked_read=read, read_result=lambda config: read(f.run / 'hdmi-upm-watch-result.json', 32768),
+        parse_json=json.loads, json=json, PREFIX='hdmi-upm-watch',
+        READONLY_SCOPE_QEMU_SHA=f.metadata['qemu_sha256']))
+    with pytest.raises(ReachedOriginalUPMRead):
+        v.verify_hdmi_upm(Log(''), f.run, gate_v2_trust=f.trust)
+    assert calls == [f.trust]
+
+
+@pytest.mark.parametrize('damage', ['ready-status', 'parent-status', 'ready-schema', 'parent-schema', 'old-ready-name',
+    'scope-v2-profile', 'gate-v1-profile', 'old-trace', 'root-alias', 'reader-schema-alias', 'runtime-cap',
+    'parent-cap', 'nested-cap', 'missing-source7', 'missing-fixture7', 'frozen-missing', 'full-frozen-missing',
+    'full-groups', 'source-count', 'module-count', 'boolean-count', 'duplicate-module', 'junit-coverage',
+    'junit-classnames', 'source-asset-loss', 'new-asset-loss', 'asset-role-mix', 'media-ABI', 'observer-ABI',
+    'media-bind-now', 'media-command', 'API2-missing', 'API3-missing', 'API1-missing', 'API2-v3-mix', 'API-new-mixed',
+    'new-source-ref-root', 'new-fixture-ref-root', 'api-case-loss', 'api-trace', 'api-operand', 'api-baseline',
+    'api-ledger-loss', 'api-command-loss', 'api-timeout', 'api-manifest-schema', 'api-cap', 'abi-bool-rc',
+    'legacy-command-extra', 'legacy-command-missing', 'gate-outer-missing', 'gate-payload-missing',
+    'api-command-string', 'api-unreaped', 'api-command-argv', 'legacy-timeout-argv',
+    'legacy-payload-argv', 'gate-payload-argv', 'api-budget-float'])
+def test_gate_v2_rejects_mixed_missing_or_promoted_content(synthetic_gate_v2_binding, damage):
+    f = synthetic_gate_v2_binding
+    if damage == 'ready-status':
+        f.runtime['status'] = 'PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT'
+    elif damage == 'parent-status':
+        f.parent['status'] = 'PASS_OFFLINE_PIN_PEER_RELEASE_GENERATION_COHORT_READBACK'
+    elif damage in ('ready-schema', 'parent-schema'):
+        (f.runtime if damage == 'ready-schema' else f.parent)['schema'] = 'functional-shutter-gate-v1-plan-v1'
+    elif damage == 'old-ready-name':
+        f.binding['runtime_ready']['path'] = str(Path(f.binding['batch']) / 'readonly-shutter-gate-v1-runtime-ready.json')
+    elif damage in ('scope-v2-profile', 'gate-v1-profile', 'old-trace'):
+        field, value = {'scope-v2-profile': ('profile', 'qemu-readonly-scope-v2'),
+            'gate-v1-profile': ('profile', v.SHUTTER_GATE_PROFILE), 'old-trace': ('trace_schema', 'readonly_shutter_gate_v1')}[damage]
+        f.expected[field] = value
+    elif damage in ('root-alias', 'reader-schema-alias'):
+        (f.expected if damage == 'root-alias' else f.binding['shutter_gate_reader_expected'])[
+            'source_root' if damage == 'root-alias' else 'schema_sha256'] = 'a' * 64
+    elif damage in ('runtime-cap', 'parent-cap', 'nested-cap'):
+        target = f.runtime if damage == 'runtime-cap' else f.parent
+        if damage == 'nested-cap':
+            target['unused'] = dict(cap=True)
+        else:
+            target['cap'] = True
+    elif damage in ('missing-source7', 'missing-fixture7'):
+        key = 'source_sha256' if damage == 'missing-source7' else 'fixture_source_sha256'
+        f.expected[key].pop(next(iter(f.expected[key])))
+    elif damage == 'frozen-missing':
+        del f.tested['groups']['host'][str(v.BASE / 'scratch/verify_hdmi_edge.py')]
+    elif damage == 'full-frozen-missing':
+        f.parent['full_inventory']['source_sha256'].pop(next(iter(f.parent['full_inventory']['source_sha256'])))
+    elif damage == 'full-groups':
+        f.parent['full_inventory']['groups']['host'].pop()
+    elif damage in ('source-count', 'module-count', 'boolean-count'):
+        key = 'source_count' if damage != 'module-count' else 'module_count'
+        f.runtime[key] = True if damage == 'boolean-count' else f.runtime[key] + 1
+    elif damage == 'duplicate-module':
+        f.tested['modules'].append(f.tested['modules'][0])
+    elif damage == 'junit-coverage':
+        f.parent['host_junit_coverage']['modules'][f.tested['modules'][0]] += 1
+    elif damage == 'junit-classnames':
+        f.parent['host_junit_coverage']['module_classnames'][f.tested['modules'][0]] += '.foreign'
+    elif damage in ('source-asset-loss', 'new-asset-loss', 'asset-role-mix'):
+        field = 'legacy_runtime_assets_sha256' if damage == 'source-asset-loss' else 'gate_v2_added_runtime_assets_sha256'
+        path = next(iter(f.parent[field])); digest = f.parent[field].pop(path)
+        if damage == 'asset-role-mix':
+            f.parent[field][next(iter(f.parent['gate_added_runtime_assets_sha256']))] = digest
+    elif damage in ('media-ABI', 'observer-ABI', 'media-bind-now', 'media-command', 'abi-bool-rc'):
+        if damage == 'media-ABI':
+            del f.abi['media_preload']
+        elif damage == 'observer-ABI':
+            f.abi['stdout'] = 'missing original marker'
+        elif damage == 'media-command':
+            f.abi['media_preload']['command'] = copy.deepcopy(f.abi['command'])
+        elif damage == 'media-bind-now':
+            f.abi['media_preload']['bind_now'] = False
+        else:
+            f.abi['returncode'] = False
+    else:
+        actual = f.api['gate2']['actual']
+        if damage == 'API2-v3-mix':
+            f.api['scope2']['actual']['profile'] = 'qemu-readonly-scope-v3'
+        elif damage in ('API2-missing', 'API3-missing', 'API1-missing'):
+            pass  # Rebind the deliberately incomplete parent below, without changing fixture refs.
+        elif damage == 'API-new-mixed':
+            f.api['gate2']['actual'] = copy.deepcopy(f.api['gate1']['actual'])
+        elif damage in ('new-source-ref-root', 'new-fixture-ref-root'):
+            prefix = 'source:' if damage == 'new-source-ref-root' else 'fixture-source:'
+            name = next(name for name in actual['inputs'] if name.startswith(prefix))
+            actual['inputs'][name]['path'] = actual['inputs'][name]['path'].replace(v.SHUTTER_GATE_V2_COMPONENT, v.SHUTTER_GATE_COMPONENT)
+        elif damage == 'api-case-loss':
+            actual['variants'].pop('short_tb')
+        elif damage in ('api-trace', 'api-operand', 'api-baseline'):
+            name = {'api-trace': 'cases/original_entry-plugin/plugin.log',
+                'api-operand': 'cases/original_entry-baseline/independent-operands.json',
+                'api-baseline': 'cases/original_entry-plugin/console.bin'}[damage]
+            path = Path(actual['_folder_for_test']) / name
+            raw = b'{"case":"foreign"}' if damage == 'api-operand' else b'changed raw bytes\n'
+            path.write_bytes(raw)
+            actual['artifacts'][name] = dict(bytes=len(raw), sha256=f.sha(path))
+        elif damage == 'api-ledger-loss':
+            actual['artifacts'].pop('cases/original_entry-plugin/plugin.log')
+        elif damage == 'api-command-loss':
+            actual['commands'].pop(0)
+        elif damage == 'api-timeout':
+            actual['commands'][0]['outer_timeout'] = True
+        elif damage == 'legacy-command-extra':
+            f.api['scope2']['actual']['commands'][0]['outer_timeout'] = False
+        elif damage == 'legacy-command-missing':
+            f.api['scope3']['actual']['commands'][0].pop('owned_pid_unreaped')
+        elif damage == 'gate-outer-missing':
+            actual['commands'][0].pop('outer_timeout')
+        elif damage == 'gate-payload-missing':
+            f.api['gate1']['actual']['commands'][0].pop('payload_argv')
+        elif damage == 'api-command-string':
+            actual['commands'][0]['command'] = 'not-an-argv-list'
+        elif damage == 'api-unreaped':
+            actual['commands'][0]['owned_pid_unreaped'] = 123
+        elif damage == 'api-command-argv':
+            actual['commands'][0]['command'][-1] = '/foreign/fixture.elf'
+        elif damage == 'legacy-timeout-argv':
+            command = f.api['scope2']['actual']['commands'][0]['command']
+            command[command.index('--verbose') + 1] = '600s'
+        elif damage == 'legacy-payload-argv':
+            f.api['scope3']['actual']['commands'][0]['command'][-1] = '/foreign/fixture.elf'
+        elif damage == 'gate-payload-argv':
+            actual['commands'][0]['payload_argv'] = actual['commands'][0]['payload_argv'][:-1] + ['/foreign/fixture.elf']
+        elif damage == 'api-budget-float':
+            actual['commands'][0]['limit_seconds'] = 60.0
+        elif damage == 'api-manifest-schema':
+            actual['trace_schema'] = 'readonly_scope_v2'
+        elif damage == 'api-cap':
+            actual['cap'] = True
+    if damage in ('API2-missing', 'API3-missing', 'API1-missing'):
+        # Preserve the original refs and remove only the bound parent API entry after rebinding.
+        missing = {'API2-missing': 'scope2', 'API3-missing': 'scope3', 'API1-missing': 'gate1'}[damage]
+        if missing.startswith('scope'):
+            del f.parent['dual_actual_api'][missing[-1]]
+        else:
+            del f.parent['gate_actual_api']
+        refresh_shutter_parents(f)
+        f.trust = dict(plan=dict(path=str(f.work / 'plan.json'), sha256=f.sha(f.work / 'plan.json')),
+            intent=dict(path=str(f.work / 'intent.json'), sha256=f.sha(f.work / 'intent.json')),
+            parent_readback=copy.deepcopy(f.binding['parent_readback']))
+        with pytest.raises((ValueError, KeyError, OSError)):
+            scope_provenance(f, gate_v2_trust=f.trust)
+        return
+    f.refresh()
+    with pytest.raises((ValueError, KeyError, OSError, AssertionError)):
+        scope_provenance(f, gate_v2_trust=f.trust)
+
+
+def refresh_pin_peer_parents(f, monkeypatch):
+    """Synthetic receipt hashes only; keep the real source19 approval/candidate trust pins."""
+    refresh_shutter_parents(f)
+    monkeypatch.setattr(v, 'PIN_PEER_RUNTIME_READY_SHA', f.binding['runtime_ready']['sha256'])
+    monkeypatch.setattr(v, 'PIN_PEER_PARENT_READBACK_SHA', f.binding['parent_readback']['sha256'])
+
+
+@pytest.fixture
+def synthetic_pin_peer_binding(synthetic_shutter_binding, monkeypatch):
+    """New immutable offline source19 receipts in the old synthetic run envelope; no VM/image IO."""
+    f = synthetic_shutter_binding
+    prototype = json.loads(archived_receipt('A7C2_PIN_PEER_PARENT_RECEIPT').read_bytes())
+    source_batch = Path(prototype['batch'])
+    f.tested = json.loads((source_batch / 'inputs.json').read_bytes())
+    # Replay these historical host inputs from their reviewed cohort, independently
+    # of the current consumer and its newer profile/teardown implementation.
+    host_paths = tuple(BASE / name for name in ('scope_observer_profile.py', 'functional_camera_runner.py'))
+    source_ready_raw = (source_batch / 'ready.json').read_bytes()
+    assert hashlib.sha256(source_ready_raw).hexdigest() == prototype['ready_sha256']
+    archive_raw = (source_batch / 'inputs.tar.gz').read_bytes()
+    assert hashlib.sha256(archive_raw).hexdigest() == json.loads(source_ready_raw)['all_input_archive_sha256']
+    with tarfile.open(fileobj=io.BytesIO(archive_raw), mode='r:gz') as archive:
+        frozen_hosts = {path: archive.extractfile('runtime/analysis/' + path.name).read() for path in host_paths}
+    for path, raw in frozen_hosts.items():
+        assert hashlib.sha256(raw).hexdigest() == f.tested['groups']['host'][str(path)]
+    graph_read = f.graph.read
+    def read_frozen_hosts(path, limit=f.graph.MAX_SOURCE):
+        if Path(path) in frozen_hosts:
+            raw = frozen_hosts[Path(path)]
+            assert len(raw) <= limit
+            return raw
+        return graph_read(path, limit)
+    monkeypatch.setattr(f.graph, 'read', read_frozen_hosts)
+    f.parent = copy.deepcopy(prototype)
+    f.runtime = json.loads((source_batch / 'pin-peer-release-generation-runtime-ready.json').read_bytes())
+    b = f.binding
+    batch = Path(b['batch'])
+    f.write(batch / 'inputs.json', f.tested)
+    f.write(batch / 'host-regression.json', json.loads((source_batch / 'host-regression.json').read_bytes()))
+    ready = json.loads((source_batch / 'ready.json').read_bytes())
+    ready.update(inputs_sha256=f.sha(batch / 'inputs.json'), regression_sha256=f.sha(batch / 'host-regression.json'))
+    f.write(batch / 'ready.json', ready)
+    b['batch_ready_sha256'] = f.sha(batch / 'ready.json')
+    f.parent.update(batch=str(batch), ready_sha256=b['batch_ready_sha256'])
+    f.runtime['generic_ready'] = dict(path=str(batch / 'ready.json'), sha256=b['batch_ready_sha256'])
+    projection = copy.deepcopy(prototype['expected_original_run_assets'])
+    f.expected.update(projection)
+    f.expected['functional_runner_source_sha256'] = f.tested['groups']['host'][str(BASE / 'functional_camera_runner.py')]
+    b.update(observer_sha256=projection['observer_sha256'], shutter_gate_reader_expected=projection,
+        synthetic_fixture_manifest=copy.deepcopy(prototype['gate_actual_api']['manifest']),
+        runtime_ready=dict(path=str(batch / 'pin-peer-release-generation-runtime-ready.json'), sha256='a' * 64),
+        runtime_assets_sha256=dict(prototype['legacy_runtime_assets_sha256'], **prototype['gate_added_runtime_assets_sha256']))
+    f.observer = b['observer_sha256']
+    f.build['sources'] = {path: dict(sha256=digest) for path, digest in f.tested['groups']['production'].items()}
+    f.plan.update(batch_ready_sha256=b['batch_ready_sha256'], source_approval=copy.deepcopy(prototype['parent_approval']),
+        actual_api_manifest=copy.deepcopy(b['synthetic_fixture_manifest']))
+    fresh_path = Path(b['fresh_guest']['path'])
+    fresh = json.loads(fresh_path.read_bytes())
+    fresh.update(ready_sha256=b['batch_ready_sha256'], compiled_before={str(BASE / 'menu-observe.so'): f.observer},
+        compiled_after={str(BASE / 'menu-observe.so'): f.observer})
+    f.write(fresh_path, fresh)
+    refresh_pin_peer_parents(f, monkeypatch)
+    return f
+
+
+def test_pin_peer_reviewed_generation_pins_bind_actual_offline_receipts():
+    parent_path = archived_receipt('A7C2_PIN_PEER_PARENT_RECEIPT')
+    parent_raw = parent_path.read_bytes()
+    parent = json.loads(parent_raw)
+    runtime_raw = (Path(parent['batch']) / 'pin-peer-release-generation-runtime-ready.json').read_bytes()
+    runtime = json.loads(runtime_raw)
+    assert hashlib.sha256(parent_raw).hexdigest() == v.PIN_PEER_PARENT_READBACK_SHA
+    assert hashlib.sha256(runtime_raw).hexdigest() == v.PIN_PEER_RUNTIME_READY_SHA
+    assert runtime['offline_readback'] == dict(path=str(parent_path), sha256=v.PIN_PEER_PARENT_READBACK_SHA)
+    for key, digest in (('parent_approval', v.PIN_PEER_SOURCE_APPROVAL_SHA), ('candidate_manifest', v.PIN_PEER_CANDIDATE_SHA)):
+        assert runtime[key] == parent[key]
+        assert runtime[key]['sha256'] == hashlib.sha256(Path(runtime[key]['path']).read_bytes()).hexdigest() == digest
+
+
+def test_pin_peer_scope_joins_reviewed_source19_and_new_ready(synthetic_pin_peer_binding):
+    f = synthetic_pin_peer_binding
+    guest, snapshots = scope_provenance(f)
+    assert guest == f.guest
+    assert len(f.parent['source19']) == len(f.runtime['source19']) == 19
+    for name in ('scope_observer_profile.py', 'functional_camera_runner.py'):
+        path = BASE / name
+        assert hashlib.sha256(snapshots[path]).hexdigest() == f.tested['groups']['host'][str(path)]
+    assert f.parent['full_inventory']['source_count'] == 1193
+    assert f.parent['full_inventory']['module_count'] == 242
+    assert Path(f.binding['runtime_ready']['path']).name == 'pin-peer-release-generation-runtime-ready.json'
+    assert all(Path(f.binding['batch']) / name in snapshots for name in ('ready.json', 'inputs.json', 'host-regression.json'))
+    assert all(Path(f.runtime[key]['path']) in snapshots for key in ('parent_approval', 'candidate_manifest'))
+    assert all(Path(row['manifest']['path']) in snapshots for row in f.parent['dual_actual_api'].values())
+    assert f.binding['claimed_fault_result'] == 'FAIL'
+    assert all(f.binding[key] is False for key in v.SHUTTER_GATE_FALSE_FIELDS)
+
+
+@pytest.mark.parametrize('name', ['scope_observer_profile.py', 'functional_camera_runner.py'])
+def test_pin_peer_historical_profile_replay_rejects_changed_source_bytes(synthetic_pin_peer_binding, monkeypatch, name):
+    f = synthetic_pin_peer_binding
+    source_path = BASE / name
+    graph_read = f.graph.read
+    def changed_source(path, limit=f.graph.MAX_SOURCE):
+        raw = graph_read(path, limit)
+        return raw + b'# changed source generation\n' if Path(path) == source_path else raw
+    monkeypatch.setattr(f.graph, 'read', changed_source)
+    with pytest.raises(ValueError, match='actual/frozen host source differs: ' + re.escape(name)):
+        scope_provenance(f)
+
+
+def test_pin_peer_historical_runner_operand_cannot_use_current_source(synthetic_pin_peer_binding, monkeypatch):
+    f = synthetic_pin_peer_binding
+    current = f.sha(BASE / 'functional_camera_runner.py')
+    assert current != f.tested['groups']['host'][str(BASE / 'functional_camera_runner.py')]
+    f.expected['functional_runner_source_sha256'] = current
+    refresh_pin_peer_parents(f, monkeypatch)
+    with pytest.raises(ValueError, match='shutter gate Main/runner/appFw operands differ'):
+        scope_provenance(f)
+
+
+@pytest.mark.parametrize('damage', ['old-runtime-status', 'old-parent-status', 'legacy-runtime-name',
+    'old14', 'approval14', 'candidate-other', 'frozen-mixed', 'source19-mixed', 'full-source-mixed',
+    'modules-mixed', 'groups-mixed', 'groups-count-only', 'parent-other-batch', 'parent-ready', 'wrong-generic-ready', 'ready-bytes',
+    'regression-count', 'actual-api-cases', 'gate-actualapi-other', 'missing-v2', 'v3-false',
+    'asset-change', 'runtime-cap', 'parent-cap', 'wrong-reader-schema', 'wrong-build-metadata',
+    'guest-ready', 'boolean-nonce', 'unreviewed-runtime', 'unreviewed-parent'])
+def test_pin_peer_generation_cannot_be_mixed_or_promoted(synthetic_pin_peer_binding, monkeypatch, damage):
+    f = synthetic_pin_peer_binding
+    b = f.binding
+    if damage == 'old-runtime-status':
+        f.runtime['status'] = 'PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT'
+    elif damage == 'old-parent-status':
+        f.parent['status'] = 'PASS_OFFLINE_SHUTTER_GATE_V1_COHORT_READBACK'
+    elif damage == 'legacy-runtime-name':
+        b['runtime_ready']['path'] = str(Path(b['batch']) / 'readonly-shutter-gate-v1-runtime-ready.json')
+    elif damage == 'old14':
+        for row in (f.parent, f.runtime, f.parent['full_inventory']):
+            row['source19'] = dict(list(row['source19'].items())[:14])
+            row.update(changed_source_count=14, unchanged_source_count=1179)
+    elif damage == 'approval14':
+        ref = copy.deepcopy(f.parent['production_source_install_approval'])
+        f.parent['parent_approval'] = f.runtime['parent_approval'] = f.plan['source_approval'] = ref
+    elif damage == 'candidate-other':
+        ref = copy.deepcopy(f.parent['production_candidate_manifest'])
+        f.parent['candidate_manifest'] = f.runtime['candidate_manifest'] = ref
+    elif damage == 'frozen-mixed':
+        f.tested['groups']['production'][str(BASE / 'menu-observe.c')] = f.parent['source19']['runtime/analysis/menu-observe.c']['before_sha256']
+    elif damage == 'source19-mixed':
+        f.runtime['source19']['runtime/analysis/menu-observe.c']['after_sha256'] = '0' * 64
+    elif damage == 'full-source-mixed':
+        f.parent['full_inventory']['source_sha256'][str(BASE / 'menu-observe.c')] = '0' * 64
+    elif damage == 'modules-mixed':
+        f.parent['full_inventory']['modules'][0] += '-foreign'
+    elif damage == 'groups-mixed':
+        f.parent['full_inventory']['groups']['production'][0] += '-foreign'
+    elif damage == 'groups-count-only':
+        f.parent['full_inventory']['groups'] = {key: len(value) for key, value in f.tested['groups'].items()}
+    elif damage == 'parent-other-batch':
+        f.parent['batch'] += '-foreign'
+    elif damage == 'parent-ready':
+        f.parent['ready_sha256'] = '0' * 64
+    elif damage == 'wrong-generic-ready':
+        f.runtime['generic_ready']['path'] = str(Path(b['batch']) / 'foreign-ready.json')
+    elif damage == 'ready-bytes':
+        path = Path(b['batch']) / 'ready.json'
+        row = json.loads(path.read_bytes()); row['capture_verified'] = True
+        f.write(path, row)
+    elif damage == 'regression-count':
+        f.parent['tests_passed'] -= 1
+    elif damage == 'actual-api-cases':
+        f.runtime['actualAPI_cases'].pop()
+    elif damage == 'gate-actualapi-other':
+        ref = copy.deepcopy(f.parent['dual_actual_api']['2']['manifest'])
+        f.parent['gate_actual_api']['manifest'] = b['synthetic_fixture_manifest'] = f.plan['actual_api_manifest'] = ref
+    elif damage == 'missing-v2':
+        del f.parent['dual_actual_api']['2']
+    elif damage == 'v3-false':
+        f.runtime['v3_actualAPI_compatibility_verified'] = False
+    elif damage == 'asset-change':
+        b['runtime_assets_sha256'][next(iter(b['runtime_assets_sha256']))] = '0' * 64
+    elif damage == 'runtime-cap':
+        f.runtime['cap'] = True
+    elif damage == 'parent-cap':
+        f.parent['cap'] = True
+    elif damage == 'wrong-reader-schema':
+        f.expected['trace_schema_sha256'] = '0' * 64
+    elif damage == 'wrong-build-metadata':
+        f.metadata['readonly_import_audit_sha256'] = '0' * 64
+    elif damage == 'guest-ready':
+        path = Path(b['fresh_guest']['path'])
+        row = json.loads(path.read_bytes()); row['ready_sha256'] = '0' * 64
+        f.write(path, row)
+    elif damage == 'boolean-nonce':
+        b['nonce'] = True
+    refresh_pin_peer_parents(f, monkeypatch)
+    if damage in ('unreviewed-runtime', 'unreviewed-parent'):
+        monkeypatch.setattr(v, 'PIN_PEER_RUNTIME_READY_SHA' if damage == 'unreviewed-runtime' else 'PIN_PEER_PARENT_READBACK_SHA', '0' * 64)
+    with pytest.raises((ValueError, KeyError, OSError)):
+        scope_provenance(f)
+
+
 def test_shutter_scope_uses_actual_fixed_source7_fixture7_and_independent_schemas(synthetic_shutter_binding):
     f = synthetic_shutter_binding
     guest, snapshots = scope_provenance(f)
     assert guest == f.guest
     assert set(f.expected['source_sha256']) == set(v.SHUTTER_GATE_SOURCE_NAMES)
     assert set(f.expected['fixture_source_sha256']) == set(v.SHUTTER_GATE_FIXTURE_NAMES)
-    assert f.source_root == f.graph.NATIVE / v.SHUTTER_GATE_COMPONENT == BASE.parents[1] / v.SHUTTER_GATE_COMPONENT
+    assert f.source_root == f.graph.NATIVE / v.SHUTTER_GATE_COMPONENT
     assert not v.SHUTTER_GATE_ALIASES & f.expected.keys()
     assert f.expected['trace_schema_sha256'] == f.sha(f.source_root / 'log-schema-shutter-gate-v1.json')
     assert f.binding['shutter_gate_reader_expected'] == f.parent['expected_original_run_assets']
@@ -377,7 +1143,6 @@ def test_shutter_scope_uses_actual_fixed_source7_fixture7_and_independent_schema
     assert f.run / 'readonly-scope-live-ancestry.json' in snapshots
     assert all(f.source_root / name in snapshots for name in v.SHUTTER_GATE_FIXTURE_NAMES)
     assert all(f.binding[k] is False for k in v.SHUTTER_GATE_FALSE_FIELDS)
-    assert f.validate_calls == [(BASE.parents[1], f.metadata['build_receipt'], f.binding['candidate_qemu']['path'])]
 
 
 @pytest.mark.parametrize('alias', sorted(v.SHUTTER_GATE_ALIASES))
@@ -415,7 +1180,6 @@ def test_shutter_requires_exact_seven_actual_and_frozen_roles(synthetic_shutter_
     else:
         values[next(iter(values))] = '0' * 64
     f.metadata[role] = copy.deepcopy(values)
-    f.binding['shutter_gate_reader_expected'][role] = copy.deepcopy(values)
     refresh_shutter_parents(f)
     with pytest.raises((ValueError, KeyError, OSError)):
         scope_provenance(f)
@@ -528,20 +1292,10 @@ def test_shutter_popen_receipts_bind_the_whole_generation(synthetic_shutter_bind
                                    'candidate_static_audit_sha256'])
 def test_shutter_all_audit_metadata_must_match_actual_build_bytes(synthetic_shutter_binding, field):
     f = synthetic_shutter_binding
-    original_digest = f.metadata[field]
     f.metadata[field] = '0' * 64
     refresh_shutter_parents(f)
     assert f.manifest['readonly_scope_observer'][field] == f.expected['build_metadata'][field]
     with pytest.raises(ValueError, match='complete actual build metadata differs'):
-        scope_provenance(f)
-    f.metadata[field] = original_digest
-    refresh_shutter_parents(f)
-    plugin = Path(f.metadata['build_receipt']).parent
-    path = {'plugin_build_command_sha256': plugin / 'plugin-build-command.json',
-        'readonly_import_audit_sha256': plugin / 'readonly-import-audit.json',
-        'candidate_static_audit_sha256': Path(f.binding['candidate_qemu']['path']).parents[1] / 'binary-static-audit.json'}[field]
-    path.write_bytes(path.read_bytes() + b' ')
-    with pytest.raises(ValueError, match='shutter gate receipt digest differs'):
         scope_provenance(f)
 
 
@@ -570,91 +1324,108 @@ def test_shutter_popen_original_byte_and_generation_links_cannot_be_replaced(syn
         scope_provenance(f)
 
 
-def test_upm_consumer_routes_large_host_metadata_through_shared_reader(tmp_path):
-    """Parser and source dispatch structure only; no original-process replay claim."""
-    from test_hdmi_upm_watch import reader_config_fixture
-    watch = v._watch()
-    config = reader_config_fixture(v.SHUTTER_GATE_PROFILE)
-    path = tmp_path / 'config.json'
+@pytest.fixture
+def shutter_native_replay(native_replay, synthetic_shutter_binding, monkeypatch):
+    """Real original UPM event/free bytes; source-envelope join tested independently above."""
+    run, log = native_replay
+    f = synthetic_shutter_binding
+    scope = dict(f.metadata, staged_library=str(run / 'readonly-scope-observer.so'),
+        qemu_binary=f.binding['candidate_qemu']['path'], plan_binding=f.context['scope'])
+    path = run / 'hdmi-upm-watch-config.json'
+    config = json.loads(path.read_bytes())
+    bound_scope = copy.deepcopy(scope)
+    config.update(running_QEMU_sha256=v._watch().READONLY_SCOPE_QEMU_SHA,
+                  scope_build_receipt=scope['build_receipt'], readonly_scope_observer=copy.deepcopy(scope))
+    config['padding'] = 'x' * max(0, 17465 - len(json.dumps(config).encode()))
     path.write_text(json.dumps(config))
     assert 16384 < len(path.read_bytes()) <= 32768
-    assert watch.read_config(path) == config
-    tree = ast.parse(Path(v.__file__).read_text())
-    consumer = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'verify_hdmi_upm')
-    calls = [node for node in ast.walk(consumer) if isinstance(node, ast.Call)]
-    reads = [node for node in calls if isinstance(node.func, ast.Attribute) and node.func.attr == 'read_config']
-    joins = [node for node in calls if isinstance(node.func, ast.Name) and node.func.id == '_condition_source_proof']
-    assert len(reads) == len(joins) == 1 and reads[0].lineno < joins[0].lineno
-    assert any(isinstance(node, ast.Constant) and node.value == 'shutter gate native config/source binding differs'
-               for node in ast.walk(consumer))
+    calls = []
+    def source_proof(actual_log, actual_run):
+        assert actual_log is log and actual_run == run
+        scope_provenance(f)
+        calls.append((actual_log, actual_run))
+        return dict(run_binding_schema=v.SHUTTER_GATE_RUN, shutter_gate_config_scope=copy.deepcopy(bound_scope))
+    monkeypatch.setattr(v, '_condition_source_proof', source_proof)
+    return run, log, config, calls
+
+
+def test_actual_upm_consumer_reads_large_new_config_via_shared_reader(shutter_native_replay, monkeypatch):
+    run, log, _, calls = shutter_native_replay
+    watch = v._watch()
+    original = watch.read_config
+    loaded = []
+    def record(path, *args, **kwargs):
+        loaded.append(path)
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(watch, 'read_config', record)
+    proof = v.verify_hdmi_upm(log, run)
+    assert proof['native_UPM_verified'] is True and proof['full_edge_verified'] is False
+    assert len(proof['receipts']) == 2 and calls == [(log, run)]
+    assert loaded.count(run / 'hdmi-upm-watch-config.json') == 2
 
 
 @pytest.mark.parametrize('profile', [None, 'qemu-readonly-scope-v1', 'qemu-readonly-scope-v2', 'qemu-readonly-scope-v3'])
-def test_shared_reader_retains_old_profile_config_limits(tmp_path, profile):
-    from test_hdmi_upm_watch import reader_config_fixture
-    watch = v._watch()
-    config = reader_config_fixture(profile)
-    if profile is not None:
-        del config['readonly_scope_observer']['plan_binding']
-    path = tmp_path / 'config.json'
+def test_actual_upm_consumer_retains_old_profile_config_limits(native_replay, profile):
+    run, log = native_replay
+    path = run / 'hdmi-upm-watch-config.json'
+    config = json.loads(path.read_bytes())
+    config['readonly_scope_observer'] = None if profile is None else dict(profile=profile)
     path.write_text(json.dumps(config))
-    assert watch.read_config(path) == config
+    assert v.verify_hdmi_upm(log, run)['native_UPM_verified']
     config['padding'] = 'x' * 17000
     path.write_text(json.dumps(config))
     with pytest.raises(ValueError, match='profile byte bound'):
-        watch.read_config(path)
+        v.verify_hdmi_upm(log, run)
 
 
-@pytest.mark.parametrize('damage', ['raw-body', 'effective-body', 'header-source', 'header-refcount', 'short-body'])
-def test_shutter_metadata_never_excuses_changed_original_upm_bytes(synthetic_shutter_binding, damage):
-    """HOST_METADATA bytes exercise the real snapshot decoder, without native opcode assets."""
-    from test_hdmi_upm_watch import event, K
-    f = synthetic_shutter_binding
-    scope_provenance(f)
-    watch = v._watch()
-    sample = event('branch' if damage == 'effective-body' else 'bridge', 1)
-    watch.snapshot(sample, K)
-    if damage in ('raw-body', 'effective-body'):
-        sample['memory']['body']['hex'] = '00' * 16
-    elif damage == 'short-body':
-        sample['memory']['body']['hex'] = sample['memory']['body']['hex'][:-2]
+@pytest.mark.parametrize('damage', ['no-actual-upm', 'no-original-free', 'mixed-config', 'old-config-profile', 'missing-config-profile'])
+def test_shutter_observer_never_substitutes_for_native_upm_or_original_free(shutter_native_replay, damage):
+    run, log, config, _ = shutter_native_replay
+    if damage == 'no-actual-upm':
+        path = run / 'hdmi-upm-watch-events.jsonl'
+        events = [json.loads(line) for line in path.read_text().splitlines()]
+        events.remove([row for row in events if row['kind'] == 'free_return'][-1])
+        path.write_text(''.join(json.dumps(row) + '\n' for row in events))
+    elif damage == 'no-original-free':
+        log.records.remove(v._kind(log, 'KERNEL_RETIRED', 3)[0])
     else:
-        header = bytearray.fromhex(sample['memory']['header']['hex'])
-        offset, size = (12, 4) if damage == 'header-source' else (10, 2)
-        header[offset:offset + size] = bytes(size)
-        sample['memory']['header']['hex'] = header.hex()
-    with pytest.raises(ValueError):
-        watch.snapshot(sample, K)
+        if damage == 'mixed-config':
+            config['readonly_scope_observer']['plan_binding']['nonce'] += 1
+        else:
+            (run / 'readonly-scope-run-binding.json').write_text(json.dumps(dict(schema=v.SHUTTER_GATE_RUN)))
+            config.pop('padding', None)
+            if damage == 'old-config-profile':
+                config['readonly_scope_observer']['profile'] = 'qemu-readonly-scope-v3'
+            else:
+                config['readonly_scope_observer'] = None
+        (run / 'hdmi-upm-watch-config.json').write_text(json.dumps(config))
+    with pytest.raises((ValueError, KeyError, OSError)):
+        v.verify_hdmi_upm(log, run)
 
 
-def test_shutter_profile_never_excuses_missing_original_condition_free(synthetic_shutter_binding):
+def test_shutter_profile_never_excuses_missing_original_condition_free(host_log, synthetic_shutter_binding):
     f = synthetic_shutter_binding
     scope_provenance(f)
-    log = Log(v.STATE + '_MESSAGE_PUBLISHED kind=2 lease=1\n' + v.STATE + '_MESSAGE_SENT kind=2 lease=1\n')
+    log = copy.deepcopy(host_log)
+    log.records.remove(v._kind(log, 'NATIVE_FREE', 2)[0])
     with pytest.raises(ValueError, match='incomplete message lifetimes'):
-        v.verify_conditions(log, f.run)
+        v.verify_hdmi_effects(log, f.run)
 
 
-def test_shutter_family_keeps_common_retained_image_byte_guard(synthetic_shutter_binding):
-    """Exercise the real byte digest guard and inspect its unchanged source-proof call site."""
+def test_shutter_family_keeps_common_retained_image_byte_guard(condition_source_replay, synthetic_shutter_binding, monkeypatch):
+    run, _, log = condition_source_replay
     f = synthetic_shutter_binding
-    scope_provenance(f)
-    reader = f.graph.source_module('report/functional-camera-evidence/check_evidence.py',
-        {str(BASE.parents[1] / 'report/functional-camera-evidence/check_evidence.py'):
-         f.sha(BASE.parents[1] / 'report/functional-camera-evidence/check_evidence.py')})
-    retained = f.work / 'HOST_METADATA-retained-image.cpio'
-    retained.write_bytes(b'HOST_METADATA image bytes, no guest or Sony content')
-    digest = f.sha(retained)
-    reader.digest_binding(retained.read_bytes(), digest, 'condition retained initramfs')
-    retained.write_bytes(retained.read_bytes()[:-1] + b'!')
+    path = run / 'source-snapshot-run-binding.json'
+    binding = json.loads(path.read_bytes()); binding['schema'] = v.SHUTTER_GATE_RUN
+    path.unlink()
+    f.write(run / 'readonly-scope-run-binding.json', binding)
+    # Only isolate the independently exercised envelope; retain original ABI/archive/image reader and bytes.
+    monkeypatch.setattr(v, '_condition_scope_binding', lambda *args: (BASE / 'menu-initramfs.cpio', {f.work / 'plan.json': (f.work / 'plan.json').read_bytes()}))
+    image = run / 'selected-initramfs.cpio'
+    with image.open('r+b') as stream:
+        stream.seek(-1, 2); byte = stream.read(1); stream.seek(-1, 2); stream.write(bytes([byte[0] ^ 1]))
     with pytest.raises(ValueError, match='condition retained initramfs: SHA256 differs'):
-        reader.digest_binding(retained.read_bytes(), digest, 'condition retained initramfs')
-    tree = ast.parse(Path(v.__file__).read_text())
-    proof = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == '_condition_source_proof')
-    calls = [node for node in ast.walk(proof) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
-    assert any(node.func.attr == 'digest_binding' and isinstance(node.args[0], ast.Name) and node.args[0].id == 'image_raw'
-               for node in calls)
-    assert any(node.func.attr == 'verify_image' for node in calls)
+        v._condition_source_proof(log, run)
 
 
 def test_scope_binding_consumes_exact_original_path_and_provenance(synthetic_scope_binding):
@@ -844,16 +1615,17 @@ def test_named_binding_keeps_original_safe_reader(synthetic_scope_binding, damag
         v._condition_binding(f.graph, f.run, f.observer)
 
 
-@pytest.mark.parametrize('new_main', range(6))
-@pytest.mark.parametrize('new_recipe', range(6))
+@pytest.mark.parametrize('new_main', range(14))
+@pytest.mark.parametrize('new_recipe', range(14))
 def test_approved_source_sets_require_a_complete_tuple(new_main, new_recipe):
     selected = dict(v.CONDITION_LEDGER_SOURCES)
     selected['menu-observe.c'] = v.SOURCE_SETS[new_main]['menu-observe.c']
     selected['build-observers.sh'] = v.SOURCE_SETS[new_recipe]['build-observers.sh']
     sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
-    approved = {(0, 0), (1, 1)} | {(m, r) for m in (2, 3, 4, 5) for r in (2, 3, 4, 5)}
+    approved = {(0, 0), (1, 1)} | {(m, r) for m in (12, 13) for r in (11, 12, 13)} | {(m, r) for m in (9, 10, 11) for r in (9, 10, 11, 12)} | {(m, r) for m in (2, 3, 4, 5, 6, 7, 8) for r in (2, 3, 4, 5, 6)} | {(m, r) for m in (6, 7, 8) for r in (7, 8)}
     if (new_main, new_recipe) in approved:
-        assert v._condition_source_set(sources) == v.SOURCE_SETS[new_main]
+        expected = (13 if new_recipe == 13 else 12) if new_main in (12, 13) else 11 if new_recipe == 12 else new_recipe if new_recipe in (7, 8, 9, 10, 11) else 6 if new_main in (7, 8) else new_main
+        assert v._condition_source_set(sources) == v.SOURCE_SETS[expected]
     else:
         with pytest.raises(ValueError, match='unreviewed condition ledger/hook source set'):
             v._condition_source_set(sources)
@@ -861,8 +1633,32 @@ def test_approved_source_sets_require_a_complete_tuple(new_main, new_recipe):
 
 def test_actual_current_sources_match_parent_approved_exact_set():
     sources = {str(BASE / name): {'sha256': hashlib.sha256((BASE / name).read_bytes()).hexdigest()}
-               for name in v.CONDITION_LEDGER_SOURCES}
-    assert v._condition_source_set(sources) == v.SOURCE_SETS[-1]
+               for name in v.MOF_BB_TIMECODE_CONDITION_SOURCES}
+    assert v._condition_source_set(sources) == v.YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES
+
+
+@pytest.mark.parametrize('version', ('FOCUS_RESET_CONDITION_SOURCES', 'FOCUS_RESET_ZERO_INIT_CONDITION_SOURCES', 'SCENE_FOCUS_MIRROR_CONDITION_SOURCES', 'HUTI_FOCUS_QUERY_CONDITION_SOURCES', 'PKNP_VDF163_DISPATCH_CONDITION_SOURCES', 'OV45_HDMI_SIGNAL_MODE_CONDITION_SOURCES', 'E6U_HDMI_INITIAL_PREFIX_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_RETIRE_CONDITION_SOURCES', 'VDF170_EFRAMING_CONDITION_SOURCES', 'ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES'))
+@pytest.mark.parametrize('recipe', range(14))
+def test_focus_reset_source_version_requires_its_exact_recipe(recipe, version):
+    approved = getattr(v, version)
+    selected = dict(approved)
+    selected['build-observers.sh'] = v.SOURCE_SETS[recipe]['build-observers.sh']
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    if selected == approved:
+        assert v._condition_source_set(sources) == selected
+    else:
+        with pytest.raises(ValueError, match='unreviewed condition ledger/hook source set'):
+            v._condition_source_set(sources)
+
+
+@pytest.mark.parametrize('version', ('FOCUS_RESET_CONDITION_SOURCES', 'FOCUS_RESET_ZERO_INIT_CONDITION_SOURCES', 'SCENE_FOCUS_MIRROR_CONDITION_SOURCES', 'HUTI_FOCUS_QUERY_CONDITION_SOURCES', 'PKNP_VDF163_DISPATCH_CONDITION_SOURCES', 'OV45_HDMI_SIGNAL_MODE_CONDITION_SOURCES', 'E6U_HDMI_INITIAL_PREFIX_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_RETIRE_CONDITION_SOURCES', 'VDF170_EFRAMING_CONDITION_SOURCES', 'ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES'))
+@pytest.mark.parametrize('name', tuple(v.CONDITION_LEDGER_SOURCES))
+def test_focus_reset_source_version_unknown_member_is_refused(name, version):
+    selected = dict(getattr(v, version))
+    selected[name] = '0' * 64
+    sources = {str(BASE / key): {'sha256': digest} for key, digest in selected.items()}
+    with pytest.raises(ValueError, match='unreviewed condition ledger/hook source set'):
+        v._condition_source_set(sources)
 
 
 @pytest.fixture(scope='module')
@@ -1445,3 +2241,218 @@ def test_mailbox_and_cleanup_are_required(native_replay, mutation):
         log = change(log, 'FULL_HDMI_UPM_MAILBOX_CONSUMED', 'effective', '170192000200000000009a0000000000', 1)
     with pytest.raises(ValueError):
         v.verify_hdmi_upm(log, run)
+
+
+@pytest.mark.parametrize('wrong_result_scope', [False, True])
+def test_actual_gate2_upm_consumes_large_current_result_only(native_replay, synthetic_gate_v2_binding,
+                                                            monkeypatch, wrong_result_scope):
+    run, log = native_replay
+    f = synthetic_gate_v2_binding
+    scope = dict(f.metadata, staged_library=str(run / 'readonly-scope-observer.so'),
+                 qemu_binary=f.binding['candidate_qemu']['path'], plan_binding=f.context['scope'])
+    path = run / 'hdmi-upm-watch-config.json'
+    config = json.loads(path.read_bytes())
+    config.update(readonly_scope_observer=copy.deepcopy(scope), running_QEMU_sha256=v._watch().READONLY_SCOPE_QEMU_SHA,
+                  scope_build_receipt=scope['build_receipt'])
+    path.write_text(json.dumps(config))
+    path = run / 'hdmi-upm-watch-result.json'
+    result = json.loads(path.read_bytes())
+    result.update(readonly_scope_observer=copy.deepcopy(scope), running_QEMU_sha256=config['running_QEMU_sha256'],
+                  last_observation='x' * 4096)
+    if wrong_result_scope:
+        result['readonly_scope_observer']['plan_binding']['nonce'] += 1
+    path.write_text(json.dumps(result))
+    assert 16384 < path.stat().st_size <= 32768
+    def source_proof(actual_log, actual_run, *, gate_v2_trust):
+        assert actual_log is log and actual_run == run and gate_v2_trust is f.trust
+        scope_provenance(f, gate_v2_trust=f.trust)
+        return dict(run_binding_schema=v.SHUTTER_GATE_V2_RUN, shutter_gate_config_scope=copy.deepcopy(scope))
+    monkeypatch.setattr(v, '_condition_source_proof', source_proof)
+    if wrong_result_scope:
+        with pytest.raises(ValueError, match='result scope differs'):
+            v.verify_hdmi_upm(log, run, gate_v2_trust=f.trust)
+    else:
+        proof = v.verify_hdmi_upm(log, run, gate_v2_trust=f.trust)
+        assert proof['native_UPM_verified'] and len(proof['receipts']) == 2 and not proof['full_edge_verified']
+
+
+def test_verified_mailbox_prepare_is_returned_for_exact_content_repair_join(native_replay):
+    run, log = native_replay
+    proof = v.verify_hdmi_upm(log, run)
+    prepared = v.one(log, 'FULL_HDMI_UPM_MAILBOX_PREPARE')
+    assert proof['guest_prepared'] == prepared
+    path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
+    spec = importlib.util.spec_from_file_location('_verified_upm_prepare_content_join', path)
+    graph = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(graph)
+    repair = dict(kind='complete-HdmiUpmMailbox-UIPC-boundary', parsed_line=prepared['line'],
+                  repaired_record=prepared['raw'], repaired_record_sha256=graph.sha(prepared['raw'].encode()))
+    assert graph.bind_repairs(proof, [copy.deepcopy(repair)])[0]['content_verifier_joined'] is True
+    for missing in ({}, {key: value for key, value in proof.items() if key != 'guest_prepared'}):
+        with pytest.raises(graph.UnjoinedRepairs):
+            graph.bind_repairs(missing, [copy.deepcopy(repair)])
+    for key, value in (('nonce', '0x1'), ('lease', '0'), ('raw', '00' * 16)):
+        with pytest.raises(ValueError):
+            v.verify_hdmi_upm(change(log, 'FULL_HDMI_UPM_MAILBOX_PREPARE', key, value), run)
+
+
+@pytest.mark.parametrize('warning_index', [None, 0, 1])
+def test_actual_c_hdmi_request_kernel_repair_requires_full_effect_consumption(host_log, warning_index):
+    path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
+    spec = importlib.util.spec_from_file_location('_host_only_hdmi_request_boundary', path)
+    graph = importlib.util.module_from_spec(spec); spec.loader.exec_module(graph)
+    def observed(row):
+        raw = row['raw'].encode()
+        return raw if raw.startswith(b'OBS ') else b'OBS ' + raw
+    request = v.one(host_log, v.PREFIX + '_REQUEST')
+    target = observed(request)
+    raw = b''.join((observed(row) if row is request else row['raw'].encode()) + b'\r\n'
+                   for row in host_log.records)
+    assert raw.count(target + b'\r\n') == 1
+    warning = b'' if warning_index is None else graph.WARNINGS[warning_index]
+    kernel = b'[ 5650.897903] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+    changed = raw.replace(target + b'\r\n', target + warning + kernel + b'\r\n')
+    parsed, repairs = graph.console_records(changed)
+    assert len(repairs) == 1 + (warning_index is not None)
+    log = Log(parsed.decode())
+    with pytest.raises(graph.UnjoinedRepairs):
+        graph.bind_repairs({}, repairs)
+    rejected = change(log, v.PREFIX + '_STATE_READBACK', 'event6_consumed', '0')
+    with pytest.raises(ValueError):
+        v.verify_hdmi_effects(rejected)
+    assert all('content_verifier_joined' not in item for item in repairs)
+    proof = v.verify_hdmi_effects(log)
+    graph.bind_repairs(proof, repairs)
+    assert all(item['content_verifier_joined'] for item in repairs)
+    assert proof['REQUEST'] is log.rows(v.PREFIX + '_REQUEST')[0]
+    assert len(proof['condition_messages']) == 24 and not proof['capture_verified']
+    assert not proof['frames_verified'] and not proof['native_UPM_join_required']
+
+
+def test_qr5_native_source_revision_returns_the_full_dependency_tuple():
+    selected = v.QR5_NATIVE_EVIDENCE_CONDITION_SOURCES
+    assert set(v.CONDITION_LEDGER_SOURCES) < set(selected)
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+@pytest.mark.parametrize('member', tuple(v.QR5_NATIVE_EVIDENCE_CONDITION_SOURCES))
+@pytest.mark.parametrize('damage', ('changed', 'missing'))
+def test_qr5_native_source_revision_refuses_each_missing_or_changed_member(member, damage):
+    selected = v.QR5_NATIVE_EVIDENCE_CONDITION_SOURCES
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    if damage == 'changed':
+        sources[str(BASE / member)]['sha256'] = '0' * 64
+    else:
+        del sources[str(BASE / member)]
+    with pytest.raises((ValueError, KeyError)):
+        v._condition_source_set(sources)
+
+
+def test_historical_zq6_bank_source_tuple_is_still_accepted():
+    selected = v.ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+def test_jky_movie_source_revision_returns_complete_dependency_tuple():
+    selected = v.JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES
+    assert len(selected) == 11 and set(v.CONDITION_LEDGER_SOURCES) < set(selected)
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+@pytest.mark.parametrize('member', tuple(v.JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES))
+@pytest.mark.parametrize('damage', ('missing', 'changed'))
+def test_jky_movie_source_revision_refuses_each_incomplete_or_changed_member(member, damage):
+    sources = {str(BASE / name): {'sha256': digest}
+               for name, digest in v.JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES.items()}
+    if damage == 'missing':
+        del sources[str(BASE / member)]
+    else:
+        sources[str(BASE / member)]['sha256'] = '0' * 64
+    with pytest.raises((ValueError, KeyError)):
+        v._condition_source_set(sources)
+
+
+def test_jky_movie_source_revision_refuses_old_qr5_with_current_main_only():
+    sources = {str(BASE / name): {'sha256': digest}
+               for name, digest in v.QR5_NATIVE_EVIDENCE_CONDITION_SOURCES.items()}
+    sources[str(BASE / 'menu-observe.c')]['sha256'] = v.JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES['menu-observe.c']
+    with pytest.raises(ValueError):
+        v._condition_source_set(sources)
+
+
+def test_ehg_ou_source_revision_returns_complete_dependency_tuple():
+    selected = v.EHG_CP_OU_CRANK_CONDITION_SOURCES
+    assert len(selected) == 11 and set(v.CONDITION_LEDGER_SOURCES) < set(selected)
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+@pytest.mark.parametrize('member', tuple(v.EHG_CP_OU_CRANK_CONDITION_SOURCES))
+@pytest.mark.parametrize('damage', ('missing', 'changed'))
+def test_ehg_ou_source_revision_refuses_each_incomplete_or_changed_member(member, damage):
+    sources = {str(BASE / name): {'sha256': digest}
+               for name, digest in v.EHG_CP_OU_CRANK_CONDITION_SOURCES.items()}
+    if damage == 'missing':
+        del sources[str(BASE / member)]
+    else:
+        sources[str(BASE / member)]['sha256'] = '0' * 64
+    with pytest.raises((ValueError, KeyError)):
+        v._condition_source_set(sources)
+
+
+def test_ehg_ou_source_revision_refuses_old_movie_tuple_with_current_main_only():
+    sources = {str(BASE / name): {'sha256': digest}
+               for name, digest in v.JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES.items()}
+    sources[str(BASE / 'menu-observe.c')]['sha256'] = v.EHG_CP_OU_CRANK_CONDITION_SOURCES['menu-observe.c']
+    with pytest.raises(ValueError):
+        v._condition_source_set(sources)
+
+
+def test_mof_timecode_source_revision_returns_full_native_owner_tuple():
+    selected = v.MOF_BB_TIMECODE_CONDITION_SOURCES
+    assert len(selected) == 13 and set(v.EHG_CP_OU_CRANK_CONDITION_SOURCES) < set(selected)
+    sources = {str(BASE / name): {'sha256': value} for name, value in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+@pytest.mark.parametrize('member', tuple(v.MOF_BB_TIMECODE_CONDITION_SOURCES))
+@pytest.mark.parametrize('damage', ('missing', 'changed'))
+def test_mof_timecode_source_revision_refuses_each_missing_or_changed_member(member, damage):
+    sources = {str(BASE / name): {'sha256': value} for name, value in v.MOF_BB_TIMECODE_CONDITION_SOURCES.items()}
+    if damage == 'missing':
+        del sources[str(BASE / member)]
+    else:
+        sources[str(BASE / member)]['sha256'] = '0' * 64
+    with pytest.raises((ValueError, KeyError)):
+        v._condition_source_set(sources)
+
+
+def test_mof_timecode_source_revision_refuses_predecessor_with_only_new_main():
+    sources = {str(BASE / name): {'sha256': value} for name, value in v.EHG_CP_OU_CRANK_CONDITION_SOURCES.items()}
+    sources[str(BASE / 'menu-observe.c')]['sha256'] = v.MOF_BB_TIMECODE_CONDITION_SOURCES['menu-observe.c']
+    with pytest.raises(ValueError):
+        v._condition_source_set(sources)
+
+
+def test_yvo_preset_source_revision_returns_current_runtime_tuple():
+    selected = v.YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES
+    assert len(selected) == 13 and set(selected) == set(v.MOF_BB_TIMECODE_CONDITION_SOURCES)
+    sources = {str((BASE / name).resolve()): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+
+
+@pytest.mark.parametrize('member', tuple(v.YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES))
+@pytest.mark.parametrize('damage', ('missing', 'changed'))
+def test_yvo_preset_source_revision_refuses_each_incomplete_or_changed_member(member, damage):
+    selected = v.YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES
+    sources = {str((BASE / name).resolve()): {'sha256': digest} for name, digest in selected.items()}
+    key = str((BASE / member).resolve())
+    if damage == 'missing':
+        del sources[key]
+    else:
+        sources[key]['sha256'] = '0' * 64
+    with pytest.raises((ValueError, KeyError)):
+        v._condition_source_set(sources)

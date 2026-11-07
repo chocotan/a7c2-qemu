@@ -32,6 +32,21 @@ def test_incomplete_or_duplicate_thread_identity_is_rejected(raw):
         thread_list(raw)
 
 
+def test_thread_list_complete_comm_canonical_warning_framing():
+    row = b'EE_THREAD=369:IWrapperDataSer'
+    warning = b'[ 6898.237196] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+    raw = row + warning + b'\r\n\r\nEE_THREAD=384:SeqQueueCommon\r\n'
+    assert thread_list(raw) == [(369, 'IWrapperDataSer'), (384, 'SeqQueueCommon')]
+    for before, after in ((b'Line 100', b'Line 101'), (b'ret = -1022', b'ret = -1'),
+                          (b'UDIF:', b'OTHER:'), (b'6898.237196', b'6898.23719'),
+                          (b'\r\n\r\n', b'\r\n'), (b'IWrapperDataSer', b'IWrapperDataSe'),
+                          (b'IWrapperDataSer', b'IWrapperDataServ')):
+        with pytest.raises(ValueError):
+            thread_list(raw.replace(before, after))
+    with pytest.raises(ValueError):
+        thread_list(raw + row + b'\r\n')
+
+
 def test_collection_keeps_raw_reads_and_explicitly_reports_skipped_threads(tmp_path):
     commands = []
 

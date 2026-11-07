@@ -13,7 +13,9 @@ HERE = Path(__file__).resolve().parent
 @pytest.fixture(scope="module", params=[False, True], ids=["c11", "asan-ubsan"])
 def sdk_observer_binary(tmp_path_factory, request):
     source = (HERE / "menu-observe.c").read_text()
-    helper = function(source, "native_face_sdk_observation")
+    ticket = next(line for line in source.splitlines()
+                  if line.startswith('static _Thread_local struct') and 'functional_cp_parameter_bank_ticket' in line)
+    helper = ticket + '\n' + function(source, "native_pin_peer_allocated") + '\n' + function(source, "native_face_sdk_observation")
     alloc = function(source, "osal_valloc_msg_wait")
     alloc = alloc[alloc.index("    int result=real_allocate_msg(id, message, size, count),saved_errno="):alloc.rfind("}")]
     sync = function(source, "osal_snd_sync_msg")
@@ -54,6 +56,23 @@ static unsigned int (*real_msg_size)(void *)=size_api;
 static int real_send_sync(unsigned int id,void *p){
  (void)id;assert(p);syncs++;if(!sync_rc){unsigned int result=0x11223344;memcpy((char *)p+40,&result,4);}errno=EAGAIN;return sync_rc;
 }
+/* PinMem peers are disabled independently of the SDK observer under test. */
+static void native_movie_format_allocated(unsigned int id,void **message,int result,unsigned int count){
+ (void)id;(void)message;(void)result;(void)count;
+}
+static void native_crank_allocated(unsigned int id,void **message,int result,unsigned int count){
+ (void)id;(void)message;(void)result;(void)count;
+}
+static unsigned int pinmem_peer_connections_used=0,peer_allocate_calls[3];
+static unsigned long long full_scalar_connection_observe_allocate(unsigned int id,void *message){
+ (void)id;(void)message;peer_allocate_calls[0]++;assert(!"PinMem scalar peer is disabled in this SDK fixture");return 0;
+}
+static unsigned long long full_adf_connection_observe_allocate(unsigned int id,void *message){
+ (void)id;(void)message;peer_allocate_calls[1]++;assert(!"PinMem ADF peer is disabled in this SDK fixture");return 0;
+}
+static unsigned long long full_pinmem_drawinfo_connection_observe_allocate(unsigned int id,void *message){
+ (void)id;(void)message;peer_allocate_calls[2]++;assert(!"PinMem drawinfo peer is disabled in this SDK fixture");return 0;
+}
 /* ACTUAL_HELPER */
 static int actual_allocate(unsigned int id,void **message,unsigned int size,unsigned int count){
 /* ACTUAL_ALLOC */
@@ -83,6 +102,7 @@ int main(int argc,char **argv){
   native_face_sdk_observation(4,id,(void *)old,0,0,fixture_caller);
   assert(errno==EAGAIN);if(active){assert(stages[4]==1 && strstr(last,"sampled=0") && strstr(last,"kernel_result_defined=0"));}
  }
+ assert(!pinmem_peer_connections_used && !peer_allocate_calls[0] && !peer_allocate_calls[1] && !peer_allocate_calls[2]);
  printf("SDK_OBSERVER_HOSTTEST_PASS mode=%s originals_preserved=1 no_freed_dereference=1 native_pin=0 capture_verified=0\n",mode);return 0;
 }
 '''

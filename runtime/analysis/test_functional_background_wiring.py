@@ -20,7 +20,7 @@ def background_wiring_binary(tmp_path_factory, request):
         'functional_background_start_prepare', 'functional_background_start_bind_original_source',
         'functional_background_start_reserve_resources', 'native_background_start_progress',
         'native_background_start_received', 'native_background_start_release',
-        'native_cp_state_received', 'u_osal_rcv_msg_tmo'))
+        'native_cp_state_received', 'native_pin_peer_received', 'u_osal_rcv_msg_tmo'))
     ticket = next(line for line in source.splitlines()
                   if line.startswith('static _Thread_local struct') and 'functional_background_start_ticket' in line)
     sent = function(source, 'osal_snd_msg')
@@ -45,6 +45,7 @@ def background_wiring_binary(tmp_path_factory, request):
 #include <sys/wait.h>
 #include <unistd.h>
 #include "device-models/functional-background-start.h"
+#include "test-capture-inactive-fixture.h"
 #include "device-models/functional-camera-control.h"
 #include "device-models/functional-cp-zoom.h"
 #define CALLER_OFFSET 0xeda50u
@@ -181,7 +182,19 @@ int functional_background_start_release_cycle(unsigned int id,void *p,uint64_t c
  *result=release_result?release_result:!cycle?-ESTALE:release(id,p);return 1;
 }
 /* Unrelated receive observers are deliberately inert; the actual parent receive gate is executed. */
-static unsigned int functional_still_format_used,functional_startup_control_used;
+/* Timecode is disabled in this older receive-hook fixture. */
+static unsigned int functional_bb_timecode_control_used;
+int full_bb_timecode_control_observe_receive(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!functional_bb_timecode_control_used);return 0;
+}
+static unsigned int functional_cp_movie_format_used=0;
+static void native_movie_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"movie-format is disabled in this background fixture");
+}
+static unsigned int functional_still_format_used,functional_startup_control_used,functional_cp_crank_control_used;
+static void native_crank_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"crank-control is disabled in this background fixture");
+}
 static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this background fixture");
 }
@@ -200,6 +213,17 @@ static int functional_camera_events_observe_receive(unsigned int id,void *p,unsi
 static int functional_jpeg_codec_observe_received(unsigned int id,void *p,const struct full_imaging_io *io){(void)id;(void)p;(void)io;return 0;}
 static int functional_mpr_codec_observe_received(unsigned int id,void *p,const struct full_imaging_io *io){(void)id;(void)p;(void)io;assert(0);return 0;}
 int native_cp_state_publication_observe_receive(unsigned int id,void *p,unsigned int source,unsigned int bytes){(void)id;(void)p;(void)source;(void)bytes;return 0;}
+/* PinMem peers are disabled independently of the background feature under test. */
+static unsigned int pinmem_peer_connections_used=0,peer_receive_calls[3];
+static unsigned long long full_scalar_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[0]++;assert(!"PinMem scalar peer is disabled in this background fixture");return 0;
+}
+static unsigned long long full_adf_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[1]++;assert(!"PinMem ADF peer is disabled in this background fixture");return 0;
+}
+static unsigned long long full_pinmem_drawinfo_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[2]++;assert(!"PinMem drawinfo peer is disabled in this background fixture");return 0;
+}
 static void native_hdmi_video_received(unsigned int id,void **p,int result){(void)id;(void)p;(void)result;}
 static int receive_api(unsigned int id,void **p,long timeout){
  assert(id==received_destination && timeout==27 && native_receive_depth);receive_calls++;if(p)*p=received_pointer;errno=ERANGE;return receive_result;
@@ -422,6 +446,7 @@ int main(int argc,char **argv){
   }
  }
  assert(!functional_startup_control_used);
+ assert(!pinmem_peer_connections_used && !peer_receive_calls[0] && !peer_receive_calls[1] && !peer_receive_calls[2]);
  free(request_wire);free(object);puts("PASS HOSTTEST actual background main C wiring; native/Core not verified");return 0;
 }
 '''

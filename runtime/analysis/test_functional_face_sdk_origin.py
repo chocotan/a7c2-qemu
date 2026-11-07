@@ -17,7 +17,7 @@ import tempfile
 import pytest
 
 HERE = Path(__file__).resolve().parent
-VALIDATION = HERE.parents[1] / "validation/tmp/functional-face-sdk-origin"
+VALIDATION = HERE.parents[1] / "report" / "functional-face-sdk-origin" / "validation"
 SCENARIOS = (
     "units", "gates", "modules", "call-code", "callback-code", "api-prefix",
     "descriptors", "schema", "pointers", "context", "cp-lifetime", "ap-facts",

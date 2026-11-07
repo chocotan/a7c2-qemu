@@ -27,6 +27,7 @@ SOURCES = (
     "virtual-jpeg-sos/jpeg-sos.c",
     "virtual-video-engine/video-engine.c",
     "virtual-camera-pipeline/camera-pipeline.c",
+    "../runtime/analysis/device-models/cp-parameter-batch.c",
 )
 PREFLIGHT = (
     "selector1", "selector2", "selector3", "byte9", "header", "short", "long",

@@ -39,6 +39,9 @@ static _Atomic unsigned model_calls,model_frames,model_end,model_cancel,memory_w
 static unsigned model_stream;
 static uint64_t model_seq,model_gen=10;
 static uint64_t last_es_address;
+static uint8_t forced_sequences[128];
+static unsigned force_calls;
+static int force_no_idr,force_empty,force_waiter_drift;
 static unsigned consumed_normal,consumed_parameters,consumed_eos;
 static const struct full_imaging_io test_io;
 static const uint8_t annex_config[]={0,0,0,1,0x67,0x42,0,0x1f,0xaa,0,0,1,0x68,0xce,6,0xe2};
@@ -152,6 +155,12 @@ static void init_memory(void) {
     AUXILIARY=u64(memory_table+0x2c0);
     static const uint8_t pin[]={0xfd,0x7b,0xb8,0xa9,0xfd,0x03,0,0x91,0xf3,0x53,1,0xa9,0xf4,3,0,0xaa};
     memcpy(library_bytes+0x283e74,pin,sizeof pin);
+    static const uint8_t expected_getter[]={0x02,0x04,0x00,0xd0,0x42,0xa8,0x47,0xf9,
+        0x42,0x00,0x40,0xb9,0x02,0x00,0x00,0xb9,0x00,0x04,0x00,0xb0,
+        0x00,0xe0,0x47,0xf9,0x00,0x00,0x40,0xf9,0x20,0x00,0x00,0xf9,0xc0,0x03,0x5f,0xd6};
+    memcpy(library_bytes+0x27be14,expected_getter,sizeof expected_getter);
+    p64(library_bytes+0x2fdf50,LIB+0x369eb0);p64(library_bytes+0x2fcfc0,LIB+0x3b7b50);
+    p32(library_bytes+0x369eb0,0x1004);p64(library_bytes+0x3b7b50,LIB+0x3b7b80);
     p64(library_bytes+0x3b7d68,ES);p64(library_bytes+0x3b7d70,es_extent);p64(library_bytes+0x3b7d78,CORRECTION);
     p64(library_bytes+0x3b7f70,PI);p64(library_bytes+0x3b80a8,PI);p32(library_bytes+0x3b80b0,slots);p64(library_bytes+0x3b80b8,CORRECTION);
     p64(library_bytes+0x3b7e58,READ);p64(library_bytes+0x3b7eb0,READ);p64(library_bytes+0x3b7ec0,CORRECTION);
@@ -177,7 +186,8 @@ static void consume(void) {
         }else if(v[0]==7){assert(!u32(v+0x10));consumed_eos++;}
         else {size_t nals=0;
             assert(nlength_validate(v,96,CORRECTION,ES,es_bytes,es_extent,NLENGTH_AVC1,&nals)==0);
-            assert(nals==(consumed_normal?1u:3u));assert(v[0]==(consumed_normal?1:0));
+            assert(nals==(consumed_normal?1u:3u));
+            assert(consumed_normal<128 && v[0]==(!consumed_normal || forced_sequences[consumed_normal]?0:1));
             assert(u64(v+0x18)==(uint64_t)consumed_normal*3000 && u64(v+0x20)==u64(v+0x18));
             uint64_t address=u64(v+8)+CORRECTION;assert(address>last_es_address);last_es_address=address;
             const uint8_t *au=es_bytes+(size_t)(address-ES);size_t used=0;
@@ -286,6 +296,18 @@ static void logger(const char *tag,const char *text) {
         assert(receipt_number(text,"producer_tid")== (uint64_t)syscall(SYS_gettid));
         memcpy(request_receipts[seq],wire,sizeof wire);request_receipt_count++;
     }
+    if(!strcmp(tag,"FUNCTIONAL_MPR_FORCE_REQUEST ")){
+        uint8_t opaque[4];receipt_hex(text,"opaque4",opaque,sizeof opaque);
+        assert(!memcmp(opaque,parameters,4) && receipt_number(text,"opaque_word")==u32(opaque));
+        assert(receipt_number(text,"parameter_fnv")==fnv(opaque,4) && receipt_number(text,"parameter_bytes")==4);
+        assert(receipt_number(text,"parameter_token") && receipt_number(text,"parameter_generation"));
+        assert(receipt_number(text,"expected_factor")==1 || receipt_number(text,"expected_factor")==0x1004);
+        assert(receipt_number(text,"expected_result")==LIB+0x3b7b80);
+    }
+    if(!strcmp(tag,"FUNCTIONAL_MPR_FORCE_IDR ")){
+        assert(receipt_number(text,"actual_IDR_NAL5")==1 && receipt_number(text,"publication_complete")==1);
+        assert(receipt_number(text,"opaque_word")==u32(parameters) && s.frames_published>=2);
+    }
     if(!strcmp(tag,"FUNCTIONAL_MPR_ES ")){
         uint8_t actual[256];size_t bytes=(size_t)receipt_number(text,"bytes");assert(bytes && bytes<=sizeof actual);
         uint64_t address=receipt_number(text,"address"),offset=receipt_number(text,"offset");
@@ -296,7 +318,9 @@ static void logger(const char *tag,const char *text) {
         static const uint8_t first[]={0,0,0,5,0x67,0x42,0,0x1f,0xaa,0,0,0,4,0x68,0xce,6,0xe2,0,0,0,4,0x65,0x88,0x84,0x21};
         if(type==4){assert(bytes==sizeof config && !memcmp(actual,config,bytes));assert(receipt_number(text,"source_fnv")==fnv(annex_config,sizeof annex_config));}
         else if(!sequence){assert(bytes==sizeof first && !memcmp(actual,first,bytes));assert(receipt_number(text,"source_fnv")==fnv(first_packet,sizeof first_packet));}
-        else {uint8_t expected[]={0,0,0,3,0x41,0x9a,(uint8_t)sequence};assert(bytes==sizeof expected && !memcmp(actual,expected,bytes));}
+        else {uint8_t expected[]={0,0,0,3,0x41,0x9a,(uint8_t)sequence};
+            assert(sequence<128);if(forced_sequences[sequence])expected[4]=0x65;
+            assert(bytes==sizeof expected && !memcmp(actual,expected,bytes));}
         assert(receipt_number(text,"model_token")==sequence+1);
         es_receipt_count++;
     }
@@ -347,7 +371,8 @@ static int send_message(unsigned dst,void *p) {
     assert(message_source(p)==FUNCTIONAL_MPR_CODEC_DESTINATION && message_size(p)==48);
     if(event_send_error)return event_send_error;
     const uint8_t *w=p;assert(u32(w+0x24)==0x4e0);
-    unsigned cmd=(u16(w+2)-1u)/2u;assert(cmd==0 || cmd==1 || cmd==3 || cmd==4 || cmd==5);
+    unsigned cmd=u16(w+2)==4?2u:(u16(w+2)-1u)/2u;
+    assert(cmd<=5);
     int error=(int32_t)u32(w+0x14);
     if(cmd==4 && defer_close_reply){deferred_close_reply=p;atomic_store(&close_reply_queued,1);return 0;}
     struct functional_mpr_codec_snapshot s;assert(functional_mpr_codec_snapshot(&s)==0);
@@ -393,17 +418,27 @@ int fcam_bridge_call(const struct fcam_native_origin *origin,uint32_t op,const v
         else {assert(!input && !n);if(op==FCAM_OP_CANCEL){model_stream=0;atomic_fetch_add(&model_cancel,1);}}
         output_state(out);r.used=r.required=128;
     }else if(op==FCAM_OP_VIDEO_FRAME || op==FCAM_OP_VIDEO_END){
-        assert(model_stream==1 && !input && !n && capacity>=256);memset(out,0,96);
+        const int force=op==FCAM_OP_VIDEO_FRAME && n!=0;
+        assert(model_stream==1 && capacity>=256);
+        if(force){assert(input && n==4 && u32(input)==FCAM_VIDEO_FRAME_FORCE_IDR && origin->command==2);force_calls++;}
+        else assert(!input && !n);
+        memset(out,0,96);
         p32(out,640);p32(out+4,480);p64(out+8,model_seq);p64(out+16,model_seq);p32(out+32,1);p32(out+36,30);p32(out+68,FCAM_CODEC_AVC1);
         if(op==FCAM_OP_VIDEO_END){model_stream=2;p32(out+44,FCAM_PACKET_EOS);p64(out+56,model_gen);r.used=r.required=96;r.result_token=model_seq+1;atomic_fetch_add(&model_end,1);}
         else {
-            size_t encoded=model_seq?6:sizeof first_packet;p64(out+24,1);p32(out+40,model_seq?0:1);p64(out+48,encoded);
+            size_t encoded=model_seq?6:sizeof first_packet;p64(out+24,1);p32(out+40,force || !model_seq);p64(out+48,encoded);
             p64(out+56,++model_gen);p32(out+64,sizeof annex_config);memcpy(out+96,annex_config,sizeof annex_config);
             uint8_t *packet=out+96+sizeof annex_config;
             if(!model_seq)memcpy(packet,first_packet,sizeof first_packet);else {static const uint8_t prefix_bytes[]={0,0,1,0x41,0x9a};memcpy(packet,prefix_bytes,sizeof prefix_bytes);packet[5]=(uint8_t)model_seq;}
+            if(force){
+                assert(model_seq<128);forced_sequences[model_seq]=!force_no_idr;
+                if(!force_no_idr)packet[3]=0x65;
+                if(force_waiter_drift)p32(library_bytes+0x369eb0,2);
+            }
             r.used=r.required=96+sizeof annex_config+encoded;r.result_token=model_seq+1;model_seq++;atomic_fetch_add(&model_frames,1);
             if(atomic_load(&wrong_instance))r.model_instance++;
             if(atomic_load(&short_packet))r.used=95;
+            if(force && force_empty){r.used=r.required=0;r.result_token=0;}
         }
     }else assert(!"unexpected bridge operation");
     *result=r;return 0;
@@ -471,6 +506,57 @@ static void lifecycle(void) {
     assert(s.events_sent==4 && s.events_received==4 && received_logs==4 && free_logs==4 && consumed_parameters==1 && consumed_eos==1);
     assert(atomic_load(&model_end)==1 && atomic_load(&model_cancel)==1);finish();
 }
+static void ipicture(const char *kind) {
+    prepare();open_codec();
+    void *p;int rc=99;
+    if(!strcmp(kind,"ipicture-open")) {
+        p=request(2);assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-EPIPE);
+        assert(!release(FUNCTIONAL_MPR_CODEC_DESTINATION,p));
+        submit(4);wait_events(2);wait_idle();finish();return;
+    }
+    submit(1);wait_events(2);wait_idle();consume();
+    if(!strcmp(kind,"ipicture-ack"))p32(library_bytes+0x369eb0,1);
+    p32(parameters,!strcmp(kind,"ipicture-opaque")?UINT32_MAX:0);
+    const uint32_t original=u32(parameters);
+    if(!strcmp(kind,"ipicture-size")) {
+        p=request(2);p32((uint8_t *)p+0x10,3);
+        assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-ENOTSUP);
+        assert(!release(FUNCTIONAL_MPR_CODEC_DESTINATION,p));stop_close();finish();return;
+    }
+    int refused=0;
+    if(!strcmp(kind,"ipicture-waiter")){p32(library_bytes+0x369eb0,2);refused=-EPROTO;}
+    if(!strcmp(kind,"ipicture-pointer")){p64(library_bytes+0x3b7b50,0);refused=-EPROTO;}
+    if(!strcmp(kind,"ipicture-pin")){library_bytes[0x27be14]^=1;refused=-ELIBBAD;}
+    if(!strcmp(kind,"ipicture-GOT")){p64(library_bytes+0x2fdf50,LIB+0x369eb4);refused=-ELIBBAD;}
+    if(refused) {
+        unsigned before=atomic_load(&model_frames);p=request(2);
+        assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==refused);
+        assert(!release(FUNCTIONAL_MPR_CODEC_DESTINATION,p));
+        assert(!force_calls && atomic_load(&model_frames)==before);
+        stop_close();finish();return;
+    }
+    force_no_idr=!strcmp(kind,"ipicture-no-idr");force_empty=!strcmp(kind,"ipicture-empty");
+    force_waiter_drift=!strcmp(kind,"ipicture-drift");
+    unsigned before=events;
+    submit(2);
+    if(force_waiter_drift) {
+        wait_failure(-EPROTO);wait_idle();assert(events==before);
+        assert(force_calls==1 && snapshot().frames_published>=2);
+    } else {
+        wait_events(before+1);wait_idle();assert(event_commands[before]==2 && force_calls==1);
+        if(force_no_idr || force_empty) {
+            assert(event_errors[before]==-EPROTO && snapshot().state==FMPR_FAULT);
+            assert(snapshot().frames_published==1);
+        } else {
+            assert(!event_errors[before] && snapshot().state==FMPR_RECORDING && snapshot().frames_published>=2);
+            assert(u32(parameters)==original);
+            assert(snapshot().events_received==before+1 && free_logs==before+1);
+            stop_close();finish();return;
+        }
+    }
+    p32(library_bytes+0x369eb0,0x1004);
+    unsigned current=events;submit(4);wait_events(current+1);wait_idle();finish();
+}
 static void validation(void) {
     prepare();int rc=912;void *p=request(0);
     assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,0,&rc)==0 && rc==912);
@@ -483,7 +569,7 @@ static void validation(void) {
     p32((uint8_t *)p+0x24,0x210);((uint8_t *)p)[0x19]=0x20;assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-ENOTSUP);((uint8_t *)p)[0x19]=0;
     p64((uint8_t *)p+0x28,0xdead);assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-ENOENT);
     assert(release(FUNCTIONAL_MPR_CODEC_DESTINATION,p)==0);
-    p=request(2);assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-ENOTSUP);assert(release(FUNCTIONAL_MPR_CODEC_DESTINATION,p)==0);
+    p=request(2);assert(functional_mpr_codec_dispatch(FUNCTIONAL_MPR_CODEC_DESTINATION,p,&test_io,1,&rc)==1 && rc==-EPIPE);assert(release(FUNCTIONAL_MPR_CODEC_DESTINATION,p)==0);
     assert(!atomic_load(&model_calls));finish();
 }
 static void backpressure(void) {
@@ -692,7 +778,8 @@ static void receipt_cases(const char *kind) {
 }
 int main(int argc,char **argv) {
     assert(argc==2);
-    if(!strncmp(argv[1],"receipt-",8))receipt_cases(argv[1]);
+    if(!strncmp(argv[1],"ipicture-",9))ipicture(argv[1]);
+    else if(!strncmp(argv[1],"receipt-",8))receipt_cases(argv[1]);
     else if(!strcmp(argv[1],"lifecycle"))lifecycle();
     else if(!strcmp(argv[1],"validation"))validation();
     else if(!strcmp(argv[1],"backpressure"))backpressure();

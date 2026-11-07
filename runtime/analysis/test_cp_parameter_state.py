@@ -1,5 +1,6 @@
 """Source-pinned CP4063 field consumers; no guest/VM or real-device access."""
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import hashlib
 import importlib.util
 import json
@@ -54,12 +55,18 @@ def test_c_boundaries_and_full_byte_domains(compiled):
     assert run(compiled) == ''
 
 
-def test_source_common_local_stores_match_c_image(compiled, tmp_path):
+@requires_original_assets('cp/cpapp-b.bin')
+def test_source_common_local_stores_match_c_image():
     directory = BASE.parents[1] / 'report/cp-parameter-initializer'
     extractor = runpy.run_path(str(directory / 'extract_common.py'))
     trace = extractor['extract'](BASE / 'menu-root/cp/cpapp-b.bin')
     assert trace == json.loads((directory / 'common-local-stores.json').read_text())
     assert extractor['render'](trace) == (MODELS / 'cp-parameter-common-init.inc').read_text()
+
+
+def test_common_local_stores_match_c_image(compiled, tmp_path):
+    directory = BASE.parents[1] / 'report/cp-parameter-initializer'
+    trace = json.loads((directory / 'common-local-stores.json').read_text())
     assert trace['instructions'] == 195 and trace['known_bytes'] == 694
     assert not trace['initialization_complete'] and not trace['published'] and not trace['capture_verified']
     output = tmp_path / 'common.bin'
@@ -83,6 +90,8 @@ def test_source_common_local_stores_match_c_image(compiled, tmp_path):
         assert image[offset:offset+4] == value.to_bytes(4,'little')
     assert image[0x1c8:0x1d0] == bytes(8)
     assert not known[0] & 15  # The root header is not invented by this phase.
+    extractor = runpy.run_path(str(directory / 'extract_common.py'))
+    assert extractor['render'](trace) == (MODELS / 'cp-parameter-common-init.inc').read_text()
     wrong = tmp_path / 'not-original.bin'
     wrong.write_bytes(b'not the original CP')
     with pytest.raises(ValueError, match='not the pinned public CP image'):
@@ -138,6 +147,7 @@ def test_classification_and_table_integrity():
     assert data['slots'][15]['old_reads'] == [[0x1f4, 1]]
 
 
+@requires_original_assets('cp/cpapp-b.bin')
 def test_all_190_raw_handlers_and_reproducible_source_proof():
     path = BASE / 'menu-root/cp/cpapp-b.bin'
     if not path.is_file():

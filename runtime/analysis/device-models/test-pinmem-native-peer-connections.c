@@ -7,6 +7,7 @@
 #include "scalar-device.h"
 #include "adf-connection.h"
 #include "../dmm-service.h"
+#include <sys/syscall.h>
 static unsigned char pnc_speech_memory[DMM_TEST_SIZE],pnc_speech_before[DMM_TEST_SIZE];
 static struct dmm_service pnc_speech,pnc_speech_state_before;
 static int pnc_speech_ready;
@@ -41,6 +42,28 @@ static pthread_cond_t pnc_thread_condition=PTHREAD_COND_INITIALIZER;
 static const struct full_imaging_io pnc_io;
 static const struct full_adf_proc_guard pnc_guard;
 static void pnc_record(const char *,const char *);
+struct pnc_delivery { void *pointer; unsigned int destination; };
+static struct pnc_delivery pnc_delivery;
+static int (*pnc_draw_release)(unsigned int,void *,int (*)(unsigned int,void *),void (*)(const char *,const char *),int *);
+/* A fixture receive consumes an actual queued entry, never a free caller's claim. */
+static int pnc_receive_entry(struct pnc_delivery *queue,unsigned int destination,void **out){
+    if(!queue->pointer || destination!=queue->destination)return -1;
+    assert(cm_meta(queue->pointer)->owner==destination);*out=queue->pointer;queue->pointer=0;return 0;
+}
+static void pnc_receive_current(void){
+    if(!pnc_delivery.pointer)return;
+    void *p=0;unsigned int destination=pnc_delivery.destination;
+    assert(!pnc_receive_entry(&pnc_delivery,destination,&p));
+    (void)full_scalar_connection_observe_receive(destination,p);
+    (void)full_adf_connection_observe_receive(destination,p);
+}
+struct pnc_generation_api {
+    void (*snapshot)(struct scalar_connection_snapshot *);
+    unsigned long long (*allocated)(unsigned int,void *),(*received)(unsigned int,void *);
+    int (*release_ticket)(unsigned int,void *,int (*)(unsigned int,void *),void (*)(const char *,const char *),int *,unsigned long long);
+};
+static const struct pnc_generation_api pnc_scalar_api={full_scalar_connection_snapshot,full_scalar_connection_observe_allocate,full_scalar_connection_observe_receive,full_scalar_connection_release_ticket};
+static const struct pnc_generation_api pnc_adf_api={full_adf_connection_snapshot,full_adf_connection_observe_allocate,full_adf_connection_observe_receive,full_adf_connection_release_ticket};
 struct pnc_history {
     struct vpc_history prior;
     struct full_vef_pinmem_control_connection_snapshot seventh;
@@ -63,7 +86,93 @@ static int pnc_dispatch(int *rc){
 }
 static int pnc_release(unsigned int owner,void *p,int (*free_message)(unsigned int,void *),void (*record_message)(const char *,const char *),int *rc){
     if(full_scalar_connection_release(owner,p,free_message,record_message,rc))return 1;
-    return pnc_adf?full_adf_connection_release(owner,p,free_message,record_message,rc):0;
+    if(full_adf_connection_release(owner,p,free_message,record_message,rc))return 1;
+    return pnc_draw_release?pnc_draw_release(owner,p,free_message,record_message,rc):0;
+}
+static struct {
+    const struct pnc_generation_api *api;
+    struct connect_message *a,*b;
+    unsigned int destination,physical_a_frees,physical_b_frees;
+    int physical_a_done,b_done,missing_allocate,missing_receive,stale_ticket;
+    unsigned long long generation_b,ticket_b;
+    struct scalar_connection_snapshot before;
+} pnc_generation;
+static pthread_mutex_t pnc_generation_mutex=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t pnc_generation_condition=PTHREAD_COND_INITIALIZER;
+static int pnc_generation_b_free(unsigned int destination,void *p){
+    assert(destination==0x809161c3u && pnc_generation.b && p==pnc_generation.b->data);
+    pnc_generation.physical_b_frees++;assert(pnc_generation.physical_b_frees==1);
+    return cm_free(destination,p);
+}
+static void *pnc_generation_reuse(void *unused){
+    (void)unused;assert(!pthread_mutex_lock(&pnc_generation_mutex));
+    while(!pnc_generation.physical_a_done)assert(!pthread_cond_wait(&pnc_generation_condition,&pnc_generation_mutex));
+    assert(!pthread_mutex_unlock(&pnc_generation_mutex));
+    /* Actual pool allocator: A's lease is retired; its storage now belongs to B. */
+    assert(pnc_generation.a->released && cm_count<sizeof cm/sizeof *cm);
+    struct connect_message *b=&cm[cm_count++];pnc_generation.b=b;
+    *b=(struct connect_message){.bytes=56,.owner=0x809161c3u,.source=0x809161c3u,.data=pnc_generation.a->data};
+    memset(b->data,0xb6,b->bytes);
+    if(!pnc_generation.missing_allocate){
+        pnc_generation.generation_b=pnc_generation.api->allocated(b->owner,b->data);
+        assert(pnc_generation.generation_b>pnc_generation.before.allocation_generation);
+    }
+    struct pnc_delivery queue={b->data,b->owner};void *received=0;
+    assert(!pnc_receive_entry(&queue,b->owner,&received) && received==b->data);
+    if(!pnc_generation.missing_receive)pnc_generation.ticket_b=pnc_generation.api->received(b->owner,received);
+    if(pnc_generation.missing_allocate || pnc_generation.missing_receive)assert(!pnc_generation.ticket_b);
+    else assert(pnc_generation.ticket_b && pnc_generation.ticket_b!=pnc_generation.before.receive_ticket);
+    struct scalar_connection_snapshot before,after;pnc_generation.api->snapshot(&before);
+    assert(before.releasing_reply && before.live_reply==received && !before.faults && !before.ap_consumed);
+    int rc=77,blocked=pnc_generation.missing_allocate || pnc_generation.missing_receive || pnc_generation.stale_ticket;
+    if(blocked){
+        int handled=pnc_generation.stale_ticket?
+            pnc_generation.api->release_ticket(b->owner,received,pnc_generation_b_free,0,&rc,pnc_generation.before.receive_ticket):
+            pnc_release(b->owner,received,pnc_generation_b_free,0,&rc);
+        assert(handled && rc==-1021);pnc_generation.api->snapshot(&after);
+        assert(after.faults==before.faults+1 && !after.clean_completion && !pnc_generation.physical_b_frees);
+        before=after;
+    }
+    if(!pnc_generation.missing_allocate && !pnc_generation.missing_receive){
+        rc=77;assert(!pnc_release(b->owner,received,pnc_generation_b_free,0,&rc) && rc==77);
+        pnc_generation.api->snapshot(&after);assert(!memcmp(&before,&after,sizeof before) && !pnc_generation.physical_b_frees);
+    }
+    assert(!pnc_generation_b_free(b->owner,received) && b->released && b->attempts==1);
+    assert(!pthread_mutex_lock(&pnc_generation_mutex));pnc_generation.b_done=1;
+    assert(!pthread_cond_signal(&pnc_generation_condition));assert(!pthread_mutex_unlock(&pnc_generation_mutex));return 0;
+}
+static int pnc_generation_a_free(unsigned int destination,void *p){
+    assert(destination==pnc_generation.destination && p==pnc_generation.a->data && !pnc_generation.a->released);
+    pnc_generation.physical_a_frees++;assert(pnc_generation.physical_a_frees==1);
+    /* Same pool retirement contract as the existing retired-address-reuse test. */
+    pnc_generation.a->attempts++;pnc_generation.a->released=1;
+    assert(!pthread_mutex_lock(&pnc_generation_mutex));pnc_generation.physical_a_done=1;
+    assert(!pthread_cond_signal(&pnc_generation_condition));
+    while(!pnc_generation.b_done)assert(!pthread_cond_wait(&pnc_generation_condition,&pnc_generation_mutex));
+    assert(!pthread_mutex_unlock(&pnc_generation_mutex));return 0;
+}
+static void pnc_generation_case(const struct pnc_generation_api *api,unsigned int destination,struct connect_message *a,const char *name){
+    pnc_generation.api=api;pnc_generation.a=a;pnc_generation.destination=destination;api->snapshot(&pnc_generation.before);
+    pnc_generation.missing_allocate=!strcmp(name,"reuse-unobserved-allocation");
+    pnc_generation.missing_receive=!strcmp(name,"reuse-unobserved-receive");
+    pnc_generation.stale_ticket=!strcmp(name,"reuse-stale-ticket");
+    struct scalar_connection_snapshot expected=pnc_generation.before,after;
+    assert(expected.clean_completion && !expected.faults && expected.live_reply==a->data && expected.receive_ticket && expected.receiver_tid==syscall(SYS_gettid));
+    pthread_t thread;assert(!pthread_create(&thread,0,pnc_generation_reuse,0));
+    int rc=77;assert(pnc_release(destination,a->data,pnc_generation_a_free,0,&rc) && !rc);
+    assert(!pthread_join(thread,0));api->snapshot(&after);
+    expected.live_reply=0;expected.native_reply_frees++;expected.waiter_frees++;expected.reply_freed=expected.ap_consumed=1;
+    int blocked=pnc_generation.missing_allocate || pnc_generation.missing_receive || pnc_generation.stale_ticket;
+    if(blocked){expected.faults++;expected.clean_completion=0;}
+    assert(!memcmp(&expected,&after,sizeof after) && pnc_generation.physical_a_frees==1 && pnc_generation.physical_b_frees==1);
+    printf("PINMEM_NATIVE_POST_FREE_REUSE case=%s generation_a=%llu generation_b=%llu ticket_a=%llu ticket_b=%llu A_free=1 B_free=1 foreign_claimed=%d faults=%u ap_consumed=1 clean_completion=%u capture_verified=0\n",name,expected.allocation_generation,pnc_generation.generation_b,expected.receive_ticket,pnc_generation.ticket_b,blocked,after.faults,after.clean_completion);
+}
+static void pnc_bad_ticket(const struct pnc_generation_api *api,unsigned int destination,struct connect_message *a,int forged){
+    struct scalar_connection_snapshot before,after;api->snapshot(&before);unsigned int attempts=a->attempts;int rc=77;
+    unsigned long long ticket=forged?before.receive_ticket+1:0;
+    assert(api->release_ticket(destination,a->data,cm_free,0,&rc,ticket) && rc==-1021);
+    api->snapshot(&after);assert(after.live_reply==a->data && a->attempts==attempts && after.faults==before.faults+1 && !after.clean_completion);
+    printf("PINMEM_NATIVE_BAD_TICKET forged=%d actual_free=0 still_owned=1 capture_verified=0\n",forged);
 }
 static void pnc_preserved(void){
     if(pnc_speech_ready){assert(!memcmp(&pnc_speech,&pnc_speech_state_before,sizeof pnc_speech));assert(!memcmp(pnc_speech_memory,pnc_speech_before,sizeof pnc_speech_memory));}
@@ -136,16 +245,25 @@ static void pnc_record(const char *tag,const char *text){
         if(pnc_duplicate){int rc=pnc_adf?full_adf_connection_test_event_consume(&pnc_io):full_scalar_connection_test_event_consume(&pnc_io);assert(rc==-1);}
     }
     if(!strcmp(kind,"YC_DIRECTION_CHECK ")){assert(pnc_snapshot().yc_callback_seen && !pnc_snapshot().yc_format_published);pnc_posthooks++;}
-    if(!strcmp(kind,"REPLY_QUEUED ") && pnc_queued_fault){int rc=77;assert(pnc_release(pnc_caller^1u,pnc_final->data,pnc_free,pnc_record,&rc) && rc==-1021);}
+    if(!strcmp(kind,"REPLY_QUEUED ") && pnc_queued_fault){pnc_receive_current();int rc=77;assert(pnc_release(pnc_caller^1u,pnc_final->data,pnc_free,pnc_record,&rc) && rc==-1021);}
 }
 static int pnc_thread_free(unsigned int owner,void *p){
     assert(!pthread_mutex_lock(&pnc_thread_mutex));pnc_thread_started=1;assert(!pthread_cond_signal(&pnc_thread_condition));
     while(!pnc_thread_go)assert(!pthread_cond_wait(&pnc_thread_condition,&pnc_thread_mutex));
     assert(!pthread_mutex_unlock(&pnc_thread_mutex));return pnc_thread_error?-59:cm_free(owner,p);
 }
-static void *pnc_thread_release(void *unused){(void)unused;int rc=77;assert(pnc_release(pnc_caller,pnc_final->data,pnc_thread_free,0,&rc));assert(rc==(pnc_thread_error?-59:0));return 0;}
+static void *pnc_thread_release(void *unused){
+    (void)unused;pnc_receive_current();int rc=77;
+    assert(pnc_release(pnc_caller,pnc_final->data,pnc_thread_free,0,&rc));assert(rc==(pnc_thread_error?-59:0));
+    if(pnc_thread_error){struct scalar_connection_snapshot s=pnc_snapshot();
+        assert(s.faults && !s.clean_completion && s.live_reply==pnc_final->data && !s.releasing_reply && !s.ap_consumed && !pnc_final->released);
+        /* A failed free keeps the real receiver's receipt, including for retry. */
+        assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,0,&rc) && !rc);}
+    return 0;
+}
 static int pnc_send(unsigned int owner,void *p){
     pnc_callback();pnc_final=cm_meta(p);struct scalar_connection_snapshot s=pnc_snapshot();
+    assert(!pnc_delivery.pointer);pnc_delivery=(struct pnc_delivery){p,owner};
     assert(owner==pnc_caller && pnc_final->allocation==3 && pnc_final->bytes==56 && pnc_final->source==FULL_PINMEM_CP);
     unsigned char expected[56];ctframe(expected,56,0x8001,2);for(unsigned int i=0;i<4;i++)ctput32(expected+32+4*i,pnc_s[i]);assert(!memcmp(p,expected,56));
     assert(s.live_reply==p && !s.faults && s.event6_consumed==1 && s.yc_callback_seen && !s.yc_format_published && !s.manager_calls && pnc_event_consumes==1 && pnc_posthooks==1);pnc_sends++;
@@ -166,7 +284,7 @@ static int pnc_send(unsigned int owner,void *p){
     if(pnc_threaded){assert(!pthread_mutex_lock(&pnc_thread_mutex));assert(!pthread_create(&pnc_thread,0,pnc_thread_release,0));
         while(!pnc_thread_started){assert(!pthread_cond_wait(&pnc_thread_condition,&pnc_thread_mutex));}
         assert(!pthread_mutex_unlock(&pnc_thread_mutex));}
-    if(pnc_inline){int rc=77;assert(pnc_release(owner,p,pnc_free,pnc_record,&rc) && !rc);}
+    if(pnc_inline){pnc_receive_current();int rc=77;assert(pnc_release(owner,p,pnc_free,pnc_record,&rc) && !rc);}
     return pnc_send_error;
 }
 static const struct full_imaging_io pnc_io={pnc_allocate,pnc_free,pnc_set,pnc_send,pnc_size,pnc_source,pnc_record};
@@ -209,7 +327,7 @@ static void pnc_select_adf(void){
 static void pnc_complete_current(void){
     int rc=77;assert(pnc_dispatch(&rc) && !rc);struct scalar_connection_snapshot s=pnc_snapshot();
     assert(s.clean_completion && s.connections==1 && !s.faults && s.native_guarded && !held);
-    assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&rc) && !rc);s=pnc_snapshot();
+    pnc_receive_current();assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&rc) && !rc);s=pnc_snapshot();
     assert(s.ap_consumed==1 && s.native_reply_frees==1 && s.waiter_frees==1 && s.reply_freed && !s.live_reply && !s.retained_messages);pnc_preserved();
 }
 static void pnc_finish(void){pnc_preserved();for(unsigned int i=0;i<cm_count;i++)if(!cm[i].released)cm_dispose(&cm[i]);free(pnc_retired);pnc_retired=0;puts("PINMEM_NATIVE_PEER_CONNECTIONS_HOST_TEST_PASS");}
@@ -262,6 +380,7 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
     if(predecessor_reply){
         unsigned int allocations_before=pnc_allocs;assert(pnc_dispatch(&rc) && rc==-1021 && !pnc_snapshot().started && !pnc_snapshot().faults && !pnc_request->released && pnc_allocs==allocations_before);
         pnc_history_ready=0;
+        pnc_receive_current();
         if(target_adf)assert(full_scalar_connection_release(0x8abc7601,predecessor_reply,cm_free,get_record,&rc) && !rc);
         else assert(full_vef_pinmem_control_connection_release(vpc_caller,predecessor_reply,cm_free,get_record,&rc) && !rc);
         pnc_save();name="normal";
@@ -307,8 +426,17 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
         assert(rc==-1021 && s.faults && !s.clean_completion && s.releasing_reply && s.live_reply==pnc_final->data && s.retained_messages==1 && !s.ap_consumed && !pnc_final->released);
         assert(!pthread_mutex_lock(&pnc_thread_mutex));pnc_thread_go=1;assert(!pthread_cond_signal(&pnc_thread_condition));assert(!pthread_mutex_unlock(&pnc_thread_mutex));assert(!pthread_join(pnc_thread,0));
         s=pnc_snapshot();assert(s.faults && !s.clean_completion && !s.releasing_reply && !s.ap_consumed && !s.waiter_frees);
-        if(pnc_thread_error){assert(s.live_reply==pnc_final->data && s.retained_messages==1);int f=77;assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&f) && !f);}
         s=pnc_snapshot();assert(s.reply_freed && s.native_reply_frees==1 && !s.live_reply && !s.retained_messages);pnc_finish();return 0;
+    }
+    const struct pnc_generation_api *api=target_adf?&pnc_adf_api:&pnc_scalar_api;
+    if(!strncmp(name,"reuse-",6)){
+        assert(!rc);pnc_receive_current();pnc_generation_case(api,pnc_caller,pnc_final,name);pnc_finish();return 0;
+    }
+    if(!strcmp(name,"missing-receive-ticket") || !strcmp(name,"forged-receive-ticket")){
+        assert(!rc);int forged=!strcmp(name,"forged-receive-ticket");if(forged)pnc_receive_current();
+        pnc_bad_ticket(api,pnc_caller,pnc_final,forged);pnc_receive_current();
+        assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&rc) && !rc);
+        s=pnc_snapshot();assert(s.ap_consumed && s.faults && !s.clean_completion);pnc_finish();return 0;
     }
     int success=!strcmp(name,"normal") || !strcmp(name,"dynamic-caller") || !strcmp(name,"inline-free") || !strcmp(name,"recursive") || !strcmp(name,"fork-held") ||
         !strcmp(name,"recursive-free") || !strcmp(name,"queued-fault") || !strcmp(name,"request-free-fail") || !strcmp(name,"reply-free-fail") || !strcmp(name,"wrong-owner") || !strcmp(name,"foreign-thread-free");
@@ -318,6 +446,7 @@ int FULL_PINMEM_NATIVE_PEER_CONNECTION_TEST_MAIN(int argc,char **argv){
         else if(pnc_queued_fault)assert(s.faults && !s.clean_completion && s.request_freed);
         else assert(s.clean_completion && !s.faults && s.request_freed);
         if(!pnc_inline){int f=77;
+            if(strcmp(name,"foreign-thread-free"))pnc_receive_current();
             if(!strcmp(name,"wrong-owner"))assert(pnc_release(pnc_caller^1u,pnc_final->data,pnc_free,pnc_record,&f) && f==-1021 && !pnc_final->attempts);
             if(!strcmp(name,"reply-free-fail")){pnc_reply_error=1;assert(pnc_release(pnc_caller,pnc_final->data,pnc_free,pnc_record,&f) && f==-59);pnc_reply_error=0;}
             if(!strcmp(name,"foreign-thread-free")){pnc_thread_go=1;assert(!pthread_create(&pnc_thread,0,pnc_thread_release,0));assert(!pthread_join(pnc_thread,0));}

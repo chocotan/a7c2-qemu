@@ -773,3 +773,5 @@ def test_source_snapshot_has_no_effect_on_existing_frame_proof_or_counters(host)
     assert exchange(host, capacity=64)[0] == 0
     assert host.last_frame is previous and previous == dict(serial=37, after=dict(rendered=30, consumed=29))
     assert host.core.proofs == 0 and host.core.calls == [] and not events(host, 'model_frame')
+
+

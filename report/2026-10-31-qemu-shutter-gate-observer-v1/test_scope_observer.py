@@ -14,12 +14,13 @@ import re
 import shlex
 import subprocess
 import tempfile
+import tarfile
 
 import pytest
 
 HERE = Path(__file__).resolve().parent
 QEMU = HERE.parents[1] / 'source/build/qemu-SRBXNK/qemu-11.1.2'
-SCRATCH = HERE.parents[1] / 'runtime/analysis/scratch/functional-shutter-gate-v1-host-tests'
+SCRATCH = HERE.parents[1] / 'validation/tmp/functional-shutter-gate-v1-host-tests'
 HEADER_SHA = '335d4e472067e914add598b60d1f7cf0dc029cd48f62f66656d6a88c54d8d9f9'
 FLAGS = ['-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-O1', '-g', '-DHOST_MOCK']
 SITES = ('final_entry', 'd570_cbnz_pre', 'successor_1724_pre', 'successor_1838_pre')
@@ -34,17 +35,25 @@ def load_parser():
 
 @pytest.fixture(scope='session', params=('strict', 'asan-ubsan'))
 def observer_binary(request):
-    header = QEMU / 'include/plugins/qemu-plugin.h'
-    assert hashlib.sha256(header.read_bytes()).hexdigest() == HEADER_SHA
     SCRATCH.mkdir(parents=True, exist_ok=True)
     output = Path(tempfile.mkdtemp(prefix=request.param + '-', dir=SCRATCH))
+    manifest = json.loads((HERE.parents[1] / 'source/manifest.json').read_text())
+    archive = HERE.parents[1] / 'source/vendor' / manifest['base']
+    with archive.open('rb') as stream:
+        assert hashlib.file_digest(stream, 'sha256').hexdigest() == manifest['base_sha256']
+    with tarfile.open(archive) as source:
+        member = source.getmember('qemu-11.1.2/include/plugins/qemu-plugin.h')
+        assert member.isreg() and member.size < 1024 * 1024
+        data = source.extractfile(member).read()
+    assert hashlib.sha256(data).hexdigest() == HEADER_SHA
+    (output / 'qemu-plugin.h').write_bytes(data)
     flags = FLAGS + (['-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                       '-fno-omit-frame-pointer', '-fno-pie', '-no-pie'] if request.param == 'asan-ubsan' else [])
     pkg = subprocess.run(['pkg-config', '--cflags', '--libs', 'glib-2.0'], capture_output=True, text=True, timeout=20)
     assert pkg.returncode == 0, pkg.stderr
     binary = output / 'scope-observer-host-mock'
     command = shlex.split(os.environ.get('CC', 'cc')) + flags + [
-        '-I', str(QEMU / 'include/plugins'), str(HERE / 'test-scope-observer.c'),
+        '-I', str(output), str(HERE / 'test-scope-observer.c'),
         '-o', str(binary), *shlex.split(pkg.stdout)]
     (output / 'compile-command.json').write_text(json.dumps(command, indent=2) + '\n')
     proc = subprocess.run(command, capture_output=True, timeout=90)

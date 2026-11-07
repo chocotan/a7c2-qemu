@@ -5,6 +5,7 @@
 #define FULL_HDMI_CP 0x909a015au
 #define FULL_HDMI_DEFINITION 1
 #define FULL_HDMI_BOOT 2
+#define FULL_HDMI_SIGNAL_MODE_FUNCTIONAL 3
 struct full_hdmi_snapshot {
     unsigned int known, definition, faults, pending, live_replies;
     unsigned long long applied, queries, queued, request_freed;
@@ -19,9 +20,15 @@ struct full_hdmi_snapshot {
     unsigned int audio_pin_connected, audio_pin_connected_known;
     unsigned long long audio_pin_connected_writes;
     int audio_pin_connected_owner_pid;
+    unsigned int signal_mode_known, signal_mode;
+    unsigned long long signal_mode_applied;
+    int signal_mode_owner_pid;
 };
 /* Shared HDMI configuration and the qualified audio-pin connected byte only.
  * The current HDMI output state remains unknown; no cable, output or frames.
+ * output/frames. Functional mode3 accepts only original0102/12B with an opaque
+ * selector0..2, stores/readbacks it and returns original8102/12B status0.
+ * The selector is a virtual configuration contract, not physical output proof.
  * send/release/record must not synchronously reenter this module: they run
  * under its state mutex. The observer supplies original OSAL transport and
  * a file/console logger, not model callbacks. allocate runs outside the lock. */

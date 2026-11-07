@@ -3,6 +3,9 @@
 #define _GNU_SOURCE
 #include "functional-jpeg-codec.h"
 #include "functional-camera-bridge.h"
+#include "../../report/functional-capture-input/capture-mapper.h"
+#include "../../report/functional-capture-input/capture-jpeg-input.h"
+#include "../../report/functional-capture-output/capture-output-memory.h"
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,6 +20,15 @@
 #include <unistd.h>
 
 #pragma weak functional_mpr_memory_acquire_sds
+#pragma weak capture_input_hold
+#pragma weak capture_input_drop
+#pragma weak capture_mapper_bind
+#pragma weak capture_mapper_begin
+#pragma weak capture_mapper_end
+#pragma weak capture_jpeg_input_bind
+#pragma weak capture_jpeg_input_prepare
+#pragma weak capture_jpeg_input_release
+#pragma weak capture_output_memory_create
 /* The guest libc predates glibc's C23 scanf exports. */
 extern int jpeg_scan_maps(const char *, const char *, ...) __asm__("__isoc99_sscanf");
 #define EXEC_SYMBOL FUNCTIONAL_JPEG_CODEC_EXEC_SYMBOL
@@ -86,6 +98,8 @@ struct jpeg_job {
     uintptr_t ack_body_address;
     struct fcam_native_origin origin;
     struct functional_mpr_memory_lease lease;
+    struct capture_input *capture;
+    struct capture_jpeg_input input;
     uint8_t request[REQUEST_BYTES], wire[PACKET_BYTES], ack[REPLY_BYTES], done[REPLY_BYTES];
     uint64_t sequence, model_instance, output_fnv, model_token, model_fnv;
     size_t output_bytes, model_bytes, model_offset;
@@ -97,6 +111,14 @@ struct jpeg_job {
 static struct original_api original;
 static struct functional_jpeg_codec_snapshot stats;
 static struct jpeg_job pending;
+static struct capture_input *attached_capture;
+static struct capture_input_mapping attached_hold;
+static unsigned capture_selectors_done;
+static uint8_t *capture_parts[2];
+static size_t capture_part_bytes[2];
+static int capture_output_taken;
+static int capture_invocation;
+static struct capture_mapper_scope *failed_mapping_scope;
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
 static pthread_t worker;
@@ -421,8 +443,28 @@ static int jpeg_shape(const uint8_t *p, size_t bytes, uint32_t width, uint32_t h
     }
     return 0;
 }
+static void input_notes(const struct jpeg_job *j) {
+    const struct capture_jpeg_input *input = &j->input;
+    const struct capture_input_info *s = &input->source;
+    char detail[512];
+    snprintf(detail, sizeof detail,
+        "frame_token=%#" PRIx64 " frame_lifetime=%" PRIu64 " input_cfg=%" PRIu64
+        " input_frame=%" PRIu64 " source_fnv=%016" PRIx64 " source_bytes=%zu"
+        " metadata_unit=%u pixel_unit=%u metadata_token=%#" PRIx64 " pixel_token=%#" PRIx64,
+        s->token, s->model_lifetime, s->config_generation, s->frame_generation,
+        s->source_fnv1a64, s->pixel_bytes, s->metadata_unit, s->pixel_unit,
+        input->metadata.token, input->pixels.token);
+    note_detail("original-input-binding", j, 0, detail);
+    char descriptor[145]; hex_bytes(input->image_size_info, sizeof input->image_size_info, descriptor);
+    snprintf(detail, sizeof detail,
+        "metadata_address=%#" PRIxPTR " metadata_bytes=%zu metadata_fnv=%016" PRIx64
+        " pixel_address=%#" PRIxPTR " pixel_bytes=%zu input_readonly=1 image72=%s",
+        input->metadata.address, input->metadata.bytes, input->metadata_fnv1a64,
+        input->pixels.address, input->pixels.bytes, descriptor);
+    note_detail("original-input-descriptor", j, 0, detail);
+}
 static int encode(struct jpeg_job *j) {
-    uint8_t state[FCAM_STATE_BYTES], input[16] = {0};
+    uint8_t state[FCAM_STATE_BYTES], input[32] = {0};
     struct fcam_bridge_result result;
     int rc = fcam_bridge_call(&j->origin, FCAM_OP_STATE, NULL, 0, state, sizeof state, &result);
     if (rc) return rc;
@@ -438,14 +480,24 @@ static int encode(struct jpeg_job *j) {
         u32(state) != FCAM_ABI_VERSION || !(u32(state + FCAM_S_CAPS) & FCAM_CAP_STILL) ||
         !width || width > FCAM_MAX_STILL_WIDTH || !height || height > FCAM_MAX_STILL_HEIGHT ||
         !quality || quality > 100) return -EPROTO;
-    p32(input, FCAM_STILL_FULL_JPEG); p32(input + 4, width);
-    p32(input + 8, height); p32(input + 12, quality);
+    uint32_t model_op = FCAM_OP_STILL;
+    size_t input_bytes = 16;
+    if (j->capture) {
+        rc = capture_jpeg_input_prepare(j->capture, j->request, j->native.selector, quality, &j->input);
+        if (rc) return rc;
+        if (j->input.source.model_instance != j->model_instance) return -ESTALE;
+        memcpy(input, j->input.model_request, sizeof input);
+        model_op = FCAM_OP_FRAME_STILL; input_bytes = sizeof input;
+    } else {
+        p32(input, FCAM_STILL_FULL_JPEG); p32(input + 4, width);
+        p32(input + 8, height); p32(input + 12, quality);
+    }
     size_t capacity = j->lease.bytes;
     if (capacity <= FCAM_MAX_RESULT_BYTES - 2) capacity += 2;
     if (capacity > FCAM_MAX_RESULT_BYTES) capacity = FCAM_MAX_RESULT_BYTES;
     uint8_t *encoded = malloc(capacity);
     if (!encoded) return -ENOMEM;
-    rc = fcam_bridge_call(&j->origin, FCAM_OP_STILL, input, sizeof input, encoded, capacity, &result);
+    rc = fcam_bridge_call(&j->origin, model_op, input, input_bytes, encoded, capacity, &result);
     if (!rc && (result.model_instance != j->model_instance || !result.result_token ||
         result.used != result.required || result.used > capacity)) rc = -EPROTO;
     if (!rc) rc = jpeg_shape(encoded, result.used, width, height);
@@ -477,6 +529,7 @@ static void run_job(struct jpeg_job *j) {
     reply_body(j->ack, j->request, 0, rc ? SERVICE_ERROR : 0, (uint32_t)j->sequence);
     reply_body(j->done, j->request, 1, rc ? SERVICE_ERROR : 0, (uint32_t)j->output_bytes);
     pthread_mutex_lock(&lock);
+    if (pending.sequence == j->sequence) pending.input = j->input;
     if (pending.sequence != j->sequence || pending.cancelled) {
         pthread_mutex_unlock(&lock); note("cancelled-before-publication", j, -ECANCELED); return;
     }
@@ -489,6 +542,7 @@ static void run_job(struct jpeg_job *j) {
     pthread_mutex_unlock(&lock);
     if (rc) note("encode-failed", j, rc);
     else {
+        if (j->capture) input_notes(j);
         char detail[512];
         snprintf(detail, sizeof detail,
             "lease_generation=%" PRIu64 " lease_token=%#" PRIx64 " lease_address=%#" PRIxPTR
@@ -572,6 +626,56 @@ int functional_jpeg_codec_enable(void (*record)(const char *, const char *)) {
     if (!rc) note("enable", NULL, 0);
     return rc;
 }
+int functional_jpeg_codec_attach_capture(struct capture_input *input) {
+    int rc = process_guard();
+    if (rc) return rc;
+    if (current || in_record || in_callback) return -EDEADLK;
+    pthread_mutex_lock(&lock);
+    if (!stats.enabled || stopping) rc = -ENODEV;
+    else if (stats.pending || stats.working || starting || capture_invocation || failed_mapping_scope) rc = -EBUSY;
+    else if (input && attached_capture) rc = -EALREADY;
+    else if (input && (!capture_input_hold || !capture_input_drop || !capture_mapper_bind ||
+        !capture_mapper_begin || !capture_mapper_end || !capture_jpeg_input_bind ||
+        !capture_jpeg_input_prepare || !capture_jpeg_input_release)) rc = -ENOSYS;
+    else if (input) {
+        rc = capture_mapper_bind(FUNCTIONAL_JPEG_CODEC_LIBRARY_SHA256);
+        if (!rc) rc = capture_jpeg_input_bind("620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47");
+        if (!rc) rc = capture_input_hold(input, &attached_hold);
+        if (!rc) { attached_capture = input; capture_selectors_done = 0; capture_output_taken = 0; }
+    } else if (attached_capture) {
+        rc = capture_input_drop(attached_capture, &attached_hold);
+        if (!rc) {
+            attached_capture = NULL; memset(&attached_hold, 0, sizeof attached_hold);
+            for (unsigned i = 0; i < 2; ++i) { free(capture_parts[i]); capture_parts[i] = NULL; capture_part_bytes[i] = 0; }
+            capture_output_taken = 0;
+        }
+    }
+    pthread_mutex_unlock(&lock);
+    return rc;
+}
+int functional_jpeg_codec_capture_output(uint64_t mapbase, struct capture_output_memory **out) {
+    int rc = process_guard();
+    if (rc) return rc;
+    if (!out || *out) return -EINVAL;
+    if (current || in_record || in_callback) return -EDEADLK;
+    pthread_mutex_lock(&lock);
+    if (!stats.enabled || stopping) rc = -ENODEV;
+    else if (stats.pending || stats.working || starting || capture_invocation || failed_mapping_scope) rc = -EBUSY;
+    else if (!attached_capture) rc = -ENODATA;
+    else if (capture_output_taken) rc = -EALREADY;
+    else if ((capture_selectors_done & 3u) != 3u || !capture_parts[0] || !capture_parts[1]) rc = -ENODATA;
+    else if (!capture_output_memory_create) rc = -ENOSYS;
+    else {
+        rc = capture_output_memory_create(attached_capture, capture_parts[0], capture_part_bytes[0],
+            capture_parts[1], capture_part_bytes[1], mapbase, out);
+        if (!rc) {
+            capture_output_taken = 1;
+            for (unsigned i = 0; i < 2; ++i) { free(capture_parts[i]); capture_parts[i] = NULL; capture_part_bytes[i] = 0; }
+        }
+    }
+    pthread_mutex_unlock(&lock);
+    return rc;
+}
 static int rejected(int rc, int *result) {
     if (current) current->dispatch_error = rc;
     pthread_mutex_lock(&lock); ++stats.rejected; stats.last_error = rc; pthread_mutex_unlock(&lock);
@@ -634,8 +738,13 @@ int functional_jpeg_codec_dispatch(unsigned int destination, void *request,
     pthread_mutex_lock(&lock);
     if (stopping) rc = -ESHUTDOWN;
     else if (stats.pending) rc = -EBUSY;
+    else if (current->kind == MAIN && attached_capture &&
+        (capture_selectors_done & (1u << current->selector))) rc = -EALREADY;
     else if (stats.sequence == UINT32_MAX) rc = -EOVERFLOW;
-    else { stats.pending = 1; j.sequence = ++stats.sequence; }
+    else {
+        stats.pending = 1; j.sequence = ++stats.sequence;
+        if (current->kind == MAIN) j.capture = attached_capture;
+    }
     pthread_mutex_unlock(&lock);
     if (rc) return rejected(rc, result);
     rc = functional_mpr_memory_acquire_sds(u32(p + 0x24), u32(p + 0x28),
@@ -672,7 +781,7 @@ int functional_jpeg_codec_dispatch(unsigned int destination, void *request,
         }
         return rejected(rc, result);
     }
-    j.ready = 1;
+    j.ready = j.capture == NULL;
     current->submitted = 1;
     char detail[sizeof j.wire * 2 + 16], wire_hex[sizeof j.wire * 2 + 1];
     hex_bytes(j.wire, sizeof j.wire, wire_hex);
@@ -681,7 +790,8 @@ int functional_jpeg_codec_dispatch(unsigned int destination, void *request,
     note_detail("original-request", &j, 0, detail);
     lease_note(&j);
     pthread_mutex_lock(&lock);
-    pending = j; ++stats.accepted; pthread_cond_signal(&wake);
+    pending = j; ++stats.accepted;
+    if (j.ready) pthread_cond_signal(&wake);
     pthread_mutex_unlock(&lock);
     *result = 0;
     return 1;
@@ -731,11 +841,41 @@ static uint32_t invoke_exec(void *object, const uint8_t *trigger, unsigned kind,
         if (!rc && !u16(completion + 2)) rc = read_object(trigger, completion, sizeof completion);
     }
     if (rc) { errno = -rc; return NATIVE_ERROR; }
+    struct capture_mapper_scope *mapping_scope = NULL;
+    struct capture_input *capture = NULL;
+    if (kind == MAIN) {
+        pthread_mutex_lock(&lock);
+        if (stats.pending || stats.working || capture_invocation || failed_mapping_scope) rc = -EBUSY;
+        else capture = attached_capture;
+        if (!rc && capture) {
+            mapping_scope = calloc(1, sizeof *mapping_scope);
+            if (!mapping_scope) rc = -ENOMEM;
+            else rc = capture_mapper_begin(capture, mapping_scope);
+            if (!rc) capture_invocation = 1;
+        }
+        pthread_mutex_unlock(&lock);
+        if (rc) { free(mapping_scope); errno = -rc; return NATIVE_ERROR; }
+    }
     current = &v;
     errno = saved;
     uint32_t result = kind == WITHOUT_PIN ? original.exec(object, trigger) : original.main_exec(object, trigger);
     int native_errno = errno;
     current = NULL;
+    if (capture) {
+        int mapped = capture_mapper_end(mapping_scope);
+        pthread_mutex_lock(&lock);
+        capture_invocation = 0;
+        const int mapping_live = mapping_scope->input != NULL;
+        if (mapping_live) failed_mapping_scope = mapping_scope;
+        if (v.submitted && stats.pending && pending.native.object == object && pending.capture == capture) {
+            if (mapped || result || v.dispatch_error) {
+                pending.cancelled = 1; stats.last_error = mapped ? mapped : -EPROTO;
+            } else { pending.ready = 1; pthread_cond_signal(&wake); }
+        }
+        pthread_mutex_unlock(&lock);
+        if (!mapping_live) free(mapping_scope);
+        if (mapped) { errno = -mapped; return NATIVE_ERROR; }
+    }
     if (!result && (!v.submitted || v.dispatch_error)) {
         errno = v.dispatch_error ? -v.dispatch_error : ENOMSG; return NATIVE_ERROR;
     }
@@ -986,7 +1126,46 @@ static uint32_t invoke_res(void *object, const uint8_t *response, uint16_t mid,
         note_detail("original-maincomp-config", &j, rc, config_detail);
     }
     int terminal = !rc && kind != MAIN && (completion || u32(body + 8)) && result == expected;
-    int released = terminal ? functional_mpr_memory_release(j.lease.token) : 0;
+    uint8_t *captured_bytes = NULL;
+    size_t captured_length = 0;
+    if (terminal && kind == MAIN_COMP && j.capture && !u32(body + 8) && j.native.selector < 2) {
+        const size_t prefix = j.native.selector == 0 ? 2u : 0u;
+        if (j.output_bytes > FCAM_MAX_RESULT_BYTES - prefix) rc = -E2BIG;
+        else {
+            captured_length = j.output_bytes + prefix;
+            captured_bytes = malloc(captured_length);
+            if (!captured_bytes) rc = -ENOMEM;
+            else {
+                if (prefix) { captured_bytes[0] = 0xff; captured_bytes[1] = 0xd8; }
+                rc = read_object((void *)j.lease.address, captured_bytes + prefix, j.output_bytes);
+                if (!rc && hash(captured_bytes + prefix, j.output_bytes) != j.output_fnv) rc = -EIO;
+                if (!rc) rc = functional_mpr_memory_validate(&j.lease);
+            }
+        }
+        if (rc) terminal = 0;
+        else {
+            char collected[320];
+            snprintf(collected, sizeof collected,
+                "frame_token=%#" PRIx64 " copied_bytes=%zu copied_fnv=%016" PRIx64
+                " original_output_bytes=%zu original_output_fnv=%016" PRIx64
+                " model_token=%#" PRIx64 " lease_token=%#" PRIx64 " actual_native_terminal=1",
+                j.input.source.token, captured_length, hash(captured_bytes, captured_length),
+                j.output_bytes, j.output_fnv, j.model_token, j.lease.token);
+            note_detail("original-output-retained", &j, 0, collected);
+        }
+    }
+    const uint64_t input_frame_token = j.input.source.token;
+    const uint64_t metadata_token = j.input.metadata.token, pixel_token = j.input.pixels.token;
+    int released = terminal && j.input.owner ? capture_jpeg_input_release(&j.input) : 0;
+    if (terminal && input_frame_token) {
+        char detail[256];
+        snprintf(detail, sizeof detail,
+            "frame_token=%#" PRIx64 " metadata_token=%#" PRIx64 " pixel_token=%#" PRIx64
+            " input_release_rc=%d actual_native_terminal=1 input_refs_released=%d",
+            input_frame_token, metadata_token, pixel_token, released, !released);
+        note_detail("original-input-release", &j, released, detail);
+    }
+    if (terminal && !released) released = functional_mpr_memory_release(j.lease.token);
     pthread_mutex_lock(&lock);
     if (pending.sequence == j.sequence) {
         pending.callback_active = 0;
@@ -995,11 +1174,24 @@ static uint32_t invoke_res(void *object, const uint8_t *response, uint16_t mid,
                 pending.ack_consumed = 1; pending.ack_body_address = (uintptr_t)response; ++stats.native_ack;
             } else ++stats.native_done;
         }
-        if (terminal && !released) { stats.pending = 0; memset(&pending, 0, sizeof pending); }
+        if (terminal) pending.input = j.input;
+        if (terminal && !released) {
+            if (j.capture && !u32(body + 8)) {
+                capture_selectors_done |= 1u << j.native.selector;
+                if (captured_bytes) {
+                    free(capture_parts[j.native.selector]);
+                    capture_parts[j.native.selector] = captured_bytes;
+                    capture_part_bytes[j.native.selector] = captured_length;
+                    captured_bytes = NULL;
+                }
+            }
+            stats.pending = 0; memset(&pending, 0, sizeof pending);
+        }
         if (released) stats.last_release_error = released;
         if (rc || result != expected) { stats.last_error = -EPROTO; pending.cancelled = 1; }
     }
     pthread_mutex_unlock(&lock);
+    free(captured_bytes);
     char hex[REPLY_BYTES*2+1], detail[512];
     hex_bytes(body, sizeof body, hex);
     snprintf(detail, sizeof detail,
@@ -1040,7 +1232,8 @@ int functional_jpeg_codec_shutdown(void) {
     if (rc) return rc;
     pthread_mutex_lock(&lock);
     if (!stats.worker_live) rc = -ENODEV;
-    else if (stats.pending || stats.working || starting || stopping) rc = -EBUSY;
+    else if (stats.pending || stats.working || starting || stopping || attached_capture ||
+             capture_invocation || failed_mapping_scope) rc = -EBUSY;
     else { stopping = 1; pthread_cond_signal(&wake); }
     pthread_mutex_unlock(&lock);
     if (rc) return rc;

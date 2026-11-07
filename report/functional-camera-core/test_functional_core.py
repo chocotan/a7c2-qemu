@@ -33,7 +33,8 @@ def builds(tmp_path_factory):
         "virtual-optics/optics.c", "virtual-optical-frame-owner/optical-frame-owner.c",
         "virtual-jpeg-hardware/jpeg-hardware.c", "virtual-jpeg-hardware/jpeg-hardware-codec.c",
         "virtual-jpeg-sos/jpeg-sos.c", "virtual-video-engine/video-engine.c",
-        "virtual-camera-pipeline/camera-pipeline.c")]
+        "virtual-camera-pipeline/camera-pipeline.c",
+        "../runtime/analysis/device-models/cp-parameter-batch.c")]
     subprocess.run(cc + CFLAGS + ["-O2", "-fsyntax-only", str(HERE / "functional-camera-core.c")] +
                    libraries, check=True, capture_output=True, timeout=30)
     result = {}
@@ -144,9 +145,54 @@ def decode_h264(data):
 
 
 @pytest.mark.parametrize("mode", ["normal", "sanitized"])
-@pytest.mark.parametrize("group", ["contracts", "proof", "fault", "empty", "long"])
+@pytest.mark.parametrize("group", ["contracts", "proof", "fault", "empty", "long", "parameters", "crank", "movie", "ou-crank"])
 def test_contracts_and_real_stream_lifecycle(builds, mode, group):
     assert run(builds, mode, group) == b""
+
+
+@pytest.mark.parametrize("mode", ["normal", "sanitized"])
+def test_retained_frame_is_shared_by_all_selectors_until_explicit_retirement(builds, mode):
+    values = blobs(run(builds, mode, "retained"))
+    source, = values["CAPTURE"]
+    rgb = source[96:]
+    assert len(rgb) == 128 * 64 * 3 and u64(source, 72) == fnv(rgb)
+    assert u32(source, 48) == 128 and u32(source, 52) == 64 and u32(source, 56) == 384
+    other, = values["OTHER_RGB"]
+    assert error(rgb, other) > 10
+    scaled = bytes(channel for y in range(32) for x in range(64)
+                   for channel in rgb[(y * 2 * 128 + x * 2) * 3:(y * 2 * 128 + x * 2) * 3 + 3])
+    for tag, encoded, expected, geometry in (
+            ("MAIN", values["MAIN"][0], rgb, (128, 64)),
+            ("THM", values["THM"][0], scaled, (64, 32)),
+            ("SCAN", values["SCAN_PREFIX"][0] + values["SCAN"][0], scaled, (64, 32))):
+        image = jpeg(encoded)
+        assert image.size == geometry
+        decoded = image.convert("RGB").tobytes()
+        assert error(decoded, expected) < 20, tag
+        if tag == "MAIN":
+            assert error(decoded, expected) < error(decoded, other)
+
+
+@pytest.mark.parametrize("mode", ["normal", "sanitized"])
+def test_forced_idr_consumes_actual_frame_and_resets_normal_feed(builds, mode):
+    values = blobs(run(builds, mode, "idr"))
+    packets, sources = values["PACKET"], values["VIDEO_RGB"]
+    assert len(packets) == len(sources) == 3
+    stream = bytearray()
+    for index, packet in enumerate(packets):
+        config_size = u32(packet, 64)
+        encoded = packet[96 + config_size:]
+        assert u64(packet, 8) == u64(packet, 16) == index
+        assert bool(u32(packet, 40)) == (index < 2)
+        assert (5 in nals(encoded)) == (index < 2)
+        assert (1 in nals(encoded)) == (index == 2)
+        stream.extend(packet[96:])
+    decoded = decode_h264(bytes(stream))
+    frame_bytes = 128 * 64 * 3
+    assert len(decoded) == 3 * frame_bytes
+    for index, source in enumerate(sources):
+        assert len(source) == frame_bytes and len(set(source)) > 10
+        assert error(decoded[index * frame_bytes:(index + 1) * frame_bytes], source) < 16
 
 
 @pytest.mark.parametrize("mode", ["normal", "sanitized"])
@@ -377,6 +423,18 @@ class Model:
             ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.c_uint8),
             ctypes.c_size_t, ctypes.POINTER(ExecResult)]
         self.lib.fcam_model_request.restype = ctypes.c_int
+        self.lib.fcam_model_cp_parameter_bank_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+        self.lib.fcam_model_cp_parameter_bank_snapshot.restype = ctypes.c_int
+        self.lib.fcam_model_cp_crank_control_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+            ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+        self.lib.fcam_model_cp_crank_control_snapshot.restype = ctypes.c_int
+        self.lib.fcam_model_cp_movie_format_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+            ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+        self.lib.fcam_model_cp_movie_format_snapshot.restype = ctypes.c_int
+        self.lib.fcam_model_cp_ou_crank_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+            ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t]
+        self.lib.fcam_model_cp_ou_crank_snapshot.restype = ctypes.c_int
         self.handle = self.lib.fcam_model_create(7)
         assert self.handle, ctypes.get_errno()
         state, _ = self.request(1)
@@ -420,6 +478,180 @@ def config(*, width=128, height=64, fps=25, quality=90, fnumber=400,
            iso=100, shutter=2500, focus=1000000):
     return struct.pack("<IIIIIIQQII", width, height, fps, quality, fnumber, iso,
                        shutter, focus, 0, 0)
+
+
+def test_ctypes_ou224_requires_current4057_and_preserves_history(builds):
+    model = Model(builds["library"])
+    class Slot(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint16) for name in ("opcode", "offset", "size")]
+    slots = (Slot * 190).in_dll(model.lib, "cp_parameter_batch_slots")
+    raw = bytearray(2564); raw[0] = 5; struct.pack_into("<HI", raw, 2, 0x4063, 0x80000061)
+    for slot in slots:
+        raw[slot.offset] = 5; struct.pack_into("<H", raw, slot.offset + 2, slot.opcode)
+    struct.pack_into("<I", raw, 0x86c, 30)
+    request = bytes.fromhex("050072406100008000000000")
+    try:
+        model.request(23, request, 224, expected=-errno.ENODATA)
+        model.request(5, bytes([1,5,5]) + bytes(13), 160)
+        bank, _ = model.request(20, raw, 2756)
+        crank, _ = model.request(21, bytes.fromhex("05a79d406055aa8000000000"), 208)
+        movie, _ = model.request(22, bytes.fromhex("05a700406055aa80050100b300000000000001c4"), 240)
+        model.request(23, request, 224, expected=-errno.ENODATA)
+        before, _ = model.request(2)
+        settings = struct.pack("<HH",0x4057,4) + bytes(20) + struct.pack("<Q",fnv(before[8:48]))
+        model.request(14, settings, 192)
+        before, _ = model.request(2)
+        receipt, result = model.request(23, request, 224)
+        after, _ = model.request(2)
+        expected = bytearray(before); struct.pack_into("<Q", expected, 56, u64(before,56) + 1)
+        assert receipt[80:208] == after == bytes(expected) and receipt[208:220] == request and receipt[220:] == bytes(4)
+        assert struct.unpack_from("<II8Q2I",receipt) == (1,224,7,1,1,1,1,u64(before,56),u64(after,56),fnv(request),0,30)
+        assert result.used == 224 and not (result.token or result.total or result.offset)
+        query = (ctypes.c_uint8 * 224)()
+        assert model.lib.fcam_model_cp_ou_crank_snapshot(model.handle,1,1,1,1,query,224) == 0 and bytes(query) == receipt
+        query[223] = 1
+        assert model.lib.fcam_model_cp_ou_crank_snapshot(model.handle,1,1,1,1,query,224) == 0 and bytes(query) == receipt
+        model.request(23, bytes.fromhex("05ee724098badcfe00000000"), 224, expected=-errno.ESTALE)
+        model.request(3, config(width=640,height=480,fps=30,quality=71))
+        assert model.lib.fcam_model_cp_ou_crank_snapshot(model.handle,1,1,1,1,query,224) == 0 and bytes(query) == receipt
+        for getter, identities, size, saved in (
+            (model.lib.fcam_model_cp_parameter_bank_snapshot,(1,),2756,bank),
+            (model.lib.fcam_model_cp_crank_control_snapshot,(1,1),208,crank),
+            (model.lib.fcam_model_cp_movie_format_snapshot,(1,1,1),240,movie)):
+            output = (ctypes.c_uint8 * size)()
+            assert getter(model.handle,*identities,output,size) == 0 and bytes(output) == saved
+    finally:
+        model.close()
+
+
+def test_ctypes_movie240_preserves_three_histories_and_feeds_existing_h264(builds):
+    model = Model(builds["library"])
+    class Slot(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint16) for name in ("opcode", "offset", "size")]
+    slots = (Slot * 190).in_dll(model.lib, "cp_parameter_batch_slots")
+    raw = bytearray(2564)
+    raw[0] = 5
+    struct.pack_into("<HI", raw, 2, 0x4063, 0x80000061)
+    for slot in slots:
+        raw[slot.offset] = 5
+        struct.pack_into("<H", raw, slot.offset + 2, slot.opcode)
+    struct.pack_into("<I", raw, 0x86c, 30)
+    request = bytes.fromhex("05a700406055aa80050100b300000000000001c4")
+    try:
+        model.request(22, request, 240, expected=-errno.ENODATA)
+        model.request(3, config(fps=30, quality=13, fnumber=800, iso=640, shutter=8642, focus=(1 << 64) - 1))
+        bank, _ = model.request(20, raw, 2756)
+        model.request(22, request, 240, expected=-errno.ENODATA)
+        crank, _ = model.request(21, bytes.fromhex("05a79d406055aa8000000000"), 208)
+        before, _ = model.request(2)
+        receipt, info = model.request(22, request, 248)
+        after, _ = model.request(2)
+        expected = bytearray(before)
+        struct.pack_into("<Q", expected, 56, u64(before, 56) + 1)
+        assert receipt[80:208] == after == bytes(expected) and receipt[208:228] == request and receipt[228:] == bytes(12)
+        assert struct.unpack_from("<II7Q4I", receipt) == (1,240,7,1,1,1,u64(before,56),u64(after,56),fnv(request),5,0,30,1)
+        assert info.used == 240 and not (info.token or info.total or info.offset)
+        query = (ctypes.c_uint8 * 240)()
+        bank_query, crank_query = (ctypes.c_uint8 * 2756)(), (ctypes.c_uint8 * 208)()
+        assert model.lib.fcam_model_cp_movie_format_snapshot(model.handle,1,1,1,query,240) == 0 and bytes(query) == receipt
+        assert model.lib.fcam_model_cp_parameter_bank_snapshot(model.handle,1,bank_query,2756) == 0 and bytes(bank_query) == bank
+        assert model.lib.fcam_model_cp_crank_control_snapshot(model.handle,1,1,crank_query,208) == 0 and bytes(crank_query) == crank
+        model.request(22, request, 240, expected=-errno.ESTALE)
+        model.request(3, config(fps=30,quality=71))
+        assert model.lib.fcam_model_cp_movie_format_snapshot(model.handle,1,1,1,query,240) == 0 and bytes(query) == receipt
+        model.request(32, config(fps=60), expected=-errno.ESTALE)
+        model.request(32, config(fps=30))
+        packet = model.encoded(33)
+        assert u32(packet,68) == 0x61766331 and u32(packet,36) == 30
+        config_bytes = u32(packet,64)
+        assert config_bytes and u64(packet,48) == len(packet) - 96 - config_bytes
+        decoded = decode_h264(packet[96 + config_bytes:])
+        assert len(decoded) == 128 * 64 * 3 and max(decoded) > min(decoded)
+        model.encoded(34)
+        assert model.lib.fcam_model_cp_movie_format_snapshot(model.handle,1,1,1,query,240) == 0 and bytes(query) == receipt
+        after_video, _ = model.request(2)
+        assert u64(after_video,64) == u64(after,64) + 1 and u64(after_video,72) == u64(after,72) + 1
+        assert u64(after_video,88) == u64(after,88) + 1 and u32(after_video,108) == 2
+    finally:
+        model.close()
+
+
+def test_ctypes_crank208_consumes_current_config_and_preserves_both_histories(builds):
+    model = Model(builds["library"])
+    class Slot(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint16) for name in ("opcode", "offset", "size")]
+    slots = (Slot * 190).in_dll(model.lib, "cp_parameter_batch_slots")
+    raw = bytearray(2564)
+    raw[0] = 5
+    struct.pack_into("<HI", raw, 2, 0x4063, 0x80000061)
+    for slot in slots:
+        raw[slot.offset] = 5
+        struct.pack_into("<H", raw, slot.offset + 2, slot.opcode)
+    struct.pack_into("<I", raw, 0x86c, 30)
+    request = bytes.fromhex("05a79d406055aa8000000000")
+    try:
+        model.request(21, request, 208, expected=-errno.ENODATA)
+        model.request(3, config(quality=13, fps=30, fnumber=800, iso=640, shutter=8642, focus=(1 << 64) - 1))
+        bank, _ = model.request(20, raw, 2756)
+        before, _ = model.request(2)
+        receipt, info = model.request(21, request, 216)
+        after, _ = model.request(2)
+        expected = bytearray(before)
+        struct.pack_into("<Q", expected, 56, u64(before, 56) + 1)
+        assert after == bytes(expected) == receipt[64:192] and receipt[192:204] == request and receipt[204:] == bytes(4)
+        assert struct.unpack_from("<II6Q2I", receipt) == (1, 208, 7, 1, 1,
+            u64(before, 56), u64(before, 56) + 1, fnv(request), 0, 30)
+        assert info.used == 208 and not (info.token or info.total or info.offset)
+        query = (ctypes.c_uint8 * 208)()
+        bank_query = (ctypes.c_uint8 * 2756)()
+        assert model.lib.fcam_model_cp_crank_control_snapshot(model.handle, 1, 1, query, 208) == 0
+        assert bytes(query) == receipt
+        assert model.lib.fcam_model_cp_parameter_bank_snapshot(model.handle, 1, bank_query, 2756) == 0
+        assert bytes(bank_query) == bank and u64(bank, 32) == u64(before, 56)
+        model.request(3, config(fps=30, quality=71))
+        assert model.lib.fcam_model_cp_crank_control_snapshot(model.handle, 1, 1, query, 208) == 0
+        assert bytes(query) == receipt
+        assert model.lib.fcam_model_cp_parameter_bank_snapshot(model.handle, 1, bank_query, 2756) == 0
+        assert bytes(bank_query) == bank
+        model.request(21, request, 208, expected=-errno.ESTALE)
+    finally:
+        model.close()
+
+
+def test_ctypes_complete_parameter_bank_uses_real_configure_without_a_frame(builds):
+    model = Model(builds["library"])
+    class Slot(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint16) for name in ("opcode", "offset", "size")]
+    slots = (Slot * 190).in_dll(model.lib, "cp_parameter_batch_slots")
+    settings = config(quality=13, fnumber=800, iso=640, shutter=8642, focus=(1 << 64) - 1)
+    try:
+        model.request(3, settings)
+        previous, _ = model.request(2)
+        for generation, fps in enumerate((30, 30, 60), 1):
+            raw = bytearray((i * 73 + i // 29 + generation) % 256 for i in range(2564))
+            raw[0] = 5
+            struct.pack_into("<HI", raw, 2, 0x4063, 0x80000060 + generation)
+            for slot in slots:
+                raw[slot.offset] = 5
+                struct.pack_into("<H", raw, slot.offset + 2, slot.opcode)
+            struct.pack_into("<I", raw, 0x86c, fps)
+            receipt, info = model.request(20, raw, 2756)
+            current, _ = model.request(2)
+            expected = bytearray(previous)
+            struct.pack_into("<I", expected, 16, fps)
+            struct.pack_into("<Q", expected, 56, u64(previous, 56) + 1)
+            assert current == bytes(expected) == receipt[64:192]
+            assert receipt[192:] == bytes(raw) and u64(receipt, 40) == fnv(raw)
+            assert struct.unpack_from("<IIQQQQQIIII", receipt) == (
+                1, 2756, 7, generation, u64(previous, 56), u64(current, 56), fnv(raw), fps, 190, 2564, 0)
+            assert not (info.token or info.total or info.offset) and info.used == 2756
+            readback = (ctypes.c_uint8 * 2756)()
+            assert model.lib.fcam_model_cp_parameter_bank_snapshot(model.handle, generation, readback, 2756) == 0
+            assert bytes(readback) == receipt
+            previous = current
+        assert current[20:48] == settings[12:40] and current[64:120] == expected[64:120]
+    finally:
+        model.close()
 
 
 def test_ctypes_vdf_fixed_reply_commits_and_preserves_encoded_counters(builds):
@@ -675,3 +907,48 @@ def test_ctypes_live_pending_result_cancel_and_real_eos(builds):
         assert u32(state, 108) == 2 and u64(state, 72) == u64(state, 88) == 2
     finally:
         model.close()
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+def test_zero6_set_actual_rgb_independent_fourth_bank_and_complete_reply(builds, mode):
+    data = blobs(run(builds, 'vdf-' + mode, 'zero6'))
+    canonical, = data['ZERO6_INPUT']
+    actual, = data['ZERO6']
+    repeat, = data['ZERO6_REPEAT']
+    source, = data['ZERO6_SOURCE']
+    sink, = data['ZERO6_SINK']
+    assert canonical == struct.pack('<2I', 0x163, 6) + bytes(8)
+    assert source == sink and len(source) == 128 * 64 * 3
+    assert len(set(zip(source[0::3], source[1::3], source[2::3]))) > 1
+    expected = bytearray(176)
+    struct.pack_into('<IIQQQQQQQQ', expected, 0, 1, 176, 77, 7, 5, 5,
+                     fnv(canonical), fnv(source), fnv(sink), len(source))
+    struct.pack_into('<14I', expected, 72, 128, 64, 384, 0x90590819,
+                     1, 1, 1, 1, 1, 1, 1, 1, 0, 0)
+    expected[128:144] = bytes([1, 5, 5]) + bytes(13)
+    struct.pack_into('<2Q', expected, 144, 4, 6)
+    expected[160:] = canonical
+    assert actual == expected
+    assert len(repeat) == 176 and u64(repeat, 16) == 8 and u64(repeat, 24) == 6
+    assert repeat[128:144] == expected[128:144] and repeat[160:] == canonical
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+def test_0170_all_tuples_real_rgb_fifth_bank_and_transaction_failures(builds, mode):
+    data = blobs(run(builds, 'vdf-' + mode, 'eframing-output'))
+    assert all(len(data[key]) == 8 for key in ('OUTPUT_INPUT', 'OUTPUT', 'OUTPUT_SOURCE', 'OUTPUT_SINK'))
+    for mask, (canonical, actual, source, sink) in enumerate(zip(
+            data['OUTPUT_INPUT'], data['OUTPUT'], data['OUTPUT_SOURCE'], data['OUTPUT_SINK'])):
+        assert canonical == struct.pack('<2I', 0x170, 4) + bytes((mask >> bit) & 1 for bit in range(3)) + bytes(5)
+        assert source == sink and len(source) == 128 * 64 * 3
+        assert len(set(zip(source[0::3], source[1::3], source[2::3]))) > 1
+        expected = bytearray(176)
+        struct.pack_into('<IIQQQQQQQQ', expected, 0, 1, 176, 77, 8 + mask, 6 + mask, 6 + mask,
+                         fnv(canonical), fnv(source), fnv(sink), len(source))
+        struct.pack_into('<14I', expected, 72, 128, 64, 384, 0x90590819,
+                         1, 1, 1, 1, 1, 1, 1, 1, 0, 0)
+        expected[128:144] = bytes((1, 5, 5)) + bytes(13)
+        struct.pack_into('<2Q', expected, 144, 5 + mask, 7 + mask)
+        expected[160:] = canonical
+        assert actual == expected
+

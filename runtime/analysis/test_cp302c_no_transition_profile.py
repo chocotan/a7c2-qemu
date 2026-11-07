@@ -206,12 +206,12 @@ def test_prepare_rejects_bad_profile_chain_or_seed_before_candidate_and_outputs(
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_actual_receipt_and_manifest_keep_typed_intent_and_reject_all_mutations(tmp_path,enabled):
+def test_actual_receipt_and_manifest_keep_typed_intent_and_reject_all_mutations(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     host=selected_host(tmp_path,build,enabled)
     with directory_lease(tmp_path/'card') as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     path=Path(host['MENU_BACKUP_PROFILE_RECEIPT']);receipt=json.loads(path.read_text())
     fields=backup.cp302c_no_transition_profile_fields(PROFILE if enabled else '')
     for key,value in fields.items():

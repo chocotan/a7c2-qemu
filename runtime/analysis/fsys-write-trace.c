@@ -1,5 +1,8 @@
 #define _GNU_SOURCE
 #include "fsys-write-trace.h"
+#include "../../report/functional-capture-output/capture-save.h"
+#pragma weak functional_capture_fsys_begin
+#pragma weak functional_capture_fsys_event
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -23,6 +26,11 @@ struct write_record {
 };
 static struct write_record records[TRACE_REQUESTS];
 static _Atomic unsigned next_record, missed_records;
+static void capture_event(unsigned token,enum capture_save_event event,int rc,unsigned complete,uint64_t bytes,uint64_t hash){
+    int saved=errno;
+    if(functional_capture_fsys_event)functional_capture_fsys_event(token,event,rc,complete,bytes,hash);
+    errno=saved;
+}
 
 static uint64_t u64(const unsigned char *p) {
     uint64_t value = 0;
@@ -152,6 +160,7 @@ unsigned fsys_write_trace_begin(const unsigned char request[FSYS_WRITE_REQUEST_B
               (unsigned long long)layout.area[i].bytes, (unsigned long long)hashes[i], readable[i],
               (unsigned long long)layout.area[i].submitted_bytes);
     }
+    if(functional_capture_fsys_begin)functional_capture_fsys_begin(token,&layout,hashes,readable);
     errno = error;
     return token;
 }
@@ -161,6 +170,7 @@ void fsys_write_trace_submit(unsigned token, int rc) {
     atomic_store_explicit(&records[token - 1].submitted, 1, memory_order_release);
     trace("FSYS_WRITE_SUBMIT pid=%d token=%u rc=%d callback_seen=%u\n", getpid(), token, rc,
           atomic_load_explicit(&records[token - 1].callback_seen, memory_order_acquire));
+    capture_event(token,CAPTURE_SAVE_SUBMIT,rc,1,0,0);
 }
 /* Reused or duplicate cookies cannot be paired by inventing a generation. */
 static unsigned match(uint64_t cookie, uint64_t callback, int worker) {
@@ -193,6 +203,7 @@ unsigned fsys_write_trace_callback(void *cookie, int rc, const void *result, uin
     trace("MPR_WRITE_CALLBACK pid=%d token=%u cookie=0x%llx rc=%d result_copied=%d result_fnv1a64=%016llx duplicate=%u result_bytes=1240\n",
           getpid(), token, (unsigned long long)(uintptr_t)cookie, rc, copied,
           (unsigned long long)(copied ? fsys_write_fnv1a64(snapshot, sizeof snapshot) : 0), duplicate);
+    if(token)capture_event(token,CAPTURE_SAVE_CALLBACK,rc,(unsigned)(copied && !duplicate),0,0);
     errno = error;
     return duplicate ? 0 : token;
 }
@@ -200,11 +211,13 @@ void fsys_write_trace_callback_return(unsigned token) {
     if (!token || token > TRACE_REQUESTS) return;
     atomic_store_explicit(&records[token - 1].callback_returned, 1, memory_order_release);
     trace("MPR_WRITE_CALLBACK_RETURN pid=%d token=%u returned=1\n", getpid(), token);
+    capture_event(token,CAPTURE_SAVE_CALLBACK_RETURN,0,1,0,0);
 }
 void fsys_write_trace_unobserved(void) {
     if (!enabled()) return;
     atomic_fetch_add_explicit(&missed_records, 1, memory_order_relaxed);
     trace("FSYS_WRITE_COVERAGE_INCOMPLETE pid=%d missed=1\n", getpid());
+    capture_event(0,CAPTURE_SAVE_COVERAGE,-ENODATA,0,0,0);
 }
 struct fsys_write_finished fsys_write_trace_finished_begin(const void *input) {
     int error = errno;
@@ -238,6 +251,7 @@ void fsys_write_trace_finished_return(struct fsys_write_finished input) {
     if (!input.token || duplicate) fsys_write_trace_unobserved();
     trace("MPR_WRITE_FINISHED pid=%d token=%u cookie=0x%llx rc=%d input_copied=%d returned=1 duplicate=%u\n",
           getpid(), input.token, (unsigned long long)input.cookie, input.rc, input.input_copied, duplicate);
+    if(input.token)capture_event(input.token,CAPTURE_SAVE_FINISHED,input.rc,(unsigned)(input.input_copied && !duplicate),0,0);
     errno = error;
 }
 
@@ -288,11 +302,13 @@ int fsys_write_trace_readback(const struct fsys_native_read_ops *ops) {
         trace("FSYS_WRITE_NATIVE_READBACK pid=%d token=%u cookie=0x%llx rc=%d bytes=%llu fnv1a64=%016llx eof=%d close_rc=%d\n",
               getpid(), i + 1, (unsigned long long)r->cookie, rc, (unsigned long long)bytes,
               (unsigned long long)hash, eof, close_rc);
+        capture_event(i+1,CAPTURE_SAVE_READBACK,rc,(unsigned)(eof && !close_rc),bytes,hash);
         if (rc) result = rc;
     }
     if (count != atomic_load_explicit(&next_record, memory_order_acquire) ||
         atomic_load_explicit(&missed_records, memory_order_acquire)) result = -EAGAIN;
     trace("FSYS_WRITE_READBACK_COVERAGE pid=%d records=%u rc=%d\n", getpid(), count, result);
+    capture_event(0,CAPTURE_SAVE_COVERAGE,result,(unsigned)!result,count,0);
     errno = error;
     return result;
 }

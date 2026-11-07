@@ -45,7 +45,7 @@ def test_main_routes_only_fixed_owned_experiment(arguments, target, monkeypatch)
 
 
 @pytest.mark.parametrize('startup_failure', [False, True])
-@pytest.mark.parametrize('scope_profile', [None, 'qemu-readonly-scope-v1', 'qemu-readonly-scope-v2', 'qemu-readonly-scope-v3', 'qemu-readonly-shutter-gate-v1'])
+@pytest.mark.parametrize('scope_profile', [None, 'qemu-readonly-scope-v1', 'qemu-readonly-scope-v2', 'qemu-readonly-scope-v3', 'qemu-readonly-shutter-gate-v1', 'qemu-readonly-shutter-gate-v2'])
 def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_path, monkeypatch, startup_failure, scope_profile):
     scope_enabled = scope_profile is not None
     (tmp_path / 'console.log').write_text('OBS FULL_HDMI_UPM_MAILBOX_INIT pid=258 physical=0x50d7ff000 nonce=0x123 upm_text=0xffffff800095b000 osal_text=0xffffff80004be000\n')
@@ -114,7 +114,9 @@ def test_coordinator_waits_for_mailbox_delivery_and_retains_unsafe_start(tmp_pat
                                   {'profile': 'qemu-readonly-scope-v3', 'build_receipt': True},
                                   {'profile': 'qemu-readonly-shutter-gate-v1', 'build_receipt': True},
                                   {'profile': 'qemu-readonly-shutter-gate-v1', 'build_receipt': ''},
-                                  {'profile': 'qemu-readonly-shutter-gate-v2', 'build_receipt': '/unbound'},
+                                  {'profile': 'qemu-readonly-shutter-gate-v2', 'build_receipt': True},
+                                  {'profile': 'qemu-readonly-shutter-gate-v2', 'build_receipt': ''},
+                                  {'profile': 'qemu-readonly-shutter-gate-v3', 'build_receipt': '/unbound'},
                                   {'profile': 'qemu-readonly-scope-v1', 'build_receipt': True}])
 def test_coordinator_records_bad_scope_binding_without_starting_a_debugger(tmp_path, monkeypatch, scope):
     (tmp_path / 'console.log').write_text('OBS FULL_HDMI_UPM_MAILBOX_INIT pid=258 physical=0x50d7ff000 nonce=0x123 upm_text=0xffffff800095b000 osal_text=0xffffff80004be000\n')

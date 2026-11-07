@@ -1,0 +1,90 @@
+--- a/hw/core/null-machine.c
++++ b/hw/core/null-machine.c
+@@ -47,6 +47,17 @@
+         sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(cs), ARM_CPU_IRQ));
+         sysbus_connect_irq(sbd, mch->smp.cpus + i,
+                            qdev_get_gpio_in(DEVICE(cs), ARM_CPU_FIQ));
++    }
++    if (g_getenv("QEMU_CP_TIMERS")) {
++        for (unsigned i = 0; i < 4; i++) {
++            DeviceState *timer = qdev_new("sony-hwtimer");
++            SysBusDevice *timer_bus = SYS_BUS_DEVICE(timer);
++            sysbus_realize_and_unref(timer_bus, &error_fatal);
++            sysbus_mmio_map(timer_bus, 0, 0xf1042000 + i * 0x1000);
++            /* Original CP dis_int/ena_int uses INTID 0x19d + channel. */
++            sysbus_connect_irq(timer_bus, 0,
++                               qdev_get_gpio_in(gic, 0x19d + i - 32));
++        }
+     }
+ }
+ 
+--- a/hw/timer/sony_hwtimer.c
++++ b/hw/timer/sony_hwtimer.c
+@@ -74,22 +74,32 @@
+     }
+ }
+ 
+-static uint64_t timer_read(void *opaque, hwaddr offset, unsigned size)
++static MemTxResult timer_read(void *opaque, hwaddr offset, uint64_t *value,
++                              unsigned size, MemTxAttrs attrs)
+ {
+     SonyHwtimerState *s = opaque;
+     switch (offset) {
+-    case 0: return s->control;
+-    case 8: return s->compare;
+-    case 12: return counter(s);
+-    default: return 0;
++    case 0: *value = s->control; break;
++    case 8: *value = s->compare; break;
++    case 12: *value = counter(s); break;
++    default:
++        qemu_log_mask(LOG_GUEST_ERROR, "Sony timer unsupported read at 0x%" HWADDR_PRIx "\n", offset);
++        return MEMTX_ERROR;
+     }
++    return MEMTX_OK;
+ }
+ 
+-static void timer_write(void *opaque, hwaddr offset, uint64_t value, unsigned size)
++static MemTxResult timer_write(void *opaque, hwaddr offset, uint64_t value,
++                               unsigned size, MemTxAttrs attrs)
+ {
+     SonyHwtimerState *s = opaque;
+     switch (offset) {
+     case 0:
++        /* Capture/control bit16 is not modeled; never silently discard it. */
++        if (value & ~UINT64_C(0x80001137)) {
++            qemu_log_mask(LOG_GUEST_ERROR, "Sony timer unsupported control 0x%" PRIx64 "\n", value);
++            return MEMTX_ERROR;
++        }
+         s->count = counter(s);
+         s->epoch = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+         if (value & 0x80000000) {
+@@ -100,6 +110,9 @@
+         s->control = value & 0xffff;
+         break;
+     case 4:
++        if (value & ~UINT64_C(0x11)) {
++            return MEMTX_ERROR;
++        }
+         if (value & 0x10) {
+             s->count = 0;
+             s->epoch = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+@@ -115,14 +128,15 @@
+         break;
+     default:
+         qemu_log_mask(LOG_UNIMP, "Sony timer write offset 0x%" HWADDR_PRIx "\n", offset);
+-        return;
++        return MEMTX_ERROR;
+     }
+     reschedule(s);
++    return MEMTX_OK;
+ }
+ 
+ static const MemoryRegionOps timer_ops = {
+-    .read = timer_read,
+-    .write = timer_write,
++    .read_with_attrs = timer_read,
++    .write_with_attrs = timer_write,
+     .endianness = DEVICE_LITTLE_ENDIAN,
+     .valid.min_access_size = 4,
+     .valid.max_access_size = 4,

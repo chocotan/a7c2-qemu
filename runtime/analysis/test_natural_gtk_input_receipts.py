@@ -108,8 +108,10 @@ def route(monkeypatch, tmp_path, gtk_ui, wire):
             mouse_name[0] = next(name for name, point in points.items() if point == list(args[-2:]))
         elif args[0] == 'click':
             button = ui.buttons[mouse_name[0]]
-            button.emit('button-press-event', coverage.event(Gdk.EventType.BUTTON_PRESS))
-            button.emit('button-release-event', coverage.event(Gdk.EventType.BUTTON_RELEASE))
+            pressed=button.emit('button-press-event', coverage.event(Gdk.EventType.BUTTON_PRESS))
+            released=button.emit('button-release-event', coverage.event(Gdk.EventType.BUTTON_RELEASE))
+            if not pressed and not released:
+                button.emit('clicked')
         elif args[0] in ('mousedown', 'mouseup'):
             button = ui.buttons[mouse_name[0]]
             pressed = args[0] == 'mousedown'
@@ -510,6 +512,8 @@ GLYPH_FIXTURES = {
         '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'),
     'setup-on-camera': ((150,428,536,479),
         'eJzt1DGLE0EUB/A3tzJjsWbbFIv7FXLYpDjY+sAvYDfpLVJaBHeOgKXWguBXEPwArqwkgmKtKLhHDq4dsHDBsM//zIacJLNnWvGmCLuZ/THvvZl5RDfjfxyaqCQa4SmlIzGnowNAxXUHFIAiig8BRQkQAch8PVCtYLaHgLM5DfK1BFimo/D3BTNVpEfaAfF2jl9SUop5vA8UY10AswUEMCSKnoRBsgHJL9LjDjxjOwbACssguGQrDAFMuAMJ2ylmAEJJJ1xmOwBVqj2gMCCAMyOucgC4wMxA+urtgUawjQQAygqQtQ4sMJOqFXMTAHkADLi9e9IDXJVUB6YeKJQ1BhhHtc9lF6wpt1KYaEV65nNwIOVWuoqWQZDZAcAP0o83O11h4zRSxgnYFx7EANi4tqvSd7dxWmbcA56/sWnRyq+kf27BIw+MDsQEkNsT9uD19iz9FRRt/IEmr7agAZBRX0i5nQkTV3x+BT5fA9ovuX0oTFrxanM0qg4oScGQ2ge5vS/M7T9A5MsaXQNiB2gy0u8cWG7A056QOtBd0YUDnzowedEDTnvAedMT0mmxBaUD4psHqmx6VqBd8L4Dxh4IcKo9mK/DIbEDkXGN7Lj8iP6xnDpQq+RlD8AFuuMaGYCZASxyboZZLfMkeONcI6s34J6Z4R+cOjvMSppFl8zrPeCH69TI4di/3KKMhplB89+P52b8e+M3vopo0w=='),
+    'still-scene-choice': ((125,0,400,130),
+        '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'),
     'shooting': ((145,0,375,34),
         'eJzN07FqwzAQBmCLGzx08Fxicq/RwdBXircOgah48BavGfIw7pSxa6GFOPgFbLI4RFiReo4iuZHJ2H/9dPBznILg32QlVcoprDwoCRdMpHWhHgFP/BjypR8jGwUy+UF41IhjZBp5elwHelL48clF7NFCeBfxi8EI+1cHf+K3K3aFmTwTbh2USG3PhVojZA6CDAm/B5wbPBUMQGEr0j1hfMN2x0Avoe0GzC1scoSDRp7ufws5GGLWUNsB+3lnoewIPwfEL4PwB2cG6xplYyNPZhsbWcUajXQJsYO9wkrh7h6qDXmQzoSVFj6PMLifSZw86snv8EAu9+zp2w=='),
     # xnodlttg original LCD, crop (145,0,375,34); glyph SHA bc37def4...de31b18.
@@ -550,6 +554,65 @@ def test_shooting_requires_current_original_content_and_closed_tutorial_not_fact
     assert checker.firstboot_frame(Image.new('RGB',(640,480)),screen_log(*SHOOTING_CHAIN))['page']=='pending'
     changed=hud.copy();changed.putpixel((160,10),(255,255,255) if hud.getpixel((160,10))==(0,0,0) else (0,0,0))
     assert checker.firstboot_frame(changed,screen_log(*SHOOTING_CHAIN))['page']=='pending'
+
+
+def test_scene_choice_requires_reviewed_selected_glyph_and_current_screen_count():
+    from PIL import Image
+    scene=glyph_frame('still-scene-choice')
+    assert checker.firstboot_frame(scene,screen_log((0xd4,98)))['page']=='still-scene-choice'
+    for screens in (((0xd4,97),),((0xd4,99),),((0x343,98),),SHOOTING_CHAIN,
+                    ((0xd4,98),(0x29b,4))):
+        assert checker.firstboot_frame(scene,screen_log(*screens))['page']=='pending'
+    assert checker.firstboot_frame(Image.new('RGB',(640,480)),screen_log((0xd4,98)))['page']=='pending'
+    scene.putpixel((130,10),(255,255,255) if scene.getpixel((130,10))==(0,0,0) else (0,0,0))
+    assert checker.firstboot_frame(scene,screen_log((0xd4,98)))['page']=='pending'
+
+
+@pytest.mark.parametrize('result_page', ['shooting','unknown','missing-enter-release','wrong-count'])
+def test_reenter_scene_uses_original_enter_edges_then_requires_shooting_before_full_press(tmp_path,result_page):
+    state={'image':glyph_frame('still-scene-choice'),'console':screen_log(*SHOOTING_CHAIN,(0xd4,97 if result_page=='wrong-count' else 98))}
+    actions=[];clock=[0.0]
+    def frame(label):
+        image=state['image']
+        return dict(label=label,image='frame.png',pixel_sha256=hashlib.sha256(image.tobytes()).hexdigest(),
+                    firstboot_ui=checker.firstboot_frame(image,state['console']))
+    proof={'images':[frame('scene')],'reenter_still_mode':{}}
+    def capture(label,expected_row):
+        assert expected_row=='any'
+        (tmp_path/'console.log').write_text(state['console'])
+        value=frame(label);proof['images'].append(value);return value
+    def wait(predicate):
+        for _ in range(12):
+            if predicate({}):return
+        raise TimeoutError('fixture original page did not settle')
+    def action(name,mouse):
+        actions.append((name,mouse))
+        if name=='ENTER':
+            assert mouse is True
+            state['console']+='OBS INPUT_EVENT32 n=11 tid=384 words=[0x1ac,0,1,0,0,0,0,0]\n'
+            if result_page!='missing-enter-release':
+                state['console']+='OBS INPUT_EVENT32 n=12 tid=384 words=[0x1ac,0,0,0,0,0,0,0]\n'
+            state['console']+=screen_log(*SHOOTING_CHAIN)
+            state['image']=glyph_frame('shooting') if result_page!='unknown' else glyph_frame('setup-on-camera')
+        else:
+            assert (name,mouse)==('SHUTTER',True)
+    branch=next(n for n in ast.walk(ast.parse((HERE/'check-natural-gtk-input.py').read_text()))
+        if isinstance(n,ast.If) and isinstance(n.test,ast.Compare) and isinstance(n.test.left,ast.Constant)
+        and n.test.left.value=='--natural-shutter')
+    namespace=dict(vars(checker),sys=SimpleNamespace(argv=['--natural-shutter','--reenter-still-mode']),
+        proof=proof,run=tmp_path,proof_path=tmp_path/'proof.json',capture=capture,action=action,wait=wait,
+        idle=lambda:None,time=SimpleNamespace(monotonic=lambda:clock[0],sleep=lambda n:clock.__setitem__(0,clock[0]+n)))
+    if result_page=='shooting':
+        compile_nodes([branch],namespace)
+        assert actions==[('ENTER',True),('SHUTTER',True)]
+        step=proof['reenter_still_mode']['scene_choice']
+        assert step['page']['page']=='still-scene-choice' and step['actions'][0]['original_input_edges']==[11,12]
+        assert step['ready'] is step['capture_verified'] is False
+        assert proof['natural_shutter']['still_capture_verified'] is False
+    else:
+        with pytest.raises(TimeoutError):compile_nodes([branch],namespace)
+        assert actions==([] if result_page=='wrong-count' else [('ENTER',True)])
+        assert 'natural_shutter' not in proof
 
 
 def test_actual_temperature_confirmation_is_cancelable_but_0x343_is_never_ready():
@@ -845,3 +908,83 @@ def test_original_receive_requires_complete_fresh_ordered_inputevent32_edges():
     for text in (press,release+press,press+release.rstrip(),press+release.replace('n=52','n=50'),
                  (press+release).replace('0x1ac','0x30'),(press+release).replace('0x1ac','broken')):
         assert checker.original_input_edges(text,'ENTER')==[]
+
+
+def movie_after_shutter_branch():
+    tree=ast.parse((HERE/'check-natural-gtk-input.py').read_text())
+    return next(node for node in ast.walk(tree) if isinstance(node,ast.If)
+                and isinstance(node.test,ast.Compare) and isinstance(node.test.left,ast.Constant)
+                and node.test.left.value=='--natural-movie-after-shutter' and len(node.body)>2)
+
+
+def test_movie_after_shutter_requires_the_isolated_natural_shutter_flow():
+    tree=ast.parse((HERE/'check-natural-gtk-input.py').read_text())
+    guard=next(node for node in ast.walk(tree) if isinstance(node,ast.If)
+               and isinstance(node.test,ast.BoolOp)
+               and any(isinstance(item,ast.Constant) and item.value=='--natural-movie-after-shutter'
+                       for item in ast.walk(node.test)))
+    for argv in ([],['--natural-shutter'],['--natural-shutter','--natural-movie-after-shutter']):
+        compile_nodes([guard],dict(sys=SimpleNamespace(argv=argv)))
+    with pytest.raises(ValueError,match='requires --natural-shutter'):
+        compile_nodes([guard],dict(sys=SimpleNamespace(argv=['--natural-movie-after-shutter'])))
+
+
+@pytest.mark.parametrize('enabled',[False,True])
+def test_actual_movie_sequence_uses_original_selector_and_checked_rec_contacts(route,wire,tmp_path,enabled):
+    proof={'ok':False,'capture_verified':False}
+    captures=[]
+    namespace=dict(route.namespace,proof=proof,proof_path=tmp_path/'proof.json',
+                   capture=lambda label,*_:captures.append(label),
+                   sys=SimpleNamespace(argv=['--natural-movie-after-shutter'] if enabled else []))
+    compile_nodes([movie_after_shutter_branch()],namespace)
+    if not enabled:
+        assert not wire.events and not captures and 'natural_movie' not in proof
+        return
+    assert wire.statuses==[(0x71c9,2),(0x1f0,1),(0x1f0,0),(0x1f0,1),(0x1f0,0)]
+    assert captures==['natural-movie-mode','natural-movie-rec-first','natural-movie-rec-second']
+    assert route.clock[0]>=20 and not route.session.status()['held']
+    movie=proof['natural_movie']
+    assert movie=={'input_sequence_completed':True,'mode_input_submission_event_verified':True,
+                  'rec_input_submissions':2,'recording_started_verified':False,
+                  'recording_stopped_verified':False,'movie_saved_verified':False}
+    assert json.loads(namespace['proof_path'].read_text())==proof
+    assert proof['ok'] is proof['capture_verified'] is False
+
+
+@pytest.mark.parametrize('failed_send',[1,2,3,4,5])
+def test_actual_movie_contact_failure_preserves_partial_proof_without_later_gestures(route,wire,tmp_path,failed_send):
+    wire.fail(failed_send)
+    proof={'ok':False,'capture_verified':False}
+    captures=[]
+    namespace=dict(route.namespace,proof=proof,proof_path=tmp_path/'proof.json',
+                   capture=lambda label,*_:captures.append(label),
+                   sys=SimpleNamespace(argv=['--natural-movie-after-shutter']))
+    with pytest.raises(RuntimeError,match='机身输入未完成'):
+        compile_nodes([movie_after_shutter_branch()],namespace)
+    movie=proof['natural_movie']
+    assert not movie['input_sequence_completed']
+    assert movie['mode_input_submission_event_verified']==(failed_send>1)
+    assert movie['rec_input_submissions']==(1 if failed_send>3 else 0)
+    assert len(captures)==(0 if failed_send==1 else 1 if failed_send<4 else 2)
+    assert not movie['recording_started_verified'] and not movie['recording_stopped_verified']
+    assert not movie['movie_saved_verified'] and not proof['capture_verified'] and not proof['ok']
+    assert json.loads(namespace['proof_path'].read_text())==proof
+    wire.fail(0)
+    while not route.vm.commands.empty():route.step(.1)
+    route.bindings.cleanup()
+    route.step(.1)
+    assert not route.session.status()['held']
+
+
+def test_movie_frame_failure_stops_before_second_rec_submission(route,wire,tmp_path):
+    proof={'ok':False,'capture_verified':False}
+    def capture(label,*_):
+        if label=='natural-movie-rec-first':raise RuntimeError('original frame failed')
+    namespace=dict(route.namespace,proof=proof,proof_path=tmp_path/'proof.json',capture=capture,
+                   sys=SimpleNamespace(argv=['--natural-movie-after-shutter']))
+    with pytest.raises(RuntimeError,match='original frame failed'):
+        compile_nodes([movie_after_shutter_branch()],namespace)
+    assert wire.statuses==[(0x71c9,2),(0x1f0,1),(0x1f0,0)]
+    assert proof['natural_movie']['rec_input_submissions']==1
+    assert not proof['natural_movie']['input_sequence_completed']
+    assert not proof['natural_movie']['movie_saved_verified'] and not proof['capture_verified']

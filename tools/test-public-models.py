@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMP = ROOT / 'validation/tmp/public-models'
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'runtime/analysis'))
+sys.path.insert(0, str(ROOT / 'tools'))
 
 OUTSIDE_HOST_SCOPE = {
     ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'):
@@ -75,7 +76,17 @@ def guard(event, args):
         return
     executable, argv = args[:2]
     words = shlex.split(argv) if isinstance(argv, str) else [os.fsdecode(x) for x in argv]
-    for word in [os.fsdecode(executable), *words]:
+    program = Path(os.fsdecode(executable)).name
+    commands = [program]
+    if program in ('bash', 'sh', 'dash'):
+        if '-n' not in words:
+            if '-c' in words:
+                commands.extend(shlex.split(words[words.index('-c') + 1]))
+            else:
+                commands.extend(word for word in words[1:] if not word.startswith('-'))
+    elif program.startswith('python') and '-c' not in words and '-m' not in words:
+        commands.extend(word for word in words[1:] if not word.startswith('-'))
+    for word in commands:
         name = Path(word).name
         if name.startswith('qemu-') or name in ('bwrap', 'start.sh', 'run-menu-probe.sh',
                                                'start-menu.py', 'build-qemu.sh'):
@@ -84,14 +95,18 @@ def guard(event, args):
 
 def main():
     names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
-    assert isinstance(names, list) and names and len(set(names)) == len(names)
+    if (not isinstance(names, list) or not names or any(type(name) is not str for name in names)
+            or len(set(names)) != len(names)):
+        raise ValueError('Expected a nonempty unique list of relative test paths')
     paths = []
     for name in names:
         path = Path(name)
-        assert (not path.is_absolute() and '..' not in path.parts and
-                (path.name.startswith('test_') or name == 'runtime/analysis/test-menu-control.py'))
+        if (path.is_absolute() or '..' in path.parts or path.as_posix() != name or
+                not (path.name.startswith('test_') or name == 'runtime/analysis/test-menu-control.py')):
+            raise ValueError('Invalid public test path: ' + name)
         resolved = (ROOT / path).resolve()
-        assert resolved.is_relative_to(ROOT) and resolved.is_file(), name
+        if not resolved.is_relative_to(ROOT) or not resolved.is_file():
+            raise ValueError('Missing or escaping public test path: ' + name)
         paths.append(str(resolved))
     TEMP.mkdir(parents=True, exist_ok=True)
     # Respect the caller's isolated temp root; socket fixtures use directory FDs for long paths.
@@ -100,11 +115,12 @@ def main():
                           PYTEST_DISABLE_PLUGIN_AUTOLOAD='1')
         sys.addaudithook(guard)
         import pytest
+        import public_asset_tests
         print('HOST_SOFTWARE_MODEL_TESTS; no native AP, original CP or capture acceptance', flush=True)
         return pytest.main(['-q', '--color=no', '--import-mode=importlib', '-p', 'no:cacheprovider',
                             '--basetemp', str(Path(temporary) / 'p'),
                             '--junitxml', str(TEMP / 'result.xml'), *paths, *sys.argv[1:]],
-                           plugins=[HostScope()])
+                           plugins=[HostScope(), public_asset_tests])
 
 
 if __name__ == '__main__':

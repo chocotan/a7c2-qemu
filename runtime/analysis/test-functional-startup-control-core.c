@@ -37,13 +37,16 @@ static void *checked_malloc(size_t n) { return inject == ALLOC_FAIL ? NULL : mal
 static void *checked_copy(void *dst, const void *src, size_t n)
 {
     void *result = memcpy(dst, src, n);
+    uint8_t *bank = !subject ? NULL : subject->startup_slot == 2 ? subject->focus_bank32 :
+        subject->startup_slot ? subject->setting_bank32 : subject->mode_bank32;
+    uint8_t *stage = !subject ? NULL : subject->startup_slot == 2 ? subject->focus_staged40 : subject->settings_staged40;
+    uint8_t *checkpoint = !subject ? NULL : subject->startup_slot == 2 ? subject->focus_snapshot40 : subject->settings_snapshot40;
     if (subject && subject->vdf_busy && !injected && n &&
         ((inject == STAGE_CHANGED && dst == subject->startup_staged[subject->startup_slot]) ||
-         (inject == COMMIT_CHANGED && dst == (subject->startup_slot ? subject->setting_bank32 : subject->mode_bank32)) ||
-         (inject == READBACK_CHANGED && src == (subject->startup_slot ? subject->setting_bank32 : subject->mode_bank32)) ||
-         (inject == CHECKPOINT_STAGE && dst == subject->settings_staged40) ||
-         (inject == CHECKPOINT_COMMIT && dst == subject->settings_snapshot40) ||
-         (inject == CHECKPOINT_READBACK && src == subject->settings_snapshot40))) {
+         (inject == COMMIT_CHANGED && dst == bank) || (inject == READBACK_CHANGED && src == bank) ||
+         (inject == CHECKPOINT_STAGE && dst == stage) ||
+         (inject == CHECKPOINT_COMMIT && dst == checkpoint) ||
+         (inject == CHECKPOINT_READBACK && src == checkpoint))) {
         ((uint8_t *)dst)[n - 1] ^= 1; injected = 1;
     }
     return result;
@@ -92,7 +95,7 @@ static void canonical(struct fcam_model *m, unsigned command, uint8_t out[32])
     uint8_t actual_state[128]; request(m, FCAM_OP_STATE, NULL, 0, actual_state, 128);
     assert(get64(actual_state + FCAM_S_INSTANCE) == m->instance);
     memset(out, 0, 32); out[0] = (uint8_t)command; out[1] = (uint8_t)(command >> 8);
-    out[2] = command == 0x4014 ? 16 : 4;
+    out[2] = command == 0x4014 ? 16 : command == 0x403f ? 8 : 4;
     if (command == 0x4014) memcpy(out + 4, fcam_startup_control_mode_body, 16);
     put64(out + 24, fnv(actual_state + 8, 40));
 }
@@ -129,8 +132,9 @@ static void validation(void)
     assert(fcam_startup_control_validate_basic(in) && !fcam_startup_control_validate_basic(NULL));
     for (size_t n = 0; n <= 33; ++n) if (n != 32) rejected(m, in, n, 192, -EINVAL);
     for (size_t n = 0; n < 192; ++n) rejected(m, in, 32, n, -ENOSPC);
-    for (unsigned command = 0; command < 2; ++command) {
-        canonical(m, command ? 0x4057 : 0x4014, in);
+    static const unsigned commands[] = {0x4014,0x4057,0x403f};
+    for (unsigned command = 0; command < 3; ++command) {
+        canonical(m, commands[command], in);
         for (size_t i = 0; i < 32; ++i) {
             in[i] ^= 1;
             rejected(m, in, 32, 192, i < 24 ? -ENOTSUP : -ESTALE);
@@ -229,12 +233,43 @@ static void success(void)
     }
     blob("CHECKPOINT", m->settings_snapshot40, 40); fcam_model_destroy(m);
 }
-static void faults(void)
+static void focus_reset(void)
+{
+    struct fcam_model *m = setup(); uint8_t in[32],out[192],state[128],cfg[48];
+    canonical(m,0x4014,in);request(m,14,in,32,out,192);
+    canonical(m,0x4057,in);request(m,14,in,32,out,192);
+    const struct fcam_model saved = *m;
+    for (unsigned i=0;i<2;++i) {
+        if (i) {
+            config_input(cfg);put32(cfg+20,800);put64(cfg+24,12345);
+            request(m,FCAM_OP_CONFIGURE,cfg,48,state,128);
+            assert(startup_domain(m) && !memcmp(m->focus_snapshot40,saved.settings_snapshot40,40));
+        }
+        request(m,FCAM_OP_STATE,NULL,0,state,128);blob(i?"FOCUS2_BEFORE":"FOCUS_BEFORE",state,128);
+        canonical(m,0x403f,in);const struct fcam_model before=*m;
+        request(m,14,in,32,out,192);
+        assert(m->focus_valid==1 && startup_domain(m) && !memcmp(m->focus_bank32,in,32));
+        assert(!memcmp(m->focus_snapshot40,state+8,40) && !memcmp(m->mode_bank32,saved.mode_bank32,32));
+        assert(!memcmp(m->setting_bank32,saved.setting_bank32,32) && !memcmp(m->settings_snapshot40,saved.settings_snapshot40,40));
+        assert(m->generation==before.generation+1 && m->frame_generation==before.frame_generation+1);
+        assert(m->rendered==before.rendered+1 && m->consumed==before.consumed+1 && m->retired==before.retired+1);
+        assert(m->pool!=m->vdf_sink && m->vdf_copied==921600 && !memcmp(m->pool,m->vdf_sink,921600));
+        assert(m->proof.consumer_kind==4 && m->proof.source_fnv1a64==fnv(m->pool,921600));
+        assert(m->proof.source_fnv1a64==m->proof.consumer_after_fnv1a64 && m->proof.retired);
+        assert(!m->proof.operation_status && !m->proof.encoder_consumed && !m->jpeg_encoded && !m->video_encoded);
+        blob(i?"FOCUS2_INPUT":"FOCUS_INPUT",in,32);blob(i?"FOCUS2":"FOCUS",out,192);
+        blob(i?"FOCUS2_SOURCE":"FOCUS_SOURCE",m->pool,921600);blob(i?"FOCUS2_SINK":"FOCUS_SINK",m->vdf_sink,921600);
+        request(m,FCAM_OP_STATE,NULL,0,state,128);blob(i?"FOCUS2_STATE":"FOCUS_STATE",state,128);
+    }
+    fcam_model_destroy(m);
+}
+static void faults(unsigned command)
 {
     for (int kind = ALLOC_FAIL; kind <= POST_RETIRE_CHANGED; ++kind) {
         struct fcam_model *m = setup(); uint8_t in[32], out[200];
         canonical(m, 0x4014, in); request(m, 14, in, 32, out, 192);
         canonical(m, 0x4057, in); request(m, 14, in, 32, out, 192);
+        if (command==0x403f) canonical(m,command,in);
         const struct fcam_model before = *m; subject = m; injected = 0;
         if (kind == ALLOC_FAIL) { free(m->vdf_sink); m->vdf_sink = NULL; m->vdf_capacity = 0; }
         inject = (enum injection)kind; memset(out, 0xa5, sizeof out);
@@ -259,6 +294,7 @@ static void consumers(void)
     struct fcam_model *m = setup(); uint8_t in[32], out[FCAM_DATA_BYTES], cfg[48], still[16] = {0};
     canonical(m, 0x4014, in); request(m, 14, in, 32, out, 192);
     canonical(m, 0x4057, in); request(m, 14, in, 32, out, 192);
+    canonical(m, 0x403f, in); request(m, 14, in, 32, out, 192);
     put32(still, FCAM_STILL_FULL_JPEG); put32(still + 4, 128); put32(still + 8, 64); put32(still + 12, 73);
     const uint32_t ops[] = {FCAM_OP_VDF_ZEBRA, FCAM_OP_STILL, FCAM_OP_VIDEO_FRAME};
     const uint8_t zebra[8] = {3,0,32,75,65}; const uint8_t *p[] = {zebra, still, NULL};
@@ -273,7 +309,7 @@ static void consumers(void)
             assert(!memcmp(out + 7, quant[0], 64) && !memcmp(out + 72, quant[1], 64)); blob("JPEG", out, r.used); }
         request(m, 66, NULL, 0, out, 128);
         /* Poison each saved byte, valid bits, checkpoint and generation/instance seals. */
-        for (size_t poison = 0; poison < 114; ++poison) {
+        for (size_t poison = 0; poison < 190; ++poison) {
             if (op == 2) request(m, 32, cfg, 48, out, 128);
             const struct fcam_model healthy = *m;
             if (poison < 32) m->mode_bank32[poison] ^= 1;
@@ -284,15 +320,26 @@ static void consumers(void)
             else if (poison < 110) ++m->startup_saved_generation[poison - 108];
             else if (poison < 112) m->startup_saved_seal[poison - 110] ^= 1;
             else if (poison == 112) ++m->instance;
-            else ++m->lifetime;
+            else if (poison == 113) ++m->lifetime;
+            else if (poison < 146) m->focus_bank32[poison-114] ^= 1;
+            else if (poison < 186) m->focus_snapshot40[poison-146] ^= 1;
+            else if (poison < 188) m->focus_valid=poison==186?0:2;
+            else if (poison==188) ++m->startup_saved_generation[2];
+            else m->startup_saved_seal[2] ^= 1;
             assert(!startup_domain(m)); const uint64_t generation = m->generation;
             struct fcam_exec_result previous = {1,2,3,4}; r = previous; memset(out, 0xa5, sizeof out);
+            const uint64_t model_before=fnv((const uint8_t *)m,sizeof *m);
+            assert(fcam_model_request(m, FCAM_OP_STATE, NULL, 0, out, 128, &r) == -EIO);
+            assert(fnv((const uint8_t *)m,sizeof *m)==model_before && !memcmp(&r,&previous,sizeof r));
+            for(size_t j=0;j<sizeof out;++j)assert(out[j]==0xa5);
             assert(fcam_model_request(m, ops[op], p[op], n[op], out, cap[op], &r) == -EIO);
             assert(m->stream_state == 3 && m->generation == generation && !memcmp(&r, &previous, sizeof r));
             assert(m->proof.operation_status == -EIO && !m->proof.encoder_consumed && !m->proof.result_bytes);
             for (size_t j = 0; j < sizeof out; ++j) assert(out[j] == 0xa5);
             memcpy(m->mode_bank32, healthy.mode_bank32, 32); memcpy(m->setting_bank32, healthy.setting_bank32, 32);
             memcpy(m->settings_snapshot40, healthy.settings_snapshot40, 40);
+            memcpy(m->focus_bank32,healthy.focus_bank32,32);memcpy(m->focus_snapshot40,healthy.focus_snapshot40,40);
+            m->focus_valid=healthy.focus_valid;
             m->mode_valid = healthy.mode_valid; m->setting_valid = healthy.setting_valid;
             memcpy(m->startup_saved_generation, healthy.startup_saved_generation, sizeof m->startup_saved_generation);
             memcpy(m->startup_saved_seal, healthy.startup_saved_seal, sizeof m->startup_saved_seal);
@@ -300,7 +347,7 @@ static void consumers(void)
             request(m, 66, NULL, 0, out, 128); assert(startup_domain(m));
         }
     }
-    for (unsigned poison = 0; poison < 2; ++poison) {
+    for (unsigned poison = 0; poison < 3; ++poison) {
         config_input(cfg); put32(cfg, 128); put32(cfg + 4, 64); put32(cfg + 8, 30);
         request(m, FCAM_OP_VIDEO_BEGIN, cfg, 48, out, 128);
         struct fcam_exec_result r;
@@ -311,14 +358,16 @@ static void consumers(void)
             assert(r.used == r.total); uint8_t release[16]; put64(release, r.token); put64(release + 8, fnv(out, r.used));
             request(m, FCAM_OP_RELEASE_RESULT, release, 16, out, 0);
         }
-        if (poison) m->settings_snapshot40[0] ^= 1;
+        if (poison==1) m->settings_snapshot40[0] ^= 1;
+        if (poison==2) m->focus_snapshot40[0] ^= 1;
         struct fcam_exec_result previous = {1,2,3,4}; r = previous;
         const int error = fcam_model_request(m, FCAM_OP_VIDEO_END, NULL, 0, out, sizeof out, &r);
         if (poison) {
             assert(error == -EIO && !memcmp(&r, &previous, sizeof r));
             assert(m->proof.consumer_kind == FCAM_PROOF_DRAIN && m->proof.operation_status == -EIO);
             assert(!m->proof.encoder_consumed && !m->proof.result_bytes && !m->proof.encoded_bytes);
-            m->settings_snapshot40[0] ^= 1;
+            if (poison==1) m->settings_snapshot40[0] ^= 1;
+            if (poison==2) m->focus_snapshot40[0] ^= 1;
         } else {
             assert(!error && r.token && r.used && m->proof.consumer_kind == FCAM_PROOF_DRAIN);
             blob("H264_END", out, r.used);
@@ -349,7 +398,9 @@ int main(int argc, char **argv)
     assert(argc == 2); av_log_set_level(AV_LOG_ERROR);
     if (!strcmp(argv[1], "success")) success();
     else if (!strcmp(argv[1], "validation")) validation();
-    else if (!strcmp(argv[1], "faults")) faults();
+    else if (!strcmp(argv[1], "faults")) faults(0x4057);
+    else if (!strcmp(argv[1], "focus-reset")) focus_reset();
+    else if (!strcmp(argv[1], "focus-faults")) faults(0x403f);
     else if (!strcmp(argv[1], "consumers")) consumers();
     else { assert(!strcmp(argv[1], "reload")); reload(); }
     return 0;

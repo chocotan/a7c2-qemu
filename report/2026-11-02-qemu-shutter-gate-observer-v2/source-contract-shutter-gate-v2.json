@@ -1,0 +1,208 @@
+{
+  "schema": "readonly_shutter_gate_source_contract_v2",
+  "profile": "qemu-readonly-shutter-gate-v2",
+  "trace_schema": "readonly_shutter_gate_v2",
+  "trace_schema_sha256": "c511a3b294535bad56a15ac2ab89bac911e7c4f599a1fbf9b8f8733b683689fa",
+  "state": "SOURCE_DRAFT_NOT_BUILT_TESTED_OR_READY",
+  "component": "2026-11-02-qemu-shutter-gate-observer-v2",
+  "fixed_future_source_root": "report/2026-11-02-qemu-shutter-gate-observer-v2",
+  "fixed_interface": "analysis/scratch/functional-jn70-source-pointer-bridge-design/RESULT.json",
+  "operand_interface": "analysis/scratch/functional-jn70-source-pointer-bridge-design/RESULT.json#/actualAPI_acceptance",
+  "actual_build_source_names_required": [
+    "scope-observer.c",
+    "build-plugin.sh",
+    "build-runtime.py",
+    "log-schema-shutter-gate-v2.json",
+    "source-contract-shutter-gate-v2.json",
+    "check_shutter_gate_v2.py",
+    "integration/shutter_gate_trace_checks_v2.py"
+  ],
+  "actual_fixture_source_names_required": [
+    "integration/fixture.S",
+    "integration/link.ld",
+    "integration/run_fixture.py",
+    "integration/test_fixture_driver.py",
+    "integration/test_actual_scope_plugin.py",
+    "integration/test_shutter_gate_trace_checks_v2.py",
+    "integration/shutter_gate_trace_checks_v2.py"
+  ],
+  "host_C_tests": [
+    "test-scope-observer.c",
+    "test_scope_observer.py",
+    "test_build_runtime.py",
+    "test_run_context.py"
+  ],
+  "actualAPI_cases": [
+    "original_entry",
+    "existing_main_stub_entry",
+    "one_byte_gate_mutation",
+    "short_tb"
+  ],
+  "actualAPI_environment_names": [
+    "A7C2_SHUTTER_GATE_V2_TEST_QEMU",
+    "A7C2_SHUTTER_GATE_V2_TEST_PLUGIN",
+    "A7C2_SHUTTER_GATE_V2_TEST_OUTPUT",
+    "A7C2_SHUTTER_GATE_V2_TEST_SCHEMA",
+    "A7C2_SHUTTER_GATE_V2_TEST_RECEIPT",
+    "A7C2_SHUTTER_GATE_V2_TEST_FIXTURE_SOURCES"
+  ],
+  "actualAPI_expected_keys": [
+    "case",
+    "site_rows",
+    "minimum_suppressed",
+    "discriminator_expected"
+  ],
+  "actualAPI_positive_eligible_rows_in_site_order": [
+    40,
+    41,
+    21,
+    20,
+    41
+  ],
+  "actualAPI_positive_suppressed_in_site_order": [
+    24,
+    25,
+    5,
+    4,
+    25
+  ],
+  "actualAPI_source_expected": "Reuse independently checked gate_before frame[2], event BASE+0x1af1830 and full64 X0=SOURCE_WORD=BASE+0x102000. Other GPR/SP/CPSR/tokens come from the same baseline, never from trace or branch W0. Existing fixture.S/link.ld unchanged; actual fixture source pointer high32 is zero, nonzero-high32 coverage is host mock only. Fixture mode is EL1h other_aarch64, no original Main/AP or retirement identity.",
+  "exact_qemu_imports": [
+    "qemu_plugin_get_registers",
+    "qemu_plugin_read_register",
+    "qemu_plugin_register_vcpu_init_cb",
+    "qemu_plugin_register_vcpu_tb_trans_cb",
+    "qemu_plugin_register_vcpu_insn_exec_cb",
+    "qemu_plugin_register_atexit_cb",
+    "qemu_plugin_tb_n_insns",
+    "qemu_plugin_tb_get_insn",
+    "qemu_plugin_insn_vaddr",
+    "qemu_plugin_insn_size",
+    "qemu_plugin_insn_data"
+  ],
+  "import_policy": "qemu_plugin_* undefined symbols equal exact_qemu_imports; ordinary libc/GLib imports and DT_NEEDED recorded separately",
+  "qemu_plugin_api": 7,
+  "qemu_sha256_inherited_only": "4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4",
+  "qemu_header_sha256": "335d4e472067e914add598b60d1f7cf0dc029cd48f62f66656d6a88c54d8d9f9",
+  "source_hash_policy": "trace_schema_sha256 binds the actual completed schema source bytes. This contract must not contain its own source_contract_sha256. Builder computes actual source7/fixture7 after integration; receipts independently bind both files.",
+  "external_schema_digest_field": "trace_schema_sha256",
+  "forbidden_receipt_root_aliases": [
+    "source_root",
+    "Source_root",
+    "sourceDependencyFrozen",
+    "schema_sha256",
+    "log_schema_sha256",
+    "v3_schema_sha256"
+  ],
+  "sites": [
+    {
+      "site": "final_entry",
+      "ordinal": 0,
+      "event_offset": "0x1af16dc",
+      "anchor_offset": "0x1af16dc",
+      "original16": "fd7bbba9fd030091f55b02a9f603012a",
+      "existing_main_stub8": "5000005800021fd6",
+      "instruction_index": 0
+    },
+    {
+      "site": "d570_cbnz_pre",
+      "ordinal": 1,
+      "event_offset": "0x1af1834",
+      "anchor_offset": "0x1af1830",
+      "hex_le": "000040b980f7ff35",
+      "instruction_index": 1
+    },
+    {
+      "site": "successor_1724_pre",
+      "ordinal": 2,
+      "event_offset": "0x1af1724",
+      "anchor_offset": "0x1af1724",
+      "hex_le": "b3230191e00313aa",
+      "instruction_index": 0
+    },
+    {
+      "site": "successor_1838_pre",
+      "ordinal": 3,
+      "event_offset": "0x1af1838",
+      "anchor_offset": "0x1af1838",
+      "hex_le": "e00313aa44b12894",
+      "instruction_index": 0
+    },
+    {
+      "site": "d570_ldr_pre",
+      "ordinal": 4,
+      "event_offset": "0x1af1830",
+      "anchor_offset": "0x1af1830",
+      "hex_le": "000040b980f7ff35",
+      "instruction_index": 0
+    }
+  ],
+  "base_discriminator": "Only the shared exact8 LDR/CBNZ window may bind or conflict B, once per match. Register source tap0 (site4) then branch tap1 (site1), each R_REGS and independently deduplicated within that translation. Weak exact anchors always register immutable opaque callbacks. Before binding or at another B, only increment saturating weak siteN_unbound_callbacks; no register reads, rows, quota or disable. Cached weak callbacks remain usable after binding. Both strong callbacks require this bound B; site1/site4 unbound counts stay zero. Never sample weak unbound entry or backfill v1.",
+  "translation": "Same TB only; each continuous size4 instruction copies exactly4 and matches all bytes. The shared gate is matched once, not a fifth independent loop iteration hidden after break. Complete changed known exact PC disables the group; a short TB gives neither strong tap and is silent. Two declared entry forms may transition. No cross-TB reconstruction, retained handle or per-TB allocation.",
+  "anchor_seen_mask": "At most0x1f; found requires both shared strong bits (mask&0x12)==0x12. End records/suppressed/unbound groups each contain site0 through site4 in declared order.",
+  "base_envelope": "Nonzero page-aligned zero-extended low48; checked subtraction and all full-anchor/event/prediction additions through B+0x1af183f.",
+  "userdata": "Flat64 host. Pack=event_pc|(site&3)|((site&4)?(1ULL<<49):0)|(stub?(1ULL<<48):0). Decode site=(packed&3)|((packed&(1ULL<<49))?4:0); event=packed&LOW48_MAX&~3ULL. Bit48 is entry stub only, bit49 stores ordinal bit2; never consume event PC bit2. Reject site>=5, stub with nonentry site, all other high bits, and invalid checked B before any site array access. No userdata dereference or register/guest-memory write.",
+  "register_union": [
+    "pc",
+    "x0",
+    "x1",
+    "x2",
+    "x3",
+    "x19",
+    "x22",
+    "x23",
+    "x29",
+    "x30",
+    "cpsr",
+    "sp",
+    "TTBR0_EL1",
+    "TPIDR_EL0"
+  ],
+  "optional_registers": [
+    "sp",
+    "TTBR0_EL1",
+    "TPIDR_EL0"
+  ],
+  "register_reads": "Descriptor found independent of handle; NULL x0 valid. Clear backing bytes and length each attempt. bool true plus exact8 for PC/GPR/token/SP; CPSR exact4. Present optional failure rejects row; absent stays unknown. No partial successful row or counter advance.",
+  "source_pointer": "Site4 reuses the existing internal fields: required pc,x0,x19,x22,x23,x29,x30,cpsr and existing optional SP/TTBR0_EL1/TPIDR_EL0. x0_raw is the complete unmodified64-bit pre-LDR pointer, including zero or tagged/different values. No duplicate pointer alias, loaded_w0 or prediction fields, normalization, guest dereference or inferred loaded value. event_pc is translated immutable PC; gdb_pc_raw is the actual possibly lazy register sample and need not equal it.",
+  "mode": "Only CPSR.M=0 is EL0t. 4/5/8/9/12/13 remain other_aarch64. A32 or reserved rejects with raw CPSR fault; unreadable mode unknown. Preserve raw NZCV.",
+  "prediction": "Same exact8 x0 read feeds full64 x0_raw and loaded_w0=low32. CBNZ prediction uses low32!=0 only; nonzero B+0x1af1724, zero B+0x1af1838. No NZCV/full64 condition or branch retirement inference.",
+  "guest_memory_bytes": 0,
+  "limits": {
+    "quota_per_site": 16,
+    "maximum_success_rows": 80,
+    "maximum_fault_lines": 32,
+    "maximum_rows": 114,
+    "maximum_line_bytes_exclusive": 2048,
+    "maximum_file_bytes_conservative": 233472,
+    "maximum_descriptors": 4096
+  },
+  "raw_preservation": "Direct parser returns rows/raw_ledger/begin/end. Ledger retains original LF-inclusive raw hex/ascii, SHA256, byte offset/length and ordered canonical pairs, including refusal evidence; no conversion to legacy raw.",
+  "close": "End close_result unknown; reader requires owned normal wrapper returncode0, unchanged full trace/assets and no scope_observer_host_error diagnostic.",
+  "direct_assertion": "assert_shutter_gate_trace_v2(raw_log,declaration,expected), where expected has exactly case/site_rows/minimum_suppressed/discriminator_expected, with both maps containing all five sites in declared ordinal order. Compare all required full64 xN, actual CPSR/NZCV, available independent SP/tokens, exact event and entry form, ordered first16 rows per site; bool never substitutes for int. Positive cases have80 successes, suppressed counts24/25/5/4/25 and first success sites source/branch/1724. Source expected comes from existing baseline frame[2]; no guest fixture change.",
+  "context_candidates": "Enumerate every entry/internal raw-index combination with same B/CPU0/EL0t, both available exact8 tokens equal, x23=entry x0, low32 x22=low32 entry x1, checked x19=x29+0x48; when either SP available require both and checked entrySP-0x50=internalSP=x29. Do not choose nearest or ordinal match. LR match is a separate raw candidate flag.",
+  "Main_FLOW": "Strict original Main35 formatter supplies numeric B/LF/reported PID/TID only. Full entry x0..x3 uniquely matching same-run SHUTTER_FLOW final code2070000 remains a content candidate. Enumerate all same-B FLOW final code2070000/source pairs with FLOW.a0==source.x23_raw and low32(FLOW.a1)==low32(source.x22_raw), retaining both raw references and hashes. Do not compare source X0 with FLOW a0 or callee-clobbered X2/X3 with entry operands. Main has no token bridge; no nearest/ordinal identity selection or entry backfill.",
+  "source_callback_rows": "Keep every valid source row and full raw context even without final entry. Compare x0_raw numerically with checked low48 B+0x7e5d570; if addition overflows, static_current_address_numeric_match is unknown while the raw row remains. Equal or unequal source addresses do not prove dereference or load retirement.",
+  "source_branch_context_candidates": "Enumerate all source_index<branch_index pairs at same B/CPU0/EL0t with both actually available exact8 TTBR0_EL1 and TPIDR_EL0 equal in all64 bits; x19/x22/x23/x29/x30 and raw CPSR equal; checked x19=x29+0x48; if either SP present require both equal and equal to x29. Missing tokens remain unknown, not absent==absent. X0 has different meanings, no equality requirement. Preserve repeated/reentrant combinations; invocation unknown.",
+  "source_branch_successor_context_candidates": "For every source/branch candidate enumerate all later independent1724/1838 callbacks satisfying the same raw-context conditions. Retain observed successor PC and numerical prediction agreement true/false, including disagreements. Never create successor rows or infer a branch edge or retirement.",
+  "maximum_claim": "actual_pre_LDR_source_register_sample_plus_raw_numerical_context_candidates; invocation_pairing unknown; missing callbacks unknown",
+  "flags": {
+    "runtime_verified": false,
+    "Main_identity_verified": false,
+    "AP_identity_verified": false,
+    "PID_TID_uniqueness_verified": false,
+    "address_space_uniqueness_verified": false,
+    "invocation_pairing_verified": false,
+    "branch_edge_verified": false,
+    "instruction_retirement_verified": false,
+    "branchretirement": false,
+    "retirement": false,
+    "storecompletion": false,
+    "original_store_or_return_verified": false,
+    "same_press_submit_verified": false,
+    "capture": false,
+    "capture_verified": false,
+    "physical_asic_compatibility_verified": false,
+    "physical": false
+  }
+}

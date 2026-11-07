@@ -307,7 +307,7 @@ class FunctionalShutdown(unittest.TestCase):
     def test_actual_controller_eof_waits_for_broker_guard_before_owned_vm_quit(self):
         # A Python signal recipient stands in for QEMU; the controller, socket loop and runner guard are real.
         script = r'''
-import ast, json, os, signal, subprocess, sys
+import ast, hashlib, json, os, signal, subprocess, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import functional_camera_runner as runner
@@ -349,6 +349,7 @@ class Broker:
 instance.broker = Broker()
 functional_camera = instance
 scope_observer = None
+writer_observer = None
 functional_camera_profile = runner.FUNCTIONAL_CAMERA_PROFILE
 resize_mmio_watch = False
 probe = ast.parse((Path(sys.argv[1])/'qemu-menu-probe.py').read_text())
@@ -367,6 +368,15 @@ def export():
     record('export-while-active')
     return {'ok':True}
 proc, out = child, run
+manifest = {'files': {}}
+start = next(index for index, node in enumerate(probe.body) if isinstance(node, ast.Assign) and
+    any(ast.unparse(target) == "manifest['qemu_log_streams']" for target in node.targets))
+exec(compile(ast.Module(body=probe.body[start:start+2], type_ignores=[]), '<actual-log-manifest>', 'exec'))
+qemu_stderr = (run/'qemu-stderr.log').open('xb')
+from boot_probe_receipt import begin as begin_boot_receipt, finish as finish_boot_receipt
+(run/'test-initramfs').write_bytes(b'synthetic shutdown fixture, never booted')
+boot_receipt = begin_boot_receipt(run, run/'test-initramfs', ['synthetic-child'])
+sha256_file = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
 early_media_watch, host_sd_fd, directory_sd_fd, host_sd_export_verified = None, None, 40, [True]
 qmp_quit_attempted = [False]
 menu_live.serial_command = lambda *args, **kwargs: b''
@@ -378,7 +388,10 @@ try:
         assert str(error)=='VM 控制通道已关闭', str(error)
         record('control-eof')
 finally:
-    exec(compile(ast.Module(body=finalbody, type_ignores=[]), '<actual-launcher-finally>', 'exec'))
+    try:
+        exec(compile(ast.Module(body=finalbody, type_ignores=[]), '<actual-launcher-finally>', 'exec'))
+    finally:
+        qemu_stderr.close()
 record('launcher-exited')
 '''
         with tempfile.TemporaryDirectory() as temporary:

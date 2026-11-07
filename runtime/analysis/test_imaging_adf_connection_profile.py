@@ -147,7 +147,7 @@ def test_prepare_invalid_profiles_reject_before_candidate_or_files(tmp_path,monk
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_public_receipt_manifest_and_exact_guest_exports(tmp_path,enabled):
+def test_public_receipt_manifest_and_exact_guest_exports(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     env=host_environment(tmp_path,build)
     if not enabled:env.pop('A7C2_IMAGING_ADF_CONNECT')
@@ -155,7 +155,7 @@ def test_public_receipt_manifest_and_exact_guest_exports(tmp_path,enabled):
     host=launcher.profile_environment(env,natural_boot=True)
     with directory_lease(Path(env['A7C2_DIRECTORY_SD'])) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     expected=backup.imaging_adf_connection_profile_fields(PROFILE if enabled else '')
     receipt=json.loads(Path(host['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
     for fields in (expected,backup.imaging_control_connection_profile_fields(backup.IMAGING_CONTROL_CONNECT_PROFILE),
@@ -209,14 +209,14 @@ def test_gtk_rejects_missing_chain_mismatched_candidate_directory_and_unsafe_flo
         with pytest.raises(RuntimeError,match='accepted-before-Xvfb'):driver.main()
 
 
-def test_qemu_rejects_missing_changed_and_untyped_third_receipt_fields(tmp_path):
+def test_qemu_rejects_missing_changed_and_untyped_third_receipt_fields(tmp_path, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     launcher=load_script('adf_connection_typed_receipt_menu','start-menu.py')
     env=host_environment(tmp_path,build)
     host=launcher.profile_environment(env,natural_boot=True)
     with directory_lease(Path(env['A7C2_DIRECTORY_SD'])) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'receipt-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     tree=ast.parse((HERE/'qemu-menu-probe.py').read_text())
     validator=next(node for node in tree.body if isinstance(node,ast.If) and
         isinstance(node.test,ast.Name) and node.test.id=='backup_sync' and any(

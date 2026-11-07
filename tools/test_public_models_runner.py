@@ -92,7 +92,9 @@ def test_no_vm_guard_still_rejects_entrypoints(argv):
 
 def test_guard_allows_host_compilation_and_execution():
     for argv in (['cc', '-Wall', '-Werror', 'test.c', '-o', 'test'],
-                 ['clang', '-fsanitize=address,undefined', 'test.c'], ['/var/tmp/a7m-test/p/test']):
+                 ['clang', '-fsanitize=address,undefined', 'test.c'], ['/var/tmp/a7m-test/p/test'],
+                 ['debugfs', '-R', 'dump /bin/qemu-packaged-system-check-v1 output', 'copied.ext2'],
+                 ['bash', '-n', 'qemu-kernel-probe.sh']):
         runner.guard('subprocess.Popen', (argv[0], argv))
 
 
@@ -166,7 +168,7 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
 
 def test_model_list_preserves_host_callers_and_explicit_external_stages():
     names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
-    assert isinstance(names, list) and len(names) == len(set(names)) == 231
+    assert isinstance(names, list) and len(names) == len(set(names)) == 246
     assert {
         'runtime/analysis/test-menu-control.py',
         'runtime/analysis/test_key_injection.py',
@@ -222,7 +224,7 @@ def test_explicit_paths_reach_collection_without_basename_exclusions(tmp_path, m
 
     def collect(arguments, plugins):
         assert arguments.count(str(case.resolve())) == 1
-        assert len(plugins) == 1 and isinstance(plugins[0], runner.HostScope)
+        assert len(plugins) == 2 and isinstance(plugins[0], runner.HostScope)
         markers = []
         item = SimpleNamespace(path=case, name='test_real_qemu_shutter_gate_v1_direct_raw_and_independent_operands',
                                add_marker=markers.append)
@@ -257,7 +259,7 @@ def test_existing_other_dash_or_escaping_paths_remain_errors(tmp_path, monkeypat
     hooks = []
     monkeypatch.setattr(sys, 'addaudithook', hooks.append)
     monkeypatch.setattr(pytest, 'main', lambda *args, **kwargs: pytest.fail('invalid path reached collection'))
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         runner.main()
     assert hooks == [] and not runner.TEMP.exists()
 
@@ -267,5 +269,5 @@ def test_missing_or_escaping_files_remain_errors(tmp_path, monkeypatch, name):
     (tmp_path / 'tools').mkdir()
     (tmp_path / 'tools/public-model-tests.json').write_text(json.dumps([name]))
     monkeypatch.setattr(runner, 'ROOT', tmp_path)
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         runner.main()

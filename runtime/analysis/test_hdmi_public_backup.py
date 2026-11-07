@@ -7,6 +7,9 @@ HERE = Path(__file__).resolve().parent
 
 def test_actual_public_cp_bank_reader(tmp_path):
     seed = HERE / 'menu-root/seed-backup.bin'
+    if not seed.is_file():
+        import pytest
+        pytest.skip('original ALLLANG CP bank seed is not distributed')
     assert hashlib.sha256(seed.read_bytes()).hexdigest() == '3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'
     source = tmp_path / 'reader.c'
     source.write_text(r'''

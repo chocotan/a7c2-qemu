@@ -4,6 +4,7 @@
 Wire fixtures exercise transport only. Real-model tests compile/load the actual
 core and consume its in-memory bytes; no fixture synthesizes a camera product.
 """
+import ctypes
 import errno
 import hashlib
 import importlib.util
@@ -11,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import socket
 import struct
@@ -590,8 +592,56 @@ def test_socket_connect_failure_closes_directory_fd(tmp_path, monkeypatch):
             os.fstat(fd)
 
 
+BANK_SCENARIOS = (
+    'bank', 'bank-validation', 'bank-version', 'bank-size-field', 'bank-instance', 'bank-generation',
+    'bank-before', 'bank-after', 'bank-input-fnv', 'bank-fps', 'bank-slots', 'bank-raw-bytes', 'bank-reserved',
+    'bank-state-abi', 'bank-state-fps', 'bank-state-instance', 'bank-state-generation',
+    'bank-state-rendered', 'bank-state-frame', 'bank-state-reserved', 'bank-cookie', 'bank-last',
+    'bank-stale21', 'bank-short', 'bank-token', 'bank-upstream', 'bank-transport-fnv', 'bank-copy')
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', BANK_SCENARIOS)
+def test_actual_c_parameter_bank_bridge_contracts(guest_builds, mode, scenario):
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', ('ou', 'ou-validation', 'ou-mutation', 'ou-short', 'ou-long',
+    'ou-token', 'ou-upstream', 'ou-transport-fnv', 'ou-origin', 'ou-copy'))
+def test_actual_c_ou_crank_bridge_contracts(guest_builds, mode, scenario):
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
+MOVIE_SCENARIOS = ('movie', 'movie-validation', 'movie-mutation', 'movie-retry', 'movie-short', 'movie-long',
+    'movie-token', 'movie-errorpayload', 'movie-upstream', 'movie-transport-fnv', 'movie-origin', 'movie-copy')
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', MOVIE_SCENARIOS)
+def test_actual_c_movie_format_bridge_contracts(guest_builds, mode, scenario):
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
+CRANK_SCENARIOS = (
+    'crank', 'crank-validation', 'crank-mutation', 'crank-retry', 'crank-version', 'crank-size-field',
+    'crank-instance', 'crank-generation', 'crank-bank', 'crank-before', 'crank-after', 'crank-input-fnv',
+    'crank-mode', 'crank-fps', 'crank-state-abi', 'crank-state-fps', 'crank-state-instance',
+    'crank-state-config', 'crank-state-rendered', 'crank-state-consumed', 'crank-state-jpeg',
+    'crank-state-video', 'crank-state-result-read', 'crank-state-pending', 'crank-state-stream',
+    'crank-state-frame', 'crank-state-reserved', 'crank-type', 'crank-opaque', 'crank-command',
+    'crank-cookie', 'crank-echo-mode', 'crank-reserved', 'crank-last', 'crank-short', 'crank-long',
+    'crank-token', 'crank-errorpayload', 'crank-upstream', 'crank-transport-fnv', 'crank-origin', 'crank-copy')
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('scenario', CRANK_SCENARIOS)
+def test_actual_c_crank_control_bridge_contracts(guest_builds, mode, scenario):
+    test_actual_c_bridge_contracts(guest_builds, mode, scenario)
+
+
 STARTUP_CONTROL_SCENARIOS = (
-    'startup', 'startup-validation', 'startup-class5', 'startup-class8',
+    'startup', 'startup-focus', 'startup-validation', 'startup-class5', 'startup-class8',
     'startup-size176', 'startup-short', 'startup-tailbody', 'startup-tailreserved',
     'startup-tailfp', 'startup-inputfnv', 'startup-sink', 'startup-active',
     'startup-width', 'startup-heightstride', 'startup-endpoint', 'startup-selectedcompleted',
@@ -692,7 +742,8 @@ def actual_core_library(tmp_path_factory):
         'virtual-optics/optics.c', 'virtual-optical-frame-owner/optical-frame-owner.c',
         'virtual-jpeg-hardware/jpeg-hardware.c', 'virtual-jpeg-hardware/jpeg-hardware-codec.c',
         'virtual-jpeg-sos/jpeg-sos.c', 'virtual-video-engine/video-engine.c',
-        'virtual-camera-pipeline/camera-pipeline.c')]
+        'virtual-camera-pipeline/camera-pipeline.c',
+        '../runtime/analysis/device-models/cp-parameter-batch.c')]
     if not core.exists() or not all(path.exists() for path in dependencies):
         pytest.skip('Actual core/dependencies have not been delivered yet')
     libraries = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs',
@@ -923,6 +974,877 @@ def test_actual_negative_core_call_retains_exact_input_and_empty_output(actual_c
         broker.core.close()
 
 
+def parameter_bank_input(library, *, fps=30, cookie=0x80000061):
+    class Slot(ctypes.Structure):
+        _fields_ = [(name, ctypes.c_uint16) for name in ('opcode', 'offset', 'size')]
+    slots = (Slot * b.CP_PARAMETER_BANK_SLOTS).in_dll(library, 'cp_parameter_batch_slots')
+    raw = bytearray((i * 73 + i // 29 + 19) % 256 for i in range(b.CP_PARAMETER_BANK_BYTES))
+    raw[0] = 5
+    struct.pack_into('<HI', raw, 2, 0x4063, cookie)
+    for slot in slots:
+        raw[slot.offset] = 5
+        struct.pack_into('<H', raw, slot.offset + 2, slot.opcode)
+    struct.pack_into('<I', raw, b.CP_PARAMETER_FPS_AT, fps)
+    return bytes(raw)
+
+
+def parameter_bank_header(seq, data, *, op=b.CP_PARAMETER_BANK, capacity=b.CP_PARAMETER_BANK_RESULT_BYTES):
+    raw = bytearray(header(seq=seq, op=op, data=data if op == b.CP_PARAMETER_BANK else b'', capacity=capacity))
+    struct.pack_into('<4I', raw, 100, 0x80020002, 0x90030001, 0x4063, b.CP_PARAMETER_BANK_BYTES)
+    struct.pack_into('<Q', raw, 120, b.fnv64(data))
+    return bytes(raw)
+
+
+@pytest.mark.parametrize('field,value', [(100, 0x80020003), (104, 0x90030002), (108, 0x4064), (112, 2563),
+                                        (120, 0), (40, 2755), (52, 1)])
+def test_bank_wire_origin_rejection_and_state_origin_keeps_old_api(actual_core_library, field, value):
+    library, digest = actual_core_library
+    core = b.Core(library, digest)
+    try:
+        data = parameter_bank_input(core.library)
+        raw = bytearray(parameter_bank_header(1, data))
+        struct.pack_into('<Q' if field == 120 else '<I', raw, field, value)
+        with pytest.raises(ValueError):
+            b.validate_request(bytes(raw), data, MAILBOX, 0)
+        bank_state = parameter_bank_header(1, data, op=b.STATE, capacity=128)
+        assert b.validate_request(bank_state, b'', MAILBOX, 0) == (b.STATE, 128)
+        assert b.validate_request(header(op=b.STATE, capacity=128), b'', MAILBOX, 0) == (b.STATE, 128)
+        assert b.AP_SOURCE_SNAPSHOT == 11 and b.CP_PARAMETER_BANK == 20
+    finally:
+        core.close()
+
+
+def test_actual_bank_transfer_retains_all_bytes_and_has_no_frame_or_source_receipt(actual_core_library, wire, monkeypatch):
+    library, digest = actual_core_library
+    memory, rsp, _ = wire
+    broker = component(memory, rsp, monkeypatch)
+    broker.core = b.Core(library, digest)
+
+    def execute(op, data=b'', capacity=128, native=None):
+        sequence = broker.sequence + 1
+        request = parameter_bank_header(sequence, native or data, op=op, capacity=capacity) if native is not None or op == b.CP_PARAMETER_BANK else header(
+            seq=sequence, op=op, data=data, capacity=capacity)
+        memory.logical(0, len(request), request)
+        if data:
+            memory.logical(b.HEADER, len(data), data)
+        actual_request, actual_input = broker.fetch()
+        code, output, result = broker.call_core(actual_request, actual_input, capacity)
+        assert broker.publish(actual_request, output, code, result)
+        assert memory.logical(b.HEADER, len(output)) == output
+        return code, output, result
+
+    try:
+        assert execute(b.INIT)[0] == 0
+        settings = struct.pack('<6I2Q2I', 640, 480, 30, 13, 800, 640, 8642, 2**64 - 1, 0, 0)
+        for _ in range(21):
+            assert execute(b.CONFIGURE, settings)[0] == 0
+        # The independent pre-query must use live generation22 rather than any older control cache.
+        proof = broker.core.proof_snapshot()
+        for count in range(1, 4):
+            data = parameter_bank_input(broker.core.library, fps=30, cookie=0x80000060 + count)
+            assert execute(b.STATE, native=data)[0] == 0
+            broker.core.configuration_fingerprint = 0  # HOST stale cache must never substitute for live C STATE.
+            code, output, result = execute(b.CP_PARAMETER_BANK, data, 2756)
+            assert code == 0 and result.used == 2756 and not result.token
+            assert output[192:] == data and b.u64(output, 16) == count and b.u64(output, 24) == 21 + count
+            assert b.u64(output, 32) == 22 + count and b.u32(output, 48) == 30
+            assert execute(b.STATE, native=data)[1] == output[64:192]
+            assert broker.core.proof_snapshot() == proof
+        events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+        banks = [event for event in events if event['kind'] == 'model_parameter_bank']
+        assert len(banks) == 3 and all(event['actual_core_sha256'] == digest and event['actual_c_result'] == 0 for event in banks)
+        assert not any(event['kind'] == 'ap_source_result' for event in events)
+        assert [(event['opcode']) for event in events if event['kind'] == 'model_frame'] == [b.INIT]
+        for event in banks:
+            observation = event['observation']
+            actual_input = (broker.root / event['request_payload']['path']).read_bytes()
+            actual_output = (broker.root / event['output_payload']['path']).read_bytes()
+            assert len(actual_input) == 2564 and len(actual_output) == 2756 and actual_output[192:] == actual_input
+            assert observation['query_c_result'] == observation['after_state_c_result'] == observation['actual_c_result'] == 0
+            assert observation['readback_verified'] is True
+            assert bytes.fromhex(observation['snapshot_hex']) == bytes.fromhex(observation['returned_hex']) == actual_output
+            assert bytes.fromhex(observation['after_state_hex']) == actual_output[64:192]
+            assert b.u64(bytes.fromhex(observation['before_state_hex']), 56) == b.u64(actual_output, 24)
+        bad = bytearray(data)
+        bad[8] ^= 1
+        code, output, result = execute(b.CP_PARAMETER_BANK, bytes(bad), 2756)
+        assert code == -errno.EPROTO and output == b'' and result.used == 0 and broker.core.proof_snapshot() == proof
+        events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+        rejected = [event for event in events if event['kind'] == 'core_result'][-1]
+        assert rejected['actual_c_result'] == -errno.EPROTO and rejected['actual_core_sha256'] == digest
+        assert (broker.root / rejected['request_payload']['path']).read_bytes() == bytes(bad)
+        assert (broker.root / rejected['output_payload']['path']).read_bytes() == b''
+    finally:
+        broker.core.destroy_model()
+        broker.detach_mailbox()
+        broker.core.close()
+
+
+@pytest.mark.parametrize('owner', ['source', 'retained-result'])
+def test_bank_never_enters_source_provider_or_core_with_an_existing_broker_lease(actual_core_library, wire, monkeypatch, owner):
+    library, digest = actual_core_library
+    memory, rsp, _ = wire
+    broker = component(memory, rsp, monkeypatch)
+    broker.core = b.Core(library, digest)
+    try:
+        request = header(op=b.INIT, capacity=128)
+        memory.logical(0, b.HEADER, request)
+        code, output, result = broker.call_core(request, b'', 128)
+        assert code == 0 and broker.publish(request, output, code, result)
+        source = broker.source()
+        if owner == 'source':
+            source.active = object()  # HOST-owned lease sentinel; no original source bytes are claimed.
+        else:
+            broker.transfer = dict(token=77, total=1, cursor=0)
+        proof = broker.core.proof_snapshot()
+        def uncalled(*args):
+            raise AssertionError('Bank admission must reject before a C request')
+        monkeypatch.setattr(broker.core, 'execute', uncalled)
+        monkeypatch.setattr(broker, 'call_source', uncalled)
+        data = parameter_bank_input(broker.core.library)
+        request = parameter_bank_header(2, data)
+        memory.logical(0, b.HEADER, request)
+        memory.logical(b.HEADER, len(data), data)
+        code, output, result = broker.call_core(request, data, 2756)
+        assert code == -errno.EBUSY and output == b'' and result.used == 0
+        assert broker.publish(request, output, code, result) and broker.core.proof_snapshot() == proof
+        events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+        rejected = [event for event in events if event['kind'] == 'core_result'][-1]
+        assert rejected['actual_c_result'] is None and rejected['admission_error'] == -errno.EBUSY
+        assert not any(event['kind'] in ('model_parameter_bank', 'ap_source_result') for event in events)
+        assert source.active is not None if owner == 'source' else broker.transfer['token'] == 77
+    finally:
+        broker.source().active = None
+        broker.transfer = None
+        broker.core.destroy_model()
+        broker.detach_mailbox()
+        broker.core.close()
+
+
+@pytest.mark.parametrize('failure', ['query-error', 'query-last-byte', 'after-state'])
+def test_bank_independent_readback_failure_retains_actual_c_output(actual_core_library, wire, monkeypatch, failure):
+    library, digest = actual_core_library
+    memory, rsp, _ = wire
+    broker = component(memory, rsp, monkeypatch)
+    broker.core = b.Core(library, digest)
+    try:
+        request = header(op=b.INIT, capacity=128)
+        memory.logical(0, b.HEADER, request)
+        code, output, result = broker.call_core(request, b'', 128)
+        assert code == 0 and broker.publish(request, output, code, result)
+        proof = broker.core.proof_snapshot()
+        original_query = broker.core.library.fcam_model_cp_parameter_bank_snapshot
+        original_execute = broker.core.execute
+        def query(model, generation, output, size):
+            code = original_query(model, generation, output, size)
+            if failure == 'query-error':
+                return -errno.EIO
+            if failure == 'query-last-byte':
+                ctypes.cast(output, ctypes.POINTER(ctypes.c_uint8))[size - 1] ^= 1
+            return code
+        if failure == 'after-state':
+            state_calls = 0
+            def changed_state(instance, op, incoming, capacity):
+                nonlocal state_calls
+                code, data, result = original_execute(instance, op, incoming, capacity)
+                if op == b.STATE:
+                    state_calls += 1
+                    if state_calls == 2:
+                        data = data[:-1] + bytes([data[-1] ^ 1])
+                return code, data, result
+            monkeypatch.setattr(broker.core, 'execute', changed_state)
+        else:
+            monkeypatch.setattr(broker.core.library, 'fcam_model_cp_parameter_bank_snapshot', query)
+        data = parameter_bank_input(broker.core.library)
+        request = parameter_bank_header(2, data)
+        memory.logical(0, b.HEADER, request)
+        memory.logical(b.HEADER, len(data), data)
+        with pytest.raises(ValueError, match='query differs|after-State128'):
+            broker.call_core(request, data, 2756)
+        events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+        rejected = [event for event in events if event['kind'] == 'parameter_bank_rejected'][-1]
+        assert rejected['actual_c_result'] == 0 and rejected['actual_core_sha256'] == digest
+        assert (broker.root / rejected['request_payload']['path']).read_bytes() == data
+        actual_output = (broker.root / rejected['output_payload']['path']).read_bytes()
+        assert len(actual_output) == 2756 and actual_output[192:] == data
+        assert bytes.fromhex(rejected['observation']['returned_hex']) == actual_output
+        assert rejected['observation']['readback_verified'] is False
+        assert not any(event.get('sequence') == 2 and event['kind'] in ('response', 'model_parameter_bank', 'model_frame') for event in events)
+        assert broker.pending_payloads is None and broker.core.proof_snapshot() == proof
+    finally:
+        broker.core.destroy_model()
+        broker.detach_mailbox()
+        broker.core.close()
+
+
+def ou_crank_input(*, opaque=0, cookie=0x80000061):
+    return struct.pack('<BBHII',5,opaque,0x4072,cookie,0)
+
+
+def ou_crank_header(seq, data, *, capacity=224):
+    raw = bytearray(header(seq=seq,op=b.CP_OU_CRANK_CONTROL,data=data,capacity=capacity))
+    struct.pack_into('<4I',raw,100,0x80020002,0x90030001,0x4072,len(data))
+    struct.pack_into('<Q',raw,120,b.fnv64(data))
+    return bytes(raw)
+
+
+def ou_broker_execute(broker, memory, op, data=b'', capacity=128):
+    if op not in (b.CP_OU_CRANK_CONTROL,b.STARTUP_CONTROL):
+        return movie_broker_execute(broker,memory,op,data,capacity)
+    request = ou_crank_header(broker.sequence+1,data,capacity=capacity) if op == b.CP_OU_CRANK_CONTROL else bytearray(
+        header(seq=broker.sequence+1,op=op,data=data,capacity=capacity))
+    if op == b.STARTUP_CONTROL:
+        struct.pack_into('<4I',request,100,0x80020002,0x90030001,0x4057,12)
+        struct.pack_into('<Q',request,120,b.fnv64(data))
+        request = bytes(request)
+    memory.logical(0,b.HEADER,request); memory.logical(b.HEADER,len(data),data)
+    actual_request, actual_input = broker.fetch()
+    code, output, result = broker.call_core(actual_request,actual_input,capacity)
+    assert broker.publish(actual_request,output,code,result)
+    assert memory.logical(b.HEADER,len(output)) == output
+    return code, output, result
+
+
+def ou_settings_predecessor(broker, memory):
+    state_bytes = ou_broker_execute(broker,memory,b.STATE)[1]
+    data = struct.pack('<HH',0x4057,4) + bytes(20) + struct.pack('<Q',b.fnv64(state_bytes[8:48]))
+    assert ou_broker_execute(broker,memory,b.STARTUP_CONTROL,data,192)[0] == 0
+
+
+def ou_predecessors(broker, memory, *, fps=30, cookie=0x80000061):
+    route = b'\x01\x05\x05' + bytes(13)
+    if broker.core.vdf_route != route:
+        assert ou_broker_execute(broker,memory,b.VDF_PATH,route,160)[0] == 0
+    movie_predecessors(broker,memory,fps=fps,cookie=cookie)
+    assert ou_broker_execute(broker,memory,b.CP_MOVIE_FORMAT,movie_format_input(),240)[0] == 0
+    ou_settings_predecessor(broker,memory)
+
+
+def test_ou_wire_exact12_origin_flags_body_and_capacity():
+    data = ou_crank_input()
+    assert data.hex() == '050072406100008000000000'
+    assert b.validate_request(ou_crank_header(1,data),data,MAILBOX,0) == (23,224)
+    for field,value in ((100,0x80020003),(104,0x90030002),(108,0x4073),(112,11),(120,0),(40,223),(52,1)):
+        request = bytearray(ou_crank_header(1,data))
+        struct.pack_into('<Q' if field == 120 else '<I',request,field,value)
+        with pytest.raises(ValueError):
+            b.validate_request(bytes(request),data,MAILBOX,0)
+    for size in (0,11,13):
+        raw = (data+b'\0')[:size]
+        with pytest.raises(ValueError):
+            b.validate_request(ou_crank_header(1,raw),raw,MAILBOX,0)
+    for offset in (0,2,3,8,9,10,11):
+        raw = bytearray(data); raw[offset] ^= 1
+        with pytest.raises(ValueError):
+            b.validate_request(ou_crank_header(1,raw),bytes(raw),MAILBOX,0)
+    opaque = ou_crank_input(opaque=0xef,cookie=0xfedcba98)
+    assert b.validate_request(ou_crank_header(1,opaque),opaque,MAILBOX,0) == (23,224)
+    assert (b.AP_SOURCE_SNAPSHOT,b.CP_PARAMETER_BANK,b.CP_CRANK_CONTROL,b.CP_MOVIE_FORMAT) == (11,20,21,22)
+
+
+def test_actual_ou224_broker_live_state_independent_query_and_opaque_input(crank_broker,monkeypatch):
+    broker,memory,digest = crank_broker
+    monkeypatch.setattr(broker,'call_source',lambda *args: pytest.fail('OU cannot borrow OP11'))
+    assert broker.core.library.fcam_model_cp_ou_crank_snapshot.argtypes == [ctypes.c_void_p,ctypes.c_uint64,
+        ctypes.c_uint64,ctypes.c_uint64,ctypes.c_uint64,ctypes.c_void_p,ctypes.c_size_t]
+    assert broker.core.library.fcam_model_cp_ou_crank_snapshot.restype == ctypes.c_int
+    for generation,fps in enumerate((30,60),1):
+        ou_predecessors(broker,memory,fps=fps,cookie=0x80000060+generation)
+        histories = tuple(dict(getattr(broker.core,key)) for key in
+            ('parameter_bank_observation','crank_control_observation','movie_format_observation'))
+        before = ou_broker_execute(broker,memory,b.STATE)[1]
+        proof = broker.core.proof_snapshot()
+        assert proof['opcode'] == 14 and proof['config_generation'] == b.u64(before,56)
+        data = ou_crank_input() if generation == 1 else ou_crank_input(opaque=0xef,cookie=0xfedcba98)
+        code,receipt,result = ou_broker_execute(broker,memory,23,data,b.DATA)
+        expected = bytearray(before); struct.pack_into('<Q',expected,56,b.u64(before,56)+1)
+        assert code == 0 and result.used == 224 and not (result.token or result.total or result.offset)
+        assert struct.unpack_from('<II8Q2I',receipt) == (1,224,MAILBOX['nonce'],generation,generation,generation,generation,
+            b.u64(before,56),b.u64(before,56)+1,b.fnv64(data),0,fps)
+        assert receipt[80:208] == bytes(expected) == ou_broker_execute(broker,memory,b.STATE)[1]
+        assert receipt[208:220] == data and receipt[220:] == bytes(4) and broker.core.proof_snapshot() == proof
+        assert histories == tuple(getattr(broker.core,key) for key in
+            ('parameter_bank_observation','crank_control_observation','movie_format_observation'))
+        query = ctypes.create_string_buffer(224)
+        assert broker.core.library.fcam_model_cp_ou_crank_snapshot(broker.core.model,generation,generation,generation,generation,query,224) == 0
+        assert query.raw == receipt
+        code,output,_ = ou_broker_execute(broker,memory,23,ou_crank_input(opaque=0x7f,cookie=0x87654321),224)
+        assert code == -errno.ESTALE and not output
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    witnesses = [event for event in events if event['kind'] == 'model_ou_crank_control']
+    assert len(witnesses) == 2 and not any(event['kind'] == 'ap_source_result' for event in events)
+    assert not any(event['kind'] == 'model_frame' and event['opcode'] == 23 for event in events)
+    decoder_spec = importlib.util.spec_from_file_location('actual_ou_formal_decoder',
+        REPORT / 'functional-camera-evidence/check_evidence.py')
+    decoder = importlib.util.module_from_spec(decoder_spec)
+    decoder_spec.loader.exec_module(decoder)
+    for event in witnesses:
+        observed = event['observation']; source = (broker.root/event['request_payload']['path']).read_bytes()
+        output = (broker.root/event['output_payload']['path']).read_bytes()
+        assert event['actual_c_result'] == 0 and event['actual_core_sha256'] == digest and event['native_acceptance'] is False
+        assert event['model_called'] is event['model_committed'] is True and event['validation_error'] is None
+        assert observed['actual_c_result'] == observed['query_c_result'] == observed['before_state_c_result'] == observed['after_state_c_result'] == 0
+        assert observed['readback_verified'] is True and observed['predecessor_proof']['opcode'] == 14
+        assert bytes.fromhex(observed['returned_hex']) == bytes.fromhex(observed['snapshot_hex']) == output
+        assert bytes.fromhex(observed['output_buffer_hex']) == output + bytes(b.DATA-224)
+        assert observed['request_hex'] == source.hex() and output[208:220] == source
+        assert bytes.fromhex(observed['after_state_hex']) == output[80:208]
+        value = decoder.cp_ou_crank_control_observation(observed, output, source, MAILBOX['nonce'],
+            bytes.fromhex(observed['before_state_hex']), observed['bank_generation'],
+            observed['crank_generation'], observed['movie_generation'], b.DATA)
+        assert value['config_generation'] == b.u64(output, 56) and value['ou_generation'] == b.u64(output, 16)
+        with pytest.raises(ValueError, match='independent actual C'):
+            decoder.cp_ou_crank_control_observation(dict(observed, state_delta_verified=False), output,
+                source, MAILBOX['nonce'], bytes.fromhex(observed['before_state_hex']),
+                observed['bank_generation'], observed['crank_generation'], observed['movie_generation'], b.DATA)
+
+
+def test_actual_ou_requires_just_completed4057_at_current_generation(crank_broker):
+    broker,memory,_ = crank_broker
+    route = b'\x01\x05\x05' + bytes(13)
+    assert ou_broker_execute(broker,memory,b.VDF_PATH,route,160)[0] == 0
+    movie_predecessors(broker,memory)
+    assert ou_broker_execute(broker,memory,22,movie_format_input(),240)[0] == 0
+    assert ou_broker_execute(broker,memory,23,ou_crank_input(),224)[0] == -errno.ENODATA
+    ou_settings_predecessor(broker,memory)
+    state_bytes = ou_broker_execute(broker,memory,b.STATE)[1]
+    assert ou_broker_execute(broker,memory,b.CONFIGURE,state_bytes[8:48]+bytes(8))[0] == 0
+    before = ou_broker_execute(broker,memory,b.STATE)[1]
+    assert ou_broker_execute(broker,memory,23,ou_crank_input(),224)[0] == -errno.ESTALE
+    assert ou_broker_execute(broker,memory,b.STATE)[1] == before
+    ou_settings_predecessor(broker,memory)
+    assert ou_broker_execute(broker,memory,23,ou_crank_input(),224)[0] == 0
+
+
+@pytest.mark.parametrize('owner',('source','retained-result'))
+def test_ou_admission_keeps_current_broker_owners(crank_broker,monkeypatch,owner):
+    broker,memory,_ = crank_broker
+    ou_predecessors(broker,memory)
+    if owner == 'source': broker.source().active = object()
+    else: broker.transfer = dict(token=77,total=1,cursor=0)
+    def uncalled(*args): pytest.fail('OU admission must precede actual C/source call')
+    monkeypatch.setattr(broker.core,'execute',uncalled); monkeypatch.setattr(broker,'call_source',uncalled)
+    code,output,result = ou_broker_execute(broker,memory,23,ou_crank_input(),224)
+    assert code == -errno.EBUSY and not output and not result.used
+    event = [json.loads(line) for line in broker.events.getvalue().splitlines() if json.loads(line)['kind'] == 'ou_crank_control_rejected'][-1]
+    assert event['actual_c_result'] is None and event['admission_error'] == -errno.EBUSY
+    assert event['model_called'] is event['model_committed'] is False
+    assert broker.source().active is not None if owner == 'source' else broker.transfer['token'] == 77
+
+
+@pytest.mark.parametrize('failure',('query-error','query-last-byte','query-exception','returned-cookie','after-state','empty-C0'))
+def test_ou_postvalidation_preserves_actual_c0_buffer_and_query(crank_broker,monkeypatch,failure):
+    broker,memory,digest = crank_broker
+    ou_predecessors(broker,memory)
+    original_query = broker.core.library.fcam_model_cp_ou_crank_snapshot
+    original_request,original_execute = broker.core.library.fcam_model_request,broker.core.execute
+    if failure.startswith('query-'):
+        def query(model,ou,bank,crank,movie,output,size):
+            code = original_query(model,ou,bank,crank,movie,output,size)
+            if failure == 'query-error': return -errno.EIO
+            ctypes.cast(output,ctypes.POINTER(ctypes.c_uint8))[size-1] ^= 1
+            if failure == 'query-exception': raise ValueError('OU independent query exception after actual readback')
+            return code
+        monkeypatch.setattr(broker.core.library,'fcam_model_cp_ou_crank_snapshot',query)
+    elif failure == 'after-state':
+        calls = 0
+        def state(instance,op,data,capacity):
+            nonlocal calls
+            code,output,result = original_execute(instance,op,data,capacity)
+            if op == b.STATE:
+                calls += 1
+                if calls == 2: output = output[:-1] + bytes([output[-1]^1])
+            return code,output,result
+        monkeypatch.setattr(broker.core,'execute',state)
+    else:
+        def changed(model,op,data,size,output,capacity,result):
+            if failure == 'empty-C0' and op == 23: return 0
+            code = original_request(model,op,data,size,output,capacity,result)
+            if op == 23 and code == 0: ctypes.cast(output,ctypes.POINTER(ctypes.c_uint8))[212] ^= 1
+            return code
+        monkeypatch.setattr(broker.core.library,'fcam_model_request',changed)
+    data = ou_crank_input(); request = ou_crank_header(broker.sequence+1,data,capacity=b.DATA)
+    memory.logical(0,b.HEADER,request); memory.logical(b.HEADER,12,data)
+    with pytest.raises(ValueError,match='OU|ou'):
+        broker.call_core(request,data,b.DATA)
+    event = [json.loads(line) for line in broker.events.getvalue().splitlines() if json.loads(line)['kind'] == 'ou_crank_control_rejected'][-1]
+    observed = event['observation']; actual = (broker.root/event['output_payload']['path']).read_bytes()
+    assert event['actual_c_result'] == 0 and event['actual_core_sha256'] == digest and event['validation_error']
+    assert event['model_called'] is True and observed['c_call_succeeded'] is True and observed['readback_verified'] is False
+    assert len(bytes.fromhex(observed['output_buffer_hex'])) == b.DATA
+    assert len(bytes.fromhex(observed['snapshot_hex'])) == 224
+    assert (broker.root/event['request_payload']['path']).read_bytes() == data
+    assert actual.hex() == observed['returned_hex'] and broker.pending_payloads is None
+    if failure == 'empty-C0':
+        assert not event['model_committed'] and not actual and observed['query_c_result'] == -errno.ENODATA
+    else:
+        assert len(actual) == 224 and event['model_committed'] is True
+        assert observed['state_delta_verified'] is (failure != 'after-state')
+    assert not any(json.loads(line)['kind'] == 'model_ou_crank_control' for line in broker.events.getvalue().splitlines())
+
+
+def movie_format_input(*, opaque=0xa7, cookie=0x80aa5560, opaque11=0xb3, opaque19=0xc4):
+    return struct.pack('<BBHI4BI4B', 5, opaque, 0x4000, cookie, 5, 1, 0, opaque11, 0, 0, 0, 1, opaque19)
+
+
+def movie_format_header(seq, data, *, capacity=240):
+    raw = bytearray(header(seq=seq, op=b.CP_MOVIE_FORMAT, data=data, capacity=capacity))
+    struct.pack_into('<4I', raw, 100, 0x80020002, 0x90030001, 0x4000, len(data))
+    struct.pack_into('<Q', raw, 120, b.fnv64(data))
+    return bytes(raw)
+
+
+def movie_broker_execute(broker, memory, op, data=b'', capacity=128):
+    if op != b.CP_MOVIE_FORMAT:
+        return crank_broker_execute(broker,memory,op,data,capacity)
+    request = movie_format_header(broker.sequence+1,data,capacity=capacity)
+    memory.logical(0,b.HEADER,request)
+    memory.logical(b.HEADER,len(data),data)
+    actual_request, actual_input = broker.fetch()
+    code, output, result = broker.call_core(actual_request,actual_input,capacity)
+    assert broker.publish(actual_request,output,code,result)
+    return code, output, result
+
+
+def movie_predecessors(broker, memory, *, fps=30, cookie=0x80000061):
+    bank = parameter_bank_input(broker.core.library,fps=fps,cookie=cookie)
+    assert crank_broker_execute(broker,memory,b.CP_PARAMETER_BANK,bank,2756)[0] == 0
+    assert crank_broker_execute(broker,memory,b.CP_CRANK_CONTROL,crank_control_input(),208)[0] == 0
+
+
+@pytest.mark.parametrize('field,value', [(100,0x80020003),(104,0x90030002),(108,0x4001),(112,19),(120,0),(40,239),(52,1)])
+def test_movie_wire_requires_exact_origin_capacity_and_flag(field,value):
+    data = movie_format_input()
+    request = bytearray(movie_format_header(1,data))
+    struct.pack_into('<Q' if field == 120 else '<I',request,field,value)
+    with pytest.raises(ValueError):
+        b.validate_request(bytes(request),data,MAILBOX,0)
+    assert b.CP_MOVIE_FORMAT == 22 and b.CP_CRANK_CONTROL == 21 and b.AP_SOURCE_SNAPSHOT == 11
+
+
+@pytest.mark.parametrize('offset', [0,2,3,8,9,10,12,13,14,15,16,17,18])
+def test_movie_wire_rejects_each_known_selector_change(offset):
+    data = bytearray(movie_format_input()); data[offset] ^= 1
+    with pytest.raises(ValueError):
+        b.validate_request(movie_format_header(1,data),bytes(data),MAILBOX,0)
+
+
+@pytest.mark.parametrize('size', [0,19,21])
+def test_movie_wire_rejects_nonexact_input(size):
+    data = (movie_format_input()+b'\0')[:size]
+    with pytest.raises(ValueError):
+        b.validate_request(movie_format_header(1,data),data,MAILBOX,0)
+
+
+def test_actual_movie_broker_records_live_state_and_preserves_predecessor_histories(crank_broker,monkeypatch):
+    broker,memory,digest = crank_broker
+    execute = lambda op,data=b'',capacity=128: movie_broker_execute(broker,memory,op,data,capacity)
+    settings = struct.pack('<6I2Q2I',128,64,30,13,800,640,8642,2**64-1,0,0)
+    assert execute(b.CONFIGURE,settings)[0] == 0
+    proof = broker.core.proof_snapshot()
+    monkeypatch.setattr(broker,'call_source',lambda *args: pytest.fail('Movie format cannot borrow source11'))
+    for generation,fps in enumerate((30,60,30),1):
+        movie_predecessors(broker,memory,fps=fps,cookie=0x80000060+generation)
+        bank_observation,crank_observation = dict(broker.core.parameter_bank_observation),dict(broker.core.crank_control_observation)
+        # Advance live state after OP21 so a historical crank receipt cannot substitute.
+        changed = bytearray(settings); struct.pack_into('<I',changed,8,fps); struct.pack_into('<I',changed,12,70+generation)
+        assert execute(b.CONFIGURE,bytes(changed))[0] == 0
+        before = execute(b.STATE)[1]
+        data = movie_format_input(opaque=0xa0+generation,cookie=0xfedcba00+generation,opaque11=generation,opaque19=255-generation)
+        code,receipt,result = execute(b.CP_MOVIE_FORMAT,data,240)
+        expected = bytearray(before); struct.pack_into('<Q',expected,56,b.u64(before,56)+1)
+        assert code == 0 and result.used == 240 and not (result.token or result.total or result.offset)
+        assert struct.unpack_from('<II7Q4I',receipt) == (1,240,MAILBOX['nonce'],generation,generation,generation,
+            b.u64(before,56),b.u64(before,56)+1,b.fnv64(data),5,0,fps,1)
+        assert receipt[80:208] == bytes(expected) == execute(b.STATE)[1] and receipt[208:228] == data and receipt[228:] == bytes(12)
+        assert broker.core.proof_snapshot() == proof
+        assert broker.core.parameter_bank_observation == bank_observation and broker.core.crank_control_observation == crank_observation
+        code,output,_ = execute(b.CP_MOVIE_FORMAT,movie_format_input(),240)
+        assert code == -errno.ESTALE and not output
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    witnesses = [event for event in events if event['kind'] == 'model_movie_format']
+    assert len(witnesses) == 3 and not any(event['kind'] == 'ap_source_result' for event in events)
+    assert [event['opcode'] for event in events if event['kind'] == 'model_frame'] == [b.INIT]
+    for event in witnesses:
+        observed = event['observation']
+        source = (broker.root/event['request_payload']['path']).read_bytes()
+        destination = (broker.root/event['output_payload']['path']).read_bytes()
+        assert len(source) == 20 and len(destination) == 240 and destination[208:228] == source
+        assert event['opcode'] == 22 and event['actual_core_sha256'] == digest and event['actual_c_result'] == 0
+        assert event['origin']['command'] == 0x4000 and event['origin']['bytes'] == 20 and event['origin']['fnv1a64'] == b.fnv64(source)
+        assert event['input_hex'] == source.hex() and event['request_fnv1a64'] == b.fnv64(source)
+        assert event['model_called'] is event['model_committed'] is True and event['native_acceptance'] is False
+        assert observed['actual_c_result'] == observed['query_c_result'] == observed['before_state_c_result'] == observed['after_state_c_result'] == 0
+        assert observed['readback_verified'] is True
+        assert bytes.fromhex(observed['returned_hex']) == bytes.fromhex(observed['snapshot_hex']) == destination
+        assert bytes.fromhex(observed['output_buffer_hex']) == destination
+        assert bytes.fromhex(observed['after_state_hex']) == destination[80:208]
+    rejected = [event for event in events if event['kind'] == 'movie_format_rejected']
+    assert len(rejected) == 3 and all(event['actual_c_result'] == -errno.ESTALE and not event['model_committed'] for event in rejected)
+
+
+@pytest.mark.parametrize('owner',['source','retained-result'])
+def test_movie_broker_admission_preserves_existing_owners(crank_broker,monkeypatch,owner):
+    broker,memory,digest = crank_broker
+    movie_predecessors(broker,memory)
+    if owner == 'source': broker.source().active = object()
+    else: broker.transfer = dict(token=77,total=1,cursor=0)
+    def uncalled(*args): pytest.fail('Movie admission must precede C/source invocation')
+    monkeypatch.setattr(broker.core,'execute',uncalled); monkeypatch.setattr(broker,'call_source',uncalled)
+    code,output,result = movie_broker_execute(broker,memory,b.CP_MOVIE_FORMAT,movie_format_input(),240)
+    assert code == -errno.EBUSY and not output and not result.used
+    event = [json.loads(line) for line in broker.events.getvalue().splitlines() if json.loads(line)['kind'] == 'movie_format_rejected'][-1]
+    assert event['actual_c_result'] is None and event['admission_error'] == -errno.EBUSY and event['actual_core_sha256'] == digest
+    assert event['model_called'] is event['model_committed'] is False and len(bytes.fromhex(event['input_hex'])) == 20
+    assert broker.source().active is not None if owner == 'source' else broker.transfer['token'] == 77
+
+
+@pytest.mark.parametrize('failure',['query-error','query-last-byte','query-exception','after-state','proof-readback',
+    'returned-instance','returned-movie','returned-bank','returned-crank','returned-before','returned-after',
+    'returned-fnv','returned-format','returned-rate','returned-fps','returned-codec','returned-state','returned-opaque11','returned-opaque19','returned-reserved'])
+def test_movie_postvalidation_keeps_actual_c_commit_and_original_bytes(crank_broker,monkeypatch,failure):
+    broker,memory,digest = crank_broker
+    movie_predecessors(broker,memory)
+    original_query = broker.core.library.fcam_model_cp_movie_format_snapshot
+    original_execute,original_request,original_proof = broker.core.execute,broker.core.library.fcam_model_request,broker.core.proof_snapshot
+    proof = original_proof()
+    if failure.startswith('query-'):
+        def query(model,movie,bank,crank,output,size):
+            code = original_query(model,movie,bank,crank,output,size)
+            if failure == 'query-error': return -errno.EIO
+            ctypes.cast(output,ctypes.POINTER(ctypes.c_uint8))[size-1] ^= 1
+            if failure == 'query-exception': raise ValueError('Movie independent query exception after raw readback')
+            return code
+        monkeypatch.setattr(broker.core.library,'fcam_model_cp_movie_format_snapshot',query)
+    elif failure == 'after-state':
+        calls = 0
+        def state(instance,op,data,capacity):
+            nonlocal calls
+            code,output,result = original_execute(instance,op,data,capacity)
+            if op == b.STATE:
+                calls += 1
+                if calls == 2: output = output[:-1] + bytes([output[-1]^1])
+            return code,output,result
+        monkeypatch.setattr(broker.core,'execute',state)
+    elif failure == 'proof-readback':
+        monkeypatch.setattr(broker.core,'proof_snapshot',lambda: dict(original_proof(),serial=proof['serial']+1))
+    else:
+        offsets = dict(instance=8,movie=16,bank=24,crank=32,before=40,after=48,fnv=56,format=64,rate=68,fps=72,codec=76,
+                       state=144,opaque11=219,opaque19=227,reserved=239)
+        def changed(model,op,data,size,output,capacity,result):
+            code = original_request(model,op,data,size,output,capacity,result)
+            if op == b.CP_MOVIE_FORMAT and code == 0:
+                ctypes.cast(output,ctypes.POINTER(ctypes.c_uint8))[offsets[failure.removeprefix('returned-')]] ^= 1
+            return code
+        monkeypatch.setattr(broker.core.library,'fcam_model_request',changed)
+    data = movie_format_input(); sequence = broker.sequence+1
+    request = movie_format_header(sequence,data)
+    memory.logical(0,b.HEADER,request); memory.logical(b.HEADER,len(data),data)
+    with pytest.raises(ValueError,match='movie|Movie'):
+        broker.call_core(request,data,240)
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    rejected = [event for event in events if event['kind'] == 'movie_format_rejected'][-1]
+    assert rejected['opcode'] == 22 and rejected['actual_c_result'] == 0 and rejected['actual_core_sha256'] == digest
+    assert rejected['model_called'] is rejected['model_committed'] is True
+    observed = rejected['observation']
+    actual = (broker.root/rejected['output_payload']['path']).read_bytes()
+    assert len(actual) == 240 and actual.hex() == observed['returned_hex'] == observed['output_buffer_hex']
+    assert (broker.root/rejected['request_payload']['path']).read_bytes() == data
+    assert len(bytes.fromhex(observed['before_state_hex'])) == len(bytes.fromhex(observed['after_state_hex'])) == 128
+    assert len(bytes.fromhex(observed['snapshot_hex'])) == 240
+    assert observed['readback_verified'] is (failure == 'proof-readback')
+    assert broker.pending_payloads is None and original_proof() == proof
+    assert not any(event.get('sequence') == sequence and event['kind'] in ('response','model_movie_format','model_frame','ap_source_result') for event in events)
+
+
+def test_empty_zero_c_return_never_becomes_movie_commit(crank_broker,monkeypatch):
+    broker,memory,_ = crank_broker
+    movie_predecessors(broker,memory)
+    original = broker.core.library.fcam_model_request
+    def empty(model,op,data,size,output,capacity,result):
+        return 0 if op == b.CP_MOVIE_FORMAT else original(model,op,data,size,output,capacity,result)
+    monkeypatch.setattr(broker.core.library,'fcam_model_request',empty)
+    data = movie_format_input(); request = movie_format_header(broker.sequence+1,data)
+    memory.logical(0,b.HEADER,request); memory.logical(b.HEADER,len(data),data)
+    with pytest.raises(ValueError,match='movie format receipt'):
+        broker.call_core(request,data,240)
+    event = [json.loads(line) for line in broker.events.getvalue().splitlines() if json.loads(line)['kind'] == 'movie_format_rejected'][-1]
+    assert event['actual_c_result'] == 0 and event['model_called'] is True and event['model_committed'] is False
+    assert event['observation']['query_c_result'] == -errno.ENODATA and not event['observation']['returned_hex']
+    assert event['observation']['before_state_hex'] == event['observation']['after_state_hex']
+    assert (broker.root/event['output_payload']['path']).read_bytes() == b''
+
+
+def crank_control_input(*, opaque=0xa7, cookie=0x80aa5560):
+    return struct.pack('<BBHII', 5, opaque, 0x409d, cookie, 0)
+
+
+def crank_control_header(seq, data, *, op=b.CP_CRANK_CONTROL, capacity=b.CP_CRANK_RESULT_BYTES):
+    raw = bytearray(header(seq=seq, op=op, data=data if op == b.CP_CRANK_CONTROL else b'', capacity=capacity))
+    struct.pack_into('<4I', raw, 100, 0x80020002, 0x90030001, 0x409d, 12)
+    struct.pack_into('<Q', raw, 120, b.fnv64(data))
+    return bytes(raw)
+
+
+def crank_broker_execute(broker, memory, op, data=b'', capacity=128, *, native=None):
+    sequence = broker.sequence + 1
+    if op == b.CP_CRANK_CONTROL or native is not None:
+        request = crank_control_header(sequence, data if native is None else native, op=op, capacity=capacity)
+    elif op == b.CP_PARAMETER_BANK:
+        request = parameter_bank_header(sequence, data, capacity=capacity)
+    else:
+        request = header(seq=sequence, op=op, data=data, capacity=capacity)
+    memory.logical(0, b.HEADER, request)
+    if data:
+        memory.logical(b.HEADER, len(data), data)
+    actual_request, actual_input = broker.fetch()
+    code, output, result = broker.call_core(actual_request, actual_input, capacity)
+    assert broker.publish(actual_request, output, code, result)
+    assert memory.logical(b.HEADER, len(output)) == output
+    return code, output, result
+
+
+@pytest.fixture
+def crank_broker(actual_core_library, wire, monkeypatch):
+    library, digest = actual_core_library
+    memory, rsp, _ = wire
+    broker = component(memory, rsp, monkeypatch)
+    broker.core = b.Core(library, digest)
+    try:
+        assert crank_broker_execute(broker, memory, b.INIT)[0] == 0
+        yield broker, memory, digest
+    finally:
+        broker.source().active = None
+        broker.transfer = None
+        broker.core.destroy_model()
+        broker.detach_mailbox()
+        broker.core.close()
+
+
+@pytest.mark.parametrize('field,value', [(100, 0x80020003), (104, 0x90030002), (108, 0x409e), (112, 11),
+                                        (120, 0), (40, 207), (52, 1)])
+def test_crank_wire_requires_exact_original_origin_and_legacy_flag(field, value):
+    data = crank_control_input()
+    request = bytearray(crank_control_header(1, data))
+    struct.pack_into('<Q' if field == 120 else '<I', request, field, value)
+    with pytest.raises(ValueError):
+        b.validate_request(bytes(request), data, MAILBOX, 0)
+    assert b.validate_request(crank_control_header(1, data, op=b.STATE, capacity=128), b'', MAILBOX, 0) == (b.STATE, 128)
+    assert b.AP_SOURCE_SNAPSHOT == 11 and b.CP_PARAMETER_BANK == 20 and b.CP_CRANK_CONTROL == 21
+
+
+@pytest.mark.parametrize('offset', [0, 2, 3, 8, 9, 10, 11])
+def test_crank_wire_rejects_malformed_type_command_and_nonzero_mode(offset):
+    data = bytearray(crank_control_input())
+    data[offset] ^= 1
+    with pytest.raises(ValueError):
+        b.validate_request(crank_control_header(1, data), bytes(data), MAILBOX, 0)
+
+
+@pytest.mark.parametrize('size', [0, 11, 13])
+def test_crank_wire_rejects_nonexact_size(size):
+    data = (crank_control_input() + b'\0')[:size]
+    with pytest.raises(ValueError):
+        b.validate_request(crank_control_header(1, data), data, MAILBOX, 0)
+
+
+def test_actual_crank_broker_keeps_both_histories_and_full_payloads(crank_broker, monkeypatch):
+    broker, memory, digest = crank_broker
+    settings = struct.pack('<6I2Q2I', 640, 480, 30, 13, 800, 640, 8642, 2**64 - 1, 0, 0)
+    execute = lambda op, data=b'', capacity=128, **kw: crank_broker_execute(broker, memory, op, data, capacity, **kw)
+    for _ in range(21):
+        assert execute(b.CONFIGURE, settings)[0] == 0
+    proof = broker.core.proof_snapshot()
+    monkeypatch.setattr(broker, 'call_source', lambda *args: pytest.fail('Crank must never borrow source11'))
+    for generation, fps in enumerate((30, 60, 30), 1):
+        bank = parameter_bank_input(broker.core.library, fps=fps, cookie=0x80000060 + generation)
+        assert execute(b.CP_PARAMETER_BANK, bank, 2756)[0] == 0
+        bank_observation = dict(broker.core.parameter_bank_observation)
+        request = crank_control_input(opaque=0xa0 + generation, cookie=0xfedcba00 + generation)
+        before = execute(b.STATE, native=request)[1]
+        broker.core.configuration_fingerprint = 0
+        code, receipt, result = execute(b.CP_CRANK_CONTROL, request, 208)
+        assert code == 0 and result.used == 208 and not (result.token or result.total or result.offset)
+        expected = bytearray(before)
+        struct.pack_into('<Q', expected, 56, b.u64(before, 56) + 1)
+        assert receipt[64:192] == bytes(expected) == execute(b.STATE, native=request)[1]
+        assert struct.unpack_from('<II6Q2I', receipt) == (1, 208, MAILBOX['nonce'], generation, generation,
+            b.u64(before, 56), b.u64(before, 56) + 1, b.fnv64(request), 0, fps)
+        assert receipt[192:204] == request and receipt[204:] == bytes(4)
+        assert broker.core.proof_snapshot() == proof and broker.core.parameter_bank_observation == bank_observation
+        historical = ctypes.create_string_buffer(2756)
+        assert broker.core.library.fcam_model_cp_parameter_bank_snapshot(broker.core.model, generation, historical, 2756) == 0
+        assert historical.raw.hex() == bank_observation['returned_hex']
+        assert b.u64(historical.raw, 32) == b.u64(before, 56) < b.u64(receipt, 40)
+        duplicate = crank_control_input(opaque=0xff, cookie=0x87654321)
+        code, output, result = execute(b.CP_CRANK_CONTROL, duplicate, 208)
+        assert code == -errno.ESTALE and output == b'' and not result.used
+        assert broker.core.proof_snapshot() == proof
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    witnesses = [event for event in events if event['kind'] == 'model_crank_control']
+    assert len(witnesses) == 3 and not any(event['kind'] == 'ap_source_result' for event in events)
+    assert [event['opcode'] for event in events if event['kind'] == 'model_frame'] == [b.INIT]
+    for event in witnesses:
+        observation = event['observation']
+        actual_input = (broker.root / event['request_payload']['path']).read_bytes()
+        actual_output = (broker.root / event['output_payload']['path']).read_bytes()
+        assert len(actual_input) == 12 and len(actual_output) == 208 and actual_output[192:204] == actual_input
+        assert event['actual_c_result'] == 0 and event['actual_core_sha256'] == digest
+        assert event['model_called'] is event['model_committed'] is True and event['native_acceptance'] is False
+        assert event['origin']['source'] == 0x80020002 and event['origin']['destination'] == 0x90030001
+        assert event['origin']['command'] == 0x409d and event['origin']['bytes'] == 12
+        assert event['origin']['fnv1a64'] == b.fnv64(actual_input)
+        assert observation['actual_c_result'] == observation['query_c_result'] == observation['before_state_c_result'] == observation['after_state_c_result'] == 0
+        assert observation['readback_verified'] is True
+        assert bytes.fromhex(observation['snapshot_hex']) == bytes.fromhex(observation['returned_hex']) == actual_output
+        assert bytes.fromhex(observation['after_state_hex']) == actual_output[64:192]
+        before = bytearray.fromhex(observation['before_state_hex'])
+        assert len(before) == 128
+        struct.pack_into('<Q', before, 56, b.u64(before, 56) + 1)
+        assert bytes(before) == actual_output[64:192]
+    rejections = [event for event in events if event['kind'] == 'crank_control_rejected']
+    assert len(rejections) == 3 and all(event['actual_c_result'] == -errno.ESTALE for event in rejections)
+    assert all(event['model_called'] is True and event['model_committed'] is False for event in rejections)
+
+
+def test_actual_crank_no_bank_and_fps_mismatch_preserve_authorization(crank_broker):
+    broker, memory, _ = crank_broker
+    request = crank_control_input()
+    execute = lambda op, data=b'', capacity=128: crank_broker_execute(broker, memory, op, data, capacity)
+    assert execute(b.CP_CRANK_CONTROL, request, 208)[0] == -errno.ENODATA
+    bank = parameter_bank_input(broker.core.library)
+    assert execute(b.CP_PARAMETER_BANK, bank, 2756)[0] == 0
+    wrong_fps = struct.pack('<6I2Q2I', 640, 480, 60, 13, 800, 640, 8642, 2**64 - 1, 0, 0)
+    assert execute(b.CONFIGURE, wrong_fps)[0] == 0
+    assert execute(b.CP_CRANK_CONTROL, request, 208)[0] == -errno.ESTALE
+    restored = bytearray(wrong_fps)
+    struct.pack_into('<I', restored, 8, 30)
+    assert execute(b.CONFIGURE, bytes(restored))[0] == 0
+    assert execute(b.CP_CRANK_CONTROL, request, 208)[0] == 0
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    rejections = [event for event in events if event['kind'] == 'crank_control_rejected']
+    assert [event['actual_c_result'] for event in rejections] == [-errno.ENODATA, -errno.ESTALE]
+    for event in rejections:
+        assert event['observation']['before_state_hex'] == event['observation']['after_state_hex']
+        assert event['model_called'] is True and event['model_committed'] is False
+
+
+@pytest.mark.parametrize('owner', ['source', 'retained-result'])
+def test_crank_admission_keeps_existing_broker_owners_and_never_calls_source(crank_broker, monkeypatch, owner):
+    broker, memory, digest = crank_broker
+    bank = parameter_bank_input(broker.core.library)
+    assert crank_broker_execute(broker, memory, b.CP_PARAMETER_BANK, bank, 2756)[0] == 0
+    source = broker.source()
+    if owner == 'source':
+        source.active = object()
+    else:
+        broker.transfer = dict(token=77, total=1, cursor=0)
+    proof = broker.core.proof_snapshot()
+    def uncalled(*args):
+        pytest.fail('Crank admission must reject before C or source11')
+    monkeypatch.setattr(broker.core, 'execute', uncalled)
+    monkeypatch.setattr(broker, 'call_source', uncalled)
+    code, output, result = crank_broker_execute(broker, memory, b.CP_CRANK_CONTROL, crank_control_input(), 208)
+    assert code == -errno.EBUSY and not output and not result.used and broker.core.proof_snapshot() == proof
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    rejected = [event for event in events if event['kind'] == 'crank_control_rejected'][-1]
+    assert rejected['actual_c_result'] is None and rejected['admission_error'] == -errno.EBUSY
+    assert rejected['model_called'] is rejected['model_committed'] is False and rejected['actual_core_sha256'] == digest
+    assert source.active is not None if owner == 'source' else broker.transfer['token'] == 77
+    assert not any(event['kind'] in ('model_crank_control', 'ap_source_result') for event in events)
+
+
+@pytest.mark.parametrize('failure', ['query-error', 'query-last-byte', 'after-state', 'returned-cookie',
+    'returned-bank', 'returned-mode', 'returned-state', 'returned-reserved', 'returned-fnv', 'returned-instance', 'proof-readback'])
+def test_crank_postvalidation_failure_preserves_actual_c_zero_and_full208(crank_broker, monkeypatch, failure):
+    broker, memory, digest = crank_broker
+    bank = parameter_bank_input(broker.core.library)
+    assert crank_broker_execute(broker, memory, b.CP_PARAMETER_BANK, bank, 2756)[0] == 0
+    proof = broker.core.proof_snapshot()
+    original_query = broker.core.library.fcam_model_cp_crank_control_snapshot
+    original_execute = broker.core.execute
+    original_request = broker.core.library.fcam_model_request
+    original_proof = broker.core.proof_snapshot
+    def query(model, crank, bank, output, size):
+        code = original_query(model, crank, bank, output, size)
+        if failure == 'query-error':
+            return -errno.EIO
+        ctypes.cast(output, ctypes.POINTER(ctypes.c_uint8))[size - 1] ^= 1
+        return code
+    if failure.startswith('query-'):
+        monkeypatch.setattr(broker.core.library, 'fcam_model_cp_crank_control_snapshot', query)
+    elif failure == 'after-state':
+        state_calls = 0
+        def changed_state(instance, op, incoming, capacity):
+            nonlocal state_calls
+            code, data, result = original_execute(instance, op, incoming, capacity)
+            if op == b.STATE:
+                state_calls += 1
+                if state_calls == 2:
+                    data = data[:-1] + bytes([data[-1] ^ 1])
+            return code, data, result
+        monkeypatch.setattr(broker.core, 'execute', changed_state)
+    elif failure == 'proof-readback':
+        def changed_proof():
+            observed = original_proof()
+            return dict(observed, serial=observed['serial'] + 1)
+        monkeypatch.setattr(broker.core, 'proof_snapshot', changed_proof)
+    else:
+        offsets = {'returned-cookie': 196, 'returned-bank': 24, 'returned-mode': 56,
+                   'returned-state': 128, 'returned-reserved': 207, 'returned-fnv': 48, 'returned-instance': 8}
+        def changed_output(model, op, incoming, size, output, capacity, result):
+            code = original_request(model, op, incoming, size, output, capacity, result)
+            if op == b.CP_CRANK_CONTROL and code == 0:
+                ctypes.cast(output, ctypes.POINTER(ctypes.c_uint8))[offsets[failure]] ^= 1
+            return code
+        monkeypatch.setattr(broker.core.library, 'fcam_model_request', changed_output)
+    request = crank_control_input()
+    sequence = broker.sequence + 1
+    wire = crank_control_header(sequence, request)
+    memory.logical(0, b.HEADER, wire)
+    memory.logical(b.HEADER, 12, request)
+    with pytest.raises(ValueError, match='crank|Crank'):
+        broker.call_core(wire, request, 208)
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    rejected = [event for event in events if event['kind'] == 'crank_control_rejected'][-1]
+    assert rejected['actual_c_result'] == 0 and rejected['actual_core_sha256'] == digest
+    assert rejected['model_called'] is rejected['model_committed'] is True
+    assert (broker.root / rejected['request_payload']['path']).read_bytes() == request
+    actual_output = (broker.root / rejected['output_payload']['path']).read_bytes()
+    assert len(actual_output) == 208 and actual_output.hex() == rejected['observation']['returned_hex']
+    assert len(bytes.fromhex(rejected['observation']['before_state_hex'])) == 128
+    assert len(bytes.fromhex(rejected['observation']['after_state_hex'])) == 128
+    assert rejected['observation']['readback_verified'] is (failure == 'proof-readback')
+    assert not any(event.get('sequence') == sequence and event['kind'] in ('response', 'model_crank_control', 'model_frame', 'ap_source_result') for event in events)
+    assert broker.pending_payloads is None and original_proof() == proof
+
+
+def test_host_injected_empty_zero_return_never_claims_a_crank_commit(crank_broker, monkeypatch):
+    broker, memory, digest = crank_broker
+    bank = parameter_bank_input(broker.core.library)
+    assert crank_broker_execute(broker, memory, b.CP_PARAMETER_BANK, bank, 2756)[0] == 0
+    original_request = broker.core.library.fcam_model_request
+    # HOST fault injection only: this zero-return stub does not call the C crank.
+    def empty_ack(model, op, incoming, size, output, capacity, result):
+        return 0 if op == b.CP_CRANK_CONTROL else original_request(model, op, incoming, size, output, capacity, result)
+    monkeypatch.setattr(broker.core.library, 'fcam_model_request', empty_ack)
+    data = crank_control_input()
+    request = crank_control_header(broker.sequence + 1, data)
+    memory.logical(0, b.HEADER, request)
+    memory.logical(b.HEADER, 12, data)
+    with pytest.raises(ValueError, match='crank control receipt'):
+        broker.call_core(request, data, 208)
+    events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+    rejected = [event for event in events if event['kind'] == 'crank_control_rejected'][-1]
+    assert rejected['actual_c_result'] == 0 and rejected['actual_core_sha256'] == digest
+    assert rejected['model_called'] is True and rejected['model_committed'] is False
+    assert rejected['observation']['before_state_hex'] == rejected['observation']['after_state_hex']
+    assert (broker.root / rejected['output_payload']['path']).read_bytes() == b''
+    readback = ctypes.create_string_buffer(208)
+    assert broker.core.library.fcam_model_cp_crank_control_snapshot(broker.core.model, 1, 1, readback, 208) == -errno.ENODATA
+    assert not any(event['kind'] == 'model_crank_control' for event in events)
+
+
 def test_payload_record_exact_empty_and_nonempty_writeback(tmp_path):
     store = b.PayloadRecords(tmp_path)
     try:
@@ -1094,13 +2016,140 @@ def test_whole_result_tracker_uses_actual_release16_hash_and_cancel_extent():
     assert cancelled['reconstructed_bytes'] == len(first) and cancelled['fnv1a64'] == b.fnv64(first)
 
 
-def test_actual_ctypes_video_proof_binds_packet_bytes_and_separates_drain(actual_core_library):
+@pytest.mark.parametrize('data,accepted', [
+    (b'', True), (b'\x01\x00\x00\x00', True), (bytes(4), False),
+    (b'\x02\x00\x00\x00', False), (b'\x01\x00\x00', False),
+    (b'\x01\x00\x00\x00\x00', False), (b'\x01\x00\x00\x01', False)])
+def test_video_frame_request_flags_are_exact(data, accepted):
+    raw = header(op=b.VIDEO_FRAME, data=data)
+    if accepted:
+        assert b.validate_request(raw, data, MAILBOX, 0)[0] == b.VIDEO_FRAME
+    else:
+        with pytest.raises(ValueError, match='request size|force-IDR'):
+            b.validate_request(raw, data, MAILBOX, 0)
+
+
+@pytest.mark.parametrize('changed', [None, 'source', 'destination', 'command', 'bytes', 'digest', 'trigger', 'reserved'])
+def test_capture_request_requires_exact_native_origin(changed):
+    incoming = bytearray(struct.pack('<IIB3xI', 0x40380005, 29, 2, 0))
+    raw = bytearray(header(op=b.FRAME_CAPTURE, data=incoming))
+    struct.pack_into('<4I', raw, 100, 0x80020002, 0x90040193, 0x4038, 16)
+    struct.pack_into('<Q', raw, 120, b.fnv64(incoming))
+    fields = {'source': 100, 'destination': 104, 'command': 108, 'bytes': 112, 'digest': 120}
+    if changed in fields:
+        raw[fields[changed]] ^= 1
+    elif changed:
+        incoming[8 if changed == 'trigger' else 9] = 1
+        struct.pack_into('<Q', raw, 56, b.fnv64(incoming))
+        struct.pack_into('<Q', raw, 120, b.fnv64(incoming))
+    if changed:
+        with pytest.raises(ValueError, match='exact original4038'):
+            b.validate_request(bytes(raw), bytes(incoming), MAILBOX, 0)
+    else:
+        assert b.validate_request(bytes(raw), bytes(incoming), MAILBOX, 0)[0] == b.FRAME_CAPTURE
+
+
+def test_actual_retained_frame_ctypes_transfer_and_content_checker(actual_core_library, wire, monkeypatch):
+    library, digest = actual_core_library
+    memory, rsp, _ = wire
+    broker = component(memory, rsp, monkeypatch)
+    core = broker.core = b.Core(library, digest)
+    spec = importlib.util.spec_from_file_location('retained_frame_checker_tested', REPORT / 'functional-camera-evidence/check_evidence.py')
+    checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checker)
+    instance = MAILBOX['nonce']
+    transfers, sequence = [], 0
+
+    def execute(op, incoming=b'', capacity=128):
+        nonlocal sequence
+        sequence += 1
+        request = bytearray(header(seq=sequence, op=op, data=incoming, capacity=capacity))
+        if op == b.FRAME_CAPTURE:
+            struct.pack_into('<4I', request, 100, 0x80020002, 0x90040193, 0x4038, 16)
+            struct.pack_into('<Q', request, 120, b.fnv64(incoming))
+        memory.logical(0, len(request), request)
+        if incoming:
+            memory.logical(b.HEADER, len(incoming), incoming)
+        raw, data = broker.fetch()
+        b.validate_request(raw, data, MAILBOX, broker.sequence)
+        code, output, result = broker.call_core(raw, data, capacity)
+        assert broker.publish(raw, output, code, result)
+        events = [json.loads(line) for line in broker.events.getvalue().splitlines()]
+        actual = [event for event in events if event['kind'] == 'core_result' and event['sequence'] == sequence][0]
+        if code == 0 and op not in (b.READ_RESULT, b.RELEASE_RESULT):
+            transfers.append(dict(first=sequence, opcode=op, token=result.token,
+                request_payload=actual['request_payload'], output_payloads=[actual['output_payload']],
+                bytes=len(output), sha256=b.hashlib.sha256(output).hexdigest(), fnv1a64=f'{b.fnv64(output):016x}',
+                frame=next((event for event in events if event['kind'] == 'model_frame' and event['sequence'] == sequence), None)))
+        return code, output, result, actual['output_payload']
+
+    def collect(op, incoming):
+        code, data, result, _ = execute(op, incoming, 127)
+        assert code == 0 and result.token
+        token, total = result.token, result.total
+        output = bytearray(data)
+        proof = core.proof_snapshot()
+        tx = transfers[-1]
+        while len(output) < total:
+            code, data, result, reference = execute(b.READ_RESULT,
+                struct.pack('<QQII', token, len(output), 127, 0), 127)
+            assert code == 0
+            output.extend(data)
+            tx['output_payloads'].append(reference)
+        tx.update(bytes=len(output), sha256=hashlib.sha256(output).hexdigest(), fnv1a64=f'{b.fnv64(output):016x}')
+        assert execute(b.RELEASE_RESULT, struct.pack('<QQ', token, b.fnv64(output)), 0)[0] == 0
+        return bytes(output), proof, token
+
+    def delta(proof):
+        return {key: proof['after'][key] - proof['before'][key] for key in proof['before']}
+
+    try:
+        assert execute(b.INIT)[0] == 0
+        config = struct.pack('<IIIIIIQQII', 128, 64, 30, 95, 400, 100, 2500, 1000000, 0, 0)
+        assert execute(b.CONFIGURE, config)[0] == 0
+        request = struct.pack('<IIB3xI', 0x40380005, 29, 2, 0)
+        frame, proof, transfer_token = collect(b.FRAME_CAPTURE, request)
+        retained = checker.retained_frame_proof(17, request, frame, proof, delta(proof), None,
+            proof['frame_generation'] - 1, proof['config_generation'], transfer_token, instance)
+        corrupted = bytearray(frame); corrupted[-1] ^= 1
+        with pytest.raises(ValueError, match='result/proof|header/pixels'):
+            checker.retained_frame_proof(17, request, bytes(corrupted), proof, delta(proof), None,
+                proof['frame_generation'] - 1, proof['config_generation'], transfer_token, instance)
+        frame_token = b.u64(frame, 8)
+        changed_config = struct.pack('<IIIIIIQQII', 64, 32, 30, 95, 400, 100, 20000, 4000000, 0, 0)
+        assert execute(b.CONFIGURE, changed_config)[0] == 0
+        incoming = struct.pack('<Q6I', frame_token, 0, 0, 1, 128, 64, 95)
+        jpeg, proof, transfer_token = collect(b.FRAME_STILL, incoming)
+        encoded = checker.retained_frame_proof(18, incoming, jpeg, proof, delta(proof), retained,
+            proof['frame_generation'], proof['config_generation'], transfer_token, instance)
+        forged = dict(proof, render_observed=1)
+        with pytest.raises(ValueError, match='token/source/lifetime'):
+            checker.retained_frame_proof(18, incoming, jpeg, forged, delta(proof), retained,
+                proof['frame_generation'], proof['config_generation'], transfer_token, instance)
+        done = struct.pack('<QII', frame_token, 1, 0)
+        assert execute(b.FRAME_RELEASE, done, 0)[0] == 0
+        proof = core.proof_snapshot()
+        assert checker.retained_frame_proof(19, done, b'', proof, delta(proof), encoded,
+            proof['frame_generation'], proof['config_generation'], 0, instance) is None
+        assert execute(b.FRAME_RELEASE, done, 0)[0] == -errno.ESTALE
+        actual_history = dict(transfers=transfers, model_instance=instance, owner_pid=os.getpid())
+        checked = checker.check_frames(broker.root, actual_history, require_media=False)
+        assert checked['verified'] and checked['last_counts']['jpeg_encoded'] == 1
+        assert [job['opcode'] for job in checked['jobs']] == [b.INIT, b.FRAME_CAPTURE, b.FRAME_STILL, b.FRAME_RELEASE]
+    finally:
+        core.destroy_model()
+        broker.detach_mailbox()
+        core.close()
+
+
+@pytest.mark.parametrize('force_idr', [False, True])
+def test_actual_ctypes_video_proof_binds_packet_bytes_and_separates_drain(actual_core_library, force_idr):
     library, digest = actual_core_library
     core = b.Core(library, digest)
     instance = MAILBOX['nonce']
 
-    def encoded(op):
-        code, first, result = core.execute(instance, op, b'', 53)
+    def encoded(op, data=b''):
+        code, first, result = core.execute(instance, op, data, 53)
         assert code == 0 and result.token
         token, total = result.token, result.total
         output = bytearray(first)
@@ -1129,9 +2178,16 @@ def test_actual_ctypes_video_proof_binds_packet_bytes_and_separates_drain(actual
         assert proof['consumer_entered'] == proof['consumer_returned'] == proof['encoder_consumed'] == proof['retired'] == 1
         assert proof['encoded_bytes'] == len(payload) == b.u64(packet, 48) and proof['encoded_fnv1a64'] == b.fnv64(payload)
         assert proof['before']['consumed'] == 0 and proof['after']['consumed'] == proof['after']['video_encoded'] == 1
+        if force_idr:
+            packet, proof = encoded(b.VIDEO_FRAME, b'\x01\x00\x00\x00')
+            payload = packet[96 + b.u32(packet, 64):]
+            starts = list(re.finditer(b'\x00\x00\x00\x01|\x00\x00\x01', payload))
+            assert starts and any(payload[start.end()] & 31 == 5 for start in starts)
+            assert b.u32(packet, 40) == 1 and proof['encoder_consumed'] == proof['retired'] == 1
+            assert proof['before']['consumed'] == 1 and proof['after']['consumed'] == 2
         eos, drained = encoded(b.VIDEO_END)
         assert len(eos) == 96 and b.u32(eos, 44) == 1
-        assert drained['serial'] == 3 and drained['consumer_kind'] == 3 and drained['before'] == drained['after']
+        assert drained['serial'] == 3 + force_idr and drained['consumer_kind'] == 3 and drained['before'] == drained['after']
         assert not any(drained[key] for key in ('render_observed', 'encoder_consumed', 'encoded_bytes', 'active_bytes', 'retired'))
         assert core.execute(instance, b.CANCEL, b'', 128)[0] == 0 and core.proof_snapshot() == drained
     finally:

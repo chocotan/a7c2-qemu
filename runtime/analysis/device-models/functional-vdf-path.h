@@ -14,6 +14,8 @@
 #define FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES 40u
 #define FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES 16u
 #define FUNCTIONAL_VDF_FLAG_REQUEST_BYTES 10u
+#define FUNCTIONAL_VDF_ZERO6_REQUEST_BYTES 14u
+#define FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES 12u
 #define FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES 8u
 #define FUNCTIONAL_VDF_BIT_WIDTH_REQUEST_BYTES 10u
 #define FUNCTIONAL_BB_0111_REQUEST_BYTES 36u
@@ -69,7 +71,12 @@ struct functional_vdf_path_snapshot {
  * VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG or BB_STARTUP_CONFIG per cycle. Layout accepts only
  * initial case0 with an active current 640x480 route; result192 reads back all
  * layout32. Display accepts disabled0152/off0162 or exact-bound0141 on a committed
- * active route; result176 reads back typed canonical_display16. Both prove RGB
+ * active route; result176 reads back typed canonical_display16. Display0170
+ * preserves the three already-converted wire booleans and reserved zero in an
+ * independent fifth software RGB-identity bank; every tuple consumes/retires a
+ * real frame. Only after verified readback/consumption does its explicit functional
+ * display-group reply use1170/status0x590000. Original CP0170 producer/status
+ * history remains unverified. Both prove RGB
  * consumption/retirement before independent replies. BB startup0111/0166/0167/
  * 015f/0128 uses BB_STARTUP_CONFIG/result192, canonical_bb32 and class5, with
  * an active committed 640x480 route and the shared ABI's neutral software-only

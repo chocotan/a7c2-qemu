@@ -9,6 +9,8 @@ both, plus constructor and canonical Get retirements. The outer verifier owns
 build/source identity, prior edges, resource locks, SD, and whole-run cleanup.
 Only delayed kind-2 free notes require this helper's same-run frozen-source join;
 standalone effects/condition checks without run keep strict console ordering.
+Gate-v2 requires keyword gate_v2_trust with caller-bound plan/intent/parent references;
+these hashes must come from the next once tool after its complete cohort readback.
 No function writes an artifact, starts a process, or accesses a VM/socket.
 """
 # SPDX-License-Identifier: MIT
@@ -16,8 +18,10 @@ import hashlib
 import importlib.util
 import io
 from pathlib import Path
+import re
 import struct
 import tarfile
+import xml.etree.ElementTree as ET
 from types import SimpleNamespace
 
 BASE = Path(__file__).resolve().parents[1]
@@ -36,7 +40,7 @@ MAX_RETAINED_IMAGE = 768 * 1024**2
 RUN_BINDINGS = {
     'source-snapshot-run-binding.json': ('functional-source-snapshot-run-v1',),
     'readonly-scope-run-binding.json': ('functional-M-v2-run-v2', 'functional-M-v3-run-v3',
-                                      'functional-shutter-gate-v1-run-v1'),
+                                      'functional-shutter-gate-v1-run-v1', 'functional-shutter-gate-v2-run-v1'),
 }
 RUN_FALSE_FIELDS = ('capture_verified', 'native_verified', 'native_AP_provider',
                     'physical_asic_compatibility_verified', 'original_Fsys_save_verified')
@@ -67,6 +71,21 @@ SHUTTER_GATE_SOURCE_NAMES = ('scope-observer.c', 'build-plugin.sh', 'build-runti
 SHUTTER_GATE_FIXTURE_NAMES = ('integration/fixture.S', 'integration/link.ld', 'integration/run_fixture.py',
     'integration/test_fixture_driver.py', 'integration/test_actual_scope_plugin.py',
     'integration/test_shutter_gate_trace_checks_v1.py', 'integration/shutter_gate_trace_checks_v1.py')
+SHUTTER_GATE_V2_RUN = 'functional-shutter-gate-v2-run-v1'
+SHUTTER_GATE_V2_LEGACY_DEFAULT_SHA = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+SHUTTER_GATE_V2_PROFILE = 'qemu-readonly-shutter-gate-v2'
+SHUTTER_GATE_V2_COMPONENT = 'report/2026-11-02-qemu-shutter-gate-observer-v2'
+SHUTTER_GATE_V2_SOURCE_NAMES = ('scope-observer.c', 'build-plugin.sh', 'build-runtime.py',
+    'log-schema-shutter-gate-v2.json', 'source-contract-shutter-gate-v2.json',
+    'check_shutter_gate_v2.py', 'integration/shutter_gate_trace_checks_v2.py')
+SHUTTER_GATE_V2_FIXTURE_NAMES = ('integration/fixture.S', 'integration/link.ld', 'integration/run_fixture.py',
+    'integration/test_fixture_driver.py', 'integration/test_actual_scope_plugin.py',
+    'integration/test_shutter_gate_trace_checks_v2.py', 'integration/shutter_gate_trace_checks_v2.py')
+SHUTTER_GATE_API_CASES = ('original_entry', 'existing_main_stub_entry', 'one_byte_gate_mutation', 'short_tb')
+PIN_PEER_RUNTIME_READY_SHA = '9041c1f61dfa111c5e0d7d38b00b3f98701ec8b2272841813c3e009ceb3a5844'
+PIN_PEER_PARENT_READBACK_SHA = 'ec390649f007592ba10b56bf167a289975ef1ad3845d06c492669738524172ca'
+PIN_PEER_SOURCE_APPROVAL_SHA = '8daa0ce8a967ed0d73f69299de1186b9c5710beb8ec17835cd3118b574706c6f'
+PIN_PEER_CANDIDATE_SHA = '09cba2fdaac0f56918dc85e0662fbfd5a7673f79aaad20be2b2d02706e74f279'
 SHUTTER_GATE_ALIASES = frozenset(('source_root', 'Source_root', 'root', 'sourceDependencyFrozen',
     'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256'))
 
@@ -113,7 +132,145 @@ SOURCE_SETS = (CONDITION_LEDGER_SOURCES, {
     **CONDITION_LEDGER_SOURCES,
     'menu-observe.c': '56c8158267f1281e5ee13f0a8f653d20f2189769d7f5df4c65efa08ff20ede1f',
     'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': 'a1916f6504931eb8683fb1723f2ec0bc9f59e2908c5c0866d9f8b56b07c56adc',
+    'build-observers.sh': 'f6dd02116c51456b056e90939de45cfc46abc28e4311f0edac38ca41ad5394d8',
+}, {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'a1916f6504931eb8683fb1723f2ec0bc9f59e2908c5c0866d9f8b56b07c56adc',
+    'build-observers.sh': '0f894c14659617d92e1af00b5864ca953a1fd619e75f882f39b4691dbdeb3a15',
+}, {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'a1916f6504931eb8683fb1723f2ec0bc9f59e2908c5c0866d9f8b56b07c56adc',
+    'build-observers.sh': '49993d6ccd614d00dfdfd57c4c8dc633f5ebffcfcb325dce3b73df760afac7ed',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '8731af154b460c2219cf31f6b110210d9ebb264c6f6e931555818f1941d0b842',
+    'build-observers.sh': 'daac9dd3ddaa08d4f6deb0f75bc1dc70c4d82663d185d9f3f135966eae7ac964',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '8731af154b460c2219cf31f6b110210d9ebb264c6f6e931555818f1941d0b842',
+    'build-observers.sh': '4e7b97f488fbb1e91e249720a00ec668f16555f57193288332c517fb197a7593',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': '8731af154b460c2219cf31f6b110210d9ebb264c6f6e931555818f1941d0b842',
+    'build-observers.sh': 'd9a6136ba19493fc4d794f3b7f0a8be47b846cf6d9c501b1f14c033d903f23b3',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': 'df698a99b6c559fd3f850c4964eb28e558e32c6255d12fb2242d259157621af5',
+    'build-observers.sh': 'd9a6136ba19493fc4d794f3b7f0a8be47b846cf6d9c501b1f14c033d903f23b3',
+}, {
+    **CONDITION_LEDGER_SOURCES,
+    'menu-observe.c': 'df698a99b6c559fd3f850c4964eb28e558e32c6255d12fb2242d259157621af5',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
 })
+
+
+# Separate exact revision; the historical SOURCE_SETS AST stays frozen.
+FOCUS_RESET_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'd0019703c78e6d7f9a834e0c262cfad595cd3da6684fa5de43ad26f40d5ea871',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+FOCUS_RESET_ZERO_INIT_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': '3af8ebdb96cfb65ce9c1553fedfa8006920269183468f82c4991f20471a1dbf7',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+SCENE_FOCUS_MIRROR_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'ddcbf279cfe8b0b9c065227472a97090013cb1affee9d5676bce9b19fb176106',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+HUTI_FOCUS_QUERY_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': '97d22e4722f41e136f21e1ffe872805a1dd7941a78c3a1c8c03be2fd9cd8f784',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+PKNP_VDF163_DISPATCH_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'fc8198547bd98d960deff68cbe63089523d5913113a71b41c3626b21c66e5593',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+OV45_HDMI_SIGNAL_MODE_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'c200237a3613c1bcbd626b5d1c874426c3c5f16d7ff2216f95506291cdde9d4d',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+E6U_HDMI_INITIAL_PREFIX_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'f65f68470f83c0ee8f8ec0757cf948184c0a090ad0632364db505f7a4a1699ba',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+GKH1_CP4073_ZERO_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': '43712beef87dcc5eb022d53dec7c5daa7ce043b83a1a8b48de4ed7152d86f71a',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+GKH1_CP4073_ZERO_RETIRE_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'c75fd58e246e86d80bd5f452fed67fc9ac37d8d715bfe16786ba425d70318354',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+VDF170_EFRAMING_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': '417cc5553f365d2452f1e8f6a943f8dfbf9b23f2b516a5b9e71174c8a381ad61',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES = {
+    'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+    'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+    'menu-observe.c': 'fbc8122dd76651aac22045ba850fe9f3a00588d0e5fcb6d456775259c24fa3b7',
+    'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef',
+}
+
+
+QR5_NATIVE_EVIDENCE_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef', 'menu-observe.c': '3d5153a54747b2b5016ac71a037243b86bd9c2a738a1cd3c1913451395f2ad3c', 'device-models/functional-camera-control.c': 'd937099ad6a791fac6d9db6e0e7835482db5e18d6426dd6ed86c4bae3ddec0f4', 'device-models/functional-camera-control.h': '1d4532ade1069242de967ea301c57111f24d3fc8dae8b66e7830758c6d3d688e', 'functional-camera-bridge.c': 'a3d620be6c66fb5c0e72070fa0e55177899585d0c1723fc4f379cd98f3e1601b', 'functional-camera-bridge.h': '16fdf80631293854e88856557ef98fdf2f6a6c3a6eb4fed95fb3c23fdad90132', 'functional-camera-abi.h': '2ecc4f60bb415a4d23d3549769ce61c2b6caaf3ec13bd4282809014dada4ff72', 'functional_camera_broker.py': '642863b21f489c825df77194a5577a86eac1969768488272fe512090bbe76091', 'backup_profile.py': '4fcb7627f2262b7c77b145f12e8ae4bd6a7697c379b67cce363e2e83434735f1'}
+
+
+JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef', 'menu-observe.c': 'dfcb9bffcf4e25a95d2163c4d90e395db90f513f007e93cea3140e76d4b7c96d', 'device-models/functional-camera-control.c': '994a32f29b3a019dec8a3906d7d6f11f12c24b4dbc62c197ec03abc99a109aff', 'device-models/functional-camera-control.h': 'eac1424b0e6fb5123bd420b422b1f924e579e1951df0b8b133bb9f55b1242b0c', 'functional-camera-bridge.c': '7389591af400de414ca19ff99fb22391b73a38225756e7b6c057a36a547fbd44', 'functional-camera-bridge.h': '00858396997b5bbad82e9b3569064383816f8ae5bdaaa5f5ac6512e08fe9f04e', 'functional-camera-abi.h': '999de8ca662fd71eee32927cb1d211799a345357ca1d6aa98582d0b444f47e32', 'functional_camera_broker.py': '3fdd5847b535bd4f527bb33eda910d6effef519009d0a5cb253731080ce7b050', 'backup_profile.py': '4fcb7627f2262b7c77b145f12e8ae4bd6a7697c379b67cce363e2e83434735f1'}
+
+
+EHG_CP_OU_CRANK_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef', 'menu-observe.c': '7e5ac74b26a37b69e61dd02ce6d2ecbdcd68327f92e40bec907953793f9d7ab4', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': '33e0ce4dbfdf04ee5221f0964950b6df8780dc0ff5d56792c072c956d437cc06'}
+
+
+MOF_BB_TIMECODE_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'd8a80b4e6bdc4eb89b85184a8a38284d485c2c7d86b619a65e4e4dd5d6f7cefe', 'menu-observe.c': 'ad3c3664719d7a5691899d180079e1c825acd50e2c6d1cb186bb9681e0ffd251', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': '8908d3b1d7fc022fa2d01e90ae9eff21ddd8f5003d244d3b1ab9f00e555cfc96', 'device-models/bb-timecode-control.c': 'e1f5f01dde35c50abc3e6953d67d80a206ffead5f16d7c158d7ceca66003643f', 'device-models/bb-timecode-control.h': '643c9042bca243784fae8cf66c60b7d10b36f57498d2775431558f94034d3ae5'}
+
+
+YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'd8a80b4e6bdc4eb89b85184a8a38284d485c2c7d86b619a65e4e4dd5d6f7cefe', 'menu-observe.c': '4899afd97aaea06b272a3ec3927b92d2ab482ca9b42a04769cafbe7bac0541e4', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3'}
 
 
 def require(value, reason):
@@ -123,7 +280,53 @@ def require(value, reason):
 
 def _condition_source_set(sources):
     selected = {name: sources[str(BASE / name)]['sha256'] for name in CONDITION_LEDGER_SOURCES}
-    require(selected in SOURCE_SETS, 'unreviewed condition ledger/hook source set')
+    if selected['menu-observe.c'] == YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES['menu-observe.c']:
+        require(all(str((BASE / name).resolve()) in sources for name in YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES),
+                'missing YVO BB-timecode preset condition source member')
+        selected = {name: sources[str((BASE / name).resolve())]['sha256']
+                    for name in YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES}
+        require(selected == YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES,
+                'unreviewed YVO BB-timecode preset condition source tuple')
+        return selected
+    if selected['menu-observe.c'] == MOF_BB_TIMECODE_CONDITION_SOURCES['menu-observe.c']:
+        require(all(str(BASE / name) in sources for name in MOF_BB_TIMECODE_CONDITION_SOURCES),
+                'missing MOF BB-timecode condition source member')
+        selected = {name: sources[str(BASE / name)]['sha256']
+                    for name in MOF_BB_TIMECODE_CONDITION_SOURCES}
+        require(selected == MOF_BB_TIMECODE_CONDITION_SOURCES,
+                'unreviewed MOF BB-timecode condition source tuple')
+        return selected
+    if selected['menu-observe.c'] == EHG_CP_OU_CRANK_CONDITION_SOURCES['menu-observe.c']:
+        require(all(str(BASE / name) in sources for name in EHG_CP_OU_CRANK_CONDITION_SOURCES),
+                'missing EHG OU-crank condition source member')
+        selected = {name: sources[str(BASE / name)]['sha256']
+                    for name in EHG_CP_OU_CRANK_CONDITION_SOURCES}
+        require(selected == EHG_CP_OU_CRANK_CONDITION_SOURCES,
+                'unreviewed EHG OU-crank condition source tuple')
+        return selected
+    if selected['menu-observe.c'] == JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES['menu-observe.c']:
+        require(all(str(BASE / name) in sources for name in JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES),
+                'missing JKY movie-format condition source member')
+        selected = {name: sources[str(BASE / name)]['sha256']
+                    for name in JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES}
+        require(selected == JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES,
+                'unreviewed JKY movie-format condition source tuple')
+        return selected
+    if selected['menu-observe.c'] == QR5_NATIVE_EVIDENCE_CONDITION_SOURCES['menu-observe.c']:
+        require(all(str(BASE / name) in sources for name in QR5_NATIVE_EVIDENCE_CONDITION_SOURCES),
+                'missing QR5 native condition source member')
+        selected = {name: sources[str(BASE / name)]['sha256']
+                    for name in QR5_NATIVE_EVIDENCE_CONDITION_SOURCES}
+        require(selected == QR5_NATIVE_EVIDENCE_CONDITION_SOURCES,
+                'unreviewed QR5 native condition source tuple')
+        return selected
+    require(selected in SOURCE_SETS or selected == FOCUS_RESET_CONDITION_SOURCES or
+            selected == FOCUS_RESET_ZERO_INIT_CONDITION_SOURCES or selected == SCENE_FOCUS_MIRROR_CONDITION_SOURCES or
+            selected == HUTI_FOCUS_QUERY_CONDITION_SOURCES or selected == PKNP_VDF163_DISPATCH_CONDITION_SOURCES or
+            selected == OV45_HDMI_SIGNAL_MODE_CONDITION_SOURCES or selected == E6U_HDMI_INITIAL_PREFIX_CONDITION_SOURCES or
+            selected == GKH1_CP4073_ZERO_CONDITION_SOURCES or selected == GKH1_CP4073_ZERO_RETIRE_CONDITION_SOURCES or
+            selected == VDF170_EFRAMING_CONDITION_SOURCES or selected == ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES,
+            'unreviewed condition ledger/hook source set')
     return selected
 
 
@@ -204,8 +407,12 @@ def _condition_binding(graph, run, observer):
     return name, binding, original
 
 
-def _condition_scope_binding(graph, reader, run, binding, manifest, build, tested):
+def _condition_scope_binding(graph, reader, run, binding, manifest, build, tested, *, gate_v2_trust=None):
     """Provenance only; AP transactions still require the original content checks."""
+    if binding['schema'] == SHUTTER_GATE_V2_RUN:
+        return _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested,
+                                               gate_v2_trust=gate_v2_trust)
+    require(gate_v2_trust is None, 'gate v2 trust cannot authorize another run schema')
     if binding['schema'] == SHUTTER_GATE_RUN:
         return _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested)
     version = SCOPE_BINDING_VERSIONS[binding['schema']]
@@ -308,8 +515,16 @@ def _condition_scope_binding(graph, reader, run, binding, manifest, build, teste
     return guest_source, snapshots
 
 
-def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested):
+def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build, tested, *, gate_v2_trust=None):
     """Provenance for the independent observer; never interpret its raw sites as UPM proof."""
+    gate_v2 = binding['schema'] == SHUTTER_GATE_V2_RUN
+    require(gate_v2 or binding['schema'] == SHUTTER_GATE_RUN, 'shutter gate exact run schema required')
+    require(gate_v2 or gate_v2_trust is None, 'gate v2 trust cannot authorize gate v1')
+    generation, profile_name, component, trace_name, source_names, fixture_names = (
+        ('functional-shutter-gate-v2', SHUTTER_GATE_V2_PROFILE, SHUTTER_GATE_V2_COMPONENT,
+         'readonly_shutter_gate_v2', SHUTTER_GATE_V2_SOURCE_NAMES, SHUTTER_GATE_V2_FIXTURE_NAMES) if gate_v2 else
+        ('functional-shutter-gate-v1', SHUTTER_GATE_PROFILE, SHUTTER_GATE_COMPONENT,
+         'readonly_shutter_gate_v1', SHUTTER_GATE_SOURCE_NAMES, SHUTTER_GATE_FIXTURE_NAMES))
     fields = SHUTTER_GATE_PLAN_FIELDS + ('observer_sha256', 'guest_sha256', 'candidate_qemu', 'card')
     required = set(fields) | set(SHUTTER_GATE_FALSE_FIELDS) | {
         'schema', 'run', 'intent_sha256', 'launch_binding_sha256', 'claimed_fault_result', 'popen_live_sha256'}
@@ -331,16 +546,29 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
                 set(value['sha256']) <= set('0123456789abcdef'), 'shutter gate exact receipt reference required')
         return receipt(value['path'], value['sha256'])
 
+    if gate_v2:
+        require(type(gate_v2_trust) is dict and set(gate_v2_trust) == {'plan', 'intent', 'parent_readback'},
+                'gate v2 requires caller-bound immutable plan/intent/parent references')
+        work = graph.absolute(gate_v2_trust['plan']['path']).parent
+        require(gate_v2_trust['plan']['path'] == str(work / 'plan.json') and
+                gate_v2_trust['intent']['path'] == str(work / 'intent.json') and
+                gate_v2_trust['intent']['sha256'] == binding['intent_sha256'] and
+                reader.typed_equal(gate_v2_trust['parent_readback'], binding['parent_readback']),
+                'gate v2 external trust and same-run references differ')
+        # Future digests are supplied after cohort completion, never embedded in its own helper source.
+        for value in gate_v2_trust.values():
+            reference(value)
     fresh_ref = binding['fresh_guest']
     fresh = reference(fresh_ref)
-    work = graph.absolute(fresh_ref['path']).parent
-    require(Path(fresh_ref['path']).name == 'fresh-public-guest.json', 'shutter gate fresh guest path differs')
+    if not gate_v2:
+        work = graph.absolute(fresh_ref['path']).parent
+    require(fresh_ref['path'] == str(work / 'fresh-public-guest.json'), 'shutter gate fresh guest path differs')
     intent = receipt(work / 'intent.json', binding['intent_sha256'])
     launch = receipt(work / 'launch-binding.json', binding['launch_binding_sha256'])
     plan = receipt(work / 'plan.json', intent['plan_sha256'])
-    require(intent.get('schema') == 'functional-shutter-gate-v1-intent-v1' and
-            launch.get('schema') == 'functional-shutter-gate-v1-launch-v1' and
-            plan.get('schema') == 'functional-shutter-gate-v1-plan-v1' and
+    require(intent.get('schema') == generation + '-intent-v1' and
+            launch.get('schema') == generation + '-launch-v1' and
+            plan.get('schema') == generation + '-plan-v1' and
             intent.get('plan') == launch.get('plan') == str(work / 'plan.json') and
             intent['plan_sha256'] == launch.get('plan_sha256') and
             launch.get('intent_sha256') == binding['intent_sha256'] and
@@ -348,6 +576,12 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
             all(row.get('claimed_fault_result') == 'FAIL' and
                 all(row.get(k) is False for k in SHUTTER_GATE_FALSE_FIELDS) for row in (plan, intent, launch)),
             'shutter gate plan/intent/launch provenance differs')
+    if gate_v2:
+        require(intent['plan_sha256'] == gate_v2_trust['plan']['sha256'] and
+                all(reader.typed_equal(plan.get(key), binding[key]) for key in fields),
+                'gate v2 bound plan provenance differs')
+        for row in (plan, intent, launch, fresh):
+            _gate_v2_unpromoted(row)
     plan_fields = ('nonce', 'batch', 'batch_ready_sha256', 'runtime_ready', 'parent_readback',
                    'fresh_guest', 'runtime_assets_sha256', 'actual_api_contract', 'candidate_qemu', 'card')
     require(all(reader.typed_equal(plan.get(key), binding[key]) for key in plan_fields) and
@@ -368,9 +602,17 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
     batch = graph.absolute(binding['batch'])
     runtime = reference(binding['runtime_ready'])
     parent = reference(binding['parent_readback'])
-    require(binding['runtime_ready']['path'] == str(batch / 'readonly-shutter-gate-v1-runtime-ready.json') and
-            runtime.get('status') == 'PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT' and
-            parent.get('status') == 'PASS_OFFLINE_SHUTTER_GATE_V1_COHORT_READBACK' and
+    pin_peer = not gate_v2 and (Path(binding['runtime_ready']['path']).name == 'pin-peer-release-generation-runtime-ready.json' or
+                'source19' in runtime or 'source19' in parent)
+    runtime_name, runtime_status, parent_status = (
+        ('readonly-shutter-gate-v2-runtime-ready.json', 'PASS_NEW_OFFLINE_SHUTTER_GATE_V2_SUPPLEMENT',
+         'PASS_OFFLINE_SHUTTER_GATE_V2_COHORT_READBACK') if gate_v2 else
+        ('pin-peer-release-generation-runtime-ready.json', 'PASS_NEW_OFFLINE_PIN_PEER_RELEASE_GENERATION_SUPPLEMENT',
+         'PASS_OFFLINE_PIN_PEER_RELEASE_GENERATION_COHORT_READBACK') if pin_peer else
+        ('readonly-shutter-gate-v1-runtime-ready.json', 'PASS_NEW_OFFLINE_SHUTTER_GATE_V1_SUPPLEMENT',
+         'PASS_OFFLINE_SHUTTER_GATE_V1_COHORT_READBACK'))
+    require(binding['runtime_ready']['path'] == str(batch / runtime_name) and
+            runtime.get('status') == runtime_status and parent.get('status') == parent_status and
             reader.typed_equal(runtime.get('offline_readback'), binding['parent_readback']) and
             reader.typed_equal(binding['actual_api_contract'], binding['parent_readback']) and
             reader.typed_equal(runtime.get('generic_ready'),
@@ -398,20 +640,22 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
             reader.typed_equal(projection, parent.get('expected_original_run_assets')) and
             reader.typed_equal(projection, runtime.get('expected_original_run_assets')) and
             not SHUTTER_GATE_ALIASES & expected.keys() and
-            expected.get('profile') == SHUTTER_GATE_PROFILE and expected.get('trace_schema') == 'readonly_shutter_gate_v1',
+            expected.get('profile') == profile_name and expected.get('trace_schema') == trace_name,
             'shutter gate exact independent reader/parent operands differ')
     fixture = reference(binding['synthetic_fixture_manifest'])
-    require(reader.typed_equal(parent.get('gate_actual_api', {}).get('manifest'), binding['synthetic_fixture_manifest']) and
+    api_key, build_key = ('gate_v2_actual_api', 'gate_v2_build_receipt') if gate_v2 else ('gate_actual_api', 'gate_build_receipt')
+    require(reader.typed_equal(parent.get(api_key, {}).get('manifest'), binding['synthetic_fixture_manifest']) and
             not SHUTTER_GATE_ALIASES & fixture.keys() and
-            fixture.get('status') == 'PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V1_FIXTURE' and fixture.get('failure') is None and
-            fixture.get('profile') == SHUTTER_GATE_PROFILE and fixture.get('trace_schema') == 'readonly_shutter_gate_v1' and
+            fixture.get('status') == ('PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V2_FIXTURE' if gate_v2 else
+                                      'PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V1_FIXTURE') and fixture.get('failure') is None and
+            fixture.get('profile') == profile_name and fixture.get('trace_schema') == trace_name and
             fixture.get('trace_schema_sha256') == projection['trace_schema_sha256'] and
             reader.typed_equal(fixture.get('fixture_source_sha256'), projection['fixture_source_sha256']) and
             all(reader.typed_equal(fixture.get('inputs', {}).get('source:' + name),
-                    dict(path=str(graph.NATIVE / SHUTTER_GATE_COMPONENT / name), sha256=value))
+                    dict(path=str(graph.NATIVE / component / name), sha256=value))
                 for name, value in projection['source_sha256'].items()) and
             all(reader.typed_equal(fixture.get('inputs', {}).get('fixture-source:' + name),
-                    dict(path=str(graph.NATIVE / SHUTTER_GATE_COMPONENT / name), sha256=value))
+                    dict(path=str(graph.NATIVE / component / name), sha256=value))
                 for name, value in projection['fixture_source_sha256'].items()) and
             set(fixture.get('variants', {})) == {'original_entry', 'existing_main_stub_entry', 'one_byte_gate_mutation', 'short_tb'} and
             all(fixture.get(k) is False for k in ('capture_verified', 'physical_asic_compatibility_verified',
@@ -423,12 +667,105 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
         for name, digest in group.items():
             require(name not in frozen or frozen[name] == digest, 'shutter gate frozen source conflict')
             frozen[name] = digest
-    require(len(frozen) == parent.get('all_source_members_verified') == 1193 and
-            len(tested['modules']) == len(set(tested['modules'])) == 242 and set(tested['modules']) <= frozen.keys(),
-            'shutter gate complete source1193/modules242 closure differs')
-    root = graph.NATIVE / SHUTTER_GATE_COMPONENT
-    for key, names in (('source_sha256', SHUTTER_GATE_SOURCE_NAMES),
-                       ('fixture_source_sha256', SHUTTER_GATE_FIXTURE_NAMES)):
+    if gate_v2:
+        _condition_shutter_gate_v2_cohort(graph, reader, binding, plan, runtime, parent, build,
+                                         tested, frozen, receipt, reference, snapshots)
+        require(manifest['selected_initramfs_verified_files'].get('simulation/file-media-config.so') == parent['media_sha256'],
+                'gate v2 selected original-media ABI differs')
+    else:
+        require(len(frozen) == parent.get('all_source_members_verified') == 1193 and
+                len(tested['modules']) == len(set(tested['modules'])) == 242 and set(tested['modules']) <= frozen.keys(),
+                'shutter gate complete source1193/modules242 closure differs')
+    if pin_peer:
+        require(binding['runtime_ready']['sha256'] == PIN_PEER_RUNTIME_READY_SHA and
+                binding['parent_readback']['sha256'] == PIN_PEER_PARENT_READBACK_SHA,
+                'pin peer reviewed runtime-ready/parent generation differs')
+        approval_ref, candidate_ref = runtime.get('parent_approval'), runtime.get('candidate_manifest')
+        require(type(approval_ref) is dict and approval_ref.get('sha256') == PIN_PEER_SOURCE_APPROVAL_SHA and
+                reader.typed_equal(approval_ref, parent.get('parent_approval')) and
+                reader.typed_equal(approval_ref, plan.get('source_approval')) and
+                type(candidate_ref) is dict and candidate_ref.get('sha256') == PIN_PEER_CANDIDATE_SHA and
+                reader.typed_equal(candidate_ref, parent.get('candidate_manifest')),
+                'pin peer exact source19 approval/candidate references differ')
+        approval, candidate = reference(approval_ref), reference(candidate_ref)
+        require(approval.get('status') == 'PARENT_APPROVED_PIN_PEER_FIXTURE_CLOSURE_EXACT_NINETEEN_SOURCE_COHORT_ONLY' and
+                candidate.get('status') == 'PARENT_APPROVED_NINETEEN_EXISTING_SOURCE_FIXTURE_CLOSURE_NOT_TESTED' and
+                all(row.get('approved') is True and row.get('source_install_approved') is True for row in (approval, candidate)) and
+                approval.get('native_root') == str(graph.NATIVE) and
+                (approval.get('source_count'), approval.get('changed_count'), approval.get('unchanged_count')) == (1193, 19, 1174) and
+                candidate.get('source_count_unchanged_expected') == 1193 and candidate.get('modules_unchanged_expected') == 242 and
+                approval.get('added') == approval.get('removed') == candidate.get('added_sources') == candidate.get('removed_sources') == [] and
+                reader.typed_equal(approval.get('candidate_manifest'), candidate_ref) and
+                reader.typed_equal(approval.get('sources'), candidate.get('changed_existing_files')),
+                'pin peer approved nineteen-source cohort differs')
+        inventory = dict(approval['baseline_source_sha256'])
+        source19 = {}
+        require(len(inventory) == 1193 and len(approval['sources']) == 19, 'pin peer baseline/source19 count differs')
+        for entry in approval['sources']:
+            name = entry['path']
+            path = graph.absolute(graph.NATIVE / name)
+            require(path.is_relative_to(BASE) and name not in source19 and
+                    inventory.get(str(path)) == entry['before_sha256'], 'pin peer source19 baseline/path differs')
+            source19[name] = dict(before_sha256=entry['before_sha256'], after_sha256=entry['candidate_sha256'],
+                before_bytes=entry['before_bytes'], after_bytes=entry['candidate_bytes'], mode=entry['mode'])
+            inventory[str(path)] = entry['candidate_sha256']
+        full = parent.get('full_inventory', {})
+        require(reader.typed_equal(frozen, inventory) and
+                reader.typed_equal(full.get('source_sha256'), inventory) and
+                reader.typed_equal(full.get('modules'), tested['modules']) and
+                reader.typed_equal(full.get('groups'), {key: sorted(value) for key, value in tested['groups'].items()}) and
+                full.get('source_count') == 1193 and full.get('module_count') == 242 and
+                all(reader.typed_equal(row.get('source19'), source19) and row.get('changed_source_count') == 19 and
+                    row.get('unchanged_source_count') == 1174 for row in (runtime, parent, full)) and
+                runtime.get('source_count') == 1193 and runtime.get('module_count') == 242 and
+                parent.get('observer_sha256') == binding['observer_sha256'] and
+                parent.get('observer_archive_members_verified') == len(build['sources']) + 1,
+                'pin peer source19/source1193/modules242 generation differs')
+        legacy_assets, gate_assets = parent['legacy_runtime_assets_sha256'], parent['gate_added_runtime_assets_sha256']
+        require(len(legacy_assets) == 13 and len(gate_assets) == 4 and not legacy_assets.keys() & gate_assets.keys() and
+                reader.typed_equal(binding['runtime_assets_sha256'], dict(legacy_assets, **gate_assets)) and
+                reader.typed_equal(binding['runtime_assets_sha256'], approval.get('protected_runtime_assets_sha256')) and
+                all(all(row.get(key) is False for key in ('cap', 'native_CP_verified',
+                    'original_poweron_or_late_runtime_verified', 'original_M_producer_runtime_verified')) for row in (runtime, parent)),
+                'pin peer protected assets/offline claims differ')
+        ready = receipt(batch / 'ready.json', binding['batch_ready_sha256'])
+        regression = receipt(batch / 'host-regression.json', ready['regression_sha256'])
+        require(reader.typed_equal(receipt(batch / 'inputs.json', ready['inputs_sha256']), tested) and
+                ready.get('capture_verified') is False and type(regression.get('returncode')) is int and
+                regression['returncode'] == 0 and
+                all(type(parent.get(key)) is int and parent[key] == regression.get(key) for key in ('tests_passed', 'subtests_passed')) and
+                parent['tests_passed'] > 0 and parent['subtests_passed'] > 0,
+                'pin peer complete ready/regression generation differs')
+        coverage = parent.get('host_junit_coverage', {})
+        require(reader.typed_equal(runtime.get('host_junit'), coverage.get('junit')) and
+                coverage.get('actual_testcases') == coverage.get('actual_pytest_tests_passed') == parent['tests_passed'] and
+                coverage.get('actual_pytest_subtests_passed') == parent['subtests_passed'] and
+                set(coverage.get('modules', {})) == set(tested['modules']) and
+                all(type(value) is int and value > 0 for value in coverage['modules'].values()) and
+                sum(coverage['modules'].values()) == parent['tests_passed'], 'pin peer full host module coverage differs')
+        cases = ['original_entry', 'existing_main_stub_entry', 'one_byte_gate_mutation', 'short_tb']
+        require(runtime.get('actualAPI_cases') == cases and set(parent.get('gate_actual_api', {}).get('cases', {})) == set(cases) and
+                all(runtime.get(key) is True for key in ('v2_actualAPI_compatibility_verified',
+                    'v3_actualAPI_compatibility_verified', 'synthetic_shutter_gate_API_verified')) and
+                set(parent.get('dual_actual_api', {})) == {'2', '3'} and
+                all(reader.typed_equal(fixture.get('inputs', {}).get(key), value) for key, value in (
+                    ('qemu', binding['candidate_qemu']), ('receipt', parent['gate_build_receipt']),
+                    ('plugin', dict(path=expected['library_source'], sha256=projection['library_sha256'])),
+                    ('schema', dict(path=str(graph.NATIVE / SHUTTER_GATE_COMPONENT / 'log-schema-shutter-gate-v1.json'),
+                                    sha256=projection['trace_schema_sha256'])))), 'pin peer actualAPI generation/assets differ')
+        for version, api in parent['dual_actual_api'].items():
+            actual = reference(api['manifest'])
+            require(actual.get('status') == api.get('actual_api_contract', {}).get('status') ==
+                        f'PASS_SELF_OWNED_QEMU_SCOPE_V{version}_FIXTURE' and actual.get('failure') is None and
+                    actual.get('profile') == f'qemu-readonly-scope-v{version}' and actual.get('trace_schema') == f'readonly_scope_v{version}' and
+                    set(actual.get('variants', {})) == set(api['actual_api_contract']['cases']) == set(api.get('cases', {})) and
+                    reader.typed_equal(actual.get('inputs'), api.get('inputs')) and
+                    reader.typed_equal(actual.get('inputs', {}).get('qemu'), binding['candidate_qemu']) and
+                    all(actual.get(key) is False for key in ('capture_verified', 'physical', 'cap', 'instruction_retirement_verified')),
+                    'pin peer legacy actualAPI receipt differs: ' + version)
+    root = graph.NATIVE / component
+    for key, names in (('source_sha256', source_names),
+                       ('fixture_source_sha256', fixture_names)):
         sources = expected[key]
         require(type(sources) is dict and set(sources) == set(names), 'shutter gate exact source7/fixture7 roles differ')
         for name, digest in sources.items():
@@ -465,8 +802,8 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
                 ('profile', 'trace_schema', 'trace_schema_sha256', 'source_contract_sha256', 'source_sha256',
                  'fixture_source_sha256', 'build_receipt', 'build_receipt_sha256', 'qemu_sha256',
                  'qemu_header_sha256', 'library_sha256', 'readonly_import_audit_sha256')) and
-            reader.typed_equal(runtime.get('gate_build_receipt'), parent.get('gate_build_receipt')) and
-            reader.typed_equal(plan.get('scope_build'), parent.get('gate_build_receipt')) and
+            reader.typed_equal(runtime.get(build_key), parent.get(build_key)) and
+            reader.typed_equal(plan.get('scope_build'), parent.get(build_key)) and
             reader.typed_equal(plan['scope_build'], dict(path=metadata['build_receipt'], sha256=metadata['build_receipt_sha256'])),
             'shutter gate complete actual build metadata differs')
     scope = manifest.get('readonly_scope_observer')
@@ -492,20 +829,28 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
         require(graph.sha(original) == digest, 'shutter gate actual library differs')
         snapshots[path] = original
     assets = binding['runtime_assets_sha256']
-    require(reader.typed_equal(assets, dict(parent['legacy_runtime_assets_sha256'],
-                **parent['gate_added_runtime_assets_sha256'])) and
+    merged_assets = dict(parent['legacy_runtime_assets_sha256'], **parent['gate_added_runtime_assets_sha256'])
+    if gate_v2:
+        merged_assets.update(parent['gate_v2_added_runtime_assets_sha256'])
+    require(reader.typed_equal(assets, merged_assets) and
             all(assets.get(str(path)) == digest for path, digest in (
                 (audit_path, metadata['candidate_static_audit_sha256']),
                 (plugin_work / 'plugin-build-command.json', metadata['plugin_build_command_sha256']),
                 (plugin_work / 'readonly-import-audit.json', metadata['readonly_import_audit_sha256']),
                 (Path(metadata['build_receipt']), metadata['build_receipt_sha256']),
                 (Path(metadata['library']), metadata['library_sha256']))), 'shutter gate runtime audit assets differ')
+    if gate_v2:
+        require(reader.typed_equal(parent['gate_v2_added_runtime_assets_sha256'], {
+            str(plugin_work / 'plugin-build-command.json'): metadata['plugin_build_command_sha256'],
+            str(plugin_work / 'readonly-import-audit.json'): metadata['readonly_import_audit_sha256'],
+            metadata['build_receipt']: metadata['build_receipt_sha256'],
+            metadata['library']: metadata['library_sha256']}), 'gate v2 added assets are not its exact four build roles')
     for path, digest in ((Path(metadata['build_receipt']), metadata['build_receipt_sha256']),
                          (run / 'readonly-scope-observer.so', metadata['library_sha256']),
                          *((root / name, value) for name, value in expected['source_sha256'].items())):
         require(manifest['files'].get(str(path)) == digest, 'shutter gate actual manifest files differ')
     info = run.stat()
-    context = dict(schema='functional-shutter-gate-v1-live-context-v1', run=str(run),
+    context = dict(schema=generation + '-live-context-v1', run=str(run),
         run_device=info.st_dev, run_inode=info.st_ino, scope=plan_binding,
         **{key: binding[key] for key in ('nonce', 'batch', 'batch_ready_sha256', 'intent_sha256',
                                        'launch_binding_sha256', 'candidate_qemu', 'card')})
@@ -514,8 +859,11 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
     callback = receipt(run / 'readonly-scope-popen-exit-binding.json')
     exited = receipt(run / 'readonly-scope-exit.json')
     trace_path = run / 'readonly-scope-trace.log'
-    trace = graph.read(trace_path, 200704)
+    trace = graph.read(trace_path, 233472 if gate_v2 else 200704)
     snapshots[trace_path] = trace
+    if gate_v2:
+        checks = graph.source_module(component + '/integration/shutter_gate_trace_checks_v2.py', frozen)
+        checks.parse_trace(trace, reader.object_json(snapshots[root / 'log-schema-shutter-gate-v2.json']))
     require(set(exited) == {'profile', 'run', 'owned_wrapper_pid', 'returncode', 'log_available',
                 'log_sha256', 'library_sha256', 'capture_verified', 'physical_asic_compatibility_verified'} and
             exited.get('log_sha256') == graph.sha(trace), 'shutter gate original exit/trace bytes differ')
@@ -527,9 +875,9 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
                    'ancestry_sha256', 'original_exit_sha256'})
     for row, keys in zip((live, ancestry, callback), popen_keys):
         require(set(row) == keys | set(SHUTTER_GATE_FALSE_FIELDS), 'shutter gate exact Popen receipt fields differ')
-    for row, schema in ((live, 'functional-shutter-gate-v1-popen-live-v1'),
-                        (ancestry, 'functional-shutter-gate-v1-live-ancestry-v1'),
-                        (callback, 'functional-shutter-gate-v1-popen-exit-v1')):
+    for row, schema in ((live, generation + '-popen-live-v1'),
+                        (ancestry, generation + '-live-ancestry-v1'),
+                        (callback, generation + '-popen-exit-v1')):
         require(row.get('schema') == schema and reader.typed_equal(row.get('context'), context) and
                 all(row.get(k) is False for k in SHUTTER_GATE_FALSE_FIELDS), 'shutter gate same-run Popen context differs')
     chain = ancestry.get('chain')
@@ -564,16 +912,423 @@ def _condition_shutter_gate_binding(graph, reader, run, binding, manifest, build
             callback.get('ancestry_sha256') == graph.sha(snapshots[run / 'readonly-scope-live-ancestry.json']) and
             callback.get('original_exit_sha256') == graph.sha(snapshots[run / 'readonly-scope-exit.json']) and
             type(callback.get('returncode')) is int and type(exited.get('returncode')) is int and
-            callback['returncode'] == exited['returncode'] and exited.get('profile') == SHUTTER_GATE_PROFILE and
+            callback['returncode'] == exited['returncode'] and exited.get('profile') == profile_name and
             exited.get('run') == str(run) and exited.get('library_sha256') == metadata['library_sha256'] and
             live.get('probe_source_sha256') == graph.sha(graph.read(BASE / 'qemu-menu-probe.py')) and
             exited.get('log_available') is True and
             exited.get('capture_verified') is False and exited.get('physical_asic_compatibility_verified') is False,
             'shutter gate actual Popen generation/exit links differ')
+    if gate_v2:
+        for row in (live, ancestry, callback, exited):
+            _gate_v2_unpromoted(row)
+        require(exited['returncode'] == 0 and b'scope_observer_host_error' not in trace,
+                'gate v2 requires original normal owned exit, preserves failed returncode')
     return guest_source, snapshots
 
 
-def _condition_source_proof(log, run):
+def _gate_v2_unpromoted(value):
+    """Reject known claims anywhere in a new receipt, including unused JSON subtrees."""
+    pending = [value]
+    claims = set(SHUTTER_GATE_FALSE_FIELDS) | {'capture', 'physical_asic_verified',
+        'native_CP_verified', 'original_M_producer_runtime_verified', 'PID_TID_uniqueness_verified',
+        'address_space_uniqueness_verified', 'original_store_or_return_verified', 'same_press_submit_verified'}
+    while pending:
+        item = pending.pop()
+        if type(item) is dict:
+            require(not SHUTTER_GATE_ALIASES & item.keys(), 'gate v2 external schema/root alias')
+            require(all(value is False for key, value in item.items() if key in claims),
+                    'gate v2 receipt promotes an identity/runtime/capture claim')
+            pending.extend(item.values())
+        elif type(item) is list:
+            pending.extend(item)
+
+
+def _condition_shutter_gate_v2_cohort(graph, reader, binding, plan, runtime, parent, build,
+                                      tested, frozen, receipt, reference, snapshots):
+    """New immutable cohort operands; no future digest or historical count is a source constant."""
+    require(runtime.get('schema') == 'functional-shutter-gate-v2-runtime-ready-v1' and
+            parent.get('schema') == 'functional-shutter-gate-v2-cohort-readback-v1' and
+            runtime.get('batch') == binding['batch'], 'gate v2 exact offline schemas/batch differ')
+    for row in (binding, plan, runtime, parent, tested):
+        _gate_v2_unpromoted(row)
+    batch = graph.absolute(binding['batch'])
+    ready = receipt(batch / 'ready.json', binding['batch_ready_sha256'])
+    require(reader.typed_equal(receipt(batch / 'inputs.json', ready['inputs_sha256']), tested),
+            'gate v2 ready/input source maps differ')
+    _gate_v2_unpromoted(ready)
+    full = parent.get('full_inventory', {})
+    modules = tested.get('modules')
+    require(type(modules) is list and modules and all(type(name) is str for name in modules) and
+            len(modules) == len(set(modules)) and set(modules) <= frozen.keys() and
+            all(type(group) is dict and group for group in tested['groups'].values()) and
+            reader.typed_equal(full.get('source_sha256'), frozen) and
+            reader.typed_equal(full.get('groups'), {key: sorted(group) for key, group in tested['groups'].items()}) and
+            reader.typed_equal(full.get('modules'), modules), 'gate v2 full frozen source/module maps differ')
+    for row in (runtime, parent, full):
+        require(type(row.get('source_count')) is int and row['source_count'] == len(frozen) > 0 and
+                type(row.get('module_count')) is int and row['module_count'] == len(modules),
+                'gate v2 real source/module counts differ')
+    require(type(parent.get('all_source_members_verified')) is int and
+            parent['all_source_members_verified'] == len(frozen) and
+            parent.get('source_inventory_sha256') == ready['inputs_sha256'] and
+            parent.get('source_archive_sha256') == ready['all_input_archive_sha256'] and
+            parent.get('observer_archive_members_verified') == len(build['sources']) + 1 and
+            parent.get('observer_sha256') == binding['observer_sha256'], 'gate v2 source/archive counts differ')
+    for name, digest in frozen.items():
+        path = graph.absolute(name)
+        require(path.is_relative_to(graph.NATIVE) and type(digest) is str and len(digest) == 64 and
+                set(digest) <= set('0123456789abcdef'), 'gate v2 frozen source path/digest invalid')
+        original = graph.read(path)
+        require(graph.sha(original) == digest, 'gate v2 actual/frozen source differs: ' + name)
+        snapshots[path] = original
+    required_sources = tuple(graph.FROZEN_DEPENDENCIES) + tuple('runtime/analysis/' + name for name in (
+        'scratch/verify_hdmi_edge.py', 'scratch/test_verify_hdmi_edge.py',
+        'scratch/validate-unified-camera.py', 'scope_observer_profile.py', 'hdmi_upm_watch.py'))
+    for name in required_sources:
+        require(str(graph.NATIVE / name) in frozen, 'gate v2 cohort omits its consumer/host source: ' + name)
+    archive_path = batch / 'inputs.tar.gz'
+    archive = graph.read(archive_path, reader.MAX_FILE)
+    require(graph.sha(archive) == ready['all_input_archive_sha256'], 'gate v2 full source archive digest differs')
+    reader.archive(archive, {str(Path(name).relative_to(graph.NATIVE)): digest for name, digest in frozen.items()})
+    snapshots[archive_path] = archive
+    regression = receipt(batch / 'host-regression.json', ready['regression_sha256'])
+    require(type(regression.get('returncode')) is int and regression['returncode'] == 0 and
+            regression.get('inputs_sha256') == ready['inputs_sha256'] and
+            regression.get('capture_verified') is False and
+            reader.typed_equal(regression.get('changed'), {key: [] for key in tested['groups']}) and
+            all(type(parent.get(key)) is int and parent[key] > 0 and
+                type(regression.get(key)) is int and parent[key] == regression[key]
+                for key in ('tests_passed', 'subtests_passed')), 'gate v2 full regression differs')
+    log_path = batch / 'host-regression.log'
+    log = graph.read(log_path, graph.MAX_LOG)
+    require(graph.sha(log) == regression['log_sha256'] and
+            re.findall(rb'\b(\d+) passed\b', log) == [str(parent['tests_passed']).encode()] and
+            re.findall(rb'\b(\d+) subtests passed\b', log) == [str(parent['subtests_passed']).encode()] and
+            not re.search(rb'\b[1-9][0-9]* (failed|errors?|skipped|xfailed|xpassed|deselected)\b', log),
+            'gate v2 original regression log/counts differ')
+    snapshots[log_path] = log
+    coverage = parent.get('host_junit_coverage', {})
+    require(reader.typed_equal(runtime.get('host_junit'), coverage.get('junit')) and
+            coverage.get('junit', {}).get('path') == str(batch / 'host-regression.junit.xml') and
+            set(coverage.get('modules', {})) == set(modules) == set(coverage.get('module_classnames', {})) and
+            all(type(value) is int and value > 0 for value in coverage['modules'].values()) and
+            all(type(coverage.get(key)) is int for key in
+                ('actual_testcases', 'actual_pytest_tests_passed', 'actual_pytest_subtests_passed')) and
+            sum(coverage['modules'].values()) == coverage.get('actual_testcases') ==
+                coverage.get('actual_pytest_tests_passed') == parent['tests_passed'] and
+            coverage.get('actual_pytest_subtests_passed') == parent['subtests_passed'],
+            'gate v2 complete host module coverage differs')
+    junit_ref = coverage['junit']
+    require(type(junit_ref) is dict and set(junit_ref) == {'path', 'sha256'}, 'gate v2 exact junit reference required')
+    junit_path = graph.absolute(junit_ref['path'])
+    junit = graph.read(junit_path, graph.MAX_LOG)
+    require(graph.sha(junit) == junit_ref['sha256'] and b'<!DOCTYPE' not in junit and b'<!ENTITY' not in junit,
+            'gate v2 junit bytes differ')
+    snapshots[junit_path] = junit
+    cases = list(ET.fromstring(junit).iter('testcase'))
+    classnames = coverage['module_classnames']
+    require(all(type(value) is str and value for value in classnames.values()) and
+            len(set(classnames.values())) == len(modules), 'gate v2 explicit module classnames invalid')
+    counts = dict.fromkeys(modules, 0)
+    for case in cases:
+        matches = [name for name, prefix in classnames.items()
+                   if case.get('classname') == prefix or case.get('classname', '').startswith(prefix + '.')]
+        require(len(matches) == 1 and not any(case.find(tag) is not None for tag in ('failure', 'error', 'skipped')),
+                'gate v2 junit unknown/failed/skipped module')
+        counts[matches[0]] += 1
+    require(len(cases) == parent['tests_passed'] and reader.typed_equal(counts, coverage['modules']),
+            'gate v2 actual junit/module counts differ')
+    abi = receipt(batch / 'abi.json', ready['abi_sha256'])
+    marker = 'PASS: constructor thread and application-init wrapper preserved behavior'
+    media = abi.get('media_preload', {})
+    require(type(abi.get('returncode')) is int and abi['returncode'] == 0 and abi.get('capture_verified') is False and
+            abi.get('regression_sha256') == ready['regression_sha256'] and marker in abi.get('stdout', '') and
+            type(media.get('returncode')) is int and media['returncode'] == 0 and media.get('bind_now') is True and
+            marker in media.get('stdout', '') and abi.get('observer_sha256') == binding['observer_sha256'] and
+            abi.get('source_archive_sha256') == build['source_archive_sha256'] and
+            type(abi.get('source_count')) is int and abi['source_count'] == len(build['sources']) and
+            abi.get('media_preload_sha256') == parent.get('media_sha256'), 'gate v2 both original ABIs required')
+    command = abi.get('command')
+    media_path = BASE / 'menu-root/simulation/file-media-config.so'
+    require(type(command) is list and command and all(type(arg) is str for arg in command) and
+            sum(arg.startswith('LD_PRELOAD=') for arg in command) == 1 and
+            reader.typed_equal(media.get('command'), [arg.replace('LD_PRELOAD=', 'LD_PRELOAD=' + str(media_path) + ':')
+                if arg.startswith('LD_PRELOAD=') else arg for arg in command]),
+            'gate v2 original observer/media ABI commands differ')
+    for key, length in (('legacy_runtime_assets_sha256', 13), ('gate_added_runtime_assets_sha256', 4),
+                        ('gate_v2_added_runtime_assets_sha256', 4)):
+        require(type(parent.get(key)) is dict and len(parent[key]) == length and
+                all(reader.typed_equal(row.get(key), parent[key]) for row in (runtime, plan)),
+                'gate v2 protected asset roles differ: ' + key)
+    legacy, gate, added = (parent[key] for key in ('legacy_runtime_assets_sha256',
+        'gate_added_runtime_assets_sha256', 'gate_v2_added_runtime_assets_sha256'))
+    require(not legacy.keys() & gate.keys() and not added.keys() & (legacy.keys() | gate.keys()),
+            'gate v2 asset generations overlap')
+    assets = dict(legacy, **gate, **added)
+    require(reader.typed_equal(binding['runtime_assets_sha256'], assets) and
+            all(reader.typed_equal(row.get('protected_runtime_assets_sha256'), assets) for row in (plan, runtime, parent)),
+            'gate v2 full protected assets differ')
+    protected = parent.get('protected_qemu', {})
+    require(set(protected) == {'readonly_candidate', 'production', 'legacy_default'} and
+            reader.typed_equal(protected['readonly_candidate'], binding['candidate_qemu']) and
+            protected['production'].get('sha256') == graph.PRODUCTION_QEMU_SHA256 and
+            protected['legacy_default'].get('sha256') == SHUTTER_GATE_V2_LEGACY_DEFAULT_SHA and
+            all(reader.typed_equal(row.get('protected_qemu'), protected) for row in (plan, runtime)),
+            'gate v2 protected candidate/production differ')
+    for value in (*protected.values(), *(dict(path=name, sha256=digest) for name, digest in assets.items())):
+        require(type(value) is dict and set(value) == {'path', 'sha256'}, 'gate v2 exact protected asset reference required')
+        path = graph.absolute(value['path'])
+        original = graph.read(path, reader.MAX_FILE)
+        require(graph.sha(original) == value['sha256'], 'gate v2 protected asset bytes differ: ' + str(path))
+        snapshots[path] = original
+    _condition_shutter_gate_v2_apis(graph, reader, binding, plan, runtime, parent, frozen,
+                                  receipt, reference, snapshots)
+
+
+def _condition_shutter_gate_v2_apis(graph, reader, binding, plan, runtime, parent, frozen,
+                                    receipt, reference, snapshots):
+    """Consume four exact fixture generations using frozen, read-only operand checkers."""
+    require(set(parent.get('dual_actual_api', {})) == {'2', '3'}, 'gate v2 legacy dual actualAPI missing')
+    rows = {'scope2': parent['dual_actual_api']['2'], 'scope3': parent['dual_actual_api']['3'],
+            'gate1': parent['gate_actual_api'], 'gate2': parent['gate_v2_actual_api']}
+    refs = {key: row['manifest'] for key, row in rows.items()}
+    builds = parent.get('observer_builds', {})
+    require(set(builds) == set(rows) and
+            all(reader.typed_equal(row.get('cohort_actual_api_manifests'), refs) and
+                reader.typed_equal(row.get('observer_builds'), builds) for row in (plan, runtime)) and
+            reader.typed_equal(builds['gate1'], parent['gate_build_receipt']) and
+            reader.typed_equal(builds['gate2'], parent['gate_v2_build_receipt']) and
+            reader.typed_equal(refs['gate2'], binding['synthetic_fixture_manifest']) and
+            runtime.get('actualAPI_cases') == list(SHUTTER_GATE_API_CASES) and
+            all(runtime.get(key) is True for key in ('v2_actualAPI_compatibility_verified',
+                'v3_actualAPI_compatibility_verified', 'synthetic_shutter_gate_API_verified',
+                'synthetic_shutter_gate_v2_API_verified')), 'gate v2 four API/build references differ')
+    profile = graph.source_module('runtime/analysis/scope_observer_profile.py', frozen)
+    specs = (
+        ('scope2', 'report/2026-10-30-qemu-readonly-scope-observer', 'qemu-readonly-scope-v2',
+         'readonly_scope_v2', 'log-schema-v2.json', 'integration/scope_trace_checks_v2.py', 2),
+        ('scope3', 'report/2026-10-31-qemu-M-writer-observer-v3', 'qemu-readonly-scope-v3',
+         'readonly_scope_v3', 'log-schema-v3.json', 'integration/scope_trace_checks_v3.py', 3),
+        ('gate1', SHUTTER_GATE_COMPONENT, SHUTTER_GATE_PROFILE, 'readonly_shutter_gate_v1',
+         'log-schema-shutter-gate-v1.json', 'integration/shutter_gate_trace_checks_v1.py', 1),
+        ('gate2', SHUTTER_GATE_V2_COMPONENT, SHUTTER_GATE_V2_PROFILE, 'readonly_shutter_gate_v2',
+         'log-schema-shutter-gate-v2.json', 'integration/shutter_gate_trace_checks_v2.py', 2))
+    for key, component, expected_profile, trace_schema, schema_name, parser_name, version in specs:
+        api = rows[key]
+        actual = reference(refs[key])
+        _gate_v2_unpromoted(actual)
+        root = graph.NATIVE / component
+        require(Path(refs[key]['path']).name == 'manifest.json' and
+                actual.get('status') == ('PASS_SELF_OWNED_QEMU_SHUTTER_GATE_V%d_FIXTURE' if key in ('gate1', 'gate2')
+                                         else 'PASS_SELF_OWNED_QEMU_SCOPE_V%d_FIXTURE') % version and
+                actual.get('profile') == expected_profile and actual.get('trace_schema') == trace_schema and
+                actual.get('failure') is None, 'gate v2 actualAPI schema/status differs: ' + key)
+        metadata = profile.validate_build(graph.NATIVE, builds[key]['path'], binding['candidate_qemu']['path'])
+        require(metadata['profile'] == expected_profile and metadata['build_receipt_sha256'] == builds[key]['sha256'] and
+                binding['runtime_assets_sha256'].get(metadata['build_receipt']) == builds[key]['sha256'] and
+                binding['runtime_assets_sha256'].get(metadata['library']) == metadata['library_sha256'],
+                'gate v2 actualAPI build is outside bound protected assets: ' + key)
+        receipt(builds[key]['path'], builds[key]['sha256'])
+        helper = graph.source_module(component + '/integration/run_fixture.py', frozen)
+        checks = graph.source_module(component + '/' + parser_name, frozen)
+        fixtures = actual.get('fixture_source_sha256')
+        require(type(fixtures) is dict and set(fixtures) == set(helper.FIXTURE_SOURCE_NAMES) and
+                set(metadata['source_sha256']) == set(helper.RUNTIME_SOURCES) and
+                all(frozen.get(str(root / name)) == digest for values in (fixtures, metadata['source_sha256'])
+                    for name, digest in values.items()), 'gate v2 actualAPI frozen source/fixture roles differ: ' + key)
+        if key in ('gate1', 'gate2'):
+            expected_inputs, declaration = helper.validate_assets(Path(binding['candidate_qemu']['path']),
+                Path(metadata['library']), root / schema_name, Path(builds[key]['path']), fixtures)
+            expected_inputs['fixture_sources_file'] = dict(path=str(root / 'integration/fixture-source-pins.json'),
+                sha256=graph.sha(graph.read(root / 'integration/fixture-source-pins.json')))
+            expected_cases = SHUTTER_GATE_API_CASES
+        else:
+            validate = helper.validate_v2_assets if key == 'scope2' else helper.validate_v3_assets
+            expected_inputs = validate(Path(binding['candidate_qemu']['path']), Path(metadata['library']),
+                root / schema_name, Path(builds[key]['path']), fixture_source_sha256=fixtures)
+            declaration = reader.object_json(graph.read(root / schema_name))
+            expected_cases = ('anchor', 'one_byte_mutation', 'wrong_lr_only', 'producer',
+                              'producer_corrupt', 'producer_short_tb')
+            if key == 'scope3':
+                expected_cases = ('anchor', 'one_byte_mutation', 'wrong_lr_only', 'producer',
+                                  'producer_reverse_order', 'producer_corrupt', 'producer_short_tb')
+        require(reader.typed_equal(actual.get('inputs'), expected_inputs) and
+                set(actual.get('variants', {})) == set(api.get('cases', {})) == set(expected_cases),
+                'gate v2 actualAPI input/case closure differs: ' + key)
+        for value in expected_inputs.values():
+            path = graph.absolute(value['path'])
+            original = graph.read(path, reader.MAX_FILE)
+            require(graph.sha(original) == value['sha256'], 'gate v2 actualAPI input changed: ' + str(path))
+            snapshots[path] = original
+        folder = graph.absolute(refs[key]['path']).parent
+        require(reader.typed_equal(actual.get('fixture_source_snapshots'), helper.verify_fixture_snapshots(folder, fixtures)),
+                'gate v2 actualAPI fixture snapshots differ: ' + key)
+        table = actual.get('artifacts')
+        require(type(table) is dict and 0 < len(table) <= 4096, 'gate v2 actualAPI artifact ledger missing')
+        data, total = {}, 0
+        for name, item in table.items():
+            path = graph.absolute(folder / name)
+            require(type(name) is str and str(path.relative_to(folder)) == name and name != 'manifest.json' and
+                    type(item) is dict and set(item) == {'sha256', 'bytes'} and type(item['bytes']) is int,
+                    'gate v2 actualAPI artifact path/entry invalid')
+            raw = graph.read(path, reader.MAX_FILE)
+            total += len(raw)
+            require(len(raw) == item['bytes'] and graph.sha(raw) == item['sha256'] and total <= reader.MAX_FILE,
+                    'gate v2 actualAPI artifact bytes differ: ' + name)
+            data[name] = raw
+            snapshots[path] = raw
+            if name.endswith('.json'):
+                reader.object_json(raw)
+        actual_names = set()
+        for path in folder.rglob('*'):
+            graph.absolute(path)
+            require(path.is_file() or path.is_dir(), 'gate v2 actualAPI nonregular artifact')
+            if path.is_file():
+                actual_names.add(str(path.relative_to(folder)))
+        require(actual_names == set(table) | {'manifest.json'}, 'gate v2 actualAPI artifact inventory differs')
+        commands = actual.get('commands')
+        require(type(commands) is list and all(type(row) is dict for row in commands),
+                'gate v2 actualAPI commands missing')
+        command_map = {row['directory']: row for row in commands}
+        expected_directories = []
+        for case in expected_cases:
+            if case not in ('short_tb', 'producer_short_tb'):
+                expected_directories.append('build/' + case)
+            expected_directories.extend('cases/' + case + '-' + mode for mode in ('baseline', 'plugin'))
+        expected_directories.extend(('cases/missing_log_argument', 'cases/existing_log'))
+        require([row['directory'] for row in commands] == expected_directories and len(command_map) == len(commands),
+                'gate v2 actualAPI command sequence differs')
+        for directory, row in command_map.items():
+            fields = {'command', 'directory', 'limit_seconds', 'returncode', 'owned_pid_unreaped'}
+            if key in ('gate1', 'gate2'):
+                fields |= {'outer_timeout', 'payload_argv'}
+                require(row.get('outer_timeout') is False, 'gate v2 gate actualAPI outer timeout evidence differs')
+            require(set(row) == fields and type(row.get('command')) is list and row['command'] and
+                    all(type(arg) is str for arg in row['command']) and
+                    row.get('owned_pid_unreaped') is None and type(row.get('returncode')) is int and
+                    type(row.get('limit_seconds')) is int and
+                    row['limit_seconds'] == (60 if directory.startswith('build/') else 30) and
+                    directory + '/stdout.bin' in data and directory + '/stderr.bin' in data,
+                    'gate v2 actualAPI timeout/command evidence differs')
+            is_gate = key in ('gate1', 'gate2')
+            negative = directory in ('cases/missing_log_argument', 'cases/existing_log')
+            case = directory.removeprefix('build/') if directory.startswith('build/') else (
+                ('original_entry' if is_gate else 'anchor') if negative else
+                directory.removeprefix('cases/').rsplit('-', 1)[0])
+            short = case in ('short_tb', 'producer_short_tb')
+            build_case = ('original_entry' if is_gate else 'producer') if short else case
+            if directory.startswith('build/'):
+                payload = [helper.tool('clang'), '--target=aarch64-linux-gnu', '-march=armv8-a', '-fuse-ld=lld',
+                    '-nostdlib', '-static', '-no-pie', '-x', 'assembler-with-cpp']
+                if is_gate:
+                    payload += ['-DFIXTURE_STUB=%d' % (case == 'existing_main_stub_entry'),
+                        '-DFIXTURE_MUTATED=%d' % (case == 'one_byte_gate_mutation')]
+                else:
+                    payload += ['-DFIXTURE_MUTATED=%d' % (case == 'one_byte_mutation'),
+                        '-DFIXTURE_WRONG_LR_ONLY=%d' % (case == 'wrong_lr_only'),
+                        '-DFIXTURE_PRODUCER=%d' % case.startswith('producer'),
+                        ('-DFIXTURE_PRODUCER_MUTATED=%d' if key == 'scope2' else
+                         '-DFIXTURE_PRODUCER2_MUTATED=%d') % (case == 'producer_corrupt')]
+                    if key == 'scope3':
+                        payload += ['-DFIXTURE_PRODUCER_REVERSE=%d' % (case == 'producer_reverse_order')]
+                payload += ['/src/fixture.S', '-Wl,-T,/src/link.ld,-z,max-page-size=4096,--build-id=none',
+                    '-Wl,-Map,/out/fixture.map', '-o', '/out/fixture.elf']
+                mounts = [(folder / 'inputs', '/src')]
+            else:
+                arguments = [] if directory == 'cases/missing_log_argument' else (
+                    ['log=/out/plugin.log'] if directory.endswith('-plugin') or directory == 'cases/existing_log' else None)
+                payload = helper.vm_command(arguments, short) if is_gate else helper.vm_command(
+                    arguments, case.startswith('producer'), short)
+                mounts = [(Path(binding['candidate_qemu']['path']), '/qemu'), (Path(metadata['library']), '/observer.so'),
+                    (folder / ('build/' + build_case + '/fixture.elf'), '/in/fixture.elf')]
+            command = helper.sandbox(folder / directory, mounts) + [helper.tool('timeout'), '--signal=TERM',
+                '--verbose', str(row['limit_seconds']) + 's'] + payload
+            require(reader.typed_equal(row['command'], command) and
+                    (not is_gate or reader.typed_equal(row['payload_argv'], payload)),
+                    'gate v2 actualAPI complete sandbox/timeout/payload argv differs')
+            if directory not in ('cases/missing_log_argument', 'cases/existing_log'):
+                require(row['returncode'] == 0 and b'scope_observer_host_error' not in data[directory + '/stderr.bin'],
+                        'gate v2 actualAPI original command failed')
+        for case in expected_cases:
+            item = actual['variants'][case]
+            is_gate = key in ('gate1', 'gate2')
+            build_case = ('original_entry' if is_gate else 'producer') if case in ('short_tb', 'producer_short_tb') else case
+            elf_name = 'build/' + build_case + '/fixture.elf'
+            require(graph.sha(data[elf_name]) == item['elf_sha256'] and item.get('program_baseline_equal') is True and
+                    item.get('guest_selfcheck_and_code_readback_exact') is True, 'gate v2 fixture baseline/ELF differs')
+            consoles = {}
+            for mode in ('baseline', 'plugin'):
+                directory = 'cases/' + case + '-' + mode
+                saved = item['runs'][mode]
+                require(saved.get('console') == directory + '/console.bin' and type(saved.get('returncode')) is int and
+                        saved['returncode'] == command_map[directory]['returncode'] == 0 and
+                        saved.get('plugin_log') == (directory + '/plugin.log' if mode == 'plugin' else None),
+                        'gate v2 actualAPI run paths/returncode differ')
+                consoles[mode] = data[directory + '/console.bin']
+            require(consoles['baseline'] == consoles['plugin'], 'gate v2 actualAPI whole baseline console differs')
+            raw = data['cases/' + case + '-plugin/plugin.log']
+            if is_gate:
+                sections = helper.elf_layout(data[elf_name], case)
+                operands, boundary = helper.check_console(consoles['baseline'], sections, case)
+                operand_name = 'cases/' + case + '-baseline/independent-operands.json'
+                require(item.get('elf') == elf_name and item.get('expected_operands') == operand_name and
+                        graph.sha(data[operand_name]) == item.get('expected_operands_sha256') and
+                        reader.typed_equal(reader.object_json(data[operand_name]), operands) and
+                        reader.typed_equal(item.get('boundary_metadata'), boundary) and
+                        reader.typed_equal(reader.object_json(data['cases/' + case + '-baseline/boundary-metadata.json']), boundary) and
+                        item.get('trace_adapter') == ('shutter_gate_trace_checks_v%d.assert_shutter_gate_trace_v%d' % (version, version)),
+                        'gate v2 independent pre-LDR operands/adapter differ')
+                assertion = checks.assert_shutter_gate_trace_v2 if key == 'gate2' else checks.assert_shutter_gate_trace_v1
+                parsed = assertion(raw, declaration, operands)
+                counters = helper.check_trace_counters(parsed, operands, boundary)
+                require(reader.typed_equal(counters, item.get('actual_callback_counts')) and
+                        item.get('trace_sha256') == graph.sha(raw) and
+                        reader.typed_equal(api['cases'][case], dict(trace_sha256=graph.sha(raw), rows=len(parsed['rows']),
+                            actual_callback_counts=counters, independent_console_operands=True)),
+                        'gate v2 actualAPI raw trace/case readback differs')
+            else:
+                mutated, wrong, producer, corrupt, short = (case == 'one_byte_mutation', case == 'wrong_lr_only',
+                    case in ('producer', 'producer_corrupt', 'producer_short_tb', 'producer_reverse_order'),
+                    case == 'producer_corrupt', case == 'producer_short_tb')
+                sections = helper.elf_layout(data[elf_name], mutated, producer, corrupt)
+                producers = {}
+                if producer:
+                    args = (consoles['baseline'], sections, corrupt, short)
+                    if key == 'scope3':
+                        args += (case == 'producer_reverse_order',)
+                    producers, _ = helper.check_producer_console(*args)
+                else:
+                    require(consoles['baseline'] == helper.expected_console(sections, mutated, wrong),
+                            'gate v2 legacy independent baseline differs')
+                entries = helper.scope_expectations(consoles['baseline'], producer) if not (mutated or wrong or short) else {}
+                base = None if mutated or short else helper.BASE
+                other = 0 if base is None else 17 if wrong else 16
+                if key == 'scope2':
+                    checks.assert_scope_trace_v2(raw, entries, base, other, expected_producers=producers,
+                                                producer_base=helper.BASE if producers else None)
+                else:
+                    checks.assert_scope_trace_v3(raw, entries, base, other, expected_producers=producers,
+                        producer_base=helper.BASE if producer and not short else None,
+                        producer2_base=helper.BASE if producer and not short and not corrupt else None)
+        require(set(actual.get('startup_negatives', {})) == {'missing_log_argument', 'existing_log'},
+                'gate v2 actualAPI startup refusals missing')
+        for name in ('missing_log_argument', 'existing_log'):
+            row = command_map['cases/' + name]
+            require(0 < row['returncode'] < 124 and b'scope_observer_host_error' in data['cases/' + name + '/stderr.bin'] and
+                    b'timeout: sending signal' not in data['cases/' + name + '/stderr.bin'] and
+                    not data.get('cases/' + name + '/console.bin', b'') and
+                    type(actual['startup_negatives'][name].get('returncode')) is int and
+                    actual['startup_negatives'][name]['returncode'] == row['returncode'] and
+                    actual['startup_negatives'][name].get('guest_started') is False,
+                    'gate v2 actualAPI startup refusal differs')
+            if name == 'existing_log':
+                sentinel = b'exclusive-shutter-gate-log-sentinel\n' if key in ('gate1', 'gate2') else b'exclusive-log-sentinel\n'
+                require(data['cases/existing_log/plugin.log'] == sentinel, 'gate v2 startup sentinel changed')
+            else:
+                require('cases/missing_log_argument/plugin.log' not in data, 'gate v2 refused startup gained a log')
+
+
+def _condition_source_proof(log, run, *, gate_v2_trust=None):
     """Read the actual evidence, never a caller-supplied approval or current C shape."""
     graph_path = BASE.parents[1] / 'report/functional-graph-evidence/check_graph.py'
     spec = importlib.util.spec_from_file_location('_hdmi11_source_reader', graph_path)
@@ -618,8 +1373,11 @@ def _condition_source_proof(log, run):
             files.get(str(BASE / 'menu-observe.so')) == observer == selected.get('simulation/menu-observe.so'),
             'condition actual/selected observer manifest differs')
     guest_source, scope_inputs = BASE / 'menu-initramfs.cpio', {}
-    if binding['schema'] in SCOPE_BINDING_VERSIONS or binding['schema'] == SHUTTER_GATE_RUN:
-        guest_source, scope_inputs = _condition_scope_binding(graph, reader, run, binding, manifest, build, tested)
+    if binding['schema'] in SCOPE_BINDING_VERSIONS or binding['schema'] in (SHUTTER_GATE_RUN, SHUTTER_GATE_V2_RUN):
+        guest_source, scope_inputs = _condition_scope_binding(graph, reader, run, binding, manifest, build, tested,
+            **({} if gate_v2_trust is None else {'gate_v2_trust': gate_v2_trust}))
+    else:
+        require(gate_v2_trust is None, 'gate v2 trust cannot authorize legacy source binding')
     retained = run / 'selected-initramfs.cpio'
     retention_path = run / 'selected-initramfs-retention.json'
     if scope_inputs:
@@ -640,7 +1398,10 @@ def _condition_source_proof(log, run):
         image_raw = graph.read(retained, MAX_RETAINED_IMAGE)
         require(len(image_raw) == retention['bytes'], 'condition retained image size differs')
         reader.digest_binding(image_raw, image_sha, 'condition retained initramfs')
-        image.verify_image(_ImageBytes(image_raw), {'simulation/menu-observe.so': observer})
+        retained_observers = {'simulation/menu-observe.so': observer}
+        if binding['schema'] == SHUTTER_GATE_V2_RUN:
+            retained_observers['simulation/file-media-config.so'] = selected['simulation/file-media-config.so']
+        image.verify_image(_ImageBytes(image_raw), retained_observers)
         observer_basis = 'image'
         del image_raw
     else:
@@ -672,7 +1433,7 @@ def _condition_source_proof(log, run):
     for name, value in inputs.items():
         require(graph.read(run / name, graph.MAX_JSON) == value, 'condition source binding changed: ' + name)
     for path, value in scope_inputs.items():
-        require(graph.read(path) == value, 'condition scope binding changed: ' + str(path))
+        require(graph.read(path, max(graph.MAX_SOURCE, len(value))) == value, 'condition scope binding changed: ' + str(path))
     require(_condition_binding_name(run) == binding_name, 'condition source/run binding selection changed')
     if retention_raw is not None:
         require(graph.read(retention_path, graph.MAX_JSON) == retention_raw, 'condition image retention changed')
@@ -683,7 +1444,7 @@ def _condition_source_proof(log, run):
                 staged_library=str(run / 'readonly-scope-observer.so'),
                 qemu_binary=binding['candidate_qemu']['path'],
                 plan_binding={key: binding[key] for key in SHUTTER_GATE_PLAN_FIELDS})}
-                if binding['schema'] == SHUTTER_GATE_RUN else {}),
+                if binding['schema'] in (SHUTTER_GATE_RUN, SHUTTER_GATE_V2_RUN) else {}),
             'run': str(run), 'source_sha256': selected_sources,
             'observer_sha256': observer, 'observer_basis': observer_basis, 'selected_initramfs_sha256': image_sha,
             'source_archive_sha256': graph.sha(archive_raw),
@@ -697,7 +1458,7 @@ def _condition_source_proof(log, run):
             'independent_retirement_sequence': None}
 
 
-def _leases(log, kind, native=False, run=None):
+def _leases(log, kind, native=False, run=None, *, gate_v2_trust=None):
     """Match serials, not addresses: reuse after a complete lifetime is legal."""
     published = _kind(log, 'MESSAGE_PUBLISHED', kind)
     sent = _kind(log, 'MESSAGE_SENT', kind)
@@ -735,7 +1496,8 @@ def _leases(log, kind, native=False, run=None):
                 if earlier['freed']['line'] >= p['line']:
                     require(kind == 2 and not native and run is not None, 'live message address reused without source proof')
                     if source_proof is None:
-                        source_proof = _condition_source_proof(log, run)
+                        source_proof = _condition_source_proof(log, run,
+                            **({} if gate_v2_trust is None else {'gate_v2_trust': gate_v2_trust}))
                     # The reviewed mutex ledger rejects active pointers; its free note is written after unlock.
                     item.setdefault('late_free_note_predecessors', []).append({
                         'lease': number(earlier['published'], 'lease'), 'sent': earlier['sent'],
@@ -743,13 +1505,13 @@ def _leases(log, kind, native=False, run=None):
     return result
 
 
-def verify_conditions(log, run=None):
+def verify_conditions(log, run=None, *, gate_v2_trust=None):
     """Require two exact batches and all 24 same-thread native frees, by serial."""
     for record in log.records:
         if record['tag'].startswith((PREFIX + '_', STATE + '_')):
             require(not any(word in record['tag'] for word in ('FAULT', 'REJECT', 'UNSUPPORTED', 'REFUSED')),
                     ('fault/rejection prevents condition acceptance', record))
-    messages = _leases(log, 2, run=run)
+    messages = _leases(log, 2, run=run, gate_v2_trust=gate_v2_trust)
     require(len(messages) == 24, 'requires all 24 condition receives/frees')
     tids = set()
     indices = tuple(range(11)) + (12,)
@@ -764,7 +1526,7 @@ def verify_conditions(log, run=None):
             'condition_model_events_verified': False, 'scope': '24 received=1 same-thread native frees; no model-publication claim'}
 
 
-def verify_hdmi_effects(log, run=None):
+def verify_hdmi_effects(log, run=None, *, gate_v2_trust=None):
     """Actual C effects only; host UPM frees are explicitly not native proof."""
     allowed = {'PROFILE', 'UNADMITTED', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE',
         'RESOURCES_RESERVED', 'REQUEST', 'PEER_REQUEST', 'PEER_REPLY', 'EVENT6_ENQUEUED',
@@ -835,7 +1597,7 @@ def verify_hdmi_effects(log, run=None):
         matches = [r for r in frees if r['fields'].get('pointer') == edge[tag]['fields']['pointer'] and low < r['line'] < high]
         require(len(matches) == 1, ('peer lifetime differs', tag))
         eq(matches[0], owner=hex(caller), rc=0)
-    conditions = verify_conditions(log, run)
+    conditions = verify_conditions(log, run, gate_v2_trust=gate_v2_trust)
     condition = conditions['messages']
     native = bool(_kind(log, 'KERNEL_RETIRED', 3))
     require(not (native and _kind(log, 'NATIVE_FREE', 3)), 'UPM has a second user-space owner/free')
@@ -872,7 +1634,7 @@ def verify_hdmi_effects(log, run=None):
     return edge
 
 
-def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3):
+def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3, *, gate_v2_trust=None):
     """Join actual native events and committed mailbox payloads; no full-edge claim."""
     w = _watch()
     receipts = w.read_receipts(run)
@@ -882,16 +1644,22 @@ def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3):
     source_proof = None
     scope = config.get('readonly_scope_observer')
     named_binding = root / 'readonly-scope-run-binding.json'
-    gate_binding = (named_binding.exists() and w.parse_json(w.checked_read(named_binding, 4 * 1024**2)).get('schema') == SHUTTER_GATE_RUN)
-    if gate_binding or type(scope) is dict and scope.get('profile') == SHUTTER_GATE_PROFILE:
-        source_proof = _condition_source_proof(log, root)
-        require(type(scope) is dict and source_proof['run_binding_schema'] == SHUTTER_GATE_RUN and
+    gate_schema = (w.parse_json(w.checked_read(named_binding, 4 * 1024**2)).get('schema')
+                   if named_binding.exists() else None)
+    gate_profiles = {SHUTTER_GATE_RUN: SHUTTER_GATE_PROFILE, SHUTTER_GATE_V2_RUN: SHUTTER_GATE_V2_PROFILE}
+    if gate_schema in gate_profiles or type(scope) is dict and scope.get('profile') in gate_profiles.values():
+        source_proof = _condition_source_proof(log, root,
+            **({} if gate_v2_trust is None else {'gate_v2_trust': gate_v2_trust}))
+        require(type(scope) is dict and
+                gate_profiles.get(source_proof['run_binding_schema']) == scope.get('profile') and
                 config.get('running_QEMU_sha256') == w.READONLY_SCOPE_QEMU_SHA and
                 config.get('scope_build_receipt') == scope.get('build_receipt') and
                 w.json.dumps(scope, sort_keys=True, allow_nan=False) ==
                 w.json.dumps(source_proof['shutter_gate_config_scope'], sort_keys=True, allow_nan=False),
                 'shutter gate native config/source binding differs')
-    result = w.parse_json(w.checked_read(root / (w.PREFIX + '-result.json'), 16384))
+    else:
+        require(gate_v2_trust is None, 'gate v2 trust requires exact gate v2 source/config binding')
+    result = w.read_result(config)
     coordinator = w.parse_json(w.checked_read(root / 'hdmi-upm-coordinator.json', 1024 * 1024))
     require(result.get('detached') is True and not result.get('error') and result.get('receipts') == 2 and
             result.get('dedicated_receipt_transport') is True and result.get('observations_only') is False,
@@ -944,7 +1712,7 @@ def verify_hdmi_upm(log, run, identity=None, upm_effective_second=3):
             require(receipt['bridge_seq'] > receipts[0]['events']['free_return'] and
                     receipt['lease_serial'] > receipts[0]['lease_serial'] and
                     items[0]['sent']['line'] < p['line'], 'native lifetime reused before final retirement')
-    return {'receipts': receipts, 'mailbox': init, 'guest_consumed': consumed,
+    return {'receipts': receipts, 'mailbox': init, 'guest_prepared': prepare, 'guest_consumed': consumed,
             'GDB_result': result, 'coordinator': coordinator,
             **({'source_proof': source_proof} if source_proof is not None else {}),
             'scope': 'two native UPM lifetimes only; no condition/AP completion claim',
@@ -1039,9 +1807,9 @@ def _backup(log, edge):
             'AP_runtime_basis': 'actual size/read return metadata and driver-consumed bytes; outer frozen reader required'}
 
 
-def verify_hdmi_edge(log, previous_free, identity, first_graph_request, run):
+def verify_hdmi_edge(log, previous_free, identity, first_graph_request, run, *, gate_v2_trust=None):
     """Require all virtual effects plus same-run native UPM/condition/AP proof."""
-    edge = verify_hdmi_effects(log, run)
+    edge = verify_hdmi_effects(log, run, gate_v2_trust=gate_v2_trust)
     identity = tuple(map(str, identity))
     require(edge['identity'] == identity, 'original AP PID/TID differs')
     start = edge['REQUEST']['line']
@@ -1060,7 +1828,7 @@ def verify_hdmi_edge(log, previous_free, identity, first_graph_request, run):
     gets = [_get(log, key, identity, edge['caller'], previous_free, start) for key in (S, P)]
     require(gets[0]['actual_same_sender_free']['line'] < gets[1]['request']['line'], 'source Get not retired before peer Get')
     require(edge['native_UPM_join_required'], 'host user-space UPM observations cannot prove native consumption')
-    upm = verify_hdmi_upm(log, run, identity)
+    upm = verify_hdmi_upm(log, run, identity, gate_v2_trust=gate_v2_trust)
     backup = _backup(log, edge)
     prefix = _leases(log, 1)
     require(len(prefix) == 3, 'requires all three native prefix reply retirements')

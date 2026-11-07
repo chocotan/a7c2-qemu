@@ -1,5 +1,6 @@
 """Host-only partial metadata checks; no VM, pixel producer or JPEG encoder."""
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import os
 import subprocess
 import sys
@@ -32,6 +33,7 @@ class JpegWithoutPinInput(unittest.TestCase):
             self.assertIn("metadata contract cases; unknown fields remain unsupported", run.stdout)
             print(run.stdout.strip())
 
+    @requires_original_assets('usr/lib/libInfraAvbbc.so', 'usr/lib/dataflowInfraFramework.so')
     def test_original_source_anchors_using_existing_verifier(self):
         run = subprocess.run([sys.executable, str(VERIFIER), "--self-test"],
                              capture_output=True, text=True, timeout=30)

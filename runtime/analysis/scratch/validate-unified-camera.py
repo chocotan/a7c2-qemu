@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate one immutable complete camera-development batch; never starts a VM."""
+"""Validate one immutable complete batch; never launch original-camera acceptance."""
 import ast
 import hashlib
 import io
@@ -47,13 +47,29 @@ COMPONENTS = ('virtual-jpeg-engine', 'virtual-jpeg-sos', 'virtual-jpeg-hardware'
               'cmos-isp-resize-input-source', 'native-video-zero-branch-frame-input',
               'cmos-isp-source-frame-owner', 'functional-camera-core',
               'functional-camera-control', 'functional-camera-bridge',
-              'functional-mpr-codec', 'functional-mpr-memory', 'functional-jpeg-codec',
+              'functional-mpr-codec', 'functional-mpr-memory', 'functional-jpeg-codec', 'functional-capture-input',
               'functional-camera-evidence', 'functional-graph-evidence',
               'functional-vdf-path', 'functional-vdf-layout-stage', 'native-movie-write-trace', 'functional-cp-zoom',
               'functional-histogram', 'functional-background-start',
-              'functional-face-source-snapshot', 'disp-bit-width',
-              '2026-10-31-qemu-shutter-gate-observer-v1')
-MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
+              'functional-face-dmm', 'functional-face-registry', 'functional-face-runtime', 'functional-face-transfer',
+              'functional-face-ap-observer', 'functional-face-native-ap', 'functional-face-proc', 'functional-face-sdk',
+              'functional-face-source-snapshot', '2026-10-30-disp-bit-width', '2026-10-30-still-format',
+              '2026-10-30-startup-control', '2026-10-30-s2-capture-state', '2026-10-30-model17c-restore',
+              '2026-10-30-model17c-initializer', '2026-10-30-zfq-content-joins',
+              '2026-10-30-poweron-entry-observer', '2026-10-30-zd4-console-framing',
+              '2026-10-30-zd4-adf-host-boundary', '2026-10-30-qemu-readonly-scope-observer',
+              '2026-10-31-qemu-M-writer-observer-v3',
+              '2026-10-31-qemu-shutter-gate-observer-v1',
+              '2026-11-02-qemu-shutter-gate-observer-v2',
+              'functional-capture-output', 'functional-capture-queue',
+              '2026-11-03-qemu-shutter-writer-observer-v1',
+              '2026-11-03-qemu-shutter-writer-observer-v2',
+              '2026-11-03-qemu-shutter-writer-observer-v3',
+              '2026-11-04-qemu-shutter-record-observer-v4',
+              '2026-11-04-qemu-shutter-descriptor-observer-v5',
+              '2026-11-04-qemu-shutter-pointer-observer-v6',
+              '2026-11-04-qemu-shutter-pointer-observer-v7')
+MODEL_TESTS = ('test_source_snapshot.py', 'test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_cp_start_state_provider.py', 'test_cp_parameter_state.py',
                'test_cp_state_publication.py', 'test_cp_owned_state_profile.py',
                'test_fsys_write_trace.py', 'test_fsys_async_observer.py', 'test_fsys_sync_wiring.py',
@@ -62,8 +78,10 @@ MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_cp_property_stage_file.py', 'test_cp_parameter_import.py', 'test_cp_parameter_view.py',
                'test_cp_owned_inputs.py', 'test_functional_camera_profile.py',
                'test_functional_camera_control.py', 'test_functional_camera_bridge.py',
+               'test_bb_timecode_control.py', 'test_bb_timecode_main_wiring.py',
+               'test_bb_timecode_presets.py', 'test_identity_refused.py',
                'test_functional_mpr_codec.py', 'test_functional_mpr_memory.py',
-               'test_functional_jpeg_codec.py', 'test_functional_jpeg_free_wiring.py', 'test_functional_camera_runner.py',
+               'test_functional_jpeg_codec.py', 'test_functional_jpeg_free_wiring.py', 'test_functional_capture.py', 'test_functional_capture_wiring.py', 'test_functional_imaging_admission.py', 'test_functional_camera_runner.py',
                'test_functional_camera_wiring.py', 'test_functional_camera_events.py',
                'test_functional_vdf_path.py', 'test_functional_vdf_layout_stage.py', 'test_functional_vdf_broker.py',
                'test_functional_vdf_wiring.py', 'test_functional_histogram.py', 'test_functional_histogram_wiring.py',
@@ -75,16 +93,22 @@ MODEL_TESTS = ('test_cp_start_state_data.py', 'test_cp_full_state_snapshot.py',
                'test_functional_face_native_command.py', 'test_functional_face_native_ap.py', 'test_functional_face_proc.py',
                'test_functional_face_proc_birth.py', 'test_functional_face_sdk.py', 'test_functional_face_sdk_origin.py',
                'test_functional_face_source_snapshot.py', 'test_functional_face_source_fault.py', 'test_functional_face_source_main.py',
-               'scratch/test_verify_hdmi_edge.py',
+               'scratch/test_verify_hdmi_edge.py', 'scratch/test_run_hdmi_observed_admission.py',
                'test_functional_vdf_integration.py', 'test_functional_bit_width_core.py', 'test_functional_vdf_bit_width.py',
+               'test_functional_still_format_core.py', 'test_functional_still_format.py', 'test_functional_still_format_wiring.py',
+               'test_functional_startup_control_core.py', 'test_functional_startup_control.py', 'test_functional_startup_control_wiring.py',
                'test_functional_cp_zoom.py',
                'test_natural_gtk_input_receipts.py', 'test_mode_wheel_probe.py',
                'test_body_control_probe.py', 'test_focus_controls_probe.py',
                'test_media_predicate_watch.py', 'test_natural_start_trace.py',
-               'test_reader_boot_wait.py', 'test_request_queue_watch.py', 'test_tcin_device.py',
+               'test_reader_boot_wait.py', 'test_request_queue_watch.py',
+               'test_ee_entry_snapshot.py', 'test_ee_passive_snapshot.py', 'test_tcin_device.py',
                'test_touch_panel.py', 'test_udate_distribution.py', 'test_key_injection.py',
                'test-menu-control.py', 'test_shutter_gate_batch_inventory.py',
-               'test_menu_control.py', 'test_host_sd_guard.py', 'test_media_initial_write.py')
+               'test_shutter_route_trace.py', 'test_s2_capture_observation.py', 'test_model17c_observation.py',
+               'test_poweron_observation.py', 'test_scope_observer_profile.py',
+               'test_menu_control.py', 'test_host_sd_guard.py', 'test_host_sd_lifecycle.py', 'test_media_initial_write.py',
+               'test_directory_snapshot.py')
 
 
 def sha(path):
@@ -117,8 +141,39 @@ def main():
     extras = [REPORT / 'capture-evidence/check_evidence.py',
               REPORT / '2026-10-27-unified-camera/lif-mode-property-source.json',
               REPORT / '2026-10-27-unified-camera/cp-owned-input-stage.md',
+              REPORT / '2026-10-30-qemu-readonly-scope-observer/integration/fixture.S',
+              REPORT / '2026-10-30-qemu-readonly-scope-observer/integration/link.ld',
+              REPORT / '2026-10-30-qemu-readonly-scope-observer/late-sites.inc',
+              REPORT / '2026-10-31-qemu-M-writer-observer-v3/integration/fixture.S',
+              REPORT / '2026-10-31-qemu-M-writer-observer-v3/integration/link.ld',
+              REPORT / '2026-10-31-qemu-M-writer-observer-v3/late-sites.inc',
               REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/fixture.S',
-              REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/link.ld']
+              REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/link.ld',
+              REPORT / '2026-11-02-qemu-shutter-gate-observer-v2/integration/fixture.S',
+              REPORT / '2026-11-02-qemu-shutter-gate-observer-v2/integration/link.ld',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v1/integration/fixture.S',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v1/integration/link.ld',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v2/integration/fixture.S',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v2/integration/link.ld',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v3/integration/fixture.S',
+              REPORT / '2026-11-03-qemu-shutter-writer-observer-v3/integration/link.ld',
+              REPORT / '2026-11-04-qemu-shutter-record-observer-v4/record-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-record-observer-v4/integration/fixture.S',
+              REPORT / '2026-11-04-qemu-shutter-record-observer-v4/integration/link.ld',
+              REPORT / '2026-11-04-qemu-shutter-descriptor-observer-v5/record-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-descriptor-observer-v5/descriptor-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-descriptor-observer-v5/integration/fixture.S',
+              REPORT / '2026-11-04-qemu-shutter-descriptor-observer-v5/integration/link.ld',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v6/record-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v6/descriptor-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v6/pointer-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v6/integration/fixture.S',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v6/integration/link.ld',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v7/record-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v7/descriptor-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v7/pointer-taps.inc',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v7/integration/fixture.S',
+              REPORT / '2026-11-04-qemu-shutter-pointer-observer-v7/integration/link.ld']
     graph = ast.parse((REPORT / 'functional-graph-evidence/check_graph.py').read_text())
     dependency_node = next(node.value for node in graph.body if isinstance(node, ast.Assign)
                            and any(isinstance(target, ast.Name) and target.id == 'FROZEN_DEPENDENCIES'
@@ -136,9 +191,11 @@ def main():
             continue
         files = component_files(directory)
         extras += files
-        # Only each component's explicit tests are collected, not private runtime evidence.
+        # Both gate actualAPI modules need explicit assets; freeze them without generic collection/import.
         modules += [str(p) for p in files if p.name.startswith('test_') and p.suffix == '.py'
-                    and p != REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py']
+                    and p not in (
+                        REPORT / '2026-10-31-qemu-shutter-gate-observer-v1/integration/test_actual_scope_plugin.py',
+                        REPORT / '2026-11-02-qemu-shutter-gate-observer-v2/integration/test_actual_scope_plugin.py')]
     if missing:
         raise ValueError('batch is incomplete; finish these inputs before validation: ' + ', '.join(missing))
     modules = list(dict.fromkeys(str((BASE / p).resolve()) for p in modules))
@@ -146,8 +203,10 @@ def main():
     runtime = digests(source_api['source_paths'](BASE))
     host = digests([*(Path(p) for p in baseline['host_profile_sources_before']), BASE / 'camera_ui.py',
                     BASE / 'build-functional-camera-model.py', BASE / 'functional_camera_broker.py',
-                    BASE / 'functional_camera_runner.py', BASE / 'functional_face_source_snapshot.py', BASE / 'initramfs_identity.py',
-                    BASE / 'check-natural-gtk-input.py', BASE / 'scope_observer_profile.py'])
+                    BASE / 'functional_camera_runner.py', BASE / 'ee_entry_snapshot.py', BASE / 'capture_gate_readback.py',
+                    BASE / 'functional_face_source_snapshot.py', BASE / 'initramfs_identity.py',
+                    BASE / 'check-natural-gtk-input.py', BASE / 'scope_observer_profile.py',
+                    BASE / 'directory_snapshot.py', BASE / 'directory_sd.py'])
     observers = digests([*(Path(p) for p in baseline['observer_sources_before']),
                          BASE / 'snapshot-observer-sources.py', Path(__file__)])
     tests = digests([*(Path(p) for p in baseline['test_sources_before']),
@@ -176,8 +235,8 @@ def main():
     log = work / 'host-regression.log'
     with log.open('x') as output:
         result = subprocess.run([sys.executable, '-B', '-m', 'pytest', '-p', 'no:cacheprovider',
-                                 '--import-mode=importlib', '--color=no', '-q', '--tb=short', *modules], cwd=BASE,
-                                stdout=output, stderr=subprocess.STDOUT, timeout=1200)
+                                 '--import-mode=importlib', '--color=no', '-v', '--tb=short', *modules], cwd=BASE,
+                                stdout=output, stderr=subprocess.STDOUT, timeout=3000)
     text = log.read_text()
     passed = re.search(r'(\d+) passed', text)
     subtests = re.search(r'(\d+) subtests passed', text)

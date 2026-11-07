@@ -49,10 +49,11 @@ def main():
     compiler = shutil.which('cc')
     if not compiler:
         raise RuntimeError('installed host C compiler is required')
-    sources = [REPORT / name for name in SOURCES]
+    sources = [REPORT / name for name in SOURCES] + [BASE / 'device-models/cp-parameter-batch.c']
     headers = [BASE / 'functional-camera-abi.h', BASE / 'functional-vdf-path-abi.h',
                BASE / 'functional-bb-startup-abi.h', BASE / 'functional-vdf-bit-width-abi.h',
-               BASE / 'functional-still-format-abi.h', BASE / 'functional-startup-control-abi.h']
+               BASE / 'functional-still-format-abi.h', BASE / 'functional-startup-control-abi.h',
+               BASE / 'device-models/cp-parameter-batch.h']
     for component in COMPONENTS:
         headers.extend((REPORT / component).glob('*.h'))
     paths = sorted(set([*sources, *headers, Path(__file__)]))

@@ -12,6 +12,22 @@ CELLS = (('EE_START_ENABLE', 0x7e5c240), ('EE_ENTRY_SOURCE', 0x7e5dd40),
 # Original 2f3aa00 sets this byte before event 0x12; 2ff0cd4 clears it
 # only after Backup_sync_all returns. Passive reads never alter either path.
 PASSIVE_BYTE_CELLS = (('BACKUP_SYNC_PENDING', 0x8838af8),)
+# Retained original reader/storage evidence; sequential samples do not identify a writer or cause.
+PASSIVE_SHUTTER_CELLS = (('SHUTTER_D570', 0x7e5d570, 4), ('SHUTTER_D498', 0x7e5d498, 4),
+                         ('SHUTTER_TRANSITION_7FC8', 0x7e67fc8, 4),
+                         ('SHUTTER_INPUT_5F64120', 0x5f64120, 4),
+                         ('LENS_SETTING_73740', 0x7e73740, 4),
+                         ('LENS_SHADOW_73730', 0x7e73730, 4),
+                         ('SHUTTER_AGGREGATE_37E3', 0x83337e3, 1),
+                         ('DESCRIPTOR_D578', 0x7e5d578, 4),
+                         ('RECORD_A24_PENDING', 0x7e43434, 4),
+                         ('RECORD_A24_CURRENT', 0x7e43438, 4),
+                         ('RECORD_A24_FLAG13', 0x7e43443, 1),
+                         ('BOOT_M_6A7C8', 0x7e6a7c8, 4),
+                         ('BOOT_K_739A8', 0x7e739a8, 4),
+                         ('BOOT_SHUTDOWN_DD88', 0x7e5dd88, 4),
+                         ('BOOT_QR_STATE_DD38', 0x7e5dd38, 4),
+                         ('BOOT_QR_GATE_CADD0', 0x7ecadd0, 4))
 
 
 def status_fields(raw):
@@ -34,6 +50,10 @@ def map_base(raw):
 
 def thread_list(raw):
     text = raw.replace(b'\r\n', b'\n')
+    # A complete Linux comm can share its newline with the canonical console warning.
+    text = re.sub(rb'^(EE_THREAD=\d+:[A-Za-z0-9_ -]{15})'
+                  rb'(\[ (?:0|[1-9][0-9]{0,6})\.[0-9]{6}\] UDIF: cdev_ioctl\(\) Line 100: uipc: warning ret = -1022)\n\n',
+                  rb'\1\n\2\n\n', text, flags=re.M)
     markers = re.findall(rb'^EE_THREAD=(\d+):', text, re.M)
     entries = re.findall(rb'^EE_THREAD=(\d+):([^\n]{1,64})$', text, re.M)
     if not markers or len(markers) != len(entries) or len(set(markers)) != len(markers):
@@ -291,15 +311,17 @@ def collect_passive(serial,run,*,common_only=False):
     read('kernel-udate-symbols.txt',
          "/bin/busybox grep -E 'udate|distribution' /proc/kallsyms 2>/dev/null; true")
     cells=[]
-    for name,address in CELLS:
-        raw=read(name.lower()+'.txt',f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} 4 appFw.so')
-        match=re.search(rb'^[0-9a-fA-F]+:\s*((?:[0-9a-fA-F]{2} ){3}[0-9a-fA-F]{2})',raw,re.M)
-        cells.append(dict(name=name,elf_va=hex(address),value=int.from_bytes(bytes.fromhex(match[1].decode()),'little') if match else None))
-    for name,address in PASSIVE_BYTE_CELLS:
-        raw=read(name.lower()+'.txt',f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} 1 appFw.so')
-        match=re.search(rb'^[0-9a-fA-F]+:\s*([0-9a-fA-F]{2})',raw,re.M)
-        cells.append(dict(name=name,elf_va=hex(address),read_bytes=1,
-                          value=int(match[1],16) if match else None))
+    inventory=tuple((name,address,4) for name,address in CELLS)+\
+        tuple((name,address,1) for name,address in PASSIVE_BYTE_CELLS)+PASSIVE_SHUTTER_CELLS
+    for name,address,size in inventory:
+        raw=read(name.lower()+'.txt',f'/simulation/menu-readmem /proc/{pid}/mem {address:#x} {size} appFw.so')
+        cell=dict(name=name,elf_va=hex(address),read_bytes=size,value=None)
+        try:
+            data=memory_bytes(raw,base+address)
+            if len(data)!=size:raise ValueError('Passive cell read width differs')
+            cell['value']=int.from_bytes(data,'little')
+        except ValueError as error:cell['observation_error']=str(error)
+        cells.append(cell)
     selected_set=set(selected)
     result=dict(observations_only=True,threads_not_stopped=True,available=True,app_pid=pid,app_base=hex(base),
         snapshot_dir=str(output),sampling_scope='Common only' if common_only else 'bounded eligible threads',

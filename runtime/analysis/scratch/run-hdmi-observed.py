@@ -86,7 +86,8 @@ def observe(run, finished, result):
                         scope['profile'] not in (hdmi_upm_watch.scope_observer_profile.PROFILE,
                             hdmi_upm_watch.scope_observer_profile.PROFILE_V2,
                             hdmi_upm_watch.scope_observer_profile.PROFILE_V3,
-                            hdmi_upm_watch.scope_observer_profile.PROFILE_SHUTTER_GATE_V1) or
+                            hdmi_upm_watch.scope_observer_profile.PROFILE_SHUTTER_GATE_V1,
+                            hdmi_upm_watch.scope_observer_profile.PROFILE_SHUTTER_GATE_V2) or
                         type(scope.get('build_receipt')) is not str or not scope['build_receipt']):
                     raise ValueError('invalid manifest-bound scope observer receipt')
                 result['GDB_listener'] = gdbserver(run)

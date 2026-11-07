@@ -245,12 +245,12 @@ def test_prepare_rejects_invalid_admission_before_candidate_or_outputs(tmp_path,
 
 
 @pytest.mark.parametrize('video,osd',[(False,False),(True,False),(False,True),(True,True)])
-def test_real_receipt_manifest_and_typed_validation_include_every_final_edge_field(tmp_path,video,osd):
+def test_real_receipt_manifest_and_typed_validation_include_every_final_edge_field(tmp_path,video,osd, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     host=selected_environment(tmp_path,build=build,video=video,osd=osd)
     with directory_lease(tmp_path/'card') as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     path=Path(host['MENU_BACKUP_PROFILE_RECEIPT']);receipt=json.loads(path.read_text())
     active={**OLD_PROFILES,**{name:profile for name,_,profile in PREVIOUS_FAMILIES[:2]},
             'adf_hdmi_audio_connection':'',

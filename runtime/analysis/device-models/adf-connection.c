@@ -29,6 +29,9 @@ static int adf_native_prerequisites(void){
 #define PEER_SNAPSHOT full_adf_snapshot
 #define EDGE_DISPATCH full_adf_connection_dispatch
 #define EDGE_RELEASE full_adf_connection_release
+#define EDGE_RELEASE_TICKET full_adf_connection_release_ticket
+#define EDGE_OBSERVE_ALLOCATE full_adf_connection_observe_allocate
+#define EDGE_OBSERVE_RECEIVE full_adf_connection_observe_receive
 #define EDGE_SNAPSHOT full_adf_connection_snapshot
 #define EDGE_RESET full_adf_connection_test_reset
 #include "pin-peer-connection.inc"

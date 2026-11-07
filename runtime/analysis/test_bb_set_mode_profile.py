@@ -256,7 +256,7 @@ def test_qemu_guard_is_default_off_and_rejects_missing_chain_and_conflicts(monke
         with pytest.raises(SystemExit):run_guard(guard_scope(),{**valid,key:'1'})
 
 
-def test_public_backup_receipt_and_complete_clean_guest_exports(tmp_path):
+def test_public_backup_receipt_and_complete_clean_guest_exports(tmp_path, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     env=host_environment(tmp_path,build)
     launcher=load_script('bb_receipt_start_menu','start-menu.py')
@@ -264,7 +264,7 @@ def test_public_backup_receipt_and_complete_clean_guest_exports(tmp_path):
     card=Path(env['A7C2_DIRECTORY_SD'])
     with directory_lease(card) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     receipt=json.loads(Path(host['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
     expected=backup.bb_set_mode_profile_fields(PROFILE)
     assert all(type(receipt[name]) is type(value) and receipt[name]==value
@@ -347,7 +347,7 @@ def test_gtk_actual_runtime_manifest_requires_typed_values_in_both_receipts():
     with pytest.raises(RuntimeError):exec(code,scope)
 
 
-def test_bb_default_off_receipt_is_part_of_existing_backup_profile(tmp_path):
+def test_bb_default_off_receipt_is_part_of_existing_backup_profile(tmp_path, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     env=host_environment(tmp_path,build)
     env.pop('A7C2_BB_SET_MODE')
@@ -356,7 +356,7 @@ def test_bb_default_off_receipt_is_part_of_existing_backup_profile(tmp_path):
     host=launcher.profile_environment(env,natural_boot=True)
     with directory_lease(Path(env['A7C2_DIRECTORY_SD'])) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'default-directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     receipt=json.loads(Path(host['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
     fields=backup.bb_set_mode_profile_fields('')
     assert all(type(receipt[name]) is type(value) and receipt[name]==value
@@ -431,7 +431,9 @@ def bb_constructor(tmp_path_factory):
 #include "functional-camera-abi.h"
 #include "device-models/functional-startup-control.h"
 static int functional_camera_enabled,functional_camera_init_calls;
-static unsigned int still_format_ticket_pid,startup_control_ticket_pid;
+static unsigned int still_format_ticket_pid,startup_control_ticket_pid,functional_cp_crank_control_ticket_pid;
+static unsigned int functional_cp_movie_format_ticket_pid;
+static unsigned int functional_cp_ou_crank_control_ticket_pid,functional_bb_timecode_audit_pid;
 static unsigned int still_format_init_calls,startup_control_init_calls;
 int functional_still_format_owner_init(void) {
  assert(functional_camera_init_calls==1);still_format_init_calls++;
@@ -445,6 +447,20 @@ int functional_startup_control_owner_init(void) {
 int native_functional_camera_control_owner_init(void) {
  functional_camera_init_calls++;return getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL")?-ENODATA:0;
 }
+int native_functional_camera_parameter_owner_init(void) {
+ assert(functional_camera_init_calls==1 && !getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL"));return 0;
+}
+int native_functional_camera_crank_owner_init(void) {
+ assert(functional_camera_init_calls==1 && !getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL"));return 0;
+}
+int native_functional_camera_movie_format_owner_init(void) {
+ assert(functional_camera_init_calls==1 && !getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL"));return 0;
+}
+int native_functional_camera_ou_crank_owner_init(void) {
+ assert(functional_camera_init_calls==1 && !getenv("FIXTURE_FUNCTIONAL_OWNER_FAIL"));return 0;
+}
+/* Constructor compatibility only; no timecode business result is established. */
+int full_bb_timecode_control_owner_init(void){return 0;}
 static int cp_owned_state_enabled,cp_owned_state_calls;
 static struct cp_start_state_provider cp_owned_start_state;
 static struct cp_parameter_state cp_owned_parameters;

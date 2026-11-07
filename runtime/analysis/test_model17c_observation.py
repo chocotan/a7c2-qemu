@@ -96,6 +96,22 @@ def test_model17c_restore_opcode_anchor_and_independent_original_pc_decode():
     assert 'runtime_page != base + original_page' in decoder
 
 
+def test_model17c_first16_matches_same_version_original():
+    image = BASE / 'menu-root/usr/lib/appFw.so'
+    if not image.exists():
+        pytest.skip('Original appFw is not distributed')
+    # Both closed entry windows are in PT_LOAD 0, where raw offset equals ELF VA.
+    with image.open('rb') as stream:
+        stream.seek(0x267b698)
+        assert stream.read(16) == FIRST16
+        stream.seek(0x2aa31bc)
+        restore = stream.read(16)
+        stream.seek(0x2aeff5c)
+        assert stream.read(16) == PUBLISH_FIRST16
+    assert restore == RESTORE_FIRST16
+    assert struct.unpack_from('<I', restore, 12)[0] & 0x9f000000 == 0x90000000  # ADRP
+
+
 def test_model17c_actual_callback_and_install_refusals(tmp_path):
     arm, callback, install = _extracted_model17c()
     harness = r'''

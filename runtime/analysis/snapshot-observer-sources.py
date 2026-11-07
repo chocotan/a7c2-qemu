@@ -1,4 +1,4 @@
-"""Freeze public C/header/shell inputs; firmware and runtime assets are never copied."""
+"""Freeze public observer/runtime contract sources; firmware and assets are never copied."""
 import argparse
 import hashlib
 import json
@@ -8,11 +8,21 @@ import tarfile
 NATIVE = Path('report/2026-10-17-qemu-native-camera/runtime/analysis')
 SHARED = NATIVE / 'device-models'
 METADATA_INPUTS = (
+    'runtime/analysis/functional_camera_broker.py', 'runtime/analysis/backup_profile.py',
     'report/native-video-binding/native-video.c', 'report/native-video-binding/native-video.h',
     'report/native-video-paramsets/native-paramsets.c', 'report/native-video-paramsets/native-paramsets.h',
     'report/native-video-au-contract/native-au.c', 'report/native-video-au-contract/native-au.h',
     'report/native-video-length-format/native-lengths.c', 'report/native-video-length-format/native-lengths.h',
     'report/virtual-video-engine/video-engine.h',
+    'report/functional-capture-input/capture-input.c', 'report/functional-capture-input/capture-input.h',
+    'report/functional-capture-input/capture-mapper.c', 'report/functional-capture-input/capture-mapper.h',
+    'report/functional-capture-input/capture-jpeg-input.c', 'report/functional-capture-input/capture-jpeg-input.h',
+    'report/functional-capture-output/capture-output-memory.c', 'report/functional-capture-output/capture-output-memory.h',
+    'report/functional-capture-output/capture-notifications.c', 'report/functional-capture-output/capture-notifications.h',
+    'report/functional-capture-output/capture-delivery.c', 'report/functional-capture-output/capture-delivery.h',
+    'report/functional-capture-output/capture-save.c', 'report/functional-capture-output/capture-save.h',
+    'report/functional-capture-output/capture-dma.c', 'report/functional-capture-output/capture-dma.h',
+    'report/functional-capture-queue/capture-resize-request.c', 'report/functional-capture-queue/capture-resize-request.h',
 )
 
 

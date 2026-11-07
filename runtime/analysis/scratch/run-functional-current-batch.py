@@ -11,8 +11,8 @@ import sys
 import threading
 
 BASE = Path(__file__).resolve().parents[1]
-BATCH = BASE / 'scratch/unified-camera-3lbiw8e9'
-INTENT = BASE / 'scratch/functional-language-consume-plan-nush6b02/intent.json'
+BATCH = BASE / 'scratch/unified-camera-4b3kb4kd'
+INTENT = BASE / 'scratch/functional-bg-hci-plan-rc5b41nx/intent.json'
 sys.path.insert(0, str(BASE))
 
 

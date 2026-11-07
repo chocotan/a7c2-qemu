@@ -1,4 +1,5 @@
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import json
 import runpy
 import subprocess
@@ -8,6 +9,7 @@ import pytest
 HERE = Path(__file__).resolve().parent
 
 
+@requires_original_assets('usr/lib/libmpr.so', 'usr/lib/libInfraFsys.so')
 def test_original_source_windows_and_callback_got_bindings():
     result = subprocess.run(['python3', '-B', str(HERE/'../../report/native-card-write/verify_source.py')],
                             capture_output=True, text=True, check=True, timeout=15)
@@ -319,6 +321,7 @@ def test_sync_source_freeze_lifecycle_and_native_content(tmp_path, sanitized):
         assert result.returncode == 0, f'mode={mode}\n{result.stdout}\n{result.stderr}'
 
 
+@requires_original_assets('usr/lib/libmpr.so', 'usr/lib/libInfraFsys.so')
 def test_sync_public_movie_and_fsys_abi_pins():
     verifier = HERE / '../../report/native-movie-write-trace/verify_source.py'
     result = subprocess.run(['python3', '-B', str(verifier)], capture_output=True,

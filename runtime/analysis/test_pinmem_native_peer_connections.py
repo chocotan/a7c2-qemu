@@ -8,6 +8,7 @@ import pytest
 
 from test_adf_set_input_device import public_adf_input_seed
 from test_infrabb_vef_connection import FLAGS, ENV, BB_BACKENDS
+from test_final_graph_observer_wiring import function
 
 HERE = Path(__file__).resolve().parent
 MODEL = HERE / 'device-models'
@@ -29,6 +30,8 @@ CASES = ['normal', 'dynamic-caller', 'uninitialized', 'predecessor-no-ap-free',
          'send-fail', 'inline-send-fail', 'request-free-fail', 'reply-free-fail',
          'wrong-owner', 'foreign-thread-free', 'recursive', 'recursive-free',
          'queued-fault', 'fork-held', 'in-flight-send-fail', 'in-flight-free-fail',
+         'reuse-before-free-return', 'missing-receive-ticket', 'forged-receive-ticket',
+         'reuse-unobserved-allocation', 'reuse-unobserved-receive', 'reuse-stale-ticket',
          'cleanup-fail', 'duplicate-event', 'request-mutated',
          *[f'alloc-fail-{n}' for n in range(1, 4)],
          *[f'alloc-short-{n}' for n in range(1, 4)],
@@ -66,6 +69,28 @@ def test_native_pinmem_peer_connections(native_peer_binary, public_adf_input_see
                             text=True, timeout=35, env=ENV)
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'PINMEM_NATIVE_PEER_CONNECTIONS_HOST_TEST_PASS' in result.stdout
+    if case.startswith('reuse-'):
+        proof = next(line for line in result.stdout.splitlines()
+                     if line.startswith('PINMEM_NATIVE_POST_FREE_REUSE '))
+        fields = dict(part.split('=', 1) for part in proof.split()[1:])
+        assert fields['case'] == case
+        if case == 'reuse-unobserved-allocation':
+            assert fields['generation_b'] == '0'
+        else:
+            assert int(fields['generation_b']) > int(fields['generation_a']) > 0
+        if case in ['reuse-unobserved-allocation', 'reuse-unobserved-receive']:
+            assert fields['ticket_b'] == '0'
+        else:
+            assert int(fields['ticket_a']) > 0 and int(fields['ticket_b']) > 0
+            assert fields['ticket_a'] != fields['ticket_b']
+        blocked = case != 'reuse-before-free-return'
+        assert all(fields[key] == value for key, value in {
+            'A_free': '1', 'B_free': '1', 'foreign_claimed': str(int(blocked)),
+            'faults': str(int(blocked)), 'ap_consumed': '1',
+            'clean_completion': str(int(not blocked)), 'capture_verified': '0'}.items())
+    if case in ['missing-receive-ticket', 'forged-receive-ticket']:
+        assert 'PINMEM_NATIVE_BAD_TICKET ' in result.stdout
+        assert 'actual_free=0 still_owned=1 capture_verified=0' in result.stdout
     if case in ['normal', 'dynamic-caller', 'inline-free', 'recursive', 'fork-held']:
         prefix = 'FULL_' + edge.upper() + '_CONNECT_'
         tags = ['REQUEST ', 'PEER_REQUEST ', 'PEER_REPLY ', 'EVENT6_ENQUEUED ',
@@ -169,3 +194,173 @@ def test_existing_legacy_dispatchers(tmp_path, source):
                             timeout=20, env=ENV)
     assert result.returncode == 0, result.stdout + result.stderr
     assert ('SECOND_EDGE_' if source == 'scalar' else 'THIRD_EDGE_') in result.stdout
+
+
+def test_actual_peer_allocation_and_receive_boundaries(tmp_path):
+    """Compile actual wrapper fragments later; this draft worker never runs it."""
+    source = (HERE / 'menu-observe.c').read_text()
+    ticket = next(line for line in source.splitlines()
+                  if line.startswith('static _Thread_local struct') and 'functional_cp_parameter_bank_ticket' in line)
+    receive = source[source.index('static void native_pin_peer_received('):
+                     source.index('/* The shipped OSAL exports this low-level receive')]
+    allocate = function(source, 'native_pin_peer_allocated')
+    low_start = source.index('int u_osal_rcv_msg_tmo(')
+    low = source[low_start:source.index('int osal_rcv_msg_tmo(', low_start)]
+    public_start = source.index('int osal_rcv_msg_tmo(')
+    outer_start = source.index('    unsigned int outer=native_receive_depth++;', public_start)
+    outer = source[outer_start:source.index('\n    if (!result', outer_start)]
+    allocation_start = source.index(
+        '    int result=real_allocate_msg(id, message, size, count),saved_errno=',
+        source.index('int osal_valloc_msg_wait('))
+    allocation = source[allocation_start:source.index('\n}', allocation_start)]
+    fixture = tmp_path / 'actual-boundaries.c'
+    fixture.write_text(r'''
+#define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
+#define syscall(...) 29L
+static unsigned int pinmem_peer_connections_used=1,allocations[3],receives[3];
+static unsigned int hdmi,cp,actual_allocations,actual_receives,sdk;
+static void native_movie_format_allocated(unsigned int id,void **p,int rc,unsigned int count){
+ (void)id;(void)p;(void)rc;(void)count;
+}
+static void native_crank_allocated(unsigned int id,void **p,int rc,unsigned int count){
+ (void)id;(void)p;(void)rc;(void)count;
+}
+static _Thread_local unsigned int native_receive_depth;
+static int slot,result_code;
+static void record(const char *tag,const char *text){assert(tag && text);errno=EIO;}
+#define OBSERVERS(name,index) \
+static unsigned long long name##_observe_allocate(unsigned int id,void *p){assert(id==16 && p==&slot);return ++allocations[index];} \
+static unsigned long long name##_observe_receive(unsigned int id,void *p){assert(id==16 && p==&slot);return ++receives[index];}
+OBSERVERS(full_scalar_connection,0)
+OBSERVERS(full_adf_connection,1)
+OBSERVERS(full_pinmem_drawinfo_connection,2)
+static void native_hdmi_video_received(unsigned int id,void **p,int rc){assert(id==16 && p);(void)rc;hdmi++;}
+static void native_cp_state_received(unsigned int id,void **p,int rc){assert(id==16 && p);(void)rc;cp++;}
+static int fake_receive(unsigned int id,void **p,long timeout){assert(id==16 && p && timeout==27);actual_receives++;*p=&slot;errno=ERANGE;return result_code;}
+static int fake_allocate(unsigned int id,void **p,unsigned int bytes,unsigned int count){assert(id==16 && p && bytes==56 && count);actual_allocations++;*p=&slot;errno=ERANGE;return result_code;}
+static void native_face_sdk_observation(unsigned int op,unsigned int id,void *p,unsigned int bytes,int rc,void *caller){assert(op==1 && id==16 && bytes==56 && caller);(void)p;(void)rc;sdk++;errno=EIO;}
+static int (*real_u_rcv_msg_tmo)(unsigned int,void **,long)=fake_receive;
+static int (*real_rcv_msg_tmo)(unsigned int,void **,long);
+static int (*real_allocate_msg)(unsigned int,void **,unsigned int,unsigned int)=fake_allocate;
+''' + ticket + '\n' + receive + allocate + low + '''
+static int nested_public(unsigned int id,void **p,long timeout){return u_osal_rcv_msg_tmo(id,p,timeout);}
+static int observed_public(unsigned int id,void **message,long timeout){
+''' + outer + '''
+    return result;
+}
+static int observed_allocate(unsigned int id,void **message,unsigned int size,unsigned int count){
+''' + allocation + r'''
+}
+int main(void){
+    real_rcv_msg_tmo=nested_public;void *p=0;
+    functional_cp_parameter_bank_ticket.pointer=&slot;
+    functional_cp_parameter_bank_ticket.destination=16;
+    functional_cp_parameter_bank_ticket.transaction=UINT64_C(0x100000003);
+    errno=EINTR;assert(!observed_allocate(16,&p,56,1) && errno==ERANGE);
+    assert(!functional_cp_parameter_bank_ticket.pointer && !functional_cp_parameter_bank_ticket.destination && !functional_cp_parameter_bank_ticket.transaction);
+    for(unsigned int i=0;i<3;i++)assert(allocations[i]==1);
+    functional_cp_parameter_bank_ticket.pointer=&slot;
+    functional_cp_parameter_bank_ticket.destination=16;
+    functional_cp_parameter_bank_ticket.transaction=UINT64_C(0x100000003);
+    result_code=-5;assert(observed_allocate(16,&p,56,1)==-5 && errno==ERANGE);
+    result_code=0;assert(!observed_allocate(16,&p,56,2) && errno==ERANGE);
+    native_pin_peer_allocated(16,0,0,1);p=0;native_pin_peer_allocated(16,&p,0,1);
+    assert(functional_cp_parameter_bank_ticket.pointer==&slot && functional_cp_parameter_bank_ticket.destination==16 && functional_cp_parameter_bank_ticket.transaction==UINT64_C(0x100000003));
+    for(unsigned int i=0;i<3;i++)assert(allocations[i]==1);
+    assert(actual_allocations==3 && sdk==3);
+    assert(!observed_public(16,&p,27) && errno==ERANGE && !native_receive_depth);
+    for(unsigned int i=0;i<3;i++)assert(receives[i]==1);
+    assert(hdmi==1 && cp==1 && actual_receives==1);
+    assert(!u_osal_rcv_msg_tmo(16,&p,27) && errno==ERANGE);
+    for(unsigned int i=0;i<3;i++)assert(receives[i]==2);
+    result_code=-7;assert(observed_public(16,&p,27)==-7 && errno==ERANGE);
+    result_code=0;pinmem_peer_connections_used=0;
+    assert(!observed_public(16,&p,27) && !observed_allocate(16,&p,56,1));
+    assert(!functional_cp_parameter_bank_ticket.pointer && !functional_cp_parameter_bank_ticket.destination && !functional_cp_parameter_bank_ticket.transaction);
+    pinmem_peer_connections_used=1;native_pin_peer_received(16,0,0);p=0;native_pin_peer_received(16,&p,0);
+    for(unsigned int i=0;i<3;i++)assert(receives[i]==2 && allocations[i]==1);
+    assert(!native_receive_depth && actual_receives==4 && actual_allocations==4);
+    puts("PIN_PEER_ACTUAL_BOUNDARIES_PASS");return 0;
+}
+''')
+    binary = tmp_path / 'actual-boundaries'
+    built = subprocess.run(FLAGS + [str(fixture), '-o', str(binary)],
+                           capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stdout + built.stderr
+    result = subprocess.run([str(binary)], capture_output=True, text=True,
+                            timeout=15, env=ENV)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PIN_PEER_ACTUAL_BOUNDARIES_PASS' in result.stdout
+
+
+def test_actual_peer_free_origin_keeps_route_and_errno(tmp_path):
+    source = (HERE / 'menu-observe.c').read_text()
+    start = source.index('    if (__atomic_load_n(&pinmem_peer_connections_used,',
+                         source.index('int osal_free_msg('))
+    end = source.index('    if (__atomic_load_n(&adf_hdmi_audio_connection_used,', start)
+    branch = source[start:end]
+    fixture = tmp_path / 'actual-free-origin.c'
+    fixture.write_text(r'''
+#define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#define syscall(...) 29L
+static unsigned int pinmem_peer_connections_used=1,calls[3],records;
+static int chosen,returned;
+static int storage;
+static int original_free(unsigned int id,void *p){assert(id==16 && p==&storage);return -7;}
+static int (*real_free_msg)(unsigned int,void *)=original_free;
+static void record(const char *tag,const char *text){
+    assert(!strcmp(tag,"PIN_PEER_NATIVE_FREE_ORIGIN "));
+    assert(strstr(text,"pointer=0x") && strstr(text,"destination=0x10 caller=0x"));
+    assert(strstr(text,"caller_module_identity_verified=0 capture_verified=0"));
+    records++;errno=EIO;
+}
+static int release_at(unsigned int which,unsigned int id,void *p,int (*free_fn)(unsigned int,void *),void (*logger)(const char *,const char *),int *rc){
+    assert(id==16 && p==&storage && free_fn==original_free && logger==record);
+    calls[which]++;
+    if((int)which!=chosen)return 0;
+    *rc=returned;errno=ERANGE;return 1;
+}
+#define RELEASE(name,index) \
+static int name(unsigned int id,void *p,int (*f)(unsigned int,void *),void (*r)(const char *,const char *),int *rc){return release_at(index,id,p,f,r,rc);}
+RELEASE(full_scalar_connection_release,0)
+RELEASE(full_adf_connection_release,1)
+RELEASE(full_pinmem_drawinfo_connection_release,2)
+static __attribute__((noinline)) int actual_branch(unsigned int id,void *message){
+    int vdf_result=-999;
+''' + branch + r'''
+    return 777;
+}
+int main(void){
+    for(chosen=0;chosen<3;chosen++)for(unsigned int failure=0;failure<2;failure++){
+        memset(calls,0,sizeof calls);records=0;returned=failure?-1021:0;
+        assert(actual_branch(16,&storage)==returned && errno==ERANGE && records==1);
+        for(unsigned int i=0;i<3;i++)assert(calls[i]==(unsigned int)((int)i<=chosen));
+    }
+    memset(calls,0,sizeof calls);records=0;chosen=3;errno=EINTR;
+    assert(actual_branch(16,&storage)==777 && errno==EINTR && !records);
+    for(unsigned int i=0;i<3;i++)assert(calls[i]==1);
+    pinmem_peer_connections_used=0;memset(calls,0,sizeof calls);errno=EINVAL;
+    assert(actual_branch(16,&storage)==777 && errno==EINVAL && !records);
+    for(unsigned int i=0;i<3;i++)assert(!calls[i]);
+    puts("PIN_PEER_ACTUAL_FREE_ORIGIN_PASS");return 0;
+}
+''')
+    binary = tmp_path / 'actual-free-origin'
+    built = subprocess.run(FLAGS + [str(fixture), '-o', str(binary)],
+                           capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stdout + built.stderr
+    result = subprocess.run([str(binary)], capture_output=True, text=True,
+                            timeout=15, env=ENV)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'PIN_PEER_ACTUAL_FREE_ORIGIN_PASS' in result.stdout
+

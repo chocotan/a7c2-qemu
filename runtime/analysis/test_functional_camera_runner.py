@@ -106,6 +106,33 @@ class MailboxTests(unittest.TestCase):
         self.assertEqual(binding['console_record_sha256'], runner.digest(line.split(b' ', 2)[2].rstrip(b'\n')))
         self.assertIsNone(runner.parse_mailbox(line[:-1]))
 
+    def test_complete_mailbox_after_exact_guest_prompt(self):
+        expected = runner.parse_mailbox(mailbox_line())
+        for ending in (b'\n', b'\r\n'):
+            line = b'/ # ' + mailbox_line().replace(b'\n', ending)
+            with self.subTest(ending=ending):
+                self.assertEqual(runner.parse_mailbox(b'guest output\n' + line), expected)
+                self.assertIsNone(runner.parse_mailbox(line[:-len(ending)]))
+        for prefix in (b'echo ', b'/ # echo ', b' / # ', b'/ #/ # ', b'/ $ ', b'kernel: '):
+            with self.subTest(prefix=prefix):
+                self.assertIsNone(runner.parse_mailbox(prefix + mailbox_line()))
+        self.assertIsNone(runner.parse_mailbox(b'/ # ' + mailbox_line().removeprefix(b'OBS ')))
+
+    def test_prompted_mailbox_keeps_field_validation_and_duplicate_identity_guard(self):
+        for raw in (mailbox_line().replace(b'nonce=0xa123', b'nonce=0'),
+                    mailbox_line().replace(b'pid=123', b'pid=True'),
+                    mailbox_line().replace(b'ABI=' + PROFILE.encode(), b'ABI=unknown'),
+                    mailbox_line().replace(b'version=1', b'version=2'),
+                    mailbox_line().replace(b'nonce=0xa123', b'nonce=0xa123 nonce=0xa123'),
+                    mailbox_line({**MAILBOX, 'pages': PAGES[:-1]}),
+                    mailbox_line({**MAILBOX, 'pages': PAGES[:-1] + [PAGES[0]]})):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                runner.parse_mailbox(b'/ # ' + raw)
+        for replacement in MAILBOX_REPLACEMENTS:
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(
+                    ValueError, 'Multiple functional mailbox owners/identities'):
+                runner.parse_mailbox(mailbox_line() + b'/ # ' + mailbox_line({**MAILBOX, **replacement}))
+
     def test_malformed_nonce_pages_fields_and_abi(self):
         for raw in (
             mailbox_line().replace(b'nonce=0xa123', b'nonce=nope'),
@@ -247,6 +274,37 @@ class ArtifactTests(unittest.TestCase):
                         runner.validate_artifact(self.fixture.base, self.fixture.qemu, scope_build_receipt=receipt)
                     self.assertFalse(any(self.fixture.root.glob('**/readonly-scope-observer.so')))
                     self.assertFalse(any(self.fixture.root.glob('**/readonly-scope-trace.log')))
+
+    def test_gate_v2_prepare_forwards_explicit_receipt_and_keeps_candidate_default_closed(self):
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        profile = runner.scope_observer_profile
+        receipt = self.fixture.root / 'HOST_TEST-gate-v2-build.json'
+        checked = []
+        def validate_scope(native, value, binary):
+            checked.append((native, value, binary))
+            self.assertEqual(value, receipt)
+            return dict(profile=profile.PROFILE_SHUTTER_GATE_V2, trace_schema='readonly_shutter_gate_v2')
+        with mock.patch.object(runner, 'READONLY_SCOPE_QEMU_SHA256', actual), \
+                mock.patch.object(profile, 'validate_build', side_effect=validate_scope), \
+                mock.patch.object(runner, 'FunctionalCameraRunner') as factory, \
+                mock.patch.object(runner.transport, 'Core', side_effect=AssertionError('must not load the model')):
+            with self.assertRaisesRegex(ValueError, 'unchanged QEMU'):
+                runner.prepare(PROFILE, self.fixture.base, self.fixture.root, self.fixture.qemu)
+            self.assertEqual(checked, [])
+            factory.assert_not_called()
+            result = runner.prepare(PROFILE, self.fixture.base, self.fixture.root, self.fixture.qemu,
+                                    scope_build_receipt=receipt)
+            self.assertEqual(checked, [(self.fixture.root, receipt, self.fixture.qemu)])
+            self.assertIs(result, factory.return_value)
+            self.assertEqual(factory.call_args.args[1]['qemu_sha256'], actual)
+            self.assertFalse(receipt.exists())  # Caller routing only; profile tests validate the full receipt.
+        with mock.patch.object(runner, 'READONLY_SCOPE_QEMU_SHA256', actual), \
+                mock.patch.object(profile, 'validate_build', side_effect=ValueError('HOST_TEST gate-v2 receipt differs')), \
+                mock.patch.object(runner, 'FunctionalCameraRunner') as factory:
+            with self.assertRaisesRegex(ValueError, 'gate-v2 receipt differs'):
+                runner.prepare(PROFILE, self.fixture.base, self.fixture.root, self.fixture.qemu,
+                               scope_build_receipt=receipt)
+            factory.assert_not_called()
 
     def test_scope_candidate_does_not_accept_unknown_or_legacy_binary(self):
         actual = runner.digest(self.fixture.qemu.read_bytes())
@@ -662,6 +720,26 @@ class LifecycleTests(unittest.TestCase):
                     self.assertIsNone(self.instance.broker)
                     self.assertEqual(json.loads((self.run / runner.RECEIPT).read_text())['phase'], 'failed')
 
+    def test_prompted_mailbox_reaches_actual_watch_broker_start(self):
+        (self.run / 'console.log').write_bytes(b'/ # ' + mailbox_line())
+        self.instance.proc = self.proc
+        broker = mock.Mock(start_error=None)
+        def started(*args, **kwargs):
+            self.instance.done.set()
+            return broker
+        with mock.patch.object(runner, 'debugger_handoff', return_value={'qemu_pid': 456}), \
+                mock.patch.object(runner.transport, 'start', side_effect=started) as start:
+            self.instance._watch()
+        start.assert_called_once()
+        self.assertEqual(start.call_args.args[2], MAILBOX)
+        self.assertEqual(start.call_args.kwargs['qemu_pid'], 456)
+        self.assertIs(self.instance.broker, broker)
+        self.assertIsNone(self.instance.error)
+        result = json.loads((self.run / runner.RECEIPT).read_text())
+        self.assertEqual(result['phase'], 'attached')
+        self.assertTrue(result['broker_started'])
+        self.assertFalse(result['capture_verified'])
+
     def test_busy_debugger_deadline_never_starts_broker(self):
         (self.run / 'console.log').write_bytes(mailbox_line())
         self.instance.proc = self.proc
@@ -749,18 +827,26 @@ class LifecycleTests(unittest.TestCase):
         self.proc.wait.side_effect = waited
         sockets = mock.Mock(AF_UNIX=1)
         sockets.socket.return_value = sock
-        scope = dict(functional_camera=self.instance, early_media_watch=None, proc=self.proc,
-                     out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess,
+        from boot_probe_receipt import begin, finish
+        image = self.run / 'HOST_TEST-initramfs'
+        image.write_bytes(b'HOST_TEST synthetic initramfs identity')
+        boot_receipt = begin(self.run, image, ['HOST_TEST lifecycle only'])
+        scope = dict(boot_receipt=boot_receipt, finish_boot_receipt=finish,
+                     functional_camera=self.instance, early_media_watch=None, proc=self.proc,
+                     out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess, os=os,
+                     manifest={'files': {}}, sha256_file=lambda path: runner.digest(path.read_bytes()),
                      nullcontext=nullcontext, ExitStack=ExitStack, socket=sockets, live_fd=True,
                      host_sd_fd=None, directory_sd_fd=40, host_sd_export_verified=[True],
-                     scope_observer=None, record_scope_exit=record_scope_exit)
+                     scope_observer=None, writer_observer=None, record_scope_exit=record_scope_exit)
         exec(compile(ast.Module(body=[attempted, function], type_ignores=[]), '<actual-qmp>', 'exec'), scope)
         # Keep the real resource contexts and finalizer; replace only launch/boot/live work.
         stream_block.body = ast.parse(body).body
         channel.body = [stream_block]
         shutdown.body = [channel]
         outer.body = [shutdown]
-        program = compile(ast.Module(body=[outer], type_ignores=[]), '<actual-qmp-lifetime>', 'exec')
+        start = next(index for index, node in enumerate(tree.body) if isinstance(node, ast.Assign) and
+                     any(ast.unparse(target) == "manifest['qemu_log_streams']" for target in node.targets))
+        program = compile(ast.Module(body=tree.body[start:start + 2] + [outer], type_ignores=[]), '<actual-qmp-lifetime>', 'exec')
         final = compile(ast.Module(body=shutdown.finalbody, type_ignores=[]), '<actual-qmp-finally>', 'exec')
         return scope, program, final, events, stream
 
@@ -794,6 +880,69 @@ class LifecycleTests(unittest.TestCase):
     def test_HOST_shutter_gate_scope_exit_receipt_preserves_the_same_before_close_order(self):
         self._scope_exit_after_wait('qemu-readonly-shutter-gate-v1')
 
+    def test_HOST_shutter_gate_v2_scope_exit_preserves_the_existing_before_close_order(self):
+        self._scope_exit_after_wait('qemu-readonly-shutter-gate-v2')
+
+    def test_HOST_shutter_gate_v2_owned_exit_preserves_actual_nonzero_returncodes(self):
+        self.broker()
+        self.proc.pid = 456
+        for rc in (-15, 9):
+            with self.subTest(rc=rc):
+                output = self.run / ('gate-v2-rc-' + str(rc))
+                output.mkdir()
+                (output / 'readonly-scope-trace.log').write_bytes(b'HOST_TEST gate-v2 raw bytes\n')
+                self.proc.poll.return_value = None
+                scope, program, _, events, stream = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+                scope['out'] = output
+                scope['scope_observer'] = {'profile': 'qemu-readonly-shutter-gate-v2', 'library_sha256': 'd' * 64}
+                def waited(*, timeout):
+                    self.assertEqual(timeout, 5)
+                    self.assertFalse(stream.closed)
+                    events.append('wait-exit')
+                    self.proc.poll.return_value = rc
+                    return rc
+                self.proc.wait.side_effect = waited
+                with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                        mock.patch.object(runner.signal, 'signal', return_value=None):
+                    with self.assertRaises(SystemExit):
+                        exec(program, scope)
+                receipt = json.loads((output / 'readonly-scope-exit.json').read_bytes())
+                self.assertEqual(receipt['profile'], 'qemu-readonly-shutter-gate-v2')
+                self.assertEqual(receipt['returncode'], rc)
+                self.assertEqual(receipt['owned_wrapper_pid'], 456)
+                self.assertEqual(receipt['log_sha256'], runner.digest(b'HOST_TEST gate-v2 raw bytes\n'))
+                self.assertIs(receipt['capture_verified'], False)
+                self.assertEqual(events, [('write', {'execute': 'quit'}), 'flush', 'ack',
+                                          'wait-exit', 'stream-close', 'socket-close'])
+                self.proc.terminate.assert_not_called()
+                self.proc.kill.assert_not_called()
+
+    def test_HOST_shutter_gate_v2_wait_timeout_keeps_exit_receipt_unpublished(self):
+        self.broker()
+        scope, program, _, _, _ = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+        scope['scope_observer'] = {'profile': 'qemu-readonly-shutter-gate-v2', 'library_sha256': 'd' * 64}
+        self.proc.wait.side_effect = subprocess.TimeoutExpired('HOST_TEST owned wrapper', 5)
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'still running'):
+                exec(program, scope)
+        self.assertIsNone(self.proc.poll())
+        self.assertFalse((self.run / 'readonly-scope-exit.json').exists())
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_shutter_gate_v2_prepare_precedes_the_actual_probe_launch(self):
+        tree = ast.parse((HERE / 'qemu-menu-probe.py').read_text())
+        prepared = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and
+                    isinstance(node.func, ast.Name) and node.func.id == 'prepare_scope_observer']
+        launched = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and
+                    ast.unparse(node.func) == 'subprocess.Popen' and node.args and
+                    isinstance(node.args[0], ast.Name) and node.args[0].id == 'command']
+        self.assertEqual(len(prepared), 1)
+        self.assertEqual(len(launched), 1)
+        self.assertLess(prepared[0].lineno, launched[0].lineno)
+        self.assertEqual([ast.unparse(arg) for arg in prepared[0].args], ['base.parents[1]', 'env', 'out'])
+
     def _scope_exit_after_wait(self, version):
         self.broker()
         self.proc.pid = 456
@@ -811,6 +960,43 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(receipt['log_sha256'], runner.digest(b'host-only fixture bytes\n'))
         self.assertTrue(stream.closed)
         self.assertIn('wait-exit', events)
+        self.proc.terminate.assert_not_called()
+        self.proc.kill.assert_not_called()
+
+    def test_HOST_auxiliary_writer_exit_follows_actual_wait_and_primary_receipt(self):
+        broker = self.broker()
+        self.proc.pid = 456
+        scope, program, _, events, stream = self._probe_close_fixture("qmp('quit')\nraise SystemExit(0)")
+        scope['scope_observer'] = {'profile': 'qemu-readonly-shutter-gate-v2', 'library_sha256': 'd' * 64}
+        (self.run / 'readonly-scope-trace.log').write_bytes(b'HOST_TEST primary raw bytes\n')
+        metadata = {'profile': 'HOST_TEST auxiliary callback only'}
+        scope['writer_observer'] = metadata
+        def waited(*, timeout):
+            self.assertEqual(timeout, 5)
+            self.assertFalse(stream.closed)
+            events.append('wait-exit')
+            self.proc.poll.return_value = 9
+            return 9
+        self.proc.wait.side_effect = waited
+        def writer_exit(output, profile, process):
+            self.assertEqual(output, self.run)
+            self.assertIs(profile, metadata)
+            self.assertIs(process, self.proc)
+            self.assertFalse(stream.closed)
+            primary = json.loads((self.run / 'readonly-scope-exit.json').read_bytes())
+            self.assertEqual(primary['owned_wrapper_pid'], 456)
+            self.assertEqual(primary['returncode'], 9)
+            self.assertIs(primary['capture_verified'], False)
+            events.append('writer-exit-after-primary')
+        scope['writer_api'] = mock.Mock(record_exit=mock.Mock(side_effect=writer_exit))
+        with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
+                mock.patch.object(runner.signal, 'signal', return_value=None):
+            with self.assertRaises(SystemExit):
+                exec(program, scope)
+        scope['writer_api'].record_exit.assert_called_once_with(self.run, metadata, self.proc)
+        self.assertEqual(events, [('write', {'execute': 'quit'}), 'flush', 'ack', 'wait-exit',
+                                  'writer-exit-after-primary', 'stream-close', 'socket-close'])
+        broker.stop.assert_called_once_with()
         self.proc.terminate.assert_not_called()
         self.proc.kill.assert_not_called()
 
@@ -1372,7 +1558,7 @@ finally:instance.guard_shutdown(child,sys.exc_info()[1])
         scope = {'functional_camera': self.instance, 'proc': self.proc, 'sys': __import__('sys'),
                  'early_media_watch': early, 'host_sd_fd': None, 'directory_sd_fd': 40,
                  'host_sd_export_verified': [False], 'out': self.run, 'subprocess': __import__('subprocess'),
-                 'scope_observer': None, 'record_scope_exit': record_scope_exit}
+                 'scope_observer': None, 'writer_observer': None, 'record_scope_exit': record_scope_exit}
         with mock.patch.object(runner.signal, 'signal', return_value=None), self.assertRaises(runner.UnsafeCameraClose):
             exec(compile(ast.Module(body=block, type_ignores=[]), '<actual-finally-guard>', 'exec'), scope)
         self.proc.wait.assert_called_once_with()

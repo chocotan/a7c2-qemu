@@ -1,0 +1,9 @@
+{
+  "integration/fixture.S": "4b1ac70bdfb7719213ef78f8a6f43da5ff3420035df8be0619bd216e3018bcdb",
+  "integration/link.ld": "149eed9695378be613aa759b2cad06516e99313e9531f7ee0fb2b29af42262f5",
+  "integration/run_fixture.py": "4bea0fadce5d3a4ffd58a5cf8018eb33424770e33d66fd344485f4adc3db3719",
+  "integration/test_fixture_driver.py": "96e4526e042b20fa74fc4db77578dceb6973d4acdc9115aaeea9c1959659d9da",
+  "integration/test_actual_scope_plugin.py": "dac0a104aadb2c0afee50e7241fcc7f67dadddba2be496e7467719c542b854e5",
+  "integration/test_shutter_gate_trace_checks_v2.py": "2a3fb3bc7586ce6c1b4881d48d164477bf11cc127b53572e9fa4e2f8b54703af",
+  "integration/shutter_gate_trace_checks_v2.py": "db289b1109d52ea095d28fa852e7a2af4b6df8a375bed87b07816f36a934be23"
+}

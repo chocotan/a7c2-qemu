@@ -1,0 +1,457 @@
+{
+  "schema": 1,
+  "model": "ILCE-7CM2",
+  "firmware_version": "2.01",
+  "scope": "Public original-byte static facts; not a loader execution or fullboot result",
+  "loader_executed": false,
+  "sources": {
+    "wbi_cache": "final/a7c2-fail/8zQzNS0Q6I/verify_wbi_ap.py",
+    "wbi_cache_evidence": "final/a7c2-fail/8zQzNS0Q6I/evidence/wbi-ap-consistency.json",
+    "wbi_header_and_drop": "final/a7c2-fail/8zQzNS0Q6I/evidence/wbi-coldboot-adjudication.md",
+    "loader_tables": "report/2026-10-31-boot-loading-chain/metadata/loader-tables.json",
+    "cold_chain": "report/2026-10-31-boot-loading-chain/COLD-START.md",
+    "update_flow": "report/2026-11-03-p1-update-flow/WRITES-AND-RECOVERY.md"
+  },
+  "wbi": {
+    "raw_bytes": 267171648,
+    "raw_sha256": "db3730c8dbb2de71cfb7a66c343ba8e752e0f374a3a4104196ceac1e9d1b08dc",
+    "factory_bytes": 314572800,
+    "factory_derivation": "Exact raw prefix followed only by zero bytes",
+    "magic": "WBI2",
+    "magic_compare_bytes": 4,
+    "header_bytes": 88,
+    "section_bytes": 64,
+    "header_reader": "0xfe05dd8c",
+    "header_predicate": "0xfe059c20",
+    "header_memcmp": "0xfe059c48",
+    "header_cache": "Same-loader cached header and current media are separate facts",
+    "drop_request_bytes": 512,
+    "drop_write": "0x400b78",
+    "drop_checks_full_write": false,
+    "cache": {
+      "scope": "Four revalidated official-package AP cache pages only; whole-image compatibility and actual resume remain unknown",
+      "ap_sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+      "page_bytes": 4096,
+      "descriptor_bytes": 56,
+      "mapping": "0xffffffc01d6fcd38",
+      "anchors": [
+        {
+          "file_page_index": 6064,
+          "physical": "0x402537000",
+          "descriptor": "0x421a82408"
+        },
+        {
+          "file_page_index": 7185,
+          "physical": "0x40d0a2000",
+          "descriptor": "0x4218da370"
+        },
+        {
+          "file_page_index": 12384,
+          "physical": "0x40d0c2000",
+          "descriptor": "0x4218daa70"
+        },
+        {
+          "file_page_index": 19580,
+          "physical": "0x40b0de000",
+          "descriptor": "0x42186b090"
+        }
+      ]
+    }
+  },
+  "loader": {
+    "sha256": "9ad6bc5822a1a22e600e20a3b7b1dc42ffbfc9f7f9d90f7f3717b994c24d5ccf",
+    "bytes": 190464,
+    "analysis_base": "0xfe040000",
+    "event_table": "0xfe064538",
+    "event_stride": 40,
+    "predicate_evaluator": "0xfe050f54",
+    "selector": "0xfe051230",
+    "selection_scope": "Grouped evaluation and corrections; not an unconditional linear scan",
+    "default_mode": 1,
+    "cldboot_predicate_constant": false,
+    "events": [
+      {
+        "index": 0,
+        "event_id": 0,
+        "name": "updater",
+        "group": "0x1",
+        "mode": 3,
+        "predicate": "0xfe0519fc",
+        "tail_raw": "0x0"
+      },
+      {
+        "index": 1,
+        "event_id": 1,
+        "name": "adjust",
+        "group": "0x1",
+        "mode": 5,
+        "predicate": "0xfe0513a0",
+        "tail_raw": "0x0"
+      },
+      {
+        "index": 2,
+        "event_id": 2,
+        "name": "wl_anki",
+        "group": "0x1",
+        "mode": 5,
+        "predicate": "0xfe051490",
+        "tail_raw": "0x0"
+      },
+      {
+        "index": 3,
+        "event_id": 3,
+        "name": "bis_1st",
+        "group": "0x1",
+        "mode": 12,
+        "predicate": "0xfe05169c",
+        "tail_raw": "0x100"
+      },
+      {
+        "index": 4,
+        "event_id": 4,
+        "name": "bis_2nd",
+        "group": "0x1",
+        "mode": 12,
+        "predicate": "0xfe0516a0",
+        "tail_raw": "0x100"
+      },
+      {
+        "index": 5,
+        "event_id": 5,
+        "name": "ontimer",
+        "group": "0x1",
+        "mode": 9,
+        "predicate": "0xfe0516ac",
+        "tail_raw": "0x101"
+      },
+      {
+        "index": 6,
+        "event_id": 6,
+        "name": "ontimrz",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0516b4",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 7,
+        "event_id": 7,
+        "name": "keychat",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0516a4",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 8,
+        "event_id": 8,
+        "name": "lowbatt",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0516a8",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 9,
+        "event_id": 9,
+        "name": "panlopn",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0517d4",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 10,
+        "event_id": 10,
+        "name": "panlapo",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0516bc",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 11,
+        "event_id": 11,
+        "name": "batt_in",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0514a4",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 12,
+        "event_id": 12,
+        "name": "psw_off",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe05186c",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 13,
+        "event_id": 13,
+        "name": "chg_app",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe051488",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 14,
+        "event_id": 15,
+        "name": "usbcoff",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe051be0",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 15,
+        "event_id": 16,
+        "name": "rec_off",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0519ec",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 16,
+        "event_id": 14,
+        "name": "reallow",
+        "group": "0x2",
+        "mode": 7,
+        "predicate": "0xfe0519e4",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 17,
+        "event_id": 17,
+        "name": "usbchrg",
+        "group": "0x10",
+        "mode": 6,
+        "predicate": "0xfe051bd8",
+        "tail_raw": "0x10101"
+      },
+      {
+        "index": 18,
+        "event_id": 18,
+        "name": "hoff_en",
+        "group": "0x4",
+        "mode": 0,
+        "predicate": "0xfe051534",
+        "tail_raw": "0x10000"
+      },
+      {
+        "index": 19,
+        "event_id": 19,
+        "name": "ddr_off",
+        "group": "0x4",
+        "mode": 14,
+        "predicate": "0xfe051514",
+        "tail_raw": "0x10000"
+      },
+      {
+        "index": 20,
+        "event_id": 20,
+        "name": "bi_vali",
+        "group": "0x4",
+        "mode": 13,
+        "predicate": "0xfe051510",
+        "tail_raw": "0x10000"
+      },
+      {
+        "index": 21,
+        "event_id": 21,
+        "name": "hotboot",
+        "group": "0x8",
+        "mode": 2,
+        "predicate": "0xfe051578",
+        "tail_raw": "0x101"
+      },
+      {
+        "index": 22,
+        "event_id": 22,
+        "name": "ssboot",
+        "group": "0x8",
+        "mode": 11,
+        "predicate": "0xfe0519f4",
+        "tail_raw": "0x0"
+      },
+      {
+        "index": 23,
+        "event_id": 23,
+        "name": "ss_bis",
+        "group": "0x8",
+        "mode": 11,
+        "predicate": "0xfe0519f8",
+        "tail_raw": "0x0"
+      },
+      {
+        "index": 24,
+        "event_id": 24,
+        "name": "cldboot",
+        "group": "0x8",
+        "mode": 1,
+        "predicate": "0xfe05152c",
+        "tail_raw": "0x0"
+      }
+    ],
+    "normal_steps": {
+      "resource_load": {
+        "index": 8,
+        "function": "0xfe04f398"
+      },
+      "load_bi": {
+        "index": 17,
+        "function": "0xfe04f2bc"
+      },
+      "kernel_jump": {
+        "index": 24,
+        "function": "0xfe04e99c"
+      }
+    },
+    "load_bi_failure": "Changes mode to 1 without rerunning resource step 8; not a complete cold fallback",
+    "mode11_ram_reuse_helper": "0xfe051198"
+  },
+  "cold_chain": {
+    "evidence_kind": "static_source",
+    "guest_executed": false,
+    "kernelargs": [
+      "root=/dev/ram0",
+      "rootfstype=ext2",
+      "init=/sbin/init"
+    ],
+    "source_identities": {
+      "normal_ramroot": {
+        "bytes": 5218304,
+        "sha256": "b249308ff1a42f8f441cedbd6244e8ffa0b4c88b984b2d5e71a436d09ab86529"
+      },
+      "fstab_root": {
+        "bytes": 58,
+        "sha256": "c77d93236b89349bcc24853756f960bb49411e922c9430ede70b5b2cb8b6a4b2"
+      },
+      "fstab": {
+        "bytes": 1085,
+        "sha256": "3936e6508ba89a025fc998c824434562c2d16234db96e179ec3f3a90a5a1d6f0"
+      },
+      "fstab_ext": {
+        "bytes": 134,
+        "sha256": "a77bdfb7bf15d3a1240bdefc4edb4469672f3258d6d8dba7dd4164e3fd2d51c3"
+      },
+      "driver1": {
+        "bytes": 152,
+        "sha256": "22f29d06d7776fe5e8362c17049beabfd3e3bebffd222e51276e3704d483a591"
+      },
+      "driver2": {
+        "bytes": 1298,
+        "sha256": "19757bdd450061f861e2da44a6a93be2525668e3f7edc64e5a99a25bde56564e"
+      },
+      "aliases": {
+        "bytes": 375,
+        "sha256": "055cb3db7a40084aef8aaa89a7357921b514bf0af89690f920b608d9f3734cdc"
+      },
+      "bootin": {
+        "bytes": 23960,
+        "sha256": "dab3ce4b6c28a6c9ffd9f0b893dce1d08f3ee7302a09df87e518409e728be2f2"
+      },
+      "im": {
+        "bytes": 40920,
+        "sha256": "5171f576d8b76cfbf15581389183b390c445bd6ff9dd97fd6668c5f64e77dc91"
+      },
+      "sd_imdb_lib": {
+        "bytes": 75632,
+        "sha256": "14f3cd439bf27a6878b97d155c3cd97cc534a57395f922aed56e59a5b8b32f31"
+      }
+    },
+    "init2_sha256": "45d3b907e6ef96c9a930cd3e6f919db700bffb5f18c386abfdb655f4d9954aeb",
+    "stages": [
+      {
+        "source_stage": "C01",
+        "stage": "configured_resource_load",
+        "source": "B0 FA0080; p3 kernel/initrd and p2 kemco/DTB"
+      },
+      {
+        "source_stage": "C02",
+        "stage": "initial_ram_root",
+        "source": "p3:/initrd.img -> /dev/ram0 ext2"
+      },
+      {
+        "source_stage": "C03",
+        "stage": "initial_init",
+        "source": "RAM:/sbin/init"
+      },
+      {
+        "source_stage": "C04",
+        "stage": "storage_drivers",
+        "source": "RAM:/sbin/initrc/insmod_drv1"
+      },
+      {
+        "source_stage": "C05",
+        "stage": "storage_aliases",
+        "source": "RAM:/sbin/initrc/setup_nflash"
+      },
+      {
+        "source_stage": "C06",
+        "stage": "mount_p7",
+        "source": "RAM:/sbin/initrc/setup_rootfs; p7 -> /rootfs ro"
+      },
+      {
+        "source_stage": "C07",
+        "stage": "pivot_and_chroot",
+        "source": "pivot_root; exec busybox chroot . /bin/ash; /sbin/init2"
+      },
+      {
+        "source_stage": "C08",
+        "stage": "init2_mounts",
+        "source": "p7:/sbin/init2 and initrc/fstab; p15 -> /usr ro"
+      },
+      {
+        "source_stage": "C09",
+        "stage": "application_mode",
+        "source": "p2:/mode/dmode; exact string 0 skips application"
+      },
+      {
+        "source_stage": "C10",
+        "stage": "application_drivers",
+        "source": "p7 init2; p15:/kmod"
+      },
+      {
+        "source_stage": "C11",
+        "stage": "bis_senser",
+        "source": "p7 init2 setup_bis || setup_senser"
+      },
+      {
+        "source_stage": "C12",
+        "stage": "bootin",
+        "source": "p15:/bin/bootin.elf -> /usr/bin/bootin.elf"
+      },
+      {
+        "source_stage": "C13",
+        "stage": "console",
+        "source": "p7:/sbin/initrc/setup_console"
+      },
+      {
+        "source_stage": "C14",
+        "stage": "im",
+        "source": "bootin double fork; execve /usr/bin/im.elf"
+      },
+      {
+        "source_stage": "C15",
+        "stage": "app_library",
+        "source": "im IMDB; dlopen appFw.so; ELF INIT; dlsym"
+      },
+      {
+        "source_stage": "C16",
+        "stage": "app_entry",
+        "source": "Application_System_Init @ 0x1796918; asynchronous AppFw thread"
+      }
+    ]
+  },
+  "unresolved": [
+    "BootROM to active B0 complete handoff",
+    "Actual UPM state and electrical RAM retention",
+    "Actual configuration backend/record selection",
+    "CP final handoff and execution",
+    "WBI CPU/MMU/stack restoration execution"
+  ]
+}

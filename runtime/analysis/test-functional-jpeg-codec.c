@@ -6,6 +6,9 @@
 #define FCAM_TEST_WAIT_NS UINT64_C(2000000000)
 #include "functional-camera-bridge.c"
 #include "functional-jpeg-codec.h"
+#include "../../report/functional-capture-input/capture-mapper.h"
+#include "../../report/functional-capture-input/capture-jpeg-input.h"
+#include "../../report/functional-capture-output/capture-output-memory.h"
 #include "../../report/functional-camera-core/functional-camera-core.h"
 #include <assert.h>
 #include <stddef.h>
@@ -55,6 +58,54 @@ static pthread_mutex_t fixture_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t fixture_wake = PTHREAD_COND_INITIALIZER;
 static int block_backend, backend_entered, allow_backend;
 static unsigned bridge_stills, bridge_chunks, bridge_releases;
+static struct capture_input *capture_owner;
+static struct capture_input_info capture_info;
+static unsigned fixture_input_prepares, fixture_input_releases;
+/* HOST_TEST mapper/typed-reader fixtures only; original implementation is
+ * exercised separately by functional-capture-input's original-libc test. */
+int capture_mapper_bind(const char *sha) { assert(sha && !strcmp(sha,FUNCTIONAL_JPEG_CODEC_LIBRARY_SHA256));return 0; }
+int capture_jpeg_input_bind(const char *sha) { assert(sha && !strcmp(sha,"620e04a9cd51e65bd190ed1d5459b7235ff5a4109bc6498df342972621991d47"));return 0; }
+int capture_mapper_begin(struct capture_input *input,struct capture_mapper_scope *scope) {
+    assert(input==capture_owner);memset(scope,0,sizeof *scope);scope->input=input;
+    int rc=capture_input_info(input,&scope->info);
+    return rc?rc:capture_input_map(input,scope->info.metadata_alias,1024,0,0x29,&scope->mapping);
+}
+int capture_mapper_end(struct capture_mapper_scope *scope) {
+    assert(fixture_input_prepares==fixture_input_releases && scope->input==capture_owner);
+    int rc=capture_input_unmap(scope->input,&scope->mapping);
+    if(!rc)rc=capture_input_seal_metadata(scope->input);
+    memset(scope,0,sizeof *scope);return rc;
+}
+int capture_jpeg_input_prepare(struct capture_input *input,const uint8_t body[80],
+    uint32_t which,uint32_t quality,struct capture_jpeg_input *out) {
+    assert(input==capture_owner && which==selector && quality==requested_quality);
+    struct capture_jpeg_input candidate={.owner=input};
+    assert(!capture_input_info(input,&candidate.source) && candidate.source.metadata_readonly);
+    assert(!capture_input_metadata_read(input,candidate.source.metadata_unit,0,1024,&candidate.metadata));
+    assert(!capture_input_pixels(input,candidate.source.pixel_unit,0,candidate.source.pixel_bytes,&candidate.pixels));
+    uint64_t token=candidate.source.token;
+    if(which==1 && quality>CAPTURE_JPEG_THUMB_MAX_QUALITY)quality=CAPTURE_JPEG_THUMB_MAX_QUALITY;
+    memcpy(candidate.model_request,&token,8);memcpy(candidate.model_request+8,&which,4);
+    uint32_t flags=FCAM_STILL_FULL_JPEG,width=body[0x40]|(uint32_t)body[0x41]<<8,height=body[0x42]|(uint32_t)body[0x43]<<8;
+    memcpy(candidate.model_request+16,&flags,4);memcpy(candidate.model_request+20,&width,4);
+    memcpy(candidate.model_request+24,&height,4);memcpy(candidate.model_request+28,&quality,4);
+    uint8_t *image=candidate.image_size_info;
+    uint32_t unit=candidate.source.pixel_unit;memcpy(image+4,&unit,4);
+    image[0x1c]=1;image[0x21]=8;image[0x22]=image[0x23]=1;image[0x24]=2;
+    const unsigned offsets[]={0x2e,0x30,0x36,0x38,0x3e,0x40};
+    for(unsigned i=0;i<6;++i) {
+        uint16_t dimension=(uint16_t)(i%2?candidate.source.height:candidate.source.width);
+        memcpy(image+offsets[i],&dimension,2);
+    }
+    candidate.metadata_fnv1a64=fnv((const void *)candidate.metadata.address,candidate.metadata.bytes);
+    candidate.prepared=1;*out=candidate;++fixture_input_prepares;return 0;
+}
+int capture_jpeg_input_release(struct capture_jpeg_input *input) {
+    assert(input->owner==capture_owner && input->prepared);
+    assert(!capture_input_release_pixels(input->owner,&input->pixels));
+    assert(!capture_input_release_metadata(input->owner,&input->metadata));
+    memset(input,0,sizeof *input);++fixture_input_releases;return 0;
+}
 static uint8_t *last_model_output;
 static size_t last_model_bytes;
 struct message { uint32_t source, bytes; uint8_t data[104]; struct message *next; };
@@ -105,7 +156,7 @@ static uint32_t sdk_exec(void *p, const uint8_t *trigger) {
     store16(body,0x2000);store16(body+2,4);store16(body+4,80);store16(body+8,7);
     store16(body+12,0x2000);store16(body+14,0x8310);
     store16(body+16,0x2000);store16(body+18,0x8311);
-    put32(body+0x18,0);put32(body+0x1c,72);put32(body+0x20,0);
+    put32(body+0x18,0);put32(body+0x1c,capture_owner?capture_info.metadata_unit:72);put32(body+0x20,0);
     put32(body+0x24,0);put32(body+0x28,TEST_HANDLE);put32(body+0x2c,0);
     put32(body+0x34,ARENA_SIZE);put32(body+0x38,64);put32(body+0x3c,ARENA_SIZE-64);
     store16(body+0x40,(uint16_t)requested_width);store16(body+0x42,(uint16_t)requested_height);
@@ -393,15 +444,18 @@ static void *model_server(void *unused) {
         previous=get64(mailbox+FCAM_H_SEQUENCE);
         uint32_t op=get32(mailbox+FCAM_H_OPCODE),size=get32(mailbox+FCAM_H_REQUEST_BYTES);
         assert(get64(mailbox+FCAM_H_REQUEST_FNV)==fnv(mailbox+FCAM_HEADER_BYTES,size));
-        if(op==FCAM_OP_STILL) {
+        if(op==FCAM_OP_STILL || op==FCAM_OP_FRAME_STILL) {
             pthread_mutex_lock(&fixture_lock);
             ++bridge_stills;backend_entered=1;pthread_cond_broadcast(&fixture_wake);
             while(block_backend&&!allow_backend)pthread_cond_wait(&fixture_wake,&fixture_lock);
             pthread_mutex_unlock(&fixture_lock);
-            assert(size==16&&get32(mailbox+FCAM_HEADER_BYTES)==FCAM_STILL_FULL_JPEG);
-            assert(get32(mailbox+FCAM_HEADER_BYTES+4)==(requested_width?requested_width:640));
-            assert(get32(mailbox+FCAM_HEADER_BYTES+8)==(requested_height?requested_height:480));
-            assert(get32(mailbox+FCAM_HEADER_BYTES+12)==requested_quality);
+            const unsigned shift=op==FCAM_OP_FRAME_STILL?16:0;
+            assert(size==16+shift&&get32(mailbox+FCAM_HEADER_BYTES+shift)==FCAM_STILL_FULL_JPEG);
+            assert(get32(mailbox+FCAM_HEADER_BYTES+shift+4)==(requested_width?requested_width:640));
+            assert(get32(mailbox+FCAM_HEADER_BYTES+shift+8)==(requested_height?requested_height:480));
+            uint32_t actual_quality=shift && selector==1 && requested_quality>CAPTURE_JPEG_THUMB_MAX_QUALITY?CAPTURE_JPEG_THUMB_MAX_QUALITY:requested_quality;
+            assert(get32(mailbox+FCAM_HEADER_BYTES+shift+12)==actual_quality);
+            if(shift)assert(capture_owner && get64(mailbox+FCAM_HEADER_BYTES)==capture_info.token);
             assert(get32(mailbox+FCAM_H_NATIVE_SOURCE)==TEST_QID);
             assert(get32(mailbox+FCAM_H_NATIVE_DESTINATION)==FUNCTIONAL_JPEG_CODEC_SID);
             assert(get32(mailbox+FCAM_H_NATIVE_BYTES)==104);
@@ -418,7 +472,7 @@ static void *model_server(void *unused) {
         else rc=fcam_model_request(model,op,size?input:NULL,size,output,sizeof output,&result);
         if(op==FCAM_OP_READ_RESULT)++bridge_chunks;
         if(op==FCAM_OP_RELEASE_RESULT)++bridge_releases;
-        if(!rc&&op==FCAM_OP_STILL) {
+        if(!rc&&(op==FCAM_OP_STILL || op==FCAM_OP_FRAME_STILL)) {
             assert(!last_model_output);last_model_bytes=(size_t)result.total;
             last_model_output=malloc(last_model_bytes);assert(last_model_output);
             memcpy(last_model_output,output,result.used);
@@ -514,6 +568,24 @@ static void wait_finished(void) {
 }
 static void emit_blob(const char *name,const void *p,size_t bytes) {
     assert(printf("BLOB %s %zu\n",name,bytes)>0);assert(fwrite(p,1,bytes,stdout)==bytes);
+}
+static void create_retained_input(void) {
+    uint8_t config[48]={0},out[FCAM_DATA_BYTES],wire[16]={5,0,0x38,0x40,29,0,0,0,2};
+    put32(config,128);put32(config+4,64);put32(config+8,30);put32(config+12,requested_quality);
+    put32(config+16,400);put32(config+20,100);store64(config+24,2500);store64(config+32,1000000);
+    struct fcam_exec_result result;
+    assert(!fcam_model_request(model,FCAM_OP_INIT,config,48,out,sizeof out,&result));
+    assert(!fcam_model_request(model,FCAM_OP_FRAME_CAPTURE,wire,16,out,sizeof out,&result));
+    assert(result.used==result.total && result.used==96+128u*64u*3u);
+    emit_blob("CAPTURE_FRAME",out,result.used);
+    uint8_t parameters[128]={0};parameters[0x63]=8;
+    assert(!capture_input_create(out,result.used,wire,parameters,&capture_owner));
+    assert(!capture_input_info(capture_owner,&capture_info));
+    uint8_t release[16];put64(release,result.token);put64(release+8,fnv(out,result.used));
+    assert(!fcam_model_request(model,FCAM_OP_RELEASE_RESULT,release,16,NULL,0,&result));
+    assert(!functional_jpeg_codec_attach_capture(capture_owner));
+    assert(functional_jpeg_codec_attach_capture(capture_owner)==-EALREADY);
+    assert(capture_input_destroy(capture_owner)==-EBUSY);
 }
 static int test_main_sequence(void){
     main_kind=1;quality_code=2;
@@ -614,6 +686,7 @@ static int test_main_sequence(void){
         goto idle_cleanup;
     }
     model=fcam_model_create(7);assert(model);
+    if(!strcmp(scenario,"main-retained") || !strcmp(scenario,"main-retained-pair"))create_retained_input();
     assert(!fcam_bridge_init(record_metadata));pthread_t server;assert(!pthread_create(&server,NULL,model_server,NULL));
     struct fcam_native_origin init={TEST_QID,FUNCTIONAL_JPEG_CODEC_SID,4,80,1};
     uint8_t state[128];struct fcam_bridge_result result;
@@ -635,6 +708,12 @@ static int test_main_sequence(void){
     if(bad_ack){assert(!native_responses);goto retained;}
     struct functional_jpeg_codec_snapshot s;assert(!functional_jpeg_codec_snapshot(&s));
     assert(s.pending && lease_token && !release_count && s.native_ack==1 && native_responses==1);
+    if(capture_owner) {
+        assert(!capture_input_info(capture_owner,&capture_info) && capture_info.mapping_references==1 &&
+            capture_info.pixel_references==1 && capture_info.owner_references==1);
+        assert(!fixture_input_releases && fixture_input_prepares==1);
+        assert(functional_jpeg_codec_attach_capture(NULL)==-EBUSY && capture_input_destroy(capture_owner)==-EBUSY);
+    }
     assert(get32(config_store+config_offset+8)==requested_capacity && !memcmp(config_copy,config_store,sizeof config_copy));
     if(!strcmp(scenario,"main-no-comp")){
         assert(consume_packet(1,0,0)==0x201 && !comp_execs);goto retained;
@@ -708,6 +787,41 @@ static int test_main_sequence(void){
     assert(!fcam_bridge_call(&init,FCAM_OP_STATE,NULL,0,state,sizeof state,&result));emit_blob("STATE",state,sizeof state);
     assert(functional_jpeg_codec_observe_freed(TEST_QID,(void *)reply_addresses[0],0)==0);
     assert(functional_jpeg_codec_observe_freed(TEST_QID,(void *)reply_addresses[1],0)==0);
+    if(capture_owner) {
+        struct capture_output_memory *captured_output=NULL;
+        assert(functional_jpeg_codec_capture_output(0,&captured_output)==-ENODATA && !captured_output);
+        unsigned expected_releases=1;
+        if(!strcmp(scenario,"main-retained-pair")) {
+            wait_finished();free(last_model_output);last_model_output=NULL;last_model_bytes=0;
+            selector=1;mode=1;quality_code=4;requested_width=160;requested_height=120;
+            object[0x20]=selector;comp_object[0x20]=selector;serialized_writes=0;
+            put32(config_store+0x60,TEST_HANDLE);put32(config_store+0x64,64);put32(config_store+0x68,ARENA_SIZE-64);
+            memcpy(config_copy,config_store,sizeof config_copy);
+            assert(!fixture_main_entry(object,dmm_completion));
+            assert(functional_jpeg_codec_capture_output(0,&captured_output)==-EBUSY && !captured_output);
+            assert(!consume_packet(1,0,0));assert(!fixture_comp_entry(comp_object,previous_ack));
+            assert(!consume_packet(1,0,0));wait_finished();expected_releases=2;
+            assert(functional_jpeg_codec_capture_output(UINT64_MAX,&captured_output)==-ERANGE && !captured_output);
+            assert(!functional_jpeg_codec_capture_output(0,&captured_output) && captured_output);
+            struct capture_output_memory *second=NULL;
+            assert(functional_jpeg_codec_capture_output(0,&second)==-EALREADY && !second);
+            struct capture_output_span main_span,thumb_span;
+            assert(!capture_output_memory_span(captured_output,CAPTURE_OUT_MAIN,&main_span));
+            assert(!capture_output_memory_span(captured_output,CAPTURE_OUT_THUMB,&thumb_span));
+            assert(thumb_span.bytes==last_model_bytes && !memcmp((void *)thumb_span.cpu,last_model_output,last_model_bytes));
+            emit_blob("COLLECTED_MAIN_NO_SOI",(void *)main_span.cpu,main_span.bytes);
+            emit_blob("COLLECTED_THUMB",(void *)thumb_span.cpu,thumb_span.bytes);
+            assert(!functional_jpeg_codec_attach_capture(NULL));
+            assert(capture_input_destroy(capture_owner)==-EBUSY);
+            assert(!capture_output_memory_destroy(captured_output));
+        }
+        assert(!capture_input_info(capture_owner,&capture_info) && !capture_info.mapping_references &&
+            !capture_info.pixel_references && capture_info.owner_references==(expected_releases==2?0u:1u) && fixture_input_releases==expected_releases);
+        if(expected_releases==1)assert(functional_jpeg_codec_shutdown()==-EBUSY);
+        assert(!functional_jpeg_codec_attach_capture(NULL));
+        emit_blob("CAPTURE_RGB",(const void *)capture_info.pixel_cpu,capture_info.pixel_bytes);
+        assert(!capture_input_destroy(capture_owner));capture_owner=NULL;
+    }
     assert(!functional_jpeg_codec_shutdown());
     if(getenv("FJPEG_HOST_RECEIPTS")){
         struct fcam_frame_proof proof;

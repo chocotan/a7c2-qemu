@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from tts_dmm_evidence import correlate, decode_table, CP_BASE, SLOT_BYTES
+from test_final_graph_observer_wiring import function
 
 
 def fixture_table():
@@ -139,13 +140,109 @@ def test_actual_truncated_console_record_preserves_next_line(record_binary):
 
 
 @pytest.mark.parametrize('prefix', ['FUNCTIONAL_JPEG_CODEC ', 'FUNCTIONAL_MPR_PI ',
-                                  'FUNCTIONAL_CAMERA_CONTROL_AP_FREE '])
+                                  'FUNCTIONAL_CAMERA_CONTROL_AP_FREE ',
+                                  'FUNCTIONAL_CP_PARAMETER_BANK_EVENT ',
+                                  'FUNCTIONAL_CP_PARAMETER_BANK_BYTES ',
+                                  'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCE_DEPENDENCIES ',
+                                  'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_TTS_TABLE ',
+                                  'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_RESERVED ',
+                                  'FUNCTIONAL_CP_CRANK_CONTROL_EVENT ',
+                                  'FUNCTIONAL_CP_CRANK_CONTROL_BYTES ',
+                                  'FUNCTIONAL_CP_CRANK_CONTROL_RESOURCE_DEPENDENCIES ',
+                                  'FUNCTIONAL_CP_CRANK_CONTROL_RESOURCES_TTS_TABLE ',
+                                  'FUNCTIONAL_CP_CRANK_CONTROL_RESOURCES_RESERVED ',
+                                  'FUNCTIONAL_CP_MOVIE_FORMAT_EVENT ',
+                                  'FUNCTIONAL_CP_MOVIE_FORMAT_BYTES ',
+                                  'FUNCTIONAL_CP_MOVIE_FORMAT_RESOURCE_DEPENDENCIES ',
+                                  'FUNCTIONAL_CP_MOVIE_FORMAT_RESOURCES_TTS_TABLE ',
+                                  'FUNCTIONAL_CP_MOVIE_FORMAT_RESOURCES_RESERVED ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_RESOURCE_DEPENDENCIES ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_RESOURCES_TTS_TABLE ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_RESOURCES_RESERVED ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_RESOURCES_REFUSED ',
+                                  'FUNCTIONAL_CP_OU_CRANK_CONTROL_RESOURCES_FAULT '])
 def test_actual_functional_content_receipt_is_not_truncated(record_binary, prefix):
     body = 'request_hex=' + 'ab' * 104 + ' trace=' + 'Z' * 1900 + ' native_done=1'
     result = subprocess.run([str(record_binary), prefix], input=body,
                             capture_output=True, text=True, timeout=5)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.splitlines() == ['OBS ' + prefix + body, 'OBS DMM_SERVICE following=1']
+
+
+@pytest.fixture(scope='module')
+def ou_record_binary(tmp_path_factory):
+    """Use actual Main mirroring and actual Native OU formatter; no owner execution."""
+    here = Path(__file__).resolve().parent
+    source = (here / 'menu-observe.c').read_text()
+    owner = (here / 'device-models/functional-camera-control.c').read_text()
+    start = source.index('static void record(const char *prefix, const char *name) {')
+    mirror = source[start:source.index('\nvoid *dlopen(', start)]
+    formatter = function(owner, 'ou_crank_record')
+    code = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include "device-models/functional-camera-control.h"
+static unsigned char *memory_log;
+static int fake_open(const char *path,int flags,...){assert(!strcmp(path,"/dev/console") && flags==1);return 77;}
+static long fake_write(int fd,const void *data,unsigned long bytes){assert(fd==77 && fwrite(data,1,bytes,stdout)==bytes);return (long)bytes;}
+#define open fake_open
+#define write fake_write
+#define MENU_OBSERVE_TRANSPORT_SELFTEST 1
+static long tid(void){return 384;}
+static uint32_t u32(const unsigned char *p){return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
+static uint64_t hash(const void *data,size_t bytes){
+    const unsigned char *p=data;uint64_t h=UINT64_C(14695981039346656037);
+    for(size_t i=0;i<bytes;i++){h^=p[i];h*=UINT64_C(1099511628211);}
+    return h;
+}
+''' + mirror + '\n' + formatter + r'''
+int main(void){
+    struct native_functional_camera_ou_crank_snapshot s={.owner_pid=259,.transaction=17,
+        .sender_tid=384,.model_instance=77,.bank_generation=3,.crank_generation=9,.movie_generation=11,.ou_generation=1};
+    unsigned char request[12]={5,0xa5,0x72,0x40,0x61,0,0,0x80};
+    memcpy(s.request,request,12);
+    s.origin=(struct fcam_native_origin){0x80020002,0x90030001,0x4072,12,hash(request,12)};
+    for(size_t i=0;i<sizeof s.receipt;i++)s.receipt[i]=(unsigned char)i;
+    s.receipt_fnv1a64=hash(s.receipt,sizeof s.receipt);
+    ou_crank_record(record,"MODEL","receipt",&s);
+    record("DMM_SERVICE ","following=1");return 0;
+}
+'''
+    directory = tmp_path_factory.mktemp('actual-main-ou-record')
+    path, binary = directory / 'record.c', directory / 'record'
+    path.write_text(code)
+    built = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                            '-I', str(here), str(path), '-o', str(binary)],
+                           capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stdout + built.stderr
+    return binary
+
+
+def test_actual_ou_event109_and_bytes20_console_trailers(ou_record_binary):
+    result = subprocess.run([str(ou_record_binary)], capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert len(lines) == 4 and lines[-1] == 'OBS DMM_SERVICE following=1'
+    assert lines[0].startswith('OBS FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT event=MODEL ')
+    fields = dict(piece.split('=', 1) for piece in lines[0].split()[2:])
+    assert len(fields) == 109 and fields['resource'] == '36' and fields['oneway'] == '1'
+    assert fields['ACK_sent'] == fields['notification_sent'] == fields['capture_verified'] == '0'
+    assert lines[0].endswith('original_CP=0 physical_ASIC_verified=0 EE=0 frame=0 capture=0 capture_verified=0')
+    chunks = []
+    for index, line in enumerate(lines[1:3]):
+        assert line.startswith('OBS FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES event=MODEL ')
+        values = dict(piece.split('=', 1) for piece in line.split()[2:])
+        assert len(values) == 20 and values['kind'] == 'receipt' and values['total'] == '224'
+        assert int(values['offset']) == index * 128
+        chunks.append(bytes.fromhex(values['raw']))
+        assert len(chunks[-1]) == int(values['bytes'])
+        assert line.endswith('functional_model=1 original_CP=0 physical_ASIC_verified=0 capture_verified=0')
+    assert b''.join(chunks) == bytes(range(224))
 
 
 def initial_creation_console():

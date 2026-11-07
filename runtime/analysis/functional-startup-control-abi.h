@@ -12,7 +12,9 @@
  * 4014 saves an observed-mode descriptor constraining later RGB/codec domain
  * integrity; no physical enum or still/video restriction is inferred.
  * 4057/request0 copies/readbacks current virtual config40 into an independent
- * settings checkpoint. A later legal Configure may change current parameters;
+ * settings checkpoint. 403f/body(0,0) restores the full RGB viewport, with a
+ * separate current-config40 checkpoint; other magnification inputs are unsupported.
+ * A later legal Configure may change current parameters;
  * checkpoint integrity remains enforced without requiring live equality.
  * Require prior INIT and active640x480 RGB888/stride1920. Every success/repeat
  * renders, copies/readbacks all921600 bytes to an independent sink, retires,
@@ -26,6 +28,7 @@
 #define FCAM_STARTUP_CONTROL_CLASS 9u
 #define FCAM_STARTUP_CONTROL_CMD_MODE 0x4014u
 #define FCAM_STARTUP_CONTROL_CMD_SETTINGS 0x4057u
+#define FCAM_STARTUP_CONTROL_CMD_FOCUS_OFF 0x403fu
 #define FCAM_STARTUP_CONTROL_I_COMMAND 0u
 #define FCAM_STARTUP_CONTROL_I_BODY_BYTES 2u
 #define FCAM_STARTUP_CONTROL_I_BODY 4u
@@ -44,7 +47,8 @@ static inline int fcam_startup_control_validate_basic(
     const unsigned command = (unsigned)input[0] | (unsigned)input[1] << 8;
     const unsigned bytes = (unsigned)input[2] | (unsigned)input[3] << 8;
     if (!((command == FCAM_STARTUP_CONTROL_CMD_MODE && bytes == 16u) ||
-          (command == FCAM_STARTUP_CONTROL_CMD_SETTINGS && bytes == 4u))) return 0;
+          (command == FCAM_STARTUP_CONTROL_CMD_SETTINGS && bytes == 4u) ||
+          (command == FCAM_STARTUP_CONTROL_CMD_FOCUS_OFF && bytes == 8u))) return 0;
     for (size_t i = 0; i < 16u; ++i)
         if (input[4u + i] != (command == FCAM_STARTUP_CONTROL_CMD_MODE ?
             fcam_startup_control_mode_body[i] : 0u)) return 0;

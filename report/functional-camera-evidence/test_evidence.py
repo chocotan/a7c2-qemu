@@ -315,7 +315,7 @@ def host_test_transport(root, operations=None, console_prefix='', guest_pid=77, 
         op, data, payload = operation['op'], operation['data'], operation['output']
         native = operation.get('origin', origin)
         first = sum(event['kind'] == 'request' for event in events) + 1
-        token = operation.get('token', len(intervals) + 1) if op in (16, 33, 34) and payload else 0
+        token = operation.get('token', len(intervals) + 1) if op in (16, 17, 18, 33, 34) and payload else 0
         chunk_size = operation.get('chunk_size', checker.DATA_BYTES)
         chunks = [payload[i:i + chunk_size] for i in range(0, len(payload), chunk_size)] or [b'']
         seq, offset = first, 0
@@ -701,7 +701,7 @@ class QemuAdmissionTests(unittest.TestCase):
             checker.check_qemu_files(self.manifest, self.frozen)
 
 
-def independent_media(kind):
+def independent_media(kind, force_idr_at=None):
     """Real decode fixtures generated only during focused host tests."""
     common = ['ffmpeg', '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
               'color=c=blue:size=24x16:rate=30', '-threads', '1']
@@ -711,7 +711,8 @@ def independent_media(kind):
                               stderr=subprocess.PIPE, timeout=15).stdout
     with tempfile.TemporaryDirectory(prefix='HOST_TEST_decoder_') as directory:
         target = Path(directory) / 'HOST_TEST.MP4'
-        subprocess.run(common + ['-frames:v', '4', '-c:v', 'libx264', '-profile:v', 'baseline', '-bf', '0',
+        force = ['-force_key_frames', f'expr:eq(n,{force_idr_at})'] if force_idr_at is not None else []
+        subprocess.run(common + force + ['-frames:v', '4', '-c:v', 'libx264', '-profile:v', 'baseline', '-bf', '0',
                        '-tune', 'zerolatency', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(target)],
                        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
         return target.read_bytes()
@@ -730,14 +731,15 @@ def host_test_exif(primary, thumb, endian='II'):
     return primary[:2] + b'\xff\xe1' + struct.pack('>H', len(app) + 2) + app + primary[2:]
 
 
-def host_test_storage(root, jpeg_payload=None):
+def host_test_storage(root, jpeg_payload=None, force_idr_at=None):
     run = root / 'HOST_TEST_storage'
     (run / 'SD').mkdir(parents=True)
     card = run / 'host-sd'
     records, paths = [], []
     for token, (kind, path) in enumerate((('JPEG', 'DCIM/HOST_TEST.JPG'),
                                         ('MP4', 'PRIVATE/M4ROOT/CLIP/HOST_TEST.MP4')), 1):
-        payload = jpeg_payload if kind == 'JPEG' and jpeg_payload is not None else independent_media(kind)
+        payload = jpeg_payload if kind == 'JPEG' and jpeg_payload is not None else independent_media(
+            kind, force_idr_at if kind == 'MP4' else None)
         target = card / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(payload)
@@ -777,7 +779,8 @@ def host_test_storage(root, jpeg_payload=None):
 def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
                       startup_stages=0, stage_inline=False, late_apply=False, refresh_source=0x81cf61c9,
                       configuration_only=False, histogram=False, histogram_log=None,
-                      jpeg_main=False, jpeg_thumb=False, jpeg_endian='II', jpeg_model=None):
+                      jpeg_main=False, jpeg_thumb=False, jpeg_endian='II', jpeg_model=None, video_idr_at=None,
+                      native_force_factor=None):
     """Full software replay; every native/observer field is explicitly HOST_TEST.
 
     Artifact/13-edge provenance is tested separately; this fixture calls the real
@@ -802,7 +805,8 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
             output = io.BytesIO()
             Image.new('RGB', (160, 120), 'blue').save(output, format='JPEG')
             thumb = output.getvalue()
-        storage_run, paths = host_test_storage(root, host_test_exif(primary, thumb, jpeg_endian) if thumb else primary)
+        storage_run, paths = host_test_storage(root, host_test_exif(primary, thumb, jpeg_endian) if thumb else primary,
+                                               force_idr_at=1 if native_force_factor is not None else None)
         exported_jpeg, movie = (path.read_bytes() for path in paths)
         jpeg = primary if primary is not None else exported_jpeg
         parsed_movie = checker.mp4_samples(movie)
@@ -917,11 +921,11 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
             op = 9
             canonical = struct.pack('<2H', command, len(body)) + body + bytes(28 - len(body))
         elif display:
-            assert requested[0] == 'display' and len(requested) in (2, 3) and requested[1] in (0x141, 0x152, 0x162)
+            assert requested[0] == 'display' and len(requested) in (2, 3) and requested[1] in (0x141, 0x152, 0x162, 0x163, 0x170)
             command = requested[1]
             body = requested[2] if len(requested) == 3 else PEAKING_BODY8 if command == 0x152 else bytes(8)
             assert len(body) == 8
-            op, native_bytes = 8, {0x141: 8, 0x152: 16, 0x162: 10}[command]
+            op, native_bytes = 8, {0x141: 8, 0x152: 16, 0x162: 10, 0x163: 14, 0x170: 12}[command]
             canonical = struct.pack('<2I', command, native_bytes - 8) + body
         else:
             canonical = requested if zebra or layout else bytes([int(requested), 5 if requested else 1, 5 if requested else 1, 0xa5, 2,
@@ -940,7 +944,7 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         native = dict(producer_tid=90,
                       source=0x81cf61ca if bit_width else
                              0x81cf61d0 + list(checker.BB_COMMANDS).index(command) if bb else
-                             {0x141: refresh_source, 0x152: 0x81cf61c7, 0x162: 0x81cf61c8}[command] if display else
+                             {0x141: refresh_source, 0x152: 0x81cf61c7, 0x162: 0x81cf61c8, 0x163: 0x81cf61ca, 0x170: 0x81cf61c7}[command] if display else
                              0x81cf61c6 if layout else 0x81cf61c5 if zebra else 0x81cf61c4,
                       destination=0x92840747, command=command, bytes=native_bytes, fnv1a64=checker.fnv(original))
         if command == 0x141:
@@ -1135,25 +1139,29 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         thumb_body[0x49], thumb_body[0x4b] = 4, 1
         jpeg_receipts(2, thumb, thumb_body, 1)
     native_requests, native_origins = {}, {}
-    for seq, command in enumerate((0, 1, 3, 4), 1):
+    lifecycle = (0, 1, 2, 3, 4) if native_force_factor is not None else (0, 1, 3, 4)
+    for seq, command in enumerate(lifecycle, 1):
         request = bytearray(48)
         struct.pack_into('<H', request, 2, command)
-        struct.pack_into('<I', request, 0x10, {0: 0x98, 1: 0x80, 3: 0x10, 4: 0}[command])
+        struct.pack_into('<I', request, 0x10, {0: 0x98, 1: 0x80, 2: 4, 3: 0x10, 4: 0}[command])
+        if command == 2:
+            struct.pack_into('<Q', request, 8, 0x2500)
+            struct.pack_into('<Q', request, 0x28, 0x3500)
         request[0x18] = 0x20
         struct.pack_into('<I', request, 0x24, 0x210)
         native_requests[command] = bytes(request)
         native_origins[command] = dict(producer_tid=90, source=0x80c70047, destination=0x8055001f,
                                        command=command, bytes=48, fnv1a64=checker.fnv(request))
     def request(command):
-        seq = (0, 1, 3, 4).index(command) + 1
+        seq = lifecycle.index(command) + 1
         row('FUNCTIONAL_MPR_REQUEST', request_seq=seq, command=command, rc=0, pid=77, producer_tid=81,
             src='0x80c70047', dst='0x8055001f', native_bytes=48, native_fnv=hx(checker.fnv(native_requests[command])),
             epoch=1, memory_generation=1, instance=0 if command == 0 else 99, wire_hex=native_requests[command].hex())
     def completed(command):
-        seq = (0, 1, 3, 4).index(command) + 1
+        seq = lifecycle.index(command) + 1
         request_wire = native_requests[command]
         event = bytearray(48)
-        struct.pack_into('<H', event, 2, command * 2 + 1)
+        struct.pack_into('<H', event, 2, (4 if native_force_factor == 1 else 5) if command == 2 else command * 2 + 1)
         event[0x18] = 0x20
         struct.pack_into('<I', event, 0x24, 0x4e0)
         common_event = dict(seq=seq, command=command, wire_fnv=hx(checker.fnv(event)), src='0x8055001f', dst='0x80c70047',
@@ -1181,13 +1189,14 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
     params = b''.join(b'\x00\x00\x00\x01' + nal for nal in parsed_movie['parameters'])
     es_used, ticket, write_cursor, outstanding = 0, 0, 0, 0
     publications = []
-    def publish(info, packet_generation, converted=b'', model_proof=None, result_length=0):
+    def publish(info, packet_generation, converted=b'', model_proof=None, result_length=0, command=1):
         nonlocal ticket, write_cursor, outstanding
         ticket += 1
+        call_command = 3 if info[0] == 7 else command
         f = dict(epoch=1, instance=99, native_start_fnv=hx(checker.fnv(native_requests[1])), memory_generation=1,
                  group=1, pi_token='0x101', es_token='0x102', request_seq=2,
-                 call_request_seq=3 if info[0] == 7 else 2,
-                 call_native_fnv=hx(checker.fnv(native_requests[3 if info[0] == 7 else 1])),
+                 call_request_seq=lifecycle.index(call_command) + 1,
+                 call_native_fnv=hx(checker.fnv(native_requests[call_command])),
                  model_token=hx(model_proof['result_token']), result_bytes=result_length, ticket=ticket, slot=ticket,
                  slot_generation=1, cycle=0, frame_generation=packet_generation, es_offset=es_used if converted else 0,
                  es_bytes=len(converted), es_fnv=hx(checker.fnv(converted)) if converted else 0,
@@ -1201,20 +1210,29 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
         write_cursor, outstanding = ticket, outstanding + 1
         return f
     for index, nals in enumerate(parsed_movie['samples']):
+        command = 2 if native_force_factor is not None and index == 1 else 1
+        if command == 2:
+            request(2)
+            row('FUNCTIONAL_MPR_FORCE_REQUEST', request_seq=3, native_fnv=hx(checker.fnv(native_requests[2])),
+                opaque4='efcdab89', opaque_word='0x89abcdef', parameter_v='0x3500', parameter_p='0x2500',
+                parameter_generation=2, parameter_token='0x301', parameter_fnv=hx(checker.fnv(bytes.fromhex('efcdab89'))),
+                parameter_bytes=4, expected_factor=hx(native_force_factor), expected_result='0x990000',
+                software_policy='opaque4-force-this-frame-v1', original_argument_semantics_verified=0, capture_verified=0)
         packet_bytes = b''.join(b'\x00\x00\x00\x01' + nal for nal in nals)
         header = bytearray(96)
-        struct.pack_into('<2I3Q4I2Q2I', header, 0, 24, 16, index, index, 1, 1, 30, int(index == 0), 0,
+        struct.pack_into('<2I3Q4I2Q2I', header, 0, 24, 16, index, index, 1, 1, 30, int(any(nal[0] & 31 == 5 for nal in nals)), 0,
                          len(packet_bytes), generation + 1, len(params), 0x61766331)
         output = bytes(header) + params + packet_bytes
         p = proof(33, output)
-        operations.append(dict(op=33, data=b'', output=output, origin=native_origins[1], proof=p))
+        frame_input = struct.pack('<I', 1) if index == video_idr_at or command == 2 else b''
+        operations.append(dict(op=33, data=frame_input, output=output, origin=native_origins[command], proof=p))
         records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
         for is_config, source, source_offset, values in (
                 [(True, params, 96, parsed_movie['parameters'])] if index == 0 else []) + [
                 (False, packet_bytes, 96 + len(params), nals)]:
             converted = checker.avcc_bytes(values)
             info = bytearray(96)
-            info[0] = 4 if is_config else int(index != 0)
+            info[0] = 4 if is_config else int(not any(nal[0] & 31 == 5 for nal in nals))
             struct.pack_into('<Q', info, 8, 0x900000 + es_used)
             struct.pack_into('<I', info, 0x10, len(converted))
             if is_config:
@@ -1226,12 +1244,13 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
             else:
                 struct.pack_into('<2Q', info, 0x18, index * 3000, index * 3000)
             row('FUNCTIONAL_MPR_ES', epoch=1, instance=99, native_start_fnv=hx(checker.fnv(native_requests[1])), request_seq=2,
-                call_request_seq=2, call_native_fnv=hx(checker.fnv(native_requests[1])), memory_generation=1, group=1, es_token='0x102',
+                call_request_seq=lifecycle.index(command) + 1, call_native_fnv=hx(checker.fnv(native_requests[command])),
+                memory_generation=1, group=1, es_token='0x102',
                 address=hx(0x900000 + es_used), offset=es_used, bytes=len(converted), avcc_fnv=hx(checker.fnv(converted)),
                 nal_count=len(values), nal_payload_fnv=hx(checker.fnv(b''.join(values))), frame_generation=generation,
                 packet_sequence=index, model_token=hx(p['result_token']), result_bytes=len(output), source_offset=source_offset,
                 source_bytes=len(source), source_fnv=hx(checker.fnv(source)), info_type=info[0], pid=77, observer_tid=90, rc=0)
-            pub = publish(info, generation, converted, p, len(output))
+            pub = publish(info, generation, converted, p, len(output), command)
             es_used += len(converted)
             if not is_config:
                 row('FUNCTIONAL_MPR_PACKET', epoch=1, instance=99, native_start_fnv=hx(checker.fnv(native_requests[1])),
@@ -1242,6 +1261,12 @@ def host_test_capture(root, vdf_paths=(), vdf_inline=False, initial_origin=None,
                     es_address=hx(0x900000 + pub['es_offset']), es_offset=pub['es_offset'], es_token='0x102')
         if index == 0:
             completed(1)
+        if command == 2:
+            row('FUNCTIONAL_MPR_FORCE_IDR', request_seq=3, native_fnv=hx(checker.fnv(native_requests[2])),
+                opaque_word='0x89abcdef', expected_factor=hx(native_force_factor), expected_result='0x990000',
+                frame_generation=generation, model_token=hx(p['result_token']), actual_IDR_NAL5=1, publication_complete=1,
+                software_policy='opaque4-force-this-frame-v1', original_argument_semantics_verified=0, capture_verified=0)
+            completed(2)
     request(3)
     eos = bytearray(96)
     struct.pack_into('<2I3Q4I2Q2I', eos, 0, 24, 16, 4, 4, 0, 1, 30, 0, 1, 0, generation, 0, 0x61766331)
@@ -1337,7 +1362,419 @@ def host_test_control(root, probe_states=None):
     return host_test_transport(root, operations, '\n'.join(records) + '\n')
 
 
+class MofControlResourceFramingTests(unittest.TestCase):
+    # Original m_of LF19957/[2418208,2419095); framing never attests a capture.
+    OFFSET, RAW_LF = 2418208, 19957
+    RECORD = (
+        b'OBS FUNCTIONAL_CAMERA_CONTROL_RESOURCES_RESERVED tid=382 accepted=1 dmm_enabled=1 dmm_bound=1 '
+        b'dmm_slots=1/1 dmm_opens=1/1 dmm_handles=0x8400/0x8401 dmm_generations=1/1 dmm_epochs=1/2 '
+        b'dmm_creators=1/1 dmm_allocation_count=2 dmm_lifecycle_changed=0 dmm_domain=2 foreign_speech_kept=1 '
+        b'data_frozen=0 control_bound=1 control_live=0 control_faults=0 allocations=4 releases=4 connection_started=1 '
+        b'connections=1 format_pending=0 blocked=0 format_consumed=1 buffer_released=1 connection_reply_frees=1 '
+        b'connection_faults=0 vef_init=1 vef_owner=0x905a0048 vef_objects=16 vef_pending=0 vef_live=0 '
+        b'vef_retained=0 vef_faults=0 pinmem_init=1 pinmem_owner=0x90590818 pinmem_objects=13 pinmem_pending=0 '
+        b'pinmem_live=0 pinmem_retained=0 pinmem_faults=0 global_dmm_idle_verified=0 original_cp_executed=0 '
+        b'capture_verified=0[ 5563.322680] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1\r\n')
+    PAYLOAD, _TAIL = RECORD[4:-2].split(b'[ ', 1)
+    KERNEL = b'[ ' + _TAIL
+
+    def test_mof_original887_CRLF_fields_raw_spans_and_resource_only_nonclaim(self):
+        self.assertEqual(len(self.RECORD), 887)
+        self.assertEqual(checker.sha(self.RECORD),
+                         'aa2f2563e44fc478c6762a0f52416f0c0ee23e3e17f0fefed20ee6a796fd00f9')
+        framed, note = checker.frame_console_kernel(self.RECORD[4:], self.OFFSET + 4, self.RAW_LF)
+        self.assertEqual(framed, self.PAYLOAD + b'\r\n')
+        self.assertEqual(note, dict(raw=self.KERNEL.decode(), bytes=84,
+            sha256='79b3116030e6d362c6e5cb8bc67ec3e7d73f7cca957e95316551a1dfb7dd4d12',
+            byte_offset=2419009, raw_lf_line=19957, cause='unknown', line_ending='\r\n',
+            payload=dict(raw=self.PAYLOAD.decode(), bytes=797,
+                sha256='0e5f31ffb4bd3dbc7ddaf3cf7e1175d422fd06322dc84be8e60aba1c07a28399',
+                byte_offset=2418212)))
+        expected = dict(part.split('=', 1) for part in JFZ_VDF_RESOURCE_OBS.splitlines()[-1].split(' ')[2:])
+        expected['tid'] = '382'
+        self.assertEqual(len(expected), 45)
+        self.assertEqual(checker.console_producer_fields(self.PAYLOAD), expected)
+        row, = checker.parse_console(self.RECORD)
+        self.assertEqual(row['fields'], expected)
+        self.assertEqual(list(row['fields']), list(expected))
+        self.assertNotIn('diagnostic', row)
+        self.assertNotIn('verified', row)
+        only_resource = checker.check_control(None, [row], {})
+        self.assertFalse(only_resource['required'])
+        self.assertFalse(only_resource['verified'])
+        self.assertFalse(only_resource['capture_verified'])
+        self.assertFalse(only_resource['physical_asic_compatibility_verified'])
+        self.assertFalse(only_resource['original_CP_executed'])
+
+    def test_mof_clean_and_framed_prefixes_endings_preserve_fields_offsets_and_following_row(self):
+        before = b'boot\rprogress\r\nordinary\n'
+        after = b'OBS FUNCTIONAL_CAMERA_TRANSFER op=2 error=0\n'
+        for prefix in (b'', b'OBS ', b'/ # OBS '):
+            for ending in (b'\n', b'\r\n'):
+                clean, = checker.parse_console(prefix + self.PAYLOAD + ending)
+                self.assertNotIn('diagnostic', clean)
+                self.assertNotIn('kernel_diagnostic', clean)
+                raw = before + prefix + self.PAYLOAD + self.KERNEL + ending + after
+                with self.subTest(prefix=prefix, ending=ending):
+                    row, following = checker.parse_console(raw)
+                    self.assertEqual(row['fields'], clean['fields'])
+                    self.assertEqual((row['line'], following['line']), (4, 5))
+                    note = row['kernel_diagnostic']
+                    self.assertEqual((note['raw_lf_line'], note['cause']), (3, 'unknown'))
+                    self.assertEqual(note['line_ending'].encode(), ending)
+                    self.assertEqual(note['payload']['byte_offset'], len(before) + len(prefix))
+                    self.assertEqual(note['byte_offset'], len(before) + len(prefix) + len(self.PAYLOAD))
+                    for part in (note, note['payload']):
+                        start, size = part['byte_offset'], part['bytes']
+                        self.assertEqual(raw[start:start + size], part['raw'].encode())
+                        self.assertEqual(checker.sha(raw[start:start + size]), part['sha256'])
+                    self.assertNotIn('verified', row)
+
+    def test_mof_every_missing_renamed_reordered_extra_and_duplicate_key_fails_closed(self):
+        parts = self.PAYLOAD.split(b' ')
+        malformed = [self.PAYLOAD + b' extra=0', self.PAYLOAD + b' native_fnv1a=0000000000000000']
+        for index in range(1, len(parts)):
+            renamed = parts[:index] + [b'unknown_' + parts[index]] + parts[index + 1:]
+            swapped = parts[:]
+            other = 1 if index == len(parts) - 1 else index + 1
+            swapped[index], swapped[other] = swapped[other], swapped[index]
+            malformed.extend((b' '.join(parts[:index] + parts[index + 1:]), b' '.join(renamed), b' '.join(swapped)))
+        for payload in malformed:
+            with self.subTest(payload=payload):
+                self.assertIsNone(checker.console_producer_fields(payload))
+                for tail in (b'', self.KERNEL):
+                    row, = checker.parse_console(b'OBS ' + payload + tail + b'\n')
+                    self.assertIn('diagnostic', row)
+                    self.assertNotIn('kernel_diagnostic', row)
+                    with self.assertRaisesRegex(ValueError, 'malformed control resource diagnostic'):
+                        checker.check_control(None, [row], {})
+        for token in parts[1:]:
+            payload = self.PAYLOAD + b' ' + token
+            with self.subTest(duplicate=token), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.console_producer_fields(payload)
+            for tail in (b'', self.KERNEL):
+                with self.subTest(duplicate=token, tail=tail), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                    checker.parse_console(b'OBS ' + payload + tail + b'\n')
+
+    def test_mof_clean_and_framed_numbers_tuples_ranges_and_false_claims_fail_closed(self):
+        changes = ((b'tid=382', b'tid=0'), (b'tid=382', b'tid=-1'), (b'tid=382', b'tid=0382'),
+            (b'tid=382', b'tid=2147483648'), (b'accepted=1', b'accepted=0'), (b'accepted=1', b'accepted=true'),
+            (b'dmm_enabled=1', b'dmm_enabled=2'), (b'dmm_slots=1/1', b'dmm_slots=1'),
+            (b'dmm_slots=1/1', b'dmm_slots=1/1/0'), (b'dmm_slots=1/1', b'dmm_slots=2/1'),
+            (b'dmm_opens=1/1', b'dmm_opens=-1/1'), (b'dmm_opens=1/1', b'dmm_opens=4294967296/1'),
+            (b'dmm_handles=0x8400/0x8401', b'dmm_handles=0x100000000/0x8401'),
+            (b'dmm_handles=0x8400/0x8401', b'dmm_handles=0X8400/0x8401'),
+            (b'dmm_generations=1/1', b'dmm_generations=01/1'),
+            (b'dmm_epochs=1/2', b'dmm_epochs=18446744073709551616/2'),
+            (b'dmm_creators=1/1', b'dmm_creators=1/4294967296'),
+            (b'dmm_allocation_count=2', b'dmm_allocation_count=18446744073709551616'),
+            (b'dmm_domain=2', b'dmm_domain=2.0'), (b'allocations=4', b'allocations=+4'),
+            (b'releases=4', b'releases=0x4'), (b'vef_objects=16', b'vef_objects=4294967296'),
+            (b'vef_owner=0x905a0048', b'vef_owner=0x905A0048'),
+            (b'pinmem_owner=0x90590818', b'pinmem_owner=0x090590818'))
+        fields = dict(part.split(b'=', 1) for part in self.PAYLOAD.split(b' ')[1:])
+        changes += tuple((key + b'=0', key + b'=1') for key in fields if key in (
+            b'data_frozen', b'control_live', b'control_faults', b'format_pending', b'blocked', b'connection_faults',
+            b'vef_pending', b'vef_live', b'vef_retained', b'vef_faults', b'pinmem_pending', b'pinmem_live',
+            b'pinmem_retained', b'pinmem_faults', b'global_dmm_idle_verified', b'original_cp_executed', b'capture_verified'))
+        for old, new in changes:
+            payload = self.PAYLOAD.replace(old, new, 1)
+            with self.subTest(change=(old, new)):
+                self.assertNotEqual(payload, self.PAYLOAD)
+                self.assertIsNone(checker.console_producer_fields(payload))
+                for tail in (b'', self.KERNEL):
+                    row, = checker.parse_console(payload + tail + b'\r\n')
+                    self.assertIn('diagnostic', row)
+                    self.assertNotIn('kernel_diagnostic', row)
+                    with self.assertRaisesRegex(ValueError, 'malformed control resource diagnostic'):
+                        checker.check_control(None, [row], {})
+
+    def test_mof_shared_nonclaim_grammar_accepts_canonical_numeric_boundaries(self):
+        # Synthetic formatter limits are diagnostics, with no resource/business success claim.
+        replacements = {b'tid': b'2147483647', b'dmm_opens': b'4294967295/0',
+            b'dmm_handles': b'0xffffffff/0', b'dmm_generations': b'4294967295/0',
+            b'dmm_epochs': b'18446744073709551615/0', b'dmm_creators': b'4294967295/0',
+            b'dmm_allocation_count': b'18446744073709551615', b'dmm_domain': b'4294967295',
+            b'allocations': b'18446744073709551615', b'releases': b'18446744073709551615',
+            b'vef_owner': b'0xffffffff', b'vef_objects': b'4294967295'}
+        parts = self.PAYLOAD.split(b' ')
+        payload = b' '.join(parts[:1] + [key + b'=' + replacements.get(key, value)
+            for key, value in (part.split(b'=', 1) for part in parts[1:])])
+        expected = checker.console_producer_fields(payload)
+        self.assertIsNotNone(expected)
+        for tail in (b'', self.KERNEL):
+            row, = checker.parse_console(payload + tail + b'\n')
+            self.assertEqual(row['fields'], expected)
+            self.assertNotIn('diagnostic', row)
+            result = checker.check_control(None, [row], {})
+            self.assertFalse(result['required'])
+            self.assertFalse(result['verified'])
+            self.assertFalse(result['capture_verified'])
+            self.assertFalse(result['physical_asic_compatibility_verified'])
+
+    def test_mof_exact_dynamic_trailer_only_timestamp_QID_bits_and_original_ending(self):
+        udif = b'[ 5563.322680] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+        invalid = (self.KERNEL.replace(b'5563.322680', b'05563.322680'),
+            self.KERNEL.replace(b'5563.322680', b'5563.32268'),
+            self.KERNEL.replace(b'5563.322680', b'5563.3226800'),
+            self.KERNEL.replace(b'81cf61c4', b'81CF61C4'), self.KERNEL.replace(b'81cf61c4', b'81cf61c'),
+            self.KERNEL.replace(b'81cf61c4', b'081cf61c4'), self.KERNEL.replace(b'M=1', b'M=0'),
+            self.KERNEL.replace(b'C=0', b'C=1'), self.KERNEL.replace(b'S=0', b'S=1'),
+            self.KERNEL.replace(b'A=1', b'A=0'), self.KERNEL.replace(b'M=1 C=0', b'C=0 M=1'),
+            self.KERNEL.replace(b'free_dynamic_msgq_id', b'unknown_operation'),
+            self.KERNEL + b' extra', self.KERNEL + self.KERNEL, b' ' + self.KERNEL,
+            self.KERNEL[:-1], b'unknown kernel trailer', udif,
+            udif.replace(b'-1022', b'-1021'), udif.replace(b'Line 100', b'Line 101'))
+        for tail in invalid:
+            raw = self.PAYLOAD + tail + b'\r\n'
+            with self.subTest(tail=tail):
+                self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+                row, = checker.parse_console(b'OBS ' + raw)
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+                with self.assertRaisesRegex(ValueError, 'malformed control resource diagnostic'):
+                    checker.check_control(None, [row], {})
+        for ending in (b'', b'\r'):
+            raw = self.PAYLOAD + self.KERNEL + ending
+            with self.subTest(ending=ending):
+                self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+                with self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                    checker.parse_console(b'OBS ' + raw)
+
+    def test_mof_unknown_family_foreign_trailers_and_refusal_prose_are_not_promoted(self):
+        for tag in (b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_UNKNOWN', b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_REFUSED',
+                    b'FUNCTIONAL_CAMERA_CONTROL_RESOURCE_DEPENDENCIES', b'FUNCTIONAL_UNKNOWN_RESOURCES_RESERVED'):
+            payload = tag + b' ' + self.PAYLOAD.split(b' ', 1)[1]
+            raw = payload + self.KERNEL + b'\n'
+            with self.subTest(tag=tag):
+                self.assertIsNone(checker.console_producer_fields(payload))
+                self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+                row, = checker.parse_console(raw)
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+                self.assertNotIn('verified', row)
+        for payload in (b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_RESERVED process-owner-or-resource-lock-refused',
+                        self.PAYLOAD + b' unknown=trailer'):
+            for tail in (b'', self.KERNEL):
+                row, = checker.parse_console(payload + tail + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+                with self.assertRaisesRegex(ValueError, 'malformed control resource diagnostic'):
+                    checker.check_control(None, [row], {})
+
+    def test_mof_resource_framing_cannot_replace_source_State128_or_full_wire_FNV_joins(self):
+        resource, = checker.parse_console(self.RECORD)
+        with tempfile.TemporaryDirectory() as temporary:
+            args = host_test_control(Path(temporary))
+            transport = checker.check_transport(*args)
+            self.assertEqual(checker.check_control(args[0], [resource] + args[2], transport), transport['control'])
+            self.assertFalse(transport['control']['capture_verified'])
+            self.assertFalse(transport['control']['physical_asic_compatibility_verified'])
+            for tag, key, wrong in (('PROBE', 'native_fnv1a', '0000000000000000'),
+                    ('PROBE', 'native_source', '0x80020003'), ('PROBE', 'model_instance', '100'),
+                    ('SENT', 'wire_fnv1a', '0000000000000000'), ('COMMIT', 'capture', '1')):
+                rows = copy.deepcopy(args[2])
+                next(row['fields'] for row in rows if row['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_' + tag)[key] = wrong
+                with self.subTest(tag=tag, key=key), self.assertRaises(ValueError):
+                    checker.check_control(args[0], [resource] + rows, transport)
+
+
 class ConsoleFramingTests(unittest.TestCase):
+    # Exact public logger text; physical LF19720 differs from the saved parser's line20748.
+    RUN64_CONTROL_COMMIT = (
+        b'OBS FUNCTIONAL_CAMERA_CONTROL_COMMIT pid=259 tid=380 phase=3 index=1 role=2 bytes=16 '
+        b'destination=0x80020002 source=0x90030001 wire_fnv1a=765864c96674cfe9 queued=1 received=1 freed=0 consumed=0 '
+        b'send_inflight=0 releasing=0 lease_cycle_id=0 sender_tid=380 receiver_tid=355 free_tid=0 allocate_rc=0 send_rc=0 '
+        b'free_rc=0 retained=0x7f96c17480 faults=0 busy=0 guard=0 probe_run_id=1 init_run_id=1 state_run_id=0 bridge_rc=0 '
+        b'probe_rc=0 native_source=0x80020002 native_destination=0x90030001 native_command=0x3003 native_bytes=24 '
+        b'native_fnv1a=cbe972b9ca65f4c8 model_initialized=1 probe_attempts=1 probe_successes=1 probe_refusals=0 '
+        b'model_instance=2017555474633331667 config_generation=3 rendered=3 frame_generation=3 start_complete=0 '
+        b'mode1_complete=0 defined_mask=15 full_layout_copied=0 model_defined=0 defined_blocks=0 projected_blocks=0 '
+        b'zero_policy_blocks=0 publication_copied=0 xsync_defined=0 xsync_source_fps=0 xsync_word=0 xsync_half=0 '
+        b'xsync_source_generation=0 published_generation=0 shadow_generation=0 notification_queued=0 notification_received=0 '
+        b'notification_AP_consumed=0 cycle_id=0 cycle_generation=0 ack_only=0 mode1_requests=0 cycles_completed=0 '
+        b'ack_only_requests=0 ack_only_completed=0 full_queued=0 full_consumed=0 notification_mode=0 business_ready=1 '
+        b'functional_model=1 original_CP=0 physical_ASIC_verified=0 fixed_optics_policy=integrated-noneLIF LIF_tuple=0,0,0 '
+        b'cache4=0 original_getters_executed=0 original_source_proof=0 EE=0 frame=0 capture=0'
+        b'[ 5803.776761] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1\r\n')
+
+    def test_selector0_control_commit_exact_extended_schema_keeps_legacy(self):
+        legacy = E6MX_CONTROL_COMMIT[4:].rstrip(b'\r\n')
+        extension = (b'mode_selector=0 mode_complete=0 mode0_requests=0 mode0_complete=0 '
+                     b'mode0_cycles_completed=0 mode1_cycle_id=0 mode1_cycle_generation=0 '
+                     b'selector_policy=opaque-state-refresh-v1 ')
+        payload = legacy.replace(b'notification_mode=0 ', b'notification_mode=0 ' + extension)
+        self.assertIsNotNone(checker.console_producer_fields(legacy))
+        parsed = checker.console_producer_fields(payload)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(len(parsed), 93)
+        self.assertEqual(parsed['mode_selector'], '0')
+        kernel = b'[ 5803.776761] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+        row, = checker.parse_console(b'OBS ' + payload + kernel + b'\r\n')
+        self.assertEqual(row['fields'], parsed)
+        self.assertNotIn('diagnostic', row)
+        self.assertEqual(row['kernel_diagnostic']['payload']['raw'].encode(), payload)
+        for word in extension.split():
+            with self.subTest(missing=word):
+                self.assertIsNone(checker.console_producer_fields(payload.replace(word + b' ', b'')))
+                with self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                    checker.console_producer_fields(payload + b' ' + word)
+        for before, after in ((b'mode_selector=0', b'mode_selector=2'),
+                              (b'mode_complete=0', b'mode_complete=01'),
+                              (b'mode0_complete=0', b'mode0_complete=-1'),
+                              (b'mode0_requests=0', b'mode0_requests=4294967296'),
+                              (b'mode1_cycle_id=0', b'mode1_cycle_id=18446744073709551616'),
+                              (b'mode1_cycle_generation=0', b'mode1_cycle_generation=4294967296'),
+                              (b'selector_policy=opaque-state-refresh-v1', b'selector_policy=unknown'),
+                              (b'mode_selector=0 mode_complete=0', b'mode_complete=0 mode_selector=0')):
+            with self.subTest(before=before, after=after):
+                self.assertIsNone(checker.console_producer_fields(payload.replace(before, after)))
+        self.assertIsNone(checker.console_producer_fields(payload + b' extra=0'))
+
+    def test_run64_control_commit_exact_bytes_offsets_and_stage_snapshot(self):
+        raw = self.RUN64_CONTROL_COMMIT
+        self.assertEqual(len(raw), 1543)
+        self.assertEqual(checker.sha(raw), 'd88235fcd226465425c2703657b95d0145a0c5e69a37f81b2e617789fcbe70b7')
+        payload, tail = raw[4:-2].split(b'[ ', 1)
+        kernel = b'[ ' + tail
+        normalized, note = checker.frame_console_kernel(raw[4:], 2356118, 19720)
+        self.assertEqual(normalized, payload + b'\r\n')
+        self.assertEqual(note, dict(raw=kernel.decode(), bytes=84,
+            sha256='c3117affb7e7d1c67a3b764ba880f2782890e46ae5a29f656fa1cda174c60059',
+            byte_offset=2357571, raw_lf_line=19720, cause='unknown', line_ending='\r\n',
+            payload=dict(raw=payload.decode(), bytes=1453,
+                sha256='b0e418d2d9b626f5330bea6b862f958d27890bca639e76bb56fcdf91e74205d3', byte_offset=2356118)))
+        self.assertEqual(b'OBS ' + note['payload']['raw'].encode() + note['raw'].encode() + note['line_ending'].encode(), raw)
+        original, = checker.parse_console(b'OBS ' + payload + b'\r\n')
+        row, = checker.parse_console(raw)
+        self.assertEqual(row['fields'], original['fields'])
+        self.assertEqual(len(row['fields']), 85)
+        self.assertEqual((row['fields']['freed'], row['fields']['consumed'], row['fields']['capture']), ('0', '0', '0'))
+        self.assertNotIn('diagnostic', row)
+        self.assertNotIn('verified', row)
+        self.assertNotIn('capture_verified', row)
+
+    def test_run64_control_commit_prefix_endings_and_physical_LF_preserve_raw_parts(self):
+        payload, tail = self.RUN64_CONTROL_COMMIT[4:-2].split(b'[ ', 1)
+        kernel = b'[ ' + tail
+        before = b'boot\rprogress\r\nordinary\n'
+        for prefix in (b'', b'OBS ', b'/ # OBS '):
+            for ending in (b'\n', b'\r\n'):
+                raw = before + prefix + payload + kernel + ending
+                with self.subTest(prefix=prefix, ending=ending):
+                    row, = checker.parse_console(raw)
+                    self.assertEqual(row['line'], 4)
+                    note = row['kernel_diagnostic']
+                    self.assertEqual((note['raw_lf_line'], note['cause'], note['line_ending']), (3, 'unknown', ending.decode()))
+                    self.assertEqual(note['payload']['byte_offset'], len(before) + len(prefix))
+                    self.assertEqual(note['byte_offset'], len(before) + len(prefix) + len(payload))
+                    for part in (note, note['payload']):
+                        start, size = part['byte_offset'], part['bytes']
+                        self.assertEqual(raw[start:start + size], part['raw'].encode())
+                        self.assertEqual(checker.sha(raw[start:start + size]), part['sha256'])
+                    self.assertEqual(raw[note['byte_offset'] + note['bytes']:], ending)
+
+    def test_run64_control_commit_unknown_kernel_values_and_incomplete_tails_stay_diagnostic(self):
+        payload, tail = self.RUN64_CONTROL_COMMIT[4:-2].split(b'[ ', 1)
+        kernel = b'[ ' + tail
+        invalid = (kernel.replace(b'5803.776761', b'05803.776761'), kernel.replace(b'5803.776761', b'5803.77676'),
+            kernel.replace(b'5803.776761', b'5803.7767610'), kernel.replace(b'81cf61c4', b'81CF61C4'),
+            kernel.replace(b'81cf61c4', b'81cf61c'), kernel.replace(b'81cf61c4', b'081cf61c4'),
+            kernel.replace(b'81cf61c4', b'81cf61cg'), kernel.replace(b'M=1', b'M=0'),
+            kernel.replace(b'C=0', b'C=1'), kernel.replace(b'S=0', b'S=1'), kernel.replace(b'A=1', b'A=0'),
+            kernel.replace(b'M=1', b'M=-1'), kernel.replace(b'M=1', b'M=01'),
+            kernel.replace(b'M=1', b'M=4294967296'), kernel.replace(b'M=1 C=0', b'C=0 M=1'),
+            kernel.replace(b' S=0', b''), kernel + b' M=1', kernel + b' extra', kernel + kernel,
+            kernel.replace(b'free_dynamic_msgq_id', b'unknown_operation'), kernel[:-1], b' ' + kernel,
+            b'[ 5803.776761] UDIF: cdev_ioctl() Line 100: uipc: warning ret = 0',
+            b'[ 5803.776761] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1021', b'unknown trailer')
+        for changed in invalid:
+            with self.subTest(kernel=changed):
+                row, = checker.parse_console(b'OBS ' + payload + changed + b'\r\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for changed in (self.RUN64_CONTROL_COMMIT[:-2], self.RUN64_CONTROL_COMMIT[:-1]):
+            with self.subTest(raw=changed), self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                checker.parse_console(changed)
+        for changed in (payload + b'\r' + kernel + b'\n', payload + kernel + b'\r\r\n'):
+            with self.subTest(raw=changed), self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                checker.parse_console(changed)
+
+    def test_run64_control_commit_all_formatter_fields_order_types_and_unique_values_are_required(self):
+        payload, tail = self.RUN64_CONTROL_COMMIT[4:-2].split(b'[ ', 1)
+        kernel = b'[ ' + tail
+        parts = payload.split(b' ')
+        for index in range(1, len(parts)):
+            with self.subTest(missing=parts[index]):
+                row, = checker.parse_console(b' '.join(parts[:index] + parts[index + 1:]) + kernel + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        invalid = (payload.replace(b'pid=259 tid=380', b'tid=380 pid=259'), payload + b' extra=0',
+            payload.replace(b'pid=259', b'pid=0259'), payload.replace(b'phase=3', b'phase=4294967296'),
+            payload.replace(b'lease_cycle_id=0', b'lease_cycle_id=18446744073709551616'),
+            payload.replace(b'send_rc=0', b'send_rc=2147483648'), payload.replace(b'free_rc=0', b'free_rc=-2147483649'),
+            payload.replace(b'destination=0x80020002', b'destination=0x100000000'),
+            payload.replace(b'wire_fnv1a=765864c96674cfe9', b'wire_fnv1a=765864C96674cfe9'),
+            payload.replace(b'retained=0x7f96c17480', b'retained=0x07f96c17480'),
+            payload.replace(b'fixed_optics_policy=integrated-noneLIF', b'fixed_optics_policy=unknown'),
+            payload.replace(b'physical_ASIC_verified=0', b'physical_ASIC_verified=1'),
+            payload.replace(b'capture=0', b'capture=1'), payload.replace(b'capture=0', b'capture=0=pid=259'))
+        for changed in invalid:
+            with self.subTest(payload=changed):
+                row, = checker.parse_console(changed + kernel + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for changed in (payload + b' pid=259',
+                        payload.replace(b'capture=0', b'capture=0=pid=259') + b' pid=259'):
+            with self.subTest(payload=changed), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.parse_console(changed + kernel + b'\n')
+
+    def test_run64_control_commit_both_existing_trailers_keep_other_family_pairings(self):
+        payload, tail = self.RUN64_CONTROL_COMMIT[4:-2].split(b'[ ', 1)
+        dynamic = b'[ ' + tail
+        udif = b'[ 5803.776761] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+        for kernel in (dynamic, udif):
+            with self.subTest(kernel=kernel):
+                row, = checker.parse_console(payload + kernel + b'\r\n')
+                self.assertIn('kernel_diagnostic', row)
+                self.assertEqual(row['kernel_diagnostic']['raw'].encode(), kernel)
+        for fixture in (E6MX_TRANSFER_RECORD, ZD4_STARTUP_PREDECESSOR_RECORD, SF05_AUDIT_BYTES, SF05_FACE_SOURCE_BOUND):
+            guest = fixture[4:-2].split(b'[ ', 1)[0]
+            with self.subTest(tag=guest.split(b' ', 1)[0]):
+                row, = checker.parse_console(guest + dynamic + b'\r\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for event in (b'PROBE', b'SENT', b'OWNED_FREE', b'AP_FREE', b'RECEIVE', b'FAULT'):
+            with self.subTest(event=event):
+                row, = checker.parse_console(payload.replace(b'CONTROL_COMMIT', b'CONTROL_' + event) + dynamic + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for fixture in (ZFQ_VDF_RECORD, LWO_CONTROL_TTS_RECORD):
+            guest = fixture[4:-2].split(b'[ ', 1)[0]
+            with self.subTest(tag=guest.split(b' ', 1)[0]):
+                row, = checker.parse_console(guest + udif + b'\r\n')
+                if fixture == ZFQ_VDF_RECORD:
+                    self.assertNotIn('diagnostic', row)
+                    self.assertEqual(row['kernel_diagnostic']['raw'].encode(), udif)
+                else:
+                    self.assertIn('diagnostic', row)
+                    self.assertNotIn('kernel_diagnostic', row)
+
+    def test_run64_control_commit_framing_cannot_replace_real_control_source_receipts(self):
+        payload, tail = self.RUN64_CONTROL_COMMIT[4:-2].split(b'[ ', 1)
+        kernel = b'[ ' + tail
+        row, = checker.parse_console(self.RUN64_CONTROL_COMMIT)
+        with self.assertRaisesRegex(ValueError, 'source probe not joined'):
+            checker.check_control(None, [row], {'pid': 259})
+        for key, value in ((b'faults', b'1'), (b'bridge_rc', b'-5'), (b'probe_rc', b'-5')):
+            changed = payload.replace(key + b'=0 ', key + b'=' + value + b' ', 1)
+            with self.subTest(key=key):
+                failed, = checker.parse_console(changed + kernel + b'\r\n')
+                self.assertIn('kernel_diagnostic', failed)
+                self.assertNotIn('diagnostic', failed)
+                with self.assertRaisesRegex(ValueError, 'failed control timing probe'):
+                    checker.check_control(None, [failed], {'pid': 259})
+
     RUN64_SLASH_TRANSFER = (
         b'/OBS FUNCTIONAL_CAMERA_TRANSFER seq=3..3 op=1 source=0x81cf61c4 destination=0x92840747 '
         b'command=0x138 bytes=24 native_fnv=0xe39cfe6ede356b69 request_bytes=0 '
@@ -1828,6 +2265,38 @@ class ConsoleFramingTests(unittest.TestCase):
             self.assertEqual(row['fields'], original['fields'])
             self.assertIn('kernel_diagnostic', row)
 
+    def test_huti_complete_vdf_family_exact_ioctl_offsets_endings_and_no_claims(self):
+        guest = ZFQ_VDF_RECORD[:-2].split(b'[ ', 1)[0][4:]
+        kernel = b'[ 5620.916062] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022'
+        before = b'boot\rprogress\r\nordinary\n'
+        for event in (b'REQUEST_FREE', b'SEND', b'COMPLETE', b'RECEIVE', b'AP_FREE'):
+            payload = guest.replace(b'PATH_COMPLETE', b'PATH_' + event, 1)
+            clean, = checker.parse_console(payload + b'\n')
+            for prefix in (b'', b'OBS ', b'/ # OBS '):
+                for ending in (b'\n', b'\r\n'):
+                    with self.subTest(event=event, prefix=prefix, ending=ending):
+                        raw = before + prefix + payload + kernel + ending
+                        row, = checker.parse_console(raw)
+                        self.assertEqual(row['fields'], clean['fields'])
+                        self.assertNotIn('diagnostic', row)
+                        self.assertNotIn('verified', row)
+                        note = row['kernel_diagnostic']
+                        self.assertEqual(note['raw'], kernel.decode())
+                        self.assertEqual(note['cause'], 'unknown')
+                        self.assertEqual(note['raw_lf_line'], 3)
+                        self.assertEqual(note['line_ending'].encode(), ending)
+                        for part in (note, note['payload']):
+                            start, size = part['byte_offset'], part['bytes']
+                            self.assertEqual(raw[start:start + size], part['raw'].encode())
+                            self.assertEqual(checker.sha(raw[start:start + size]), part['sha256'])
+        for bad in (kernel.replace(b'-1022', b'-1021'), kernel.replace(b'Line 100', b'Line 101'),
+                    kernel.replace(b'5620.916062', b'05620.916062'), kernel + b' extra',
+                    kernel + kernel, b' ' + kernel):
+            with self.subTest(bad=bad):
+                row, = checker.parse_console(guest + bad + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+
     def test_zfq_unknown_UIPC_suffix_family_ambiguity_and_truncation_fail_closed(self):
         guest, kernel = ZFQ_VDF_RECORD[:-2].split(b'[ ', 1)
         kernel = b'[ ' + kernel
@@ -1836,7 +2305,7 @@ class ConsoleFramingTests(unittest.TestCase):
                    kernel.replace(b'81cf61c4', b'81CF61C4'), kernel.replace(b'81cf61c4', b'81cf61c'),
                    kernel.replace(b'M=1', b'M=0'), kernel.replace(b'C=0', b'C=1'), kernel.replace(b'A=1', b'A=0'),
                    kernel.replace(b'free_dynamic_msgq_id', b'unknown_operation'), kernel + b' extra',
-                   kernel + kernel, b'unknown trailer', b' ' + kernel, kernel[:-1], udif)
+                   kernel + kernel, b'unknown trailer', b' ' + kernel, kernel[:-1], udif.replace(b'-1022', b'-1021'))
         for suffix in invalid:
             with self.subTest(suffix=suffix):
                 row, = checker.parse_console(guest + suffix + b'\n')
@@ -1847,7 +2316,8 @@ class ConsoleFramingTests(unittest.TestCase):
             row, = checker.parse_console(ZFQ_VDF_RECORD.replace(b'FUNCTIONAL_VDF_PATH_COMPLETE', tag, 1))
             self.assertIn('diagnostic', row)
             self.assertNotIn('kernel_diagnostic', row)
-        for legacy in (E6MX_CONTROL_COMMIT[:-2], E6MX_TRANSFER_RECORD[:E6MX_TRANSFER_RECORD.index(b'[ ')]):
+        for legacy in (E6MX_CONTROL_COMMIT[:-2].replace(b'CONTROL_COMMIT ', b'CONTROL_PROBE ', 1),
+                       E6MX_TRANSFER_RECORD[:E6MX_TRANSFER_RECORD.index(b'[ ')]):
             row, = checker.parse_console(legacy + kernel + b'\n')
             self.assertIn('diagnostic', row)
             self.assertNotIn('kernel_diagnostic', row)
@@ -2112,6 +2582,413 @@ class ConsoleFramingTests(unittest.TestCase):
                 changed[0]['fields']['origin_kind'] = origin
                 with self.subTest(origin=origin), self.assertRaisesRegex(ValueError, 'origin_kind differs'):
                     checker.check_transport(run, manifest, changed, events, build)
+
+
+class Run9sxHdmiNativeFreeFramingTests(unittest.TestCase):
+    # Public original LF/byte spans only; framing cannot attest a native graph or capture.
+    CONSOLE_SHA256 = '0c79c47fd3399fd41b029083cdd0658a3ad0b5e32d947d0996437fdf30b239bc'
+    OFFSET, RAW_LF = 2092576, 18924
+    RECORD = (
+        b'/ # OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE tid=352 receiver=352 sender=384 '
+        b'destination=0x802a0116 pointer=0x7fabc1af80 lease=15 kind=2 bytes=20 rc=0 '
+        b'received=1 consumed=1 original_cp_executed=0 hardware_verified=0 capture_verified=0'
+        b'[ 5788.347794] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n')
+    PAYLOAD, KERNEL = RECORD[8:231], RECORD[231:-2]
+    PREFIX_FREE = (
+        b'OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE tid=384 receiver=384 sender=384 '
+        b'destination=0x81cf61c3 pointer=0x7fabc58900 lease=1 kind=1 bytes=12 rc=0 '
+        b'received=1 consumed=1 original_cp_executed=0 hardware_verified=0 capture_verified=0\r\n')
+    DYNAMIC = b'[ 5788.347794] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1'
+
+    def test_original_record_SHA_raw_LF_and_offsets_preserve_every_byte(self):
+        self.assertEqual(len(self.RECORD), 302)
+        self.assertEqual(checker.sha(self.RECORD),
+                         'c55bf039bdd1812e792ef7c4ad010905afe8dec123df74682a35b0301408f56e')
+        self.assertEqual(checker.sha(self.RECORD + b'\r\n'),
+                         '31a665dd9df991c8ca0b2be9c93519a9acd4ae457236f5b8447dfc986d935e71')
+        framed, note = checker.frame_console_kernel(self.RECORD[8:], self.OFFSET + 8, self.RAW_LF)
+        self.assertEqual(framed, self.PAYLOAD + b'\r\n')
+        self.assertEqual(note, dict(raw=self.KERNEL.decode(), bytes=69,
+            sha256='9c4f0fdac160b474910d0052e893712c0b0db9be1faec3ab9b7fc6812fa7c844',
+            byte_offset=2092807, raw_lf_line=18924, cause='unknown', line_ending='\r\n',
+            payload=dict(raw=self.PAYLOAD.decode(), bytes=223,
+                sha256='b683c1a5acbd11dbd958e26245edc6c87b9c859a8c4ca168c4bec557729e3fa4',
+                byte_offset=2092584)))
+        self.assertEqual(b'/ # OBS ' + note['payload']['raw'].encode() + note['raw'].encode() +
+                         note['line_ending'].encode(), self.RECORD)
+        row, = checker.parse_console(self.RECORD + b'\r\n')
+        self.assertEqual(row['fields'], checker.console_producer_fields(self.PAYLOAD))
+        self.assertEqual(len(row['fields']), 14)
+        self.assertEqual(row['fields']['capture_verified'], '0')
+        self.assertNotIn('diagnostic', row)
+        self.assertNotIn('verified', row)
+        self.assertNotIn('AP_consumed', row['fields'])
+
+    def test_standalone_prefixes_endings_and_both_existing_kernel_trailers(self):
+        before = b'boot\rprogress\r\nordinary\n'
+        for payload in (self.PAYLOAD, self.PREFIX_FREE[4:-2]):
+            expected = checker.console_producer_fields(payload)
+            self.assertIsNotNone(expected)
+            for prefix in (b'', b'OBS ', b'/ # OBS '):
+                for ending in (b'\n', b'\r\n'):
+                    with self.subTest(kind=expected['kind'], prefix=prefix, ending=ending):
+                        standalone, = checker.parse_console(before + prefix + payload + ending)
+                        self.assertEqual(standalone['fields'], expected)
+                        self.assertNotIn('kernel_diagnostic', standalone)
+                    for kernel in (self.KERNEL, self.DYNAMIC):
+                        raw = before + prefix + payload + kernel + ending
+                        with self.subTest(kind=expected['kind'], prefix=prefix, ending=ending, kernel=kernel):
+                            row, = checker.parse_console(raw)
+                            self.assertEqual(row['fields'], expected)
+                            self.assertEqual(row['line'], 4)
+                            note = row['kernel_diagnostic']
+                            self.assertEqual((note['raw_lf_line'], note['cause'], note['line_ending']),
+                                             (3, 'unknown', ending.decode()))
+                            self.assertEqual(note['payload']['byte_offset'], len(before) + len(prefix))
+                            self.assertEqual(note['byte_offset'], len(before) + len(prefix) + len(payload))
+                            for part in (note, note['payload']):
+                                offset, count = part['byte_offset'], part['bytes']
+                                self.assertEqual(raw[offset:offset + count], part['raw'].encode())
+                                self.assertEqual(checker.sha(raw[offset:offset + count]), part['sha256'])
+                            self.assertEqual(raw[note['byte_offset'] + note['bytes']:], ending)
+                            self.assertNotIn('verified', row)
+
+    def test_complete_successful_C_variants_keep_prefix_and_UPM_ownership_distinct(self):
+        source = (checker.RUNTIME / 'device-models/hdmi-video-state.c').read_text()
+        self.assertIn('tid=%ld receiver=%ld sender=%ld destination=%#x pointer=%p lease=%llu kind=%u '
+                      'bytes=%u rc=%d received=%u consumed=%u original_cp_executed=0 '
+                      'hardware_verified=0 capture_verified=0', source)
+        self.assertIn('record(rc?"FULL_HDMI_VIDEO_STATE_FREE_FAULT ":"FULL_HDMI_VIDEO_STATE_NATIVE_FREE ",line);', source)
+        prefix = self.PREFIX_FREE[4:-2]
+        variants = (prefix, prefix.replace(b'receiver=384', b'receiver=0').replace(b'received=1', b'received=0'),
+                    self.PAYLOAD, self.PAYLOAD.replace(b'destination=0x802a0116', b'destination=0x80920572').replace(
+                        b'kind=2 bytes=20', b'kind=3 bytes=16'))
+        for payload in variants:
+            with self.subTest(payload=payload):
+                self.assertIsNotNone(checker.console_producer_fields(payload))
+                framed, note = checker.frame_console_kernel(payload + self.KERNEL + b'\r\n', 0, 1)
+                self.assertEqual(framed, payload + b'\r\n')
+                self.assertEqual(note['payload']['raw'].encode(), payload)
+                self.assertNotIn('verified', note)
+        invalid = (prefix.replace(b'received=1', b'received=0'),
+                   prefix.replace(b'receiver=384', b'receiver=0'),
+                   self.PAYLOAD.replace(b'receiver=352', b'receiver=351'),
+                   variants[-1].replace(b'destination=0x80920572', b'destination=0x802a0116'))
+        for payload in invalid:
+            with self.subTest(payload=payload):
+                self.assertIsNone(checker.console_producer_fields(payload))
+
+    def test_every_formatter_field_requires_exact_name_order_type_and_unique_key(self):
+        parts = self.PAYLOAD.split(b' ')
+        for index, token in enumerate(parts[1:], 1):
+            key, value = token.split(b'=', 1)
+            renamed = parts[:index] + [b'unknown_' + key + b'=' + value] + parts[index + 1:]
+            mistyped = parts[:index] + [key + b'=unknown'] + parts[index + 1:]
+            swapped = list(parts)
+            other = 1 + index % (len(parts) - 1)
+            swapped[index], swapped[other] = swapped[other], swapped[index]
+            for malformed in (parts[:index] + parts[index + 1:], renamed, mistyped, swapped):
+                payload = b' '.join(malformed)
+                raw = payload + self.KERNEL + b'\r\n'
+                with self.subTest(field=key, payload=payload):
+                    self.assertIsNone(checker.console_producer_fields(payload))
+                    self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+            with self.subTest(duplicate=key), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.console_producer_fields(self.PAYLOAD + b' ' + token)
+            with self.subTest(duplicate_kernel=key), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.frame_console_kernel(self.PAYLOAD + b' ' + token + self.KERNEL + b'\n', 0, 1)
+        for suffix in (b' extra=0', b' unknown', b' ', b'=unknown'):
+            payload = self.PAYLOAD + suffix
+            with self.subTest(suffix=suffix):
+                self.assertIsNone(checker.console_producer_fields(payload))
+                self.assertIsNone(checker.frame_console_kernel(payload + self.KERNEL + b'\n', 0, 1)[1])
+
+    def test_numeric_bounds_false_claims_nonzero_rc_and_wrong_kind_sizes_stay_unframed(self):
+        replacements = {
+            b'tid=352': (b'tid=-1', b'tid=0', b'tid=0352', b'tid=+352', b'tid=2147483648'),
+            b'receiver=352': (b'receiver=-1', b'receiver=0', b'receiver=0352', b'receiver=2147483648'),
+            b'sender=384': (b'sender=-1', b'sender=0', b'sender=0384', b'sender=2147483648'),
+            b'destination=0x802a0116': (b'destination=0', b'destination=0x80000000',
+                b'destination=0x902a0116', b'destination=0x0802a0116', b'destination=0x802A0116',
+                b'destination=0x1802a0116', b'destination=-1'),
+            b'pointer=0x7fabc1af80': (b'pointer=(nil)', b'pointer=0x0', b'pointer=0x07fabc1af80',
+                b'pointer=0x7Fabc1af80', b'pointer=-1', b'pointer=0x10000000000000000'),
+            b'lease=15': (b'lease=-1', b'lease=0', b'lease=015', b'lease=18446744073709551616'),
+            b'kind=2': (b'kind=-1', b'kind=0', b'kind=1', b'kind=3', b'kind=4', b'kind=4294967296'),
+            b'bytes=20': (b'bytes=-1', b'bytes=12', b'bytes=16', b'bytes=020', b'bytes=4294967296'),
+            b'rc=0': (b'rc=-1021', b'rc=1', b'rc=-0', b'rc=00', b'rc=2147483648'),
+            b'received=1': (b'received=-1', b'received=0', b'received=2', b'received=01'),
+            b'consumed=1': (b'consumed=-1', b'consumed=0', b'consumed=2', b'consumed=01'),
+            b'original_cp_executed=0': (b'original_cp_executed=-1', b'original_cp_executed=1'),
+            b'hardware_verified=0': (b'hardware_verified=-1', b'hardware_verified=1'),
+            b'capture_verified=0': (b'capture_verified=-1', b'capture_verified=1', b'capture_verified=00'),
+        }
+        for before, values in replacements.items():
+            for value in values:
+                payload = self.PAYLOAD.replace(before, value, 1)
+                with self.subTest(before=before, value=value):
+                    self.assertIsNone(checker.console_producer_fields(payload))
+                    self.assertIsNone(checker.frame_console_kernel(payload + self.KERNEL + b'\n', 0, 1)[1])
+
+    def test_unknown_kernel_partial_tail_noncanonical_timestamp_and_no_ending_are_rejected(self):
+        invalid = (self.KERNEL.replace(b'-1022', b'-1021'), self.KERNEL.replace(b'-1022', b'0'),
+            self.KERNEL.replace(b'Line 100', b'Line 101'), self.KERNEL.replace(b'5788.', b'05788.'),
+            self.KERNEL.replace(b'347794', b'34779'), self.KERNEL.replace(b'347794', b'3477940'),
+            self.KERNEL.replace(b'[ ', b'['), self.KERNEL + b' extra=0', self.KERNEL + self.KERNEL,
+            b' ' + self.KERNEL, self.KERNEL[:-1], b'unknown kernel trailer', b'[ 5788.347794] unknown',
+            self.DYNAMIC.replace(b'81cf61c4', b'81CF61C4'), self.DYNAMIC.replace(b'81cf61c4', b'81cf61c'),
+            self.DYNAMIC.replace(b'M=1', b'M=0'), self.DYNAMIC.replace(b'C=0', b'C=1'),
+            self.DYNAMIC.replace(b'S=0', b'S=1'), self.DYNAMIC.replace(b'A=1', b'A=0'),
+            self.DYNAMIC.replace(b'M=1', b'M=-1'), self.DYNAMIC.replace(b'M=1 C=0', b'C=0 M=1'),
+            self.DYNAMIC + b' extra', self.DYNAMIC + self.DYNAMIC)
+        for kernel in invalid:
+            raw = self.PAYLOAD + kernel + b'\r\n'
+            with self.subTest(kernel=kernel):
+                self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+                row, = checker.parse_console(b'OBS ' + raw)
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for ending in (b'', b'\r'):
+            for tail in (b'', self.KERNEL, self.DYNAMIC):
+                raw = self.PAYLOAD + tail + ending
+                with self.subTest(ending=ending, tail=tail):
+                    self.assertEqual(checker.frame_console_kernel(raw, 0, 1), (raw, None))
+                    with self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                        checker.parse_console(b'OBS ' + raw)
+        for suffix in (b'FREE_FAULT', b'FREE_REJECTED', b'MESSAGE_SENT', b'MESSAGE_PUBLISHED',
+                       b'KERNEL_RETIRED', b'CLEANUP_FREE', b'UNKNOWN', b'NATIVE_FREE_EXTRA'):
+            payload = self.PAYLOAD.replace(b'NATIVE_FREE', suffix, 1)
+            with self.subTest(suffix=suffix):
+                self.assertIsNone(checker.console_producer_fields(payload))
+                self.assertIsNone(checker.frame_console_kernel(payload + self.KERNEL + b'\n', 0, 1)[1])
+
+    def test_private_closed_run_binds_original_SHA_raw_LF_and_readonly_excerpt(self):
+        path = checker.RUNTIME / 'menu-runs/run-9sx3odm3/console.log'
+        if not path.exists():
+            self.skipTest('private closed run9sx console is excluded from the public package')
+        before = path.stat()
+        raw = path.read_bytes()
+        self.assertEqual(checker.sha(raw), self.CONSOLE_SHA256)
+        self.assertEqual(raw[self.OFFSET:self.OFFSET + 302], self.RECORD)
+        self.assertEqual(raw[self.OFFSET + 302:self.OFFSET + 304], b'\r\n')
+        self.assertEqual(raw.count(b'\n', 0, self.OFFSET) + 1, self.RAW_LF)
+        self.assertEqual(raw.split(b'\n')[self.RAW_LF - 1] + b'\n', self.RECORD)
+        after = path.stat()
+        self.assertEqual((before.st_ino, before.st_size, before.st_mtime_ns),
+                         (after.st_ino, after.st_size, after.st_mtime_ns))
+        self.assertEqual(checker.sha(path.read_bytes()), self.CONSOLE_SHA256)
+
+
+class IztnScalarConsoleFramingTests(unittest.TestCase):
+    GUEST = (b'OBS FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE pid=259 tid=383 sender=383 waiter=1 '
+             b'destination=0x81cf61c4 expected=0x81cf61c4 reply=0x7f8f73ee40 bytes=56 '
+             b'command=0x8001 rc=0 faults=0 ap_consumed=1 capture_verified=0\r\n')
+
+    def test_scalar_partial_tag_reuses_exact_formatter_and_original_byte_spans(self):
+        tag = b'OBS FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE '
+        source = (checker.RUNTIME / 'device-models/pin-peer-connection.inc').read_text()
+        self.assertIn('pid=%d tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p '
+                      'bytes=56 command=0x8001 rc=%d faults=%u ap_consumed=%u capture_verified=0', source)
+        self.assertIn('#define EDGE_TAG "SCALAR"',
+                      (checker.RUNTIME / 'device-models/scalar-connection.c').read_text())
+        before, after = b'boot\rprogress\r\n', b'OBS FUNCTIONAL_CAMERA_TRANSFER op=2 error=0\n'
+        for ending in (b'\n', b'\r\n'):
+            guest = self.GUEST[:-2] + ending
+            intact, = checker.parse_console(guest)
+            for warning in checker.ADF_HOST_WARNINGS:
+                for cut in range(len(b'OBS ') + 1, len(tag)):
+                    raw = before + guest[:cut] + warning + guest[cut:] + after
+                    with self.subTest(ending=ending, warning=warning, cut=cut):
+                        row, following = checker.parse_console(raw)
+                        self.assertEqual(row['fields'], intact['fields'])
+                        self.assertEqual((row['line'], following['line']), (3, 5))
+                        self.assertNotIn('diagnostic', row)
+                        self.assertNotIn('verified', row)
+                        note = row['host_diagnostic']
+                        self.assertEqual(note['cause'], 'unknown')
+                        self.assertFalse(note['guest_bytes_invented'])
+                        self.assertEqual((note['raw_lf_line'], note['raw_lf_end']), (2, 3))
+                        self.assertEqual(raw[note['byte_offset']:note['byte_offset'] + note['bytes']], warning)
+                        original = raw[note['raw_record_start']:note['raw_record_end']]
+                        self.assertEqual(original, guest[:cut] + warning + guest[cut:])
+                        self.assertEqual(checker.sha(original), note['raw_record_sha256'])
+                        spans = note['payload']['spans']
+                        joined = b''.join(raw[s['byte_offset']:s['byte_offset'] + s['bytes']] for s in spans)
+                        self.assertEqual(joined, guest)
+                        self.assertEqual(checker.sha(joined), note['payload']['sha256'])
+                        self.assertNotIn('content_verifier_joined', note)
+                        self.assertEqual(following['fields'], dict(op='2', error='0'))
+
+    def test_scalar_partial_tag_keeps_malformed_unknown_and_owner_negatives_closed(self):
+        guest, cut = self.GUEST, len(b'OBS FULL')
+        warning = checker.ADF_HOST_WARNINGS[0]
+        parts = guest[:-2].split(b' ')
+        bad = [b' '.join(parts[:i] + parts[i + 1:]) + b'\r\n' for i in range(2, len(parts))]
+        bad += [guest.replace(old, new, 1) for old, new in (
+            (b'pid=259', b'pid=0259'), (b'pid=259', b'pid=2147483648'),
+            (b'tid=383', b'tid=0'), (b'tid=383', b'tid=-1'), (b'tid=383', b'tid=2147483648'),
+            (b'sender=383', b'sender=384'), (b'sender=383', b'sender=2147483648'),
+            (b'waiter=1', b'waiter=0'), (b'expected=0x81cf61c4', b'expected=0x81cf61c5'),
+            (b'destination=0x81cf61c4', b'destination=0x71cf61c4'),
+            (b'destination=0x81cf61c4 expected=0x81cf61c4', b'destination=0x80000000 expected=0x80000000'),
+            (b'reply=0x7f8f73ee40', b'reply=(nil)'), (b'reply=0x7f8f73ee40', b'reply=0x0'),
+            (b'reply=0x7f8f73ee40', b'reply=0x10000000000000000'),
+            (b'bytes=56', b'bytes=55'), (b'command=0x8001', b'command=0x8002'),
+            (b'rc=0', b'rc=-1'), (b'faults=0', b'faults=1'),
+            (b'ap_consumed=1', b'ap_consumed=0'), (b'capture_verified=0', b'capture_verified=1'),
+            (b'pid=259 tid=383', b'tid=383 pid=259'), (b'pid=259 tid=383', b'pid=259  tid=383'),
+            (b'pid=259 tid=383', b'pid=259\ttid=383'),
+            (b'\r\n', b' extra=1\r\n'), (b'\r\n', b' rc=0\r\n'), (b'\r\n', b' \r\n'),
+            (b'\r\n', b'\r\r\n'))]
+        for changed in bad:
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                checker.parse_console(changed[:cut] + warning + changed[cut:])
+        for unknown in (b'FULL_SCALAR_CONNECT_COMMIT', b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE_EXTRA',
+                        b'FULL_ADF_CONNECT_NATIVE_REPLY_FREE'):
+            changed = guest.replace(b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE', unknown)
+            self.assertEqual(checker.parse_console(changed[:cut] + warning + changed[cut:]), [])
+        for changed in (warning.replace(b'pending', b'unknown'), warning.replace(b'warning:', b'Warning:'),
+                        warning.replace(b'commit ', b'commit  '), warning[:-1] + b'\r\n'):
+            self.assertEqual(checker.parse_console(guest[:cut] + changed + guest[cut:]), [])
+        for suffix in (b'', guest[cut:-2]):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                checker.parse_console(guest[:cut] + warning + suffix)
+        for suffix in (warning + guest[cut:], b'OBS OTHER value=1\r\n'):
+            self.assertFalse(any(r['tag'] == 'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE'
+                for r in checker.parse_console(guest[:cut] + warning + suffix)))
+
+    def test_original_iztn_scalar_279_bytes_if_private_console_available(self):
+        mixed = self.GUEST[:8] + checker.ADF_HOST_WARNINGS[0] + self.GUEST[8:]
+        self.assertEqual(checker.sha(mixed), '31a8b5911e787490f61f2eb876b19ed20251e395fe40f2ac34bf5bc752fdded6')
+        path = checker.RUNTIME / 'menu-runs/run-iztn71wy/console.log'
+        if not path.exists():
+            self.skipTest('private iztn console excluded from public package')
+        raw = path.read_bytes()
+        self.assertEqual(checker.sha(raw), '668b17becd0407b85c5073bacbf01a83eb8fd4c31eb882b33f79244d52815178')
+        self.assertEqual(raw[1956448:1956727], mixed)
+        rows = checker.parse_console(raw)
+        added = {'NATIVE_CP_OUTPUT_POLICY_CONSUMED': 1, 'NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE': 3,
+                 'NATIVE_CP_EE_DIAGNOSTIC_COMPLETE': 3, 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE': 2}
+        self.assertEqual({tag: sum(r['tag'] == tag for r in rows) for tag in added}, added)
+        movie_added = {'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_' + name: 1
+                       for name in ('REQUEST_FREE', 'REPLY_FREE', 'COMPLETE')}
+        self.assertEqual({tag: sum(r['tag'] == tag for r in rows) for tag in movie_added}, movie_added)
+        historical = [r for r in rows if r['tag'] not in added and r['tag'] not in movie_added]
+        self.assertEqual(sum(r['tag'] != 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE' for r in historical), 923)
+        self.assertEqual(sum(r['tag'] == 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE' for r in rows), 27)
+        row, = [r for r in rows if r['tag'] == 'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE']
+        self.assertEqual(row['host_diagnostic']['raw_record_start'], 1956448)
+        self.assertEqual(row['host_diagnostic']['raw_record_end'], 1956727)
+        self.assertEqual((row['host_diagnostic']['raw_lf_line'], row['host_diagnostic']['raw_lf_end']), (18052, 18053))
+        transfers = [r for r in rows if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER']
+        self.assertEqual(len(transfers), 27)
+        self.assertEqual([n for r in transfers for n in range(int(r['fields']['seq'].split('..')[0]),
+            int(r['fields']['seq'].split('..')[1]) + 1)], list(range(1, 37)))
+        self.assertEqual(checker.sha(path.read_bytes()), checker.sha(raw))
+
+
+class IztnTransferConsoleFramingTests(unittest.TestCase):
+    # Original iztn console SHA668b17be..., offset2645777, LF20521; parser fixture only.
+    RECORD = (
+        b'AND_DONE_e86OBS FUNCTIONAL_CAMERA_TRANSFER seq=27..28 op=11 source=0x42e destination=0x8403 '
+        b'command=0x2820746 bytes=40 native_fnv=0x9b46d73d17f4c433 request_bytes=480 '
+        b'request_fnv=0x41b17d1821e8e50b returned_bytes=51200 returned_fnv=0x36e5ede026e630fe '
+        b'required=51200 destination_written_bytes=51200 destination_fnv=0x36e5ede026e630fe '
+        b'model_instance=0x8bfb1b06c4c070a5 token=0x8000000000000003 readback_closed=1 error=0 '
+        b'origin_kind=api40-source-snapshot\r\n')
+    PREFIX = b'AND_DONE_e86OBS '
+
+    def test_iztn_exact_transfer_keeps_original_bytes_offsets_and_fields(self):
+        raw, prefix = self.RECORD, self.PREFIX
+        self.assertEqual(len(raw), 453)
+        self.assertEqual(checker.sha(raw), 'c3ca5cb80d90cb705b5f4143f93c04d414b5e8a8b85f3d17bb27462220a00e43')
+        normalized, note = checker.frame_console_transfer_echo(raw, 2645777, 20521)
+        self.assertEqual(normalized, raw[len(prefix):])
+        self.assertEqual((note['raw'], note['byte_offset'], note['raw_lf_line'], note['cause']),
+                         (prefix.decode(), 2645777, 20521, 'unknown'))
+        self.assertEqual(note['payload']['byte_offset'], 2645793)
+        self.assertEqual(note['line_ending'], '\r\n')
+        for part in (note, note['payload']):
+            self.assertEqual(checker.sha(part['raw'].encode()), part['sha256'])
+            self.assertEqual(part['bytes'], len(part['raw'].encode()))
+        before = b'boot\rprogress\r\nordinary\n'
+        for ending in (b'\n', b'\r\n'):
+            with self.subTest(ending=ending):
+                row, = checker.parse_console(before + raw[:-2] + ending)
+                plain, = checker.parse_console(raw[len(prefix):-2] + ending)
+                self.assertEqual(row['fields'], plain['fields'])
+                self.assertEqual((row['line'], row['console_prefix_diagnostic']['raw_lf_line']), (4, 3))
+                self.assertEqual((row['fields']['seq'], row['fields']['token']),
+                                 ('27..28', '0x8000000000000003'))
+                self.assertEqual(row['console_prefix_diagnostic']['line_ending'].encode(), ending)
+                self.assertNotIn('verified', row)
+                self.assertNotIn('capture_verified', row)
+
+    def test_iztn_transfer_requires_exact_prefix_family_and_complete_formatter(self):
+        prefix = self.PREFIX
+        body = self.RECORD[len(prefix):-2]
+        prefixes = (b'AND_DONE_e85OBS ', b'AND_DONE_e86OBS  ', b'AND_DONE_e86 OBS ',
+                    b' AND_DONE_e86OBS ', b'xAND_DONE_e86OBS ', b'AND_DONE_e86OBS\t',
+                    b'AND_DONE_e86e7f1OBS ')
+        for changed in prefixes:
+            with self.subTest(prefix=changed):
+                self.assertEqual(checker.parse_console(changed + body + b'\r\n'), [])
+        for tag in (b'FUNCTIONAL_CAMERA_CONTROL_COMMIT', b'FUNCTIONAL_FACE_SOURCE_SNAPSHOT_RESULT'):
+            with self.subTest(tag=tag):
+                self.assertEqual(checker.parse_console(prefix + body.replace(b'FUNCTIONAL_CAMERA_TRANSFER', tag) + b'\r\n'), [])
+        parts = body.split(b' ')
+        malformed = [b' '.join(parts[:i] + parts[i + 1:]) for i in range(1, len(parts))]
+        malformed += [body + b' extra=0', body + b' unknown',
+            body.replace(b'seq=27..28', b'seq=027..28'), body.replace(b'op=11', b'op=011'),
+            body.replace(b'op=11', b'op=65'), body.replace(b'request_bytes=480', b'request_bytes=479'),
+            body.replace(b'command=0x2820746', b'command=0x2820747'),
+            body.replace(b'origin_kind=api40-source-snapshot', b'origin_kind=native-osal'),
+            body.replace(b'readback_closed=1 error=0', b'readback_closed=0 error=0'),
+            body.replace(b'model_instance=0x8bfb1b06c4c070a5', b'model_instance=0'),
+            body.replace(b'source=0x42e destination=0x8403', b'destination=0x8403 source=0x42e')]
+        for changed in malformed:
+            with self.subTest(payload=changed):
+                self.assertEqual(checker.parse_console(prefix + changed + b'\r\n'), [])
+        with self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+            checker.parse_console(prefix + body + b' op=11\r\n')
+        for raw in (self.RECORD[:-2], self.RECORD[:-1]):
+            with self.subTest(raw=raw), self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                checker.parse_console(raw)
+
+    def test_iztn_transfer_preserves_original_failure_and_does_not_promote_it(self):
+        raw = self.RECORD.replace(b'readback_closed=1 error=0', b'readback_closed=0 error=-5')
+        row, = checker.parse_console(raw)
+        self.assertEqual((row['fields']['readback_closed'], row['fields']['error']), ('0', '-5'))
+        self.assertEqual(row['console_prefix_diagnostic']['raw'], self.PREFIX.decode())
+        self.assertNotIn('verified', row)
+        self.assertNotIn('capture_verified', row)
+
+    def test_iztn_prefix_transport_keeps_binding_overlap_and_complete_coverage_guards(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run, manifest, _, events, build = host_test_transport(Path(temporary))
+            first, rest = (run / 'console.log').read_bytes().split(b'\n', 1)
+            self.assertTrue(first.startswith(b'OBS FUNCTIONAL_CAMERA_TRANSFER '))
+            self.assertNotIn(b'origin_kind=', first)
+            raw = self.PREFIX + first[4:] + b' origin_kind=native-osal\r\n' + rest
+            (run / 'console.log').write_bytes(raw)
+            runner = manifest['functional_camera_runtime']
+            runner['console_sha256_at_close'] = checker.sha(raw)
+            (run / 'functional-camera-runner.json').write_text(json.dumps(runner))
+            rows = checker.parse_console(raw)
+            self.assertEqual(rows[0]['console_prefix_diagnostic']['raw'], self.PREFIX.decode())
+            self.assertTrue(checker.check_transport(run, manifest, rows, events, build)['verified'])
+            for key, value in (('model_instance', '0x64'), ('op', '2'), ('source', '0x1'),
+                ('native_fnv', '0x1'), ('request_fnv', '0x1'), ('returned_fnv', '0x1'),
+                ('destination_fnv', '0x1'), ('returned_bytes', '127'), ('token', '0x8000000000000003'),
+                ('readback_closed', '0'), ('error', '-5')):
+                changed = copy.deepcopy(rows)
+                changed[0]['fields'][key] = value
+                with self.subTest(key=key), self.assertRaises(ValueError):
+                    checker.check_transport(run, manifest, changed, events, build)
+            with self.assertRaisesRegex(ValueError, 'duplicate/overlapping bridge transfer'):
+                checker.check_transport(run, manifest, rows + [copy.deepcopy(rows[0])], events, build)
+            with self.assertRaisesRegex(ValueError, 'not fully consumed'):
+                checker.check_transport(run, manifest, rows[1:], events, build)
 
 
 class EvidenceTests(unittest.TestCase):
@@ -2380,7 +3257,15 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(checker.sha(raw), ZD4_CONSOLE_SHA256)
         self.assertEqual(raw[1924780:1925056], ZD4_ADF_FREE_RECORD)
         rows = checker.parse_console(raw)
-        self.assertEqual(len(rows), 923)
+        added = {'NATIVE_CP_OUTPUT_POLICY_CONSUMED': 1, 'NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE': 3,
+                 'NATIVE_CP_EE_DIAGNOSTIC_COMPLETE': 3, 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE': 2}
+        self.assertEqual({tag: sum(r['tag'] == tag for r in rows) for tag in added}, added)
+        movie_added = {'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_' + name: 1
+                       for name in ('REQUEST_FREE', 'REPLY_FREE', 'COMPLETE')}
+        self.assertEqual({tag: sum(r['tag'] == tag for r in rows) for tag in movie_added}, movie_added)
+        historical = [r for r in rows if r['tag'] not in added and r['tag'] not in movie_added]
+        self.assertEqual(sum(r['tag'] != 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE' for r in historical), 923)
+        self.assertEqual(sum(r['tag'] == 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE' for r in rows), 27)
         row, = [r for r in rows if r['tag'] == 'FULL_ADF_CONNECT_NATIVE_REPLY_FREE']
         self.assertEqual(row['line'], 18830)
         self.assertEqual((row['host_diagnostic']['raw_lf_line'], row['host_diagnostic']['ending_raw_lf_line']), (17871, 17872))
@@ -2388,6 +3273,35 @@ class EvidenceTests(unittest.TestCase):
         self.assertFalse(any('diagnostic' in r for r in rows))
         self.assertEqual((path.stat().st_size, path.stat().st_mtime_ns), before)
         self.assertEqual(checker.sha(path.read_bytes()), ZD4_CONSOLE_SHA256)
+
+    def test_background_scalar_framing_keeps_all13_and_real_lifecycle_guards(self):
+        args = self.background(require_native=True)
+        transport = checker.check_transport(*args)
+        target = next(r for r in args[2] if r['tag'] == 'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE')
+        order = ('pid tid sender waiter destination expected reply bytes command rc faults ap_consumed capture_verified').split()
+        guest = ('OBS ' + target['tag'] + ' ' + ' '.join(k + '=' + target['fields'][k] for k in order)).encode() + b'\r\n'
+        row, = checker.parse_console(guest[:8] + checker.ADF_HOST_WARNINGS[0] + guest[8:])
+        row['line'] = target['line']
+        rows = [row if r is target else r for r in args[2]]
+        self.assertIn('host_diagnostic', row)
+        evidence = checker.check_background_start(args[0], args[1], rows, transport)
+        self.assertTrue(evidence['content_join_verified'])
+        self.assertFalse(evidence['capture_verified'])
+        for tag in ('FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE', 'FULL_ADF_CONNECT_NATIVE_REPLY_FREE',
+                    'FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE', 'FUNCTIONAL_BACKGROUND_START_RECEIVE'):
+            with self.subTest(missing=tag), self.assertRaises(ValueError):
+                checker.check_background_start(args[0], args[1], [r for r in rows if r['tag'] != tag], transport)
+        with self.assertRaisesRegex(ValueError, 'all13 original AP free missing/ambiguous'):
+            checker.check_background_start(args[0], args[1], rows + [copy.deepcopy(row)], transport)
+        for key, value in (('sender', str(int(row['fields']['sender']) + 1)), ('waiter', '0'),
+                           ('expected', '0x80000001'), ('rc', '-1'), ('ap_consumed', '0')):
+            bad = copy.deepcopy(row)
+            bad['fields'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                checker.check_background_start(args[0], args[1], [bad if r is row else r for r in rows], transport)
+        for bad_transport in (None, dict(transport, safe_cleanup=False)):
+            with self.subTest(no_transport=bad_transport is None), self.assertRaises(ValueError):
+                checker.check_background_start(args[0], args[1], rows, bad_transport)
 
     def test_background_adf_host_free_keeps_original_identity_and_lifecycle_checks(self):
         args = self.background(require_native=True)
@@ -3303,15 +4217,15 @@ class EvidenceTests(unittest.TestCase):
         for inline in (False, True):
             root = self.root / str(inline)
             root.mkdir()
-            args = host_test_capture(root, REFRESH_PATHS, vdf_inline=inline, refresh_source=0x80946189,
-                                     configuration_only=True)
+            args = host_test_capture(root, REFRESH_PATHS + (('display', 0x170, bytes.fromhex('01010000') + bytes(4)),),
+                                     vdf_inline=inline, refresh_source=0x80946189, configuration_only=True)
             transport = checker.check_transport(*args)
-            self.assertEqual(len(transport['VDF_path']['cycles']), 6)
+            self.assertEqual(len(transport['VDF_path']['cycles']), 7)
             for row in args[2]:
                 if not row['tag'].startswith('FUNCTIONAL_VDF_PATH_') or 'cycle' not in row['fields']:
                     continue
                 f = row['fields']
-                after_free = f['command'] in ('0x14c', '0x141', '0x152', '0x162')
+                after_free = f['command'] in ('0x14c', '0x141', '0x152', '0x162', '0x163', '0x170')
                 if row['tag'].endswith('REQUEST_FREE'):
                     self.assertEqual(f['ack_retained'], '(nil)' if after_free else '0x500000')
                     if after_free:
@@ -3375,6 +4289,76 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(any(row['stage'] == 'graph' for row in result['missing']))
         self.assertTrue(any(row['stage'] == 'native_acceptance' for row in result['missing']))
         json.dumps(result)
+
+    def test_native_force_IDR_wait_modes_and_actual_packet_join(self):
+        for factor in (1, 0x1004):
+            directory = self.root / str(factor)
+            directory.mkdir()
+            args = host_test_capture(directory, native_force_factor=factor)
+            transport = checker.check_transport(*args)
+            storage = checker.writeback.inspect(args[0])
+            self.assertTrue(checker.check_frames(args[0], transport)['verified'])
+            result = checker.check_video(args[2], transport, storage, args[0])
+            self.assertEqual(result['native_forced_IDR_requests'], 1)
+            self.assertEqual(result['native_force_waiter_factor'], factor)
+            self.assertTrue(result['raw_encoded_NAL_join_verified'])
+            self.assertFalse(storage['capture_verified'])
+            queued = copy.deepcopy(args[2])
+            def event(tag):
+                return next(row for row in queued if row['tag'] == tag and row['fields'].get('command') == '2')
+            operation, receive, freed = map(event, ('FUNCTIONAL_MPR_OPERATION',
+                'FUNCTIONAL_MPR_EVENT_RECEIVED', 'FUNCTIONAL_MPR_EVENT_FREE'))
+            operation['line'], receive['line'], freed['line'] = receive['line'], freed['line'], operation['line']
+            self.assertLess(operation['line'], receive['line'])
+            self.assertLess(receive['line'], freed['line'])
+            self.assertEqual(checker.check_video(queued, transport, storage, args[0])['native_forced_IDR_requests'], 1)
+            operation['line'] = 1
+            with self.assertRaises(ValueError):
+                checker.check_video(queued, transport, storage, args[0])
+
+    def test_native_force_IDR_opaque_waiter_and_order_negative_stages(self):
+        args = host_test_capture(self.root, native_force_factor=1)
+        transport = checker.check_transport(*args)
+        storage = checker.writeback.inspect(args[0])
+        checker.check_video(args[2], transport, storage, args[0])
+        mutations = (
+            ('FUNCTIONAL_MPR_FORCE_REQUEST', 'opaque_word', '0'),
+            ('FUNCTIONAL_MPR_FORCE_REQUEST', 'opaque4', '00000000'),
+            ('FUNCTIONAL_MPR_FORCE_REQUEST', 'parameter_v', '0x3501'),
+            ('FUNCTIONAL_MPR_FORCE_REQUEST', 'parameter_generation', '0'),
+            ('FUNCTIONAL_MPR_FORCE_REQUEST', 'expected_factor', '2'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'expected_result', '0x990008'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'frame_generation', '0'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'model_token', '0'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'actual_IDR_NAL5', '0'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'publication_complete', '0'),
+            ('FUNCTIONAL_MPR_FORCE_IDR', 'original_argument_semantics_verified', '1'),
+        )
+        for tag, key, value in mutations:
+            rows = copy.deepcopy(args[2])
+            next(row['fields'] for row in rows if row['tag'] == tag)[key] = value
+            with self.subTest(tag=tag, key=key), self.assertRaises(ValueError):
+                checker.check_video(rows, transport, storage, args[0])
+        for tag in ('FUNCTIONAL_MPR_FORCE_REQUEST', 'FUNCTIONAL_MPR_FORCE_IDR'):
+            rows = [row for row in args[2] if row['tag'] != tag]
+            with self.subTest(missing=tag), self.assertRaises(ValueError):
+                checker.check_video(rows, transport, storage, args[0])
+        rows = copy.deepcopy(args[2])
+        next(row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_FORCE_IDR')['line'] = 1
+        with self.assertRaises(ValueError):
+            checker.check_video(rows, transport, storage, args[0])
+        changed = copy.deepcopy(transport)
+        next(tx for tx in changed['transfers'] if tx['origin']['command'] == 2)['origin']['command'] = 1
+        with self.assertRaises(ValueError):
+            checker.check_video(args[2], changed, storage, args[0])
+        rows = copy.deepcopy(args[2])
+        for row in rows:
+            if row['tag'] in ('FUNCTIONAL_MPR_EVENT_RECEIVED', 'FUNCTIONAL_MPR_EVENT_FREE') and row['fields']['command'] == '2':
+                wire = bytearray.fromhex(row['fields']['wire_hex'])
+                struct.pack_into('<H', wire, 2, 5)
+                row['fields'].update(wire_hex=wire.hex(), wire_fnv=hex(checker.fnv(wire)))
+        with self.assertRaises(ValueError):
+            checker.check_video(rows, transport, storage, args[0])
 
     def test_VDF_requires_declared_software_route_policy(self):
         args = host_test_capture(self.root, (True,))
@@ -3520,6 +4504,21 @@ class EvidenceTests(unittest.TestCase):
         next(tx for tx in changed['transfers'] if tx['opcode'] == 5)['frame'] = None
         with self.assertRaises(checker.MissingEvidence):
             checker.check_frames(args[0], changed)
+
+    def test_forced_frame_evidence_requires_actual_idr_nal(self):
+        args = host_test_capture(self.root, video_idr_at=0)
+        transport = checker.check_transport(*args)
+        self.assertTrue(checker.check_frames(args[0], transport)['verified'])
+        forced = next(tx for tx in transport['transfers'] if tx['opcode'] == 33)
+        self.assertEqual(checker.payload_read(args[0], forced['request_payload']), struct.pack('<I', 1))
+        self.assertTrue(any(nal[0] & 31 == 5 for nal in checker.camera_packets(
+            checker.transfer_output(args[0], forced))[0]['nals']))
+
+    def test_non_idr_cannot_be_relabelled_as_forced(self):
+        args = host_test_capture(self.root, video_idr_at=1)
+        transport = checker.check_transport(*args)
+        with self.assertRaisesRegex(ValueError, 'forced video frame lacks actual IDR'):
+            checker.check_frames(args[0], transport)
 
     def test_VDF_consumption_preserves_all_original_media_requirements(self):
         args = host_test_capture(self.root, (True,))
@@ -4170,6 +5169,53 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(checker.MissingEvidence):
             checker.check_frames(run, display_only)
 
+    def test_VDF163_zero6_SET_full176_and_original14_to12_lifecycle(self):
+        args = host_test_capture(self.root, (True, ('display', 0x163)))
+        transport = checker.check_transport(*args)
+        cycle = transport['VDF_path']['cycles'][-1]
+        self.assertEqual((cycle['opcode'], cycle['native_command']), (8, 0x163))
+        tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 8)
+        canonical = struct.pack('<2I', 0x163, 6) + bytes(8)
+        output = checker.transfer_output(args[0], tx)
+        self.assertEqual(len(output), 176)
+        self.assertEqual(output[160:], canonical)
+        self.assertEqual(struct.unpack_from('<Q', output, 40)[0], checker.fnv(canonical))
+        self.assertEqual(struct.unpack_from('<2Q', output, 48)[0], struct.unpack_from('<2Q', output, 48)[1])
+        sent = next(row['fields'] for row in args[2] if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and row['fields']['command'] == '0x163')
+        self.assertEqual(sent['raw'], '0d2063010e000180000000000000')
+        self.assertEqual(sent['ack_wire'], '0d2063110c00018000005900')
+        self.assertEqual((sent['bytes'], sent['AP_consumed']), ('14', '0'))
+        checked = checker.vdf_result(output, canonical, 99, 8, output[128:144])
+        self.assertEqual((checked['frame_consumed'], checked['retired'], checked['status']), (1, 1, 0))
+        for offset in range(8, 16):
+            wrong = bytearray(canonical);wrong[offset] = 1
+            forged = bytearray(output);forged[160:] = wrong
+            struct.pack_into('<Q', forged, 40, checker.fnv(wrong))
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, 'unsupported command/body/enabled'):
+                checker.vdf_result(forged, bytes(wrong), 99, 8, output[128:144])
+
+    def test_Display_exact_legacy_policy_is_readable_only_without_new163(self):
+        old_root = self.root / 'legacy-display'
+        old_root.mkdir()
+        args = host_test_capture(old_root, (True, ('display', 0x152), ('display', 0x162)), configuration_only=True)
+        for target in (args[1], args[1]['backup_transport']):
+            for key, value in checker.LEGACY_DISPLAY_POLICY.items():
+                target['functional_camera_' + key] = copy.deepcopy(value)
+        self.assertTrue(checker.check_transport(*args)['verified'])
+        mixed = copy.deepcopy(args)
+        for key, value in checker.DISPLAY_POLICY.items():
+            mixed[1]['backup_transport']['functional_camera_' + key] = copy.deepcopy(value)
+        with self.assertRaisesRegex(ValueError, 'Display operation lacks'):
+            checker.check_transport(*mixed)
+        new_root = self.root / 'new-zero6-legacy-policy'
+        new_root.mkdir()
+        newer = host_test_capture(new_root, (True, ('display', 0x163)), configuration_only=True)
+        for target in (newer[1], newer[1]['backup_transport']):
+            for key, value in checker.LEGACY_DISPLAY_POLICY.items():
+                target['functional_camera_' + key] = copy.deepcopy(value)
+        with self.assertRaisesRegex(ValueError, 'Display operation lacks'):
+            checker.check_transport(*newer)
+
     def test_Display_disabled_palette_subset_non640_inline_and_active_route_requirement(self):
         cp = dict(producer_tid=92, source=0x81cf1234, destination=0x92880001,
                   command=0x3003, bytes=8, fnv1a64=checker.fnv(b'HOST_TEST CP INIT'))
@@ -4704,6 +5750,243 @@ class EvidenceTests(unittest.TestCase):
             event['request_payload']['origin']['command'] = 0x162 if command == 0x152 else 0x152
             with self.subTest(command=command, foreign_payload=True), self.assertRaises(ValueError):
                 checker.check_transport(*changed)
+
+    def test_Display0170_three_boolean_identity_all_eight_tuples_full_readback(self):
+        for bits in range(8):
+            flags = tuple((bits >> index) & 1 for index in range(3))
+            body = bytes((*flags, 0, 0, 0, 0, 0))
+            root = self.root / f'0170-tuple-{bits}'
+            root.mkdir()
+            args = host_test_capture(root, (True, ('display', 0x170, body)), configuration_only=True)
+            transport = checker.check_transport(*args)
+            frames = checker.check_frames(args[0], transport, require_codecs=False)
+            self.assertTrue(frames['verified'])
+            tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 8)
+            output = checker.transfer_output(args[0], tx)
+            canonical = checker.payload_read(args[0], tx['request_payload'])
+            self.assertEqual((len(output), len(canonical)), (176, 16))
+            self.assertEqual(canonical, struct.pack('<2I', 0x170, 4) + body)
+            self.assertEqual(output[160:], canonical)
+            self.assertEqual(struct.unpack_from('<Q', output, 40)[0], checker.fnv(canonical))
+            value = checker.vdf_result(output, canonical, 99, 8, output[128:144])
+            self.assertEqual((value['enabled'], value['frame_consumed'], value['retired'],
+                              value['config_readback'], value['committed']), (1, 1, 1, 1, 1))
+            self.assertEqual((value['stride'], value['active_bytes']),
+                             (value['width'] * 3, value['width'] * value['height'] * 3))
+            self.assertEqual(value['source_fnv'], value['sink_fnv'])
+            self.assertEqual(value['source_fnv'], checker.fnv(bytes([0, 0, 255]) * (value['width'] * value['height'])))
+            self.assertNotEqual(value['source_fnv'], 0)
+            self.assertEqual(value['config_generation'], value['before_config_generation'] + 1)
+            self.assertEqual(value['frame_generation'], value['before_frame_generation'] + 1)
+            proof = tx['frame']['proof']
+            self.assertEqual((proof['opcode'], proof['consumer_kind'], proof['render_observed'],
+                              proof['retired'], proof['encoder_consumed']), (8, 4, 1, 1, 0))
+            self.assertEqual(proof['source_fnv1a64'], value['source_fnv'])
+            self.assertEqual(proof['consumer_after_fnv1a64'], value['sink_fnv'])
+            sent = next(row['fields'] for row in args[2] if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and
+                        row['fields']['command'] == '0x170')
+            self.assertEqual(sent['raw'], '0d2070010c000180' + body[:4].hex())
+            self.assertEqual(sent['ack_wire'], '0d2070110c00018000005900')
+            self.assertEqual((sent['bytes'], sent['source']), ('12', '0x81cf61c7'))
+            self.assertEqual(len(bytes.fromhex(sent['raw'])), 12)
+            cycle = next(cycle for cycle in transport['VDF_path']['cycles'] if cycle['first'] == tx['first'])
+            self.assertEqual((cycle['opcode'], cycle['native_command'], cycle['AP_consumed']), (8, 0x170, True))
+            self.assertLess(cycle['receive_line'], cycle['free_line'])
+            self.assertEqual(len([row for row in args[2] if row['tag'].startswith('FUNCTIONAL_VDF_PATH_') and
+                                  row['fields'].get('cycle') == str(cycle['cycle'])]), 5)
+            self.assertIs(args[1]['functional_camera_runtime']['capture_verified'], False)
+            self.assertFalse(transport['VDF_path']['physical_asic_compatibility_verified'])
+            self.assertFalse(transport['VDF_path']['original_0162_feature_verified'])
+            if bits == 3:
+                self.assertEqual(body[:4], bytes.fromhex('01010000'))
+
+    def test_Display0170_full_capture_async_and_inline_keep_capture_false(self):
+        body = bytes.fromhex('01010000') + bytes(4)
+        for inline in (False, True):
+            root = self.root / ('0170-full-inline' if inline else '0170-full-async')
+            root.mkdir()
+            args = host_test_capture(root, (True, ('display', 0x170, body)), vdf_inline=inline)
+            transport = checker.check_transport(*args)
+            frames = checker.check_frames(args[0], transport, require_codecs=False)
+            self.assertTrue(frames['verified'])
+            tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 8)
+            output = checker.transfer_output(args[0], tx)
+            canonical = checker.payload_read(args[0], tx['request_payload'])
+            value = checker.vdf_result(output, canonical, 99, 8, output[128:144])
+            self.assertEqual((len(output), output[160:]), (176, struct.pack('<2I', 0x170, 4) + body))
+            self.assertEqual(value['source_fnv'], value['sink_fnv'])
+            self.assertEqual((value['retired'], value['frame_consumed'], value['config_generation'],
+                              value['frame_generation']),
+                             (1, 1, value['before_config_generation'] + 1, value['before_frame_generation'] + 1))
+            cycle = next(cycle for cycle in transport['VDF_path']['cycles'] if cycle['first'] == tx['first'])
+            self.assertEqual((cycle['opcode'], cycle['native_command'], cycle['AP_consumed']), (8, 0x170, True))
+            self.assertLess(cycle['receive_line'], cycle['free_line'])
+            self.assertIs(args[1]['functional_camera_runtime']['capture_verified'], False)
+            self.assertFalse(transport['VDF_path']['physical_asic_compatibility_verified'])
+
+    def test_Display0170_invalid_body_and_transport_mutants_reject(self):
+        valid = bytes.fromhex('01010000') + bytes(4)
+        for name, body in (('flag2', bytes([1, 2, 0, 0, 0, 0, 0, 0])),
+                           ('reserved-byte11', bytes([1, 1, 0, 1, 0, 0, 0, 0])),
+                           ('virtual-padding', bytes([1, 1, 0, 0, 1, 0, 0, 0]))):
+            root = self.root / ('0170-invalid-' + name)
+            root.mkdir()
+            args = host_test_capture(root, (True, ('display', 0x170, body)), configuration_only=True)
+            with self.subTest(body=name), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+
+        root = self.root / '0170-mutants'
+        root.mkdir()
+        args = host_test_capture(root, (True, ('display', 0x152, PEAKING_BODY8),
+                                        ('display', 0x170, valid)), configuration_only=True)
+        transport = checker.check_transport(*args)
+        tx = next(item for item in transport['transfers'] if item['opcode'] == 8 and item['origin']['command'] == 0x170)
+        raw = checker.transfer_output(args[0], tx)
+        canonical = checker.payload_read(args[0], tx['request_payload'])
+        route = raw[128:144]
+        value = checker.vdf_result(raw, canonical, 99, 8, route)
+        self.assertEqual((value['retired'], value['config_generation'], value['frame_generation']),
+                         (1, value['before_config_generation'] + 1, value['before_frame_generation'] + 1))
+        for offset, wrong in ((0, 0x171), (4, 3), (4, 5)):
+            envelope, output = bytearray(canonical), bytearray(raw)
+            struct.pack_into('<I', envelope, offset, wrong)
+            output[160:] = envelope
+            struct.pack_into('<Q', output, 40, checker.fnv(envelope))
+            with self.subTest(command_size=offset), self.assertRaises(ValueError):
+                checker.vdf_result(output, envelope, 99, 8, route)
+        for index in (11, 12):
+            envelope, output = bytearray(canonical), bytearray(raw)
+            envelope[index] = 1
+            output[160:] = envelope
+            struct.pack_into('<Q', output, 40, checker.fnv(envelope))
+            with self.subTest(body_reserved=index), self.assertRaises(ValueError):
+                checker.vdf_result(output, envelope, 99, 8, route)
+        for key, wrong in (('bytes', '13'), ('command', '0x171')):
+            rows = copy.deepcopy(args[2])
+            next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and
+                 row['fields']['command'] == '0x170')['fields'][key] = wrong
+            with self.subTest(receipt=key), self.assertRaises(ValueError):
+                checker.check_vdf_path(args[0], rows, transport)
+        for name, offset in (('sink', 56), ('readback', None)):
+            output = bytearray(raw)
+            if offset is None:
+                output[160] ^= 1
+            else:
+                struct.pack_into('<Q', output, offset, 0)
+            with self.subTest(missing=name), self.assertRaises(ValueError):
+                checker.vdf_result(output, canonical, 99, 8, output[128:144])
+        for offset, old in ((16, 152), (24, 144)):
+            output = bytearray(raw)
+            struct.pack_into('<Q', output, offset, struct.unpack_from('<Q', raw, old)[0])
+            with self.subTest(old_generation=offset), self.assertRaises(ValueError):
+                checker.vdf_result(output, canonical, 99, 8, output[128:144])
+        changed = copy.deepcopy(transport)
+        next(item for item in changed['transfers'] if item['first'] == tx['first'])['frame'] = None
+        with self.subTest(mutant='frame'), self.assertRaises(checker.MissingEvidence):
+            checker.check_vdf_path(args[0], args[2], changed)
+        changed = copy.deepcopy(transport)
+        next(item['frame']['proof'] for item in changed['transfers'] if item['first'] == tx['first'])[
+            'frame_generation'] = value['before_frame_generation']
+        with self.subTest(mutant='proof-generation'), self.assertRaises(ValueError):
+            checker.check_vdf_path(args[0], args[2], changed)
+        rows = copy.deepcopy(args[2])
+        other = next(row['fields']['canonical_display16'] for row in rows if
+                     row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and row['fields']['command'] == '0x152')
+        next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and
+             row['fields']['command'] == '0x170')['fields']['canonical_display16'] = other
+        with self.subTest(mutant='other-display-bank'), self.assertRaises(ValueError):
+            checker.check_vdf_path(args[0], rows, transport)
+        rows = copy.deepcopy(args[2])
+        next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and
+             row['fields']['command'] == '0x170')['fields']['ack_wire'] = struct.pack(
+                 '<4HI', 0x200d, 0x1170, 12, 0x8001, 0xf000).hex()
+        with self.subTest(mutant='ack-status'), self.assertRaises(ValueError):
+            checker.check_vdf_path(args[0], rows, transport)
+        for tag in ('RECEIVE', 'AP_FREE'):
+            rows = [row for row in args[2] if not (row['tag'] == 'FUNCTIONAL_VDF_PATH_' + tag and
+                                                   row['fields'].get('command') == '0x170')]
+            with self.subTest(mutant='missing-' + tag), self.assertRaises(checker.MissingEvidence):
+                checker.check_vdf_path(args[0], rows, transport)
+        rows = copy.deepcopy(args[2])
+        next(row for row in rows if row['tag'] == 'FUNCTIONAL_VDF_PATH_SEND' and
+             row['fields']['command'] == '0x170')['fields']['source'] = '0x81cf61c8'
+        with self.subTest(mutant='source'), self.assertRaises(ValueError):
+            checker.check_vdf_path(args[0], rows, transport)
+        changed = copy.deepcopy(args)
+        event = next(row for row in changed[3] if row['kind'] == 'request' and row['opcode'] == 8 and
+                     row['origin']['command'] == 0x170)
+        event['origin']['source'] ^= 1
+        event['request_payload']['origin']['source'] ^= 1
+        with self.subTest(mutant='payload-source'), self.assertRaises(ValueError):
+            checker.check_transport(*changed)
+
+    def test_Display0170_policy_producer_exact_old3_old4_borrow_and_mixed_reject(self):
+        producer = checker.source_module(checker.RUNTIME / 'backup_profile.py')
+        generated = producer.functional_camera_profile_fields(checker.PROFILE)
+        for key, expected in checker.DISPLAY_POLICY.items():
+            self.assertTrue(checker.typed_equal(generated['functional_camera_' + key], expected))
+        self.assertEqual(checker.DISPLAY_POLICY['display_config_commands'], [0x141, 0x152, 0x162, 0x163, 0x170])
+        body = bytes.fromhex('01010000') + bytes(4)
+        for name, paths, policy in (
+                ('old3', (True, ('display', 0x152, PEAKING_BODY8), ('display', 0x162)),
+                 checker.LEGACY_DISPLAY_POLICY),
+                ('old4', (True, ('display', 0x163)), checker.ZERO6_DISPLAY_POLICY)):
+            root = self.root / ('0170-policy-' + name)
+            root.mkdir()
+            args = host_test_capture(root, paths, configuration_only=True)
+            for target in (args[1], args[1]['backup_transport']):
+                for key, value in policy.items():
+                    target['functional_camera_' + key] = copy.deepcopy(value)
+            self.assertTrue(checker.check_transport(*args)['verified'])
+        base_root = self.root / '0170-policy-170'
+        base_root.mkdir()
+        base = host_test_capture(base_root, (True, ('display', 0x152, PEAKING_BODY8),
+                                            ('display', 0x170, body)), configuration_only=True)
+        for name, policy in (('legacy', checker.LEGACY_DISPLAY_POLICY),
+                             ('zero6', checker.ZERO6_DISPLAY_POLICY)):
+            changed = copy.deepcopy(base)
+            for target in (changed[1], changed[1]['backup_transport']):
+                for key, value in policy.items():
+                    target['functional_camera_' + key] = copy.deepcopy(value)
+            with self.subTest(borrowed=name), self.assertRaisesRegex(ValueError, 'Display operation lacks'):
+                checker.check_transport(*changed)
+        for side in ('manifest', 'backup_transport'):
+            changed = copy.deepcopy(base)
+            target = changed[1] if side == 'manifest' else changed[1]['backup_transport']
+            for key, value in checker.ZERO6_DISPLAY_POLICY.items():
+                target['functional_camera_' + key] = copy.deepcopy(value)
+            with self.subTest(single_side=side), self.assertRaisesRegex(ValueError, 'Display operation lacks'):
+                checker.check_transport(*changed)
+        missing_transport = copy.deepcopy(base)
+        del missing_transport[1]['backup_transport']['functional_camera_display_config_commands']
+        with self.subTest(missing='transport-field'), self.assertRaisesRegex(ValueError, 'Display operation lacks'):
+            checker.check_transport(*missing_transport)
+        fields = producer.functional_camera_profile_fields(checker.PROFILE)
+        profile = dict(fields, backup_transport=copy.deepcopy(fields), directory_sd_profile='directory-vvfat-256gb-v1',
+                       rm_file_image_bytes=checker.writeback.CARD_BYTES)
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        for side, policy in (('manifest', checker.ZERO6_DISPLAY_POLICY),
+                             ('backup_transport', checker.LEGACY_DISPLAY_POLICY)):
+            changed = copy.deepcopy(profile)
+            target = changed if side == 'manifest' else changed[side]
+            for key, value in policy.items():
+                target['functional_camera_' + key] = copy.deepcopy(value)
+            with self.subTest(profile_side=side), self.assertRaisesRegex(
+                    ValueError, 'typed functional profile drift: display policy'):
+                checker.check_profile(changed)
+        mixed = copy.deepcopy(profile)
+        for key, value in checker.ZERO6_DISPLAY_POLICY.items():
+            mixed['functional_camera_' + key] = copy.deepcopy(value)
+        for key, value in checker.LEGACY_DISPLAY_POLICY.items():
+            mixed['backup_transport']['functional_camera_' + key] = copy.deepcopy(value)
+        with self.subTest(profile='mixed'), self.assertRaisesRegex(
+                ValueError, 'typed functional profile drift: display policy'):
+            checker.check_profile(mixed)
+        missing_profile = copy.deepcopy(profile)
+        del missing_profile['backup_transport']['functional_camera_display_config_commands']
+        with self.subTest(profile='missing'), self.assertRaisesRegex(
+                ValueError, 'typed functional profile drift: display policy'):
+            checker.check_profile(missing_profile)
 
     def test_Refresh_mixed_5_6_7_8_8_8_CP_INIT_preserves_feature_tails_and_media(self):
         args = host_test_capture(self.root, REFRESH_PATHS)
@@ -5946,24 +7229,31 @@ class StartupControlEvidenceTests(unittest.TestCase):
         def emit(tag, fields):
             records.append(tag + ' ' + ' '.join(f'{k}={v}' for k, v in fields.items()))
         for cycle, (command, cookie) in enumerate(zip(commands, cookies), 1):
-            slot, size = int(command == 0x4057), 24 if command == 0x4014 else 12
-            body = checker.STARTUP_CONTROL_MODE_BODY if command == 0x4014 else bytes(4)
-            wire = bytes((5, 0xa5 if cycle > 2 else 0)) + struct.pack('<HI', command, cookie) + body
-            native = dict(producer_tid=90, source=0x80020002, destination=0x90030001,
+            focus = command == 0x403f
+            slot, size = int(command == 0x4057), 24 if command == 0x4014 else 16 if focus else 12
+            body = checker.STARTUP_CONTROL_MODE_BODY if command == 0x4014 else bytes(8 if focus else 4)
+            wire = bytes((5, 0 if focus else 0xa5 if cycle > 2 else 0)) + struct.pack('<HI', command, cookie) + body
+            native = dict(producer_tid=90, source=0x80020002, destination=0x90040193 if focus else 0x90030001,
                           command=command, bytes=size, fnv1a64=checker.fnv(wire))
-            emit('NATIVE_CP_BACKGROUND_INPUT_AUDIT', dict(pid=77, tid=90, sequence=200 + cycle, entry='async',
-                pointer='0x500000', destination='0x90030001', bytes=size, source='0x80020002', size_known=1,
-                source_known=1, bytes_complete=1, complete=1, producer_return=hex(0x7f25c3f000 + 0x3535a68),
-                consumed=0, state_verified=0, capture_verified=0))
-            emit('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES', dict(pid=77, tid=90, sequence=200 + cycle,
-                offset=0, bytes=size, raw=wire.hex()))
-            records.extend(JFZ_VDF_RESOURCE_OBS.replace('FUNCTIONAL_VDF_PATH_', 'FUNCTIONAL_STARTUP_CONTROL_')
-                           .replace('pid=258', 'pid=77').replace('tid=381', 'tid=90').splitlines())
-            pred = self.predecessor()
-            emit('FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS', pred)
+            if focus:
+                emit('FUNCTIONAL_CAMERA_FOCUS_MAGNIFICATION_RESET_REQUEST', dict(pid=77, tid=90,
+                    source='0x80020002', destination='0x90040193', cmd='0x403f', token=hex(cookie), request_bytes=16,
+                    raw=wire.hex(), native_fnv=hex(checker.fnv(wire)), policy=checker.FOCUS_RESET_POLICY, capture_verified=0))
+            else:
+                emit('NATIVE_CP_BACKGROUND_INPUT_AUDIT', dict(pid=77, tid=90, sequence=200 + cycle, entry='async',
+                    pointer='0x500000', destination='0x90030001', bytes=size, source='0x80020002', size_known=1,
+                    source_known=1, bytes_complete=1, complete=1, producer_return=hex(0x7f25c3f000 + 0x3535a68),
+                    consumed=0, state_verified=0, capture_verified=0))
+                emit('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES', dict(pid=77, tid=90, sequence=200 + cycle,
+                    offset=0, bytes=size, raw=wire.hex()))
+                records.extend(JFZ_VDF_RESOURCE_OBS.replace('FUNCTIONAL_VDF_PATH_', 'FUNCTIONAL_STARTUP_CONTROL_')
+                               .replace('pid=258', 'pid=77').replace('tid=381', 'tid=90').splitlines())
+                pred = self.predecessor()
+                emit('FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS', pred)
             operations.append(dict(op=2, data=b'', output=previous, origin=native))
             records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
-            emit('FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS', pred)
+            if not focus:
+                emit('FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS', pred)
             cfg, frame = (struct.unpack_from('<Q', previous, off)[0] + 1 for off in (56, 112))
             output, canonical = self.receipt(command, checker.fnv(previous[8:48]))
             output = bytearray(output)
@@ -5979,6 +7269,13 @@ class StartupControlEvidenceTests(unittest.TestCase):
                 p['after'][key] += 1
             operations.append(dict(op=14, data=canonical, output=bytes(output), origin=native, proof=p))
             records.append('HOST_TEST_TRANSFER_' + str(len(operations) - 1))
+            if focus:
+                self.focus_rows(emit, cookie, wire, previous, bytes(output), canonical, inline)
+                previous = bytearray(previous)
+                for offset in (56, 64, 72, 112):
+                    struct.pack_into('<Q', previous, offset, struct.unpack_from('<Q', previous, offset)[0] + 1)
+                previous, last_proof = bytes(previous), p
+                continue
             emit('FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS', pred)
             requested[slot] += 1
             names = ('REQUEST_FREE', 'RECEIVE', 'SENDER_FREE', 'CYCLE') if inline else ('REQUEST_FREE', 'CYCLE', 'RECEIVE', 'SENDER_FREE')
@@ -6030,12 +7327,99 @@ class StartupControlEvidenceTests(unittest.TestCase):
     @staticmethod
     def receipt(command=0x4014, fingerprint=0xf1278198c173ab21):
         body = checker.STARTUP_CONTROL_MODE_BODY if command == 0x4014 else bytes(16)
-        canonical = struct.pack('<2H', command, 16 if command == 0x4014 else 4) + body + bytes(4) + struct.pack('<Q', fingerprint)
+        canonical = struct.pack('<2H', command, 16 if command == 0x4014 else 8 if command == 0x403f else 4) + body + bytes(4) + struct.pack('<Q', fingerprint)
         raw = bytearray(StillFormatEvidenceTests.receipt()[:160] + canonical)
         struct.pack_into('<I', raw, 4, 192)
         struct.pack_into('<Q', raw, 40, checker.fnv(canonical))
         struct.pack_into('<I', raw, 96, 9)
         return bytes(raw), canonical
+
+    @staticmethod
+    def focus_rows(emit, cookie, wire, state, output, canonical, inline):
+        family = 'FUNCTIONAL_CAMERA_FOCUS_MAGNIFICATION_'
+        cfg, frame = struct.unpack_from('<2Q', output, 16)
+        before_cfg, before_frame = (struct.unpack_from('<Q', state, off)[0] for off in (56, 112))
+        common = dict(pid=77, tid=90, native_fnv=hex(checker.fnv(wire)), model_instance=99, capture_verified=0)
+        emit('FUNCTIONAL_FOCUS_RESET_MODEL', dict(common, rc=0, state_used=128, state_required=128,
+            result_used=192, result_required=192, result_token=0, result_fnv=hex(checker.fnv(output)),
+            policy=checker.FOCUS_RESET_POLICY, physical_ASIC_verified=0))
+        received = dict(tid=355, sender_tid=90, source='0x90040193', destination='0x80020002', cmd='0x403f',
+            token=hex(cookie), bytes=12, status='0xf000', rc=0, magnification_disabled=1, capture_verified=0)
+        freed = dict(received, tid=90, receiver_tid=355)
+        if inline:
+            emit(family + 'APPLIED_REPLY_RECEIVED', received)
+            emit(family + 'APPLIED_REPLY_FREE', freed)
+        emit(family + 'BACKEND', dict(common, cmd='0x403f', token=hex(cookie), backend_rc=0,
+            cfg_before=before_cfg, cfg=cfg, frame_before=before_frame, frame=frame,
+            canonical_fnv=hex(checker.fnv(canonical)), model_fnv=hex(checker.fnv(output))))
+        emit(family + 'APPLIED', dict(common, source='0x80020002', destination='0x90040193', cmd='0x403f',
+            token=hex(cookie), request_bytes=16, reply_bytes=12, status='0xf000', request_free_rc=0,
+            policy=checker.FOCUS_RESET_POLICY, cfg=cfg, frame=frame, model_fnv=hex(checker.fnv(output)),
+            rgb_bytes=921600, frame_consumed=1, frame_retired=1, magnification_disabled=1))
+        if not inline:
+            emit(family + 'APPLIED_REPLY_RECEIVED', received)
+            emit(family + 'APPLIED_REPLY_FREE', freed)
+
+    def test_focus_reset_whole_rgb_and_original_receiver_sender_free(self):
+        for inline in (False, True):
+            root = self.root / str(inline)
+            root.mkdir()
+            args = self.replay(root=root, inline=inline, commands=(0x4014, 0x4057, 0x403f, 0x403f),
+                               cookies=(0x8000003c, 0x80000026, 0x80000049, 0x8000004a))
+            transport = checker.check_transport(*args)
+            self.assertTrue(transport['verified'])
+            self.assertTrue(transport['focus_reset']['verified'])
+            self.assertEqual(len(transport['focus_reset']['cycles']), 2)
+            self.assertEqual(len(transport['startup_control']['cycles']), 2)
+            self.assertFalse(transport['focus_reset']['capture_verified'])
+            self.assertFalse(transport['focus_reset']['physical_asic_compatibility_verified'])
+            self.assertTrue(all(c['sender_tid'] == 90 and c['receiver_tid'] == 355 and c['rgb_bytes'] == 921600
+                                for c in transport['focus_reset']['cycles']))
+
+    def test_focus_reset_original_fields_roles_and_no_empty_ACK(self):
+        args = self.replay(commands=(0x4014, 0x4057, 0x403f), cookies=(0x8000003c, 0x80000026, 0x80000049))
+        transport = checker.check_transport(*args)
+        family = 'FUNCTIONAL_CAMERA_FOCUS_MAGNIFICATION_'
+        mutations = [('RESET_REQUEST', 'source', '0x80020003'), ('RESET_REQUEST', 'native_fnv', '0'),
+            ('RESET_REQUEST', 'request_bytes', '12'), ('RESET_REQUEST', 'policy', 'ACK'),
+            ('APPLIED', 'status', '0xf001'), ('APPLIED', 'rgb_bytes', '0'), ('APPLIED', 'frame_retired', '0'),
+            ('APPLIED', 'capture_verified', '1'), ('BACKEND', 'backend_rc', '-5'), ('APPLIED', 'model_fnv', '0'),
+            ('APPLIED_REPLY_RECEIVED', 'sender_tid', '355'), ('APPLIED_REPLY_FREE', 'tid', '355'),
+            ('APPLIED_REPLY_FREE', 'receiver_tid', '90'), ('APPLIED_REPLY_FREE', 'source', '0x90030001')]
+        for suffix, key, value in mutations:
+            rows = copy.deepcopy(args[2])
+            next(r for r in rows if r['tag'] == family + suffix)['fields'][key] = value
+            with self.subTest(suffix=suffix, key=key), self.assertRaises(ValueError):
+                checker.check_focus_reset(args[0], args[1], rows, transport)
+        for suffix in ('BACKEND', 'APPLIED', 'APPLIED_REPLY_RECEIVED', 'APPLIED_REPLY_FREE'):
+            rows = [r for r in args[2] if r['tag'] != family + suffix]
+            self.assertFalse(checker.check_focus_reset(args[0], args[1], rows, transport)['verified'])
+        changed = copy.deepcopy(transport)
+        changed['transfers'] = [tx for tx in changed['transfers'] if not (tx['opcode'] == 14 and tx['origin']['command'] == 0x403f)]
+        with self.assertRaisesRegex(ValueError, 'ACK without actual Core'):
+            checker.check_focus_reset(args[0], args[1], args[2], changed)
+        for key, value in (('consumer_kind', 1), ('retired', 0), ('consumer_after_fnv1a64', 0), ('result_bytes', 176)):
+            changed = copy.deepcopy(transport)
+            next(t for t in changed['transfers'] if t['opcode'] == 14 and t['origin']['command'] == 0x403f)['frame']['proof'][key] = value
+            with self.subTest(proof=key), self.assertRaises(ValueError):
+                checker.check_focus_reset(args[0], args[1], args[2], changed)
+        row = copy.deepcopy(next(r for r in args[2] if r['tag'] == family + 'APPLIED'))
+        with self.assertRaises(ValueError):
+            checker.check_focus_reset(args[0], args[1], args[2] + [row], transport)
+        row['tag'] = family + 'READY'
+        with self.assertRaises(ValueError):
+            checker.check_focus_reset(args[0], args[1], args[2] + [row], transport)
+
+    def test_focus_off_complete192_rejects_nonzero_consistent_tuple(self):
+        raw, canonical = self.receipt(0x403f)
+        self.assertEqual(checker.vdf_result(raw, canonical, 77, 14, raw[128:144])['class'], 9)
+        for index in range(24):
+            incoming, changed = bytearray(canonical), bytearray(raw)
+            incoming[index] ^= 1
+            changed[160:] = incoming
+            struct.pack_into('<Q', changed, 40, checker.fnv(incoming))
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                checker.vdf_result(changed, incoming, 77, 14, raw[128:144])
 
     def test_StartupControl_complete192_class9_both_commands(self):
         for command in (0x4014, 0x4057):
@@ -7041,6 +8425,3637 @@ class StillFormatEvidenceTests(unittest.TestCase):
         changed['functional_camera_still_format_physical_selector_mapping_verified'] = True
         with self.assertRaises(ValueError):
             checker.check_transport(args[0], changed, *args[2:])
+
+
+class CPParameterBankEvidenceTests(unittest.TestCase):
+    """Synthetic OP20 parser fixtures; no Core, transport, frame or capture is run."""
+
+    @classmethod
+    def setUpClass(cls):
+        source = (checker.RUNTIME / 'device-models/cp-parameter-batch.c').read_bytes()
+        if checker.sha(source) != '8f627e77d94d63434e4be7de3d398a1e3865946c44c7244f2b2553a483409a2e':
+            raise AssertionError('fixed190 fixture source changed')
+        cls.slots = [tuple(int(word, 16) for word in item) for item in re.findall(
+            rb'\{(0x[0-9a-f]+),(0x[0-9a-f]+),(0x[0-9a-f]+)\}', source)]
+        if len(cls.slots) != 190:
+            raise AssertionError('fixed190 fixture table is incomplete')
+
+    def setUp(self):
+        self.instance = 99
+        self.prior = control_state(fps=24, generation=7)
+        self.packet = self.original_packet()
+        self.raw = self.result(self.packet)
+
+    def original_packet(self, fps=30, cookie=0x80000027, tail=0xfe):
+        packet = bytearray((index * 37 + 0xa5) & 0xff for index in range(2564))
+        struct.pack_into('<HHI', packet, 0, 5, 0x4063, cookie)
+        end = 8
+        for command, offset, size in self.slots:
+            self.assertEqual(offset, end)
+            self.assertGreaterEqual(size, 8)
+            packet[offset] = 5
+            struct.pack_into('<H', packet, offset + 2, command)
+            end += size
+        self.assertEqual(end, len(packet))
+        self.assertEqual(next(slot for slot in self.slots if slot[0] == 0x4151), (0x4151, 0x864, 0x18))
+        struct.pack_into('<I', packet, 0x86c, fps)
+        packet[-1] = tail
+        return bytes(packet)
+
+    def result(self, packet, prior=None, bank_generation=1):
+        """Pack declared evidence bytes only; this does not execute the hardware model."""
+        prior = self.prior if prior is None else prior
+        fps = struct.unpack_from('<I', packet, 0x86c)[0]
+        before = struct.unpack_from('<Q', prior, 56)[0]
+        state = bytearray(prior)
+        struct.pack_into('<I', state, 16, fps)
+        struct.pack_into('<Q', state, 56, (before + 1) & (2**64 - 1))
+        raw = bytearray(2756)
+        struct.pack_into('<2I5Q4I', raw, 0, 1, 2756, self.instance, bank_generation,
+                         before, (before + 1) & (2**64 - 1), checker.fnv(packet), fps, 190, 2564, 0)
+        raw[64:192], raw[192:] = state, packet
+        return bytes(raw)
+
+    @staticmethod
+    def profile():
+        producer = checker.source_module(checker.RUNTIME / 'backup_profile.py')
+        fields = producer.functional_camera_profile_fields(checker.PROFILE)
+        return dict(fields, backup_transport=copy.deepcopy(fields),
+                    directory_sd_profile='directory-vvfat-256gb-v1',
+                    rm_file_image_bytes=checker.writeback.CARD_BYTES)
+
+    def test_full190_fps30_60_opaque_cookie_and_last_byte_are_preserved(self):
+        for fps in (30, 60):
+            for cookie in (0, 0x80000027, 0xffffffff):
+                for tail in (0, 0xfe):
+                    with self.subTest(fps=fps, cookie=cookie, tail=tail):
+                        packet = self.original_packet(fps, cookie, tail)
+                        raw = self.result(packet)
+                        value = checker.cp_parameter_bank_result(raw, packet, self.instance, self.prior)
+                        self.assertEqual(value, dict(model_instance=99, bank_generation=1,
+                            before_config_generation=7, config_generation=8, input_fnv=checker.fnv(packet),
+                            fps=fps, slots=190, raw_bytes=2564, reserved=0, frame_generation=1))
+                        self.assertEqual(raw[192:], packet)
+                        self.assertEqual(struct.unpack_from('<I', raw, 196)[0], cookie)
+                        self.assertEqual(raw[-1], tail)
+                        self.assertEqual(raw[72:80], self.prior[8:16])
+                        self.assertEqual(raw[84:112], self.prior[20:48])
+                        self.assertEqual(raw[176:184], self.prior[112:120])
+
+    def test_result_version_size_truncation_and_trailing_bytes_are_rejected(self):
+        for version, size in ((0, 2756), (2, 2756), (1, 0), (1, 128), (1, 2755), (1, 2757)):
+            raw = bytearray(self.raw)
+            struct.pack_into('<2I', raw, 0, version, size)
+            with self.subTest(version=version, size=size), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+        for raw in (b'', self.raw[:63], self.raw[:191], self.raw[:-1], self.raw + b'\0'):
+            with self.subTest(result_bytes=len(raw)), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(raw, self.packet, self.instance, self.prior)
+
+    def test_original_packet_outer_type_command_and_exact_length_are_required(self):
+        for offset in (0, 2, 3):
+            packet = bytearray(self.packet)
+            packet[offset] ^= 0x80
+            with self.subTest(outer_header_byte=offset), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.result(packet), bytes(packet), self.instance, self.prior)
+        for packet in (b'', self.packet[:7], self.packet[:-1], self.packet + b'\0'):
+            with self.subTest(packet_bytes=len(packet)), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.raw, packet, self.instance, self.prior)
+
+    def test_each_of190_slot_type_and_command_bytes_reject_even_when_rehashed(self):
+        for command, offset, _ in self.slots:
+            for relative in (0, 2, 3):
+                packet = bytearray(self.packet)
+                packet[offset + relative] ^= 0x80
+                with self.subTest(command=hex(command), header_byte=relative), self.assertRaises(ValueError):
+                    checker.cp_parameter_bank_result(self.result(packet), bytes(packet), self.instance, self.prior)
+
+    def test_each_slot_must_remain_at_its_fixed_original_offset(self):
+        for command, offset, _ in self.slots:
+            packet = bytearray(self.packet)
+            packet[offset:offset + 5] = b'\0' + self.packet[offset:offset + 4]
+            with self.subTest(shifted_command=hex(command), offset=offset), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.result(packet), bytes(packet), self.instance, self.prior)
+
+    def test_independent_readback_binds_every_bank_byte_including_opaque_bytes(self):
+        for offset in range(2564):
+            raw = bytearray(self.raw)
+            raw[192 + offset] ^= 1
+            with self.subTest(readback_byte=offset), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+
+    def test_input_digest_nonce_bank_generation_counts_fps_and_reserved_are_bound(self):
+        for fmt, offset, values in (
+                ('Q', 8, (0, 100)), ('Q', 16, (0,)),
+                ('Q', 40, (0, checker.fnv(self.packet) ^ 1)),
+                ('I', 48, (0, 29, 60)), ('I', 52, (0, 189, 191)),
+                ('I', 56, (0, 2563, 2565)), ('I', 60, (1, 0xffffffff))):
+            for value in values:
+                raw = bytearray(self.raw)
+                struct.pack_into('<' + fmt, raw, offset, value)
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+        packet = self.original_packet(fps=0)
+        with self.subTest(fps='zero-in-both-copies'), self.assertRaises(ValueError):
+            checker.cp_parameter_bank_result(self.result(packet), packet, self.instance, self.prior)
+        for instance in (0, 100):
+            with self.subTest(expected_instance=instance), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.raw, self.packet, instance, self.prior)
+
+    def test_configuration_generation_requires_latest_state_exact_increment_and_no_wrap(self):
+        for offset, values in ((24, (0, 6, 8, 2**64 - 1)), (32, (0, 7, 9, 2**64 - 1))):
+            for value in values:
+                raw = bytearray(self.raw)
+                struct.pack_into('<Q', raw, offset, value)
+                with self.subTest(offset=offset, generation=value), self.assertRaises(ValueError):
+                    checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+        for generation in (0, 2**64 - 1):
+            prior = bytearray(self.prior)
+            struct.pack_into('<Q', prior, 56, generation)
+            with self.subTest(before_generation=generation), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.result(self.packet, prior), self.packet,
+                                                 self.instance, bytes(prior))
+
+    def test_prior_State128_version_instance_length_and_generation_are_mandatory(self):
+        for prior in (b'', self.prior[:47], self.prior[:-1], self.prior + b'\0'):
+            with self.subTest(prior_bytes=len(prior)), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(self.raw, self.packet, self.instance, prior)
+        for fmt, offset, values in (('I', 0, (0, 2)), ('Q', 48, (0, 100)),
+                                    ('Q', 56, (0, 6, 8, 2**64 - 1))):
+            for value in values:
+                prior = bytearray(self.prior)
+                struct.pack_into('<' + fmt, prior, offset, value)
+                with self.subTest(prior_offset=offset, value=value), self.assertRaises(ValueError):
+                    checker.cp_parameter_bank_result(self.raw, self.packet, self.instance, bytes(prior))
+
+    def test_readback_State128_version_instance_config_fps_and_frame_are_bound(self):
+        for start, size in ((0, 4), (16, 4), (48, 8), (56, 8), (112, 8)):
+            for relative in range(size):
+                raw = bytearray(self.raw)
+                raw[64 + start + relative] ^= 1
+                with self.subTest(state_byte=start + relative), self.assertRaises(ValueError):
+                    checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+
+    def test_config40_can_change_only_the_declared_fps_projection(self):
+        for offset in (*range(8, 16), *range(20, 48)):
+            raw = bytearray(self.raw)
+            raw[64 + offset] ^= 1
+            with self.subTest(unrelated_config_byte=offset), self.assertRaises(ValueError):
+                checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+        raw = bytearray(self.raw)
+        struct.pack_into('<Q', raw, 176, 2)
+        with self.subTest(invented_frame_generation=2), self.assertRaises(ValueError):
+            checker.cp_parameter_bank_result(bytes(raw), self.packet, self.instance, self.prior)
+
+    def test_OP20_full_bank_does_not_reassign_OP11_source_snapshot(self):
+        self.assertEqual(checker.OPS[20], (2564,))
+        self.assertEqual(checker.OPS[11], tuple(360 + 8 * (cp + sdk)
+                         for cp in (100, 13, 14) for sdk in (1, 2)))
+        self.assertNotIn(2564, checker.OPS[11])
+
+    def test_policy_reads_actual_producer_and_all_absent_legacy_remains_valid(self):
+        profile = self.profile()
+        expected = checker.CP_PARAMETER_BANK_POLICY
+        self.assertEqual(len(expected), 9)
+        for key, value in expected.items():
+            for target in (profile, profile['backup_transport']):
+                self.assertTrue(checker.typed_equal(target['functional_camera_' + key], value))
+        verdict = checker.check_profile(profile)
+        self.assertTrue(verdict['verified'])
+        self.assertIs(verdict['physical_asic_compatibility_verified'], False)
+        self.assertIs(verdict['original_CP_executed'], False)
+        self.assertIs(profile['functional_camera_capture_verified'], False)
+        self.assertIs(profile['functional_camera_physical_ASIC_compatibility_verified'], False)
+        for target in (profile, profile['backup_transport']):
+            for key in expected:
+                del target['functional_camera_' + key]
+        self.assertTrue(checker.check_profile(profile)['verified'])
+
+    def test_each_policy_field_requires_both_complete_typed_manifest_copies(self):
+        original = self.profile()
+        for key, value in checker.CP_PARAMETER_BANK_POLICY.items():
+            full = 'functional_camera_' + key
+            wrong_values = [None, 'undeclared-physical-policy', {}, []]
+            if type(value) is int:
+                wrong_values += [True, float(value), value + 1]
+            elif type(value) is bool:
+                wrong_values += [0, True]
+            elif type(value) is list:
+                wrong_values += [(0x4063,), [True], [float(0x4063)], [0x4062]]
+            else:
+                wrong_values += [False, value + ' ']
+            for side in ('top', 'backup_transport', 'both'):
+                for missing, wrong in [(True, None), *((False, wrong) for wrong in wrong_values)]:
+                    profile = copy.deepcopy(original)
+                    targets = (profile, profile['backup_transport']) if side == 'both' else (
+                        profile if side == 'top' else profile['backup_transport'],)
+                    for target in targets:
+                        if missing:
+                            del target[full]
+                        else:
+                            target[full] = wrong
+                    with self.subTest(field=key, side=side, missing=missing, wrong=wrong), self.assertRaises(ValueError):
+                        checker.check_profile(profile)
+
+    def test_any_partial_policy_on_an_older_manifest_is_rejected(self):
+        legacy = self.profile()
+        for target in (legacy, legacy['backup_transport']):
+            for key in checker.CP_PARAMETER_BANK_POLICY:
+                del target['functional_camera_' + key]
+        for key, value in checker.CP_PARAMETER_BANK_POLICY.items():
+            for side in ('top', 'backup_transport', 'both'):
+                profile = copy.deepcopy(legacy)
+                targets = (profile, profile['backup_transport']) if side == 'both' else (
+                    profile if side == 'top' else profile['backup_transport'],)
+                for target in targets:
+                    target['functional_camera_' + key] = copy.deepcopy(value)
+                with self.subTest(partial_field=key, side=side), self.assertRaises(ValueError):
+                    checker.check_profile(profile)
+
+    def test_mixed_source_snapshot_or_reply_policy_cannot_promote_software_bank(self):
+        for field, wrong in (('opcode', 11), ('reply_policy', 'echo-f000-independent-ACK'),
+                             ('physical_semantics_verified', True)):
+            profile = self.profile()
+            for target in (profile, profile['backup_transport']):
+                target['functional_camera_cp_parameter_bank_' + field] = wrong
+            with self.subTest(mixed_field=field), self.assertRaises(ValueError):
+                checker.check_profile(profile)
+
+
+class CPParameterBankTransportEvidenceTests(unittest.TestCase):
+    """HOST_TEST file/console/broker fixtures; no C model or original VM is run."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPParameterBankEvidenceTests.setUpClass()
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        wire = CPParameterBankEvidenceTests('runTest')
+        wire.setUp()
+        wire.prior = control_state(fps=24, generation=22)
+        self.packet, self.prior = wire.packet, wire.prior
+        self.receipt = wire.result(self.packet)
+        self.following = self.receipt[64:192]
+        self.origin = dict(producer_tid=90, source=0x80020002, destination=0x90030001,
+                           command=0x4063, bytes=2564, fnv1a64=checker.fnv(self.packet))
+        start_wire = struct.pack('<HHI', 0, 0x3003, 0x80000027) + bytes(16)
+        start = dict(self.origin, command=0x3003, bytes=24, fnv1a64=checker.fnv(start_wire))
+        cached = control_state(fps=24, generation=21)
+        operations = [dict(op=1, data=b'', output=cached, origin=start),
+                      dict(op=2, data=b'', output=self.prior, origin=self.origin),
+                      dict(op=20, data=self.packet, output=self.receipt, origin=self.origin),
+                      dict(op=2, data=b'', output=self.following, origin=self.origin)]
+        records = ['HOST_TEST_TRANSFER_0']
+        legacy, = checker.parse_console(E6MX_CONTROL_COMMIT)
+        control = dict(legacy['fields'])
+        control.update(pid='77', tid='90', sender_tid='90', receiver_tid='91', free_tid='91',
+            freed='1', consumed='1', retained='(nil)', model_instance='99', config_generation='21',
+            rendered='1', frame_generation='1', start_complete='1', mode1_complete='1',
+            notification_queued='1', notification_received='1', notification_AP_consumed='1',
+            native_fnv1a=f'{start["fnv1a64"]:016x}')
+        extended = {}
+        for key, value in control.items():
+            if key == 'business_ready':
+                extended.update(mode_selector='0', mode_complete='1', mode0_requests='1', mode0_complete='1',
+                    mode0_cycles_completed='1', mode1_cycle_id='1', mode1_cycle_generation='21',
+                    selector_policy='opaque-state-refresh-v1')
+            extended[key] = value
+        for event in ('PROBE', 'COMMIT'):
+            records.append(self.record('FUNCTIONAL_CAMERA_CONTROL_' + event, extended))
+        resources = checker.parse_console(JFZ_VDF_RESOURCE_OBS.encode())
+        for row in resources:
+            row['tag'] = row['tag'].replace('FUNCTIONAL_VDF_PATH', 'FUNCTIONAL_CP_PARAMETER_BANK')
+            row['fields']['tid'] = '90'
+            if 'pid' in row['fields']:
+                row['fields']['pid'] = '77'
+        base = checker.number(resources[1]['fields']['appfw_base'])
+        audit = dict(pid=77, tid=90, sequence=50, entry='async', pointer='0x400000',
+            destination='0x90030001', bytes=2564, source='0x80020002', size_known=1, source_known=1,
+            bytes_complete=1, complete=1, producer_return=hex(base + 0x3535a68),
+            consumed=0, state_verified=0, capture_verified=0)
+        records.append(self.record('NATIVE_CP_BACKGROUND_INPUT_AUDIT', audit))
+        for offset in range(0, len(self.packet), 128):
+            data = self.packet[offset:offset + 128]
+            records.append(self.record('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES',
+                dict(pid=77, tid=90, sequence=50, offset=offset, bytes=len(data), raw=data.hex())))
+        events = ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'OWNED_FREE', 'COMMIT')
+        streams = dict(BEGIN=('request', self.packet), BEFORE=('before_state', self.prior),
+                       MODEL=('receipt', self.receipt), AFTER=('after_state', self.following))
+        for index, event in enumerate(events):
+            if event in ('BEFORE', 'MODEL', 'AFTER'):
+                records.append('HOST_TEST_TRANSFER_' + str(index))
+            fields = dict(event=event, pid=77, tid=90, transaction=2, sender_tid=90,
+                source='0x80020002', destination='0x90030001', command='0x4063', bytes=2564,
+                native_fnv1a=f'{self.origin["fnv1a64"]:016x}', cookie=hex(struct.unpack_from('<I', self.packet, 4)[0]),
+                busy=1, guard=int(event not in ('BEGIN', 'COMMIT')), faults=0, error=0, model_rc=0,
+                model_called=int(index >= 2), model_committed=int(index >= 2), verified=int(index >= 4),
+                owned=int(index >= 4), retained='0x400000' if event == 'VERIFIED' else '(nil)', releasing=0,
+                request_freed=int(index >= 5), free_rc=0, free_tid=90 if index >= 5 else 0,
+                commits=int(index >= 4), released=int(index >= 5), model_instance=99,
+                bank_generation=int(index >= 2), before_config_generation=22 if index >= 1 else 0,
+                config_generation=23 if index >= 2 else 0, fps=30,
+                before_used=128 if index >= 1 else 0, before_required=128 if index >= 1 else 0,
+                before_token=0, before_instance=99 if index >= 1 else 0,
+                bank_used=2756 if index >= 2 else 0, bank_required=2756 if index >= 2 else 0,
+                bank_token=0, bank_instance=99 if index >= 2 else 0,
+                after_used=128 if index >= 3 else 0, after_required=128 if index >= 3 else 0,
+                after_token=0, after_instance=99 if index >= 3 else 0,
+                policy='full-190-slot-bank-fps4151-v1', oneway=1, ACK_sent=0, notification_sent=0,
+                functional_model=1, original_CP=0, physical_ASIC_verified=0, capture_verified=0)
+            records.append(self.record('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', fields))
+            if event in streams:
+                kind, raw = streams[event]
+                for offset in range(0, len(raw), 128):
+                    data = raw[offset:offset + 128]
+                    records.append(self.record('FUNCTIONAL_CP_PARAMETER_BANK_BYTES',
+                        dict(pid=77, tid=90, transaction=2, kind=kind, total=len(raw), offset=offset,
+                            bytes=len(data), raw=data.hex(), native_fnv1a=fields['native_fnv1a'],
+                            model_instance=99, bank_generation=fields['bank_generation'], capture_verified=0)))
+            if event == 'BEGIN':
+                records.extend(self.record(row['tag'], row['fields']) for row in resources)
+        self.args = host_test_transport(Path(temporary.name), operations, '\n'.join(records) + '\n')
+        self.run, self.manifest, self.rows, broker, build = self.args
+        policy = {'functional_camera_' + key: copy.deepcopy(value)
+                  for key, value in checker.CP_PARAMETER_BANK_POLICY.items()}
+        self.manifest.update(policy)
+        self.manifest['backup_transport'].update(copy.deepcopy(policy))
+        core = next(event for event in broker if event['kind'] == 'core_result' and event['opcode'] == 20)
+        witness = dict(kind='model_parameter_bank', model_instance=99, sequence=3, opcode=20,
+            origin=copy.deepcopy(self.origin), actual_c_result=0, actual_core_sha256=build['model_sha256'],
+            request_payload=core['request_payload'], output_payload=core['output_payload'], native_acceptance=False,
+            observation=dict(actual_c_result=0, returned_hex=self.receipt.hex(), readback_verified=True,
+                before_state_c_result=0, before_state_hex=self.prior.hex(),
+                result=dict(token=0, total=0, offset=0, used=2756), query_c_result=0,
+                bank_generation=1, snapshot_hex=self.receipt.hex(), after_state_c_result=0,
+                after_state_hex=self.following.hex()))
+        broker.insert(broker.index(core) + 1, witness)
+        for event in broker:
+            if event.get('opcode') == 20 and event['kind'] in ('core_result', 'response'):
+                event['actual_core_sha256'] = build['model_sha256']
+        self.persist_broker(self.args)
+        transfers = []
+        for row in self.rows:
+            if row['tag'] != 'FUNCTIONAL_CAMERA_TRANSFER':
+                continue
+            sequence = int(row['fields']['seq'].split('..')[0])
+            request = next(event for event in broker if event['kind'] == 'request' and event['sequence'] == sequence)
+            result = next(event for event in broker if event['kind'] == 'core_result' and event['sequence'] == sequence)
+            reference = result['output_payload']
+            tx = dict(line=row['line'], first=sequence, last=sequence, opcode=request['opcode'],
+                origin=copy.deepcopy(request['origin']), bytes=reference['bytes'], sha256=reference['sha256'],
+                fnv1a64=f'{reference["fnv1a64"]:016x}', request_payload=request['request_payload'],
+                output_payloads=[reference], token=0, frame=None, model_instance=99, provider_kind='core')
+            if request['opcode'] == 20:
+                tx['parameter_bank'] = witness
+            transfers.append(tx)
+        self.transport = dict(pid=77, model_instance=99, owner_pid=177, transfers=transfers)
+
+    @staticmethod
+    def record(tag, fields):
+        return tag + ' ' + ' '.join(f'{key}={value}' for key, value in fields.items())
+
+    @staticmethod
+    def persist_broker(args):
+        run, manifest, _, events, _ = args
+        counts = {}
+        for index, event in enumerate(events, 1):
+            event.update(event=index, monotonic_ns=index)
+            counts[event['kind']] = counts.get(event['kind'], 0) + 1
+            if event['kind'] == 'request':
+                event['request_payload']['producer_event'] = index
+            elif event['kind'] == 'core_result':
+                event['output_payload']['producer_event'] = index
+        manifest['functional_camera_runtime']['broker_event_counts'] = counts
+        (run / 'functional-camera-runner.json').write_text(json.dumps(manifest['functional_camera_runtime']))
+        (run / 'functional-camera-broker-receipts.jsonl').write_text(''.join(json.dumps(event) + '\n' for event in events))
+        (run / 'runtime-manifest.json').write_text(json.dumps(manifest))
+
+    def bank(self, rows=None, transport=None, manifest=None):
+        return checker.check_cp_parameter_bank(self.run, self.manifest if manifest is None else manifest,
+            self.rows if rows is None else rows, self.transport if transport is None else transport)
+
+    @staticmethod
+    def native(rows, *, event=None, kind=None):
+        return [row for row in rows if
+            (event is None or row['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and row['fields']['event'] == event) and
+            (kind is None or row['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES' and row['fields']['kind'] == kind)]
+
+    def test_complete_file_broker_native_join_uses_live22_not_cached21_and_preserves_scope(self):
+        events = checker.jsonl((self.run / 'functional-camera-broker-receipts.jsonl').read_bytes())
+        transport = checker.check_transport(self.run, self.manifest, self.rows, events, self.args[4])
+        result = transport['parameter_bank']
+        self.assertTrue(transport['verified'])
+        self.assertTrue(result['required'] and result['verified'])
+        self.assertEqual(result, self.bank())
+        self.assertEqual(len(self.native(self.rows, kind='request')), 21)
+        self.assertEqual(sum(len(self.native(self.rows, kind=kind)) for kind in
+            ('request', 'before_state', 'receipt', 'after_state')), 45)
+        self.assertEqual(sum(row['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES' for row in self.rows), 21)
+        self.assertEqual(len(list((self.run / 'functional-camera-data').iterdir())), 8)
+        self.assertEqual([tx['opcode'] for tx in transport['transfers']], [1, 2, 20, 2])
+        self.assertEqual([tx['opcode'] for tx in transport['transfers'] if 'parameter_bank' in tx], [20])
+        self.assertEqual(result['transactions'][0], dict(transaction=2, bank_generation=1, source_audit_sequence=50,
+            original_free_line=self.native(self.rows, event='OWNED_FREE')[0]['line'], model_sequence=3,
+            before_STATE_sequence=2, after_STATE_sequence=4, result_sha256=checker.sha(self.receipt),
+            packet_sha256=checker.sha(self.packet), model_instance=99, before_config_generation=22,
+            config_generation=23, frame_generation=1, fps=30))
+        self.assertEqual(checker.vdf_history(self.run, transport)[3]['before_config_generation'], 22)
+        self.assertTrue(all(tx['frame'] is None and tx['token'] == 0 for tx in transport['transfers']))
+        self.assertTrue(all(result[key] is False for key in
+            ('frame_consumed', 'capture_verified', 'physical_asic_compatibility_verified')))
+        commit = self.native(self.rows, event='COMMIT')[0]['fields']
+        self.assertEqual((commit['busy'], commit['guard'], commit['request_freed']), ('1', '0', '1'))
+
+    def test_outer_and_all190_inner_header_byte1_are_opaque_and_preserved(self):
+        wire = CPParameterBankEvidenceTests('runTest')
+        wire.setUp()
+        wire.prior = self.prior
+        for outer in (0, 0xa5, 0xff):
+            for shift in (0, 0x5a):
+                packet = bytearray(self.packet)
+                packet[1] = outer
+                for index, (_, offset, _) in enumerate(wire.slots):
+                    packet[offset + 1] = (index + shift) & 0xff
+                packet = bytes(packet)
+                raw = wire.result(packet)
+                with self.subTest(outer_byte1=outer, inner_shift=shift):
+                    value = checker.cp_parameter_bank_result(raw, packet, 99, self.prior)
+                    self.assertEqual(value['input_fnv'], checker.fnv(packet))
+                    self.assertEqual(struct.unpack_from('<Q', raw, 40)[0], checker.fnv(packet))
+                    self.assertEqual(raw[192:], packet)
+                    self.assertEqual(raw[193], outer)
+                    self.assertEqual(raw[64:192], self.following)
+                    self.assertEqual([raw[192 + offset + 1] for _, offset, _ in wire.slots],
+                                     [(index + shift) & 0xff for index in range(190)])
+
+    def test_orphan_native_records_require_actual_Core20_while_old_transport_stays_optional(self):
+        empty = dict(self.transport, transfers=[])
+        self.assertFalse(self.bank(rows=[], transport=empty)['required'])
+        for tag in ('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES',
+                    'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_RESERVED'):
+            row = next(row for row in self.rows if row['tag'] == tag)
+            with self.subTest(tag=tag), self.assertRaisesRegex(ValueError, 'lack actual Core20'):
+                self.bank(rows=[row], transport=empty)
+
+    def test_actual_bank_requires_complete_typed_policy_on_both_sides(self):
+        for key in checker.CP_PARAMETER_BANK_POLICY:
+            for side in ('top', 'backup_transport', 'both'):
+                changed = copy.deepcopy(self.manifest)
+                targets = (changed, changed['backup_transport']) if side == 'both' else (
+                    changed if side == 'top' else changed['backup_transport'],)
+                for target in targets:
+                    del target['functional_camera_' + key]
+                with self.subTest(key=key, side=side), self.assertRaisesRegex(ValueError, 'explicit software policy'):
+                    self.bank(manifest=changed)
+        for key, wrong in (('opcode', True), ('physical_semantics_verified', 0), ('native_commands', [float(0x4063)])):
+            changed = copy.deepcopy(self.manifest)
+            for target in (changed, changed['backup_transport']):
+                target['functional_camera_cp_parameter_bank_' + key] = wrong
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.bank(manifest=changed)
+
+    def test_STATE_queries_are_adjacent_same_origin_core_tokenless_and_frameless(self):
+        for index in (1, 2, 3):
+            for key, wrong in (('token', 1), ('frame', {'proof': {'opcode': 20}}), ('provider_kind', 'source')):
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index][key] = wrong
+                with self.subTest(index=index, field=key), self.assertRaises(ValueError):
+                    self.bank(transport=changed)
+        for index in (1, 3):
+            for key in ('producer_tid', 'source', 'destination', 'command', 'bytes', 'fnv1a64'):
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index]['origin'][key] ^= 1
+                with self.subTest(index=index, origin=key), self.assertRaises(ValueError):
+                    self.bank(transport=changed)
+            for key, wrong in (('opcode', 1), ('first', 9), ('last', 9)):
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index][key] = wrong
+                with self.subTest(index=index, field=key), self.assertRaises(ValueError):
+                    self.bank(transport=changed)
+
+    def test_cached21_cannot_replace_live22_and_post_STATE_must_be_identical(self):
+        for target, donor in ((1, 0), (3, 1)):
+            changed = copy.deepcopy(self.transport)
+            for key in ('output_payloads', 'bytes', 'sha256', 'fnv1a64'):
+                changed['transfers'][target][key] = copy.deepcopy(changed['transfers'][donor][key])
+            with self.subTest(target=target, donor=donor), self.assertRaises(ValueError):
+                self.bank(transport=changed)
+        for missing in (1, 3):
+            changed = copy.deepcopy(self.transport)
+            del changed['transfers'][missing]
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                self.bank(transport=changed)
+
+    def test_native_lifecycle_requires_every_event_once_in_original_order(self):
+        for event in ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'OWNED_FREE', 'COMMIT'):
+            for mutation in ('missing', 'duplicate', 'reordered'):
+                rows = copy.deepcopy(self.rows)
+                row = self.native(rows, event=event)[0]
+                index = rows.index(row)
+                if mutation == 'missing':
+                    rows.pop(index)
+                elif mutation == 'duplicate':
+                    rows.insert(index, copy.deepcopy(row))
+                else:
+                    row['line'] = (self.native(rows, event='COMMIT')[0]['line'] + 1 if event == 'BEGIN' else
+                                   self.native(rows, event='BEGIN')[0]['line'] - 1)
+                with self.subTest(event=event, mutation=mutation), self.assertRaises(ValueError):
+                    self.bank(rows=rows)
+
+    def test_native_identity_cookie_and_whole_original_FNV_are_bound(self):
+        for key, wrong in (('pid', '78'), ('tid', '91'), ('sender_tid', '91'), ('cookie', '0x80000028'),
+                           ('source', '0x80020003'), ('destination', '0x90030002'), ('command', '0x4062'),
+                           ('bytes', '2563'), ('native_fnv1a', '0000000000000000')):
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, event='VERIFIED')[0]['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+
+    def test_commit_records_busy1_guard0_and_actual_original_free_not_a_ready_flag(self):
+        for key, wrong in (('busy', '0'), ('guard', '1'), ('faults', '1'), ('error', '-5'), ('model_rc', '-5'),
+                ('model_called', '0'), ('model_committed', '0'), ('verified', '0'), ('owned', '0'),
+                ('request_freed', '0'), ('retained', '0x400000'), ('releasing', '1'), ('free_rc', '-5'),
+                ('free_tid', '91'), ('released', '0'), ('commits', '0'), ('before_token', '1'),
+                ('bank_required', '2755'), ('after_instance', '100')):
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, event='COMMIT')[0]['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+        for event, key, wrong in (('VERIFIED', 'retained', '(nil)'), ('VERIFIED', 'request_freed', '1'),
+                ('OWNED_FREE', 'free_rc', '-5'), ('OWNED_FREE', 'retained', '0x400000')):
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, event=event)[0]['fields'][key] = wrong
+            with self.subTest(event=event, field=key), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+
+    def test_full_original_audit_requires_pointer_callsite_all21_chunks_and_unchanged_bytes(self):
+        for key, wrong in (('pointer', '0x400001'), ('producer_return', '0x3535a68'), ('entry', 'sync'),
+                           ('complete', '0'), ('source', '0x80020003'), ('bytes', '2563')):
+            rows = copy.deepcopy(self.rows)
+            next(row for row in rows if row['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT')['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+        for mutation in ('missing', 'duplicate', 'offset', 'raw', 'last'):
+            rows = copy.deepcopy(self.rows)
+            chunks = [row for row in rows if row['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES']
+            if mutation in ('missing', 'last'):
+                rows.remove(chunks[0 if mutation == 'missing' else -1])
+            elif mutation == 'duplicate':
+                rows.insert(rows.index(chunks[1]), copy.deepcopy(chunks[0]))
+            elif mutation == 'offset':
+                chunks[1]['fields']['offset'] = '0'
+            else:
+                chunks[-1]['fields']['raw'] = '00' + chunks[-1]['fields']['raw'][2:]
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+
+    def test_each_native_stream_rejects_missing_duplicate_offset_or_last_byte_corruption(self):
+        for kind in ('request', 'before_state', 'receipt', 'after_state'):
+            for mutation in ('missing', 'duplicate', 'offset', 'last_byte'):
+                rows = copy.deepcopy(self.rows)
+                chunks = self.native(rows, kind=kind)
+                if mutation == 'missing':
+                    rows.remove(chunks[-1])
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(chunks[0]), copy.deepcopy(chunks[0]))
+                elif mutation == 'offset':
+                    chunks[-1]['fields']['offset'] = str(int(chunks[-1]['fields']['offset']) + 128)
+                else:
+                    raw = bytearray.fromhex(chunks[-1]['fields']['raw'])
+                    raw[-1] ^= 1
+                    chunks[-1]['fields']['raw'] = raw.hex()
+                with self.subTest(kind=kind, mutation=mutation), self.assertRaises(ValueError):
+                    self.bank(rows=rows)
+
+    def test_native_stream_metadata_is_bound_to_each_parent_stage_and_transaction(self):
+        for kind in ('request', 'before_state', 'receipt', 'after_state'):
+            for key, wrong in (('pid', '78'), ('tid', '91'), ('transaction', '3'), ('model_instance', '100'),
+                               ('bank_generation', '9'), ('native_fnv1a', '0000000000000000')):
+                rows = copy.deepcopy(self.rows)
+                self.native(rows, kind=kind)[0]['fields'][key] = wrong
+                with self.subTest(kind=kind, field=key), self.assertRaises(ValueError):
+                    self.bank(rows=rows)
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, kind=kind)[0]['line'] = self.native(rows, event='COMMIT')[0]['line'] + 1
+            with self.subTest(kind=kind, outside_stage=True), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+
+    def test_resource33_cannot_be_missing_reordered_wrong_thread_or_borrow_mode25(self):
+        for suffix in ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED'):
+            for mutation in ('missing', 'wrong_thread', 'mode25', 'orphan'):
+                rows = copy.deepcopy(self.rows)
+                row = next(row for row in rows if row['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_' + suffix)
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'wrong_thread':
+                    row['fields']['tid'] = '91'
+                elif mutation == 'mode25':
+                    row['tag'] = row['tag'].replace('FUNCTIONAL_CP_PARAMETER_BANK', 'FUNCTIONAL_CAMERA_CONTROL')
+                else:
+                    row['line'] = self.native(rows, event='COMMIT')[0]['line'] + 1
+                with self.subTest(resource=suffix, mutation=mutation), self.assertRaises(ValueError):
+                    self.bank(rows=rows)
+        rows = copy.deepcopy(self.rows)
+        held = [row for row in rows if row['tag'].startswith('FUNCTIONAL_CP_PARAMETER_BANK_RESOURCE')]
+        first, second = rows.index(held[0]), rows.index(held[1])
+        rows[first], rows[second] = rows[second], rows[first]
+        with self.assertRaises(ValueError):
+            self.bank(rows=rows)
+
+    def test_resource33_rejects_accepted_records_with_the_wrong_DMM_allocation(self):
+        for key, wrong in (('dmm_handles', '0x8400/0x8402'), ('dmm_domain', '3'),
+                           ('dmm_enabled', '0'), ('dmm_bound', '0'), ('dmm_slots', '0/1')):
+            rows = copy.deepcopy(self.rows)
+            next(row for row in rows if row['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_RESERVED')['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.bank(rows=rows)
+
+    def test_historical_mode1_does_not_substitute_for_current_mode_ACK_and_notice_retirement(self):
+        for key, wrong in (('mode_complete', '0'), ('notification_AP_consumed', '0'), ('start_complete', '0'),
+                           ('mode1_complete', '0'), ('busy', '1'), ('guard', '1'), ('faults', '1'), ('model_instance', '100')):
+            rows = copy.deepcopy(self.rows)
+            mode = next(row for row in rows if row['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT')['fields']
+            self.assertEqual(mode['mode1_complete'], '1')
+            mode[key] = wrong
+            with self.subTest(field=key), self.assertRaisesRegex(ValueError, 'historical mode1'):
+                self.bank(rows=rows)
+
+    def test_broker_independent_query_requires_exact_library_shape_result_and_success_returns(self):
+        changes = [('actual_core_sha256', 'd' * 64), ('actual_c_result', -5), ('native_acceptance', True)]
+        changes += [('observation.' + key, wrong) for key, wrong in
+            (('query_c_result', -5), ('actual_c_result', -5), ('before_state_c_result', -5),
+             ('after_state_c_result', -5), ('readback_verified', False), ('bank_generation', 2),
+             ('result', dict(token=0, total=0, offset=0, used=2755)))]
+        for key, wrong in changes:
+            args = copy.deepcopy(self.args)
+            event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+            if key.startswith('observation.'):
+                event['observation'][key.split('.')[1]] = wrong
+            else:
+                event[key] = wrong
+            self.persist_broker(args)
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+        for key in ('actual_core_sha256', 'observation'):
+            args = copy.deepcopy(self.args)
+            event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+            del event[key]
+            self.persist_broker(args)
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+        for key in self.transport['transfers'][2]['parameter_bank']['observation']:
+            args = copy.deepcopy(self.args)
+            event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+            del event['observation'][key]
+            self.persist_broker(args)
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+
+    def test_broker_full2756_query_and_State128_are_compared_as_bytes(self):
+        for key, raw in (('returned_hex', self.receipt), ('snapshot_hex', self.receipt),
+                         ('before_state_hex', self.prior), ('after_state_hex', self.following)):
+            for mutation in ('truncated', 'different'):
+                args = copy.deepcopy(self.args)
+                event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+                changed = bytearray(raw)
+                if mutation == 'truncated':
+                    changed.pop()
+                else:
+                    changed[-1] ^= 1
+                event['observation'][key] = changed.hex()
+                self.persist_broker(args)
+                with self.subTest(field=key, mutation=mutation), self.assertRaises(ValueError):
+                    checker.check_transport(*args)
+        args = copy.deepcopy(self.args)
+        event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+        event['observation']['before_state_hex'] = control_state(fps=24, generation=21).hex()
+        self.persist_broker(args)
+        with self.assertRaises(ValueError):
+            checker.check_transport(*args)
+
+    def test_broker_before_STATE_cannot_diverge_from_bracketing_live_STATE_at_same_generation(self):
+        args = copy.deepcopy(self.args)
+        event = next(event for event in args[3] if event['kind'] == 'model_parameter_bank')
+        before = bytearray(self.prior)
+        struct.pack_into('<I', before, 16, 25)
+        event['observation']['before_state_hex'] = before.hex()
+        self.persist_broker(args)
+        with self.assertRaises(ValueError):
+            checker.check_transport(*args)
+
+    def test_broker_query_must_be_once_between_original_Core20_and_response(self):
+        for mutation in ('missing', 'duplicate', 'late', 'wrong_origin', 'wrong_request', 'wrong_output'):
+            args = copy.deepcopy(self.args)
+            events = args[3]
+            event = next(event for event in events if event['kind'] == 'model_parameter_bank')
+            index = events.index(event)
+            if mutation == 'missing':
+                events.remove(event)
+            elif mutation == 'duplicate':
+                events.insert(index, copy.deepcopy(event))
+            elif mutation == 'late':
+                events[index], events[index + 1] = events[index + 1], events[index]
+            elif mutation == 'wrong_origin':
+                event['origin']['producer_tid'] += 1
+            else:
+                key = 'request_payload' if mutation == 'wrong_request' else 'output_payload'
+                event[key] = copy.deepcopy(event[key])
+                event[key]['sequence'] += 1
+            self.persist_broker(args)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+
+    def test_bank_events_bytes_and_resource33_frame_both_exact_trailers_without_byte_changes(self):
+        samples = [row for row in self.rows if row['tag'].startswith('FUNCTIONAL_CP_PARAMETER_BANK_')]
+        before = b'ordinary\n'
+        trailers = (b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022',
+                    b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1')
+        for sample in samples:
+            payload = self.record(sample['tag'], sample['fields']).encode()
+            self.assertEqual(checker.console_producer_fields(payload), sample['fields'])
+            for trailer in trailers:
+                for ending in (b'\n', b'\r\n'):
+                    with self.subTest(tag=sample['tag'], kind=sample['fields'].get('kind'),
+                                      offset=sample['fields'].get('offset'), trailer=trailer, ending=ending):
+                        raw = before + b'OBS ' + payload + trailer + ending
+                        row, = checker.parse_console(raw)
+                        self.assertNotIn('diagnostic', row)
+                        self.assertEqual(row['fields'], sample['fields'])
+                        diagnostic = row['kernel_diagnostic']
+                        self.assertEqual((diagnostic['raw_lf_line'], diagnostic['cause'], diagnostic['line_ending']),
+                                         (2, 'unknown', ending.decode()))
+                        self.assertEqual(diagnostic['payload']['byte_offset'], len(before) + 4)
+                        self.assertEqual(diagnostic['byte_offset'], len(before) + 4 + len(payload))
+                        for part in (diagnostic, diagnostic['payload']):
+                            original = raw[part['byte_offset']:part['byte_offset'] + part['bytes']]
+                            self.assertEqual(original, part['raw'].encode())
+                            self.assertEqual(checker.sha(original), part['sha256'])
+                        self.assertEqual(diagnostic['payload']['raw'].encode() + diagnostic['raw'].encode() + ending,
+                                         raw[len(before) + 4:])
+                        if 'capture_verified' in row['fields']:
+                            self.assertEqual(row['fields']['capture_verified'], '0')
+                        else:
+                            self.assertEqual(row['fields']['ownership_verified'], '0')
+
+    def test_bank_formatter_unknown_missing_duplicate_and_reordered_keys_never_gain_repair(self):
+        tags = ('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES',
+                'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCE_DEPENDENCIES',
+                'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_TTS_TABLE', 'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_RESERVED')
+        trailer = b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\n'
+        for tag in tags:
+            sample = next(row for row in self.rows if row['tag'] == tag)
+            payload = self.record(tag, sample['fields']).encode()
+            parts = payload.split(b' ')
+            variants = [payload + b' unknown=0', b' '.join(parts[:2] + parts[3:]),
+                        b' '.join(parts[:1] + [parts[2], parts[1]] + parts[3:])]
+            for changed in variants:
+                with self.subTest(tag=tag, payload=changed):
+                    self.assertIsNone(checker.console_producer_fields(changed))
+                    row, = checker.parse_console(changed + trailer)
+                    self.assertIn('diagnostic', row)
+                    self.assertNotIn('kernel_diagnostic', row)
+            with self.subTest(tag=tag, duplicate=True), self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.parse_console(payload + b' ' + parts[1] + trailer)
+
+    def test_bank_formatter_rejects_invalid_kind_event_lengths_total_tail_and_claims(self):
+        event = self.record('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', self.native(self.rows, event='BEGIN')[0]['fields']).encode()
+        byte_row = self.native(self.rows, kind='request')[-1]
+        chunk = self.record(byte_row['tag'], byte_row['fields']).encode()
+        variants = [event.replace(b'event=BEGIN', b'event=SUCCESS'),
+                    event.replace(b'capture_verified=0', b'capture_verified=1'),
+                    event.replace(b'ACK_sent=0', b'ACK_sent=1'),
+                    chunk.replace(b'kind=request', b'kind=frame'),
+                    chunk.replace(b'total=2564', b'total=2563'),
+                    chunk.replace(b'offset=2560', b'offset=2561'),
+                    chunk.replace(b'bytes=4 ', b'bytes=3 '),
+                    chunk.replace(('raw=' + byte_row['fields']['raw']).encode(), b'raw=00')]
+        trailer = b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1\r\n'
+        for payload in variants:
+            with self.subTest(payload=payload):
+                self.assertIsNone(checker.console_producer_fields(payload))
+                row, = checker.parse_console(payload + trailer)
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        for payload in (event, chunk):
+            with self.subTest(truncated=payload), self.assertRaisesRegex(ValueError, 'truncated evidence trace'):
+                checker.parse_console(payload + trailer[:-2])
+
+    def test_bank_framer_rejects_noncanonical_UIPC_trailers_and_keeps_resource_schema(self):
+        sample = self.native(self.rows, event='BEGIN')[0]
+        payload = self.record(sample['tag'], sample['fields']).encode()
+        dynamic = b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1'
+        for trailer in (dynamic.replace(b'5541.864466', b'05541.864466'), dynamic.replace(b'81cf61c4', b'81CF61C4'),
+                        dynamic.replace(b'M=1', b'M=0'), dynamic.replace(b'C=0 S=0', b'S=0 C=0'),
+                        dynamic + b' extra', dynamic[:-1],
+                        b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1021'):
+            with self.subTest(trailer=trailer):
+                row, = checker.parse_console(payload + trailer + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+        sample = next(row for row in self.rows if row['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_RESOURCES_RESERVED')
+        for key, wrong in (('dmm_handles', '0x8400'), ('dmm_slots', '1/2'), ('dmm_domain', '4294967296'),
+                           ('control_live', '1'), ('capture_verified', '1')):
+            fields = dict(sample['fields'], **{key: wrong})
+            changed = self.record(sample['tag'], fields).encode()
+            with self.subTest(resource_field=key):
+                self.assertIsNone(checker.console_producer_fields(changed))
+                row, = checker.parse_console(changed + dynamic + b'\n')
+                self.assertIn('diagnostic', row)
+                self.assertNotIn('kernel_diagnostic', row)
+
+
+class CPCrankControlEvidenceTests(unittest.TestCase):
+    """Declared 208-byte parser fixtures only; no C model or original AP is run."""
+
+    def setUp(self):
+        prior = bytearray(control_state(fps=30, generation=23))
+        struct.pack_into('<5Q', prior, 64, 22, 9, 3, 4, 17613)
+        struct.pack_into('<Q', prior, 112, 22)
+        self.prior = bytes(prior)
+        self.packet = self.request()
+        self.raw = self.receipt(self.packet, self.prior)
+
+    @staticmethod
+    def request(byte1=0xa5, cookie=0x80000060):
+        return struct.pack('<BBHI', 5, byte1, 0x409d, cookie) + bytes(4)
+
+    @staticmethod
+    def receipt(packet, prior, bank_generation=4, crank_generation=2):
+        before = struct.unpack_from('<Q', prior, 56)[0]
+        state = bytearray(prior)
+        struct.pack_into('<Q', state, 56, (before + 1) & (2**64 - 1))
+        raw = bytearray(208)
+        struct.pack_into('<2I6Q2I', raw, 0, 1, 208, struct.unpack_from('<Q', prior, 48)[0],
+                         crank_generation, bank_generation, before, (before + 1) & (2**64 - 1),
+                         checker.fnv(packet), 0, struct.unpack_from('<I', prior, 16)[0])
+        raw[64:192], raw[192:204] = state, packet
+        return bytes(raw)
+
+    def decode(self, raw=None, packet=None, prior=None, instance=99, bank_generation=4):
+        return checker.cp_crank_control_result(self.raw if raw is None else raw,
+            self.packet if packet is None else packet, instance,
+            self.prior if prior is None else prior, bank_generation)
+
+    def test_mode0_preserves_active_fps_all_config_frame_and_nonzero_counters(self):
+        for fps in (1, 30, 60, 120):
+            prior = bytearray(self.prior)
+            struct.pack_into('<I', prior, 16, fps)
+            prior = bytes(prior)
+            raw = self.receipt(self.packet, prior)
+            value = self.decode(raw=raw, prior=prior)
+            self.assertEqual(value, dict(model_instance=99, crank_generation=2, bank_generation=4,
+                before_config_generation=23, config_generation=24, input_fnv=checker.fnv(self.packet),
+                mode=0, fps=fps, frame_generation=22))
+            self.assertEqual(raw[72:112], prior[8:48])
+            self.assertEqual(raw[128:192], prior[64:128])
+            self.assertEqual(raw[192:204], self.packet)
+            self.assertEqual(raw[204:], bytes(4))
+
+    def test_byte1_and_all_cookie_values_are_opaque_and_preserved_in_full12(self):
+        for byte1 in (0, 0xa5, 0xff):
+            for cookie in (0, 0x80000060, 0xffffffff):
+                packet = self.request(byte1, cookie)
+                raw = self.receipt(packet, self.prior)
+                with self.subTest(byte1=byte1, cookie=cookie):
+                    value = self.decode(raw=raw, packet=packet)
+                    self.assertEqual(value['input_fnv'], checker.fnv(packet))
+                    self.assertEqual(raw[192:204], packet)
+                    self.assertEqual(struct.unpack_from('<I', raw, 196)[0], cookie)
+
+    def test_nonzero_body_type_command_and_non12_inputs_cannot_borrow_bank_API(self):
+        for offset in (0, 2, 3, 8, 9, 10, 11):
+            packet = bytearray(self.packet)
+            packet[offset] ^= 1
+            packet = bytes(packet)
+            with self.subTest(changed_request_byte=offset), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(packet, self.prior), packet=packet)
+        for packet in (b'', self.packet[:8], self.packet[:-1], self.packet + b'\0', bytes(2564)):
+            with self.subTest(bytes=len(packet)), self.assertRaises(ValueError):
+                self.decode(packet=packet)
+        self.assertEqual(checker.OPS[21], (12,))
+        self.assertEqual(checker.OPS[20], (2564,))
+        self.assertEqual(checker.OPS[11], tuple(360 + 8 * (cp + sdk)
+                         for cp in (100, 13, 14) for sdk in (1, 2)))
+        self.assertNotIn(2564, checker.OPS[21])
+        self.assertNotIn(12, checker.OPS[11])
+
+    def test_full208_header_and_trailing_bytes_are_exact(self):
+        for raw in (b'', self.raw[:63], self.raw[:191], self.raw[:-1], self.raw + b'\0', bytes(2756)):
+            with self.subTest(bytes=len(raw)), self.assertRaises(ValueError):
+                self.decode(raw=raw)
+        for offset, values in ((0, (0, 2)), (4, (0, 128, 207, 209, 2756))):
+            for value in values:
+                raw = bytearray(self.raw)
+                struct.pack_into('<I', raw, offset, value)
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    self.decode(raw=bytes(raw))
+
+    def test_all12_readback_bytes_and_all_four_reserved_bytes_are_checked(self):
+        for offset in range(192, 208):
+            raw = bytearray(self.raw)
+            raw[offset] ^= 1
+            with self.subTest(offset=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+        packet = self.request(cookie=0x80000061)
+        raw = bytearray(self.raw)
+        struct.pack_into('<Q', raw, 48, checker.fnv(packet))
+        with self.assertRaises(ValueError):
+            self.decode(raw=bytes(raw), packet=packet)
+
+    def test_instance_expected_bank_and_positive_crank_generation_are_mandatory(self):
+        for instance in (0, 98, True, 99.0, None):
+            with self.subTest(instance=instance), self.assertRaises(ValueError):
+                self.decode(instance=instance)
+        for bank in (0, -1, 3, 5, 2**64, True, 4.0, None):
+            with self.subTest(expected_bank=bank), self.assertRaises(ValueError):
+                self.decode(bank_generation=bank)
+        with self.assertRaises(TypeError):
+            checker.cp_crank_control_result(self.raw, self.packet, 99, self.prior)
+        for offset, values in ((8, (0, 98)), (16, (0,)), (24, (0, 3, 5)),
+                               (48, (0, checker.fnv(self.packet) ^ 1)), (56, (1, 0xffffffff)),
+                               (60, (0, 29, 60))):
+            fmt = '<Q' if offset < 56 else '<I'
+            for value in values:
+                raw = bytearray(self.raw)
+                struct.pack_into(fmt, raw, offset, value)
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    self.decode(raw=bytes(raw))
+
+    def test_before_generation_and_exact_increment_cannot_wrap_or_skip(self):
+        for offset, values in ((32, (0, 22, 24, 2**64 - 1)), (40, (0, 23, 25, 2**64 - 1))):
+            for value in values:
+                raw = bytearray(self.raw)
+                struct.pack_into('<Q', raw, offset, value)
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    self.decode(raw=bytes(raw))
+        for generation in (0, 2**64 - 1):
+            prior = bytearray(self.prior)
+            struct.pack_into('<Q', prior, 56, generation)
+            prior = bytes(prior)
+            with self.subTest(generation=generation), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+
+    def test_prior_uninitialized_pending_stream_and_reserved_states_refuse_even_if_echoed(self):
+        for prior in (b'', self.prior[:-1], self.prior + b'\0'):
+            with self.subTest(bytes=len(prior)), self.assertRaises(ValueError):
+                self.decode(prior=prior)
+        for fmt, offset, values in (('I', 0, (0, 2)), ('I', 4, (0, 14)), ('Q', 48, (0, 98)),
+                ('Q', 64, (0,)), ('I', 104, (1,)), ('I', 108, (1, 2, 3)),
+                ('Q', 112, (0,)), ('Q', 120, (1,))):
+            for value in values:
+                prior = bytearray(self.prior)
+                struct.pack_into('<' + fmt, prior, offset, value)
+                prior = bytes(prior)
+                with self.subTest(offset=offset, value=value), self.assertRaises(ValueError):
+                    self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+
+    def test_every_after_state_byte_is_bound_including_config_fps_frame_and_counters(self):
+        for offset in range(128):
+            raw = bytearray(self.raw)
+            raw[64 + offset] ^= 1
+            with self.subTest(after_state_byte=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+        raw = bytearray(self.raw)
+        struct.pack_into('<I', raw, 60, 60)
+        struct.pack_into('<I', raw, 80, 60)
+        with self.assertRaises(ValueError):
+            self.decode(raw=bytes(raw))
+
+    def test_policy_is_typed_complete_on_both_sides_and_optional_for_old_history(self):
+        profile = CPParameterBankEvidenceTests.profile()
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        self.assertIs(profile['functional_camera_capture_verified'], False)
+        self.assertIs(profile['functional_camera_cp_crank_control_physical_semantics_verified'], False)
+        for key, value in checker.CP_CRANK_CONTROL_POLICY.items():
+            self.assertTrue(checker.typed_equal(profile['functional_camera_' + key], value))
+            self.assertTrue(checker.typed_equal(profile['backup_transport']['functional_camera_' + key], value))
+        legacy = copy.deepcopy(profile)
+        for target in (legacy, legacy['backup_transport']):
+            for key in checker.CP_CRANK_CONTROL_POLICY:
+                del target['functional_camera_' + key]
+        self.assertTrue(checker.check_profile(legacy)['verified'])
+        for key, value in checker.CP_CRANK_CONTROL_POLICY.items():
+            wrong = True if type(value) is int or type(value) is bool else [0, 1] if type(value) is list else value + ' '
+            for side in ('top', 'backup_transport', 'both'):
+                for mutation in ('wrong', 'missing', 'partial'):
+                    changed = copy.deepcopy(legacy if mutation == 'partial' else profile)
+                    targets = (changed, changed['backup_transport']) if side == 'both' else (
+                        changed if side == 'top' else changed['backup_transport'],)
+                    for target in targets:
+                        if mutation == 'missing':
+                            del target['functional_camera_' + key]
+                        else:
+                            target['functional_camera_' + key] = copy.deepcopy(value if mutation == 'partial' else wrong)
+                    with self.subTest(key=key, side=side, mutation=mutation), self.assertRaises(ValueError):
+                        checker.check_profile(changed)
+        for field in ('cp_crank_control_mode1_supported', 'cp_crank_control_physical_layout'):
+            for side in ('top', 'backup_transport'):
+                changed = copy.deepcopy(legacy)
+                target = changed if side == 'top' else changed['backup_transport']
+                target['functional_camera_' + field] = True
+                with self.subTest(undeclared=field, side=side), self.assertRaises(ValueError):
+                    checker.check_profile(changed)
+
+
+class CPCrankControlTransportEvidenceTests(unittest.TestCase):
+    """HOST_TEST retained files and broker witnesses; native completion stays pending."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPParameterBankEvidenceTests.setUpClass()
+
+    def setUp(self):
+        bank = CPParameterBankTransportEvidenceTests('runTest')
+        bank.setUp()
+        self.addCleanup(bank.doCleanups)
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.packet = CPCrankControlEvidenceTests.request()
+        self.prior = bank.following
+        self.receipt = CPCrankControlEvidenceTests.receipt(self.packet, self.prior, bank_generation=1, crank_generation=1)
+        self.following = self.receipt[64:192]
+        self.origin = dict(producer_tid=94, source=0x80020002, destination=0x90030001,
+                           command=0x409d, bytes=12, fnv1a64=checker.fnv(self.packet))
+        operations = [dict(op=tx['opcode'], data=checker.payload_read(bank.run, tx['request_payload']),
+            output=checker.transfer_output(bank.run, tx), origin=copy.deepcopy(tx['origin']))
+            for tx in bank.transport['transfers']]
+        operations += [dict(op=2, data=b'', output=self.prior, origin=self.origin),
+                       dict(op=21, data=self.packet, output=self.receipt, origin=self.origin),
+                       dict(op=2, data=b'', output=self.following, origin=self.origin)]
+        lines, count = [], 0
+        for line in (bank.run / 'console.log').read_text().splitlines():
+            if line.startswith('OBS FUNCTIONAL_CAMERA_TRANSFER '):
+                lines.append('HOST_TEST_TRANSFER_' + str(count))
+                count += 1
+            else:
+                lines.append(line)
+        lines += ['HOST_TEST_TRANSFER_' + str(index) for index in range(count, len(operations))]
+        self.args = host_test_transport(Path(temporary.name), operations, '\n'.join(lines) + '\n')
+        self.run, self.manifest, self.rows, events, build = self.args
+        policy = {'functional_camera_' + key: copy.deepcopy(value) for key, value in
+                  {**checker.CP_PARAMETER_BANK_POLICY, **checker.CP_CRANK_CONTROL_POLICY}.items()}
+        policy['functional_camera_profile'] = checker.PROFILE
+        self.manifest.update(policy)
+        self.manifest['backup_transport'].update(copy.deepcopy(policy))
+        for op in (20, 21):
+            core = next(event for event in events if event['kind'] == 'core_result' and event['opcode'] == op)
+            observed = (copy.deepcopy(bank.transport['transfers'][2]['parameter_bank']['observation']) if op == 20 else
+                dict(actual_c_result=0, returned_hex=self.receipt.hex(), readback_verified=True,
+                    model_called=True, model_committed=True, request_hex=self.packet.hex(),
+                    before_state_c_result=0, before_state_hex=self.prior.hex(),
+                    result=dict(token=0, total=0, offset=0, used=208),
+                    output_buffer_hex=(self.receipt + bytes(checker.DATA_BYTES - 208)).hex(),
+                    after_state_c_result=0, after_state_hex=self.following.hex(), query_c_result=0,
+                    crank_generation=1, bank_generation=1, snapshot_hex=self.receipt.hex()))
+            witness = dict(kind='model_parameter_bank' if op == 20 else 'model_crank_control', model_instance=99,
+                sequence=core['sequence'], opcode=op, origin=copy.deepcopy(core['origin']),
+                actual_c_result=0, actual_core_sha256=build['model_sha256'], request_payload=core['request_payload'],
+                output_payload=core['output_payload'], native_acceptance=False, observation=observed)
+            if op == 21:
+                witness.update(model_called=True, model_committed=True)
+            events.insert(events.index(core) + 1, witness)
+            for event in events:
+                if event.get('opcode') == op and event['kind'] in ('core_result', 'response'):
+                    event['actual_core_sha256'] = build['model_sha256']
+        self.persist(self.args)
+        transfers = []
+        for row in self.rows:
+            if row['tag'] != 'FUNCTIONAL_CAMERA_TRANSFER':
+                continue
+            seq = int(row['fields']['seq'].split('..')[0])
+            request = next(event for event in events if event['kind'] == 'request' and event['sequence'] == seq)
+            core = next(event for event in events if event['kind'] == 'core_result' and event['sequence'] == seq)
+            reference = core['output_payload']
+            tx = dict(line=row['line'], first=seq, last=seq, opcode=request['opcode'], origin=request['origin'],
+                bytes=reference['bytes'], sha256=reference['sha256'], fnv1a64=f'{reference["fnv1a64"]:016x}',
+                request_payload=request['request_payload'], output_payloads=[reference], token=0, frame=None,
+                model_instance=99, provider_kind='core')
+            if request['opcode'] in (20, 21):
+                key = 'parameter_bank' if request['opcode'] == 20 else 'crank_control'
+                tx[key] = next(event for event in events if event['kind'] == 'model_' + key)
+                if request['opcode'] == 21:
+                    tx['capacity'] = checker.DATA_BYTES
+            transfers.append(tx)
+        self.transport = dict(pid=77, model_instance=99, owner_pid=177, transfers=transfers)
+        self.transport['parameter_bank'] = checker.check_cp_parameter_bank(self.run, self.manifest, self.rows, self.transport)
+
+    persist = staticmethod(CPParameterBankTransportEvidenceTests.persist_broker)
+
+    @staticmethod
+    def witness(args):
+        return next(event for event in args[3] if event['kind'] == 'model_crank_control')
+
+    def content(self, transport=None, manifest=None):
+        return checker.check_cp_crank_control_content(self.run,
+            self.manifest if manifest is None else manifest, self.rows,
+            self.transport if transport is None else transport)
+
+    def test_actual_bank1_live23_crank1_state24_content_is_not_native_or_capture_success(self):
+        transport = checker.check_transport(*self.args)
+        result = transport['crank_control_content']
+        self.assertEqual(result, self.content())
+        self.assertTrue(result['required'] and result['content_join_verified'])
+        self.assertTrue(transport['parameter_bank']['verified'])
+        self.assertFalse(transport['verified'])
+        self.assertTrue(all(result[key] is False for key in ('verified', 'native_completion_verified',
+            'frame_consumed', 'capture_verified', 'physical_asic_compatibility_verified')))
+        self.assertEqual(result['missing_native_observations'], list(checker.CP_CRANK_NATIVE_JOINS))
+        self.assertEqual([tx['opcode'] for tx in transport['transfers']], [1, 2, 20, 2, 2, 21, 2])
+        value, = result['transactions']
+        self.assertEqual((value['bank_generation'], value['crank_generation'], value['before_config_generation'],
+                          value['config_generation'], value['fps'], value['frame_generation']), (1, 1, 23, 24, 30, 1))
+        self.assertNotEqual(self.origin['producer_tid'], transport['transfers'][2]['origin']['producer_tid'])
+        self.assertIsNone(transport['transfers'][5]['frame'])
+
+    def test_every_independent_C_status_shape_and_current_library_hash_is_required(self):
+        mutations = [('actual_core_sha256', 'd' * 64), ('actual_c_result', -5), ('native_acceptance', True),
+                     ('model_called', False), ('model_committed', False)]
+        mutations += [('observation.' + key, wrong) for key, wrong in
+            (('actual_c_result', -5), ('query_c_result', -5), ('before_state_c_result', -5),
+             ('after_state_c_result', -5), ('readback_verified', False), ('model_called', False),
+             ('model_committed', False), ('bank_generation', 2), ('crank_generation', 2),
+             ('result', dict(token=0, total=0, offset=0, used=207)))]
+        for key, wrong in mutations:
+            args = copy.deepcopy(self.args)
+            event = self.witness(args)
+            target = event['observation'] if key.startswith('observation.') else event
+            target[key.split('.')[-1]] = wrong
+            self.persist(args)
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+        for key in self.witness(self.args)['observation']:
+            args = copy.deepcopy(self.args)
+            del self.witness(args)['observation'][key]
+            self.persist(args)
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+        for kind in ('core_result', 'response'):
+            args = copy.deepcopy(self.args)
+            event = next(event for event in args[3] if event['kind'] == kind and event.get('opcode') == 21)
+            event['actual_core_sha256'] = 'd' * 64
+            self.persist(args)
+            with self.subTest(stale_hash=kind), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+
+    def test_full208_query_request12_state128_and_output_buffer_are_compared_as_bytes(self):
+        observed = self.witness(self.args)['observation']
+        for key in ('returned_hex', 'snapshot_hex', 'request_hex', 'before_state_hex', 'after_state_hex', 'output_buffer_hex'):
+            for mutation in ('truncated', 'different'):
+                args = copy.deepcopy(self.args)
+                raw = bytearray.fromhex(observed[key])
+                if mutation == 'truncated':
+                    raw.pop()
+                else:
+                    raw[-1] ^= 1
+                self.witness(args)['observation'][key] = raw.hex()
+                self.persist(args)
+                with self.subTest(field=key, mutation=mutation), self.assertRaises(ValueError):
+                    checker.check_transport(*args)
+        args = copy.deepcopy(self.args)
+        prior = bytearray(self.prior)
+        struct.pack_into('<Q', prior, 96, 64)
+        raw = CPCrankControlEvidenceTests.receipt(self.packet, bytes(prior), 1, 1)
+        event = self.witness(args)
+        event['observation'].update(before_state_hex=prior.hex(), returned_hex=raw.hex(), snapshot_hex=raw.hex(),
+            after_state_hex=raw[64:192].hex(), output_buffer_hex=(raw + bytes(checker.DATA_BYTES - 208)).hex())
+        self.persist(args)
+        with self.assertRaises(ValueError):
+            checker.check_transport(*args)
+
+    def test_model_witness_cannot_be_missing_replayed_late_wrong_opcode_or_foreign_origin(self):
+        for mutation in ('missing', 'duplicate', 'late', 'opcode', 'origin', 'request', 'output'):
+            args = copy.deepcopy(self.args)
+            events, event = args[3], self.witness(args)
+            index = events.index(event)
+            if mutation == 'missing':
+                events.remove(event)
+            elif mutation == 'duplicate':
+                events.insert(index, copy.deepcopy(event))
+            elif mutation == 'late':
+                events[index], events[index + 1] = events[index + 1], events[index]
+            elif mutation == 'opcode':
+                event['opcode'] = 11
+            elif mutation == 'origin':
+                event['origin']['producer_tid'] += 1
+            else:
+                key = mutation + '_payload'
+                event[key] = copy.deepcopy(event[key])
+                event[key]['sequence'] += 1
+            self.persist(args)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+
+    def test_bracketing_STATE2_origin_provider_frame_and_full_bytes_cannot_be_borrowed(self):
+        for index in (4, 5, 6):
+            for key, wrong in (('token', 1), ('frame', {'proof': {'opcode': 21}}), ('provider_kind', 'source')):
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index][key] = wrong
+                with self.subTest(index=index, field=key), self.assertRaises(ValueError):
+                    self.content(transport=changed)
+        for index in (4, 6):
+            for key, wrong in (('opcode', 1), ('first', 90), ('last', 90)):
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index][key] = wrong
+                with self.subTest(index=index, field=key), self.assertRaises(ValueError):
+                    self.content(transport=changed)
+            changed = copy.deepcopy(self.transport)
+            changed['transfers'][index]['origin']['producer_tid'] ^= 1
+            with self.subTest(foreign_STATE=index), self.assertRaises(ValueError):
+                self.content(transport=changed)
+        changed = copy.deepcopy(self.transport)
+        for key in ('output_payloads', 'bytes', 'sha256', 'fnv1a64'):
+            changed['transfers'][6][key] = copy.deepcopy(changed['transfers'][4][key])
+        with self.assertRaises(ValueError):
+            self.content(transport=changed)
+
+    def test_no_frame_binding_rejects_incomplete_proofs_before_history_scan(self):
+        frames = ({}, {'proof': {}}, {'proof': {'opcode': 21}},
+                  {'proof': {'opcode': 21, 'render_observed': 0}})
+        for index in (4, 5, 6):
+            for frame in frames:
+                changed = copy.deepcopy(self.transport)
+                changed['transfers'][index]['frame'] = copy.deepcopy(frame)
+                with self.subTest(index=index, frame=frame), self.assertRaisesRegex(ValueError,
+                        'crank control queries/core/no-frame binding differs'):
+                    self.content(transport=changed)
+
+    def test_same_generation_full_before_and_after_STATE_fields_cannot_diverge_from_receipt(self):
+        original = checker.transfer_output
+        for index, state in ((4, self.prior), (6, self.following)):
+            for offset in (8, 16, 24, 64, 72, 80, 88, 96, 112):
+                raw = bytearray(state)
+                raw[offset] ^= 1
+                raw = bytes(raw)
+                sequence = self.transport['transfers'][index]['first']
+                def output(run, tx):
+                    return raw if tx['first'] == sequence else original(run, tx)
+                with mock.patch.object(checker, 'transfer_output', side_effect=output):
+                    with self.subTest(STATE=index, byte=offset), self.assertRaises(ValueError):
+                        self.content()
+
+    def test_current_bank_authority_and_exact_original_CP_origin_are_required(self):
+        for mutation in ('no_bank', 'not_freed', 'wrong_bank', 'wrong_instance'):
+            changed = copy.deepcopy(self.transport)
+            if mutation == 'no_bank':
+                changed['parameter_bank']['verified'] = False
+            else:
+                receipt = changed['parameter_bank']['transactions'][0]
+                receipt[{'not_freed': 'original_free_line', 'wrong_bank': 'bank_generation',
+                         'wrong_instance': 'model_instance'}[mutation]] = 999
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.content(transport=changed)
+        for key in ('source', 'destination', 'command', 'bytes', 'fnv1a64'):
+            changed = copy.deepcopy(self.transport)
+            for index in (4, 5, 6):
+                changed['transfers'][index]['origin'][key] ^= 1
+            with self.subTest(origin=key), self.assertRaises(ValueError):
+                self.content(transport=changed)
+        for profile in ('', 'strict', checker.PROFILE + ' ', None, True):
+            changed = copy.deepcopy(self.manifest)
+            for target in (changed, changed['backup_transport']):
+                target['functional_camera_profile'] = profile
+            with self.subTest(profile=profile), self.assertRaises(ValueError):
+                self.content(manifest=changed)
+        for key in checker.CP_CRANK_CONTROL_POLICY:
+            changed = copy.deepcopy(self.manifest)
+            del changed['backup_transport']['functional_camera_' + key]
+            with self.subTest(policy=key), self.assertRaises(ValueError):
+                self.content(manifest=changed)
+        changed = copy.deepcopy(self.manifest)
+        for target in (changed, changed['backup_transport']):
+            target['functional_camera_cp_crank_control_mode1_supported'] = True
+        with self.assertRaises(ValueError):
+            self.content(manifest=changed)
+
+    def test_history_binds_to_decoded_bank_not_arbitrary_nonzero_generation_and_never_model_frame(self):
+        original = checker.transfer_output
+        crank = self.transport['transfers'][5]
+        for bank, generation in ((2, 1), (1, 2), (1, 0)):
+            raw = CPCrankControlEvidenceTests.receipt(self.packet, self.prior, bank, generation)
+            def output(run, tx):
+                return raw if tx['first'] == crank['first'] else original(run, tx)
+            with mock.patch.object(checker, 'transfer_output', side_effect=output):
+                with self.subTest(bank=bank, crank=generation), self.assertRaises(ValueError):
+                    checker.vdf_history(self.run, self.transport)
+        changed = copy.deepcopy(self.transport)
+        duplicate = copy.deepcopy(changed['transfers'][5])
+        duplicate['first'] = duplicate['last'] = 8
+        changed['transfers'].append(duplicate)
+        raw = CPCrankControlEvidenceTests.receipt(self.packet, self.following, 1, 2)
+        with mock.patch.object(checker, 'transfer_output', side_effect=lambda run, tx:
+                               raw if tx['first'] == 8 else original(run, tx)):
+            with self.assertRaisesRegex(ValueError, 'once-only'):
+                checker.vdf_history(self.run, changed)
+        args = copy.deepcopy(self.args)
+        event = copy.deepcopy(self.witness(args))
+        event['kind'], event['proof'] = 'model_frame', {'opcode': 21}
+        args[3].insert(args[3].index(self.witness(args)) + 1, event)
+        self.persist(args)
+        with self.assertRaises(ValueError):
+            checker.check_transport(*args)
+
+    def test_new_decoded_bank2_authorizes_monotonic_crank2_with_its_active_fps(self):
+        wire = CPParameterBankEvidenceTests('runTest')
+        wire.setUp()
+        packet = wire.original_packet(fps=60)
+        bank_raw = wire.result(packet, self.following, bank_generation=2)
+        crank_raw = CPCrankControlEvidenceTests.receipt(self.packet, bank_raw[64:192], 2, 2)
+        changed = copy.deepcopy(self.transport)
+        bank_tx = copy.deepcopy(changed['transfers'][2])
+        bank_tx.update(first=8, last=8)
+        before = copy.deepcopy(changed['transfers'][6])
+        before.update(first=9, last=9)
+        crank_tx = copy.deepcopy(changed['transfers'][5])
+        crank_tx.update(first=10, last=10)
+        after = copy.deepcopy(changed['transfers'][6])
+        after.update(first=11, last=11)
+        changed['transfers'] += [bank_tx, before, crank_tx, after]
+        outputs = {8: bank_raw, 9: bank_raw[64:192], 10: crank_raw, 11: crank_raw[64:192]}
+        original_output, original_input = checker.transfer_output, checker.payload_read
+        def output(run, tx):
+            return outputs[tx['first']] if tx['first'] in outputs else original_output(run, tx)
+        def incoming(run, reference, *args):
+            return packet if reference is bank_tx['request_payload'] else original_input(run, reference, *args)
+        with mock.patch.object(checker, 'transfer_output', side_effect=output), \
+                mock.patch.object(checker, 'payload_read', side_effect=incoming):
+            history = checker.vdf_history(self.run, changed)
+        self.assertEqual((history[10]['bank_generation'], history[10]['crank_generation'], history[10]['fps'],
+                          history[10]['before_config_generation'], history[10]['config_generation']), (2, 2, 60, 25, 26))
+        self.assertEqual(history[10]['frame_generation'], 1)
+
+    def test_rejection_keeps_actual_negative_rc_or_postcommit_C0_and_original208(self):
+        for actual_rc in (-5, 0):
+            args = copy.deepcopy(self.args)
+            event = self.witness(args)
+            core = next(item for item in args[3] if item['kind'] == 'core_result' and item.get('opcode') == 21)
+            core['actual_c_result'] = actual_rc
+            event.update(kind='crank_control_rejected', actual_c_result=actual_rc,
+                         model_committed=actual_rc == 0, error='actual query rejected after call')
+            event['observation'].update(actual_c_result=actual_rc, model_committed=actual_rc == 0,
+                                        query_c_result=-5, readback_verified=False)
+            self.persist(args)
+            original = copy.deepcopy(event)
+            with self.subTest(actual_C_rc=actual_rc), self.assertRaises(checker.CrankControlRejected) as caught:
+                checker.check_transport(*args)
+            self.assertEqual(caught.exception.event, original)
+            self.assertEqual(caught.exception.event['actual_c_result'], actual_rc)
+            self.assertEqual(checker.payload_read(self.run, caught.exception.event['output_payload']), self.receipt)
+            self.assertEqual(caught.exception.event['observation']['returned_hex'], self.receipt.hex())
+            self.assertEqual(event, original)
+        args = copy.deepcopy(self.args)
+        event = self.witness(args)
+        event.update(kind='crank_control_rejected', actual_c_result=0, error='actual getter refused')
+        event['observation'].update(query_c_result=-5, readback_verified=False)
+        core = next(item for item in args[3] if item['kind'] == 'core_result' and item.get('opcode') == 21)
+        args[3].remove(event)
+        args[3].insert(args[3].index(core), event)
+        self.persist(args)
+        with self.assertRaises(checker.CrankControlRejected) as caught:
+            checker.check_transport(*args)
+        self.assertEqual(caught.exception.event, event)
+        self.assertEqual(caught.exception.event['actual_c_result'], 0)
+
+
+class CPCrankNativeJoinEvidenceTests(unittest.TestCase):
+    """Synthetic complete producer streams; these fixtures never attest native capture."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPCrankControlTransportEvidenceTests.setUpClass()
+
+    def setUp(self):
+        baseline = CPCrankControlTransportEvidenceTests('runTest')
+        baseline.setUp()
+        self.addCleanup(baseline.doCleanups)
+        self.args = baseline.args
+        self.run, self.manifest, self.rows, _, _ = self.args
+        self.packet, self.prior, self.receipt, self.following = (
+            baseline.packet, baseline.prior, baseline.receipt, baseline.following)
+        self.transport = copy.deepcopy(baseline.transport)
+        self.base_rows = copy.deepcopy(self.rows)
+        self.assemble('normal')
+
+    record = staticmethod(CPParameterBankTransportEvidenceTests.record)
+
+    @staticmethod
+    def row(tag, fields):
+        return dict(tag=tag, fields={k: str(v) for k, v in fields.items()})
+
+    def audit(self, raw, pointer, sequence):
+        return [self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT', dict(pid=77, tid=94, sequence=sequence,
+            entry='async', pointer=pointer, destination='0x90030001', bytes=len(raw), source='0x80020002',
+            size_known=1, source_known=1, bytes_complete=1, complete=1, producer_return='0x7f29174a68',
+            consumed=0, state_verified=0, capture_verified=0)),
+            self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES', dict(pid=77, tid=94, sequence=sequence,
+                offset=0, bytes=len(raw), raw=raw.hex()))]
+
+    def strict_history(self):
+        wire = bytes.fromhex('05009d404400008000000000')
+        ack = b'\x01\0\x9d\x40' + wire[4:8] + struct.pack('<I', 0xf000)
+        digest = 2166136261
+        for byte in wire:
+            digest = ((digest ^ byte) * 16777619) & 0xffffffff
+        f = dict(pid=77, opcode='0x409d', sender_tid=87, waiter_tid=0, attempts=1, requests=1,
+            busy=1, guard=1, faults=0, source='0x80020002', request_destination='0x90030001',
+            destination='0x80020002', bytes=12, request=wire.hex(), cookie='0x80000044', wire_fnv1a32=hex(digest),
+            source_byte1_known=0, reply=ack.hex(), freed_reply='none', reply_free_destination=0,
+            reply_free_source=0, reply_free_bytes=0, allocate_rc=0, send_rc=0, request_free_rc=0,
+            reply_free_rc=0, queued=1, request_freed=1, reply_freed=0, clean_completion=0, ap_consumed=0,
+            oneway=0, oneway_consumed=0, virtual_field_mask='0xf', virtual_fields_readback=1,
+            virtual_fields_consumed='0xf', virtual_fields='0,0,0,0', virtual_readback='0,0,0,0',
+            retained_request='(nil)', live_reply='0x380000', retained_cleanup='(nil)', diagnostic_only=1,
+            virtual_padding=1, business_applied=0, source_dependencies_closed=0, configured=0,
+            published=0, generation=0, native_cp=0, EE=0, frame=0, capture=0)
+        result = [self.row('NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE', f)]
+        f.update(busy=0, guard=0)
+        result.append(self.row('NATIVE_CP_EE_DIAGNOSTIC_COMPLETE', f))
+        f.update(waiter_tid=87, freed_reply=ack.hex(), reply_free_destination='0x80020002',
+            reply_free_source='0x90030001', reply_free_bytes=12, reply_freed=1, clean_completion=1,
+            ap_consumed=1, live_reply='(nil)')
+        result.append(self.row('NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE', f))
+        return result
+
+    def all13_frees(self):
+        rows = []
+        for index, tag in enumerate(checker.BACKGROUND_FREE_TAGS):
+            f = dict(pid=77, tid=88, destination='0x81020027', expected='0x81020027', bytes=56,
+                     rc=0, faults=0, ap_consumed=1, capture_verified=0)
+            f['reply' if tag.endswith('_NATIVE_REPLY_FREE') else 'pointer'] = hex(0x200000 + 0x100 * index)
+            if tag.endswith('_NATIVE_REPLY_FREE') or tag in ('FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_FREE',
+                                                           'FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE'):
+                f.update(sender=88, waiter=1)
+            if tag.endswith('_NATIVE_REPLY_FREE'):
+                f['command'] = '0x8001'
+            else:
+                if tag != 'FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE':
+                    f['frames_verified'] = 0
+                if tag == 'FULL_IMAGING_ADF_CONNECT_REPLY_FREE':
+                    f['pcm_verified'] = 0
+            if tag == 'FULL_PINMEM_HDMI_VIDEO_CONNECT_NATIVE_REPLY_FREE':
+                f['producer_tid'] = 89
+            rows.append(self.row(tag, f))
+        return rows
+
+    def assemble(self, variant):
+        rows = self.all13_frees() + self.strict_history()
+        rows += [copy.deepcopy(r) for r in self.base_rows if not
+                 (r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and int(r['fields']['seq'].split('..')[0]) >= 5)]
+        mode = next(r['fields'] for r in reversed(rows) if r['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT')
+        mode = dict(mode, cycle_id='2', cycle_generation=mode['config_generation'])
+        for index in range(5):
+            request = index in (0, 2)
+            complete = str(int(index == 4))
+            fields = dict(mode, index=str(index), role=str(1 if request else 3 if index == 4 else 2),
+                          bytes=str((24, 16, 12, 12, 1748)[index]),
+                          source='0x80020002' if request else '0x90030001',
+                          destination='0x90030001' if request else '0x80020002',
+                          lease_cycle_id='0' if index < 2 else mode['cycle_id'],
+                          queued=str(int(not request)), received=str(int(not request)),
+                          freed='1', consumed=str(int(not request)), retained='(nil)',
+                          receiver_tid='0' if request else mode['receiver_tid'],
+                          tid=mode['receiver_tid'] if index == 4 else mode['sender_tid'],
+                          free_tid=mode['receiver_tid'] if index == 4 else mode['sender_tid'],
+                          busy=str(int(request)), guard=str(int(request)), mode_complete=complete,
+                          mode0_complete=complete, mode0_cycles_completed=complete,
+                          notification_AP_consumed=complete)
+            rows.append(self.row('FUNCTIONAL_CAMERA_CONTROL_AP_FREE' if index in (1, 3, 4) else
+                                 'FUNCTIONAL_CAMERA_CONTROL_OWNED_FREE', fields))
+            if index == 2:
+                # The current mode COMMIT precedes its ACK/notice frees; it is not the old start COMMIT.
+                commit = dict(fields, index='3', role='2', source='0x90030001', destination='0x80020002',
+                              tid=mode['sender_tid'], receiver_tid='0', free_tid='0', queued='1', received='0',
+                              freed='0', consumed='0', retained='0x490000', busy='0', guard='0')
+                rows.append(self.row('FUNCTIONAL_CAMERA_CONTROL_COMMIT', commit))
+        bank_packet = checker.payload_read(self.run, self.transport['transfers'][2]['request_payload'])
+        policy = b'\x05\0\xf9\x40' + bank_packet[4:8] + bytes(12)
+        rows += self.audit(policy, '0x480000', 70)
+        rows.append(self.row('NATIVE_CP_OUTPUT_POLICY_CONSUMED', dict(pid=77, tid=94, bytes=20, slots=0,
+            copied_readback=1, config_fields=4, known_mask=15, wire_fnv1a=f'{checker.fnv(policy):016x}',
+            request_free_rc=0, request_retained=0, stage_only=1, semantic_applied=0, semantic_slots=0,
+            generation_advanced=0, published=0, ACK_sent=0, original_CP_executed=0, EE_verified=0, capture_verified=0)))
+        rows += self.audit(self.packet, '0x500000', 71)
+        rows.append(self.row('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', dict(pid=77, tid=94,
+            accepted=1, video_AP_consumed=1, OSD_AP_consumed=1, audio_AP_consumed=1,
+            OSD_live=16, OSD_owners_each=2, OSD_opens_each=2, global_DMM_idle_claimed=0, capture_verified=0)))
+        resources = checker.parse_console(JFZ_VDF_RESOURCE_OBS.encode())
+        for row in resources:
+            row['tag'] = row['tag'].replace('FUNCTIONAL_VDF_PATH', 'FUNCTIONAL_CP_CRANK_CONTROL')
+            row['fields']['tid'] = '94'
+            if 'pid' in row['fields']:
+                row['fields']['pid'] = '77'
+        stages = ['BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REPLY', 'ALLOCATED']
+        if variant == 'inline':
+            stages += ['RECEIVE', 'REPLY_FREE', 'SENT', 'REQUEST_FREE', 'COMMIT']
+        elif variant == 'request_free_receive':
+            stages += ['SENT', 'RECEIVE', 'REQUEST_FREE', 'COMMIT', 'REPLY_FREE']
+        else:
+            stages += ['SENT', 'REQUEST_FREE', 'COMMIT', 'RECEIVE', 'REPLY_FREE']
+        fields = {}
+        for part in checker.CP_CRANK_EVENT_SCHEMA.split():
+            key, grammar = part.split(':', 1)
+            fields[key] = '(nil)' if grammar == 'pointer' else '0000000000000000' if grammar == 'digest' else (
+                grammar if grammar not in ('crank_event', 'pid', 'tid', 'u64', 'u32', 'hex32', 'i32', 'bit') else '0')
+        fields.update(pid='77', tid='94', sender_tid='94', transaction='1', requests='1', busy='1', source='0x80020002',
+            destination='0x90030001', command='0x409d', bytes='12', native_fnv1a=f'{checker.fnv(self.packet):016x}',
+            cookie=hex(struct.unpack_from('<I', self.packet, 4)[0]), request_pointer='0x500000', model_instance='99',
+            bank_generation='1', bank_transaction='2', bank_commits='1', bank_released='1', bank_source='0x80020002',
+            bank_destination='0x90030001', bank_command='0x4063', bank_bytes='2564', bank_native_fnv1a=f'{checker.fnv(bank_packet):016x}')
+        for key in ('before_rc', 'model_rc', 'after_rc', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc', 'receive_rc'):
+            fields[key] = '-61'
+        reply = b'\x01\0\x9d\x40' + self.packet[4:8] + struct.pack('<I', 0xf000)
+        streams = dict(BEGIN=('request', self.packet), BEFORE=('before_state', self.prior),
+            MODEL=('receipt', self.receipt), AFTER=('after_state', self.following), REPLY=('reply', reply))
+        transfers = {int(r['fields']['seq'].split('..')[0]): copy.deepcopy(r) for r in self.base_rows
+                     if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER'}
+        for event in stages:
+            fields['event'] = event
+            fields['tid'] = '95' if event == 'RECEIVE' else '94'
+            if event in ('BEFORE', 'MODEL', 'AFTER'):
+                rows.append(transfers[{'BEFORE': 5, 'MODEL': 6, 'AFTER': 7}[event]])
+            if event == 'BEFORE':
+                fields.update(guard='1', before_rc='0', before_config_generation='23', frame_generation='1', fps='30',
+                    before_used='128', before_required='128', before_instance='99')
+            elif event == 'MODEL':
+                fields.update(model_called='1', model_committed='1', model_rc='0', commits='1', crank_generation='1',
+                    config_generation='24', crank_used='208', crank_required='208', crank_instance='99',
+                    receipt_fnv1a=f'{checker.fnv(self.receipt):016x}')
+            elif event == 'AFTER':
+                fields.update(after_rc='0', after_used='128', after_required='128', after_instance='99')
+            elif event == 'VERIFIED':
+                fields.update(verified='1', owned='1', verified_commits='1', last_bank_generation='1',
+                    last_crank_generation='1', retained_request='0x500000')
+            elif event == 'REPLY':
+                fields['reply_fnv1a'] = f'{checker.fnv(reply):016x}'
+            elif event == 'ALLOCATED':
+                fields.update(reply_pointer='0x600000', allocation_pointer='0x600000', retained_reply='0x600000',
+                    reply_allocated='1', reply_valid='1', allocate_rc='0')
+            elif event == 'SENT':
+                fields.update(send_started='1', send_inflight='0', send_rc='0', ACK_sent='1')
+            elif event == 'REQUEST_FREE':
+                fields.update(request_releasing='0', request_freed='1', request_free_rc='0',
+                    request_free_tid='94', retained_request='(nil)')
+            elif event == 'COMMIT':
+                fields.update(busy='0', guard='0')
+            elif event == 'RECEIVE':
+                fields.update(reply_received='1', receive_rc='0', receiver_tid='95', send_started='1')
+                if variant == 'inline':
+                    fields['send_inflight'] = '1'
+                if variant == 'request_free_receive':
+                    fields['request_releasing'] = '1'
+            elif event == 'REPLY_FREE':
+                fields.update(reply_freed='1', reply_free_rc='0', reply_free_tid='94', retained_reply='(nil)')
+            fields['reply_consumed'] = str(int(all(fields[k] == '1' for k in ('ACK_sent', 'reply_received', 'reply_freed'))))
+            fields['complete'] = fields['completions'] = str(int(fields['reply_consumed'] == fields['request_freed'] == '1' and
+                                                               fields['busy'] == fields['guard'] == '0'))
+            rows.append(self.row('FUNCTIONAL_CP_CRANK_CONTROL_EVENT', fields))
+            if event in streams:
+                kind, raw = streams[event]
+                for offset in range(0, len(raw), 128):
+                    block = raw[offset:offset + 128]
+                    rows.append(self.row('FUNCTIONAL_CP_CRANK_CONTROL_BYTES', dict(event=event, pid=77, tid=94,
+                        transaction=1, kind=kind, total=len(raw), offset=offset, bytes=len(block), raw=block.hex(),
+                        native_fnv1a=fields['native_fnv1a'], content_fnv1a=f'{checker.fnv(raw):016x}', model_instance=99,
+                        bank_generation=1, crank_generation=fields['crank_generation'], functional_model=1,
+                        original_CP=0, physical_ASIC_verified=0, capture_verified=0)))
+            if event == 'BEGIN':
+                rows += copy.deepcopy(resources)
+        self.rows[:] = checker.parse_console(('\n'.join('OBS ' + self.record(r['tag'], r['fields']) for r in rows) + '\n').encode())
+        raw = ('\n'.join('OBS ' + self.record(r['tag'], r['fields']) for r in self.rows) + '\n').encode()
+        (self.run / 'console.log').write_bytes(raw)
+        self.manifest['functional_camera_runtime']['console_sha256_at_close'] = checker.sha(raw)
+        CPCrankControlTransportEvidenceTests.persist(self.args)
+        for tx in self.transport['transfers']:
+            tx['line'] = next(r['line'] for r in self.rows if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and
+                              int(r['fields']['seq'].split('..')[0]) == tx['first'])
+        self.transport['parameter_bank'] = checker.check_cp_parameter_bank(self.run, self.manifest, self.rows, self.transport)
+
+    def native(self, rows=None, event=None, kind=None):
+        return [r for r in (self.rows if rows is None else rows) if
+            (kind is None and r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_EVENT' and (event is None or r['fields']['event'] == event)) or
+            (kind is not None and r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_BYTES' and r['fields']['kind'] == kind)]
+
+    def joined(self, rows=None, transport=None):
+        return checker.check_cp_crank_control_content(self.run, self.manifest,
+            self.rows if rows is None else rows, self.transport if transport is None else transport)
+
+    def test_complete_native_join_accepts_real_transport_thread_and_sender_free(self):
+        result = self.joined()
+        self.assertTrue(result['verified'] and result['native_completion_verified'] and result['content_join_verified'])
+        self.assertEqual(result['missing_native_observations'], [])
+        value, = result['transactions']
+        self.assertEqual((value['transaction'], value['sender_tid'], value['receiver_tid']), (1, 94, 95))
+        strict_sender = next(r['fields']['sender_tid'] for r in self.rows if r['tag'] == 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE')
+        self.assertNotEqual(int(strict_sender), value['sender_tid'])
+        self.assertEqual((value['bank_generation'], value['crank_generation'], value['fps']), (1, 1, 30))
+        self.assertEqual(value['request_pointer'], '0x500000')
+        self.assertEqual(value['reply_pointer'], '0x600000')
+        self.assertTrue(all(result[k] is False for k in ('frame_consumed', 'capture_verified', 'physical_asic_compatibility_verified')))
+        aggregate = checker.check_transport(*self.args)
+        self.assertTrue(aggregate['verified'])
+        self.assertEqual(aggregate['crank_control_content'], result)
+
+    def test_sync_inline_receive_and_request_free_reentrant_receive_keep_true_roles(self):
+        for variant in ('inline', 'request_free_receive', 'normal'):
+            self.assemble(variant)
+            result = self.joined()
+            with self.subTest(variant=variant):
+                self.assertTrue(result['native_completion_verified'])
+                value, = result['transactions']
+                self.assertNotEqual(value['sender_tid'], value['receiver_tid'])
+                if variant == 'inline':
+                    self.assertLess(value['reply_free_line'], self.native(event='SENT')[0]['line'])
+                elif variant == 'request_free_receive':
+                    self.assertEqual(self.native(event='RECEIVE')[0]['fields']['request_releasing'], '1')
+                    self.assertLess(value['reply_receive_line'], value['original_free_line'])
+        rows = copy.deepcopy(self.rows)
+        for row in rows:
+            if row['tag'] == 'NATIVE_CP_OUTPUT_POLICY_CONSUMED' or (
+                    row['tag'] in ('NATIVE_CP_BACKGROUND_INPUT_AUDIT', 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES') and
+                    row['fields'].get('sequence') == '70'):
+                row['fields']['tid'] = '96'
+        self.assertEqual(self.joined(rows=rows)['transactions'][0]['output_policy_sender_tid'], 96)
+
+    def test_every_native_stage_is_required_once_and_ordered_with_real_receive(self):
+        for sample in self.native():
+            for mutation in ('missing', 'duplicate', 'order'):
+                rows = copy.deepcopy(self.rows)
+                row = next(r for r in rows if r['tag'] == sample['tag'] and r['fields']['event'] == sample['fields']['event'])
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    row['line'] = (self.native(event='REPLY_FREE')[0]['line'] + 1 if row['fields']['event'] == 'BEGIN' else
+                                   self.native(event='BEGIN')[0]['line'] - 1)
+                with self.subTest(event=sample['fields']['event'], mutation=mutation), self.assertRaises(ValueError):
+                    self.joined(rows=rows)
+
+    def test_full_native12_128_208_128_12_streams_reject_each_byte_mutation(self):
+        for kind in ('request', 'before_state', 'receipt', 'after_state', 'reply'):
+            samples = self.native(kind=kind)
+            for sample in samples:
+                for index in range(int(sample['fields']['bytes'])):
+                    rows = copy.deepcopy(self.rows)
+                    row = next(r for r in rows if r['tag'] == sample['tag'] and r['fields']['kind'] == kind and
+                               r['fields']['offset'] == sample['fields']['offset'])
+                    raw = bytearray.fromhex(row['fields']['raw']); raw[index] ^= 1; row['fields']['raw'] = raw.hex()
+                    with self.subTest(kind=kind, offset=sample['fields']['offset'], byte=index), self.assertRaises(ValueError):
+                        self.joined(rows=rows)
+            for mutation in ('missing', 'duplicate', 'foreign_transaction', 'offset', 'seal'):
+                rows = copy.deepcopy(self.rows); row = self.native(rows, kind=kind)[-1]
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    key, value = {'foreign_transaction': ('transaction', '2'), 'offset': ('offset', '1'),
+                                  'seal': ('content_fnv1a', '0000000000000000')}[mutation]
+                    row['fields'][key] = value
+                with self.subTest(kind=kind, mutation=mutation), self.assertRaises(ValueError):
+                    self.joined(rows=rows)
+
+    def test_transaction_pointer_generation_bank_source_and_actual_rc_are_immutable(self):
+        mutations = [('pid', '78'), ('sender_tid', '95'), ('transaction', '2'), ('request_pointer', '0x500001'),
+            ('reply_pointer', '0x600001'), ('allocation_pointer', '0x600001'), ('native_fnv1a', '0000000000000000'),
+            ('cookie', '0x80000061'), ('model_instance', '100'), ('bank_generation', '2'), ('crank_generation', '2'),
+            ('config_generation', '25'), ('before_config_generation', '22'), ('frame_generation', '2'), ('fps', '60'),
+            ('last_bank_generation', '0'), ('last_crank_generation', '0'), ('bank_transaction', '1'), ('bank_commits', '0'),
+            ('bank_released', '0'), ('bank_source', '0x80020003'), ('bank_native_fnv1a', '0000000000000000'),
+            ('source', '0x90030001'), ('destination', '0x80020002'), ('bytes', '11'), ('command', '0x4063'),
+            ('before_rc', '-5'), ('model_rc', '-5'), ('after_rc', '-5'), ('allocate_rc', '-12'), ('send_rc', '-5'),
+            ('request_free_rc', '-5'), ('reply_free_rc', '-5'), ('receive_rc', '-5'), ('error', '-5'), ('faults', '1'),
+            ('busy', '1'), ('guard', '1'), ('request_releasing', '1'), ('reply_releasing', '1'), ('reply_inspecting', '1'),
+            ('send_inflight', '1'), ('reply_alias', '1'), ('reply_cleanup_freed', '1'), ('complete', '0'),
+            ('reply_consumed', '0'), ('request_freed', '0'), ('reply_received', '0'), ('reply_freed', '0'),
+            ('reply_free_tid', '95'), ('request_free_tid', '95'), ('receiver_tid', '0'), ('retained_request', '0x500000'),
+            ('retained_reply', '0x600000'), ('crank_used', '207'), ('after_instance', '100'), ('before_token', '1')]
+        for key, value in mutations:
+            rows = copy.deepcopy(self.rows); self.native(rows, event='REPLY_FREE')[0]['fields'][key] = value
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        for pointer in ('0x500000', '0x500004', '0x4ffffc'):
+            rows = copy.deepcopy(self.rows)
+            for row in self.native(rows):
+                for key in ('reply_pointer', 'allocation_pointer', 'retained_reply'):
+                    if row['fields'][key] == '0x600000':
+                        row['fields'][key] = pointer
+            with self.subTest(alias=pointer), self.assertRaisesRegex(ValueError, 'aliases'):
+                self.joined(rows=rows)
+
+    def test_new_transaction_cannot_borrow_old_receive_free_or_byte_ticket(self):
+        for names in (('RECEIVE',), ('REPLY_FREE',), ('RECEIVE', 'REPLY_FREE')):
+            rows = copy.deepcopy(self.rows)
+            for name in names:
+                self.native(rows, event=name)[0]['fields']['transaction'] = '2'
+            with self.subTest(stolen=names), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        rows = [r for r in copy.deepcopy(self.rows) if not
+                (r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_EVENT' and r['fields']['event'] == 'RECEIVE')]
+        for row in self.native(rows):
+            if row['fields']['event'] == 'REPLY_FREE':
+                row['fields'].update(reply_received='1', receiver_tid='94', receive_rc='0', complete='1')
+        with self.assertRaises(ValueError):
+            self.joined(rows=rows)
+
+    def test_resource34_needs_three_actual_preSTATE_records_not_accepted_bit(self):
+        for suffix in ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED'):
+            for mutation in ('missing', 'duplicate', 'late'):
+                rows = copy.deepcopy(self.rows)
+                row = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_' + suffix)
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    row['line'] = self.native(event='BEFORE')[0]['line']
+                with self.subTest(suffix=suffix, mutation=mutation), self.assertRaises(ValueError):
+                    self.joined(rows=rows)
+        for key, value in (('dmm_slots', '1/0'), ('dmm_handles', '0x8400/0x8402'), ('dmm_domain', '0'),
+                ('dmm_lifecycle_changed', '1'), ('allocations', '5'), ('vef_live', '1'), ('pinmem_retained', '1'),
+                ('control_faults', '1'), ('tid', '95')):
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_RESOURCES_RESERVED')['fields'][key] = value
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        for offset in (0, 0x18, 0x20, 0x48, 0x60, 0x68):
+            rows = copy.deepcopy(self.rows)
+            fields = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_RESOURCES_TTS_TABLE')['fields']
+            raw = bytearray.fromhex(fields['raw_before']); raw[offset] ^= 1
+            fields['raw_before'] = fields['raw_after'] = raw.hex()
+            with self.subTest(full_TTS_offset=offset), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+
+    def test_all13_mode_bank_strict_history_and_late40f9_each_need_content(self):
+        cases = [(tag, 'rc', '-5') for tag in checker.BACKGROUND_FREE_TAGS]
+        cases += [('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', 'video_AP_consumed', '0'),
+            ('FUNCTIONAL_CAMERA_CONTROL_AP_FREE', 'mode_complete', '0'),
+            ('FUNCTIONAL_CAMERA_CONTROL_AP_FREE', 'free_tid', '94'),
+            ('NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE', 'attempts', '2'),
+            ('NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE', 'waiter_tid', '94'),
+            ('NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE', 'freed_reply', bytes(12).hex()),
+            ('NATIVE_CP_OUTPUT_POLICY_CONSUMED', 'request_free_rc', '-5'),
+            ('NATIVE_CP_OUTPUT_POLICY_CONSUMED', 'wire_fnv1a', '0000000000000000'),
+            ('NATIVE_CP_OUTPUT_POLICY_CONSUMED', 'request_retained', '1')]
+        for tag, key, value in cases:
+            rows = copy.deepcopy(self.rows)
+            matches = [r for r in rows if r['tag'] == tag]
+            matches[-1]['fields'][key] = value
+            with self.subTest(tag=tag, field=key), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        for tag in (*checker.BACKGROUND_FREE_TAGS, 'NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE',
+                    'NATIVE_CP_OUTPUT_POLICY_CONSUMED'):
+            rows = copy.deepcopy(self.rows); rows.remove(next(r for r in rows if r['tag'] == tag))
+            with self.subTest(missing=tag), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        for key, value in (('request_freed', '0'), ('retained', '0x400000'), ('faults', '1')):
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and
+                 r['fields']['event'] == 'COMMIT')['fields'][key] = value
+            with self.subTest(bank=key), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        for sequence in ('70', '71'):
+            for key, value in (('source', '0x90030001'), ('producer_return', '0x35358b8'), ('complete', '0')):
+                rows = copy.deepcopy(self.rows)
+                next(r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and
+                     r['fields']['sequence'] == sequence)['fields'][key] = value
+                with self.subTest(audit=sequence, field=key), self.assertRaises(ValueError):
+                    self.joined(rows=rows)
+
+    def test_exact_crank_console_94_18_and_three_resource_grammars_frame_both_trailers(self):
+        samples = [r for r in self.rows if r['tag'].startswith('FUNCTIONAL_CP_CRANK_CONTROL_')]
+        self.assertEqual(len(self.native()[0]['fields']), 94)
+        self.assertEqual(len(self.native(kind='receipt')[0]['fields']), 18)
+        trailers = (b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022',
+                    b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1')
+        for sample in samples:
+            payload = self.record(sample['tag'], sample['fields']).encode()
+            self.assertEqual(checker.console_producer_fields(payload), sample['fields'])
+            for trailer in trailers:
+                for ending in (b'\n', b'\r\n'):
+                    raw = b'ordinary\nOBS ' + payload + trailer + ending
+                    row, = checker.parse_console(raw)
+                    with self.subTest(tag=sample['tag'], event=sample['fields'].get('event'), ending=ending):
+                        self.assertEqual(row['fields'], sample['fields'])
+                        note = row['kernel_diagnostic']
+                        self.assertEqual(note['payload']['byte_offset'], len(b'ordinary\nOBS '))
+                        for part in (note, note['payload']):
+                            self.assertEqual(raw[part['byte_offset']:part['byte_offset'] + part['bytes']], part['raw'].encode())
+                            self.assertEqual(checker.sha(part['raw'].encode()), part['sha256'])
+
+    def test_crank_formatter_rejects_unknown_missing_duplicate_order_type_and_widening(self):
+        for tag in ('EVENT', 'BYTES', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED'):
+            sample = next(r for r in self.rows if r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_' + tag)
+            payload = self.record(sample['tag'], sample['fields']).encode(); parts = payload.split(b' ')
+            variants = [payload + b' unknown=0', b' '.join(parts[:2] + parts[3:]),
+                        b' '.join(parts[:1] + [parts[2], parts[1]] + parts[3:])]
+            if tag == 'EVENT':
+                variants += [payload.replace(b'event=BEGIN', b'event=SUCCESS'), payload.replace(b'transaction=1', b'transaction=01'),
+                             payload.replace(b'capture_verified=0', b'capture_verified=1')]
+            if tag == 'BYTES':
+                variants += [payload.replace(b'kind=request', b'kind=frame'), payload.replace(b'total=12', b'total=13'),
+                             payload.replace(b'offset=0', b'offset=1')]
+            for value in variants:
+                with self.subTest(tag=tag, value=value):
+                    self.assertIsNone(checker.console_producer_fields(value))
+                    row, = checker.parse_console(value + b'[ 1.000000] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\n')
+                    self.assertIn('diagnostic', row)
+                    self.assertNotIn('kernel_diagnostic', row)
+            with self.assertRaisesRegex(ValueError, 'duplicate JSON key'):
+                checker.console_producer_fields(payload + b' ' + parts[1])
+
+    def test_final_owner_formatter_schema_and_real_metadata_checks_match_source(self):
+        source = (checker.NATIVE / 'runtime/analysis/device-models/functional-camera-control.c').read_text()
+        block = source[source.index('static void crank_record('):source.index('static int crank_control_ready(')]
+        formats = re.findall(r'snprintf\(text, sizeof text,\s*((?:"[^"\n]*"\s*)+)', block)
+        self.assertEqual(len(formats), 2)
+        for declaration, formatter, count in zip((checker.CP_CRANK_EVENT_SCHEMA, checker.CP_CRANK_BYTES_SCHEMA), formats, (94, 18)):
+            text = ''.join(re.findall(r'"([^"\n]*)"', formatter))
+            keys = re.findall(r'([A-Za-z_][A-Za-z_0-9]*)=', text)
+            self.assertEqual(len(keys), count)
+            self.assertEqual(keys, [part.split(':', 1)[0] for part in declaration.split()])
+        wire = source[source.index('static int crank_wire_matches('):source.index('static int crank_context_matches(')]
+        self.assertIn('bytes = io->size(pointer), actual_source = io->source(pointer)', wire)
+        self.assertIn('bytes == 12 && actual_source == source', wire)
+        self.assertIn('memcmp(pointer, expected, 12)', wire)
+        receive = source[source.index('int native_functional_camera_crank_release('):source.index('static void crank_finish(')]
+        self.assertIn('current_tid != crank_state.sender_tid', receive)
+        self.assertIn('event->source != FUNCTIONAL_CAMERA_CONTROL_SID', receive)
+        self.assertIn('event->bytes != 12', receive)
+        self.assertIn('crank_state.receiver_tid = current_tid', receive)
+        self.assertNotIn('current_tid != crank_state.sender_tid || event', receive)
+
+    def test_main_source_binds_shared_event_tickets_and_never_clears_on_free(self):
+        source = (checker.NATIVE / 'runtime/analysis/menu-observe.c').read_text()
+        ticket_start = source.index('static uint64_t native_crank_ticket_for(')
+        ticket_end = source.index('static void native_crank_received(', ticket_start)
+        lookup = source[ticket_start:ticket_end]
+        self.assertIn('pthread_mutex_lock(functional_cp_crank_control_ticket_mutex)', lookup)
+        self.assertIn('functional_cp_crank_control_ticket_pid!=(unsigned int)getpid()', lookup)
+        self.assertNotIn('native_functional_camera_crank_snapshot', lookup)
+        receive = source[ticket_end:source.index('int osal_rcv_msg_tmo(', ticket_end)]
+        self.assertIn('native_crank_ticket_for(destination,pointer),&event', receive)
+        self.assertNotIn('native_functional_camera_crank_snapshot', receive)
+        free_start = source.index('if(__atomic_load_n(&functional_cp_crank_control_used', source.index('int osal_free_msg('))
+        free_block = source[free_start:source.index('if(__atomic_load_n(&functional_cp_parameter_bank_used', free_start)]
+        self.assertIn('native_crank_ticket_for(id,message),0', free_block)
+        self.assertNotIn('=0;', free_block)
+        allocator = source[source.index('static void native_crank_allocated(unsigned int id,'):source.index('static void native_pin_peer_allocated(', source.index('static void native_crank_allocated(unsigned int id,'))]
+        self.assertIn('result || count!=1', allocator)
+        self.assertIn('functional_cp_crank_control_ticket.reply=0', allocator)
+        self.assertNotRegex(source, r'_Thread_local[^;]*functional_cp_crank_control_ticket')
+
+
+    def snapshot_received(self, rows, *events):
+        for event in events:
+            self.native(rows, event=event)[0]['fields'].update(reply_received='1', receive_rc='0', receiver_tid='95')
+
+    def receive_logged_before(self, event):
+        rows = copy.deepcopy(self.rows)
+        receive = self.native(rows, event='RECEIVE')[0]
+        rows.remove(receive)
+        rows.insert(rows.index(self.native(rows, event=event)[0]), receive)
+        for row, original in zip(rows, self.rows):
+            row['line'] = original['line']
+        return rows
+
+    def assert_snapshot_interleaving_verified(self, rows):
+        self.assertEqual(len(rows), len(self.rows))
+        self.assertEqual({r['fields']['event'] for r in self.native(rows)},
+                         {r['fields']['event'] for r in self.native()})
+        result = self.joined(rows=rows)
+        self.assertTrue(result['native_completion_verified'] and result['content_join_verified'])
+        self.assertTrue(all(result[key] is False for key in
+            ('frame_consumed', 'capture_verified', 'physical_asic_compatibility_verified')))
+        self.assertEqual((result['transactions'][0]['sender_tid'], result['transactions'][0]['receiver_tid']), (94, 95))
+
+    def test_sender_snapshots_can_observe_receive_before_its_log_line(self):
+        for first in ('SENT', 'REQUEST_FREE', 'COMMIT'):
+            rows = copy.deepcopy(self.rows)
+            events = ('SENT', 'REQUEST_FREE', 'COMMIT')
+            self.snapshot_received(rows, *events[events.index(first):])
+            with self.subTest(first_received_sender_snapshot=first):
+                self.assertLess(self.native(rows, event=first)[0]['line'], self.native(rows, event='RECEIVE')[0]['line'])
+                self.assert_snapshot_interleaving_verified(rows)
+
+    def test_receive_snapshot_can_observe_freed_request_before_request_free_log(self):
+        rows = self.receive_logged_before('REQUEST_FREE')
+        self.native(rows, event='RECEIVE')[0]['fields'].update(busy='1', guard='1')
+        self.snapshot_received(rows, 'COMMIT')
+        receive, request_free = (self.native(rows, event=name)[0] for name in ('RECEIVE', 'REQUEST_FREE'))
+        self.assertEqual((receive['fields']['request_freed'], receive['fields']['request_free_tid']), ('1', '94'))
+        self.assertEqual((request_free['fields']['reply_received'], request_free['fields']['receive_rc']), ('0', '-61'))
+        self.assertLess(receive['line'], request_free['line'])
+        self.assert_snapshot_interleaving_verified(rows)
+
+    def test_receive_snapshot_can_observe_send_returned_before_sent_log(self):
+        rows = self.receive_logged_before('SENT')
+        self.native(rows, event='RECEIVE')[0]['fields'].update(busy='1', guard='1', request_freed='0',
+            request_free_rc='-61', request_free_tid='0', retained_request='0x500000')
+        self.snapshot_received(rows, 'REQUEST_FREE', 'COMMIT')
+        receive, sent = (self.native(rows, event=name)[0] for name in ('RECEIVE', 'SENT'))
+        self.assertEqual(tuple(receive['fields'][key] for key in ('send_started', 'send_inflight', 'send_rc', 'ACK_sent')),
+                         ('1', '0', '0', '1'))
+        self.assertEqual(sent['fields']['reply_received'], '0')
+        self.assertLess(receive['line'], sent['line'])
+        self.assert_snapshot_interleaving_verified(rows)
+
+    def test_receive_snapshot_during_guard_release_or_after_finish_before_commit_log(self):
+        for busy, commit_received in (('1', True), ('0', False), ('0', True)):
+            rows = self.receive_logged_before('COMMIT')
+            self.native(rows, event='RECEIVE')[0]['fields'].update(busy=busy, guard='0')
+            if commit_received:
+                self.snapshot_received(rows, 'COMMIT')
+            with self.subTest(receive_busy=busy, commit_snapshot_received=commit_received):
+                self.assertLess(self.native(rows, event='RECEIVE')[0]['line'], self.native(rows, event='COMMIT')[0]['line'])
+                self.assert_snapshot_interleaving_verified(rows)
+
+    def test_interleaved_snapshots_still_require_actual_receive_and_event_transaction(self):
+        for mutation in ('missing_receive', 'wrong_receiver_tid', 'cross_transaction', 'foreign_sender_free'):
+            rows = copy.deepcopy(self.rows)
+            self.snapshot_received(rows, 'SENT', 'REQUEST_FREE', 'COMMIT')
+            receive = self.native(rows, event='RECEIVE')[0]
+            if mutation == 'missing_receive':
+                rows.remove(receive)
+            elif mutation == 'wrong_receiver_tid':
+                self.native(rows, event='COMMIT')[0]['fields']['receiver_tid'] = '96'
+            elif mutation == 'cross_transaction':
+                receive['fields']['transaction'] = '2'
+            else:
+                self.native(rows, event='REPLY_FREE')[0]['fields'].update(tid='95', reply_free_tid='95')
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+
+    def test_received_before_send_or_sender_snapshot_regression_is_rejected(self):
+        for event in ('BEGIN', 'VERIFIED', 'REPLY', 'ALLOCATED'):
+            rows = copy.deepcopy(self.rows)
+            self.snapshot_received(rows, event)
+            with self.subTest(received_before_send=event), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        rows = copy.deepcopy(self.rows)
+        self.snapshot_received(rows, 'SENT', 'COMMIT')
+        self.assertEqual(self.native(rows, event='REQUEST_FREE')[0]['fields']['reply_received'], '0')
+        with self.assertRaisesRegex(ValueError, 'same-sender.*regressed'):
+            self.joined(rows=rows)
+
+    def test_receive_cannot_claim_reply_freed_before_original_future_returns(self):
+        rows = copy.deepcopy(self.rows)
+        self.native(rows, event='RECEIVE')[0]['fields'].update(reply_freed='1', reply_free_rc='0', reply_free_tid='94',
+            retained_reply='(nil)', reply_consumed='1', complete='1', completions='1')
+        with self.assertRaisesRegex(ValueError, 'RECEIVE.*snapshot'):
+            self.joined(rows=rows)
+        rows = copy.deepcopy(self.rows)
+        rows.remove(self.native(rows, event='RECEIVE')[0])
+        self.snapshot_received(rows, 'COMMIT')
+        with self.assertRaises(ValueError):
+            self.joined(rows=rows)
+
+    def test_receive_snapshot_rejects_invalid_send_request_free_and_guard_combinations(self):
+        for changes in (
+                dict(send_started='0'), dict(send_inflight='1'), dict(ACK_sent='0'),
+                dict(send_inflight='1', ACK_sent='0', send_rc='-61'),
+                dict(request_releasing='1'), dict(busy='0', guard='1'),
+                dict(busy='1', guard='0', request_freed='0', request_free_rc='-61',
+                     request_free_tid='0', retained_request='0x500000'),
+                dict(request_free_rc='-61'), dict(request_free_tid='95'), dict(retained_request='0x500000'),
+                dict(reply_received='0', receive_rc='-61', receiver_tid='0'), dict(receiver_tid='94'),
+                dict(reply_consumed='1'), dict(complete='1', completions='1')):
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, event='RECEIVE')[0]['fields'].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+
+    def test_interleaved_snapshot_rc_and_initial_enodata_are_exact(self):
+        for event, key, wrong in (
+                ('SENT', 'receive_rc', '-61'), ('SENT', 'receive_rc', '-5'),
+                ('REQUEST_FREE', 'receive_rc', '-61'), ('COMMIT', 'receive_rc', '-5'),
+                ('ALLOCATED', 'send_rc', '0'), ('ALLOCATED', 'receive_rc', '0'),
+                ('RECEIVE', 'send_rc', '-61'), ('RECEIVE', 'request_free_rc', '-61'),
+                ('RECEIVE', 'reply_free_rc', '0'), ('RECEIVE', 'before_rc', '-61'),
+                ('RECEIVE', 'model_rc', '-5'), ('RECEIVE', 'after_rc', '-5'),
+                ('RECEIVE', 'allocate_rc', '-12')):
+            rows = copy.deepcopy(self.rows)
+            self.snapshot_received(rows, 'SENT', 'REQUEST_FREE', 'COMMIT')
+            self.native(rows, event=event)[0]['fields'][key] = wrong
+            with self.subTest(event=event, key=key, wrong=wrong), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+
+    def test_reordered_receive_does_not_advance_sender_stages_or_fake_completion(self):
+        rows = self.receive_logged_before('COMMIT')
+        self.native(rows, event='RECEIVE')[0]['fields'].update(busy='1', guard='0')
+        self.snapshot_received(rows, 'COMMIT')
+        for event, changes in (
+                ('SENT', dict(busy='0', guard='0')),
+                ('REQUEST_FREE', dict(busy='1', guard='0')),
+                ('COMMIT', dict(busy='1', guard='0')),
+                ('COMMIT', dict(reply_consumed='1', complete='1', completions='1')),
+                ('RECEIVE', dict(complete='1', completions='1')),
+                ('REPLY_FREE', dict(reply_consumed='0', complete='0', completions='0'))):
+            mutated = copy.deepcopy(rows)
+            self.native(mutated, event=event)[0]['fields'].update(changes)
+            with self.subTest(event=event, changes=changes), self.assertRaises(ValueError):
+                self.joined(rows=mutated)
+
+    def test_crank_signed_initial_rc_does_not_widen_unsigned_or_formatter_grammar(self):
+        self.assertTrue(self.joined()['native_completion_verified'])
+        begin = self.native(event='BEGIN')[0]['fields']
+        self.assertEqual(begin['before_rc'], '-61')
+        with self.assertRaisesRegex(ValueError, 'unsigned'):
+            checker.number('-61')
+        for text in ('+0', '-0', '-061', '0x0', '-2147483649'):
+            rows = copy.deepcopy(self.rows)
+            self.native(rows, event='BEGIN')[0]['fields']['before_rc'] = text
+            with self.subTest(rc=text), self.assertRaises(ValueError):
+                self.joined(rows=rows)
+        rows = copy.deepcopy(self.rows)
+        self.native(rows, event='BEGIN')[0]['fields']['bank_generation'] = '-1'
+        with self.assertRaises(ValueError):
+            self.joined(rows=rows)
+
+
+class CPMovieFormatEvidenceTests(unittest.TestCase):
+    """Declared MovieFormat240 parser fixtures; no C/Core/AP or media execution."""
+
+    def setUp(self):
+        base = CPCrankControlEvidenceTests('runTest')
+        base.setUp()
+        prior = bytearray(base.prior)
+        struct.pack_into('<Q', prior, 56, 24)
+        self.prior = bytes(prior)
+        self.packet = self.request()
+        self.raw = self.receipt(self.packet, self.prior)
+
+    @staticmethod
+    def request(byte1=0xa5, cookie=0x80000060, byte11=0x7e, byte19=0x9f):
+        return struct.pack('<BBHI', 5, byte1, 0x4000, cookie) + bytes((5, 1, 0, byte11)) + bytes(6) + bytes((1, byte19))
+
+    @staticmethod
+    def receipt(packet, prior, movie_generation=1, bank_generation=4, crank_generation=2):
+        before = struct.unpack_from('<Q', prior, 56)[0]
+        state = bytearray(prior)
+        struct.pack_into('<Q', state, 56, (before + 1) & (2**64 - 1))
+        raw = bytearray(240)
+        struct.pack_into('<2I7Q4I', raw, 0, 1, 240, struct.unpack_from('<Q', prior, 48)[0],
+                         movie_generation, bank_generation, crank_generation, before,
+                         (before + 1) & (2**64 - 1), checker.fnv(packet), 5, 0,
+                         struct.unpack_from('<I', prior, 16)[0], 1)
+        raw[80:208], raw[208:228] = state, packet
+        return bytes(raw)
+
+    @staticmethod
+    def observation(raw, packet, prior, capacity=checker.DATA_BYTES):
+        return dict(actual_c_result=0, returned_hex=raw.hex(), readback_verified=True,
+            model_called=True, model_committed=True, request_hex=packet.hex(), input_hex=packet.hex(),
+            input_fnv1a64=checker.fnv(packet), returned_bytes=240, returned_fnv1a64=checker.fnv(raw),
+            before_state_c_result=0, before_state_hex=prior.hex(), result=dict(token=0, total=0, offset=0, used=240),
+            output_buffer_hex=(raw + bytes(capacity - 240)).hex(), after_state_c_result=0,
+            after_state_hex=raw[80:208].hex(), query_c_result=0,
+            movie_generation=struct.unpack_from('<Q', raw, 16)[0], bank_generation=struct.unpack_from('<Q', raw, 24)[0],
+            crank_generation=struct.unpack_from('<Q', raw, 32)[0], snapshot_hex=raw.hex())
+
+    def decode(self, raw=None, packet=None, prior=None, instance=99, bank=4, crank=2):
+        return checker.cp_movie_format_result(self.raw if raw is None else raw,
+            self.packet if packet is None else packet, instance, self.prior if prior is None else prior, bank, crank)
+
+    def test_exact240_software_mapping_retains_all_state_config_and_nonzero_counters(self):
+        for fps in (1, 30, 60, 120):
+            prior = bytearray(self.prior); struct.pack_into('<I', prior, 16, fps); prior = bytes(prior)
+            raw = self.receipt(self.packet, prior)
+            value = self.decode(raw=raw, prior=prior)
+            self.assertEqual((value['movie_generation'], value['bank_generation'], value['crank_generation'],
+                              value['before_config_generation'], value['config_generation'], value['format'],
+                              value['rate'], value['fps'], value['codec'], value['frame_generation']),
+                             (1, 4, 2, 24, 25, 5, 0, fps, 1, 22))
+            self.assertEqual(raw[80:136], prior[:56])
+            self.assertEqual(raw[144:208], prior[64:])
+            self.assertEqual(raw[208:228], self.packet)
+            self.assertEqual(raw[228:], bytes(12))
+
+    def test_byte1_cookie_byte11_and_byte19_are_opaque_full_original_bytes(self):
+        for offset in (1, 4, 5, 6, 7, 11, 19):
+            for value in (0, 0xa5, 0xff):
+                packet = bytearray(self.packet); packet[offset] = value; packet = bytes(packet)
+                raw = self.receipt(packet, self.prior)
+                with self.subTest(offset=offset, value=value):
+                    self.assertEqual(self.decode(raw=raw, packet=packet)['input_fnv'], checker.fnv(packet))
+                    self.assertEqual(raw[208:228], packet)
+                    if packet != self.packet:
+                        with self.assertRaises(ValueError):
+                            self.decode(raw=raw)
+
+    def test_every_known_selector_and_type_command_byte_rejects_before_receipt(self):
+        for offset in (0, 2, 3, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18):
+            packet = bytearray(self.packet); packet[offset] ^= 1; packet = bytes(packet)
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, 'original20'):
+                self.decode(raw=self.receipt(packet, self.prior), packet=packet)
+
+    def test_input_and_result_require_exact_bytes_sizes_versions_and_all240_bytes(self):
+        for packet in (b'', self.packet[:-1], self.packet + b'\0', bytearray(self.packet), None):
+            with self.subTest(packet_type=type(packet).__name__, packet=packet), self.assertRaises(ValueError):
+                self.decode(packet=packet) if packet is not None else checker.cp_movie_format_result(
+                    self.raw, None, 99, self.prior, 4, 2)
+        for raw in (b'', self.raw[:-1], self.raw + b'\0', bytearray(self.raw), None):
+            with self.subTest(raw_type=type(raw).__name__), self.assertRaises(ValueError):
+                checker.cp_movie_format_result(raw, self.packet, 99, self.prior, 4, 2)
+        for offset in range(240):
+            raw = bytearray(self.raw); raw[offset] ^= 1
+            # A different positive movie generation is a history violation, not a wire-shape violation.
+            if 16 <= offset < 24:
+                continue
+            with self.subTest(result_offset=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+
+    def test_instance_pair_types_positive_generations_and_config_overflow(self):
+        for key in ('instance', 'bank', 'crank'):
+            for wrong in (0, -1, 2**64, True, 1.0, '1'):
+                with self.subTest(field=key, wrong=wrong), self.assertRaises(ValueError):
+                    self.decode(**{key: wrong})
+        for offset in (8, 16, 24, 32):
+            raw = bytearray(self.raw); struct.pack_into('<Q', raw, offset, 0)
+            with self.subTest(zero_at=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+        for generation in (0, 2**64 - 1):
+            prior = bytearray(self.prior); struct.pack_into('<Q', prior, 56, generation); prior = bytes(prior)
+            with self.subTest(overflow=generation), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+
+    def test_busy_stream_invalid_state_and_every_preserved_counter_byte_are_rejected(self):
+        for offset in (0, 4, 48, 104, 108, 120):
+            prior = bytearray(self.prior); prior[offset] ^= 1; prior = bytes(prior)
+            with self.subTest(state_offset=offset), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+        for offset in range(64, 128):
+            raw = bytearray(self.raw); raw[80 + offset] ^= 1
+            with self.subTest(preserved_state_offset=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+
+    def test_independent_getter_full_c_buffer_and_every_observation_field_are_required(self):
+        observed = self.observation(self.raw, self.packet, self.prior)
+        def check(value, capacity=checker.DATA_BYTES):
+            return checker.cp_movie_format_observation(value, self.raw, self.packet, 99, self.prior, 4, 2, capacity)
+        self.assertEqual(check(observed), self.decode())
+        for key in observed:
+            value = copy.deepcopy(observed); del value[key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                check(value)
+        for key in ('returned_hex', 'snapshot_hex', 'request_hex', 'input_hex', 'before_state_hex', 'after_state_hex', 'output_buffer_hex'):
+            for at in (0, len(observed[key]) // 2 - 1):
+                value = copy.deepcopy(observed); raw = bytearray.fromhex(value[key]); raw[at] ^= 1; value[key] = raw.hex()
+                with self.subTest(field=key, offset=at), self.assertRaises(ValueError):
+                    check(value)
+        for key, wrong in (('query_c_result', -5), ('actual_c_result', False), ('after_state_c_result', -61),
+                ('before_state_c_result', -61), ('model_called', False), ('model_committed', False),
+                ('readback_verified', 1), ('movie_generation', 2), ('bank_generation', 5), ('crank_generation', 3),
+                ('returned_bytes', 239), ('returned_fnv1a64', 0), ('input_fnv1a64', 0),
+                ('result', dict(token=1, total=240, offset=0, used=240))):
+            value = copy.deepcopy(observed); value[key] = wrong
+            with self.subTest(field=key, wrong=wrong), self.assertRaises(ValueError):
+                check(value)
+        for capacity in (239, checker.DATA_BYTES + 1, True, 240.0):
+            with self.subTest(capacity=capacity), self.assertRaises(ValueError):
+                check(observed, capacity)
+
+
+class CPBoundedWitnessJSONLEvidenceTests(unittest.TestCase):
+    """Only exact typed OP21/22 full C-buffer witnesses receive the bounded allowance."""
+
+    def setUp(self):
+        base = CPMovieFormatEvidenceTests('runTest'); base.setUp()
+        self.prior, self.packet, self.raw = base.prior, base.packet, base.raw
+
+    observation = staticmethod(CPMovieFormatEvidenceTests.observation)
+
+    def witness(self, op):
+        packet, raw, prior = self.packet, self.raw, self.prior
+        if op == 21:
+            packet = CPCrankControlEvidenceTests.request()
+            raw = CPCrankControlEvidenceTests.receipt(packet, prior)
+            observed = dict(actual_c_result=0, returned_hex=raw.hex(), readback_verified=True, model_called=True,
+                model_committed=True, request_hex=packet.hex(), before_state_c_result=0, before_state_hex=prior.hex(),
+                result=dict(token=0, total=0, offset=0, used=208), output_buffer_hex=(raw + bytes(checker.DATA_BYTES - 208)).hex(),
+                after_state_c_result=0, after_state_hex=raw[64:192].hex(), query_c_result=0,
+                crank_generation=2, bank_generation=4, snapshot_hex=raw.hex())
+        else:
+            observed = self.observation(raw, packet, prior)
+        origin = dict(producer_tid=385, source=0x80020002, destination=0x90030001,
+                      command=0x409d if op == 21 else 0x4000, bytes=len(packet), fnv1a64=checker.fnv(packet))
+        row = dict(event=1, monotonic_ns=1, kind='model_crank_control' if op == 21 else 'model_movie_format',
+            model_instance=99, sequence=1, opcode=op, actual_c_result=0, actual_core_sha256='a' * 64,
+            origin=origin, native_acceptance=False, model_called=True, model_committed=True, observation=observed)
+        for key, data, direction in (('request_payload', packet, 'in'), ('output_payload', raw, 'out')):
+            row[key] = dict(bytes=len(data), direction=direction, opcode=op, sequence=1, model_instance=99, origin=origin.copy())
+        if op == 22:
+            row.update(admission_error=None, input_hex=packet.hex(), request_fnv1a64=checker.fnv(packet), error=0)
+        return row
+
+    @staticmethod
+    def encoded(row, size=None):
+        raw = json.dumps(row, separators=(',', ':')).encode()
+        if size is not None:
+            raw += b' ' * (size - len(raw))
+        return raw + b'\n'
+
+    def test_only_two_typed_actual_cbuffer_witnesses_fit_finite192KiB_cap(self):
+        for op in (21, 22):
+            row = self.witness(op)
+            self.assertGreater(len(self.encoded(row)), 16384)
+            self.assertEqual(checker.jsonl(self.encoded(row)), [row])
+            self.assertEqual(checker.jsonl(self.encoded(row, 192 * 1024)), [row])
+            with self.assertRaisesRegex(ValueError, 'oversized non-source'):
+                checker.jsonl(self.encoded(row, 192 * 1024 + 1))
+
+    def test_wrong_kind_opcode_type_native_source_or_fixed_lengths_do_not_widen_cap(self):
+        for op in (21, 22):
+            for key, wrong in (('kind', 'core_result'), ('kind', 'response'), ('kind', 'model_parameter_bank'),
+                    ('kind', 'crank_control_rejected'), ('kind', 'movie_format_rejected'),
+                    ('kind', 'cp_movie_format'), ('opcode', float(op)), ('opcode', True), ('opcode', 11),
+                    ('actual_c_result', -5), ('actual_c_result', False), ('model_committed', False), ('native_acceptance', True)):
+                row = self.witness(op); row[key] = wrong
+                with self.subTest(op=op, field=key, wrong=wrong), self.assertRaises(ValueError):
+                    checker.jsonl(self.encoded(row))
+            for key, wrong in (('source', 0x80020003), ('destination', 0x90030002), ('command', 0x4063),
+                               ('bytes', 11), ('producer_tid', 0), ('fnv1a64', 0)):
+                row = self.witness(op); row['origin'][key] = wrong
+                with self.subTest(op=op, origin=key), self.assertRaises(ValueError):
+                    checker.jsonl(self.encoded(row))
+            for reference in ('request_payload', 'output_payload'):
+                row = self.witness(op); row[reference]['bytes'] -= 1
+                with self.subTest(op=op, reference=reference), self.assertRaises(ValueError):
+                    checker.jsonl(self.encoded(row))
+
+    def test_opaque_bytes_wrong_query_receipt_zero_tail_and_cbuffer_extent_reject(self):
+        for op in (21, 22):
+            for key in ('request_hex', 'returned_hex', 'snapshot_hex', 'before_state_hex', 'after_state_hex', 'output_buffer_hex'):
+                row = self.witness(op); data = bytearray.fromhex(row['observation'][key]); data[-1] ^= 1
+                row['observation'][key] = data.hex()
+                with self.subTest(op=op, field=key), self.assertRaises(ValueError):
+                    checker.jsonl(self.encoded(row))
+            row = self.witness(op); row['observation']['output_buffer_hex'] += '00'
+            with self.subTest(op=op, excessive_capacity=True), self.assertRaises(ValueError):
+                checker.jsonl(self.encoded(row))
+            row = self.witness(op); row['observation']['output_buffer_hex'] = row['observation']['output_buffer_hex'][:-1]
+            with self.subTest(op=op, odd_hex=True), self.assertRaises(ValueError):
+                checker.jsonl(self.encoded(row))
+
+    def test_original16KiB_noncontrol_and_OP11_paused_source_exception_are_preserved(self):
+        ordinary = dict(event=1, monotonic_ns=1, kind='core_result')
+        self.assertEqual(checker.jsonl(self.encoded(ordinary, 16384)), [ordinary])
+        with self.assertRaisesRegex(ValueError, 'oversized non-source'):
+            checker.jsonl(self.encoded(ordinary, 16385))
+        for kind in ('ap_source_result', 'response'):
+            source = dict(event=1, monotonic_ns=1, kind=kind, opcode=11, actual_c_result=None,
+                          source_provider_kind='paused-source-snapshot-v1')
+            self.assertEqual(checker.jsonl(self.encoded(source, 192 * 1024 + 1)), [source])
+
+
+class CPParameterModeRetirementEvidenceTests(unittest.TestCase):
+    """Synthetic five-lease retirement snapshots, never an assertion about a live VM."""
+
+    @staticmethod
+    def lifecycle():
+        row, = checker.parse_console(E6MX_CONTROL_COMMIT)
+        base = dict(row['fields'], pid='260', tid='385', sender_tid='385', receiver_tid='357',
+            model_instance='99', cycle_id='2', cycle_generation='21', lease_cycle_id='2',
+            config_generation='21', frame_generation='21', start_complete='1', mode1_complete='1',
+            mode_complete='1', notification_AP_consumed='1', notification_received='1', notification_queued='1',
+            faults='0', busy='0', guard='0', queued='1', received='1', freed='1', consumed='1', retained='(nil)')
+        rows = []
+        for index, line in ((0, 1), (1, 2), (2, 11), (3, 12), (4, 13)):
+            f = dict(base, index=str(index), role=str(1 if index in (0, 2) else 3 if index == 4 else 2),
+                bytes=str({0: 24, 1: 16, 2: 12, 3: 12, 4: 1748}[index]),
+                tid='357' if index == 4 else '385', free_tid='357' if index == 4 else '385',
+                source='0x80020002' if index in (0, 2) else '0x90030001',
+                destination='0x90030001' if index in (0, 2) else '0x80020002',
+                busy=str(int(index in (0, 2))), guard=str(int(index in (0, 2))))
+            rows.append(dict(tag='FUNCTIONAL_CAMERA_CONTROL_' + ('OWNED_FREE' if index in (0, 2) else 'AP_FREE'),
+                             line=line, fields=f))
+        commit = dict(base, index='3', role='2', bytes='12', freed='0', consumed='0', retained='0x600000',
+                      free_tid='0', mode_complete='0', notification_AP_consumed='0')
+        rows.append(dict(tag='FUNCTIONAL_CAMERA_CONTROL_COMMIT', line=10, fields=commit))
+        return sorted(rows, key=lambda r: r['line'])
+
+    def test_post_commit_real_notification_free_retires_current_cycle(self):
+        rows = self.lifecycle()
+        self.assertEqual(checker.cp_parameter_mode_retirement(rows, 20, 260, 99), rows[-1])
+        ack_last = self.lifecycle()
+        ack = next(r for r in ack_last if r['tag'].endswith('AP_FREE') and r['fields']['index'] == '3')
+        ack['line'] = 14
+        ack_last.sort(key=lambda r: r['line'])
+        self.assertEqual(checker.cp_parameter_mode_retirement(ack_last, 20, 260, 99), ack)
+        with self.assertRaisesRegex(ValueError, 'full retirement'):
+            checker.cp_parameter_mode_retirement([r for r in rows if r['line'] <= 10], 20, 260, 99)
+
+    def test_current_active_cycle_is_not_replaced_by_historical_complete_commit(self):
+        for tag in ('PROBE', 'SENT', 'OWNED_FREE', 'RECEIVE', 'REFUSED'):
+            rows = self.lifecycle()
+            active = copy.deepcopy(rows[2]); active.update(line=15, tag='FUNCTIONAL_CAMERA_CONTROL_' + tag)
+            active['fields'].update(cycle_id='3', busy='1', guard='1', mode_complete='0')
+            rows.append(active)
+            with self.subTest(active=tag), self.assertRaises(ValueError):
+                checker.cp_parameter_mode_retirement(rows, 20, 260, 99)
+
+    def test_each_retired_lease_is_required_and_cannot_be_retained_foreign_or_unreceived(self):
+        for index in range(5):
+            rows = self.lifecycle(); lease = next(r for r in rows if r['fields']['index'] == str(index) and not r['tag'].endswith('COMMIT'))
+            rows.remove(lease)
+            with self.subTest(missing=index), self.assertRaises(ValueError):
+                checker.cp_parameter_mode_retirement(rows, 20, 260, 99)
+            for key, wrong in (('retained', '0x700000'), ('freed', '0'), ('free_rc', '-5'), ('send_inflight', '1'),
+                               ('pid', '261'), ('model_instance', '100'), ('free_tid', '99')):
+                rows = self.lifecycle(); lease = next(r for r in rows if r['fields']['index'] == str(index) and not r['tag'].endswith('COMMIT'))
+                lease['fields'][key] = wrong
+                with self.subTest(lease=index, field=key), self.assertRaises(ValueError):
+                    checker.cp_parameter_mode_retirement(rows, 20, 260, 99)
+        for key, wrong in (('received', '0'), ('consumed', '0'), ('lease_cycle_id', '1'), ('sender_tid', '386'),
+                           ('cycle_generation', '20'), ('config_generation', '20')):
+            rows = self.lifecycle(); rows[-1]['fields'][key] = wrong
+            with self.subTest(notification=key), self.assertRaises(ValueError):
+                checker.cp_parameter_mode_retirement(rows, 20, 260, 99)
+
+
+class CPMovieFormatTransportEvidenceTests(unittest.TestCase):
+    """HOST_TEST files and broker joins; native and capture remain unverified."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPCrankControlTransportEvidenceTests.setUpClass()
+
+    def setUp(self):
+        base = CPCrankControlTransportEvidenceTests('runTest'); base.setUp(); self.addCleanup(base.doCleanups)
+        temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
+        self.packet = CPMovieFormatEvidenceTests.request()
+        self.prior = base.following
+        self.raw = CPMovieFormatEvidenceTests.receipt(self.packet, self.prior, bank_generation=1, crank_generation=1)
+        self.origin = dict(producer_tid=96, source=0x80020002, destination=0x90030001,
+                           command=0x4000, bytes=20, fnv1a64=checker.fnv(self.packet))
+        operations = [dict(op=tx['opcode'], data=checker.payload_read(base.run, tx['request_payload']),
+            output=checker.transfer_output(base.run, tx), origin=copy.deepcopy(tx['origin'])) for tx in base.transport['transfers']]
+        operations += [dict(op=2, data=b'', output=self.prior, origin=self.origin),
+                       dict(op=22, data=self.packet, output=self.raw, origin=self.origin),
+                       dict(op=2, data=b'', output=self.raw[80:208], origin=self.origin)]
+        lines, count = [], 0
+        for line in (base.run / 'console.log').read_text().splitlines():
+            if line.startswith('OBS FUNCTIONAL_CAMERA_TRANSFER '):
+                lines.append('HOST_TEST_TRANSFER_' + str(count)); count += 1
+            else:
+                lines.append(line)
+        lines += ['HOST_TEST_TRANSFER_' + str(index) for index in range(count, len(operations))]
+        self.args = host_test_transport(Path(temporary.name), operations, '\n'.join(lines) + '\n')
+        self.run, self.manifest, self.rows, events, build = self.args
+        policy = {'functional_camera_' + key: copy.deepcopy(value) for key, value in
+                  {**checker.CP_PARAMETER_BANK_POLICY, **checker.CP_CRANK_CONTROL_POLICY, **checker.CP_MOVIE_FORMAT_POLICY}.items()}
+        policy['functional_camera_profile'] = checker.PROFILE
+        self.manifest.update(policy); self.manifest['backup_transport'].update(copy.deepcopy(policy))
+        for op, kind, key in ((20, 'model_parameter_bank', 'parameter_bank'),
+                              (21, 'model_crank_control', 'crank_control'), (22, 'model_movie_format', 'movie_format')):
+            core = next(e for e in events if e['kind'] == 'core_result' and e['opcode'] == op)
+            observed = (CPMovieFormatEvidenceTests.observation(self.raw, self.packet, self.prior) if op == 22 else
+                        copy.deepcopy(next(t for t in base.transport['transfers'] if t['opcode'] == op)[key]['observation']))
+            witness = dict(kind=kind, model_instance=99, sequence=core['sequence'], opcode=op,
+                origin=copy.deepcopy(core['origin']), actual_c_result=0, actual_core_sha256=build['model_sha256'],
+                request_payload=core['request_payload'], output_payload=core['output_payload'],
+                native_acceptance=False, observation=observed)
+            if op in (21, 22):
+                witness.update(model_called=True, model_committed=True)
+            if op == 22:
+                witness.update(admission_error=None, input_hex=self.packet.hex(), request_fnv1a64=checker.fnv(self.packet), error=0)
+            events.insert(events.index(core) + 1, witness)
+            for event in events:
+                if event.get('opcode') == op and event['kind'] in ('core_result', 'response'):
+                    event['actual_core_sha256'] = build['model_sha256']
+        self.persist(self.args)
+        self.transport = checker.check_transport(*self.args)
+
+    persist = staticmethod(CPParameterBankTransportEvidenceTests.persist_broker)
+
+    def content(self, transport=None, manifest=None):
+        return checker.check_cp_movie_format_content(self.run, self.manifest if manifest is None else manifest,
+            self.rows, self.transport if transport is None else transport)
+
+    def test_broker_and_independent_getter_exact_content_never_establish_native_or_media(self):
+        self.assertEqual(checker.OPS[22], (20,))
+        self.assertEqual(checker.OPS[21], (12,))
+        parsed = checker.jsonl((self.run / 'functional-camera-broker-receipts.jsonl').read_bytes())
+        self.assertEqual([e['kind'] for e in parsed if e['kind'] in ('model_crank_control', 'model_movie_format')],
+                         ['model_crank_control', 'model_movie_format'])
+        result = self.content()
+        self.assertTrue(result['content_join_verified'])
+        self.assertFalse(result['native_completion_verified'] or result['verified'] or result['capture_verified'] or result['frame_consumed'])
+        self.assertFalse(self.transport['verified'])
+        value, = result['transactions']
+        self.assertEqual((value['bank_generation'], value['crank_generation'], value['movie_generation'],
+                          value['before_config_generation'], value['config_generation']), (1, 1, 1, 24, 25))
+        self.assertEqual(result['missing_native_observations'], list(checker.CP_MOVIE_NATIVE_JOINS))
+
+    def test_partial_or_borrowed_frame_proof_fails_before_history_scan(self):
+        for index in (7, 8, 9):
+            transport = copy.deepcopy(self.transport); transport['transfers'][index]['frame'] = {'proof': {}}
+            with mock.patch.object(checker, 'vdf_history') as history:
+                with self.subTest(index=index), self.assertRaisesRegex(ValueError, 'no-frame'):
+                    self.content(transport)
+                history.assert_not_called()
+        transport = copy.deepcopy(self.transport); transport['transfers'].pop()
+        with mock.patch.object(checker, 'vdf_history') as history:
+            with self.assertRaisesRegex(ValueError, 'no-frame'):
+                self.content(transport)
+            history.assert_not_called()
+
+    def test_wrong_broker_receipt_source_library_or_opaque_input_rejects(self):
+        for key, wrong in (('actual_core_sha256', 'b' * 64), ('actual_c_result', -5), ('model_committed', False),
+                ('input_hex', '00' * 20), ('request_fnv1a64', 0), ('error', False), ('admission_error', -16)):
+            args = copy.deepcopy(self.args); event = next(e for e in args[3] if e['kind'] == 'model_movie_format'); event[key] = wrong
+            self.persist(args)
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                checker.check_transport(*args)
+        for key, wrong in (('source', 0x80020003), ('destination', 0x90030002), ('command', 0x409d), ('bytes', 12)):
+            transport = copy.deepcopy(self.transport); transport['transfers'][8]['origin'][key] = wrong
+            with self.subTest(origin=key), self.assertRaises(ValueError):
+                self.content(transport)
+
+    def test_c0_then_postcheck_failure_retains_actual_commit_and_original_output(self):
+        args = copy.deepcopy(self.args); event = next(e for e in args[3] if e['kind'] == 'model_movie_format')
+        event.update(kind='movie_format_rejected', error='independent getter failure')
+        event['observation'].update(query_c_result=-5, readback_verified=False)
+        self.persist(args)
+        with self.assertRaises(checker.MovieFormatRejected) as caught:
+            checker.check_transport(*args)
+        saved = caught.exception.event
+        self.assertEqual(saved['actual_c_result'], 0)
+        self.assertIs(saved['model_committed'], True)
+        self.assertEqual(bytes.fromhex(saved['observation']['returned_hex']), self.raw)
+
+    def test_same_pair_replay_monotonic_movie_and_stale_bank_are_rejected(self):
+        transport = copy.deepcopy(self.transport)
+        before, movie, after = copy.deepcopy(transport['transfers'][7:10])
+        for tx in (before, movie, after):
+            tx['first'] += 3; tx['last'] += 3; tx['line'] += 100
+        transport['transfers'] += [before, movie, after]
+        outputs = {before['first']: self.raw[80:208], movie['first']: CPMovieFormatEvidenceTests.receipt(
+            self.packet, self.raw[80:208], movie_generation=2, bank_generation=1, crank_generation=1),
+            after['first']: self.raw[80:208]}
+        original = checker.transfer_output
+        with mock.patch.object(checker, 'transfer_output', side_effect=lambda run, tx:
+                               outputs[tx['first']] if tx['first'] in outputs else original(run, tx)):
+            with self.assertRaisesRegex(ValueError, 'once-only'):
+                checker.vdf_history(self.run, transport)
+        for key in ('parameter_bank', 'crank_control_content'):
+            transport = copy.deepcopy(self.transport)
+            transport[key]['verified' if key == 'parameter_bank' else 'content_join_verified'] = False
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                self.content(transport)
+
+    def test_movie_generation_jump_and_retained_optical_predecessor_reject(self):
+        original = checker.transfer_output
+        jumped = CPMovieFormatEvidenceTests.receipt(self.packet, self.prior,
+            movie_generation=2, bank_generation=1, crank_generation=1)
+        with mock.patch.object(checker, 'transfer_output', side_effect=lambda run, tx:
+                               jumped if tx['opcode'] == 22 else original(run, tx)):
+            with self.assertRaisesRegex(ValueError, 'once-only'):
+                checker.vdf_history(self.run, self.transport)
+        transport = copy.deepcopy(self.transport)
+        # An already-consumed optical capture remains leased until OP19/CANCEL, even with tokenless transfer.
+        capture = dict(transport['transfers'][7], opcode=17, first=700, last=700, token=0, frame=None)
+        transport['transfers'].insert(7, capture)
+        with self.assertRaisesRegex(ValueError, 'retained result/optical frame'):
+            checker.vdf_history(self.run, transport)
+
+    def test_next_real_bank_crank_pair_authorizes_exactly_one_new_monotonic_movie(self):
+        transport = copy.deepcopy(self.transport)
+        wire = CPParameterBankEvidenceTests('runTest'); wire.setUp()
+        prior = self.raw[80:208]
+        wire.prior = prior
+        bank_packet = wire.original_packet(fps=60)
+        bank_raw = wire.result(bank_packet, prior, bank_generation=2)
+        crank_packet = CPCrankControlEvidenceTests.request(cookie=0x80000061)
+        crank_raw = CPCrankControlEvidenceTests.receipt(crank_packet, bank_raw[64:192], bank_generation=2, crank_generation=2)
+        movie_packet = CPMovieFormatEvidenceTests.request(cookie=0x80000062)
+        movie_raw = CPMovieFormatEvidenceTests.receipt(movie_packet, crank_raw[64:192],
+            movie_generation=2, bank_generation=2, crank_generation=2)
+        outputs = {11: prior, 12: bank_raw, 13: bank_raw[64:192], 14: crank_raw,
+                   15: crank_raw[64:192], 16: movie_raw, 17: movie_raw[80:208]}
+        inputs = {12: bank_packet, 14: crank_packet, 16: movie_packet}
+        for sequence, op in ((11, 2), (12, 20), (13, 2), (14, 21), (15, 2), (16, 22), (17, 2)):
+            transport['transfers'].append(dict(first=sequence, last=sequence, opcode=op, token=0, frame=None,
+                request_payload={'HOST_TEST_sequence': sequence}))
+        old_output, old_payload = checker.transfer_output, checker.payload_read
+        with mock.patch.object(checker, 'transfer_output', side_effect=lambda run, tx:
+                outputs[tx['first']] if tx['first'] in outputs else old_output(run, tx)), \
+             mock.patch.object(checker, 'payload_read', side_effect=lambda run, reference:
+                inputs[reference['HOST_TEST_sequence']] if 'HOST_TEST_sequence' in reference else old_payload(run, reference)):
+            value = checker.vdf_history(self.run, transport)[16]
+        self.assertEqual((value['bank_generation'], value['crank_generation'], value['movie_generation'], value['fps']), (2, 2, 2, 60))
+        self.assertEqual(movie_raw[144:208], self.raw[144:208])
+
+    def test_new_policy_is_typed_optional_for_old_callers_but_complete_when_present(self):
+        profile = CPParameterBankEvidenceTests.profile()
+        for target in (profile, profile['backup_transport']):
+            target.update({'functional_camera_' + k: copy.deepcopy(v) for k, v in checker.CP_MOVIE_FORMAT_POLICY.items()})
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        for key, value in checker.CP_MOVIE_FORMAT_POLICY.items():
+            changed = copy.deepcopy(profile); del changed['functional_camera_' + key]
+            with self.subTest(missing=key), self.assertRaises(ValueError):
+                checker.check_profile(changed)
+            changed = copy.deepcopy(profile)
+            changed['functional_camera_' + key] = True if type(value) is int else 'unsupported'
+            with self.subTest(wrong_type=key), self.assertRaises(ValueError):
+                checker.check_profile(changed)
+        changed = copy.deepcopy(profile)
+        changed['functional_camera_cp_movie_format_physical_ready'] = True
+        with self.assertRaises(ValueError):
+            checker.check_profile(changed)
+
+
+
+# Append before the existing unittest.main() guard; preserve every existing test method.
+class CPMovieFormatNativeJoinEvidenceTests(unittest.TestCase):
+    """Synthetic exact producer streams; execution belongs to the parent's concentrated suite."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPMovieFormatTransportEvidenceTests.setUpClass()
+
+    def setUp(self):
+        base = CPMovieFormatTransportEvidenceTests('runTest'); base.setUp(); self.addCleanup(base.doCleanups)
+        predecessor = CPCrankNativeJoinEvidenceTests('runTest'); predecessor.setUp(); self.addCleanup(predecessor.doCleanups)
+        self.args = base.args
+        self.run, self.manifest, self.rows, _, _ = self.args
+        self.transport = copy.deepcopy(base.transport)
+        self.packet, self.prior, self.raw = base.packet, base.prior, base.raw
+        self.following = self.raw[80:208]
+        self.predecessor_rows = copy.deepcopy(predecessor.rows)
+        self.movie_transfers = {int(r['fields']['seq'].split('..')[0]): copy.deepcopy(r) for r in self.rows
+                                if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and
+                                int(r['fields']['seq'].split('..')[0]) >= 8}
+        self.assemble('normal')
+
+    row = staticmethod(CPCrankNativeJoinEvidenceTests.row)
+    record = staticmethod(CPParameterBankTransportEvidenceTests.record)
+
+    def initial4000(self):
+        packet = CPMovieFormatEvidenceTests.request(byte1=0, cookie=0x80000042, byte11=0, byte19=0)
+        reply = b'\x01\0\0\x40' + packet[4:8] + struct.pack('<I', 0xf000)
+        digest = 2166136261
+        for byte in packet:
+            digest = ((digest ^ byte) * 16777619) & 0xffffffff
+        f = dict(pid=77, opcode='0x4000', sender_tid=87, waiter_tid=0, attempts=1, requests=1, busy=1, guard=1,
+            faults=0, source='0x80020002', request_destination='0x90030001', destination='0x80020002', bytes=20,
+            request=packet.hex(), cookie='0x80000042', wire_fnv1a32=hex(digest), reply=reply.hex(), freed_reply=bytes(12).hex(),
+            reply_free_destination=0, reply_free_source=0, reply_free_bytes=0, allocate_rc=0, send_rc=0,
+            request_free_rc=0, reply_free_rc=0, queued=1, request_freed=1, reply_freed=0, clean_completion=0, ap_consumed=0,
+            known_field_mask='0x7f', virtual_field_mask='0x7f', virtual_fields_readback=1, virtual_fields_consumed='0x7f',
+            virtual_fields='5,1,0,0,0,0,1', virtual_readback='5,1,0,0,0,0,1', retained_request='(nil)',
+            live_reply='0x370000', retained_cleanup='(nil)', diagnostic_only=1, no_publication=1, virtual_padding=1,
+            source_byte1_known=0, source_business_applied=0, current_known=0, source_dependency_closed=0,
+            business_applied=0, source_dependencies_closed=0, configured=0, published=0, pending_complete=0,
+            generation=0, native_verified=0, native_cp=0, EE=0, frame=0, capture=0)
+        rows = [self.row('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REQUEST_FREE', f)]
+        f.update(busy=0, guard=0)
+        rows.append(self.row('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_COMPLETE', f))
+        f.update(waiter_tid=87, freed_reply=reply.hex(), reply_free_destination='0x80020002',
+            reply_free_source='0x90030001', reply_free_bytes=12, reply_freed=1, clean_completion=1, ap_consumed=1, live_reply='(nil)')
+        rows.append(self.row('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE', f))
+        return rows
+
+    def assemble(self, variant):
+        rows = copy.deepcopy(self.predecessor_rows)
+        at = max(i for i, r in enumerate(rows) if r['tag'].startswith('NATIVE_CP_EE_DIAGNOSTIC_')) + 1
+        rows[at:at] = self.initial4000()
+        rows += [self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT', dict(pid=77, tid=96, sequence=72, entry='async',
+            pointer='0x700000', destination='0x90030001', bytes=20, source='0x80020002', size_known=1,
+            source_known=1, bytes_complete=1, complete=1, producer_return='0x7f29174a68', consumed=0,
+            state_verified=0, capture_verified=0)), self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES',
+            dict(pid=77, tid=96, sequence=72, offset=0, bytes=20, raw=self.packet.hex()))]
+        resources = checker.parse_console(JFZ_VDF_RESOURCE_OBS.encode())
+        for row in resources:
+            row['tag'] = row['tag'].replace('FUNCTIONAL_VDF_PATH', 'FUNCTIONAL_CP_MOVIE_FORMAT')
+            row['fields']['tid'] = '96'
+            if 'pid' in row['fields']:
+                row['fields']['pid'] = '77'
+        bank_packet = checker.payload_read(self.run, self.transport['transfers'][2]['request_payload'])
+        crank_packet = checker.payload_read(self.run, self.transport['transfers'][5]['request_payload'])
+        fields = {}
+        for part in checker.CP_MOVIE_EVENT_SCHEMA.split():
+            key, grammar = part.split(':', 1)
+            fields[key] = ('(nil)' if grammar == 'pointer' else '0000000000000000' if grammar == 'digest' else
+                grammar if grammar not in ('crank_event', 'pid', 'tid', 'u64', 'u32', 'hex32', 'i32', 'bit') else '0')
+        fields.update(pid='77', tid='96', transaction='1', requests='1', sender_tid='96', busy='1',
+            source='0x80020002', destination='0x90030001', command='0x4000', bytes='20',
+            native_fnv1a=f'{checker.fnv(self.packet):016x}', cookie=hex(struct.unpack_from('<I', self.packet, 4)[0]),
+            request_pointer='0x700000', model_instance='99', bank_generation='1', crank_generation='1',
+            bank_transaction='2', bank_commits='1', bank_released='1', bank_source='0x80020002',
+            bank_destination='0x90030001', bank_command='0x4063', bank_bytes='2564', bank_native_fnv1a=f'{checker.fnv(bank_packet):016x}',
+            crank_transaction='1', crank_completions='1', crank_source='0x80020002', crank_destination='0x90030001',
+            crank_command='0x409d', crank_bytes='12', crank_native_fnv1a=f'{checker.fnv(crank_packet):016x}')
+        for key in ('before_rc', 'model_rc', 'after_rc', 'validation_rc', 'allocate_rc', 'send_rc',
+                    'request_free_rc', 'reply_free_rc', 'receive_rc'):
+            fields[key] = '-61'
+        reply = b'\x01\0\0\x40' + self.packet[4:8] + struct.pack('<I', 0xf000)
+        streams = dict(BEGIN=('request', self.packet), BEFORE=('before_state', self.prior),
+            MODEL=('receipt', self.raw), AFTER=('after_state', self.following), REPLY=('reply', reply))
+        stages = ['BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REPLY', 'ALLOCATED']
+        stages += (['RECEIVE', 'REPLY_FREE', 'SENT', 'REQUEST_FREE', 'COMMIT'] if variant == 'inline' else
+                   ['SENT', 'RECEIVE', 'REQUEST_FREE', 'COMMIT', 'REPLY_FREE'] if variant == 'request_free_receive' else
+                   ['SENT', 'REQUEST_FREE', 'COMMIT', 'RECEIVE', 'REPLY_FREE'])
+        for event in stages:
+            fields['event'], fields['tid'] = event, '97' if event == 'RECEIVE' else '96'
+            if event in ('BEFORE', 'MODEL', 'AFTER'):
+                rows.append(copy.deepcopy(self.movie_transfers[{'BEFORE': 8, 'MODEL': 9, 'AFTER': 10}[event]]))
+            if event == 'BEFORE':
+                fields.update(guard='1', before_rc='0', before_config_generation='24', frame_generation='1', fps='30',
+                    before_used='128', before_required='128', before_instance='99')
+            elif event == 'MODEL':
+                fields.update(model_called='1', model_committed='1', model_rc='0', validation_rc='0', commits='1',
+                    movie_generation='1', config_generation='25', software_format='5', software_rate_index='0', software_codec='1',
+                    movie_used='240', movie_required='240', movie_instance='99', receipt_fnv1a=f'{checker.fnv(self.raw):016x}')
+            elif event == 'AFTER':
+                fields.update(after_rc='0', after_used='128', after_required='128', after_instance='99')
+            elif event == 'VERIFIED':
+                fields.update(verified='1', owned='1', verified_commits='1', last_bank_generation='1', last_crank_generation='1',
+                    last_movie_generation='1', retained_request='0x700000')
+            elif event == 'REPLY':
+                fields['reply_fnv1a'] = f'{checker.fnv(reply):016x}'
+            elif event == 'ALLOCATED':
+                fields.update(reply_pointer='0x800000', allocation_pointer='0x800000', retained_reply='0x800000',
+                    reply_allocated='1', reply_valid='1', allocate_rc='0')
+            elif event == 'SENT':
+                fields.update(send_started='1', send_inflight='0', ACK_sent='1', send_rc='0')
+            elif event == 'REQUEST_FREE':
+                fields.update(request_releasing='0', request_freed='1', request_free_rc='0', request_free_tid='96', retained_request='(nil)')
+            elif event == 'COMMIT':
+                fields.update(busy='0', guard='0')
+            elif event == 'RECEIVE':
+                fields.update(send_started='1', reply_received='1', receive_rc='0', receiver_tid='97')
+                if variant == 'inline':
+                    fields['send_inflight'] = '1'
+                if variant == 'request_free_receive':
+                    fields['request_releasing'] = '1'
+            elif event == 'REPLY_FREE':
+                fields.update(reply_freed='1', reply_free_rc='0', reply_free_tid='96', retained_reply='(nil)')
+            fields['reply_consumed'] = str(int(fields['ACK_sent'] == fields['reply_received'] == fields['reply_freed'] == '1' and
+                                               fields['send_inflight'] == '0'))
+            fields['complete'] = fields['completions'] = str(int(fields['reply_consumed'] == fields['request_freed'] == '1' and
+                                                                fields['busy'] == fields['guard'] == '0'))
+            rows.append(self.row('FUNCTIONAL_CP_MOVIE_FORMAT_EVENT', fields))
+            if event in streams:
+                kind, raw = streams[event]
+                for offset in range(0, len(raw), 128):
+                    block = raw[offset:offset + 128]
+                    rows.append(self.row('FUNCTIONAL_CP_MOVIE_FORMAT_BYTES', dict(event=event, pid=77, tid=96,
+                        transaction=1, kind=kind, total=len(raw), offset=offset, bytes=len(block), raw=block.hex(),
+                        native_fnv1a=fields['native_fnv1a'], content_fnv1a=f'{checker.fnv(raw):016x}', model_instance=99,
+                        bank_generation=1, crank_generation=1, movie_generation=fields['movie_generation'],
+                        functional_model=1, original_CP=0, physical_ASIC_verified=0, capture_verified=0)))
+            if event == 'BEGIN':
+                rows += copy.deepcopy(resources)
+                # This is the actual post-reservation predecessor callback position, before the first STATE RPC.
+                rows.append(self.row('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', dict(pid=77, tid=96, accepted=1,
+                    video_AP_consumed=1, OSD_AP_consumed=1, audio_AP_consumed=1, OSD_live=16, OSD_owners_each=2,
+                    OSD_opens_each=2, global_DMM_idle_claimed=0, capture_verified=0)))
+        self.rows[:] = checker.parse_console(('\n'.join('OBS ' + self.record(r['tag'], r['fields']) for r in rows) + '\n').encode())
+        self.persist()
+        for tx in self.transport['transfers']:
+            tx['line'] = next(r['line'] for r in self.rows if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and
+                              int(r['fields']['seq'].split('..')[0]) == tx['first'])
+        self.transport['parameter_bank'] = checker.check_cp_parameter_bank(self.run, self.manifest, self.rows, self.transport)
+        self.transport['crank_control_content'] = checker.check_cp_crank_control_content(self.run, self.manifest, self.rows, self.transport)
+
+    def persist(self):
+        raw = ('\n'.join('OBS ' + self.record(r['tag'], r['fields']) for r in self.rows) + '\n').encode()
+        (self.run / 'console.log').write_bytes(raw)
+        self.manifest['functional_camera_runtime']['console_sha256_at_close'] = checker.sha(raw)
+        CPMovieFormatTransportEvidenceTests.persist(self.args)
+
+    def native(self, rows=None, event=None, kind=None):
+        return [r for r in (self.rows if rows is None else rows) if
+            (kind is None and r['tag'] == 'FUNCTIONAL_CP_MOVIE_FORMAT_EVENT' and
+             (event is None or r['fields']['event'] == event)) or
+            (kind is not None and r['tag'] == 'FUNCTIONAL_CP_MOVIE_FORMAT_BYTES' and r['fields']['kind'] == kind)]
+
+    def joined(self, rows=None, transport=None):
+        return checker.check_cp_movie_format_content(self.run, self.manifest,
+            self.rows if rows is None else rows, self.transport if transport is None else transport)
+
+    def test_complete_native_join_keeps_distinct_early_sender_transport_receiver_and_no_frame_scope(self):
+        result = self.joined(); value, = result['transactions']
+        self.assertTrue(result['verified'] and result['native_completion_verified'] and result['native_control_transaction_verified'])
+        self.assertEqual(result['missing_native_observations'], [])
+        self.assertEqual((value['strict_initial_sender_tid'], value['sender_tid'], value['receiver_tid']), (87, 96, 97))
+        self.assertEqual((value['before_config_generation'], value['config_generation'], value['movie_generation']), (24, 25, 1))
+        self.assertTrue(value['native_control_transaction_verified'])
+        self.assertTrue(all(result[key] is False for key in ('frame_consumed', 'capture_verified', 'physical_asic_compatibility_verified')))
+        aggregate = checker.check_transport(*self.args)
+        self.assertEqual(aggregate['movie_format_content'], result)
+
+    def test_actual_EHG_mixed409d_and3012_history_keeps_both_original_opcodes(self):
+        self.assertTrue(self.joined()['native_completion_verified'])
+        # Exact unrelated original EHG reply-free; never remove it to make409d unique.
+        extra, = checker.parse_console((
+            'OBS NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE pid=259 opcode=0x3012 sender_tid=384 waiter_tid=384 '
+            'attempts=1 requests=1 busy=0 guard=0 faults=0 source=0x80020002 request_destination=0x90030001 '
+            'destination=0x80020002 bytes=24 request=000012302600008000000000000000000000000000000000 '
+            'cookie=0x80000026 wire_fnv1a32=0xcd6fc1f1 source_byte1_known=0 reply=010012302600008000f00000 '
+            'freed_reply=010012302600008000f00000 reply_free_destination=0x80020002 reply_free_source=0x90030001 '
+            'reply_free_bytes=12 allocate_rc=0 send_rc=0 request_free_rc=0 reply_free_rc=0 queued=1 request_freed=1 '
+            'reply_freed=1 clean_completion=1 ap_consumed=1 oneway=0 oneway_consumed=0 virtual_field_mask=0 '
+            'virtual_fields_readback=0 virtual_fields_consumed=0 virtual_fields=0,0,0,0 virtual_readback=0,0,0,0 '
+            'retained_request=(nil) live_reply=(nil) retained_cleanup=(nil) diagnostic_only=1 virtual_padding=1 '
+            'business_applied=0 source_dependencies_closed=0 configured=0 published=0 generation=0 native_cp=0 EE=0 frame=0 capture=0\n').encode())
+        rows = copy.deepcopy(self.rows)
+        first_bank = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT')
+        extra['line'] = first_bank['line'] - 0.5
+        rows.insert(rows.index(first_bank), extra)
+        saved = copy.deepcopy(rows)
+        self.assertTrue(self.joined(rows)['native_completion_verified'])
+        self.assertEqual(rows, saved)
+        for key, wrong in (('opcode', '0x3012'), ('attempts', '2'), ('freed_reply', bytes(12).hex()),
+                           ('request', bytes(12).hex()), ('reply_free_source', '0x80020002')):
+            changed = copy.deepcopy(rows)
+            original = next(r for r in changed if r['tag'] == 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE' and
+                            r['fields']['opcode'] == '0x409d')
+            original['fields'][key] = wrong
+            with self.subTest(strict409d=key), self.assertRaises(ValueError):
+                self.joined(changed)
+        changed = copy.deepcopy(rows)
+        original = next(r for r in changed if r['tag'] == 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE' and
+                        r['fields']['opcode'] == '0x409d')
+        changed.insert(changed.index(original), copy.deepcopy(original))
+        with self.assertRaisesRegex(ValueError, 'strict initial409d|preceding strict409d'):
+            self.joined(changed)
+
+    def test_current_mode_retirement_requires_its_commit_and_each_actual_role_free(self):
+        self.assertTrue(self.joined()['native_completion_verified'])
+        begin = self.native(event='BEGIN')[0]
+        retired = checker.cp_parameter_mode_retirement(self.rows, begin['line'], 77, 99)
+        self.assertEqual((retired['fields']['index'], retired['fields']['role'], retired['fields']['bytes']),
+                         ('4', '3', '1748'))
+        cycle = retired['fields']['cycle_id']
+        commit = next(r for r in self.rows if r['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT' and
+                      r['fields']['cycle_id'] == cycle)
+        self.assertNotEqual(cycle, '0')
+        self.assertLess(commit['line'], retired['line'])
+        rows = copy.deepcopy(self.rows); rows.remove(next(r for r in rows if r['line'] == commit['line']))
+        with self.assertRaisesRegex(ValueError, 'notification free transaction/generation/receiver differs'):
+            self.joined(rows)
+        for index in range(5):
+            tag = 'FUNCTIONAL_CAMERA_CONTROL_' + ('OWNED_FREE' if index in (0, 2) else 'AP_FREE')
+            lease = next(r for r in self.rows if r['tag'] == tag and r['fields']['index'] == str(index))
+            self.assertEqual((lease['fields']['role'], lease['fields']['bytes']),
+                (str(1 if index in (0, 2) else 3 if index == 4 else 2), str((24, 16, 12, 12, 1748)[index])))
+            rows = copy.deepcopy(self.rows); rows.remove(next(r for r in rows if r['line'] == lease['line']))
+            expected = {0: 'mode lacks all five retired leases', 1: 'current mode lease is live/faulted/unconsumed/foreign',
+                        2: 'mode lacks all five retired leases', 3: 'current mode lease is live/faulted/unconsumed/foreign',
+                        4: 'historical mode1 before current ACK/full retirement'}[index]
+            with self.subTest(missing_actual_free=index), self.assertRaisesRegex(ValueError, expected):
+                checker.cp_parameter_mode_retirement(rows, begin['line'], 77, 99)
+            with self.assertRaises(ValueError):
+                self.joined(rows)
+        for key, wrong in (('role', '2'), ('lease_cycle_id', '1'), ('free_tid', '96'), ('cycle_generation', '20')):
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['line'] == retired['line'])['fields'][key] = wrong
+            with self.subTest(notification=key), self.assertRaisesRegex(ValueError,
+                    'notification free transaction/generation/receiver differs'):
+                checker.cp_parameter_mode_retirement(rows, begin['line'], 77, 99)
+            with self.assertRaises(ValueError):
+                self.joined(rows)
+
+    def test_actual_receive_inline_and_request_free_reentrant_snapshots_pass(self):
+        for variant in ('normal', 'inline', 'request_free_receive'):
+            self.assemble(variant)
+            with self.subTest(variant=variant):
+                result = self.joined(); self.assertTrue(result['native_completion_verified'])
+                value, = result['transactions']
+                self.assertEqual((value['sender_tid'], value['receiver_tid']), (96, 97))
+                if variant == 'inline':
+                    self.assertLess(value['reply_free_line'], self.native(event='SENT')[0]['line'])
+
+    def snapshot_received(self, rows, *events):
+        for event in events:
+            self.native(rows, event=event)[0]['fields'].update(reply_received='1', receive_rc='0', receiver_tid='97')
+
+    def receive_before(self, event):
+        rows = copy.deepcopy(self.rows); receive = self.native(rows, event='RECEIVE')[0]
+        rows.remove(receive); rows.insert(rows.index(self.native(rows, event=event)[0]), receive)
+        for row, original in zip(rows, self.rows):
+            row['line'] = original['line']
+        return rows
+
+    def test_sender_can_observe_receive_before_its_log_and_receive_can_observe_sender_before_its_log(self):
+        for first in ('SENT', 'REQUEST_FREE', 'COMMIT'):
+            rows = copy.deepcopy(self.rows); events = ('SENT', 'REQUEST_FREE', 'COMMIT')
+            self.snapshot_received(rows, *events[events.index(first):])
+            with self.subTest(sender_first=first):
+                self.assertTrue(self.joined(rows)['native_completion_verified'])
+        for event, snapshot in (
+                ('SENT', dict(busy='1', guard='1', request_freed='0', request_free_rc='-61', request_free_tid='0', retained_request='0x700000')),
+                ('REQUEST_FREE', dict(busy='1', guard='1')),
+                ('COMMIT', dict(busy='1', guard='0')),
+                ('COMMIT', dict(busy='0', guard='0'))):
+            rows = self.receive_before(event); self.native(rows, event='RECEIVE')[0]['fields'].update(snapshot)
+            self.snapshot_received(rows, *{'SENT': ('REQUEST_FREE', 'COMMIT'), 'REQUEST_FREE': ('COMMIT',), 'COMMIT': ()}[event])
+            with self.subTest(receive_before=event, snapshot=snapshot):
+                self.assertTrue(self.joined(rows)['native_completion_verified'])
+
+    def test_same_sender_receive_is_supported_without_weakening_the_actual_receive_requirement(self):
+        rows = copy.deepcopy(self.rows)
+        for row in self.native(rows):
+            if row['fields']['event'] == 'RECEIVE':
+                row['fields']['tid'] = '96'
+            if row['fields']['receiver_tid'] == '97':
+                row['fields']['receiver_tid'] = '96'
+        self.assertEqual(self.joined(rows)['transactions'][0]['receiver_tid'], 96)
+        rows.remove(self.native(rows, event='RECEIVE')[0])
+        with self.assertRaises(ValueError):
+            self.joined(rows)
+
+    def test_every_real_stage_and_ticket_is_required_once(self):
+        for sample in self.native():
+            for mutation in ('missing', 'duplicate', 'foreign_ticket'):
+                rows = copy.deepcopy(self.rows); row = self.native(rows, event=sample['fields']['event'])[0]
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    row['fields']['transaction'] = '2'
+                with self.subTest(event=sample['fields']['event'], mutation=mutation), self.assertRaises(ValueError):
+                    self.joined(rows)
+        for event in ('REQUEST_FREE', 'REPLY_FREE', 'SENT'):
+            rows = copy.deepcopy(self.rows); self.native(rows, event=event)[0]['fields']['tid'] = '97'
+            with self.subTest(foreign_sender=event), self.assertRaises(ValueError):
+                self.joined(rows)
+
+    def test_full_request_receipt_after_before_and_reply_bytes_reject_every_byte_mutation(self):
+        for kind in ('request', 'before_state', 'receipt', 'after_state', 'reply'):
+            for sample in self.native(kind=kind):
+                for index in range(int(sample['fields']['bytes'])):
+                    rows = copy.deepcopy(self.rows)
+                    row = next(r for r in self.native(rows, kind=kind) if r['fields']['offset'] == sample['fields']['offset'])
+                    raw = bytearray.fromhex(row['fields']['raw']); raw[index] ^= 1; row['fields']['raw'] = raw.hex()
+                    with self.subTest(kind=kind, offset=sample['fields']['offset'], byte=index), self.assertRaises(ValueError):
+                        self.joined(rows)
+            for key, wrong in (('offset', '1'), ('bytes', '1'), ('content_fnv1a', '0000000000000000'),
+                               ('movie_generation', '9'), ('transaction', '2')):
+                rows = copy.deepcopy(self.rows); self.native(rows, kind=kind)[0]['fields'][key] = wrong
+                with self.subTest(kind=kind, field=key), self.assertRaises(ValueError):
+                    self.joined(rows)
+
+    def test_all_owner_critical_flags_counters_identities_and_canonical_signed_rc_are_bound(self):
+        cases = [('pid', '78'), ('sender_tid', '97'), ('receiver_tid', '98'), ('request_free_tid', '97'), ('reply_free_tid', '97'),
+            ('model_instance', '100'), ('bank_generation', '2'), ('crank_generation', '2'), ('movie_generation', '2'),
+            ('before_config_generation', '23'), ('config_generation', '26'), ('frame_generation', '2'), ('fps', '60'),
+            ('software_format', '6'), ('software_rate_index', '1'), ('software_codec', '0'), ('cookie', '0x80000061'),
+            ('native_fnv1a', '0000000000000000'), ('bank_transaction', '1'), ('bank_commits', '0'), ('bank_released', '0'),
+            ('bank_native_fnv1a', '0000000000000000'), ('crank_transaction', '2'), ('crank_completions', '0'),
+            ('crank_native_fnv1a', '0000000000000000'), ('crank_command', '0x4000'), ('bank_bytes', '2563'),
+            ('request_pointer', '0x700001'), ('reply_pointer', '0x800001'), ('allocation_pointer', '0x800001'),
+            ('retained_request', '0x700000'), ('retained_reply', '0x800000'), ('faults', '1'), ('error', '-5'),
+            ('validation_rc', '-5'), ('before_rc', '-61'), ('model_rc', '-5'), ('after_rc', '-5'), ('allocate_rc', '-12'),
+            ('send_rc', '-5'), ('request_free_rc', '-5'), ('receive_rc', '-5'), ('reply_free_rc', '-5'),
+            ('busy', '1'), ('guard', '1'), ('request_releasing', '1'), ('reply_releasing', '1'), ('reply_inspecting', '1'),
+            ('send_inflight', '1'), ('reply_alias', '1'), ('reply_cleanup_freed', '1'), ('model_called', '0'),
+            ('model_committed', '0'), ('verified', '0'), ('owned', '0'), ('complete', '0'), ('request_freed', '0'),
+            ('reply_received', '0'), ('reply_freed', '0'), ('reply_consumed', '0'), ('reply_allocated', '0'), ('reply_valid', '0'),
+            ('send_started', '0'), ('ACK_sent', '0'), ('requests', '2'), ('commits', '0'), ('verified_commits', '0'),
+            ('completions', '0'), ('last_bank_generation', '0'), ('last_crank_generation', '0'), ('last_movie_generation', '0'),
+            ('before_used', '127'), ('movie_required', '239'), ('movie_token', '1'), ('after_instance', '100')]
+        for key, wrong in cases:
+            rows = copy.deepcopy(self.rows); self.native(rows, event='REPLY_FREE')[0]['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.joined(rows)
+        for pointer in ('0x700000', '0x700004', '0x700010', '0x6ffffc', '0xffffffffffffffff'):
+            rows = copy.deepcopy(self.rows)
+            for row in self.native(rows):
+                for key in ('reply_pointer', 'allocation_pointer', 'retained_reply'):
+                    if row['fields'][key] == '0x800000':
+                        row['fields'][key] = pointer
+            with self.subTest(alias_or_overflow=pointer), self.assertRaises(ValueError):
+                self.joined(rows)
+
+    def test_interleaved_snapshots_cannot_forge_receive_regress_sender_or_drop_retained_failure(self):
+        for changes in (dict(send_started='0'), dict(send_inflight='1'), dict(ACK_sent='0'), dict(request_releasing='1'),
+                dict(busy='0', guard='1'), dict(busy='0', guard='0', request_freed='0', request_free_rc='-61',
+                     request_free_tid='0', retained_request='0x700000'), dict(reply_freed='1'),
+                dict(reply_received='0'), dict(receiver_tid='0'), dict(receive_rc='-5')):
+            rows = copy.deepcopy(self.rows); self.native(rows, event='RECEIVE')[0]['fields'].update(changes)
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.joined(rows)
+        rows = copy.deepcopy(self.rows); self.snapshot_received(rows, 'SENT', 'COMMIT')
+        with self.assertRaisesRegex(ValueError, 'same-sender.*regressed'):
+            self.joined(rows)
+        rows = copy.deepcopy(self.rows); self.native(rows, event='MODEL')[0]['fields']['validation_rc'] = '-5'
+        saved = copy.deepcopy(rows)
+        with self.assertRaises(ValueError):
+            self.joined(rows)
+        self.assertEqual(rows, saved)
+        self.assertEqual((self.native(rows, event='MODEL')[0]['fields']['model_rc'],
+                          self.native(rows, event='MODEL')[0]['fields']['model_committed']), ('0', '1'))
+
+    def test_resource35_exact_three_tags_full_TTS_dual_DMM_PIN_VEF_and_every_gate_are_required(self):
+        for suffix in ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED'):
+            for mutation in ('missing', 'duplicate', 'late'):
+                rows = copy.deepcopy(self.rows); row = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_MOVIE_FORMAT_' + suffix)
+                if mutation == 'missing':
+                    rows.remove(row)
+                elif mutation == 'duplicate':
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    row['line'] = self.native(event='BEFORE')[0]['line']
+                with self.subTest(suffix=suffix, mutation=mutation), self.assertRaises(ValueError):
+                    self.joined(rows)
+        mutations = [('RESOURCE_DEPENDENCIES', key, '0') for key in
+                     ('accepted', 'proc_ap_consumed', 'input_ap_consumed', 'output_ap_consumed', 'current_request_retained_expected')]
+        mutations += [('RESOURCES_RESERVED', key, wrong) for key, wrong in (
+            ('dmm_slots', '1/0'), ('dmm_opens', '1/2'), ('dmm_handles', '0x8400/0x8402'), ('dmm_generations', '1/2'),
+            ('dmm_epochs', '1/3'), ('dmm_creators', '1/0'), ('dmm_domain', '0'), ('dmm_lifecycle_changed', '1'),
+            ('allocations', '5'), ('vef_live', '1'), ('pinmem_retained', '1'), ('control_faults', '1'),
+            ('format_pending', '1'), ('blocked', '1'), ('connection_faults', '1'), ('tid', '97'))]
+        for suffix, key, wrong in mutations:
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_MOVIE_FORMAT_' + suffix)['fields'][key] = wrong
+            with self.subTest(suffix=suffix, field=key), self.assertRaises(ValueError):
+                self.joined(rows)
+        for offset in (0, 0x18, 0x20, 0x48, 0x60, 0x68):
+            rows = copy.deepcopy(self.rows)
+            f = next(r['fields'] for r in rows if r['tag'] == 'FUNCTIONAL_CP_MOVIE_FORMAT_RESOURCES_TTS_TABLE')
+            raw = bytearray.fromhex(f['raw_before']); raw[offset] ^= 1; f['raw_before'] = f['raw_after'] = raw.hex()
+            with self.subTest(TTS_offset=offset), self.assertRaises(ValueError):
+                self.joined(rows)
+
+    def test_native_bank_crank_cannot_be_replaced_by_caller_booleans_or_old_transaction(self):
+        for tag, event, key, wrong in (
+                ('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', 'OWNED_FREE', 'request_freed', '0'),
+                ('FUNCTIONAL_CP_PARAMETER_BANK_EVENT', 'COMMIT', 'transaction', '3'),
+                ('FUNCTIONAL_CP_CRANK_CONTROL_EVENT', 'REQUEST_FREE', 'request_free_rc', '-5'),
+                ('FUNCTIONAL_CP_CRANK_CONTROL_EVENT', 'RECEIVE', 'transaction', '2'),
+                ('FUNCTIONAL_CP_CRANK_CONTROL_EVENT', 'REPLY_FREE', 'reply_free_tid', '95'),
+                ('FUNCTIONAL_CP_CRANK_CONTROL_EVENT', 'REPLY_FREE', 'complete', '0')):
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['tag'] == tag and r['fields']['event'] == event)['fields'][key] = wrong
+            with self.subTest(predecessor=tag, event=event, field=key), self.assertRaises(ValueError):
+                self.joined(rows)
+        rows = [r for r in copy.deepcopy(self.rows) if not r['tag'].startswith('FUNCTIONAL_CP_CRANK_CONTROL_')]
+        with self.assertRaises(ValueError):
+            self.joined(rows)
+
+    def test_all13_current_mode_and_single_initial4000_history_must_remain_real(self):
+        cases = [(tag, 'rc', '-5') for tag in checker.BACKGROUND_FREE_TAGS]
+        cases += [('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', 'accepted', '0'),
+            ('FUNCTIONAL_CAMERA_CONTROL_AP_FREE', 'mode_complete', '0'),
+            ('FUNCTIONAL_CAMERA_CONTROL_AP_FREE', 'free_tid', '96'),
+            ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'attempts', '2'),
+            ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'waiter_tid', '96'),
+            ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'freed_reply', bytes(12).hex()),
+            ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'virtual_fields_consumed', '0'),
+            ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_COMPLETE', 'native_verified', '1')]
+        for tag, key, wrong in cases:
+            rows = copy.deepcopy(self.rows); [r for r in rows if r['tag'] == tag][-1]['fields'][key] = wrong
+            with self.subTest(tag=tag, field=key), self.assertRaises(ValueError):
+                self.joined(rows)
+        for tag in ('NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REQUEST_FREE', 'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE',
+                    'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_COMPLETE'):
+            for duplicate in (False, True):
+                rows = copy.deepcopy(self.rows); row = next(r for r in rows if r['tag'] == tag)
+                if duplicate:
+                    rows.insert(rows.index(row), copy.deepcopy(row))
+                else:
+                    rows.remove(row)
+                with self.subTest(tag=tag, duplicate=duplicate), self.assertRaises(ValueError):
+                    self.joined(rows)
+
+    def test_original20_audit_pointer_source_size_and_sender_are_bound(self):
+        for key, wrong in (('pointer', '0x700001'), ('source', '0x90030001'), ('bytes', '12'), ('tid', '94'),
+                           ('producer_return', '0x3535b04'), ('complete', '0')):
+            rows = copy.deepcopy(self.rows)
+            next(r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and
+                 r['fields'].get('sequence') == '72')['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.joined(rows)
+
+    def test_movie_partial_frame_proofs_fail_before_any_history_or_predecessor_scan(self):
+        for index in (7, 8, 9):
+            for proof in ({}, {'proof': {}}, {'proof': {'opcode': 22}}):
+                changed = copy.deepcopy(self.transport); changed['transfers'][index]['frame'] = proof
+                with mock.patch.object(checker, 'vdf_history') as history, mock.patch.object(checker, 'check_cp_parameter_bank') as bank:
+                    with self.subTest(index=index, proof=proof), self.assertRaisesRegex(ValueError, 'no-frame'):
+                        self.joined(transport=changed)
+                    history.assert_not_called(); bank.assert_not_called()
+
+    def test_typed_movie_success_kind_opcode_origin_and_actual_commit_cannot_be_borrowed(self):
+        for key, wrong in (('kind', 'model_crank_control'), ('opcode', 21), ('actual_c_result', False),
+                           ('model_called', False), ('model_committed', False), ('native_acceptance', True),
+                           ('sequence', 6), ('model_instance', 100)):
+            changed = copy.deepcopy(self.transport); changed['transfers'][8]['movie_format'][key] = wrong
+            with mock.patch.object(checker, 'vdf_history') as history:
+                with self.subTest(field=key), self.assertRaises(ValueError):
+                    self.joined(transport=changed)
+                history.assert_not_called()
+        changed = copy.deepcopy(self.transport)
+        event = changed['transfers'][8]['movie_format']
+        event.update(kind='movie_format_rejected', actual_c_result=0, model_committed=True, error='post-C0 independent query failed')
+        event['observation'].update(query_c_result=-5, readback_verified=False)
+        saved = copy.deepcopy(event)
+        with mock.patch.object(checker, 'vdf_history') as history:
+            with self.assertRaises(checker.MovieFormatRejected) as caught:
+                self.joined(transport=changed)
+            history.assert_not_called()
+        self.assertEqual(caught.exception.event, saved)
+        self.assertEqual(caught.exception.event['actual_c_result'], 0)
+        self.assertIs(caught.exception.event['model_committed'], True)
+
+    def test_exact_106_19_schemas_match_actual_owner_formatter_and_metadata_readbacks(self):
+        source = (checker.NATIVE / 'runtime/analysis/device-models/functional-camera-control.c').read_text()
+        block = source[source.index('static void movie_format_record('):source.index('static int movie_format_crank_ready(')]
+        formats = re.findall(r'snprintf\(text, sizeof text,\s*((?:"[^"\n]*"\s*)+)', block)
+        self.assertEqual(len(formats), 2)
+        self.assertIn('s = *observed', block)
+        self.assertNotIn('native_functional_camera_movie_format_snapshot(', block)
+        for schema, formatter, count in zip((checker.CP_MOVIE_EVENT_SCHEMA, checker.CP_MOVIE_BYTES_SCHEMA), formats, (106, 19)):
+            keys = re.findall(r'([A-Za-z_][A-Za-z_0-9]*)=', ''.join(re.findall(r'"([^"\n]*)"', formatter)))
+            self.assertEqual(len(keys), count)
+            self.assertEqual(keys, [part.split(':', 1)[0] for part in schema.split()])
+        wire = source[source.index('static int movie_format_wire_matches('):source.index('static int movie_format_context_matches(')]
+        self.assertIn('actual_bytes = io->size(pointer), actual_source = io->source(pointer)', wire)
+        self.assertIn('actual_bytes == bytes && actual_source == source', wire)
+        self.assertIn('memcmp(pointer, expected, bytes)', wire)
+        receive = source[source.index('int native_functional_camera_movie_format_release('):source.index('static void movie_format_finish(')]
+        for text in ('transaction != movie_format_state.transaction', 'current_tid != movie_format_state.sender_tid',
+                     'event->source != FUNCTIONAL_CAMERA_CONTROL_SID', 'event->bytes != 12', 'movie_format_state.receiver_tid = current_tid'):
+            self.assertIn(text, receive)
+
+    def test_main_ticket_is_same_pid_mutex_bound_and_retained_after_real_free(self):
+        source = (checker.NATIVE / 'runtime/analysis/menu-observe.c').read_text()
+        self.assertIn('functional_cp_movie_format_reserve_resources(void) {return tracked_native_reserve_resources(35);}', source)
+        begin = source.index('static uint64_t native_movie_format_ticket_for(')
+        end = source.index('static void native_movie_format_received(', begin)
+        lookup = source[begin:end]
+        self.assertIn('functional_cp_movie_format_ticket_pid!=(unsigned int)getpid()', lookup)
+        self.assertIn('pthread_mutex_lock(functional_cp_movie_format_ticket_mutex)', lookup)
+        self.assertNotIn('native_functional_camera_movie_format_snapshot', lookup)
+        receive = source[end:source.index('int osal_rcv_msg_tmo(', end)]
+        self.assertIn('native_movie_format_ticket_for(destination,pointer),&event', receive)
+        start = source.index('if(__atomic_load_n(&functional_cp_movie_format_used', source.index('int osal_free_msg('))
+        free = source[start:source.index('if(__atomic_load_n(&functional_cp_crank_control_used', start)]
+        self.assertIn('native_movie_format_ticket_for(id,message),0', free)
+        self.assertNotIn('=0;', free)
+        self.assertNotRegex(source, r'_Thread_local[^;]*functional_cp_movie_format_ticket')
+
+    def test_movie_parser_exact_order_types_signed_bounds_and_kernel_trailers(self):
+        samples = [r for r in self.rows if r['tag'].startswith('FUNCTIONAL_CP_MOVIE_FORMAT_')]
+        trailers = (b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022',
+                    b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1')
+        for sample in samples:
+            payload = self.record(sample['tag'], sample['fields']).encode()
+            self.assertEqual(checker.console_producer_fields(payload), sample['fields'])
+            for trailer in trailers:
+                for ending in (b'\n', b'\r\n'):
+                    raw = b'ordinary\nOBS ' + payload + trailer + ending
+                    row, = checker.parse_console(raw)
+                    self.assertEqual(row['fields'], sample['fields']); self.assertIn('kernel_diagnostic', row)
+                    note = row['kernel_diagnostic']
+                    self.assertEqual((note['payload']['byte_offset'], note['raw_lf_line']), (len(b'ordinary\nOBS '), 2))
+                    self.assertEqual(note['line_ending'], ending.decode())
+                    for part in (note, note['payload']):
+                        self.assertEqual(raw[part['byte_offset']:part['byte_offset'] + part['bytes']], part['raw'].encode())
+                        self.assertEqual(checker.sha(part['raw'].encode()), part['sha256'])
+            parts = payload.split(b' ')
+            for bad in (payload + b' unknown=0', b' '.join(parts[:2] + parts[3:]),
+                        b' '.join(parts[:1] + [parts[2], parts[1]] + parts[3:])):
+                with self.subTest(tag=sample['tag'], bad=bad):
+                    self.assertIsNone(checker.console_producer_fields(bad))
+                    for trailer in trailers:
+                        row, = checker.parse_console(b'OBS ' + bad + trailer + b'\n')
+                        self.assertIn('diagnostic', row); self.assertNotIn('kernel_diagnostic', row)
+            for bad in (payload.replace(sample['tag'].encode(), b'FUNCTIONAL_CP_MOVIE_FORMAT_UNKNOWN', 1) + trailers[0],
+                        payload + trailers[0].replace(b'-1022', b'-1021'),
+                        payload + trailers[1].replace(b'A=1', b'A=0'), payload + trailers[0] + trailers[1]):
+                row, = checker.parse_console(b'OBS ' + bad + b'\n')
+                self.assertIn('diagnostic', row); self.assertNotIn('kernel_diagnostic', row)
+            with self.assertRaises(ValueError):
+                checker.console_producer_fields(payload + b' ' + parts[1])
+        begin = self.native(event='BEGIN')[0]
+        payload = self.record(begin['tag'], begin['fields']).encode()
+        for old, wrong in ((b'before_rc=-61', b'before_rc=-061'), (b'before_rc=-61', b'before_rc=+0'),
+                           (b'before_rc=-61', b'before_rc=-2147483649'), (b'transaction=1', b'transaction=01'),
+                           (b'transaction=1', b'transaction=18446744073709551616'), (b'sender_tid=96', b'sender_tid=9223372036854775808'),
+                           (b'bytes=20', b'bytes=4294967296'), (b'capture_verified=0', b'capture_verified=1')):
+            self.assertIsNone(checker.console_producer_fields(payload.replace(old, wrong)))
+        with self.assertRaises(ValueError):
+            checker.number('-61')
+
+class CPOuCrankControlEvidenceTests(unittest.TestCase):
+    """Exact OP23 wire fixtures; no model, native VM or capture is executed."""
+
+    def setUp(self):
+        base = CPCrankControlEvidenceTests('runTest'); base.setUp()
+        prior = bytearray(base.prior); struct.pack_into('<Q', prior, 56, 26)
+        self.prior, self.packet = bytes(prior), self.request()
+        self.raw = self.receipt(self.packet, self.prior)
+
+    @staticmethod
+    def request(byte1=0xa5, cookie=0x80000061):
+        return struct.pack('<BBHI', 5, byte1, 0x4072, cookie) + bytes(4)
+
+    @staticmethod
+    def receipt(packet, prior, ou=1, bank=4, crank=2, movie=1):
+        before = struct.unpack_from('<Q', prior, 56)[0]
+        after = bytearray(prior); struct.pack_into('<Q', after, 56, (before + 1) % 2**64)
+        raw = bytearray(224)
+        struct.pack_into('<2I8Q2I', raw, 0, 1, 224, struct.unpack_from('<Q', prior, 48)[0],
+            ou, bank, crank, movie, before, (before + 1) % 2**64, checker.fnv(packet), 0,
+            struct.unpack_from('<I', prior, 16)[0])
+        raw[80:208], raw[208:220] = after, packet
+        return bytes(raw)
+
+    @staticmethod
+    def observation(raw, packet, prior, proof, capacity=checker.DATA_BYTES):
+        return dict(actual_c_result=0, returned_hex=raw.hex(), readback_verified=True, model_called=True,
+            model_committed=True, input_hex=packet.hex(), request_hex=packet.hex(), input_fnv1a64=checker.fnv(packet),
+            software_mode='ou_crank_mode0', validation_error=None, ou_generation=struct.unpack_from('<Q', raw, 16)[0],
+            bank_generation=struct.unpack_from('<Q', raw, 24)[0], crank_generation=struct.unpack_from('<Q', raw, 32)[0],
+            movie_generation=struct.unpack_from('<Q', raw, 40)[0], predecessor_proof=copy.deepcopy(proof),
+            before_state_c_result=0, before_state_hex=prior.hex(), c_call_succeeded=True, returned_bytes=224,
+            returned_fnv1a64=checker.fnv(raw), output_buffer_hex=(raw + bytes(capacity - 224)).hex(),
+            result=dict(token=0, total=0, offset=0, used=224), after_state_c_result=0,
+            after_state_hex=raw[80:208].hex(), query_c_result=0, snapshot_hex=raw.hex(), state_delta_verified=True)
+
+    def decode(self, raw=None, packet=None, prior=None, instance=99, bank=4, crank=2, movie=1):
+        return checker.cp_ou_crank_control_result(self.raw if raw is None else raw,
+            self.packet if packet is None else packet, instance, self.prior if prior is None else prior, bank, crank, movie)
+
+    def test_full224_preserves_every_nonconfig_byte_and_all_nonzero_counters(self):
+        value = self.decode()
+        self.assertEqual(value, dict(model_instance=99, ou_generation=1, bank_generation=4, crank_generation=2,
+            movie_generation=1, before_config_generation=26, config_generation=27, input_fnv=checker.fnv(self.packet),
+            mode=0, fps=30, frame_generation=22))
+        self.assertEqual(self.raw[80:136], self.prior[:56])
+        self.assertEqual(self.raw[144:208], self.prior[64:])
+        self.assertEqual(self.raw[208:], self.packet + bytes(4))
+        for fps in (1, 60, 120):
+            prior = bytearray(self.prior); struct.pack_into('<I', prior, 16, fps); prior = bytes(prior)
+            self.assertEqual(self.decode(raw=self.receipt(self.packet, prior), prior=prior)['fps'], fps)
+
+    def test_original_byte1_cookie_opaque_and_zero_body_is_exact(self):
+        for byte1, cookie in ((0, 0), (0xff, 0xffffffff), (0xa5, 0x80000061)):
+            packet = self.request(byte1, cookie)
+            self.assertEqual(self.decode(raw=self.receipt(packet, self.prior), packet=packet)['input_fnv'], checker.fnv(packet))
+        for offset in (0, 2, 3, 8, 9, 10, 11):
+            packet = bytearray(self.packet); packet[offset] ^= 1; packet = bytes(packet)
+            with self.subTest(offset=offset), self.assertRaisesRegex(ValueError, 'original12'):
+                self.decode(raw=self.receipt(packet, self.prior), packet=packet)
+        for packet in (b'', self.packet[:-1], self.packet + b'\0', bytearray(self.packet)):
+            with self.subTest(size=len(packet)), self.assertRaises(ValueError):
+                self.decode(packet=packet)
+
+    def test_all224_bytes_and_tuple_types_have_content_or_history_guards(self):
+        for offset in range(224):
+            raw = bytearray(self.raw); raw[offset] ^= 1
+            if 16 <= offset < 24:
+                continue  # Positive OU-generation jumps are rejected by the monotonic history checker.
+            with self.subTest(offset=offset), self.assertRaises(ValueError):
+                self.decode(raw=bytes(raw))
+        for key in ('instance', 'bank', 'crank', 'movie'):
+            for wrong in (0, -1, 2**64, True, 1.0, '1'):
+                with self.subTest(key=key, wrong=wrong), self.assertRaises(ValueError):
+                    self.decode(**{key: wrong})
+        for prior_offset in (0, 4, 48, 104, 108, 120):
+            prior = bytearray(self.prior); prior[prior_offset] ^= 1; prior = bytes(prior)
+            with self.subTest(prior_offset=prior_offset), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+        for generation in (0, 2**64 - 1):
+            prior = bytearray(self.prior); struct.pack_into('<Q', prior, 56, generation); prior = bytes(prior)
+            with self.subTest(generation=generation), self.assertRaises(ValueError):
+                self.decode(raw=self.receipt(self.packet, prior), prior=prior)
+        raw = bytearray(self.raw); struct.pack_into('<Q', raw, 16, 0)
+        with self.assertRaises(ValueError):
+            self.decode(raw=bytes(raw))
+
+    def test_exact13_policy_optional_all_or_none_and_typed_on_both_sides(self):
+        profile = CPParameterBankEvidenceTests.profile()
+        for target in (profile, profile['backup_transport']):
+            for key in checker.CP_OU_CRANK_CONTROL_POLICY:
+                target.pop('functional_camera_' + key, None)
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        self.assertEqual(len(checker.CP_OU_CRANK_CONTROL_POLICY), 13)
+        for target in (profile, profile['backup_transport']):
+            target.update({'functional_camera_' + k: copy.deepcopy(v) for k, v in checker.CP_OU_CRANK_CONTROL_POLICY.items()})
+        self.assertTrue(checker.check_profile(profile)['verified'])
+        for side in ('manifest', 'backup'):
+            for key, value in checker.CP_OU_CRANK_CONTROL_POLICY.items():
+                changed = copy.deepcopy(profile); target = changed if side == 'manifest' else changed['backup_transport']
+                del target['functional_camera_' + key]
+                with self.subTest(side=side, missing=key), self.assertRaisesRegex(ValueError, 'profile drift'):
+                    checker.check_profile(changed)
+                changed = copy.deepcopy(profile); target = changed if side == 'manifest' else changed['backup_transport']
+                target['functional_camera_' + key] = True if type(value) is int else 'unsupported'
+                with self.subTest(side=side, wrong=key), self.assertRaisesRegex(ValueError, 'profile drift'):
+                    checker.check_profile(changed)
+        changed = copy.deepcopy(profile); changed['functional_camera_cp_ou_crank_control_ready'] = True
+        with self.assertRaisesRegex(ValueError, 'undeclared OU'):
+            checker.check_profile(changed)
+
+
+class CPOuCrankWitnessEvidenceTests(unittest.TestCase):
+    """Use a complete existing4057 RGB proof; OP23 itself owns no frame proof."""
+
+    def setUp(self):
+        fixture = StartupControlEvidenceTests('runTest'); fixture.setUp(); self.addCleanup(fixture.doCleanups)
+        args = fixture.replay(commands=(0x4014, 0x4057), cookies=(0x8000003c, 0x80000026))
+        transport = checker.check_transport(*args)
+        self.assertTrue(transport['startup_control']['verified'])
+        tx = next(t for t in reversed(transport['transfers']) if t['opcode'] == 14)
+        self.proof = tx['frame']['proof']
+        self.prior = checker.transfer_output(args[0], transport['transfers'][-1])
+        self.packet = CPOuCrankControlEvidenceTests.request()
+        self.raw = CPOuCrankControlEvidenceTests.receipt(self.packet, self.prior)
+        self.observed = CPOuCrankControlEvidenceTests.observation(self.raw, self.packet, self.prior, self.proof)
+        self.origin = dict(producer_tid=384, source=0x80020002, destination=0x90030001,
+                           command=0x4072, bytes=12, fnv1a64=checker.fnv(self.packet))
+        self.witness = dict(event=1, monotonic_ns=1, kind='model_ou_crank_control', model_instance=99, sequence=1,
+            opcode=23, actual_c_result=0, actual_core_sha256='a' * 64, admission_error=None,
+            origin=copy.deepcopy(self.origin), native_acceptance=False, model_called=True, model_committed=True,
+            input_hex=self.packet.hex(), request_fnv1a64=checker.fnv(self.packet), observation=self.observed,
+            error=0, validation_error=None)
+        for key, data, direction in (('request_payload', self.packet, 'in'), ('output_payload', self.raw, 'out')):
+            self.witness[key] = dict(bytes=len(data), direction=direction, opcode=23, sequence=1,
+                                     model_instance=99, origin=copy.deepcopy(self.origin))
+
+    encoded = staticmethod(CPBoundedWitnessJSONLEvidenceTests.encoded)
+
+    def observed_value(self, observed):
+        return checker.cp_ou_crank_control_observation(observed, self.raw, self.packet, 99, self.prior, 4, 2, 1, checker.DATA_BYTES)
+
+    def test_actual_c_full_buffer_getter_and_all_observation_fields_are_bound(self):
+        self.assertEqual(self.observed_value(self.observed)['config_generation'], struct.unpack_from('<Q', self.prior, 56)[0] + 1)
+        for key in self.observed:
+            observed = copy.deepcopy(self.observed); del observed[key]
+            with self.subTest(missing=key), self.assertRaisesRegex(ValueError, 'independent actual C'):
+                self.observed_value(observed)
+        for key, wrong in (('actual_c_result', False), ('query_c_result', -5), ('c_call_succeeded', False),
+                ('model_committed', False), ('state_delta_verified', False), ('state_delta_verified', 1),
+                ('validation_error', 'post-C0 failure'), ('ou_generation', 2),
+                ('movie_generation', 2), ('software_mode', 'mode1'), ('returned_bytes', 223)):
+            observed = copy.deepcopy(self.observed); observed[key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.observed_value(observed)
+        for key in ('returned_hex', 'snapshot_hex', 'output_buffer_hex', 'after_state_hex', 'before_state_hex', 'request_hex', 'input_hex'):
+            observed = copy.deepcopy(self.observed); raw = bytearray.fromhex(observed[key]); raw[-1] ^= 1; observed[key] = raw.hex()
+            with self.subTest(bytes=key), self.assertRaises(ValueError):
+                self.observed_value(observed)
+
+    def test_only_successful_fixed12_224_full_Cbuffer_gets192KiB_allowance(self):
+        self.assertTrue(checker.bounded_control_witness(self.witness))
+        self.assertEqual(checker.jsonl(self.encoded(self.witness, 192 * 1024)), [self.witness])
+        with self.assertRaisesRegex(ValueError, 'oversized non-source'):
+            checker.jsonl(self.encoded(self.witness, 192 * 1024 + 1))
+        for key, wrong in (('kind', 'ou_crank_control_rejected'), ('kind', 'response'), ('kind', 'unknown'),
+                ('opcode', 22), ('opcode', True), ('actual_c_result', False), ('actual_c_result', -5),
+                ('model_committed', False), ('validation_error', 'error'), ('admission_error', -16)):
+            witness = copy.deepcopy(self.witness); witness[key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                checker.jsonl(self.encoded(witness))
+        for key in ('request_payload', 'output_payload'):
+            witness = copy.deepcopy(self.witness); witness[key]['bytes'] -= 1
+            with self.subTest(reference=key), self.assertRaises(ValueError):
+                checker.jsonl(self.encoded(witness))
+        witness = copy.deepcopy(self.witness); witness['observation']['output_buffer_hex'] += '00'
+        with self.assertRaisesRegex(ValueError, 'capacity'):
+            checker.jsonl(self.encoded(witness))
+
+    def test_native_missing_is_fail_closed_even_with_caller_ready_booleans(self):
+        tx = dict(first=1, last=1, line=20, opcode=23, origin=self.origin, token=0, frame=None, provider_kind='core',
+            request_payload=self.witness['request_payload'], output_payloads=[self.witness['output_payload']],
+            ou_crank_control=self.witness, capacity=checker.DATA_BYTES)
+        before = dict(tx, first=0, last=0, line=10, opcode=2)
+        after = dict(tx, first=2, last=2, line=30, opcode=2)
+        policy = {'functional_camera_' + k: copy.deepcopy(v) for k, v in checker.CP_OU_CRANK_CONTROL_POLICY.items()}
+        policy['functional_camera_profile'] = checker.PROFILE
+        manifest = dict(policy, backup_transport=copy.deepcopy(policy))
+        transport = dict(model_instance=99, transfers=[before, tx, after],
+            parameter_bank={'verified': True}, crank_control_content={'verified': True}, movie_format_content={'verified': True},
+            startup_control={'verified': True})
+        with self.assertRaisesRegex(checker.MissingEvidence, 'original one-way EVENT/BYTES/resource36 records missing'):
+            checker.check_cp_ou_crank_control_content(None, manifest, [], transport)
+        event = copy.deepcopy(self.witness); event.update(kind='ou_crank_control_rejected', actual_c_result=0,
+            model_committed=True, validation_error='independent getter failed')
+        event['observation'].update(query_c_result=-5, readback_verified=False)
+        tx['ou_crank_control'] = event
+        with self.assertRaises(checker.OuCrankControlRejected) as caught:
+            checker.check_cp_ou_crank_control_content(None, manifest, [], transport)
+        self.assertEqual(caught.exception.event, event)
+        self.assertEqual(caught.exception.event['actual_c_result'], 0)
+        self.assertIs(caught.exception.event['model_committed'], True)
+
+
+class CPOuCrankNativeEvidenceTests(unittest.TestCase):
+    """Complete synthetic OU formatter streams; direct helper results are not AP acceptance."""
+
+    @classmethod
+    def setUpClass(cls):
+        CPMovieFormatNativeJoinEvidenceTests.setUpClass()
+
+    row = staticmethod(CPCrankNativeJoinEvidenceTests.row)
+    record = staticmethod(CPParameterBankTransportEvidenceTests.record)
+
+    def setUp(self):
+        base = CPMovieFormatNativeJoinEvidenceTests('runTest'); base.setUp(); self.addCleanup(base.doCleanups)
+        self.assertTrue(base.joined()['native_control_transaction_verified'])
+        startup_fixture = StartupControlEvidenceTests('runTest'); startup_fixture.setUp(); self.addCleanup(startup_fixture.doCleanups)
+        source_args = startup_fixture.replay(commands=(0x4014, 0x4057), cookies=(0x8000003c, 0x80000026))
+        source = checker.check_transport(*source_args)
+        source_vdf = next(t for t in source['transfers'] if t['opcode'] == 5)
+        self.movie_prior = base.raw[80:208]
+        movie_cfg = struct.unpack_from('<Q', self.movie_prior, 56)[0]
+        movie_frame = struct.unpack_from('<Q', self.movie_prior, 112)[0]
+        vdf_cfg, vdf_frame, vdf_lease = movie_cfg + 1, movie_frame + 1, movie_frame + 1
+        # Commit the replay's complete enabled OP5 before borrowing its route for4057.
+        vdf_canonical = checker.payload_read(source_args[0], source_vdf['request_payload'])
+        vdf_raw = bytearray(checker.transfer_output(source_args[0], source_vdf))
+        struct.pack_into('<4Q', vdf_raw, 8, 99, vdf_cfg, vdf_frame, vdf_lease)
+        struct.pack_into('<2Q', vdf_raw, 144, movie_frame, movie_cfg)
+        vdf_raw = bytes(vdf_raw)
+        vdf_proof = copy.deepcopy(source_vdf['frame']['proof'])
+        counts = struct.unpack_from('<4Q', self.movie_prior, 64)
+        vdf_proof.update(serial=movie_frame + 1, config_generation=vdf_cfg, frame_generation=vdf_frame,
+                         lease_generation=vdf_lease)
+        vdf_proof['before'] = dict(zip(('rendered', 'consumed', 'jpeg_encoded', 'video_encoded'), counts), retired=counts[0])
+        vdf_proof['after'] = dict(vdf_proof['before'])
+        for key in ('rendered', 'consumed', 'retired'):
+            vdf_proof['after'][key] += 1
+        vdf_state = bytearray(self.movie_prior)
+        for offset in (56, 64, 72, 112):
+            struct.pack_into('<Q', vdf_state, offset, struct.unpack_from('<Q', vdf_state, offset)[0] + 1)
+        vdf_state = bytes(vdf_state)
+        startup_cfg, startup_frame, startup_lease = vdf_cfg + 1, vdf_frame + 1, vdf_lease + 1
+        self.startup_wire = bytes.fromhex('050057406100008000000000')
+        startup_origin = dict(producer_tid=90, source=0x80020002, destination=0x90030001, command=0x4057,
+                              bytes=12, fnv1a64=checker.fnv(self.startup_wire))
+        startup_raw, canonical = StartupControlEvidenceTests.receipt(0x4057, checker.fnv(vdf_state[8:48]))
+        startup_raw = bytearray(startup_raw)
+        struct.pack_into('<4Q', startup_raw, 8, 99, startup_cfg, startup_frame, startup_lease)
+        struct.pack_into('<2Q', startup_raw, 48, vdf_proof['source_fnv1a64'], vdf_proof['source_fnv1a64'])
+        startup_raw[128:144] = vdf_raw[128:144]
+        struct.pack_into('<2Q', startup_raw, 144, vdf_frame, vdf_cfg)
+        startup_raw = bytes(startup_raw)
+        p = copy.deepcopy(vdf_proof)
+        p.update(serial=vdf_proof['serial'] + 1, opcode=14, config_generation=startup_cfg,
+                 frame_generation=startup_frame, lease_generation=startup_lease, result_bytes=192,
+                 result_fnv1a64=checker.fnv(startup_raw), result_token=0)
+        p['before'] = dict(vdf_proof['after'])
+        p['after'] = dict(p['before'])
+        for key in ('rendered', 'consumed', 'retired'):
+            p['after'][key] += 1
+        self.prior = bytearray(vdf_state)
+        for offset in (56, 64, 72, 112):
+            struct.pack_into('<Q', self.prior, offset, struct.unpack_from('<Q', self.prior, offset)[0] + 1)
+        self.prior = bytes(self.prior)
+        self.packet = CPOuCrankControlEvidenceTests.request()
+        self.raw = CPOuCrankControlEvidenceTests.receipt(self.packet, self.prior, bank=1, crank=1, movie=1)
+        self.origin = dict(startup_origin, producer_tid=98, command=0x4072, fnv1a64=checker.fnv(self.packet))
+        operations = [dict(op=t['opcode'], data=checker.payload_read(base.run, t['request_payload']),
+            output=checker.transfer_output(base.run, t), origin=t['origin'],
+            **({'proof': t['frame']['proof']} if t.get('frame') else {})) for t in base.transport['transfers']]
+        operations += [dict(op=5, data=vdf_canonical, output=vdf_raw, origin=source_vdf['origin'], proof=vdf_proof),
+            dict(op=14, data=canonical, output=startup_raw, origin=startup_origin, proof=p),
+            dict(op=2, data=b'', output=self.prior, origin=self.origin),
+            dict(op=23, data=self.packet, output=self.raw, origin=self.origin),
+            dict(op=2, data=b'', output=self.raw[80:208], origin=self.origin)]
+        rows = copy.deepcopy(base.rows)
+        # Preserve the already-used cold4072 as its own two original one-way events.
+        strict = CPCrankNativeJoinEvidenceTests('runTest').strict_history()[:2]
+        wire = bytes.fromhex('050072402600008000000000')
+        digest = 2166136261
+        for byte in wire:
+            digest = ((digest ^ byte) * 16777619) & 0xffffffff
+        for ordinal, r in enumerate(strict):
+            r['fields'].update(opcode='0x4072', waiter_tid='0', destination='0', request=wire.hex(), cookie='0x80000026',
+                wire_fnv1a32=hex(digest), reply='none', freed_reply='none', queued='0', oneway='1', oneway_consumed='1',
+                virtual_field_mask='0x3', virtual_fields_consumed='0x3', live_reply='(nil)', clean_completion=str(ordinal))
+        at = next(i for i, r in enumerate(rows) if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT')
+        rows[at:at] = strict
+        # A complete4057 sender lifecycle is kept as native input, not a ready boolean.
+        rows.append(self.row('FUNCTIONAL_CAMERA_TRANSFER', {'HOST_TEST_marker': len(base.transport['transfers'])}))
+        rows.append(self.row('FUNCTIONAL_CAMERA_TRANSFER', {'HOST_TEST_marker': len(base.transport['transfers']) + 1}))
+        for r in source_args[2]:
+            if r['tag'] == 'FUNCTIONAL_STARTUP_CONTROL' and r['fields'].get('cycle') == '2':
+                r = copy.deepcopy(r)
+                r['fields'].update(before_cfg=str(vdf_cfg), cfg=str(startup_cfg), before_frame=str(vdf_frame),
+                    frame=str(startup_frame), lease=str(startup_lease),
+                    origin_fnv=f'{checker.fnv(self.startup_wire):016x}', config40_fnv=f'{checker.fnv(self.prior[8:48]):016x}',
+                    result_fnv=f'{checker.fnv(startup_raw):016x}')
+                rows.append(r)
+                if r['fields']['event'] == 'REQUEST_FREE':
+                    ticket = copy.deepcopy(next(t for t in source_args[2] if t['tag'] == 'FUNCTIONAL_STARTUP_CONTROL_TICKET_BOUND' and
+                                                t['fields']['cycle'] == '2'))
+                    ticket['fields'].update(cookie='0x80000061', reply=(b'\x01\0\x57\x40' + self.startup_wire[4:8] + struct.pack('<I', 0xf000)).hex())
+                    rows.append(ticket)
+        self.startup = dict(cycle=2, first=len(base.transport['transfers']) + 2, cookie=0x80000061, original_wire=self.startup_wire.hex(),
+            original_fnv1a64=f'{checker.fnv(self.startup_wire):016x}', result_fnv1a64=f'{checker.fnv(startup_raw):016x}',
+            model_instance=99, config_generation=startup_cfg, frame_generation=startup_frame, lease_generation=startup_lease, sender_tid=90,
+            receiver_tid=355, AP_consumed=True, command=0x4057, config40_fnv1a64=f'{checker.fnv(self.prior[8:48]):016x}')
+        resources = checker.parse_console(JFZ_VDF_RESOURCE_OBS.replace('FUNCTIONAL_VDF_PATH_',
+            'FUNCTIONAL_CP_OU_CRANK_CONTROL_').replace('pid=258', 'pid=77').replace('tid=381', 'tid=98').encode())
+        rows.extend([self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT', dict(pid=77, tid=98, sequence=140, entry='async',
+            pointer='0x900000', destination='0x90030001', bytes=12, source='0x80020002', size_known=1, source_known=1,
+            bytes_complete=1, complete=1, producer_return='0x7f29174a68', consumed=0, state_verified=0, capture_verified=0)),
+            self.row('NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES', dict(pid=77, tid=98, sequence=140, offset=0, bytes=12, raw=self.packet.hex()))])
+        fields = {}
+        for part in checker.CP_OU_CRANK_EVENT_SCHEMA.split():
+            key, grammar = part.split(':', 1)
+            fields[key] = '(nil)' if grammar == 'pointer' else '0000000000000000' if grammar == 'digest' else (
+                '0' if grammar in ('ou_event', 'pid', 'tid', 'u64', 'u32', 'hex32', 'i32', 'bit') else grammar)
+        fields.update(pid='77', tid='98', sender_tid='98', transaction='1', requests='1', busy='1', source='0x80020002',
+            destination='0x90030001', command='0x4072', bytes='12', native_fnv1a=f'{checker.fnv(self.packet):016x}',
+            cookie='0x80000061', request_pointer='0x900000', model_instance='99', bank_generation='1', crank_generation='1',
+            movie_generation='1', bank_transaction='2', bank_commits='1', bank_released='1', crank_transaction='1',
+            crank_completions='1', movie_transaction='1', movie_completions='1', startup_cycle='2', startup_completed_cycles='2',
+            startup_config_generation=str(startup_cfg), startup_frame_generation=str(startup_frame), startup_lease_generation=str(startup_lease),
+            startup_result_fnv1a=f'{checker.fnv(startup_raw):016x}', startup_config40_fnv1a=f'{checker.fnv(self.prior[8:48]):016x}')
+        for prefix, origin in [('bank', base.transport['transfers'][2]['origin']), ('crank', base.transport['transfers'][5]['origin']),
+                               ('movie', base.transport['transfers'][8]['origin']), ('startup', startup_origin)]:
+            for key in ('source', 'destination', 'command'):
+                fields[prefix + '_' + key] = hex(origin[key])
+            fields[prefix + '_bytes'], fields[prefix + '_native_fnv1a'] = str(origin['bytes']), f'{origin["fnv1a64"]:016x}'
+        for key in ('before_rc', 'model_rc', 'after_rc', 'validation_rc', 'free_rc'):
+            fields[key] = '-61'
+        streams = dict(BEGIN=('request', self.packet), BEFORE=('before_state', self.prior), MODEL=('receipt', self.raw),
+                       AFTER=('after_state', self.raw[80:208]))
+        for name in ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REQUEST_FREE', 'COMMIT'):
+            fields['event'] = name
+            if name in ('BEFORE', 'MODEL', 'AFTER'):
+                rows.append(self.row('FUNCTIONAL_CAMERA_TRANSFER', {'HOST_TEST_marker': len(base.transport['transfers']) + {'BEFORE': 2, 'MODEL': 3, 'AFTER': 4}[name]}))
+            if name == 'BEFORE':
+                fields.update(guard='1', before_rc='0', before_config_generation=str(startup_cfg), frame_generation=str(startup_frame), fps='30',
+                              before_used='128', before_required='128', before_instance='99')
+            elif name == 'MODEL':
+                fields.update(model_called='1', model_committed='1', model_rc='0', validation_rc='0', commits='1', ou_generation='1',
+                    config_generation=str(startup_cfg + 1), receipt_fnv1a=f'{checker.fnv(self.raw):016x}', ou_used='224', ou_required='224', ou_instance='99')
+            elif name == 'AFTER':
+                fields.update(after_rc='0', after_used='128', after_required='128', after_instance='99')
+            elif name == 'VERIFIED':
+                fields.update(verified='1', owned='1', verified_commits='1', retained_request='0x900000',
+                    last_bank_generation='1', last_crank_generation='1', last_movie_generation='1', last_ou_generation='1')
+            elif name == 'REQUEST_FREE':
+                fields.update(request_freed='1', free_rc='0', free_tid='98', released='1', retained_request='(nil)')
+            elif name == 'COMMIT':
+                fields.update(busy='0', guard='0', complete='1', completions='1')
+            rows.append(self.row('FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT', fields))
+            if name in streams:
+                kind, raw = streams[name]
+                for offset in range(0, len(raw), 128):
+                    block = raw[offset:offset + 128]
+                    rows.append(self.row('FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES', dict(event=name, pid=77, tid=98, transaction=1,
+                        kind=kind, total=len(raw), offset=offset, bytes=len(block), raw=block.hex(), native_fnv1a=fields['native_fnv1a'],
+                        content_fnv1a=f'{checker.fnv(raw):016x}', model_instance=99, bank_generation=1, crank_generation=1,
+                        movie_generation=1, ou_generation=fields['ou_generation'], functional_model=1, original_CP=0,
+                        physical_ASIC_verified=0, capture_verified=0)))
+            if name == 'BEGIN':
+                rows += resources
+                rows.append(self.row('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', dict(pid=77, tid=98, accepted=1,
+                    video_AP_consumed=1, OSD_AP_consumed=1, audio_AP_consumed=1, OSD_live=16, OSD_owners_each=2,
+                    OSD_opens_each=2, global_DMM_idle_claimed=0, capture_verified=0)))
+        lines = []
+        for r in rows:
+            if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER':
+                index = r['fields'].get('HOST_TEST_marker')
+                if index is None:
+                    index = int(r['fields']['seq'].split('..')[0]) - 1
+                lines.append('HOST_TEST_TRANSFER_' + str(index))
+            else:
+                lines.append('OBS ' + self.record(r['tag'], r['fields']))
+        temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
+        self.args = host_test_transport(Path(temporary.name), operations, '\n'.join(lines) + '\n')
+        self.run, self.manifest, self.rows, events, _ = self.args
+        self.transport = copy.deepcopy(base.transport)
+        self.transport['transfers'] = []
+        for index, op in enumerate(operations, 1):
+            event = next(e for e in events if e['kind'] == 'core_result' and e['sequence'] == index)
+            tx = copy.deepcopy(base.transport['transfers'][index - 1]) if index <= 10 else dict(
+                first=index, last=index, opcode=op['op'], origin=op['origin'], bytes=len(op['output']),
+                token=0, provider_kind='core', frame=None, capacity=checker.DATA_BYTES)
+            tx.update(request_payload=event['request_payload'], output_payloads=[event['output_payload']],
+                sha256=event['output_payload']['sha256'], fnv1a64=f'{event["output_payload"]["fnv1a64"]:016x}',
+                line=next(r['line'] for r in self.rows if r['tag'] == 'FUNCTIONAL_CAMERA_TRANSFER' and r['fields']['seq'] == f'{index}..{index}'))
+            if op.get('proof'):
+                tx['frame'] = dict(proof=op['proof'])
+            self.transport['transfers'].append(tx)
+        self.tx = self.transport['transfers'][-2]
+        self.before, self.after, self.startup_tx = self.transport['transfers'][-3], self.transport['transfers'][-1], self.transport['transfers'][-4]
+        self.bank = checker.check_cp_parameter_bank(self.run, base.manifest, self.rows, self.transport)['transactions'][0]
+        current = dict(self.transport, parameter_bank=dict(verified=True, transactions=[self.bank]))
+        self.crank = checker.check_cp_crank_control_content(self.run, base.manifest, self.rows, current)['transactions'][0]
+        current['crank_control_content'] = dict(verified=True, content_join_verified=True, transactions=[self.crank])
+        self.movie = checker.check_cp_movie_format_content(self.run, base.manifest, self.rows, current)['transactions'][0]
+        group = [r for r in self.rows if r['tag'] == 'FUNCTIONAL_STARTUP_CONTROL']
+        self.startup.update(ticket_line=next(r['line'] for r in self.rows if r['tag'] == 'FUNCTIONAL_STARTUP_CONTROL_TICKET_BOUND'),
+            receive_line=next(r['line'] for r in group if r['fields']['event'] == 'RECEIVE'),
+            free_line=next(r['line'] for r in group if r['fields']['event'] == 'SENDER_FREE'))
+        self.value = checker.cp_ou_crank_control_result(self.raw, self.packet, 99, self.prior, 1, 1, 1)
+
+    def native(self, rows=None):
+        return checker.check_cp_ou_crank_native(self.run, self.rows if rows is None else rows, self.transport,
+            self.tx, self.before, self.after, self.bank, self.transport['transfers'][2], self.crank,
+            self.transport['transfers'][5], self.movie, self.transport['transfers'][8], self.startup, self.startup_tx, self.value, 1, 0)
+
+    def test_direct_native_content_requires_seven_stages_five_chunks_and_no_reply(self):
+        result = self.native()
+        self.assertTrue(result['native_control_transaction_verified'])
+        self.assertTrue(result['oneway'])
+        self.assertTrue(all(result[key] is False for key in ('ACK_sent', 'reply_allocated', 'reply_sent', 'reply_received')))
+        self.assertLess(result['original_free_line'], result['complete_line'])
+        for sample in [r for r in self.rows if r['tag'] == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT']:
+            rows = copy.deepcopy(self.rows); rows.remove(next(r for r in rows if r['line'] == sample['line']))
+            with self.subTest(missing=sample['fields']['event']), self.assertRaisesRegex(ValueError, 'one-way original lifecycle'):
+                self.native(rows)
+        rows = copy.deepcopy(self.rows)
+        next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT' and r['fields']['event'] == 'REQUEST_FREE')['fields']['free_rc'] = '-5'
+        with self.assertRaisesRegex(ValueError, 'actual C/validation/free result'):
+            self.native(rows)
+
+    def test_current_tuple_replay_rejects_after_a_new_consistent4057_checkpoint(self):
+        history = checker.vdf_history(self.run, self.transport)
+        self.assertEqual(history[self.tx['first']], self.value)
+        transport = copy.deepcopy(self.transport)
+        prior = self.raw[80:208]
+        canonical = bytearray(checker.payload_read(self.run, self.startup_tx['request_payload']))
+        struct.pack_into('<Q', canonical, 24, checker.fnv(prior[8:48])); canonical = bytes(canonical)
+        settings = bytearray(checker.transfer_output(self.run, self.startup_tx))
+        current_cfg, current_frame = self.value['config_generation'], self.value['frame_generation']
+        struct.pack_into('<3Q', settings, 16, current_cfg + 1, current_frame + 1, self.startup['lease_generation'] + 1)
+        struct.pack_into('<Q', settings, 40, checker.fnv(canonical))
+        struct.pack_into('<2Q', settings, 144, current_frame, current_cfg); settings[160:] = canonical
+        checkpoint = bytearray(prior)
+        for offset in (56, 64, 72, 112):
+            struct.pack_into('<Q', checkpoint, offset, struct.unpack_from('<Q', checkpoint, offset)[0] + 1)
+        checkpoint = bytes(checkpoint)
+        raw = CPOuCrankControlEvidenceTests.receipt(self.packet, checkpoint, ou=2, bank=1, crank=1, movie=1)
+        seq_start = transport['transfers'][-1]['last'] + 1
+        outputs = {seq_start: bytes(settings), seq_start + 1: checkpoint, seq_start + 2: raw, seq_start + 3: raw[80:208]}
+        inputs = {seq_start: canonical, seq_start + 2: self.packet}
+        for seq, op in enumerate((14, 2, 23, 2), seq_start):
+            transport['transfers'].append(dict(first=seq, last=seq, opcode=op, token=0, frame=None,
+                                               request_payload={'HOST_TEST_sequence': seq}))
+        original_output, original_payload = checker.transfer_output, checker.payload_read
+        with mock.patch.object(checker, 'transfer_output', side_effect=lambda run, tx:
+                outputs[tx['first']] if tx['first'] in outputs else original_output(run, tx)), \
+             mock.patch.object(checker, 'payload_read', side_effect=lambda run, ref:
+                inputs[ref['HOST_TEST_sequence']] if 'HOST_TEST_sequence' in ref else original_payload(run, ref)):
+            with self.assertRaisesRegex(ValueError, 'OU crank current tuple/FPS/once-only history'):
+                checker.vdf_history(self.run, transport)
+        rows = copy.deepcopy(self.rows)
+        chunk = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES' and r['fields']['kind'] == 'receipt')
+        raw = bytearray.fromhex(chunk['fields']['raw']); raw[8] ^= 1; chunk['fields']['raw'] = raw.hex()
+        with self.assertRaisesRegex(ValueError, 'complete request12/STATE128/receipt224'):
+            self.native(rows)
+
+    def test_exact_five_tag_schema_matches_actual_formatter_and_both_existing_trailers(self):
+        source = (checker.RUNTIME / 'device-models/functional-camera-control.c').read_text()
+        block = source[source.index('static void ou_crank_record('):source.index('static int ou_crank_movie_ready(')]
+        formats = re.findall(r'snprintf\(text, sizeof text,\s*((?:"[^"\n]*"\s*)+)', block)
+        self.assertEqual(len(formats), 2)
+        for schema, fmt in zip((checker.CP_OU_CRANK_EVENT_SCHEMA, checker.CP_OU_CRANK_BYTES_SCHEMA), formats):
+            actual = re.findall(r'([A-Za-z_][A-Za-z_0-9]*)=', ''.join(re.findall(r'"([^"\n]*)"', fmt)))
+            self.assertEqual(actual, [part.split(':', 1)[0] for part in schema.split()])
+        trailers = (b'[ 5638.875229] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022',
+                    b'[ 5541.864466] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1')
+        for r in [r for r in self.rows if r['tag'].startswith('FUNCTIONAL_CP_OU_CRANK_CONTROL_')]:
+            payload = self.record(r['tag'], r['fields']).encode()
+            self.assertEqual(checker.console_producer_fields(payload), r['fields'])
+            for trailer in trailers:
+                row, = checker.parse_console(b'OBS ' + payload + trailer + b'\r\n')
+                self.assertEqual(row['fields'], r['fields']); self.assertIn('kernel_diagnostic', row)
+                for bad in (payload + b' unknown=0', payload.replace(r['tag'].encode(), b'FUNCTIONAL_CP_OU_CRANK_CONTROL_UNKNOWN', 1)):
+                    self.assertIsNone(checker.console_producer_fields(bad))
+                    row, = checker.parse_console(b'OBS ' + bad + trailer + b'\n')
+                    self.assertNotIn('kernel_diagnostic', row)
+
+    def test_resource36_TTS_dual_DMM_and_current_predecessors_reject_real_mutations(self):
+        self.assertTrue(self.native()['native_control_transaction_verified'])
+        for suffix, key, wrong in (('RESOURCE_DEPENDENCIES', 'accepted', '0'), ('RESOURCES_RESERVED', 'vef_live', '1'),
+                ('RESOURCES_RESERVED', 'dmm_slots', '1/0'), ('RESOURCES_RESERVED', 'pinmem_faults', '1'),
+                ('RESOURCES_TTS_TABLE', 'raw_after', bytes(144).hex())):
+            rows = copy.deepcopy(self.rows)
+            r = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_' + suffix); r['fields'][key] = wrong
+            # Grammar validation is part of the public entry point and is tested explicitly here.
+            payload = self.record(r['tag'], r['fields']).encode()
+            if key == 'dmm_slots':
+                self.assertEqual(checker.console_producer_fields(payload), r['fields'])
+            else:
+                self.assertIsNone(checker.console_producer_fields(payload))
+            with self.subTest(resource=key), self.assertRaisesRegex(ValueError, 'resource36'):
+                self.native(rows)
+        for tag, key, wrong in (('NATIVE_CP302C_NOCONVERT_ALL13_READBACK', 'accepted', '0'),
+                ('FUNCTIONAL_STARTUP_CONTROL', 'AP_consumed', '0'), ('NATIVE_CP_EE_DIAGNOSTIC_COMPLETE', 'attempts', '2')):
+            rows = copy.deepcopy(self.rows)
+            found = [r for r in rows if r['tag'] == tag and (tag != 'NATIVE_CP_EE_DIAGNOSTIC_COMPLETE' or r['fields']['opcode'] == '0x4072')]
+            found[-1]['fields'][key] = wrong
+            with self.subTest(predecessor=tag), self.assertRaises(ValueError):
+                self.native(rows)
+        rows = copy.deepcopy(self.rows)
+        event = next(r for r in rows if r['tag'] == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT' and r['fields']['event'] == 'COMMIT')
+        event['fields']['movie_native_fnv1a'] = '0000000000000000'
+        with self.assertRaisesRegex(ValueError, 'predecessor original source/command/full input seal'):
+            self.native(rows)
 
 
 if __name__ == '__main__':

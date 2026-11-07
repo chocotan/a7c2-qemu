@@ -18,6 +18,9 @@ static struct lease {
     long sender;
 } replies[8];
 static unsigned int u16(const unsigned char *p) { return p[0]|(unsigned int)p[1]<<8; }
+static unsigned int u32(const unsigned char *p) {
+    return (unsigned int)p[0]|(unsigned int)p[1]<<8|(unsigned int)p[2]<<16|(unsigned int)p[3]<<24;
+}
 static void put16(unsigned char *p,unsigned int n) { p[0]=(unsigned char)n;p[1]=(unsigned char)(n>>8); }
 static void put32(unsigned char *p,unsigned int n) {
     for (unsigned int i=0;i<4;i++) p[i]=(unsigned char)(n>>(i*8));
@@ -43,27 +46,38 @@ static int cleanup(const struct full_imaging_io *io,unsigned int dst,void *p) {
 
 int full_hdmi_dispatch(unsigned int destination,void *request,const struct full_imaging_io *io,
                        int enabled,int *result) {
-    if (destination!=FULL_HDMI_CP || (enabled!=FULL_HDMI_DEFINITION && enabled!=FULL_HDMI_BOOT) ||
+    if (destination!=FULL_HDMI_CP || (enabled!=FULL_HDMI_DEFINITION && enabled!=FULL_HDMI_BOOT &&
+        enabled!=FULL_HDMI_SIGNAL_MODE_FUNCTIONAL) ||
         !request || !io || !io->size || !result) return 0;
     const unsigned char *in=request;unsigned int bytes=io->size(request);
     if (bytes<4 || u16(in)!=0x2500) return 0;
     unsigned int command=u16(in+2);
+    int signal=command==0x0102 && enabled==FULL_HDMI_SIGNAL_MODE_FUNCTIONAL;
+    if (enabled==FULL_HDMI_SIGNAL_MODE_FUNCTIONAL && !signal) return 0;
     int resolution=command==0x0101 || command==0x0201;
     int rate=command==0x0117;
-    if (command!=0x010a && command!=0x020a && !(enabled==FULL_HDMI_BOOT && (resolution || rate))) return 0;
-    unsigned int required=(command==0x010a || rate)?12:command==0x0101?16:8;
+    if (command!=0x010a && command!=0x020a && !signal && !(enabled==FULL_HDMI_BOOT && (resolution || rate))) return 0;
+    unsigned int required=(command==0x010a || rate || signal)?12:command==0x0101?16:8;
     if (!io->allocate || !io->release || !io->source || !io->set_source || !io->send)
         return reject(io,result,"missing-transport");
     if (bytes!=required || u16(in+4)!=required || u16(in+6)!=1)
         return reject(io,result,"definition-envelope");
     unsigned int dst=io->source(request),reply_bytes=command==0x020a?16:command==0x0201?20:12;
     if ((dst>>28)!=8 || !(dst&0x0fffffff)) return reject(io,result,"nonlocal-caller");
+    unsigned int signal_value=signal?u32(in+8):0;
+    unsigned char saved_signal[12];
+    if (signal) {
+        if (signal_value>2) return reject(io,result,"functional-signal-selector");
+        memcpy(saved_signal,in,sizeof saved_signal);
+    }
     char raw[41],line[480];hex(raw,in,bytes);
     snprintf(line,sizeof line,"tid=%ld source=%#x destination=%#x command=%#x bytes=%u raw=%s",
-             syscall(SYS_gettid),dst,destination,command,bytes,raw);event(io,"FULL_HDMI_REQUEST ",line);
+             syscall(SYS_gettid),dst,destination,command,bytes,raw);
+    event(io,signal?"FULL_HDMI_SIGNAL_MODE_REQUEST ":"FULL_HDMI_REQUEST ",line);
     pthread_mutex_lock(&mutex);
     if (state.faults || state.pending || (command==0x020a && !state.known) ||
-        (command==0x0201 && !state.resolution_known)) {
+        (command==0x0201 && !state.resolution_known) ||
+        (signal && state.signal_mode_known && state.signal_mode_owner_pid!=(int)getpid())) {
         pthread_mutex_unlock(&mutex);return reject(io,result,"fault-concurrent-call-or-unknown-initial-definition");
     }
     state.pending=1;pthread_mutex_unlock(&mutex);
@@ -82,11 +96,18 @@ int full_hdmi_dispatch(unsigned int destination,void *request,const struct full_
         if (reply) cleanup(io,dst,reply);
         state.pending=0;pthread_mutex_unlock(&mutex);*result=rc?rc:-1021;return 1;
     }
+    if (signal && (io->size(request)!=bytes || io->source(request)!=dst || memcmp(in,saved_signal,bytes))) {
+        cleanup(io,dst,reply);state.pending=0;pthread_mutex_unlock(&mutex);
+        return reject(io,result,"functional-signal-request-changed");
+    }
     struct full_hdmi_snapshot before=state;
     unsigned int requested=command==0x010a?in[8]:0;
     /* Original shared state624dc6 writes singleton+e4 and replies1. Active
      * output states and their deferred transitions are outside this profile. */
-    if (command==0x010a) { state.definition=requested<6?requested:0;state.known=1;state.applied++; }
+    if (signal) {
+        state.signal_mode=signal_value;state.signal_mode_known=1;
+        state.signal_mode_owner_pid=(int)getpid();state.signal_mode_applied++;
+    } else if (command==0x010a) { state.definition=requested<6?requested:0;state.known=1;state.applied++; }
     else if (command==0x020a) state.queries++;
     else if (command==0x0101) {
         /* Original624926 shared state: preserve all six bytes, then reply0.
@@ -120,11 +141,15 @@ int full_hdmi_dispatch(unsigned int destination,void *request,const struct full_
     state.queued++;hex(raw,out,reply_bytes);
     snprintf(line,sizeof line,"tid=%ld source=%#x destination=%#x command=%#x reply=%p lease=%llu bytes=%u status=%u raw=%s",
              syscall(SYS_gettid),FULL_HDMI_CP,dst,command,reply,serial,reply_bytes,status,raw);
-    event(io,"FULL_HDMI_REPLY_QUEUED ",line);
+    event(io,signal?"FULL_HDMI_SIGNAL_MODE_REPLY_QUEUED ":"FULL_HDMI_REPLY_QUEUED ",line);
     int freed=io->release(FULL_HDMI_CP,request);
     if (freed) { state.faults++;state.retained_request=request; }else state.request_freed++;
     state.pending=0;
-    if (resolution) {
+    if (signal) {
+        snprintf(line,sizeof line,"tid=%ld command=0x102 requested=%u readback=%u known=%u applied=%llu owner_pid=%d status=0 reply=%p lease=%llu request_free_rc=%d policy=opaque-selector0-2-readback-v1 hdmi_output_verified=0 capture_verified=0",
+                 syscall(SYS_gettid),signal_value,state.signal_mode,state.signal_mode_known,state.signal_mode_applied,
+                 state.signal_mode_owner_pid,reply,serial,freed);
+    } else if (resolution) {
         char saved[13];hex(saved,state.resolution,6);
         snprintf(line,sizeof line,"tid=%ld command=%#x resolution=%s resolution_known=%u status=%u applied=%llu queries=%llu reply=%p lease=%llu request_free_rc=%d hdmi_output_verified=0 camera_startup_verified=0",
                  syscall(SYS_gettid),command,saved,state.resolution_known,status,state.resolution_applied,
@@ -141,7 +166,7 @@ int full_hdmi_dispatch(unsigned int destination,void *request,const struct full_
                  syscall(SYS_gettid),command,requested,before.known,before.definition,state.known,readback,status,
                  state.applied,state.queries,reply,serial,freed);
     }
-    event(io,freed?"FULL_HDMI_FAULT ":"FULL_HDMI_COMMIT ",line);
+    event(io,freed?"FULL_HDMI_FAULT ":signal?"FULL_HDMI_SIGNAL_MODE_COMMIT ":"FULL_HDMI_COMMIT ",line);
     pthread_mutex_unlock(&mutex);*result=0;return 1;
 }
 
@@ -163,7 +188,7 @@ int full_hdmi_release_reply(unsigned int destination,void *reply,int (*release)(
         snprintf(line,sizeof line,"tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p lease=%llu command=%#x bytes=%u status=%u rc=%d",
                  tid,found.sender,tid==found.sender,destination,found.destination,reply,found.serial,
                  found.command,found.bytes,found.status,*result);
-        record(*result?"FULL_HDMI_FAULT ":"FULL_HDMI_NATIVE_REPLY_FREE ",line);
+        record(*result?"FULL_HDMI_FAULT ":found.command==0x0102?"FULL_HDMI_SIGNAL_MODE_REPLY_FREE ":"FULL_HDMI_NATIVE_REPLY_FREE ",line);
     }
     pthread_mutex_unlock(&mutex);return found.pointer!=0;
 }

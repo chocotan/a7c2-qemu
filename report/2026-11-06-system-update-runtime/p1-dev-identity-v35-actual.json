@@ -1,0 +1,102 @@
+{
+  "actual": {
+    "bodywriter_executed_verified": false,
+    "bypass_execution_verified": false,
+    "complete_bodydata_read_verified": false,
+    "dev_profile_failure_seen": false,
+    "first_sio_error_is_not_a_proven_receiver_failure_cause": true,
+    "installation_verified": false,
+    "next_receiver_failure_subbranch": "original DecryptorModule::verifySum checksum rejection",
+    "checksum_rejection": {
+      "actual_sum511": 39447,
+      "expected_header_sum": 60944,
+      "source_file": "DecryptorModule.cpp",
+      "source_line": 110,
+      "exception_code": "0x30002",
+      "throw_lr_elf_va": "0xb64c",
+      "same_receiver_pid_verified": true,
+      "sufficient_rejecting_condition_proven": true,
+      "upstream_producer_defect_unique": false,
+      "original_key_comparison_returncode": 0,
+      "key_comparison_lr_elf_va": "0xac94",
+      "original_return_field_is_instrumentation_flag": true,
+      "raw_event_rows_main_reverified": 93,
+      "elf_code_windows_main_reverified": 8,
+      "original_code_bytes_main_reverified": 3260
+    },
+    "original_fsys_mount_bodydata_open_and_seek_observed": true,
+    "original_kernel_release_verified": true,
+    "original_manager_initialize_returncode": 0,
+    "original_manager_initialize_va": "0x7df0",
+    "original_sdfile_initialize_returncode": 0,
+    "original_sdfile_initialize_va": "0xa758",
+    "previous_body_identity_failure_seen": false,
+    "receiver_exitcode": 1,
+    "receiver_lifecycle_count": 1,
+    "receiver_pid": 1111,
+    "resource_chain_loaded": true,
+    "root_credentials_verified": true,
+    "six_original_passive_taps_identity": true,
+    "storage_profile_verified": true,
+    "virtual_trust_anchor_reply_copy_free_and_comparison_observed": true,
+    "writable_targets_verified": true
+  },
+  "capture_verified": false,
+  "disk": {
+    "before_sha256": "6917702ac1920fd8147dde4b7bb737fcec0e47e2b6cc780c31ec436f061f4b1f",
+    "bytes": 1962934272,
+    "changed_ranges": [
+      "nflasha2",
+      "nflasha13"
+    ],
+    "failed_after_sha256": "a2b5461d603f7b76c225693831a7b630977e48f9664a29cc6b34c14d67c3700b",
+    "failed_target_unchanged_after_exit_and_restore": true,
+    "other_19_ranges_unchanged": true
+  },
+  "evidence": {
+    "actual_result_sha256": "cd4e9eb19ab1d7c17442e3e714469d79650db57866b848433c01cc9d25a07d73",
+    "first_main_audit_type_error_preserved": true,
+    "main_postexit_sha256": "f9192208c5ca6f455be8dcf602d1c50195a149ee54cfd1b9e757502d9ec2fd95",
+    "main_restore_sha256": "628d597ec44b185516ea03bbf43924f03ee26d4ef0b8b3cd687e1d0d8bb473d2",
+    "private_evidence": "analysis/scratch/a7c2-combined-completion-20261107/p1-devfile-actual-v35-review/",
+    "restore_receipt_sha256": "b2b9fb6cfb7f6a8cd8a52513f80c23e4f90b2350dfc70aeaf55ddccbc65e2a8a",
+    "serial_sha256": "bf0194e6629f7a1538f390f31398ec0ea198b3b96f01cccd85ef6c9f855ca53a"
+  },
+  "exit": {
+    "all_recorded_host_pids_absent": true,
+    "normal_qmp_quit_verified": true,
+    "owner_returncode": 0,
+    "target_lease_reacquired": true,
+    "vm_signals": []
+  },
+  "full_boot_verified": false,
+  "full_runtime_code_closed": false,
+  "host_receipt": "p1-dev-identity-v35-host-validation.json",
+  "overall_complete": false,
+  "physical_device_used": false,
+  "restore": {
+    "all_21_ranges_identical": true,
+    "bytes": 1962934272,
+    "executed": true,
+    "factory_reseeded": false,
+    "guest_started": false,
+    "independent_instance": true,
+    "main_independent_readback_verified": true,
+    "pre_dat4_baseline_unchanged": true,
+    "prior_modifications_preserved": true,
+    "sha256": "c5603b236a9b5639c9cf3d1af4231e00abac2684a42702d1b82eb281da497c2c",
+    "status": "restored-pre-dat4"
+  },
+  "schema": "a7c2-p1-dev-identity-v35-actual-v1",
+  "source": {
+    "count": 1016,
+    "generation": "v35",
+    "input_drift": [],
+    "sha256": "a7b2c90b5434c298085d8d3a84a3500c0200ce9a1821258b3d3841379f9e4b0f"
+  },
+  "source_coverage_complete": false,
+  "status": "failed",
+  "usb_40a5_runtime_enabled": false,
+  "usb_actual_reexecuted": false,
+  "usb_authentication_verified": false
+}

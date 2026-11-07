@@ -80,10 +80,19 @@
 #define FCAM_OP_VDF_BIT_WIDTH 12u
 #define FCAM_OP_STILL_FORMAT 13u
 #define FCAM_OP_STARTUP_CONTROL 14u
+#define FCAM_OP_CP_PARAMETER_BANK 20u
+#define FCAM_OP_CP_CRANK_CONTROL 21u
+#define FCAM_OP_CP_MOVIE_FORMAT 22u
+#define FCAM_OP_CP_OU_CRANK_CONTROL 23u
 #define FCAM_OP_STILL 16u
+#define FCAM_OP_FRAME_CAPTURE 17u
+#define FCAM_OP_FRAME_STILL 18u
+#define FCAM_OP_FRAME_RELEASE 19u
+#define FCAM_FRAME_HEADER_BYTES 96u
 #define FCAM_OP_VIDEO_BEGIN 32u
 #define FCAM_OP_VIDEO_FRAME 33u
 #define FCAM_OP_VIDEO_END 34u
+#define FCAM_VIDEO_FRAME_FORCE_IDR 1u
 #define FCAM_OP_READ_RESULT 64u
 #define FCAM_OP_RELEASE_RESULT 65u
 #define FCAM_OP_CANCEL 66u
@@ -95,9 +104,31 @@
  * focus_um (UINT64_MAX=infinity); u32 flags,reserved0. AF32: u32 x,y,w,h,
  * u64 near_um,far_um. Still16: u32 flags,width,height,quality, optionally
  * followed by two source DQT zigzag arrays (128 bytes). VideoBegin=Config48.
- * VideoFrame=empty. READ_RESULT24: u64 token,offset; u32 capacity,reserved0.
+ * VideoFrame=empty for normal feed, or u32 flags=FCAM_VIDEO_FRAME_FORCE_IDR
+ * to encode this actual frame as IDR. READ_RESULT24: u64 token,offset;
+ * u32 capacity,reserved0.
  * RELEASE_RESULT16: u64 token,whole-result FNV1a64 after real guest readback.
  * No model operation writes a host JPEG/MP4 file or substitutes for MPR/Fsys. */
+
+/* Retained software RGB bus; no Sony pixel layout or native allocation claim.
+ * FRAME_CAPTURE16: original type5/4038 body, with actual origin checked by bridge.
+ * Result Frame96 then immutable packed RGB: u32 version=1,header_bytes=96;
+ * u64 frame_token,instance,lifetime,config_generation,frame_generation;
+ * u32 width,height,stride,RGB888=1; u64 rgb_bytes,rgb_fnv; u32 cookie;
+ * u8 trigger,reserved0[3]; u64 whole-original-request FNV at byte88.
+ * FRAME_STILL32/160: u64 frame_token; u32 selector(0 Main,1 Thm,2 Scn),reserved0;
+ * Still16/144. All selectors read this same slot; software nearest-neighbor scale.
+ * FRAME_RELEASE16: u64 frame_token; u32 encoded_selector_mask,disposition(0/1).
+ * Normal release requires Main encoded; disposition1 explicitly abandons the job.
+ * The mask is checked against actual successful encodes, never a native DONE ACK.
+ * Transfer-result release does not retire the optical frame. CANCEL abandons both.
+ */
+static inline int fcam_capture_input_valid(const uint8_t *p, size_t size)
+{
+    if (!p || size != 16 || p[0] != 5 || p[1] || p[2] != 0x38 || p[3] != 0x40 ||
+        p[9] || p[10] || p[11]) return 0;
+    return p[8] == 2 || p[8] == 10 || p[8] == 12 || p[8] == 8 || p[8] == 9 || p[8] == 3;
+}
 
 /* State128: u32 ABI,caps,width,height,fps,quality,fnumber_x100,ISO;
  * u64 shutter_us,focus_um,instance,config_generation,rendered,consumed,
@@ -133,6 +164,119 @@
  * The original-MPR adapter owns any required AVCC conversion/native timebase. */
 #define FCAM_CODEC_AVC1 UINT32_C(0x61766331)
 #define FCAM_PACKET_EOS 1u
+
+/* Complete original type5/4063 is an opaque software parameter bank. All 190
+ * fixed slots are validated with the existing strict batch validator. Only
+ * slot4151's first u32 at absolute0x86c projects to Config48 fps (1..120);
+ * all other Config48 fields and all original/opaque bytes, including cookies,
+ * survive unchanged. This defines no unknown Sony slot/counter semantics.
+ * A successful repeat still advances config_generation, never frame_generation.
+ * ParameterBank2756: version/size, instance, bank_generation, before/new config
+ * generations, full-input FNV; fps/slot_count/raw_bytes/reserved0; committed
+ * State128 followed by an independent complete2564-byte bank readback.
+ * No RGB, encoder result, native ACK, ready publication or media is produced. */
+#define FCAM_CP_PARAMETER_VERSION 1u
+#define FCAM_CP_PARAMETER_BANK_BYTES 2564u
+#define FCAM_CP_PARAMETER_BANK_RESULT_BYTES 2756u
+#define FCAM_CP_PARAMETER_BANK_SLOTS 190u
+#define FCAM_CP_PARAMETER_FPS_AT 0x86cu
+#define FCAM_CP_PARAMETER_SOURCE UINT32_C(0x80020002)
+#define FCAM_CP_PARAMETER_TARGET UINT32_C(0x90030001)
+#define FCAM_CP_PARAMETER_COMMAND UINT32_C(0x4063)
+#define FCAM_CP_PARAMETER_R_VERSION 0u
+#define FCAM_CP_PARAMETER_R_BYTES 4u
+#define FCAM_CP_PARAMETER_R_INSTANCE 8u
+#define FCAM_CP_PARAMETER_R_BANK_GENERATION 16u
+#define FCAM_CP_PARAMETER_R_BEFORE_CONFIG_GENERATION 24u
+#define FCAM_CP_PARAMETER_R_CONFIG_GENERATION 32u
+#define FCAM_CP_PARAMETER_R_INPUT_FNV 40u
+#define FCAM_CP_PARAMETER_R_FPS 48u
+#define FCAM_CP_PARAMETER_R_SLOTS 52u
+#define FCAM_CP_PARAMETER_R_RAW_BYTES 56u
+#define FCAM_CP_PARAMETER_R_RESERVED 60u
+#define FCAM_CP_PARAMETER_BANK_STATE_OFFSET 64u
+#define FCAM_CP_PARAMETER_BANK_READBACK_OFFSET 192u
+
+/* Finite post-bank software crank mode0; no Sony physical register claim.
+ * Input is the exact original type5/409d12, with byte1/cookie opaque and
+ * bytes8..11 zero. Current Config48/FPS is consumed by configure unchanged;
+ * only config_generation advances. One commit per parameter-bank generation.
+ * Crank208: version/size, instance, crank/bank generations, before/after config
+ * generations, full-input FNV, mode0/FPS, committed State128, original12,
+ * reserved zero4. No frame, encoder, result token, media or native ACK. */
+#define FCAM_CP_CRANK_VERSION 1u
+#define FCAM_CP_CRANK_INPUT_BYTES 12u
+#define FCAM_CP_CRANK_RESULT_BYTES 208u
+#define FCAM_CP_CRANK_SOURCE UINT32_C(0x80020002)
+#define FCAM_CP_CRANK_TARGET UINT32_C(0x90030001)
+#define FCAM_CP_CRANK_COMMAND UINT32_C(0x409d)
+#define FCAM_CP_CRANK_R_VERSION 0u
+#define FCAM_CP_CRANK_R_BYTES 4u
+#define FCAM_CP_CRANK_R_INSTANCE 8u
+#define FCAM_CP_CRANK_R_CRANK_GENERATION 16u
+#define FCAM_CP_CRANK_R_BANK_GENERATION 24u
+#define FCAM_CP_CRANK_R_BEFORE_CONFIG_GENERATION 32u
+#define FCAM_CP_CRANK_R_CONFIG_GENERATION 40u
+#define FCAM_CP_CRANK_R_INPUT_FNV 48u
+#define FCAM_CP_CRANK_R_MODE 56u
+#define FCAM_CP_CRANK_R_FPS 60u
+#define FCAM_CP_CRANK_STATE_OFFSET 64u
+#define FCAM_CP_CRANK_READBACK_OFFSET 192u
+#define FCAM_CP_CRANK_R_RESERVED 204u
+
+/* Finite post-bank/crank software format5/raw-rate1,0 -> RGB888/H.264 at
+ * current bank FPS. Current Config48 is consumed unchanged through configure.
+ * MovieFormat240 has independent original20/state/seal readback, no frame lease.
+ * Once installed its seal/mapping is enforced by actual video consumers; legacy
+ * callers without this bank retain their previous behavior. Sony enums unknown. */
+#define FCAM_CP_MOVIE_FORMAT_INPUT_BYTES 20u
+#define FCAM_CP_MOVIE_FORMAT_RESULT_BYTES 240u
+#define FCAM_CP_MOVIE_FORMAT_VERSION 1u
+#define FCAM_CP_MOVIE_FORMAT_SOFTWARE_CODEC_H264 1u
+#define FCAM_CP_MOVIE_FORMAT_SOURCE UINT32_C(0x80020002)
+#define FCAM_CP_MOVIE_FORMAT_TARGET UINT32_C(0x90030001)
+#define FCAM_CP_MOVIE_FORMAT_COMMAND UINT32_C(0x4000)
+#define FCAM_CP_MOVIE_FORMAT_R_VERSION 0u
+#define FCAM_CP_MOVIE_FORMAT_R_BYTES 4u
+#define FCAM_CP_MOVIE_FORMAT_R_INSTANCE 8u
+#define FCAM_CP_MOVIE_FORMAT_R_MOVIE_GENERATION 16u
+#define FCAM_CP_MOVIE_FORMAT_R_BANK_GENERATION 24u
+#define FCAM_CP_MOVIE_FORMAT_R_CRANK_GENERATION 32u
+#define FCAM_CP_MOVIE_FORMAT_R_BEFORE_CONFIG_GENERATION 40u
+#define FCAM_CP_MOVIE_FORMAT_R_CONFIG_GENERATION 48u
+#define FCAM_CP_MOVIE_FORMAT_R_INPUT_FNV 56u
+#define FCAM_CP_MOVIE_FORMAT_R_FORMAT 64u
+#define FCAM_CP_MOVIE_FORMAT_R_RATE 68u
+#define FCAM_CP_MOVIE_FORMAT_R_FPS 72u
+#define FCAM_CP_MOVIE_FORMAT_R_CODEC 76u
+#define FCAM_CP_MOVIE_FORMAT_STATE_OFFSET 80u
+#define FCAM_CP_MOVIE_FORMAT_READBACK_OFFSET 208u
+#define FCAM_CP_MOVIE_FORMAT_R_RESERVED 228u
+
+/* One-way post-movie/current4057 software mode0, without frame/media or native ACK.
+ * Configure consumes unchanged Config48 once per current bank/crank/movie tuple.
+ * Original type5/4072/12B keeps byte1/cookie opaque and requires body4 zero. */
+#define FCAM_CP_OU_CRANK_VERSION 1u
+#define FCAM_CP_OU_CRANK_INPUT_BYTES 12u
+#define FCAM_CP_OU_CRANK_RESULT_BYTES 224u
+#define FCAM_CP_OU_CRANK_SOURCE UINT32_C(0x80020002)
+#define FCAM_CP_OU_CRANK_TARGET UINT32_C(0x90030001)
+#define FCAM_CP_OU_CRANK_COMMAND UINT32_C(0x4072)
+#define FCAM_CP_OU_CRANK_R_VERSION 0u
+#define FCAM_CP_OU_CRANK_R_BYTES 4u
+#define FCAM_CP_OU_CRANK_R_INSTANCE 8u
+#define FCAM_CP_OU_CRANK_R_OU_GENERATION 16u
+#define FCAM_CP_OU_CRANK_R_BANK_GENERATION 24u
+#define FCAM_CP_OU_CRANK_R_CRANK_GENERATION 32u
+#define FCAM_CP_OU_CRANK_R_MOVIE_GENERATION 40u
+#define FCAM_CP_OU_CRANK_R_BEFORE_CONFIG_GENERATION 48u
+#define FCAM_CP_OU_CRANK_R_CONFIG_GENERATION 56u
+#define FCAM_CP_OU_CRANK_R_INPUT_FNV 64u
+#define FCAM_CP_OU_CRANK_R_MODE 72u
+#define FCAM_CP_OU_CRANK_R_FPS 76u
+#define FCAM_CP_OU_CRANK_STATE_OFFSET 80u
+#define FCAM_CP_OU_CRANK_READBACK_OFFSET 208u
+#define FCAM_CP_OU_CRANK_R_RESERVED 220u
 
 /* Host model result description, not a wire structure. The model copies each
  * result chunk into the supplied output before reporting its consumption. */

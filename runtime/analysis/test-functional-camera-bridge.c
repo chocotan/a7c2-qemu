@@ -38,7 +38,11 @@ int fcam_test_pagemap(const void *p, uint64_t *out) {
 int fcam_test_random(uint64_t *out) { *out = !strcmp(scenario, "noncezero") ? 0 : UINT64_C(0x1234fedc9876abcd); return 0; }
 void fcam_test_after_copy(void *p, size_t n) {
     if (((!strcmp(scenario, "readback") || !strcmp(scenario, "bitwidth-copy") ||
-          !strcmp(scenario, "stillformat-copy")) && n) || (!strcmp(scenario, "startup-copy") && n == 192))
+          !strcmp(scenario, "stillformat-copy")) && n) || (!strcmp(scenario, "startup-copy") && n == 192) ||
+        (!strcmp(scenario, "bank-copy") && n == FCAM_CP_PARAMETER_BANK_RESULT_BYTES) ||
+        (!strcmp(scenario, "crank-copy") && n == FCAM_CP_CRANK_RESULT_BYTES) ||
+        (!strcmp(scenario, "movie-copy") && n == FCAM_CP_MOVIE_FORMAT_RESULT_BYTES) ||
+        (!strcmp(scenario, "ou-copy") && n == FCAM_CP_OU_CRANK_RESULT_BYTES))
         ((unsigned char *)p)[n / 2] ^= 0x80;
 }
 static unsigned char encoded_byte(size_t n) { return (unsigned char)((n * 73 + n / 251 + 17) & 255); }
@@ -149,6 +153,497 @@ static void *server(void *unused) {
 static void start_server(pthread_t *t) { assert(!pthread_create(t, NULL, server, NULL)); }
 static void finish_server(pthread_t t) { assert(!fcam_bridge_close()); assert(!pthread_join(t, NULL)); assert(!mailbox && unpins == 1); }
 
+static struct fcam_native_origin bank_origin;
+static void *bank_server(void *unused) {
+    (void)unused;
+    unsigned char live[FCAM_STATE_BYTES] = {0};
+    put32(live, 1); put32(live + 4, 15); put32(live + 8, 640); put32(live + 12, 480);
+    put32(live + 16, 60); put32(live + 20, 13); put32(live + 24, 800); put32(live + 28, 640);
+    put64(live + 32, 8642); put64(live + 40, UINT64_MAX); put64(live + 48, nonce);
+    put64(live + 56, 22); put64(live + 64, 22); put64(live + 72, 21); put64(live + 112, 22);
+    uint64_t last = 0, bank_generation = 0, server_crank_generation = 0, server_movie_generation = 0;
+    uint64_t server_ou_generation = 0;
+    unsigned crank_attempts = 0, movie_attempts = 0;
+    for (;;) {
+        const uint32_t status = status_load();
+        if (status == FCAM_STATUS_CLOSED) { status_store(FCAM_STATUS_DETACHED); return NULL; }
+        if (status != FCAM_STATUS_REQUEST || get64(mailbox + FCAM_H_SEQUENCE) == last) { sleep_short(); continue; }
+        last = get64(mailbox + FCAM_H_SEQUENCE);
+        const uint32_t op = get32(mailbox + FCAM_H_OPCODE);
+        const int crank_origin = op == FCAM_OP_CP_CRANK_CONTROL ||
+            (op == FCAM_OP_STATE && get32(mailbox + FCAM_H_NATIVE_COMMAND) == FCAM_CP_CRANK_COMMAND);
+        const int movie_origin = op == FCAM_OP_CP_MOVIE_FORMAT ||
+            (op == FCAM_OP_STATE && get32(mailbox + FCAM_H_NATIVE_COMMAND) == FCAM_CP_MOVIE_FORMAT_COMMAND);
+        const int ou_origin = op == FCAM_OP_CP_OU_CRANK_CONTROL ||
+            (op == FCAM_OP_STATE && get32(mailbox + FCAM_H_NATIVE_COMMAND) == FCAM_CP_OU_CRANK_COMMAND);
+        const int settings_origin = op == FCAM_OP_STARTUP_CONTROL;
+        assert(get32(mailbox + FCAM_H_FLAGS) == 0 &&
+               get32(mailbox + FCAM_H_NATIVE_SOURCE) == FCAM_CP_PARAMETER_SOURCE &&
+               get32(mailbox + FCAM_H_NATIVE_DESTINATION) == FCAM_CP_PARAMETER_TARGET &&
+               get32(mailbox + FCAM_H_NATIVE_COMMAND) == (settings_origin ? 0x4057u : ou_origin ? FCAM_CP_OU_CRANK_COMMAND : movie_origin ? FCAM_CP_MOVIE_FORMAT_COMMAND : crank_origin ? FCAM_CP_CRANK_COMMAND : FCAM_CP_PARAMETER_COMMAND) &&
+               get32(mailbox + FCAM_H_NATIVE_BYTES) == (settings_origin ? 12u : ou_origin ? FCAM_CP_OU_CRANK_INPUT_BYTES : movie_origin ? FCAM_CP_MOVIE_FORMAT_INPUT_BYTES : crank_origin ? FCAM_CP_CRANK_INPUT_BYTES : FCAM_CP_PARAMETER_BANK_BYTES));
+        put32(mailbox + FCAM_H_ERROR, 0); memset(mailbox + FCAM_H_RESULT_TOTAL, 0, 24);
+        unsigned char *p = mailbox + FCAM_HEADER_BYTES;
+        size_t used;
+        if (op == FCAM_OP_STATE) {
+            assert(!get32(mailbox + FCAM_H_REQUEST_BYTES));
+            memcpy(p, live, sizeof live); used = sizeof live;
+        } else if (op == FCAM_OP_CP_CRANK_CONTROL) {
+            unsigned char request[12]; memcpy(request, p, sizeof request);
+            assert(get32(mailbox + FCAM_H_REQUEST_BYTES) == 12 && bank_generation &&
+                request[0] == 5 && request[2] == 0x9d && request[3] == 0x40 && !get32(request + 8) &&
+                get64(mailbox + FCAM_H_NATIVE_FNV) == fnv(request, 12) &&
+                get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(request, 12));
+            ++crank_attempts;
+            if (!strcmp(scenario, "crank-upstream") || (!strcmp(scenario, "crank-retry") && crank_attempts == 1)) {
+                used = 0; put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO);
+            } else {
+                const uint64_t before_generation = get64(live + 56);
+                put64(live + 56, before_generation + 1);
+                memset(p, 0, FCAM_CP_CRANK_RESULT_BYTES);
+                put32(p, 1); put32(p + 4, 208); put64(p + 8, nonce);
+                put64(p + 16, ++server_crank_generation); put64(p + 24, bank_generation);
+                put64(p + 32, before_generation); put64(p + 40, before_generation + 1);
+                put64(p + 48, fnv(request, 12)); put32(p + 60, get32(live + 16));
+                memcpy(p + 64, live, 128); memcpy(p + 192, request, 12);
+                if (!strcmp(scenario, "crank-mutation")) {
+                    assert(crank_control_reply_valid(p, request));
+                    for (size_t i = 0; i < 208; ++i) {
+                        p[i] ^= 1; assert(!crank_control_reply_valid(p, request)); p[i] ^= 1;
+                    }
+                }
+                static const struct { const char *name; size_t at; } corruptions[] = {
+                    {"crank-version",0}, {"crank-size-field",4}, {"crank-instance",8}, {"crank-generation",16},
+                    {"crank-bank",24}, {"crank-before",32}, {"crank-after",40}, {"crank-input-fnv",48},
+                    {"crank-mode",56}, {"crank-fps",60}, {"crank-state-abi",64}, {"crank-state-fps",80},
+                    {"crank-state-instance",112}, {"crank-state-config",120}, {"crank-state-rendered",128},
+                    {"crank-state-consumed",136}, {"crank-state-jpeg",144}, {"crank-state-video",152},
+                    {"crank-state-result-read",160}, {"crank-state-pending",168}, {"crank-state-stream",172},
+                    {"crank-state-frame",176}, {"crank-state-reserved",191}, {"crank-type",192},
+                    {"crank-opaque",193}, {"crank-command",194}, {"crank-cookie",196}, {"crank-echo-mode",203},
+                    {"crank-reserved",204}, {"crank-last",207}
+                };
+                for (size_t i = 0; i < sizeof corruptions / sizeof corruptions[0]; ++i)
+                    if (!strcmp(scenario, corruptions[i].name)) p[corruptions[i].at] ^= 1;
+                used = !strcmp(scenario, "crank-short") ? 207 : !strcmp(scenario, "crank-long") ? 209 : 208;
+                if (!strcmp(scenario, "crank-token")) { put64(mailbox + FCAM_H_RESULT_TOTAL, used); put64(mailbox + FCAM_H_RESULT_TOKEN, 77); }
+                if (!strcmp(scenario, "crank-errorpayload")) put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO);
+            }
+        } else if (op == FCAM_OP_CP_MOVIE_FORMAT) {
+            unsigned char request[20]; memcpy(request,p,sizeof request);
+            assert(get32(mailbox + FCAM_H_REQUEST_BYTES) == 20 && bank_generation && server_crank_generation &&
+                   get64(mailbox + FCAM_H_NATIVE_FNV) == fnv(request,20) &&
+                   get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(request,20));
+            ++movie_attempts;
+            if (!strcmp(scenario,"movie-upstream") || (!strcmp(scenario,"movie-retry") && movie_attempts == 1)) {
+                used = 0; put32(mailbox + FCAM_H_ERROR,(uint32_t)-EIO);
+            } else {
+                const uint64_t before_generation = get64(live + 56);
+                put64(live + 56,before_generation + 1);
+                memset(p,0,240); put32(p,1); put32(p+4,240); put64(p+8,nonce);
+                put64(p+16,++server_movie_generation); put64(p+24,bank_generation); put64(p+32,server_crank_generation);
+                put64(p+40,before_generation); put64(p+48,before_generation+1); put64(p+56,fnv(request,20));
+                put32(p+64,5); put32(p+72,get32(live+16)); put32(p+76,1);
+                memcpy(p+80,live,128); memcpy(p+208,request,20);
+                if (!strcmp(scenario,"movie-mutation")) {
+                    assert(movie_format_reply_valid(p,request));
+                    for (size_t i = 0; i < 240; ++i) {
+                        p[i] ^= 1; assert(!movie_format_reply_valid(p,request)); p[i] ^= 1;
+                    }
+                }
+                used = !strcmp(scenario,"movie-short") ? 239 : !strcmp(scenario,"movie-long") ? 241 : 240;
+                if (!strcmp(scenario,"movie-token")) { put64(mailbox+FCAM_H_RESULT_TOTAL,used); put64(mailbox+FCAM_H_RESULT_TOKEN,77); }
+                if (!strcmp(scenario,"movie-errorpayload")) put32(mailbox+FCAM_H_ERROR,(uint32_t)-EIO);
+            }
+        } else if (op == FCAM_OP_STARTUP_CONTROL) {
+            unsigned char input[32]; memcpy(input,p,sizeof input);
+            const uint64_t before_config = get64(live+56), before_frame = get64(live+112);
+            assert(get32(mailbox+FCAM_H_REQUEST_BYTES) == 32 && get32(input) == UINT32_C(0x00044057));
+            put64(live+56,before_config+1); put64(live+112,before_frame+1);
+            put64(live+64,get64(live+64)+1); put64(live+72,get64(live+72)+1);
+            memset(p,0,192); put32(p,1); put32(p+4,192); put64(p+8,nonce);
+            put64(p+16,before_config+1); put64(p+24,before_frame+1); put64(p+32,before_frame+1);
+            put64(p+40,fnv(input,32)); put64(p+48,UINT64_C(0xabcd)); put64(p+56,UINT64_C(0xabcd)); put64(p+64,921600);
+            put32(p+72,640); put32(p+76,480); put32(p+80,1920); put32(p+84,FCAM_VDF_ENDPOINT);
+            put32(p+88,1); put32(p+92,1); put32(p+96,9);
+            for (size_t at = 100; at <= 116; at += 4) put32(p+at,1);
+            p[128]=1; p[129]=5; p[130]=5;
+            put64(p+144,before_frame); put64(p+152,before_config); memcpy(p+160,input,32); used=192;
+        } else if (op == FCAM_OP_CP_OU_CRANK_CONTROL) {
+            unsigned char input[12]; memcpy(input,p,sizeof input);
+            assert(get32(mailbox+FCAM_H_REQUEST_BYTES) == 12 && input[0] == 5 && input[2] == 0x72 && input[3] == 0x40 &&
+                !get32(input+8) && get64(mailbox+FCAM_H_NATIVE_FNV) == fnv(input,12) &&
+                get64(mailbox+FCAM_H_REQUEST_FNV) == fnv(input,12));
+            if (!strcmp(scenario,"ou-upstream")) { put32(mailbox+FCAM_H_ERROR,(uint32_t)-EIO); used=0; }
+            else {
+                const uint64_t before_config = get64(live+56); put64(live+56,before_config+1);
+                memset(p,0,224); put32(p,1); put32(p+4,224); put64(p+8,nonce);
+                put64(p+16,++server_ou_generation); put64(p+24,bank_generation); put64(p+32,server_crank_generation);
+                put64(p+40,server_movie_generation); put64(p+48,before_config); put64(p+56,before_config+1);
+                put64(p+64,fnv(input,12)); put32(p+76,get32(live+16)); memcpy(p+80,live,128); memcpy(p+208,input,12);
+                if (!strcmp(scenario,"ou-mutation")) {
+                    assert(ou_crank_reply_valid(p,input));
+                    for (size_t at = 0; at < 224; ++at) { p[at]^=1; assert(!ou_crank_reply_valid(p,input)); p[at]^=1; }
+                }
+                used = !strcmp(scenario,"ou-short") ? 223 : !strcmp(scenario,"ou-long") ? 225 : 224;
+                if (!strcmp(scenario,"ou-token")) { put64(mailbox+FCAM_H_RESULT_TOTAL,used); put64(mailbox+FCAM_H_RESULT_TOKEN,77); }
+            }
+        } else {
+            assert(op == FCAM_OP_CP_PARAMETER_BANK && get32(mailbox + FCAM_H_REQUEST_BYTES) == FCAM_CP_PARAMETER_BANK_BYTES);
+            unsigned char raw[FCAM_CP_PARAMETER_BANK_BYTES]; memcpy(raw, p, sizeof raw);
+            assert(get64(mailbox + FCAM_H_NATIVE_FNV) == fnv(raw, sizeof raw) &&
+                   get64(mailbox + FCAM_H_REQUEST_FNV) == fnv(raw, sizeof raw));
+            const uint64_t before_generation = get64(live + 56);
+            put32(live + 16, get32(raw + FCAM_CP_PARAMETER_FPS_AT)); put64(live + 56, before_generation + 1);
+            memset(p, 0, FCAM_CP_PARAMETER_BANK_RESULT_BYTES);
+            put32(p, 1); put32(p + 4, FCAM_CP_PARAMETER_BANK_RESULT_BYTES); put64(p + 8, nonce);
+            put64(p + 16, ++bank_generation); put64(p + 24, before_generation); put64(p + 32, before_generation + 1);
+            put64(p + 40, fnv(raw, sizeof raw)); put32(p + 48, get32(raw + FCAM_CP_PARAMETER_FPS_AT));
+            put32(p + 52, FCAM_CP_PARAMETER_BANK_SLOTS); put32(p + 56, sizeof raw);
+            memcpy(p + FCAM_CP_PARAMETER_BANK_STATE_OFFSET, live, sizeof live);
+            memcpy(p + FCAM_CP_PARAMETER_BANK_READBACK_OFFSET, raw, sizeof raw);
+            static const struct { const char *name; size_t offset; } corruptions[] = {
+                {"bank-version",0}, {"bank-size-field",4}, {"bank-instance",8}, {"bank-generation",16},
+                {"bank-before",24}, {"bank-after",32}, {"bank-input-fnv",40}, {"bank-fps",48},
+                {"bank-slots",52}, {"bank-raw-bytes",56}, {"bank-reserved",60}, {"bank-state-abi",64},
+                {"bank-state-fps",80}, {"bank-state-instance",112}, {"bank-state-generation",120},
+                {"bank-state-rendered",128}, {"bank-state-frame",176}, {"bank-state-reserved",184},
+                {"bank-cookie",196}, {"bank-last",2755}
+            };
+            for (size_t i = 0; i < sizeof corruptions / sizeof corruptions[0]; ++i)
+                if (!strcmp(scenario, corruptions[i].name)) p[corruptions[i].offset] ^= 1;
+            if (!strcmp(scenario, "bank-stale21")) put64(p + 24, 21);
+            used = !strcmp(scenario, "bank-short") ? FCAM_CP_PARAMETER_BANK_RESULT_BYTES - 1 : FCAM_CP_PARAMETER_BANK_RESULT_BYTES;
+            if (!strcmp(scenario, "bank-token")) { put64(mailbox + FCAM_H_RESULT_TOTAL, used); put64(mailbox + FCAM_H_RESULT_TOKEN, 77); }
+            if (!strcmp(scenario, "bank-upstream")) { used = 0; put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO); }
+        }
+        put32(mailbox + FCAM_H_RESPONSE_BYTES, (uint32_t)used);
+        put64(mailbox + FCAM_H_RESPONSE_FNV, fnv(p, used));
+        if (op == FCAM_OP_CP_PARAMETER_BANK && !strcmp(scenario, "bank-transport-fnv")) put64(mailbox + FCAM_H_RESPONSE_FNV, 0);
+        if (op == FCAM_OP_CP_CRANK_CONTROL && !strcmp(scenario, "crank-transport-fnv")) put64(mailbox + FCAM_H_RESPONSE_FNV, 0);
+        if (op == FCAM_OP_CP_CRANK_CONTROL && !strcmp(scenario, "crank-origin")) put64(mailbox + FCAM_H_NATIVE_FNV, 0);
+        if (op == FCAM_OP_CP_MOVIE_FORMAT && !strcmp(scenario,"movie-transport-fnv")) put64(mailbox+FCAM_H_RESPONSE_FNV,0);
+        if (op == FCAM_OP_CP_OU_CRANK_CONTROL && !strcmp(scenario,"ou-transport-fnv")) put64(mailbox+FCAM_H_RESPONSE_FNV,0);
+        if (op == FCAM_OP_CP_OU_CRANK_CONTROL && !strcmp(scenario,"ou-origin")) put64(mailbox+FCAM_H_NATIVE_FNV,0);
+        if (op == FCAM_OP_CP_MOVIE_FORMAT && !strcmp(scenario,"movie-origin")) put64(mailbox+FCAM_H_NATIVE_FNV,0);
+        status_store(FCAM_STATUS_RESPONSE);
+    }
+}
+static void ou_bridge_test(void) {
+    _Static_assert(FCAM_OP_CP_OU_CRANK_CONTROL == 23 && FCAM_CP_OU_CRANK_RESULT_BYTES == 224,"OU bridge224");
+    unsigned char raw[2564] = {5,0,0x63,0x40}, request[13] = {5,0,0x72,0x40,0x61,0,0,0x80};
+    const unsigned char crank_input[12] = {5,0xa7,0x9d,0x40,0x61,0,0,0x80};
+    const unsigned char movie_input[20] = {5,0xb7,0,0x40,0x61,0,0,0x80,5,1,0,0xc7,0,0,0,0,0,0,1,0xd7};
+    unsigned char bank_output[2756], crank_output[208], movie_output[240], output[232], live[128], settings[32]={0}, settings_output[192];
+    struct fcam_native_origin ou = {0x80020002,0x90030001,0x4072,12,fnv(request,12)};
+    struct fcam_native_origin crank = {0x80020002,0x90030001,0x409d,12,fnv(crank_input,12)};
+    struct fcam_native_origin movie = {0x80020002,0x90030001,0x4000,20,fnv(movie_input,20)};
+    struct fcam_native_origin setting = {0x80020002,0x90030001,0x4057,12,1};
+    struct fcam_bridge_result result = {1,2,3,4}, sentinel = result;
+    assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ENODATA && !sequence);
+    pthread_t host; assert(!pthread_create(&host,NULL,bank_server,NULL));
+    assert(!fcam_bridge_call(&ou,2,NULL,0,live,128,&result));
+    for (uint64_t generation = 1; generation <= 2; ++generation) {
+        put32(raw+FCAM_CP_PARAMETER_FPS_AT,generation == 1 ? 30 : 60);
+        bank_origin = (struct fcam_native_origin){0x80020002,0x90030001,0x4063,sizeof raw,fnv(raw,sizeof raw)};
+        assert(!fcam_bridge_call(&bank_origin,20,raw,sizeof raw,bank_output,sizeof bank_output,&result));
+        assert(!fcam_bridge_call(&crank,21,crank_input,12,crank_output,sizeof crank_output,&result));
+        assert(!fcam_bridge_cp_movie_format(&movie,movie_input,movie_output,&result));
+        if (generation == 1) assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ENODATA);
+        else assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ESTALE);
+        put32(settings,UINT32_C(0x00044057)); put64(settings+24,current_config40_fnv);
+        assert(!fcam_bridge_call(&setting,14,settings,32,settings_output,192,&result));
+        assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ENODATA);
+        assert(!fcam_bridge_call(&ou,2,NULL,0,live,128,&result));
+        if (!strcmp(scenario,"ou-validation")) {
+            const uint64_t saved_sequence = sequence, saved_config = current_config_generation;
+            const size_t lengths[] = {0,11,13};
+            for (size_t i = 0; i < sizeof lengths/sizeof lengths[0]; ++i)
+                assert(fcam_bridge_call(&ou,23,request,lengths[i],output,224,&result) == -EINVAL);
+            assert(fcam_bridge_call(&ou,23,request,12,output,223,&result) == -ENOSPC);
+            for (unsigned field = 0; field < 5; ++field) {
+                struct fcam_native_origin wrong = ou;
+                if (!field) wrong.source ^= 1; else if (field == 1) wrong.destination ^= 1;
+                else if (field == 2) wrong.command ^= 1; else if (field == 3) --wrong.bytes; else wrong.wire_fnv1a64 ^= 1;
+                assert(fcam_bridge_cp_ou_crank_control(&wrong,request,output,&result) == -EINVAL);
+            }
+            for (size_t at = 8; at < 12; ++at) {
+                request[at]=1; ou.wire_fnv1a64=fnv(request,12);
+                assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ENOTSUP); request[at]=0;
+            }
+            ou.wire_fnv1a64=fnv(request,12);
+            put32(current_state+108,3); assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -EIO);
+            put32(current_state+108,1); assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -EBUSY); put32(current_state+108,0);
+            put32(current_state+104,1); assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -EBUSY); put32(current_state+104,0);
+            --ou_settings_generation; assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ESTALE); ++ou_settings_generation;
+            current_config_generation=UINT64_MAX; assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -EOVERFLOW); current_config_generation=saved_config;
+            ou_generation=UINT64_MAX; assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -EOVERFLOW); ou_generation=0;
+            assert(sequence == saved_sequence);
+            finish_server(host); return;
+        }
+        unsigned char before[128]; memcpy(before,live,128);
+        memset(output,0xa5,sizeof output); result=sentinel;
+        if (generation == 2) { request[1]=0xf7; put32(request+4,UINT32_C(0xfedcba98)); ou.wire_fnv1a64=fnv(request,12); }
+        const int rc = fcam_bridge_cp_ou_crank_control(&ou,request,output,&result);
+        if (!strcmp(scenario,"ou") || !strcmp(scenario,"ou-mutation")) {
+            assert(!rc && result.used == 224 && result.required == 224 && !result.result_token && result.model_instance == nonce);
+            put64(before+56,get64(before+56)+1);
+            assert(!memcmp(output+80,before,128) && !memcmp(output+208,request,12) && !get32(output+220));
+            assert(get64(output+16) == generation && get64(output+24) == generation && get64(output+32) == generation && get64(output+40) == generation);
+            for (size_t i = 224; i < sizeof output; ++i) assert(output[i] == 0xa5);
+            const uint64_t saved_sequence = sequence;
+            assert(fcam_bridge_cp_ou_crank_control(&ou,request,output,&result) == -ESTALE && sequence == saved_sequence);
+        } else {
+            assert(rc == (!strcmp(scenario,"ou-upstream") || !strcmp(scenario,"ou-copy") ? -EIO :
+                !strcmp(scenario,"ou-transport-fnv") ? -EBADMSG : -EPROTO));
+            assert(!memcmp(&result,&sentinel,sizeof result));
+            if (strcmp(scenario,"ou-copy")) for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+            break;
+        }
+    }
+    assert(!released && !cancelled); finish_server(host);
+}
+static void movie_bridge_test(void) {
+    _Static_assert(FCAM_OP_CP_MOVIE_FORMAT == 22u && FCAM_CP_MOVIE_FORMAT_RESULT_BYTES == 240u,"movie ABI");
+    unsigned char raw[FCAM_CP_PARAMETER_BANK_BYTES] = {5,0,0x63,0x40};
+    unsigned char request[21] = {5,0xa7,0,0x40,0x60,0x55,0xaa,0x80,5,1,0,0xb3,0,0,0,0,0,0,1,0xc4};
+    unsigned char crank_request[12] = {5,0xa7,0x9d,0x40,0x60,0x55,0xaa,0x80};
+    unsigned char bank_reply[FCAM_CP_PARAMETER_BANK_RESULT_BYTES], crank_reply[208], output[248], live[128];
+    put32(raw+FCAM_CP_PARAMETER_FPS_AT,30);
+    bank_origin = (struct fcam_native_origin){FCAM_CP_PARAMETER_SOURCE,FCAM_CP_PARAMETER_TARGET,0x4063,sizeof raw,fnv(raw,sizeof raw)};
+    struct fcam_native_origin crank = {FCAM_CP_CRANK_SOURCE,FCAM_CP_CRANK_TARGET,0x409d,12,fnv(crank_request,12)};
+    struct fcam_native_origin movie = {FCAM_CP_MOVIE_FORMAT_SOURCE,FCAM_CP_MOVIE_FORMAT_TARGET,0x4000,20,fnv(request,20)};
+    struct fcam_bridge_result result = {1,2,3,4};
+    assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ENODATA && !sequence);
+    pthread_t host; assert(!pthread_create(&host,NULL,bank_server,NULL));
+    assert(!fcam_bridge_call(&movie,2,NULL,0,live,128,&result));
+    assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ENODATA && sequence == 1);
+    assert(!fcam_bridge_call(&bank_origin,20,raw,sizeof raw,bank_reply,sizeof bank_reply,&result));
+    assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ENODATA);
+    assert(!fcam_bridge_call(&crank,21,crank_request,12,crank_reply,208,&result));
+    if (!strcmp(scenario,"movie-validation")) {
+        const uint64_t last_sequence = sequence;
+        const size_t lengths[] = {0,19,21}, malformed[] = {0,2,3}, selectors[] = {8,9,10,12,13,14,15,16,17,18};
+        for (size_t i = 0; i < sizeof lengths/sizeof lengths[0]; ++i)
+            assert(fcam_bridge_call(&movie,22,request,lengths[i],output,240,&result) == -EINVAL);
+        for (size_t cap = 0; cap < 240; ++cap)
+            assert(fcam_bridge_call(&movie,22,request,20,output,cap,&result) == -ENOSPC);
+        for (size_t i = 0; i < sizeof malformed/sizeof malformed[0]; ++i) {
+            request[malformed[i]] ^= 1; movie.wire_fnv1a64 = fnv(request,20);
+            assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -EINVAL); request[malformed[i]] ^= 1;
+        }
+        for (size_t i = 0; i < sizeof selectors/sizeof selectors[0]; ++i) {
+            request[selectors[i]] ^= 1; movie.wire_fnv1a64 = fnv(request,20);
+            assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ENOTSUP); request[selectors[i]] ^= 1;
+        }
+        movie.wire_fnv1a64 = fnv(request,20);
+        for (unsigned field = 0; field < 5; ++field) {
+            struct fcam_native_origin wrong = movie;
+            if (field == 0) wrong.source ^= 1; else if (field == 1) wrong.destination ^= 1;
+            else if (field == 2) wrong.command ^= 1; else if (field == 3) --wrong.bytes; else wrong.wire_fnv1a64 ^= 1;
+            assert(fcam_bridge_cp_movie_format(&wrong,request,output,&result) == -EINVAL);
+        }
+        current_state_known = 0; assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ENODATA); current_state_known = 1;
+        for (uint32_t stream = 1; stream <= 3; ++stream) {
+            put32(current_state+FCAM_S_STREAM_STATE,stream);
+            assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == (stream == 3 ? -EIO : -EBUSY));
+        }
+        put32(current_state+FCAM_S_STREAM_STATE,0); put32(current_state+FCAM_S_PENDING_RESULTS,1);
+        assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -EBUSY); put32(current_state+FCAM_S_PENDING_RESULTS,0);
+        crank_bank_generation = 0; assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ESTALE); crank_bank_generation = 1;
+        const uint64_t saved_generation = current_config_generation;
+        current_config_generation = UINT64_MAX;
+        assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -EOVERFLOW); current_config_generation = saved_generation;
+        movie_generation = UINT64_MAX;
+        assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -EOVERFLOW); movie_generation = 0;
+        assert(sequence == last_sequence); finish_server(host); return;
+    }
+    unsigned char before[128]; memcpy(before,current_state,128);
+    const uint64_t before_generation = current_config_generation;
+    memset(output,0xa5,sizeof output);
+    result = (struct fcam_bridge_result){1,2,3,4}; const struct fcam_bridge_result sentinel = result;
+    int rc = fcam_bridge_cp_movie_format(&movie,request,output,&result);
+    if (!strcmp(scenario,"movie-retry")) {
+        assert(rc == -EIO && !movie_generation && !memcmp(before,current_state,128));
+        rc = fcam_bridge_cp_movie_format(&movie,request,output,&result);
+    }
+    if (!strcmp(scenario,"movie") || !strcmp(scenario,"movie-mutation") || !strcmp(scenario,"movie-retry")) {
+        assert(!rc && result.used == 240 && result.required == 240 && !result.result_token);
+        put64(before+56,before_generation+1);
+        assert(!memcmp(output+80,before,128) && !memcmp(output+208,request,20));
+        assert(movie_generation == 1 && movie_bank_generation == 1 && movie_crank_generation == 1);
+        for (size_t i = 228; i < 240; ++i) assert(!output[i]);
+        for (size_t i = 240; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        request[1] ^= 1; request[11] ^= 1; request[19] ^= 1; movie.wire_fnv1a64 = fnv(request,20);
+        const uint64_t last_sequence = sequence;
+        assert(fcam_bridge_cp_movie_format(&movie,request,output,&result) == -ESTALE && sequence == last_sequence);
+    } else {
+        const int expected = !strcmp(scenario,"movie-copy") || !strcmp(scenario,"movie-upstream") ? -EIO :
+            !strcmp(scenario,"movie-transport-fnv") ? -EBADMSG : -EPROTO;
+        assert(rc == expected && !memcmp(&result,&sentinel,sizeof result));
+        if (strcmp(scenario,"movie-copy")) for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+    }
+    finish_server(host);
+}
+static void bank_bridge_test(void) {
+    _Static_assert(FCAM_OP_CP_PARAMETER_BANK == 20u && FCAM_OP_AP_SOURCE_SNAPSHOT == 11u, "separate core/source opcodes");
+    unsigned char raw[FCAM_CP_PARAMETER_BANK_BYTES + 1], output[FCAM_CP_PARAMETER_BANK_RESULT_BYTES + 8], live[128];
+    /* HOST transport input; the separate actual Core tests validate every slot. */
+    for (size_t i = 0; i < sizeof raw; ++i) raw[i] = (unsigned char)(i * 73u + 19u);
+    raw[0] = 5; raw[2] = 0x63; raw[3] = 0x40; put32(raw + FCAM_CP_PARAMETER_FPS_AT, 30);
+    bank_origin = (struct fcam_native_origin){FCAM_CP_PARAMETER_SOURCE, FCAM_CP_PARAMETER_TARGET,
+        FCAM_CP_PARAMETER_COMMAND, FCAM_CP_PARAMETER_BANK_BYTES, fnv(raw, FCAM_CP_PARAMETER_BANK_BYTES)};
+    memset(output, 0xa5, sizeof output);
+    struct fcam_bridge_result result = {1,2,3,4};
+    assert(fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                            output, sizeof output, &result) == -ENODATA && !sequence);
+    pthread_t host; assert(!pthread_create(&host, NULL, bank_server, NULL));
+    assert(fcam_bridge_call(&bank_origin, FCAM_OP_STATE, NULL, 0, live, sizeof live, &result) == 0 && get64(live + 56) == 22);
+    result = (struct fcam_bridge_result){1,2,3,4};
+    const struct fcam_bridge_result previous = result;
+    const int prior_readback = readback_closed;
+    if (!strcmp(scenario, "bank-validation")) {
+        const size_t sizes[] = {0, FCAM_CP_PARAMETER_BANK_BYTES - 1, sizeof raw};
+        for (size_t i = 0; i < sizeof sizes / sizeof sizes[0]; ++i)
+            assert(fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, sizes[i], output, sizeof output, &result) == -EINVAL);
+        assert(fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                                output, FCAM_CP_PARAMETER_BANK_RESULT_BYTES - 1, &result) == -ENOSPC);
+        for (size_t i = 0; i < 5; ++i) {
+            struct fcam_native_origin wrong = bank_origin;
+            if (!i) wrong.source ^= 1;
+            else if (i == 1) wrong.destination ^= 1;
+            else if (i == 2) wrong.command ^= 1;
+            else if (i == 3) --wrong.bytes;
+            else wrong.wire_fnv1a64 ^= 1;
+            assert(fcam_bridge_call(&wrong, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                                    output, sizeof output, &result) == -EINVAL);
+        }
+        for (unsigned fps = 0; fps <= 121; fps += 121) {
+            put32(raw + FCAM_CP_PARAMETER_FPS_AT, fps); bank_origin.wire_fnv1a64 = fnv(raw, FCAM_CP_PARAMETER_BANK_BYTES);
+            assert(fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                                    output, sizeof output, &result) == -ERANGE);
+        }
+        assert(sequence == 1 && !memcmp(&result, &previous, sizeof result));
+        for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        finish_server(host); return;
+    }
+    const int rc = fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                                    output, sizeof output, &result);
+    if (!strcmp(scenario, "bank")) {
+        assert(!rc && result.used == FCAM_CP_PARAMETER_BANK_RESULT_BYTES && result.required == result.used &&
+               result.model_instance == nonce && !result.result_token);
+        assert(get64(output + 24) == 22 && get64(output + 32) == 23 && get64(output + 16) == 1 &&
+               !memcmp(output + FCAM_CP_PARAMETER_BANK_READBACK_OFFSET, raw, FCAM_CP_PARAMETER_BANK_BYTES));
+        for (size_t i = FCAM_CP_PARAMETER_BANK_RESULT_BYTES; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        for (uint64_t count = 2; count <= 3; ++count) {
+            raw[4] ^= (unsigned char)count; bank_origin.wire_fnv1a64 = fnv(raw, FCAM_CP_PARAMETER_BANK_BYTES);
+            assert(!fcam_bridge_call(&bank_origin, FCAM_OP_STATE, NULL, 0, live, sizeof live, &result));
+            assert(!fcam_bridge_call(&bank_origin, FCAM_OP_CP_PARAMETER_BANK, raw, FCAM_CP_PARAMETER_BANK_BYTES,
+                                    output, sizeof output, &result));
+            assert(get64(output + 16) == count && get64(output + 24) == 21 + count && get64(output + 32) == 22 + count);
+            assert(get64(output + 64 + 112) == 22 && get64(output + 64 + 64) == 22 && get64(output + 64 + 72) == 21);
+            assert(!memcmp(output + 192, raw, FCAM_CP_PARAMETER_BANK_BYTES));
+        }
+    } else {
+        const int expected = !strcmp(scenario, "bank-upstream") || !strcmp(scenario, "bank-copy") ? -EIO :
+            !strcmp(scenario, "bank-transport-fnv") ? -EBADMSG : -EPROTO;
+        assert(rc == expected && !memcmp(&result, &previous, sizeof result) && readback_closed == prior_readback);
+        if (strcmp(scenario, "bank-copy")) for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+    }
+    assert(!released && !cancelled); finish_server(host);
+}
+
+static void crank_bridge_test(void) {
+    _Static_assert(FCAM_OP_CP_CRANK_CONTROL == 21u && FCAM_OP_AP_SOURCE_SNAPSHOT == 11u, "separate crank/source opcode");
+    unsigned char bank[FCAM_CP_PARAMETER_BANK_BYTES] = {5,0,0x63,0x40};
+    put32(bank + FCAM_CP_PARAMETER_FPS_AT, 30);
+    unsigned char bank_receipt[FCAM_CP_PARAMETER_BANK_RESULT_BYTES], live[128], before_state[128];
+    unsigned char request[13] = {5,0xa7,0x9d,0x40,0x60,0x55,0xaa,0x80}, output[216];
+    struct fcam_native_origin crank = {FCAM_CP_CRANK_SOURCE, FCAM_CP_CRANK_TARGET, 0x409d,12,fnv(request,12)};
+    bank_origin = (struct fcam_native_origin){FCAM_CP_PARAMETER_SOURCE, FCAM_CP_PARAMETER_TARGET,0x4063,sizeof bank,fnv(bank,sizeof bank)};
+    struct fcam_bridge_result result = {1,2,3,4}, previous = result;
+    memset(output, 0xa5, sizeof output);
+    assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ENODATA && !sequence);
+    pthread_t host; assert(!pthread_create(&host, NULL, bank_server, NULL));
+    assert(!fcam_bridge_call(&crank, 2, NULL, 0, live, 128, &result));
+    assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ENODATA && sequence == 1);
+    assert(!fcam_bridge_call(&bank_origin, 20, bank, sizeof bank, bank_receipt, sizeof bank_receipt, &result));
+    assert(!fcam_bridge_call(&crank, 2, NULL, 0, live, 128, &result));
+    memcpy(before_state, live, 128); readback_closed = 0; result = previous;
+    const uint64_t prior_sequence = sequence;
+    if (!strcmp(scenario, "crank-validation")) {
+        for (size_t n = 0; n <= 13; ++n) if (n != 12)
+            assert(fcam_bridge_call(&crank, 21, request, n, output, 208, &result) == -EINVAL);
+        for (size_t cap = 0; cap < 208; ++cap)
+            assert(fcam_bridge_call(&crank, 21, request, 12, output, cap, &result) == -ENOSPC);
+        for (size_t i = 0; i < 5; ++i) {
+            struct fcam_native_origin wrong = crank;
+            if (!i) wrong.source ^= 1; else if (i == 1) wrong.destination ^= 1;
+            else if (i == 2) wrong.command ^= 1; else if (i == 3) --wrong.bytes; else wrong.wire_fnv1a64 ^= 1;
+            assert(fcam_bridge_call(&wrong, 21, request, 12, output, 208, &result) == -EINVAL);
+        }
+        const size_t malformed[] = {0,2,3};
+        for (size_t i = 0; i < sizeof malformed / sizeof malformed[0]; ++i) {
+            request[malformed[i]] ^= 1; crank.wire_fnv1a64 = fnv(request,12);
+            assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -EINVAL);
+            request[malformed[i]] ^= 1;
+        }
+        for (size_t i = 8; i < 12; ++i) {
+            request[i] = 1; crank.wire_fnv1a64 = fnv(request,12);
+            assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ENOTSUP); request[i] = 0;
+        }
+        crank.wire_fnv1a64 = fnv(request,12);
+        current_state_known = 0;
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ENODATA); current_state_known = 1;
+        for (uint32_t stream = 1; stream <= 3; ++stream) {
+            put32(current_state + FCAM_S_STREAM_STATE, stream);
+            assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == (stream == 3 ? -EIO : -EBUSY));
+        }
+        memcpy(current_state, before_state, 128); put32(current_state + FCAM_S_PENDING_RESULTS, 1);
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -EBUSY);
+        memcpy(current_state, before_state, 128); put32(current_state + FCAM_S_FPS, 31);
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ESTALE);
+        memcpy(current_state, before_state, 128);
+        crank_bank_generation = parameter_bank_generation;
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ESTALE); crank_bank_generation = 0;
+        const uint64_t generation = current_config_generation; current_config_generation = UINT64_MAX;
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -EOVERFLOW); current_config_generation = generation;
+        assert(sequence == prior_sequence && !memcmp(&result, &previous, sizeof result) && !readback_closed);
+        for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        finish_server(host); return;
+    }
+    int rc = fcam_bridge_call(&crank, 21, request, 12, output, sizeof output, &result);
+    if (!strcmp(scenario, "crank-retry")) {
+        assert(rc == -EIO && !crank_generation && !crank_bank_generation && !memcmp(current_state, before_state, 128));
+        assert(!memcmp(&result, &previous, sizeof result));
+        for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        rc = fcam_bridge_call(&crank, 21, request, 12, output, sizeof output, &result);
+    }
+    if (!strcmp(scenario, "crank") || !strcmp(scenario, "crank-mutation") || !strcmp(scenario, "crank-retry")) {
+        assert(!rc && result.used == 208 && result.required == 208 && result.model_instance == nonce && !result.result_token);
+        assert(get64(output + 16) == 1 && get64(output + 24) == 1 && get64(output + 32) == 23 && get64(output + 40) == 24);
+        assert(get32(output + 60) == 30 && !memcmp(output + 192, request, 12) && !get32(output + 204));
+        put64(before_state + FCAM_S_GENERATION, 24); assert(!memcmp(output + 64, before_state, 128));
+        for (size_t i = 208; i < sizeof output; ++i) assert(output[i] == 0xa5);
+        unsigned char saved[208]; memcpy(saved, output, sizeof saved);
+        const struct fcam_bridge_result success = result;
+        request[1] ^= 1; request[4] ^= 1; crank.wire_fnv1a64 = fnv(request,12);
+        const uint64_t sequence_before_duplicate = sequence;
+        assert(fcam_bridge_call(&crank, 21, request, 12, output, 208, &result) == -ESTALE && sequence == sequence_before_duplicate);
+        assert(!memcmp(output, saved, 208) && !memcmp(&result, &success, sizeof result));
+        assert(!fcam_bridge_call(&crank, 2, NULL, 0, live, 128, &result) && !memcmp(live, saved + 64, 128));
+        assert(!fcam_bridge_call(&bank_origin, 20, bank, sizeof bank, bank_receipt, sizeof bank_receipt, &result));
+        assert(!fcam_bridge_call(&crank, 2, NULL, 0, live, 128, &result));
+        assert(!fcam_bridge_call(&crank, 21, request, 12, output, 208, &result));
+        assert(get64(output + 16) == 2 && get64(output + 24) == 2 && get64(output + 32) == 25 && get64(output + 40) == 26);
+    } else {
+        const int expected = !strcmp(scenario, "crank-copy") || !strcmp(scenario, "crank-upstream") ? -EIO :
+            !strcmp(scenario, "crank-transport-fnv") ? -EBADMSG : -EPROTO;
+        assert(rc == expected && !memcmp(&result, &previous, sizeof result) && !readback_closed);
+        if (strcmp(scenario, "crank-copy")) for (size_t i = 0; i < sizeof output; ++i) assert(output[i] == 0xa5);
+    }
+    assert(!released && !cancelled); finish_server(host);
+}
 static const struct fcam_native_origin bit_width_origin = {0x1001, 0x200d, 0x015e, 10, UINT64_C(0x0123456789abcdef)};
 static void *bit_width_server(void *unused) {
     (void)unused;
@@ -407,13 +902,14 @@ static void still_format_bridge_test(void) {
 static struct fcam_native_origin startup_origin;
 static void startup_input(unsigned command, const unsigned char *actual_state, unsigned char input[32]) {
     memset(input, 0, 32); input[0] = (unsigned char)command; input[1] = (unsigned char)(command >> 8);
-    input[2] = command == 0x4014 ? 16 : 4;
+    input[2] = command == 0x4014 ? 16 : command == 0x403f ? 8 : 4;
     if (command == 0x4014) memcpy(input + 4, fcam_startup_control_mode_body, 16);
     put64(input + 24, fnv(actual_state + 8, 40));
     unsigned char wire[24] = {5,0,0,0,0x3c,0,0,0x80}; wire[2] = input[0]; wire[3] = input[1];
     memcpy(wire + 8, input + 4, input[2]);
-    startup_origin = (struct fcam_native_origin){0x80020002, 0x90030001, command,
-        command == 0x4014 ? 24u : 12u, fnv(wire, command == 0x4014 ? 24u : 12u)};
+    unsigned bytes = command == 0x4014 ? 24u : command == 0x403f ? 16u : 12u;
+    startup_origin = (struct fcam_native_origin){0x80020002, command == 0x403f ? 0x90040193u : 0x90030001u,
+        command,bytes,fnv(wire,bytes)};
 }
 static void *startup_server(void *unused) {
     (void)unused; uint64_t last = 0, config_generation = 4, frame_generation = 5;
@@ -490,23 +986,25 @@ static void *startup_server(void *unused) {
     }
 }
 static void startup_bridge_test(void) {
+    const unsigned initial_command = !strcmp(scenario,"startup-focus") ? 0x403f : 0x4014;
     unsigned char actual_state[128] = {0}, input[33], output[200]; memset(output, 0xa5, sizeof output);
-    startup_input(0x4014, actual_state, input);
+    startup_input(initial_command, actual_state, input);
     struct fcam_bridge_result r = {1,2,3,4}, previous = r;
     assert(fcam_bridge_call(&startup_origin, 14, input, 32, output, 192, &r) == -ENODATA);
     assert(!sequence && !memcmp(&r, &previous, sizeof r));
     pthread_t host; assert(!pthread_create(&host, NULL, startup_server, NULL));
     assert(!fcam_bridge_call(&startup_origin, 2, NULL, 0, actual_state, 128, &r));
     assert(r.used == 128 && !r.result_token); readback_closed = 0; r = previous;
-    startup_input(0x4014, actual_state, input);
+    startup_input(initial_command, actual_state, input);
     if (!strcmp(scenario, "startup-validation")) {
         const uint64_t before_sequence = sequence;
         for (size_t n = 0; n <= 33; ++n) if (n != 32)
             assert(fcam_bridge_call(&startup_origin, 14, input, n, output, 192, &r) == -EINVAL);
         for (size_t cap = 0; cap < 192; ++cap)
             assert(fcam_bridge_call(&startup_origin, 14, input, 32, output, cap, &r) == -ENOSPC);
-        for (size_t slot = 0; slot < 2; ++slot) {
-            startup_input(slot ? 0x4057 : 0x4014, actual_state, input);
+        static const unsigned commands[] = {0x4014,0x4057,0x403f};
+        for (size_t slot = 0; slot < 3; ++slot) {
+            startup_input(commands[slot], actual_state, input);
             for (size_t i = 0; i < 32; ++i) {
                 input[i] ^= 1;
                 assert(fcam_bridge_call(&startup_origin, 14, input, 32, output, 192, &r) ==
@@ -524,7 +1022,7 @@ static void startup_bridge_test(void) {
         finish_server(host); return;
     }
     const int rc = fcam_bridge_call(&startup_origin, 14, input, 32, output, 200, &r);
-    if (!strcmp(scenario, "startup")) {
+    if (!strcmp(scenario, "startup") || !strcmp(scenario,"startup-focus")) {
         assert(!rc && r.used == 192 && r.required == 192 && r.model_instance == nonce && !r.result_token);
         assert(rgb_config_reply_valid(output, input, 32, 9) && !memcmp(output + 160, input, 32));
         uint64_t generation = get64(output + 16), frame = get64(output + 24);
@@ -692,10 +1190,46 @@ int main(int argc, char **argv) {
         assert(fcam_bridge_call(&origin, FCAM_OP_VDF_DISPLAY_CONFIG, layout, FCAM_DISPLAY_INPUT_BYTES - 1, out, sizeof out, &result) == -EINVAL);
         assert(fcam_bridge_call(&origin, FCAM_OP_BB_STARTUP_CONFIG, layout, FCAM_BB_INPUT_BYTES - 1, out, sizeof out, &result) == -EINVAL);
         assert(fcam_bridge_call(&origin, FCAM_OP_HISTOGRAM, layout, FCAM_HIST_INPUT_BYTES - 1, out, sizeof out, &result) == -EINVAL);
+        unsigned char frame_flags[8] = {1};
+        assert(public_op(FCAM_OP_VIDEO_FRAME, NULL, 0) && public_op(FCAM_OP_VIDEO_FRAME, frame_flags, 4));
+        for (size_t n = 1; n <= 8; ++n) if (n != 4)
+            assert(fcam_bridge_call(&origin, FCAM_OP_VIDEO_FRAME, frame_flags, n, out, sizeof out, &result) == -EINVAL);
+        for (size_t byte = 0; byte < 4; ++byte) {
+            frame_flags[byte] ^= 1;
+            assert(fcam_bridge_call(&origin, FCAM_OP_VIDEO_FRAME, frame_flags, 4, out, sizeof out, &result) == -EINVAL);
+            frame_flags[byte] ^= 1;
+        }
+        unsigned char capture[16] = {5, 0, 0x38, 0x40, 1, 0, 0, 0, 2};
+        assert(public_op(FCAM_OP_FRAME_CAPTURE, capture, sizeof capture));
+        assert(fcam_bridge_call(&origin, FCAM_OP_FRAME_CAPTURE, capture, sizeof capture,
+                                out, sizeof out, &result) == -EINVAL);
+        struct fcam_native_origin capture_origin = {UINT32_C(0x80020002), UINT32_C(0x90040193),
+            0x4038, 16, fnv(capture, sizeof capture)};
+        const unsigned offsets[] = {0, 1, 2, 3, 9, 10, 11};
+        for (size_t i = 0; i < sizeof offsets / sizeof offsets[0]; ++i) {
+            capture[offsets[i]] ^= 1;
+            assert(fcam_bridge_call(&capture_origin, FCAM_OP_FRAME_CAPTURE, capture, 16,
+                                    out, sizeof out, &result) == -EINVAL);
+            capture[offsets[i]] ^= 1;
+        }
+        capture_origin.wire_fnv1a64 ^= 1;
+        assert(fcam_bridge_call(&capture_origin, FCAM_OP_FRAME_CAPTURE, capture, 16,
+                                out, sizeof out, &result) == -EINVAL);
+        unsigned char retained[32] = {0};
+        assert(!public_op(FCAM_OP_FRAME_STILL, retained, 32));
+        assert(!public_op(FCAM_OP_FRAME_RELEASE, retained, 16));
+        retained[0] = 1; retained[8] = 3;
+        assert(!public_op(FCAM_OP_FRAME_STILL, retained, 32));
+        retained[8] = 8;
+        assert(!public_op(FCAM_OP_FRAME_RELEASE, retained, 16));
         assert(!memcmp(&before, &result, sizeof result));
         for (size_t i = 0; i < sizeof out; ++i) assert(out[i] == 0xa5);
         assert(sequence == 0 && status_load() == FCAM_STATUS_IDLE); return 0;
     }
+    if (!strncmp(scenario, "bank", 4)) { bank_bridge_test(); return 0; }
+    if (!strncmp(scenario, "ou", 2)) { ou_bridge_test(); return 0; }
+    if (!strncmp(scenario, "crank", 5)) { crank_bridge_test(); return 0; }
+    if (!strncmp(scenario, "movie", 5)) { movie_bridge_test(); return 0; }
     if (!strncmp(scenario, "bitwidth", 8)) { bit_width_bridge_test(); return 0; }
     if (!strncmp(scenario, "stillformat", 11)) { still_format_bridge_test(); return 0; }
     if (!strncmp(scenario, "startup", 7)) { startup_bridge_test(); return 0; }

@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "functional-face-runtime.h"
 #include "functional-face-ap-observer.h"
+#include "test-capture-inactive-fixture.h"
 #include "device-models/functional-camera-control.h"
 #include "dmm-service.h"
 

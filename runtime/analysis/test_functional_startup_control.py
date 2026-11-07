@@ -19,7 +19,7 @@ from test_functional_still_format import SOURCES
 
 HERE = Path(__file__).resolve().parent
 REPORT = HERE.parents[1] / "report"
-LOGS = HERE / "scratch/functional-startup-control-owner/logs"
+LOGS = HERE.parents[1] / "validation/tmp/functional-startup-control-owner/logs"
 MODE_BODY = bytes.fromhex("00000100010000000100000000000000")
 SCENARIOS = (
     "normal", "repeat", "same-cookie", "address-reuse", "inline", "opaque", "fresh-config", "ticket", "reentrant",

@@ -128,8 +128,10 @@ def builds(tmp_path_factory):
         "functional-camera-core/functional-camera-core.c", "virtual-optics/optics.c",
         "virtual-optical-frame-owner/optical-frame-owner.c", "virtual-jpeg-hardware/jpeg-hardware.c",
         "virtual-jpeg-hardware/jpeg-hardware-codec.c", "virtual-jpeg-sos/jpeg-sos.c",
-        "virtual-video-engine/video-engine.c", "virtual-camera-pipeline/camera-pipeline.c")]
-    subprocess.run(cc + STRICT + ["-fsyntax-only", str(HERE / "functional-jpeg-codec.c")],
+        "virtual-video-engine/video-engine.c", "virtual-camera-pipeline/camera-pipeline.c",
+        "../runtime/analysis/device-models/cp-parameter-batch.c",
+        "functional-capture-input/capture-input.c", "functional-capture-output/capture-output-memory.c")]
+    subprocess.run(cc + STRICT + ["-I" + str(REPORT / "functional-capture-input"), "-fsyntax-only", str(HERE / "functional-jpeg-codec.c")],
                    check=True, capture_output=True, timeout=30)
     cross = shutil.which("aarch64-linux-gnu-gcc")
     if cross:
@@ -142,7 +144,7 @@ def builds(tmp_path_factory):
             ("sanitized", ["-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover=all",
                            "-fno-omit-frame-pointer", "-fno-pie", "-no-pie"])):
         executable = directory / mode
-        subprocess.run(cc + STRICT + options + ["-DFJPEG_HOST_TEST",
+        subprocess.run(cc + STRICT + options + ["-DFJPEG_HOST_TEST", "-I" + str(REPORT / "functional-capture-input"),
                        str(HERE / "functional-jpeg-codec.c"), str(HERE / "test-functional-jpeg-codec.c")] +
                        list(map(str, dependencies)) + libraries + ["-pthread", "-ldl", "-lm", "-o", str(executable)],
                        check=True, capture_output=True, timeout=90)
@@ -180,10 +182,40 @@ def decoded(data):
 
 
 @pytest.mark.parametrize('mode', ['normal', 'sanitized'])
-def test_actual_codec_stdout_free_receipts_and_real_model_bytes_join_checker(builds, mode, tmp_path):
+def test_original_main_thm_done_collects_owned_output_once(builds, mode):
+    records = blobs(run(builds, mode, 'main-retained-pair'))
+    assert records['COLLECTED_MAIN_NO_SOI'] == records['MODEL_JPEG'][2:]
+    main = decoded(b'\xff\xd8' + records['COLLECTED_MAIN_NO_SOI'])
+    thumb = decoded(records['COLLECTED_THUMB'])
+    assert main.size == (1280, 720) and thumb.size == (160, 120)
+    source = Image.frombytes('RGB', (128, 64), records['CAPTURE_RGB'])
+    assert source.size == (128, 64)
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+def test_native_main_attached_retained_input_lives_through_original_done(builds, mode):
+    records = blobs(run(builds, mode, 'main-retained'))
+    image = decoded(records['MODEL_JPEG'])
+    assert image.size == (1280, 720)
+    original = records['CAPTURE_RGB']
+    source = Image.frombytes('RGB', (128, 64), original)
+    # The functional scaler uses floor(x*source/target), separately from PIL's center convention.
+    expected = bytes(channel for y in range(720) for x in range(1280)
+                     for channel in original[((y * 64 // 720) * 128 + x * 128 // 1280) * 3:
+                                             ((y * 64 // 720) * 128 + x * 128 // 1280) * 3 + 3])
+    assert source.size == (128, 64)
+    actual = image.convert('RGB').tobytes()
+    assert sum(abs(a - b) for a, b in zip(actual, expected)) / len(expected) < 20
+    assert struct.unpack_from('<Q', records['STATE'], 64)[0] == 2  # INIT probe + single retained capture.
+    assert struct.unpack_from('<Q', records['STATE'], 80)[0] == 1
+
+
+@pytest.mark.parametrize('mode', ['normal', 'sanitized'])
+@pytest.mark.parametrize('retained', [False, True])
+def test_actual_codec_stdout_free_receipts_and_real_model_bytes_join_checker(builds, mode, tmp_path, retained):
     # HOST_TEST only: original SDK methods/caller PCs, broker and Fsys are fixtures.
     # Packet/free/lease bytes and RGB/encoder proof below come from the actual C run.
-    process = subprocess.run([str(builds[mode]), 'main-stream'], capture_output=True,
+    process = subprocess.run([str(builds[mode]), 'main-retained' if retained else 'main-stream'], capture_output=True,
                              env=dict(ENV, FJPEG_HOST_RECEIPTS='1'), timeout=60)
     assert process.returncode == 0, process.stderr.decode(errors='replace')
     records = blobs(process.stdout)
@@ -218,17 +250,35 @@ def test_actual_codec_stdout_free_receipts_and_real_model_bytes_join_checker(bui
     assert proof['result_fnv1a64'] == checker.fnv(records['MODEL_JPEG'])
     origin = {key: int(request[key], 0) for key in ('source', 'destination', 'command')}
     origin.update(producer_tid=int(output['tid']), bytes=104, fnv1a64=int(request['trigger_fnv'], 16))
-    operation = dict(op=16, data=struct.pack('<4I', 1, proof['width'], proof['height'], 90),
-                     output=records['MODEL_JPEG'], origin=origin, proof=proof, token=proof['result_token'])
+    source_frame = records.get('CAPTURE_FRAME')
+    if retained:
+        binding = next(row['fields'] for row in rows if row['fields']['operation'] == 'original-input-binding')
+        frame_token = int(binding['frame_token'], 0)
+        incoming = struct.pack('<Q6I', frame_token, 0, 0, 1, 1280, 720, 90)
+        operation = dict(op=18, data=incoming, output=records['MODEL_JPEG'], origin=origin,
+                         proof=proof, token=proof['result_token'])
+        native_capture_request = struct.pack('<IIB3xI', 0x40380005, 29, 2, 0)
+        capture_origin = dict(producer_tid=origin['producer_tid'], source=0x80020002,
+            destination=0x90040193, command=0x4038, bytes=16, fnv1a64=checker.fnv(native_capture_request))
+        source_operation = dict(op=17, data=native_capture_request, output=source_frame,
+                                origin=capture_origin, token=1)
+    else:
+        operation = dict(op=16, data=struct.pack('<4I', 1, proof['width'], proof['height'], 90),
+                         output=records['MODEL_JPEG'], origin=origin, proof=proof, token=proof['result_token'])
     init_state = bytearray(128)
     struct.pack_into('<2I', init_state, 0, 1, 15)
     struct.pack_into('<Q', init_state, 48, proof['model_instance'])
-    args = fixture.host_test_transport(tmp_path, [dict(op=1, data=b'', output=bytes(init_state)), operation],
+    operations = [dict(op=1, data=b'', output=bytes(init_state))]
+    if retained:
+        operations.append(source_operation)
+    operations.append(operation)
+    args = fixture.host_test_transport(tmp_path, operations,
                                        guest_pid=int(request['pid']), model_instance=proof['model_instance'])
     transport = checker.check_transport(*args)
-    tx = next(tx for tx in transport['transfers'] if tx['opcode'] == 16)
+    tx = next(tx for tx in transport['transfers'] if tx['opcode'] == (18 if retained else 16))
     # The independent fixture transport line occupies the actual C worker lifetime.
-    tx['line'] = next(row['line'] for row in rows if row['fields']['operation'] == 'output-readback')
+    tx['line'] = next(row['line'] for row in rows if row['fields']['operation'] ==
+                      ('original-input-binding' if retained else 'output-readback'))
     for row in rows:
         row['line'] *= 2
     tx['line'] = tx['line'] * 2 - 1
@@ -236,6 +286,44 @@ def test_actual_codec_stdout_free_receipts_and_real_model_bytes_join_checker(bui
     storage = checker.writeback.inspect(storage_run)
     result = checker.check_jpeg(rows, transport, storage, args[0])
     assert result['verified'] and result['actual_reply_free_verified']
+    from functional_camera_runner import require_capture_closed
+    from test_functional_camera_runner import MAILBOX, mailbox_line
+    close_run = tmp_path / 'close-check'
+    close_run.mkdir()
+    mailbox = dict(MAILBOX, pid=int(request['pid']), nonce=proof['model_instance'])
+    close_lines = [('OBS ' + row['tag'] + ' ' + ' '.join(key + '=' + str(value) for key, value in row['fields'].items())).encode()
+                   for row in rows]
+    (close_run / 'console.log').write_bytes(mailbox_line(mailbox) + b'\n'.join(close_lines) + b'\n')
+    require_capture_closed(close_run)
+    if retained:
+        for missing in ('original-output-retained', 'original-input-release'):
+            incomplete = [line for line in close_lines if ('operation=' + missing + ' ').encode() not in line]
+            (close_run / 'console.log').write_bytes(mailbox_line(mailbox) + b'\n'.join(incomplete) + b'\n')
+            with pytest.raises(ValueError):
+                require_capture_closed(close_run)
+    if retained:
+        # Each mutation fails the actual retained-input guard; no production evidence is relabeled.
+        descriptor = next(row for row in rows if row['fields']['operation'] == 'original-input-descriptor')
+        before = descriptor['fields']['image72']
+        raw = bytearray.fromhex(before); raw[4] ^= 1; descriptor['fields']['image72'] = raw.hex()
+        with pytest.raises(ValueError, match='typed metadata/pixel'):
+            checker.check_jpeg(rows, transport, storage, args[0])
+        descriptor['fields']['image72'] = before
+        released = next(row for row in rows if row['fields']['operation'] == 'original-input-release')
+        before_line = released['line']; released['line'] = tx['line']
+        with pytest.raises(ValueError, match='released before'):
+            checker.check_jpeg(rows, transport, storage, args[0])
+        released['line'] = before_line
+        copied = next(row for row in rows if row['fields']['operation'] == 'original-output-retained')
+        for key in ('copied_bytes', 'copied_fnv', 'lease_token', 'frame_token', 'actual_native_terminal'):
+            original = copied['fields'][key]; copied['fields'][key] = '0'
+            with pytest.raises(ValueError, match='retained native JPEG output copy'):
+                checker.check_jpeg(rows, transport, storage, args[0])
+            copied['fields'][key] = original
+        original = copied['line']; copied['line'] = tx['line']
+        with pytest.raises(ValueError, match='retained native JPEG output copy'):
+            checker.check_jpeg(rows, transport, storage, args[0])
+        copied['line'] = original
     assert args[1]['evidence_class'] == 'HOST_TEST'
     assert checker.finish_verdict(dict(evidence={}, missing=[], products={'JPEG': {}, 'MP4': {}}), args[1])['capture_verified'] is False
 

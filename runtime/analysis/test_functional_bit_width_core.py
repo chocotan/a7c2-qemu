@@ -54,7 +54,8 @@ def bit_width_builds(tmp_path_factory, request):
         "virtual-optics/optics.c", "virtual-optical-frame-owner/optical-frame-owner.c",
         "virtual-jpeg-hardware/jpeg-hardware.c", "virtual-jpeg-hardware/jpeg-hardware-codec.c",
         "virtual-jpeg-sos/jpeg-sos.c", "virtual-video-engine/video-engine.c",
-        "virtual-camera-pipeline/camera-pipeline.c")]
+        "virtual-camera-pipeline/camera-pipeline.c",
+        "../runtime/analysis/device-models/cp-parameter-batch.c")]
     sanitize = ["-fsanitize=address,undefined", "-fno-sanitize-recover=all"] if request.param == "asan-ubsan" else []
     result = {}
     for name, source in (("bit-width", HERE / "test-functional-bit-width-core.c"),

@@ -184,7 +184,14 @@ def test_present_gui_model_still_requires_export(tmp_path,monkeypatch):
 
 @pytest.mark.parametrize('observation_fails',[False,True])
 @pytest.mark.parametrize('input_profile',['','virtual-input-s0-v1'])
-def test_post_shutter_observation_precedes_export_without_blocking_recovery(tmp_path,monkeypatch,observation_fails,input_profile):
+@pytest.mark.parametrize('shutter_requests',[
+    [{'action':'shutter_cycle'}],
+    [{'action':'camera_input','op':'press','key':'SHUTTER','source':'pointer:shutter'},
+     {'action':'camera_input','op':'release','source':'pointer:shutter'}],
+    [{'action':'camera_input','op':'tap','key':'SHUTTER','source':'activation'}],
+],ids=['legacy-cycle','pointer-hold-release','tap'])
+def test_post_shutter_observation_precedes_export_without_blocking_recovery(
+        tmp_path,monkeypatch,observation_fails,input_profile,shutter_requests):
     import ee_entry_snapshot,json
     monkeypatch.setenv('MENU_ADF_SET_INPUT',input_profile)
     (tmp_path/'console.log').write_bytes(b'')
@@ -193,7 +200,7 @@ def test_post_shutter_observation_precedes_export_without_blocking_recovery(tmp_
         def __enter__(self):return self
         def __exit__(self,*args):pass
     channel=Channel()
-    requests=iter([{'action':'export_sd'},{'action':'shutter_cycle'},
+    requests=iter([{'action':'export_sd'},*shutter_requests,
                    {'action':'export_sd'},{'action':'export_sd'}])
     def receive(*args,**kwargs):
         try:return next(requests)
@@ -220,9 +227,71 @@ def test_post_shutter_observation_precedes_export_without_blocking_recovery(tmp_
     assert all(r['ok'] for r in exports)
     assert exports[1]['post_shutter_observation']['ok'] is not observation_fails
     assert exports[1]['post_shutter_observation']==exports[2]['post_shutter_observation']
-    proof=json.loads((tmp_path/'natural-shutter-request.json').read_text())
-    assert proof['input_submission_accepted'] is True
-    assert proof['consumer_verified'] is False and proof['still_capture_verified'] is False
+    assert json.loads((tmp_path/'ee-post-shutter.json').read_text())==exports[1]['post_shutter_observation']
+    assert not exports[1]['post_shutter_observation']['current_blocker_proven']
+    if observation_fails:
+        assert exports[1]['post_shutter_observation']['error']=='ValueError: incomplete passive evidence'
+    if shutter_requests[0]['action']=='shutter_cycle':
+        proof=json.loads((tmp_path/'natural-shutter-request.json').read_text())
+        assert proof['input_submission_accepted'] is True
+        assert proof['consumer_verified'] is False and proof['still_capture_verified'] is False
+    else:
+        receipts=[reply for reply in responses if reply['type']=='camera_input']
+        assert [reply['request'] for reply in receipts]==shutter_requests
+        assert all(reply['ok'] for reply in receipts)
+        assert not exports[1]['input_state']['held'] and not exports[1]['input_state']['uncertain_codes']
+
+
+@pytest.mark.parametrize('key,op,failed_contact',[
+    ('MENU','press',None),('SHUTTER_HALF','press',None),
+    ('MENU','tap',None),('SHUTTER_HALF','tap',None),
+    ('SHUTTER','press',1),('SHUTTER','press',2),
+    ('SHUTTER','tap',1),('SHUTTER','tap',2),
+])
+def test_unaccepted_or_non_shutter_input_does_not_arm_post_shutter_observation(
+        tmp_path,monkeypatch,key,op,failed_contact):
+    import ee_entry_snapshot
+    (tmp_path/'console.log').write_bytes(b'')
+    responses=[];contacts=[];observations=[]
+    class Channel:
+        def __enter__(self):return self
+        def __exit__(self,*args):pass
+    channel=Channel()
+    requests=iter([
+        {'action':'camera_input','op':op,'key':key,'source':'pointer:control'},
+        {'action':'camera_input','op':'release','source':'pointer:control'},
+        {'action':'export_sd'},
+    ])
+    def receive(*args,**kwargs):
+        try:return next(requests)
+        except StopIteration:raise EndOfFixture()
+    def serial(proc,out,command,**kwargs):
+        if command!='true':
+            contacts.append(command)
+            if len(contacts)==failed_contact:raise RuntimeError('input command rejected')
+        return b''
+    def observe(*args,**kwargs):
+        observations.append(True)
+        raise AssertionError('Only an accepted full shutter may arm passive observation')
+    monkeypatch.setenv('MENU_LIVE_APP_INPUT','1')
+    monkeypatch.delenv('MENU_LIVE_KEY_FILE',raising=False)
+    monkeypatch.setenv('A7C2_EE_PASSIVE_AFTER_SHUTTER','1')
+    monkeypatch.setattr(ee_entry_snapshot,'collect_passive',observe)
+    monkeypatch.setattr(live.socket,'socket',lambda **kwargs:channel)
+    monkeypatch.setattr(live.select,'select',lambda *args:([channel],[],[]))
+    monkeypatch.setattr(live,'receive_message',receive)
+    monkeypatch.setattr(live,'send_message',lambda control,message:responses.append(message))
+    monkeypatch.setattr(live,'serial_command',serial)
+    with pytest.raises(EndOfFixture):
+        live.run_live(SimpleNamespace(poll=lambda:None),tmp_path,99,sd_export=lambda:{'ok':True})
+    assert responses[1]['ok'] is (failed_contact is None)
+    assert responses[2]['ok'] is True
+    assert failed_contact is None or 'input command rejected' in responses[1]['input_state']['error']
+    exported=responses[-1]
+    assert exported['type']=='sd_export' and exported['ok']
+    assert not exported['input_state']['held'] and not exported['input_state']['uncertain_codes']
+    assert 'post_shutter_observation' not in exported and not observations
+    assert not (tmp_path/'ee-post-shutter.json').exists()
 
 
 @pytest.mark.parametrize('observation_fails',[False,True])

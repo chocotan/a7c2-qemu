@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "functional-camera-core.h"
 #include "../virtual-camera-pipeline/camera-pipeline.h"
+#include "../virtual-jpeg-hardware/jpeg-hardware-codec.h"
+#include "../../runtime/analysis/device-models/cp-parameter-batch.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -39,6 +41,14 @@ struct quant_context {
     jmp_buf jump;
     int failure, live;
 };
+struct ou_crank {
+    uint64_t generation, bank_generation, crank_generation, movie_generation, before_generation;
+    uint64_t input_fnv, bank_seal, crank_seal, movie_seal, settings_generation, settings_seal, seal;
+    uint32_t status;
+    uint8_t request[FCAM_CP_OU_CRANK_INPUT_BYTES], before[FCAM_STATE_BYTES], after[FCAM_STATE_BYTES];
+    uint8_t settings[FCAM_STARTUP_CONTROL_INPUT_BYTES], checkpoint[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
+    struct fcam_frame_proof predecessor;
+};
 struct fcam_model {
     uint64_t instance, generation, frame_generation;
     uint64_t lifetime, owner_pid, retired;
@@ -50,7 +60,13 @@ struct fcam_model {
     uint8_t *pool, *result_data, *video_config;
     size_t result_size, result_cursor, video_config_size, last_packet;
     struct vcam_pipeline *still;
-    optical_frame_owner owner;
+    optical_frame_owner owner, capture_owner;
+    optical_frame_lease capture_lease;
+    uint8_t *capture_rgb;
+    size_t capture_bytes;
+    uint64_t capture_token, capture_config_generation, capture_frame_generation;
+    uint32_t capture_encoded_mask;
+    int capture_configured;
     struct video_engine_stream *video;
     struct quant_context quant;
     enum video_engine_status video_status;
@@ -59,7 +75,7 @@ struct fcam_model {
     uint8_t zebra_staged[5], zebra_config[5];
     uint8_t layout_staged[FCAM_LAYOUT_INPUT_BYTES], layout_config[FCAM_LAYOUT_INPUT_BYTES];
     int layout_valid;
-    uint8_t display_staged[3][FCAM_DISPLAY_INPUT_BYTES], display_config[3][FCAM_DISPLAY_INPUT_BYTES];
+    uint8_t display_staged[5][FCAM_DISPLAY_INPUT_BYTES], display_config[5][FCAM_DISPLAY_INPUT_BYTES];
     uint8_t bb_staged[FCAM_BB_FEATURES][FCAM_BB_INPUT_BYTES];
     uint8_t bb_config[FCAM_BB_FEATURES][FCAM_BB_INPUT_BYTES], bb_valid[FCAM_BB_FEATURES];
     struct bb_policy bb_staged_policy, bb_applied;
@@ -71,19 +87,35 @@ struct fcam_model {
     int bit_width_valid;
     uint8_t still_format_staged[FCAM_STILL_FORMAT_INPUT_BYTES], still_format_config[FCAM_STILL_FORMAT_INPUT_BYTES];
     int still_format_valid;
-    uint8_t startup_staged[2][FCAM_STARTUP_CONTROL_INPUT_BYTES];
+    uint8_t startup_staged[3][FCAM_STARTUP_CONTROL_INPUT_BYTES];
     uint8_t mode_bank32[FCAM_STARTUP_CONTROL_INPUT_BYTES], setting_bank32[FCAM_STARTUP_CONTROL_INPUT_BYTES];
-    int mode_valid, setting_valid;
+    uint8_t focus_bank32[FCAM_STARTUP_CONTROL_INPUT_BYTES];
+    int mode_valid, setting_valid, focus_valid;
     size_t startup_slot;
-    uint64_t startup_saved_generation[2], startup_saved_seal[2];
+    uint64_t startup_saved_generation[3], startup_saved_seal[3];
     uint8_t settings_staged40[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
     uint8_t settings_snapshot40[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
+    uint8_t focus_staged40[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
+    uint8_t focus_snapshot40[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
     uint8_t *vdf_sink;
     size_t vdf_capacity, vdf_copied;
     uint32_t vdf_class;
     int vdf_busy;
+    uint64_t parameter_bank_generation, parameter_before_generation, parameter_input_fnv, parameter_seal;
+    uint8_t parameter_bank[FCAM_CP_PARAMETER_BANK_BYTES], parameter_state[FCAM_STATE_BYTES];
+    uint64_t crank_generation, crank_bank_generation, crank_before_generation;
+    uint64_t crank_input_fnv, crank_bank_seal, crank_seal;
+    uint8_t crank_request[FCAM_CP_CRANK_INPUT_BYTES];
+    uint8_t crank_before_state[FCAM_STATE_BYTES], crank_state[FCAM_STATE_BYTES];
+    uint64_t movie_generation, movie_bank_generation, movie_crank_generation, movie_before_generation;
+    uint64_t movie_input_fnv, movie_bank_seal, movie_crank_seal, movie_seal;
+    uint8_t movie_request[FCAM_CP_MOVIE_FORMAT_INPUT_BYTES];
+    uint8_t movie_before_state[FCAM_STATE_BYTES], movie_state[FCAM_STATE_BYTES];
+    struct ou_crank ou;
 };
-static _Atomic uint64_t model_lifetimes;
+_Static_assert(FCAM_CP_PARAMETER_BANK_BYTES == CP_PARAMETER_BATCH_BYTES &&
+               FCAM_CP_PARAMETER_BANK_SLOTS == CP_PARAMETER_BATCH_SLOTS, "parameter bank strict validator");
+static _Atomic uint64_t model_lifetimes, retained_frame_tokens;
 _Static_assert(sizeof(struct fcam_frame_proof) == 47u * sizeof(uint64_t), "proof POD layout");
 struct span { const void *data; size_t size; };
 
@@ -135,7 +167,10 @@ static void proof_begin(struct fcam_model *m, uint32_t op)
     m->proof = (struct fcam_frame_proof){.version = FCAM_PROOF_VERSION,
         .struct_bytes = sizeof(m->proof), .serial = serial, .model_instance = m->instance,
         .model_lifetime = m->lifetime, .owner_pid = m->owner_pid, .opcode = op,
-        .consumer_kind = op == FCAM_OP_STILL ? FCAM_PROOF_JPEG :
+        .consumer_kind = op == FCAM_OP_FRAME_CAPTURE ? FCAM_PROOF_FRAME_CAPTURE :
+            op == FCAM_OP_FRAME_STILL ? FCAM_PROOF_FRAME_STILL :
+            op == FCAM_OP_FRAME_RELEASE ? FCAM_PROOF_FRAME_RELEASE :
+            op == FCAM_OP_STILL ? FCAM_PROOF_JPEG :
             op == FCAM_OP_VIDEO_FRAME ? FCAM_PROOF_H264 :
             op == FCAM_OP_VIDEO_END ? FCAM_PROOF_DRAIN :
             op == FCAM_OP_BB_STARTUP_CONFIG ? FCAM_PROOF_BB_STARTUP :
@@ -189,14 +224,15 @@ static int overlap(struct span a, struct span b)
     return a.size && b.size && (uintptr_t)a.data < (uintptr_t)b.data + b.size &&
            (uintptr_t)b.data < (uintptr_t)a.data + a.size;
 }
-static int arguments(struct fcam_model *m, const uint8_t *input, size_t in_size,
+static int arguments(const struct fcam_model *m, const uint8_t *input, size_t in_size,
                      uint8_t *out, size_t capacity, struct fcam_exec_result *r)
 {
     if (!m || !r || !valid_span((struct span){m, sizeof(*m)})) return -EINVAL;
     const struct span spans[] = {{input, in_size}, {out, capacity}, {r, sizeof(*r)}};
     const struct span private_spans[] = {{m, sizeof(*m)}, {m->pool, FRAME_CAPACITY},
         {m->result_data, m->result_data ? FCAM_MAX_RESULT_BYTES : 0},
-        {m->video_config, m->video_config_size}, {m->vdf_sink, m->vdf_capacity}};
+        {m->video_config, m->video_config_size}, {m->vdf_sink, m->vdf_capacity},
+        {m->capture_rgb, m->capture_bytes}};
     for (size_t i = 0; i < 3; ++i) {
         if (!valid_span(spans[i])) return -EINVAL;
         for (size_t j = 0; j < i; ++j)
@@ -300,6 +336,262 @@ static void state(const struct fcam_model *m, uint8_t out[FCAM_STATE_BYTES])
     put32(out + FCAM_S_PENDING_RESULTS, m->token != 0);
     put32(out + FCAM_S_STREAM_STATE, m->stream_state);
     put64(out + FCAM_S_FRAME_GENERATION, m->frame_generation);
+}
+static int parameter_decode(const struct fcam_model *m, const uint8_t *in, size_t size,
+                            struct cp_parameter_batch *staged, struct config *next)
+{
+    int error = cp_parameter_batch_init(staged, true);
+    if (!error) error = cp_parameter_batch_stage(staged, FCAM_CP_PARAMETER_SOURCE,
+                                                FCAM_CP_PARAMETER_TARGET, in, size);
+    if (error != CP_PARAMETER_BATCH_STAGED) return error;
+    uint8_t wire[FCAM_CONFIG_BYTES] = {0};
+    config40(&m->config, wire);
+    /* This fps projection is software policy; all remaining slot bytes stay opaque. */
+    put32(wire + 8, get32(staged->bytes + FCAM_CP_PARAMETER_FPS_AT));
+    return config_parse(wire, next, 0);
+}
+static uint64_t parameter_bank_hash(const struct fcam_model *m)
+{
+    uint8_t binding[32];
+    put64(binding, m->instance); put64(binding + 8, m->lifetime);
+    put64(binding + 16, m->parameter_bank_generation); put64(binding + 24, m->parameter_before_generation);
+    return fnv_update(fnv_update(fnv(m->parameter_bank, sizeof(m->parameter_bank)),
+                                m->parameter_state, sizeof(m->parameter_state)), binding, sizeof binding);
+}
+static void parameter_receipt(const struct fcam_model *m, uint8_t *out)
+{
+    memset(out, 0, FCAM_CP_PARAMETER_BANK_RESULT_BYTES);
+    put32(out + FCAM_CP_PARAMETER_R_VERSION, FCAM_CP_PARAMETER_VERSION);
+    put32(out + FCAM_CP_PARAMETER_R_BYTES, FCAM_CP_PARAMETER_BANK_RESULT_BYTES);
+    put64(out + FCAM_CP_PARAMETER_R_INSTANCE, m->instance);
+    put64(out + FCAM_CP_PARAMETER_R_BANK_GENERATION, m->parameter_bank_generation);
+    put64(out + FCAM_CP_PARAMETER_R_BEFORE_CONFIG_GENERATION, m->parameter_before_generation);
+    put64(out + FCAM_CP_PARAMETER_R_CONFIG_GENERATION, get64(m->parameter_state + FCAM_S_GENERATION));
+    put64(out + FCAM_CP_PARAMETER_R_INPUT_FNV, m->parameter_input_fnv);
+    put32(out + FCAM_CP_PARAMETER_R_FPS, get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT));
+    put32(out + FCAM_CP_PARAMETER_R_SLOTS, FCAM_CP_PARAMETER_BANK_SLOTS);
+    put32(out + FCAM_CP_PARAMETER_R_RAW_BYTES, FCAM_CP_PARAMETER_BANK_BYTES);
+    memcpy(out + FCAM_CP_PARAMETER_BANK_STATE_OFFSET, m->parameter_state, FCAM_STATE_BYTES);
+    memcpy(out + FCAM_CP_PARAMETER_BANK_READBACK_OFFSET, m->parameter_bank, FCAM_CP_PARAMETER_BANK_BYTES);
+}
+static int parameter_transaction(struct fcam_model *m, const uint8_t *in, size_t size,
+                                 uint8_t *out, struct fcam_exec_result *result)
+{
+    struct cp_parameter_batch staged;
+    struct config next;
+    int error = parameter_decode(m, in, size, &staged, &next);
+    if (error) return error;
+    const uint64_t input_fnv = fnv(staged.bytes, sizeof(staged.bytes)), before = m->generation;
+    /* Only fps changes, so both optical configurations are identical. Configure
+     * validates its existing consumers before the nonfailing bank/state commit. */
+    error = configure(m, &next);
+    if (error) return error;
+    memcpy(m->parameter_bank, staged.bytes, sizeof(m->parameter_bank));
+    m->parameter_input_fnv = input_fnv;
+    m->parameter_before_generation = before;
+    ++m->parameter_bank_generation;
+    state(m, m->parameter_state);
+    m->parameter_seal = parameter_bank_hash(m);
+    parameter_receipt(m, out);
+    *result = (struct fcam_exec_result){.used = FCAM_CP_PARAMETER_BANK_RESULT_BYTES};
+    return 0;
+}
+static int parameter_bank_valid(const struct fcam_model *m)
+{
+    const uint64_t generation = get64(m->parameter_state + FCAM_S_GENERATION);
+    return m->parameter_bank_generation && m->parameter_before_generation != UINT64_MAX &&
+        generation == m->parameter_before_generation + 1 && generation <= m->generation &&
+        get32(m->parameter_state + FCAM_S_ABI) == FCAM_ABI_VERSION &&
+        get64(m->parameter_state + FCAM_S_INSTANCE) == m->instance &&
+        get32(m->parameter_state + FCAM_S_FPS) == get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT) &&
+        fnv(m->parameter_bank, sizeof(m->parameter_bank)) == m->parameter_input_fnv &&
+        parameter_bank_hash(m) == m->parameter_seal;
+}
+static int crank_input_valid(const uint8_t *in, size_t size)
+{
+    if (size != FCAM_CP_CRANK_INPUT_BYTES || in[0] != 5 || get16(in + 2) != FCAM_CP_CRANK_COMMAND)
+        return -EINVAL;
+    return get32(in + 8) ? -ENOTSUP : 0;
+}
+static uint64_t crank_hash(const struct fcam_model *m)
+{
+    uint8_t binding[56];
+    put64(binding, m->instance); put64(binding + 8, m->lifetime);
+    put64(binding + 16, m->crank_generation); put64(binding + 24, m->crank_bank_generation);
+    put64(binding + 32, m->crank_before_generation); put64(binding + 40, m->crank_input_fnv);
+    put64(binding + 48, m->crank_bank_seal);
+    return fnv_update(fnv_update(fnv_update(fnv(m->crank_request, sizeof(m->crank_request)),
+        m->crank_before_state, sizeof(m->crank_before_state)), m->crank_state, sizeof(m->crank_state)),
+        binding, sizeof binding);
+}
+static int crank_domain(const struct fcam_model *m)
+{
+    if (!m->crank_generation) {
+        static const uint8_t zero[FCAM_STATE_BYTES] = {0};
+        return !m->crank_bank_generation && !m->crank_before_generation && !m->crank_input_fnv &&
+            !m->crank_bank_seal && !m->crank_seal &&
+            !memcmp(m->crank_request, zero, sizeof(m->crank_request)) &&
+            !memcmp(m->crank_before_state, zero, sizeof zero) && !memcmp(m->crank_state, zero, sizeof zero);
+    }
+    uint8_t expected[FCAM_STATE_BYTES];
+    memcpy(expected, m->crank_before_state, sizeof expected);
+    put64(expected + FCAM_S_GENERATION, m->crank_before_generation + 1);
+    return m->crank_bank_generation && m->crank_bank_generation <= m->parameter_bank_generation &&
+        m->crank_before_generation != UINT64_MAX &&
+        get64(m->crank_before_state + FCAM_S_GENERATION) == m->crank_before_generation &&
+        get32(m->crank_before_state + FCAM_S_ABI) == FCAM_ABI_VERSION &&
+        get64(m->crank_before_state + FCAM_S_INSTANCE) == m->instance &&
+        get64(m->crank_state + FCAM_S_GENERATION) <= m->generation &&
+        !memcmp(expected, m->crank_state, sizeof expected) &&
+        !crank_input_valid(m->crank_request, sizeof(m->crank_request)) &&
+        fnv(m->crank_request, sizeof(m->crank_request)) == m->crank_input_fnv && crank_hash(m) == m->crank_seal;
+}
+static void crank_receipt(const struct fcam_model *m, uint8_t *out)
+{
+    memset(out, 0, FCAM_CP_CRANK_RESULT_BYTES);
+    put32(out + FCAM_CP_CRANK_R_VERSION, FCAM_CP_CRANK_VERSION);
+    put32(out + FCAM_CP_CRANK_R_BYTES, FCAM_CP_CRANK_RESULT_BYTES);
+    put64(out + FCAM_CP_CRANK_R_INSTANCE, m->instance);
+    put64(out + FCAM_CP_CRANK_R_CRANK_GENERATION, m->crank_generation);
+    put64(out + FCAM_CP_CRANK_R_BANK_GENERATION, m->crank_bank_generation);
+    put64(out + FCAM_CP_CRANK_R_BEFORE_CONFIG_GENERATION, m->crank_before_generation);
+    put64(out + FCAM_CP_CRANK_R_CONFIG_GENERATION, get64(m->crank_state + FCAM_S_GENERATION));
+    put64(out + FCAM_CP_CRANK_R_INPUT_FNV, m->crank_input_fnv);
+    put32(out + FCAM_CP_CRANK_R_MODE, get32(m->crank_request + 8));
+    put32(out + FCAM_CP_CRANK_R_FPS, get32(m->crank_state + FCAM_S_FPS));
+    memcpy(out + FCAM_CP_CRANK_STATE_OFFSET, m->crank_state, FCAM_STATE_BYTES);
+    memcpy(out + FCAM_CP_CRANK_READBACK_OFFSET, m->crank_request, FCAM_CP_CRANK_INPUT_BYTES);
+}
+static int crank_transaction(struct fcam_model *m, const uint8_t *in,
+                             uint8_t *out, struct fcam_exec_result *result)
+{
+    uint8_t request[FCAM_CP_CRANK_INPUT_BYTES], before[FCAM_STATE_BYTES];
+    memcpy(request, in, sizeof request);
+    state(m, before);
+    const struct config current = m->config;
+    const uint32_t stream = m->stream_state;
+    const int error = configure(m, &current);
+    if (error) {
+        /* Same-config configure cannot acquire a lease; preserve the failed authorization. */
+        m->stream_state = stream;
+        return error;
+    }
+    memcpy(m->crank_request, request, sizeof request);
+    memcpy(m->crank_before_state, before, sizeof before);
+    m->crank_before_generation = get64(before + FCAM_S_GENERATION);
+    m->crank_bank_generation = m->parameter_bank_generation;
+    m->crank_bank_seal = m->parameter_seal;
+    m->crank_input_fnv = fnv(request, sizeof request);
+    ++m->crank_generation;
+    state(m, m->crank_state);
+    m->crank_seal = crank_hash(m);
+    crank_receipt(m, out);
+    *result = (struct fcam_exec_result){.used = FCAM_CP_CRANK_RESULT_BYTES};
+    return 0;
+}
+static int movie_input_valid(const uint8_t *in, size_t size)
+{
+    if (size != FCAM_CP_MOVIE_FORMAT_INPUT_BYTES || in[0] != 5 ||
+        get16(in + 2) != FCAM_CP_MOVIE_FORMAT_COMMAND) return -EINVAL;
+    /* shortcut: only observed format5/raw rate1,0 has a defined software mapping. */
+    return in[8] == 5 && in[9] == 1 && !in[10] && !get32(in + 12) &&
+        !in[16] && !in[17] && in[18] == 1 ? 0 : -ENOTSUP;
+}
+static uint64_t movie_hash(const struct fcam_model *m)
+{
+    uint8_t binding[72];
+    put64(binding, m->instance); put64(binding + 8, m->lifetime);
+    put64(binding + 16, m->movie_generation); put64(binding + 24, m->movie_bank_generation);
+    put64(binding + 32, m->movie_crank_generation); put64(binding + 40, m->movie_before_generation);
+    put64(binding + 48, m->movie_input_fnv); put64(binding + 56, m->movie_bank_seal);
+    put64(binding + 64, m->movie_crank_seal);
+    return fnv_update(fnv_update(fnv_update(fnv(m->movie_request, sizeof(m->movie_request)),
+        m->movie_before_state, sizeof(m->movie_before_state)), m->movie_state, sizeof(m->movie_state)),
+        binding, sizeof binding);
+}
+static int movie_domain(const struct fcam_model *m)
+{
+    static const uint8_t zero[FCAM_STATE_BYTES] = {0};
+    if (!m->movie_generation)
+        return !m->movie_bank_generation && !m->movie_crank_generation && !m->movie_before_generation &&
+            !m->movie_input_fnv && !m->movie_bank_seal && !m->movie_crank_seal && !m->movie_seal &&
+            !memcmp(m->movie_request, zero, sizeof(m->movie_request)) &&
+            !memcmp(m->movie_before_state, zero, sizeof zero) && !memcmp(m->movie_state, zero, sizeof zero);
+    uint8_t expected[FCAM_STATE_BYTES];
+    memcpy(expected, m->movie_before_state, sizeof expected);
+    put64(expected + FCAM_S_GENERATION, m->movie_before_generation + 1);
+    return m->movie_bank_generation && m->movie_bank_generation <= m->parameter_bank_generation &&
+        m->movie_crank_generation && m->movie_crank_generation <= m->crank_generation &&
+        m->movie_before_generation != UINT64_MAX &&
+        get64(m->movie_before_state + FCAM_S_GENERATION) == m->movie_before_generation &&
+        get32(m->movie_before_state + FCAM_S_ABI) == FCAM_ABI_VERSION &&
+        get64(m->movie_before_state + FCAM_S_INSTANCE) == m->instance &&
+        get64(m->movie_state + FCAM_S_GENERATION) <= m->generation &&
+        get32(m->movie_state + FCAM_S_FPS) >= 1 && get32(m->movie_state + FCAM_S_FPS) <= 120 &&
+        !memcmp(expected, m->movie_state, sizeof expected) &&
+        !movie_input_valid(m->movie_request, sizeof(m->movie_request)) &&
+        fnv(m->movie_request, sizeof(m->movie_request)) == m->movie_input_fnv && movie_hash(m) == m->movie_seal;
+}
+static int movie_current(const struct fcam_model *m)
+{
+    return movie_domain(m) && m->movie_generation && parameter_bank_valid(m) && crank_domain(m) &&
+        m->movie_bank_generation == m->parameter_bank_generation &&
+        m->movie_crank_generation == m->crank_generation && m->crank_bank_generation == m->parameter_bank_generation &&
+        m->movie_bank_seal == m->parameter_seal && m->crank_bank_seal == m->parameter_seal &&
+        m->movie_crank_seal == m->crank_seal &&
+        get32(m->movie_state + FCAM_S_FPS) == get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT) &&
+        get32(m->crank_state + FCAM_S_FPS) == get32(m->movie_state + FCAM_S_FPS);
+}
+static int movie_video_mapping(const struct fcam_model *m, const struct config *config)
+{
+    if (!movie_domain(m)) return -EIO;
+    if (!m->movie_generation) return 0;
+    if (!movie_current(m)) return -ESTALE;
+    return config->fps == get32(m->movie_state + FCAM_S_FPS) ? 0 : -ESTALE;
+}
+static void movie_receipt(const struct fcam_model *m, uint8_t *out)
+{
+    memset(out, 0, FCAM_CP_MOVIE_FORMAT_RESULT_BYTES);
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_VERSION, FCAM_CP_MOVIE_FORMAT_VERSION);
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_BYTES, FCAM_CP_MOVIE_FORMAT_RESULT_BYTES);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_INSTANCE, m->instance);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_MOVIE_GENERATION, m->movie_generation);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_BANK_GENERATION, m->movie_bank_generation);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_CRANK_GENERATION, m->movie_crank_generation);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_BEFORE_CONFIG_GENERATION, m->movie_before_generation);
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_CONFIG_GENERATION, get64(m->movie_state + FCAM_S_GENERATION));
+    put64(out + FCAM_CP_MOVIE_FORMAT_R_INPUT_FNV, m->movie_input_fnv);
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_FORMAT, 5);
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_RATE, 0);
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_FPS, get32(m->movie_state + FCAM_S_FPS));
+    put32(out + FCAM_CP_MOVIE_FORMAT_R_CODEC, FCAM_CP_MOVIE_FORMAT_SOFTWARE_CODEC_H264);
+    memcpy(out + FCAM_CP_MOVIE_FORMAT_STATE_OFFSET, m->movie_state, FCAM_STATE_BYTES);
+    memcpy(out + FCAM_CP_MOVIE_FORMAT_READBACK_OFFSET, m->movie_request, FCAM_CP_MOVIE_FORMAT_INPUT_BYTES);
+}
+static int movie_transaction(struct fcam_model *m, const uint8_t *in,
+                             uint8_t *out, struct fcam_exec_result *result)
+{
+    uint8_t request[FCAM_CP_MOVIE_FORMAT_INPUT_BYTES], before[FCAM_STATE_BYTES];
+    memcpy(request, in, sizeof request);
+    state(m, before);
+    const struct config current = m->config;
+    const uint32_t stream = m->stream_state;
+    const int error = configure(m, &current);
+    if (error) { m->stream_state = stream; return error; }
+    memcpy(m->movie_request, request, sizeof request);
+    memcpy(m->movie_before_state, before, sizeof before);
+    m->movie_before_generation = get64(before + FCAM_S_GENERATION);
+    m->movie_bank_generation = m->parameter_bank_generation;
+    m->movie_crank_generation = m->crank_generation;
+    m->movie_bank_seal = m->parameter_seal;
+    m->movie_crank_seal = m->crank_seal;
+    m->movie_input_fnv = fnv(request, sizeof request);
+    ++m->movie_generation;
+    state(m, m->movie_state);
+    m->movie_seal = movie_hash(m);
+    movie_receipt(m, out);
+    *result = (struct fcam_exec_result){.used = FCAM_CP_MOVIE_FORMAT_RESULT_BYTES};
+    return 0;
 }
 static void quant_error(j_common_ptr codec)
 {
@@ -411,6 +703,7 @@ static void packet_header(const struct fcam_model *m, uint8_t *out,
 static int packet_sink(const struct video_engine_stream_packet *packet, void *opaque)
 {
     struct fcam_model *m = opaque;
+    if (movie_video_mapping(m, &m->config)) return -EIO;
     if (packet && packet->data && packet->size && m->proof.serial &&
         (m->proof.consumer_kind == FCAM_PROOF_H264 || m->proof.consumer_kind == FCAM_PROOF_DRAIN)) {
         if (packet->size > UINT64_MAX - m->proof.encoded_bytes) return -EOVERFLOW;
@@ -453,27 +746,140 @@ static uint64_t startup_seal(const struct fcam_model *m, size_t slot, const uint
     uint8_t binding[24];
     put64(binding, m->instance); put64(binding + 8, m->lifetime); put64(binding + 16, generation);
     uint64_t hash = fnv_update(fnv(bank, FCAM_STARTUP_CONTROL_INPUT_BYTES), binding, sizeof binding);
-    if (slot) hash = fnv_update(hash, m->settings_snapshot40, sizeof m->settings_snapshot40);
+    if (slot) hash = fnv_update(hash, slot == 2 ? m->focus_snapshot40 : m->settings_snapshot40,
+                               FCAM_STARTUP_CONTROL_CONFIG_BYTES);
     return hash;
 }
 static int startup_domain(const struct fcam_model *m)
 {
     static const uint8_t zero[FCAM_STARTUP_CONTROL_CONFIG_BYTES] = {0};
-    for (size_t slot = 0; slot < 2; ++slot) {
-        const uint8_t *bank = slot ? m->setting_bank32 : m->mode_bank32;
-        const int valid = slot ? m->setting_valid : m->mode_valid;
+    for (size_t slot = 0; slot < 3; ++slot) {
+        const uint8_t *bank = slot == 2 ? m->focus_bank32 : slot ? m->setting_bank32 : m->mode_bank32;
+        const uint8_t *checkpoint = slot == 2 ? m->focus_snapshot40 : m->settings_snapshot40;
+        const int valid = slot == 2 ? m->focus_valid : slot ? m->setting_valid : m->mode_valid;
+        const unsigned command = slot == 2 ? FCAM_STARTUP_CONTROL_CMD_FOCUS_OFF :
+            slot ? FCAM_STARTUP_CONTROL_CMD_SETTINGS : FCAM_STARTUP_CONTROL_CMD_MODE;
         const uint64_t generation = m->startup_saved_generation[slot];
         if (!valid) {
             if (memcmp(bank, zero, FCAM_STARTUP_CONTROL_INPUT_BYTES) || generation ||
-                m->startup_saved_seal[slot] || (slot && memcmp(m->settings_snapshot40, zero, sizeof zero))) return 0;
+                m->startup_saved_seal[slot] || (slot && memcmp(checkpoint, zero, sizeof zero))) return 0;
         } else if (valid != 1 || !fcam_startup_control_validate_basic(bank) ||
-            get16(bank) != (slot ? FCAM_STARTUP_CONTROL_CMD_SETTINGS : FCAM_STARTUP_CONTROL_CMD_MODE) ||
-            !generation || generation > m->generation ||
+            get16(bank) != command || !generation || generation > m->generation ||
             m->startup_saved_seal[slot] != startup_seal(m, slot, bank, generation) ||
-            (slot && fnv(m->settings_snapshot40, sizeof m->settings_snapshot40) !=
+            (slot && fnv(checkpoint, FCAM_STARTUP_CONTROL_CONFIG_BYTES) !=
                 get64(bank + FCAM_STARTUP_CONTROL_I_CONFIG_FNV))) return 0;
     }
     return 1;
+}
+static int ou_input_valid(const uint8_t *in, size_t size)
+{
+    if (size != FCAM_CP_OU_CRANK_INPUT_BYTES || in[0] != 5 || get16(in + 2) != FCAM_CP_OU_CRANK_COMMAND)
+        return -EINVAL;
+    return get32(in + 8) ? -ENOTSUP : 0;
+}
+static int ou_settings_proof(const struct fcam_model *m, const struct fcam_frame_proof *p, const uint8_t *s)
+{
+    return p->version == FCAM_PROOF_VERSION && p->struct_bytes == sizeof(*p) && p->serial &&
+        p->model_instance == m->instance && p->model_lifetime == m->lifetime && p->owner_pid == m->owner_pid &&
+        p->opcode == FCAM_OP_STARTUP_CONTROL && p->consumer_kind == FCAM_PROOF_VDF &&
+        p->config_generation == get64(s + FCAM_S_GENERATION) &&
+        p->frame_generation == get64(s + FCAM_S_FRAME_GENERATION) &&
+        p->width == get32(s + FCAM_S_WIDTH) && p->height == get32(s + FCAM_S_HEIGHT) &&
+        p->stride == p->width * 3u && p->active_bytes == p->stride * p->height &&
+        p->render_observed == 1 && p->consumer_entered == 1 && p->consumer_returned == 1 &&
+        p->retired == 1 && !p->encoder_consumed && p->final_state == OPTICAL_FRAME_IDLE &&
+        !p->operation_status && p->render_status == OPTICAL_FRAME_OK &&
+        p->consumer_status == OPTICAL_FRAME_OK && p->retire_status == OPTICAL_FRAME_OK &&
+        p->source_fnv1a64 == p->consumer_before_fnv1a64 && p->source_fnv1a64 == p->consumer_after_fnv1a64 &&
+        p->before.rendered != UINT64_MAX && p->before.consumed != UINT64_MAX && p->before.retired != UINT64_MAX &&
+        p->after.rendered == p->before.rendered + 1 && p->after.consumed == p->before.consumed + 1 &&
+        p->after.retired == p->before.retired + 1 && p->after.jpeg_encoded == p->before.jpeg_encoded &&
+        p->after.video_encoded == p->before.video_encoded && p->after.rendered == get64(s + FCAM_S_RENDERED) &&
+        p->after.consumed == get64(s + FCAM_S_CONSUMED) && p->after.jpeg_encoded == get64(s + FCAM_S_JPEG_ENCODED) &&
+        p->after.video_encoded == get64(s + FCAM_S_VIDEO_ENCODED) &&
+        p->result_bytes == FCAM_STARTUP_CONTROL_RESULT_BYTES && !p->result_token && !p->encoded_bytes;
+}
+static uint64_t ou_hash(const struct fcam_model *m)
+{
+    const struct ou_crank *o = &m->ou;
+    uint8_t binding[112];
+    put64(binding, m->instance); put64(binding + 8, m->lifetime);
+    put64(binding + 16, o->generation); put64(binding + 24, o->bank_generation);
+    put64(binding + 32, o->crank_generation); put64(binding + 40, o->movie_generation);
+    put64(binding + 48, o->before_generation); put64(binding + 56, o->input_fnv);
+    put64(binding + 64, o->bank_seal); put64(binding + 72, o->crank_seal); put64(binding + 80, o->movie_seal);
+    put64(binding + 88, o->settings_generation); put64(binding + 96, o->settings_seal); put64(binding + 104, o->status);
+    uint64_t hash = fnv_update(fnv(o->request, sizeof o->request), binding, sizeof binding);
+    hash = fnv_update(fnv_update(hash, o->before, sizeof o->before), o->after, sizeof o->after);
+    hash = fnv_update(fnv_update(hash, o->settings, sizeof o->settings), o->checkpoint, sizeof o->checkpoint);
+    return fnv_update(hash, (const uint8_t *)&o->predecessor, sizeof o->predecessor);
+}
+static int ou_domain(const struct fcam_model *m)
+{
+    const struct ou_crank *o = &m->ou;
+    if (!o->generation) {
+        static const struct ou_crank zero = {0};
+        return !memcmp(o, &zero, sizeof zero);
+    }
+    uint8_t expected[FCAM_STATE_BYTES], binding[24];
+    memcpy(expected, o->before, sizeof expected);
+    put64(expected + FCAM_S_GENERATION, o->before_generation + 1);
+    put64(binding, m->instance); put64(binding + 8, m->lifetime); put64(binding + 16, o->settings_generation);
+    const uint64_t settings_seal = fnv_update(fnv_update(fnv(o->settings, sizeof o->settings), binding, sizeof binding),
+                                             o->checkpoint, sizeof o->checkpoint);
+    return !o->status && o->bank_generation && o->bank_generation <= m->parameter_bank_generation &&
+        o->crank_generation && o->crank_generation <= m->crank_generation &&
+        o->movie_generation && o->movie_generation <= m->movie_generation && o->before_generation != UINT64_MAX &&
+        get32(o->before + FCAM_S_ABI) == FCAM_ABI_VERSION && get64(o->before + FCAM_S_INSTANCE) == m->instance &&
+        get64(o->before + FCAM_S_GENERATION) == o->before_generation &&
+        get64(o->after + FCAM_S_GENERATION) <= m->generation && !memcmp(expected, o->after, sizeof expected) &&
+        !ou_input_valid(o->request, sizeof o->request) && fnv(o->request, sizeof o->request) == o->input_fnv &&
+        fcam_startup_control_validate_basic(o->settings) && get16(o->settings) == FCAM_STARTUP_CONTROL_CMD_SETTINGS &&
+        o->settings_generation == o->before_generation && o->settings_seal == settings_seal &&
+        fnv(o->checkpoint, sizeof o->checkpoint) == get64(o->settings + FCAM_STARTUP_CONTROL_I_CONFIG_FNV) &&
+        !memcmp(o->checkpoint, o->before + FCAM_STARTUP_CONTROL_STATE_CONFIG_OFFSET, sizeof o->checkpoint) &&
+        ou_settings_proof(m, &o->predecessor, o->before) && o->seal == ou_hash(m);
+}
+static void ou_receipt(const struct fcam_model *m, uint8_t *out)
+{
+    const struct ou_crank *o = &m->ou;
+    memset(out, 0, FCAM_CP_OU_CRANK_RESULT_BYTES);
+    put32(out + FCAM_CP_OU_CRANK_R_VERSION, FCAM_CP_OU_CRANK_VERSION);
+    put32(out + FCAM_CP_OU_CRANK_R_BYTES, FCAM_CP_OU_CRANK_RESULT_BYTES);
+    put64(out + FCAM_CP_OU_CRANK_R_INSTANCE, m->instance);
+    put64(out + FCAM_CP_OU_CRANK_R_OU_GENERATION, o->generation);
+    put64(out + FCAM_CP_OU_CRANK_R_BANK_GENERATION, o->bank_generation);
+    put64(out + FCAM_CP_OU_CRANK_R_CRANK_GENERATION, o->crank_generation);
+    put64(out + FCAM_CP_OU_CRANK_R_MOVIE_GENERATION, o->movie_generation);
+    put64(out + FCAM_CP_OU_CRANK_R_BEFORE_CONFIG_GENERATION, o->before_generation);
+    put64(out + FCAM_CP_OU_CRANK_R_CONFIG_GENERATION, get64(o->after + FCAM_S_GENERATION));
+    put64(out + FCAM_CP_OU_CRANK_R_INPUT_FNV, o->input_fnv);
+    put32(out + FCAM_CP_OU_CRANK_R_FPS, get32(o->after + FCAM_S_FPS));
+    memcpy(out + FCAM_CP_OU_CRANK_STATE_OFFSET, o->after, sizeof o->after);
+    memcpy(out + FCAM_CP_OU_CRANK_READBACK_OFFSET, o->request, sizeof o->request);
+}
+static int ou_transaction(struct fcam_model *m, const uint8_t *in, uint8_t *out, struct fcam_exec_result *result)
+{
+    uint8_t request[FCAM_CP_OU_CRANK_INPUT_BYTES], before[FCAM_STATE_BYTES];
+    memcpy(request, in, sizeof request); state(m, before);
+    const struct config current = m->config;
+    const uint32_t stream = m->stream_state;
+    const int error = configure(m, &current);
+    if (error) { m->stream_state = stream; return error; }
+    struct ou_crank *o = &m->ou;
+    memcpy(o->request, request, sizeof request); memcpy(o->before, before, sizeof before);
+    o->before_generation = get64(before + FCAM_S_GENERATION);
+    o->bank_generation = m->parameter_bank_generation; o->crank_generation = m->crank_generation;
+    o->movie_generation = m->movie_generation;
+    o->bank_seal = m->parameter_seal; o->crank_seal = m->crank_seal; o->movie_seal = m->movie_seal;
+    o->settings_generation = m->startup_saved_generation[1]; o->settings_seal = m->startup_saved_seal[1];
+    memcpy(o->settings, m->setting_bank32, sizeof o->settings);
+    memcpy(o->checkpoint, m->settings_snapshot40, sizeof o->checkpoint);
+    o->predecessor = m->proof; o->input_fnv = fnv(request, sizeof request); o->status = 0;
+    ++o->generation; state(m, o->after); o->seal = ou_hash(m);
+    ou_receipt(m, out);
+    *result = (struct fcam_exec_result){.used = FCAM_CP_OU_CRANK_RESULT_BYTES};
+    return 0;
 }
 static int still_format_domain(const struct fcam_model *m)
 {
@@ -482,18 +888,20 @@ static int still_format_domain(const struct fcam_model *m)
         return !memcmp(m->still_format_config, unset, sizeof unset);
     return m->still_format_valid == 1 && fcam_still_format_input_valid(m->still_format_config);
 }
-static int consume_frame(const optical_frame_view *view, void *opaque)
+static int consume_video_frame(const optical_frame_view *view, void *opaque, int force_idr)
 {
     struct fcam_model *m = opaque;
-    if (!startup_domain(m) || !still_format_domain(m) || view->format != OPTICAL_FRAME_VIRTUAL_RGB888 || view->pixels != m->pool ||
+    if (!startup_domain(m) || !still_format_domain(m) || movie_video_mapping(m, &m->config) ||
+        view->format != OPTICAL_FRAME_VIRTUAL_RGB888 || view->pixels != m->pool ||
         view->generation != m->owner.info.generation) return -EIO;
     const struct video_engine_rgb rgb = {view->pixels, view->size, view->stride};
     m->proof.consumer_entered = 1;
     m->proof.consumer_before_state = m->owner.info.state;
     m->proof.consumer_before_fnv1a64 = active_hash(rgb.data, view->width, view->height, rgb.stride);
     const struct video_engine_stream_info before = video_engine_stream_snapshot(m->video);
-    m->video_status = video_engine_stream_feed_rgb888(m->video, &rgb,
-                                                     (int64_t)before.frames_consumed, 1);
+    m->video_status = force_idr ?
+        video_engine_stream_feed_idr_rgb888(m->video, &rgb, (int64_t)before.frames_consumed, 1) :
+        video_engine_stream_feed_rgb888(m->video, &rgb, (int64_t)before.frames_consumed, 1);
     const struct video_engine_stream_info after = video_engine_stream_snapshot(m->video);
     m->proof.consumer_returned = 1;
     m->proof.consumer_status = m->video_status;
@@ -504,7 +912,15 @@ static int consume_frame(const optical_frame_view *view, void *opaque)
     m->video_encoded += after.packets_received - before.packets_received;
     return m->video_status == VIDEO_ENGINE_OK ? 0 : -EIO;
 }
-static int video_frame(struct fcam_model *m)
+static int consume_frame(const optical_frame_view *view, void *opaque)
+{
+    return consume_video_frame(view, opaque, 0);
+}
+static int consume_idr_frame(const optical_frame_view *view, void *opaque)
+{
+    return consume_video_frame(view, opaque, 1);
+}
+static int video_frame(struct fcam_model *m, int force_idr)
 {
     optical_frame_lease lease;
     optical_frame_status s = optical_frame_acquire(&m->owner, m->pool, FRAME_CAPACITY, &lease);
@@ -518,7 +934,8 @@ static int video_frame(struct fcam_model *m)
         ++m->rendered;
         m->packet_generation = ++m->frame_generation;
         proof_source(m, &lease);
-        s = optical_frame_consumer_read(&m->owner, &lease, consume_frame, m);
+        s = optical_frame_consumer_read(&m->owner, &lease,
+                                       force_idr ? consume_idr_frame : consume_frame, m);
     }
     const optical_frame_status retired = optical_frame_retire(&m->owner, &lease);
     m->proof.retire_status = retired;
@@ -526,6 +943,18 @@ static int video_frame(struct fcam_model *m)
     m->proof.final_state = m->owner.info.state;
     if (retired == OPTICAL_FRAME_OK) ++m->retired;
     if (s != OPTICAL_FRAME_OK || retired != OPTICAL_FRAME_OK) return fault(m, -EIO);
+    return 0;
+}
+static int forced_frame_encoded(const struct fcam_model *m)
+{
+    if (m->result_size < FCAM_PACKET_HEADER_BYTES) return 0;
+    const size_t config = get32(m->result_data + 64);
+    if (config > m->result_size - FCAM_PACKET_HEADER_BYTES || !get32(m->result_data + 40)) return 0;
+    const size_t bytes = m->result_size - FCAM_PACKET_HEADER_BYTES - config;
+    if (get64(m->result_data + 48) != bytes) return 0;
+    const uint8_t *packet = m->result_data + FCAM_PACKET_HEADER_BYTES + config;
+    for (size_t i = 0; i + 3 < bytes; ++i)
+        if (!packet[i] && !packet[i + 1] && packet[i + 2] == 1 && (packet[i + 3] & 31u) == 5) return 1;
     return 0;
 }
 static int bb_slot(uint16_t command)
@@ -634,9 +1063,10 @@ static int vdf_copy(const optical_frame_view *view, void *opaque)
         overlap((struct span){m->vdf_sink, m->vdf_capacity}, (struct span){m, sizeof(*m)})) return -EINVAL;
     if (!startup_domain(m) ||
         (m->proof.opcode == FCAM_OP_STARTUP_CONTROL &&
-         (m->startup_slot > 1 || !startup_input_current(m, m->startup_staged[m->startup_slot]) ||
-          (m->startup_slot && fnv(m->settings_staged40, sizeof m->settings_staged40) !=
-              get64(m->startup_staged[1] + FCAM_STARTUP_CONTROL_I_CONFIG_FNV))))) return -EINVAL;
+         (m->startup_slot > 2 || !startup_input_current(m, m->startup_staged[m->startup_slot]) ||
+          (m->startup_slot && fnv(m->startup_slot == 2 ? m->focus_staged40 : m->settings_staged40,
+                                 FCAM_STARTUP_CONTROL_CONFIG_BYTES) !=
+              get64(m->startup_staged[m->startup_slot] + FCAM_STARTUP_CONTROL_I_CONFIG_FNV))))) return -EINVAL;
     if (!still_format_domain(m) ||
         (m->proof.opcode == FCAM_OP_STILL_FORMAT &&
          !fcam_still_format_input_valid(m->still_format_staged))) return -EINVAL;
@@ -856,8 +1286,9 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     const int zebra = op == FCAM_OP_VDF_ZEBRA, layout = op == FCAM_OP_VDF_LAYOUT;
     const int display = op == FCAM_OP_VDF_DISPLAY_CONFIG, bit_width = op == FCAM_OP_VDF_BIT_WIDTH;
     const int still_format = op == FCAM_OP_STILL_FORMAT, startup = op == FCAM_OP_STARTUP_CONTROL;
-    const size_t slot = startup ? (size_t)(get16(input) == FCAM_STARTUP_CONTROL_CMD_SETTINGS) :
-        display ? get32(input) == 0x0141u ? 2u : (size_t)(get32(input) == 0x0162u) : 0u;
+    const size_t slot = startup ? get16(input) == FCAM_STARTUP_CONTROL_CMD_FOCUS_OFF ? 2u :
+        (size_t)(get16(input) == FCAM_STARTUP_CONTROL_CMD_SETTINGS) :
+        display ? get32(input) == 0x0170u ? 4u : get32(input) == 0x0163u ? 3u : get32(input) == 0x0141u ? 2u : (size_t)(get32(input) == 0x0162u) : 0u;
     const size_t input_bytes = startup ? FCAM_STARTUP_CONTROL_INPUT_BYTES : still_format ? FCAM_STILL_FORMAT_INPUT_BYTES : bit_width ? FCAM_BIT_WIDTH_INPUT_BYTES :
         layout ? FCAM_LAYOUT_INPUT_BYTES : zebra ? FCAM_ZEBRA_INPUT_BYTES : display ? FCAM_DISPLAY_INPUT_BYTES : FCAM_VDF_INPUT_BYTES;
     const size_t saved_bytes = startup ? FCAM_STARTUP_CONTROL_INPUT_BYTES : still_format ? sizeof(m->still_format_config) : bit_width ? sizeof(m->bit_width_config) :
@@ -868,11 +1299,13 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
         display ? FCAM_DISPLAY_RESULT_BYTES : FCAM_VDF_RESULT_BYTES;
     uint8_t *staged = startup ? m->startup_staged[slot] : still_format ? m->still_format_staged : bit_width ? m->bit_width_staged :
         layout ? m->layout_staged : zebra ? m->zebra_staged : display ? m->display_staged[slot] : m->vdf_staged;
-    uint8_t *committed = startup ? (slot ? m->setting_bank32 : m->mode_bank32) : still_format ? m->still_format_config : bit_width ? m->bit_width_config :
+    uint8_t *committed = startup ? (slot == 2 ? m->focus_bank32 : slot ? m->setting_bank32 : m->mode_bank32) : still_format ? m->still_format_config : bit_width ? m->bit_width_config :
         layout ? m->layout_config : zebra ? m->zebra_config : display ? m->display_config[slot] : m->vdf_config;
     uint8_t canonical[FCAM_LAYOUT_INPUT_BYTES] = {0}, readback[FCAM_LAYOUT_INPUT_BYTES] = {0};
     uint8_t previous[FCAM_LAYOUT_INPUT_BYTES];
     uint8_t checkpoint[FCAM_STARTUP_CONTROL_CONFIG_BYTES], checkpoint_readback[FCAM_STARTUP_CONTROL_CONFIG_BYTES];
+    uint8_t *checkpoint_staged = slot == 2 ? m->focus_staged40 : m->settings_staged40;
+    uint8_t *checkpoint_saved = slot == 2 ? m->focus_snapshot40 : m->settings_snapshot40;
     if (startup && slot) config40(&m->config, checkpoint);
     memcpy(canonical, input, input_bytes);
     memcpy(previous, committed, saved_bytes);
@@ -897,8 +1330,8 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     memcpy(readback, staged, saved_bytes);
     if (memcmp(readback, canonical, input_bytes)) return fault(m, -EIO);
     if (startup && slot) {
-        memcpy(m->settings_staged40, checkpoint, sizeof checkpoint);
-        memcpy(checkpoint_readback, m->settings_staged40, sizeof checkpoint_readback);
+        memcpy(checkpoint_staged, checkpoint, sizeof checkpoint);
+        memcpy(checkpoint_readback, checkpoint_staged, sizeof checkpoint_readback);
         if (memcmp(checkpoint_readback, checkpoint, sizeof checkpoint) ||
             fnv(checkpoint_readback, sizeof checkpoint_readback) != get64(canonical + FCAM_STARTUP_CONTROL_I_CONFIG_FNV))
             return fault(m, -EIO);
@@ -917,7 +1350,7 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
         const int error = vdf_frame(m);
         if (error) return error;
     }
-    if (bit_width || still_format || startup) {
+    if (bit_width || still_format || startup || (display && get32(canonical) == 0x0170u)) {
         const size_t bytes = (size_t)m->config.width * m->config.height * 3u;
         m->proof.consumer_after_fnv1a64 = fnv(m->vdf_sink, m->vdf_copied);
         if (m->vdf_copied != bytes || bytes != m->proof.active_bytes ||
@@ -926,9 +1359,9 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     }
     if (memcmp(staged, canonical, saved_bytes)) return fault(m, -EIO);
     if (startup && slot) {
-        if (memcmp(m->settings_staged40, checkpoint, sizeof checkpoint)) return fault(m, -EIO);
-        memcpy(m->settings_snapshot40, m->settings_staged40, sizeof m->settings_snapshot40);
-        memcpy(checkpoint_readback, m->settings_snapshot40, sizeof checkpoint_readback);
+        if (memcmp(checkpoint_staged, checkpoint, sizeof checkpoint)) return fault(m, -EIO);
+        memcpy(checkpoint_saved, checkpoint_staged, sizeof checkpoint);
+        memcpy(checkpoint_readback, checkpoint_saved, sizeof checkpoint_readback);
         if (memcmp(checkpoint_readback, checkpoint, sizeof checkpoint) ||
             fnv(checkpoint_readback, sizeof checkpoint_readback) != get64(canonical + FCAM_STARTUP_CONTROL_I_CONFIG_FNV))
             return fault(m, -EIO);
@@ -942,7 +1375,7 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     }
     if (layout || display || bit_width || still_format || startup) {
         if (startup) {
-            if (slot) m->setting_valid = 1; else m->mode_valid = 1;
+            if (slot == 2) m->focus_valid = 1; else if (slot) m->setting_valid = 1; else m->mode_valid = 1;
             m->startup_saved_generation[slot] = before_config + 1;
             m->startup_saved_seal[slot] = startup_seal(m, slot, committed, before_config + 1);
         }
@@ -968,6 +1401,163 @@ static int vdf_transaction(struct fcam_model *m, uint32_t op, const uint8_t *inp
     }
     memcpy(out, response, response_bytes);
     *result = (struct fcam_exec_result){0, 0, 0, response_bytes};
+    return 0;
+}
+static int still_input_valid(const uint8_t *in, size_t size)
+{
+    if (size != 16 && size != 144) return -EINVAL;
+    const uint32_t flags = get32(in), kind = flags & 3u;
+    if ((flags & ~7u) || (kind != FCAM_STILL_FULL_JPEG && kind != FCAM_STILL_SCAN_ONLY) ||
+        size != ((flags & FCAM_STILL_HAS_QUANT) ? 144u : 16u)) return -EINVAL;
+    if (!get32(in + 4) || get32(in + 4) > FCAM_MAX_STILL_WIDTH ||
+        !get32(in + 8) || get32(in + 8) > FCAM_MAX_STILL_HEIGHT ||
+        !get32(in + 12) || get32(in + 12) > 100) return -ERANGE;
+    if (flags & FCAM_STILL_HAS_QUANT)
+        for (size_t i = 16; i < 144; ++i) if (!in[i]) return -EINVAL;
+    return 0;
+}
+static void capture_proof_source(struct fcam_model *m)
+{
+    const optical_frame_info *info = &m->capture_owner.info;
+    m->proof.config_generation = m->capture_config_generation;
+    m->proof.frame_generation = m->capture_frame_generation;
+    m->proof.lease_generation = m->capture_lease.generation;
+    m->proof.width = info->config.width;
+    m->proof.height = info->config.height;
+    m->proof.stride = info->config.stride;
+    m->proof.active_bytes = m->capture_bytes;
+    m->proof.source_fnv1a64 = info->state == OPTICAL_FRAME_RENDERED || info->state == OPTICAL_FRAME_READING ?
+        fnv(m->capture_rgb, m->capture_bytes) : 0;
+    m->proof.source_state = info->state;
+}
+static int capture_copy(const optical_frame_view *view, void *opaque)
+{
+    struct fcam_model *m = opaque;
+    m->proof.consumer_entered = 1;
+    m->proof.consumer_before_state = m->capture_owner.info.state;
+    m->proof.consumer_before_fnv1a64 = fnv(view->pixels, view->size);
+    memcpy(m->result_data + FCAM_FRAME_HEADER_BYTES, view->pixels, view->size);
+    m->proof.consumer_after_fnv1a64 = fnv(m->result_data + FCAM_FRAME_HEADER_BYTES, view->size);
+    m->proof.consumer_after_state = m->capture_owner.info.state;
+    m->proof.consumer_returned = 1;
+    m->proof.consumer_status = 0;
+    ++m->consumed;
+    return m->proof.consumer_before_fnv1a64 != m->proof.consumer_after_fnv1a64;
+}
+static int frame_capture(struct fcam_model *m, const uint8_t *in)
+{
+    m->capture_bytes = (size_t)m->config.width * m->config.height * 3u;
+    m->capture_rgb = malloc(m->capture_bytes);
+    if (!m->capture_rgb) { m->capture_bytes = 0; return -ENOMEM; }
+    uint64_t token = atomic_load(&retained_frame_tokens);
+    do {
+        if (token == UINT64_MAX) {
+            free(m->capture_rgb); m->capture_rgb = NULL; m->capture_bytes = 0;
+            return -EOVERFLOW;
+        }
+    } while (!atomic_compare_exchange_weak(&retained_frame_tokens, &token, token + 1));
+    const optical_frame_config config = optical_config(&m->config);
+    if (optical_frame_configure(&m->capture_owner, &config) != OPTICAL_FRAME_OK ||
+        optical_frame_acquire(&m->capture_owner, m->capture_rgb, m->capture_bytes,
+                              &m->capture_lease) != OPTICAL_FRAME_OK) {
+        free(m->capture_rgb); m->capture_rgb = NULL; m->capture_bytes = 0;
+        return fault(m, -EIO);
+    }
+    m->capture_token = token + 1;
+    m->capture_config_generation = m->generation;
+    const optical_frame_status rendered = optical_frame_render(&m->capture_owner, &m->capture_lease);
+    m->proof.render_status = rendered;
+    if (rendered != OPTICAL_FRAME_OK) return fault(m, -EIO);
+    ++m->rendered;
+    m->capture_frame_generation = ++m->frame_generation;
+    capture_proof_source(m);
+    m->proof.render_observed = 1;
+    const optical_frame_status copied = optical_frame_consumer_read(&m->capture_owner,
+        &m->capture_lease, capture_copy, m);
+    m->proof.final_state = m->capture_owner.info.state;
+    if (copied != OPTICAL_FRAME_OK) return fault(m, -EIO);
+    uint8_t *header = m->result_data;
+    memset(header, 0, FCAM_FRAME_HEADER_BYTES);
+    put32(header, 1); put32(header + 4, FCAM_FRAME_HEADER_BYTES);
+    put64(header + 8, m->capture_token); put64(header + 16, m->instance);
+    put64(header + 24, m->lifetime); put64(header + 32, m->capture_config_generation);
+    put64(header + 40, m->capture_frame_generation);
+    put32(header + 48, m->config.width); put32(header + 52, m->config.height);
+    put32(header + 56, m->config.width * 3u); put32(header + 60, 1);
+    put64(header + 64, m->capture_bytes); put64(header + 72, m->proof.source_fnv1a64);
+    put32(header + 80, get32(in + 4)); header[84] = in[8];
+    put64(header + 88, fnv(in, 16));
+    m->result_size = FCAM_FRAME_HEADER_BYTES + m->capture_bytes;
+    return 0;
+}
+struct retained_jpeg_context { struct fcam_model *model; const uint8_t *input; };
+static int capture_encode(const optical_frame_view *view, void *opaque)
+{
+    struct retained_jpeg_context *context = opaque;
+    struct fcam_model *m = context->model;
+    const uint8_t *in = context->input;
+    struct vjpeg_coding coding = {VJPEG_SOURCE_HEADER_422, get32(in + 4), get32(in + 8), {{0}}};
+    if (get32(in) & FCAM_STILL_HAS_QUANT) memcpy(coding.quant_zigzag, in + 16, 128);
+    else if (quant_tables(&m->quant, get32(in + 12), coding.quant_zigzag)) return -1;
+    m->proof.consumer_entered = 1;
+    m->proof.consumer_before_state = m->capture_owner.info.state;
+    m->proof.consumer_before_fnv1a64 = fnv(view->pixels, view->size);
+    const uint8_t *pixels = view->pixels;
+    if (view->width != coding.width || view->height != coding.height) {
+        for (size_t y = 0; y < coding.height; ++y)
+            for (size_t x = 0; x < coding.width; ++x) {
+                const size_t source = (y * view->height / coding.height) * view->stride +
+                    (x * view->width / coding.width) * 3u;
+                memcpy(m->pool + (y * coding.width + x) * 3u, view->pixels + source, 3);
+            }
+        pixels = m->pool;
+    }
+    const struct vjpeg_frame frame = {VJPEG_RGB888, pixels,
+        (size_t)coding.width * coding.height * 3u, coding.width, coding.height,
+        (size_t)coding.width * 3u, &m->capture_lease};
+    size_t offset = 0, length = 0;
+    const enum vjpeg_result encoded = vjpeg_encode(&frame, &coding,
+        m->result_data + VJPEG_PREFIX_SIZE, FCAM_MAX_RESULT_BYTES - VJPEG_PREFIX_SIZE,
+        &offset, &length);
+    m->proof.consumer_returned = 1;
+    m->proof.consumer_status = encoded;
+    m->proof.consumer_after_state = m->capture_owner.info.state;
+    m->proof.consumer_after_fnv1a64 = fnv(view->pixels, view->size);
+    if (encoded != VJPEG_OK) return -1;
+    m->proof.encoder_consumed = 1;
+    ++m->consumed; ++m->jpeg_encoded;
+    m->proof.encoded_bytes = length;
+    m->proof.encoded_fnv1a64 = fnv(m->result_data + VJPEG_PREFIX_SIZE + offset, length);
+    const size_t prefix = (get32(in) & FCAM_STILL_SCAN_ONLY) ? 0 : VJPEG_PREFIX_SIZE;
+    memmove(m->result_data + prefix, m->result_data + VJPEG_PREFIX_SIZE + offset, length);
+    if (prefix && vjpeg_source_prefix(&coding, m->result_data) != VJPEG_OK) return -1;
+    m->result_size = prefix + length;
+    return 0;
+}
+static int frame_still(struct fcam_model *m, const uint8_t *in)
+{
+    capture_proof_source(m);
+    struct retained_jpeg_context context = {m, in + 16};
+    const optical_frame_status encoded = optical_frame_consumer_read(&m->capture_owner,
+        &m->capture_lease, capture_encode, &context);
+    m->proof.final_state = m->capture_owner.info.state;
+    if (encoded != OPTICAL_FRAME_OK) return fault(m, -EIO);
+    m->capture_encoded_mask |= 1u << get32(in + 8);
+    return 0;
+}
+static int frame_retire(struct fcam_model *m)
+{
+    if (m->retired == UINT64_MAX || m->capture_owner.info.counts.retired == UINT64_MAX)
+        return -EOVERFLOW;
+    const optical_frame_status retired = optical_frame_retire(&m->capture_owner, &m->capture_lease);
+    m->proof.retire_status = retired;
+    m->proof.retired = retired == OPTICAL_FRAME_OK;
+    m->proof.final_state = m->capture_owner.info.state;
+    if (retired != OPTICAL_FRAME_OK) return fault(m, -EIO);
+    ++m->retired;
+    free(m->capture_rgb); m->capture_rgb = NULL; m->capture_bytes = 0;
+    m->capture_token = 0; m->capture_encoded_mask = 0;
+    m->capture_lease = (optical_frame_lease){0};
     return 0;
 }
 static int still_frame(struct fcam_model *m, const uint8_t *input)
@@ -1059,7 +1649,8 @@ struct fcam_model *fcam_model_create(uint64_t instance)
     if (!m->pool || !m->still || !m->video) goto failed;
     error = quant_init(&m->quant);
     if (error) goto failed;
-    if (optical_frame_init(&m->owner) != OPTICAL_FRAME_OK) { error = -EIO; goto failed; }
+    if (optical_frame_init(&m->owner) != OPTICAL_FRAME_OK ||
+        optical_frame_init(&m->capture_owner) != OPTICAL_FRAME_OK) { error = -EIO; goto failed; }
     error = configure(m, &defaults);
     if (error) goto failed;
     m->caps = FCAM_CAP_STILL | FCAM_CAP_AF | FCAM_CAP_FIXED_OPTICS;
@@ -1079,6 +1670,8 @@ void fcam_model_destroy(struct fcam_model *m)
     video_engine_stream_destroy(m->video);
     if (m->still) { (void)vcam_cancel(m->still); (void)vcam_destroy(m->still); }
     if (m->quant.live || m->quant.codec.mem) jpeg_destroy_compress(&m->quant.codec);
+    if (m->capture_token) (void)optical_frame_retire(&m->capture_owner, &m->capture_lease);
+    free(m->capture_rgb);
     free(m->pool);
     free(m->result_data);
     free(m->video_config);
@@ -1105,10 +1698,16 @@ static int display_validate(const uint8_t *in)
             if (!memcmp(body + 5, palettes[i], sizeof(palettes[i]))) return 0;
         return -ENOTSUP;
     }
-    if (command == 0x0162u) {
-        if (bytes != 2) return -EINVAL;
-        for (size_t i = 2; i < 8; ++i) if (body[i]) return -EINVAL;
-        return body[0] || body[1] ? -ENOTSUP : 0;
+    if (command == 0x0162u || command == 0x0163u) {
+        if (bytes != (command == 0x0163u ? 6u : 2u)) return -EINVAL;
+        for (size_t i = bytes; i < 8; ++i) if (body[i]) return -EINVAL;
+        for (size_t i = 0; i < bytes; ++i) if (body[i]) return -ENOTSUP;
+        return 0;
+    }
+    if (command == 0x0170u) {
+        if (bytes != 4) return -EINVAL;
+        for (size_t i = 3; i < 8; ++i) if (body[i]) return -EINVAL;
+        return body[0] <= 1 && body[1] <= 1 && body[2] <= 1 ? 0 : -ENOTSUP;
     }
     return -ENOTSUP;
 }
@@ -1121,8 +1720,11 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
     case FCAM_OP_INIT:
         if (size && size != FCAM_CONFIG_BYTES) return -EINVAL;
         break;
-    case FCAM_OP_STATE: case FCAM_OP_VIDEO_FRAME: case FCAM_OP_VIDEO_END: case FCAM_OP_CANCEL:
+    case FCAM_OP_STATE: case FCAM_OP_VIDEO_END: case FCAM_OP_CANCEL:
         if (size) return -EINVAL;
+        break;
+    case FCAM_OP_VIDEO_FRAME:
+        if (size && (size != 4 || get32(in) != FCAM_VIDEO_FRAME_FORCE_IDR)) return -EINVAL;
         break;
     case FCAM_OP_CONFIGURE: case FCAM_OP_VIDEO_BEGIN:
         if (size != FCAM_CONFIG_BYTES) return -EINVAL;
@@ -1190,21 +1792,140 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
         if (m->config.width != 640 || m->config.height != 480) return -ENOTSUP;
         break;
     }
+    case FCAM_OP_CP_PARAMETER_BANK: {
+        if (size != FCAM_CP_PARAMETER_BANK_BYTES) return -EINVAL;
+        if (!m->sensor_initialized) return -ENODATA;
+        if (!startup_domain(m)) return -EIO;
+        if (m->stream_state == 3) return -EIO;
+        const struct vcam_info still = vcam_snapshot(m->still);
+        if (m->stream_state || m->vdf_busy || m->capture_token || m->capture_rgb || m->capture_bytes ||
+            m->result_data || m->result_size || m->result_cursor || m->owner.info.state != OPTICAL_FRAME_IDLE ||
+            m->capture_owner.info.state != OPTICAL_FRAME_IDLE || still.state != VCAM_IDLE || still.busy ||
+            still.lease_live || still.jpeg_release_pending || still.optical.state != OPTICAL_FRAME_IDLE)
+            return -EBUSY;
+        if (m->generation == UINT64_MAX || m->parameter_bank_generation == UINT64_MAX) return -EOVERFLOW;
+        struct cp_parameter_batch staged;
+        struct config next;
+        const int error = parameter_decode(m, in, size, &staged, &next);
+        if (error) return error;
+        break;
+    }
+    case FCAM_OP_CP_CRANK_CONTROL: {
+        const int error = crank_input_valid(in, size);
+        if (error) return error;
+        if (!m->sensor_initialized || !m->parameter_bank_generation) return -ENODATA;
+        if (!startup_domain(m) || !parameter_bank_valid(m) || !crank_domain(m)) return -EIO;
+        if (m->stream_state == 3) return -EIO;
+        const struct vcam_info still = vcam_snapshot(m->still);
+        if (m->stream_state || m->vdf_busy || m->capture_token || m->capture_rgb || m->capture_bytes ||
+            m->result_data || m->result_size || m->result_cursor || m->owner.info.state != OPTICAL_FRAME_IDLE ||
+            m->capture_owner.info.state != OPTICAL_FRAME_IDLE || still.state != VCAM_IDLE || still.busy ||
+            still.lease_live || still.jpeg_release_pending || still.optical.state != OPTICAL_FRAME_IDLE)
+            return -EBUSY;
+        if (m->crank_bank_generation == m->parameter_bank_generation) return -ESTALE;
+        if (m->generation == UINT64_MAX || m->crank_generation == UINT64_MAX) return -EOVERFLOW;
+        if (m->config.fps != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT)) return -ESTALE;
+        uint8_t wire[FCAM_CONFIG_BYTES] = {0};
+        struct config current;
+        config40(&m->config, wire);
+        const int parsed = config_parse(wire, &current, 0);
+        if (parsed) return parsed;
+        break;
+    }
+    case FCAM_OP_CP_MOVIE_FORMAT: {
+        const int error = movie_input_valid(in, size);
+        if (error) return error;
+        if (!m->sensor_initialized || !m->parameter_bank_generation || !m->crank_generation) return -ENODATA;
+        if (!startup_domain(m) || !parameter_bank_valid(m) || !crank_domain(m) || !movie_domain(m)) return -EIO;
+        if (m->crank_bank_generation != m->parameter_bank_generation) return -ESTALE;
+        if (m->crank_bank_seal != m->parameter_seal ||
+            get32(m->crank_state + FCAM_S_FPS) != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT)) return -EIO;
+        if (m->stream_state == 3) return -EIO;
+        const struct vcam_info still = vcam_snapshot(m->still);
+        if (m->stream_state || m->vdf_busy || m->capture_token || m->capture_rgb || m->capture_bytes ||
+            m->result_data || m->result_size || m->result_cursor || m->owner.info.state != OPTICAL_FRAME_IDLE ||
+            m->capture_owner.info.state != OPTICAL_FRAME_IDLE || still.state != VCAM_IDLE || still.busy ||
+            still.lease_live || still.jpeg_release_pending || still.optical.state != OPTICAL_FRAME_IDLE)
+            return -EBUSY;
+        if (m->movie_bank_generation == m->parameter_bank_generation &&
+            m->movie_crank_generation == m->crank_generation) return -ESTALE;
+        if (m->generation == UINT64_MAX || m->movie_generation == UINT64_MAX) return -EOVERFLOW;
+        if (m->config.fps != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT)) return -ESTALE;
+        if (!(m->caps & FCAM_CAP_H264)) return -ENOTSUP;
+        uint8_t wire[FCAM_CONFIG_BYTES] = {0};
+        struct config current;
+        config40(&m->config, wire);
+        const int parsed = config_parse(wire, &current, 0);
+        if (parsed) return parsed;
+        break;
+    }
+    case FCAM_OP_CP_OU_CRANK_CONTROL: {
+        const int error = ou_input_valid(in, size);
+        if (error) return error;
+        if (!m->sensor_initialized || !m->parameter_bank_generation || !m->crank_generation || !m->movie_generation)
+            return -ENODATA;
+        if (!startup_domain(m) || !parameter_bank_valid(m) || !crank_domain(m) || !movie_domain(m) || !ou_domain(m))
+            return -EIO;
+        if (!movie_current(m) || m->config.fps != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT)) return -ESTALE;
+        if (m->stream_state == 3) return -EIO;
+        const struct vcam_info still = vcam_snapshot(m->still);
+        if (m->stream_state || m->vdf_busy || m->capture_token || m->capture_rgb || m->capture_bytes ||
+            m->result_data || m->result_size || m->result_cursor || m->owner.info.state != OPTICAL_FRAME_IDLE ||
+            m->capture_owner.info.state != OPTICAL_FRAME_IDLE || still.state != VCAM_IDLE || still.busy ||
+            still.lease_live || still.jpeg_release_pending || still.optical.state != OPTICAL_FRAME_IDLE) return -EBUSY;
+        if (m->ou.bank_generation == m->parameter_bank_generation && m->ou.crank_generation == m->crank_generation &&
+            m->ou.movie_generation == m->movie_generation) return -ESTALE;
+        if (m->generation == UINT64_MAX || m->ou.generation == UINT64_MAX) return -EOVERFLOW;
+        if (!m->setting_valid) return -ENODATA;
+        uint8_t before[FCAM_STATE_BYTES]; state(m, before);
+        if (m->startup_slot != 1 || m->startup_saved_generation[1] != m->generation ||
+            m->startup_saved_generation[1] <= get64(m->movie_state + FCAM_S_GENERATION) ||
+            memcmp(m->settings_snapshot40, before + FCAM_STARTUP_CONTROL_STATE_CONFIG_OFFSET,
+                   FCAM_STARTUP_CONTROL_CONFIG_BYTES) || !ou_settings_proof(m, &m->proof, before) ||
+            m->proof.after.retired != m->retired) return -ESTALE;
+        uint8_t wire[FCAM_CONFIG_BYTES] = {0}; struct config current;
+        config40(&m->config, wire);
+        const int parsed = config_parse(wire, &current, 0);
+        if (parsed) return parsed;
+        break;
+    }
     case FCAM_OP_AUTOFOCUS:
         if (size != FCAM_AF_BYTES) return -EINVAL;
         break;
     case FCAM_OP_STILL: {
-        if (size != 16 && size != 144) return -EINVAL;
-        const uint32_t flags = get32(in), kind = flags & 3u;
-        if ((flags & ~7u) || (kind != FCAM_STILL_FULL_JPEG && kind != FCAM_STILL_SCAN_ONLY) ||
-            size != ((flags & FCAM_STILL_HAS_QUANT) ? 144u : 16u)) return -EINVAL;
-        if (!get32(in + 4) || get32(in + 4) > FCAM_MAX_STILL_WIDTH ||
-            !get32(in + 8) || get32(in + 8) > FCAM_MAX_STILL_HEIGHT ||
-            !get32(in + 12) || get32(in + 12) > 100) return -ERANGE;
-        if (flags & FCAM_STILL_HAS_QUANT)
-            for (size_t i = 16; i < 144; ++i) if (!in[i]) return -EINVAL;
+        const int error = still_input_valid(in, size);
+        if (error) return error;
         break;
     }
+    case FCAM_OP_FRAME_CAPTURE:
+        if (!fcam_capture_input_valid(in, size)) return -EINVAL;
+        if (!m->sensor_initialized || !m->capture_configured) return -ENODATA;
+        if (m->capture_token) return -EBUSY;
+        if ((size_t)m->config.width * m->config.height * 3u >
+            FCAM_MAX_RESULT_BYTES - FCAM_FRAME_HEADER_BYTES) return -E2BIG;
+        if (m->capture_owner.info.generation == UINT64_MAX ||
+            m->capture_owner.info.counts.staged == UINT64_MAX ||
+            m->capture_owner.info.counts.rendered == UINT64_MAX ||
+            m->capture_owner.info.counts.read == UINT64_MAX) return -EOVERFLOW;
+        break;
+    case FCAM_OP_FRAME_STILL: {
+        if (size != 32 && size != 160) return -EINVAL;
+        if (get32(in + 8) > 2 || get32(in + 12)) return -EINVAL;
+        const int error = still_input_valid(in + 16, size - 16);
+        if (error) return error;
+        if (!m->capture_token || get64(in) != m->capture_token) return -ESTALE;
+        if (m->capture_encoded_mask & (1u << get32(in + 8))) return -EALREADY;
+        if (m->capture_owner.info.counts.read == UINT64_MAX) return -EOVERFLOW;
+        break;
+    }
+    case FCAM_OP_FRAME_RELEASE:
+        if (size != 16 || get32(in + 12) > 1) return -EINVAL;
+        if (!m->capture_token || get64(in) != m->capture_token) return -ESTALE;
+        if (get32(in + 8) != m->capture_encoded_mask) return -EBADMSG;
+        if (!get32(in + 12) && !(m->capture_encoded_mask & 1u)) return -EBUSY;
+        if (m->retired == UINT64_MAX || m->proof.serial == UINT64_MAX ||
+            m->capture_owner.info.counts.retired == UINT64_MAX) return -EOVERFLOW;
+        return 0;
     case FCAM_OP_READ_RESULT:
         if (size != 24 || get32(in + 20) || !get32(in + 16)) return -EINVAL;
         if (!m->token || get64(in) != m->token) return -ESTALE;
@@ -1233,12 +1954,21 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
             op == FCAM_OP_VDF_ZEBRA ? FCAM_ZEBRA_RESULT_BYTES :
             op == FCAM_OP_VDF_DISPLAY_CONFIG ? FCAM_DISPLAY_RESULT_BYTES : FCAM_VDF_RESULT_BYTES;
         if (capacity < required) return -ENOSPC;
+    } else if (op == FCAM_OP_CP_PARAMETER_BANK) {
+        if (capacity < FCAM_CP_PARAMETER_BANK_RESULT_BYTES) return -ENOSPC;
+    } else if (op == FCAM_OP_CP_CRANK_CONTROL) {
+        if (capacity < FCAM_CP_CRANK_RESULT_BYTES) return -ENOSPC;
+    } else if (op == FCAM_OP_CP_MOVIE_FORMAT) {
+        if (capacity < FCAM_CP_MOVIE_FORMAT_RESULT_BYTES) return -ENOSPC;
+    } else if (op == FCAM_OP_CP_OU_CRANK_CONTROL) {
+        if (capacity < FCAM_CP_OU_CRANK_RESULT_BYTES) return -ENOSPC;
     } else if (op == FCAM_OP_AUTOFOCUS) {
         if (capacity < FCAM_AF_BYTES) return -ENOSPC;
     } else if (op == FCAM_OP_BB_STARTUP_CONFIG || op == FCAM_OP_HISTOGRAM) {
         if (capacity < (op == FCAM_OP_HISTOGRAM ? FCAM_HIST_RESULT_BYTES : FCAM_BB_RESULT_BYTES))
             return -ENOSPC;
     } else if (!capacity) return -ENOSPC;
+    if (op == FCAM_OP_STATE && !startup_domain(m)) return -EIO;
     if (op == FCAM_OP_STATE || op == FCAM_OP_READ_RESULT || op == FCAM_OP_CANCEL) return 0;
     if (m->stream_state == 3) return -EIO;
     if ((op == FCAM_OP_STILL || op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END ||
@@ -1271,14 +2001,25 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
             m->owner.info.counts.rendered == UINT64_MAX || m->owner.info.counts.read == UINT64_MAX ||
             m->owner.info.counts.retired == UINT64_MAX)) return -EOVERFLOW;
     }
+    if ((op == FCAM_OP_VIDEO_BEGIN || op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END) &&
+        (m->movie_generation || !movie_domain(m))) {
+        struct config requested = m->config;
+        if (op == FCAM_OP_VIDEO_BEGIN) {
+            const int parsed = config_parse(in, &requested, 1);
+            if (parsed) return parsed;
+        }
+        const int mapping = movie_video_mapping(m, &requested);
+        if (mapping) return mapping;
+    }
     if (op == FCAM_OP_VIDEO_BEGIN &&
         (m->bb_applied.sq_mode || m->bb_applied.sq_rate || m->bb_applied.sq_aux12 ||
          m->bb_applied.sq_aux16 || m->bb_applied.sq_aux20 || m->bb_applied.sq_aux24)) return -ENOTSUP;
     if ((op == FCAM_OP_CONFIGURE || op == FCAM_OP_VIDEO_BEGIN ||
          (op == FCAM_OP_INIT && size)) && m->generation == UINT64_MAX) return -EOVERFLOW;
     if (op == FCAM_OP_AUTOFOCUS && m->generation == UINT64_MAX) return -EOVERFLOW;
-    if (op == FCAM_OP_STILL || op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END) {
-        if (m->next_token == UINT64_MAX || m->result_read > UINT64_MAX - FCAM_MAX_RESULT_BYTES ||
+    if (op == FCAM_OP_STILL || op == FCAM_OP_VIDEO_FRAME || op == FCAM_OP_VIDEO_END ||
+        op == FCAM_OP_FRAME_CAPTURE || op == FCAM_OP_FRAME_STILL) {
+        if (m->proof.serial == UINT64_MAX || m->next_token == UINT64_MAX || m->result_read > UINT64_MAX - FCAM_MAX_RESULT_BYTES ||
             m->rendered == UINT64_MAX || m->consumed == UINT64_MAX ||
             m->jpeg_encoded == UINT64_MAX || m->video_encoded == UINT64_MAX ||
             m->frame_generation == UINT64_MAX || m->retired == UINT64_MAX) return -EOVERFLOW;
@@ -1290,6 +2031,10 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
 {
     struct fcam_exec_result value = {0};
     int error = 0;
+    if (op == FCAM_OP_CP_PARAMETER_BANK) return parameter_transaction(m, in, size, out, r);
+    if (op == FCAM_OP_CP_CRANK_CONTROL) return crank_transaction(m, in, out, r);
+    if (op == FCAM_OP_CP_MOVIE_FORMAT) return movie_transaction(m, in, out, r);
+    if (op == FCAM_OP_CP_OU_CRANK_CONTROL) return ou_transaction(m, in, out, r);
     if (op == FCAM_OP_VDF_PATH || op == FCAM_OP_VDF_ZEBRA ||
         op == FCAM_OP_VDF_LAYOUT || op == FCAM_OP_VDF_DISPLAY_CONFIG ||
         op == FCAM_OP_VDF_BIT_WIDTH || op == FCAM_OP_STILL_FORMAT || op == FCAM_OP_STARTUP_CONTROL)
@@ -1312,7 +2057,29 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
         *r = value;
         return 0;
     }
+    if (op == FCAM_OP_FRAME_RELEASE) {
+        proof_begin(m, op);
+        capture_proof_source(m);
+        error = frame_retire(m);
+        if (!error) *r = value;
+        return error;
+    }
+    if (op == FCAM_OP_FRAME_CAPTURE || op == FCAM_OP_FRAME_STILL) {
+        proof_begin(m, op);
+        error = stage(m);
+        if (!error) error = op == FCAM_OP_FRAME_CAPTURE ? frame_capture(m, in) : frame_still(m, in);
+        if (error) { proof_result(m); discard(m); return error; }
+        return publish(m, out, capacity, r);
+    }
     if (op == FCAM_OP_CANCEL) {
+        if (m->capture_token) {
+            if (m->proof.serial == UINT64_MAX || m->retired == UINT64_MAX) return -EOVERFLOW;
+            proof_begin(m, op);
+            m->proof.consumer_kind = FCAM_PROOF_FRAME_RELEASE;
+            capture_proof_source(m);
+            error = frame_retire(m);
+            if (error) return error;
+        }
         const uint64_t retired_before = vcam_snapshot(m->still).counts.retired;
         const int cancelled = video_engine_stream_cancel(m->video) == VIDEO_ENGINE_OK &&
             vcam_cancel(m->still) == VCAM_CANCELLED;
@@ -1340,6 +2107,7 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
         }
         error = configure(m, &config);
         if (error) return error;
+        m->capture_configured = 1;
         if (op == FCAM_OP_VIDEO_BEGIN) {
             free(m->video_config);
             m->video_config = NULL;
@@ -1382,8 +2150,11 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
         error = stage(m);
         if (error) return error;
         if (op == FCAM_OP_STILL) error = still_frame(m, in);
-        else if (op == FCAM_OP_VIDEO_FRAME) error = video_frame(m);
-        else if (!startup_domain(m)) error = fault(m, -EIO);
+        else if (op == FCAM_OP_VIDEO_FRAME) {
+            error = video_frame(m, size != 0);
+            if (!error && size && !forced_frame_encoded(m)) error = fault(m, -EPROTO);
+        }
+        else if (!startup_domain(m) || movie_video_mapping(m, &m->config)) error = fault(m, -EIO);
         else {
             const struct video_engine_stream_info before = video_engine_stream_snapshot(m->video);
             m->proof.consumer_entered = 1;
@@ -1433,6 +2204,76 @@ int fcam_model_request(struct fcam_model *m, uint32_t op, const uint8_t *input, 
     m->busy = 0;
     return error;
 }
+int fcam_model_cp_parameter_bank_snapshot(const struct fcam_model *m,
+    uint64_t bank_generation, uint8_t *out, size_t output_bytes)
+{
+    if (output_bytes != FCAM_CP_PARAMETER_BANK_RESULT_BYTES) return -EINVAL;
+    struct fcam_exec_result unused;
+    const int error = arguments(m, NULL, 0, out, output_bytes, &unused);
+    if (error) return error;
+    if (!m->parameter_bank_generation) return -ENODATA;
+    if (!bank_generation || bank_generation != m->parameter_bank_generation) return -ESTALE;
+    if (!parameter_bank_valid(m)) return -EIO;
+    parameter_receipt(m, out);
+    return 0;
+}
+int fcam_model_cp_crank_control_snapshot(const struct fcam_model *m,
+    uint64_t crank_generation, uint64_t bank_generation, uint8_t *out, size_t output_bytes)
+{
+    if (output_bytes != FCAM_CP_CRANK_RESULT_BYTES) return -EINVAL;
+    struct fcam_exec_result unused;
+    const int error = arguments(m, NULL, 0, out, output_bytes, &unused);
+    if (error) return error;
+    if (!m->crank_generation) return crank_domain(m) ? -ENODATA : -EIO;
+    if (!crank_generation || crank_generation != m->crank_generation || !bank_generation ||
+        bank_generation != m->crank_bank_generation || bank_generation != m->parameter_bank_generation)
+        return -ESTALE;
+    if (!parameter_bank_valid(m) || !crank_domain(m) || m->crank_bank_seal != m->parameter_seal ||
+        get32(m->crank_state + FCAM_S_FPS) != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT))
+        return -EIO;
+    crank_receipt(m, out);
+    return 0;
+}
+int fcam_model_cp_movie_format_snapshot(const struct fcam_model *m,
+    uint64_t movie_generation, uint64_t bank_generation, uint64_t crank_generation,
+    uint8_t *out, size_t output_bytes)
+{
+    if (output_bytes != FCAM_CP_MOVIE_FORMAT_RESULT_BYTES) return -EINVAL;
+    struct fcam_exec_result unused;
+    const int error = arguments(m, NULL, 0, out, output_bytes, &unused);
+    if (error) return error;
+    if (!movie_domain(m)) return -EIO;
+    if (!m->movie_generation) return -ENODATA;
+    if (!movie_generation || movie_generation != m->movie_generation || !bank_generation ||
+        bank_generation != m->movie_bank_generation || bank_generation != m->parameter_bank_generation ||
+        !crank_generation || crank_generation != m->movie_crank_generation || crank_generation != m->crank_generation)
+        return -ESTALE;
+    if (!movie_current(m)) return -EIO;
+    movie_receipt(m, out);
+    return 0;
+}
+int fcam_model_cp_ou_crank_snapshot(const struct fcam_model *m,
+    uint64_t ou_generation, uint64_t bank_generation, uint64_t crank_generation, uint64_t movie_generation,
+    uint8_t *out, size_t output_bytes)
+{
+    if (output_bytes != FCAM_CP_OU_CRANK_RESULT_BYTES) return -EINVAL;
+    struct fcam_exec_result unused;
+    const int error = arguments(m, NULL, 0, out, output_bytes, &unused);
+    if (error) return error;
+    if (!ou_domain(m)) return -EIO;
+    if (!m->ou.generation) return -ENODATA;
+    if (!ou_generation || ou_generation != m->ou.generation || !bank_generation ||
+        bank_generation != m->ou.bank_generation || bank_generation != m->parameter_bank_generation ||
+        !crank_generation || crank_generation != m->ou.crank_generation || crank_generation != m->crank_generation ||
+        !movie_generation || movie_generation != m->ou.movie_generation || movie_generation != m->movie_generation)
+        return -ESTALE;
+    if (!movie_current(m) || !startup_domain(m) || m->ou.bank_seal != m->parameter_seal ||
+        m->ou.crank_seal != m->crank_seal || m->ou.movie_seal != m->movie_seal ||
+        m->ou.settings_generation <= get64(m->movie_state + FCAM_S_GENERATION) ||
+        get32(m->ou.after + FCAM_S_FPS) != get32(m->parameter_bank + FCAM_CP_PARAMETER_FPS_AT)) return -EIO;
+    ou_receipt(m, out);
+    return 0;
+}
 int fcam_model_proof_snapshot(const struct fcam_model *m,
                               struct fcam_frame_proof *proof, size_t proof_size)
 {
@@ -1441,7 +2282,8 @@ int fcam_model_proof_snapshot(const struct fcam_model *m,
         !valid_span((struct span){proof, proof_size})) return -EINVAL;
     const struct span private_spans[] = {{m, sizeof(*m)}, {m->pool, FRAME_CAPACITY},
         {m->result_data, m->result_data ? FCAM_MAX_RESULT_BYTES : 0},
-        {m->video_config, m->video_config_size}, {m->vdf_sink, m->vdf_capacity}};
+        {m->video_config, m->video_config_size}, {m->vdf_sink, m->vdf_capacity},
+        {m->capture_rgb, m->capture_bytes}};
     for (size_t i = 0; i < sizeof(private_spans) / sizeof(private_spans[0]); ++i)
         if (overlap((struct span){proof, proof_size}, private_spans[i])) return -EINVAL;
     if (m->busy) return -EBUSY;

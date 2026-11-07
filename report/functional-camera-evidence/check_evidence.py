@@ -9,6 +9,7 @@ compressed-content, original MPR/Fsys, SD readback and independent decode joins.
 Physical ASIC and original CP/RTOS compatibility are separate, unverified claims.
 """
 import argparse
+import errno
 import hashlib
 import io
 import json
@@ -33,7 +34,8 @@ DATA_BYTES = 65024
 OPS = {1: (0, 48), 2: (0,), 3: (48,), 4: (32,), 5: (16,), 6: (8,), 7: (32,), 8: (16,),
        9: (32,), 10: (8,), 11: tuple(360 + 8 * (cp + sdk) for cp in (100, 13, 14) for sdk in (1, 2)),
        12: (8,), 13: (16,), 14: (32,), 16: (16, 144),
-       32: (48,), 33: (0,), 34: (0,), 64: (24,), 65: (16,), 66: (0,)}
+       17: (16,), 18: (32, 160), 19: (16,), 20: (2564,), 21: (12,), 22: (20,), 23: (12,),
+       32: (48,), 33: (0, 4), 34: (0,), 64: (24,), 65: (16,), 66: (0,)}
 VDF_POLICY = {
     'vdf_path_policy': 'canonical-0138-single-RGB-sink-readback-before-1138',
     'vdf_virtual_endpoint': 0x90590819,
@@ -61,12 +63,22 @@ STARTUP_LAYOUT_POLICY = {
     'startup_layout_frame_completion': False,
 }
 DISPLAY_POLICY = {
-    'display_config_policy': 'original-0141-refresh-0152-disabled-and-0162-off-RGB-readback-before-independent-reply',
-    'display_config_commands': [0x141, 0x152, 0x162],
+    'display_config_policy': 'original-display-controls-plus-functional-0170-three-boolean-RGB-identity-readback-before-independent-reply',
+    'display_config_commands': [0x141, 0x152, 0x162, 0x163, 0x170],
     'peaking_enabled_supported': False,
     'display_flag_enabled_supported': False,
     'original_Peaking_operator_verified': False,
     'original_0162_feature_verified': False,
+}
+ZERO6_DISPLAY_POLICY = {
+    **DISPLAY_POLICY,
+    'display_config_policy': 'original-0141-refresh-0152-disabled-0162-off-0163-zero6-RGB-readback-before-independent-reply',
+    'display_config_commands': [0x141, 0x152, 0x162, 0x163],
+}
+LEGACY_DISPLAY_POLICY = {
+    **DISPLAY_POLICY,
+    'display_config_policy': 'original-0141-refresh-0152-disabled-and-0162-off-RGB-readback-before-independent-reply',
+    'display_config_commands': [0x141, 0x152, 0x162],
 }
 BIT_WIDTH_POLICY = {
     'display_bit_width_policy': 'original-015e-selector0-virtual-RGB888-readback-before-115e',
@@ -140,6 +152,117 @@ BACKGROUND_POLICY = {
     'cp_background_start_deferred_until': 'same-run-all13-original-free-and-actual-debugger-handoff',
     'cp_background_start_original_modules_verified': False,
 }
+CP_PARAMETER_BANK_POLICY = {
+    'cp_parameter_bank_policy': 'full190-opaque-bank-4151u32-fps-configure-live-State128-independent-readback-v1',
+    'cp_parameter_bank_opcode': 20,
+    'cp_parameter_bank_native_commands': [0x4063],
+    'cp_parameter_bank_bytes': 2564,
+    'cp_parameter_bank_slots': 190,
+    'cp_parameter_bank_result_bytes': 2756,
+    'cp_parameter_bank_fps_input_offset': 0x86c,
+    'cp_parameter_bank_reply_policy': 'oneway-original-request-free-no-ACK-no-notification',
+    'cp_parameter_bank_physical_semantics_verified': False,
+}
+CP_CRANK_CONTROL_POLICY = {
+    'cp_crank_control_policy': 'active-config-crank-mode0-v1',
+    'cp_crank_control_opcode': 21,
+    'cp_crank_control_native_commands': [0x409d],
+    'cp_crank_control_bytes': 12,
+    'cp_crank_control_result_bytes': 208,
+    'cp_crank_control_supported_modes': [0],
+    'cp_crank_control_input_policy': 'full-original12-byte1-cookie-opaque-body4zero',
+    'cp_crank_control_bank_policy': 'current-committed-instance-bank-generation-once',
+    'cp_crank_control_state_policy': 'live-State128-config-generation-plus-one-all-other-bytes-preserved',
+    'cp_crank_control_reply_policy': 'independent-type1-409d-echo-cookie-f000-original-receive-free',
+    'cp_crank_control_initial_diagnostic_policy': 'preserved-strict-initial409d-before-functional-bank',
+    'cp_crank_control_frame_production_supported': False,
+    'cp_crank_control_physical_semantics_verified': False,
+}
+CP_MOVIE_FORMAT_POLICY = {
+    'cp_movie_format_policy': 'active-config-movie-format5-rate1-0-v1',
+    'cp_movie_format_opcode': 22,
+    'cp_movie_format_native_commands': [0x4000],
+    'cp_movie_format_bytes': 20,
+    'cp_movie_format_result_bytes': 240,
+    'cp_movie_format_input_policy': 'full-original20-byte1-cookie-byte11-byte19-opaque',
+    'cp_movie_format_mapping': 'format5-rate1,0-to-current-Config48-RGB888-H264-bankFPS',
+    'cp_movie_format_bank_policy': 'current-committed-instance-bank-crank-pair-once',
+    'cp_movie_format_state_policy': 'live-State128-config-generation-plus-one-all-other-bytes-preserved',
+    'cp_movie_format_reply_policy': 'independent-type1-4000-echo-cookie-f000-original-receive-free',
+    'cp_movie_format_initial_diagnostic_policy': 'preserved-strict-initial4000-before-functional-bank',
+    'cp_movie_format_frame_production_supported': False,
+    'cp_movie_format_physical_semantics_verified': False,
+}
+CP_OU_CRANK_CONTROL_POLICY = {
+    'cp_ou_crank_control_policy': 'active-config-ou-crank-mode0-v1',
+    'cp_ou_crank_control_opcode': 23,
+    'cp_ou_crank_control_native_commands': [0x4072],
+    'cp_ou_crank_control_bytes': 12,
+    'cp_ou_crank_control_result_bytes': 224,
+    'cp_ou_crank_control_supported_modes': [0],
+    'cp_ou_crank_control_input_policy': 'full-original12-byte1-cookie-opaque-body4zero',
+    'cp_ou_crank_control_bank_policy': 'current-committed-instance-bank-crank-movie-tuple-once',
+    'cp_ou_crank_control_state_policy': 'live-State128-config-generation-plus-one-all-other-bytes-preserved',
+    'cp_ou_crank_control_reply_policy': 'none-oneway-original-sender-request-free-only',
+    'cp_ou_crank_control_initial_diagnostic_policy': 'preserved-strict-initial4072-before-functional-bank',
+    'cp_ou_crank_control_frame_production_supported': False,
+    'cp_ou_crank_control_physical_semantics_verified': False,
+}
+CP_MOVIE_NATIVE_JOINS = (
+    'original FUNCTIONAL_CP_MOVIE_FORMAT_EVENT/BYTES exact formatter and complete transaction streams',
+    'same-instance current bank/crank actual native request/reply/free completion',
+    'independent reply12 type1/4000/cookie/f000 real transport receive and same-sender reply free',
+    'resource35 dependencies/TTS144/two idle DMM slots/PIN/VEF/all13/current-mode retirement',
+    'unchanged clean early strict4000 history and immutable original event tickets',
+)
+CP_CRANK_NATIVE_JOINS = (
+    'original FUNCTIONAL_CP_CRANK_CONTROL_EVENT/BYTES exact formatter and complete transaction streams',
+    'same-transaction resource34 dependencies/TTS/reserved cohort after the completed current bank',
+    'actual independent ACK12 type1/409d/cookie/f000 plus source/destination metadata readback',
+    'event-bound original request free and matching sender/waiter receive/reply-free tickets',
+    'clean strict initial409d and later40f9 stage/free predecessors without history reset',
+)
+CP_CRANK_EVENT_SCHEMA = (
+    'event:crank_event pid:pid tid:tid transaction:u64 sender_tid:tid receiver_tid:tid source:hex32 destination:hex32 '
+    'command:hex32 bytes:u32 native_fnv1a:digest cookie:hex32 busy:bit guard:bit faults:u32 error:i32 '
+    'before_rc:i32 model_rc:i32 after_rc:i32 model_called:bit model_committed:bit verified:bit owned:bit complete:bit '
+    'retained_request:pointer retained_reply:pointer request_pointer:pointer reply_pointer:pointer allocation_pointer:pointer '
+    'request_releasing:bit request_freed:bit request_free_rc:i32 request_free_tid:tid reply_releasing:bit reply_inspecting:bit '
+    'reply_allocated:bit reply_valid:bit reply_alias:bit allocate_rc:i32 send_started:bit send_inflight:bit send_rc:i32 ACK_sent:bit '
+    'reply_received:bit receive_rc:i32 reply_freed:bit reply_cleanup_freed:bit reply_free_rc:i32 reply_free_tid:tid reply_consumed:bit '
+    'requests:u64 commits:u64 verified_commits:u64 completions:u64 model_instance:u64 bank_generation:u64 crank_generation:u64 '
+    'last_bank_generation:u64 last_crank_generation:u64 before_config_generation:u64 config_generation:u64 frame_generation:u64 '
+    'mode:u32 fps:u32 bank_transaction:u64 bank_commits:u64 bank_released:u64 bank_source:hex32 bank_destination:hex32 '
+    'bank_command:hex32 bank_bytes:u32 bank_native_fnv1a:digest receipt_fnv1a:digest reply_fnv1a:digest '
+    'before_used:u64 before_required:u64 before_token:u64 before_instance:u64 crank_used:u64 crank_required:u64 crank_token:u64 '
+    'crank_instance:u64 after_used:u64 after_required:u64 after_token:u64 after_instance:u64 '
+    'policy:active-config-crank-mode0-v1 functional_model:1 original_CP:0 physical_ASIC_verified:0 EE:0 frame:0 capture:0 capture_verified:0')
+CP_CRANK_BYTES_SCHEMA = (
+    'event:crank_event pid:pid tid:tid transaction:u64 kind:crank_kind total:u64 offset:u64 bytes:u64 raw:raw '
+    'native_fnv1a:digest content_fnv1a:digest model_instance:u64 bank_generation:u64 crank_generation:u64 '
+    'functional_model:1 original_CP:0 physical_ASIC_verified:0 capture_verified:0')
+CP_OU_CRANK_EVENT_SCHEMA = (
+    'event:ou_event pid:pid tid:tid transaction:u64 sender_tid:tid source:hex32 destination:hex32 command:hex32 bytes:u32 '
+    'native_fnv1a:digest cookie:hex32 busy:bit guard:bit guard_fault:bit faults:u32 error:i32 before_rc:i32 model_rc:i32 after_rc:i32 validation_rc:i32 '
+    'model_called:bit model_committed:bit verified:bit owned:bit complete:bit retained_request:pointer request_pointer:pointer '
+    'releasing:bit request_freed:bit free_rc:i32 free_tid:tid requests:u64 commits:u64 verified_commits:u64 completions:u64 released:u64 '
+    'model_instance:u64 bank_generation:u64 crank_generation:u64 movie_generation:u64 ou_generation:u64 '
+    'last_bank_generation:u64 last_crank_generation:u64 last_movie_generation:u64 last_ou_generation:u64 '
+    'before_config_generation:u64 config_generation:u64 frame_generation:u64 mode:u32 fps:u32 '
+    'bank_transaction:u64 bank_commits:u64 bank_released:u64 bank_source:hex32 bank_destination:hex32 bank_command:hex32 bank_bytes:u32 bank_native_fnv1a:digest '
+    'crank_transaction:u64 crank_completions:u64 crank_source:hex32 crank_destination:hex32 crank_command:hex32 crank_bytes:u32 crank_native_fnv1a:digest '
+    'movie_transaction:u64 movie_completions:u64 movie_source:hex32 movie_destination:hex32 movie_command:hex32 movie_bytes:u32 movie_native_fnv1a:digest '
+    'startup_cycle:u64 startup_completed_cycles:u32 startup_config_generation:u64 startup_frame_generation:u64 startup_lease_generation:u64 '
+    'startup_result_fnv1a:digest startup_config40_fnv1a:digest startup_source:hex32 startup_destination:hex32 startup_command:hex32 startup_bytes:u32 startup_native_fnv1a:digest '
+    'receipt_fnv1a:digest before_used:u64 before_required:u64 before_token:u64 before_instance:u64 '
+    'ou_used:u64 ou_required:u64 ou_token:u64 ou_instance:u64 after_used:u64 after_required:u64 after_token:u64 after_instance:u64 '
+    'resource:36 policy:active-config-ou-crank-mode0-v1 oneway:1 ACK_sent:0 notification_sent:0 '
+    'functional_model:1 original_CP:0 physical_ASIC_verified:0 EE:0 frame:0 capture:0 capture_verified:0')
+CP_OU_CRANK_BYTES_SCHEMA = (
+    'event:ou_event pid:pid tid:tid transaction:u64 kind:bank_kind total:u64 offset:u64 bytes:u64 raw:raw '
+    'native_fnv1a:digest content_fnv1a:digest model_instance:u64 bank_generation:u64 crank_generation:u64 movie_generation:u64 ou_generation:u64 '
+    'functional_model:1 original_CP:0 physical_ASIC_verified:0 capture_verified:0')
+
 BACKGROUND_FREE_TAGS = tuple('FULL_' + name + suffix for name, suffix in (
     ('IMAGING_PIN_CONNECT', '_REPLY_FREE'), ('IMAGING_CONTROL_CONNECT', '_REPLY_FREE'),
     ('IMAGING_ADF_CONNECT', '_REPLY_FREE'), ('INFRABB_VEF_CONNECT', '_REPLY_FREE'),
@@ -150,11 +273,12 @@ BACKGROUND_FREE_TAGS = tuple('FULL_' + name + suffix for name, suffix in (
     ('ADF_HDMI_AUDIO_CONNECT', '_REPLY_FREE')))
 BB_COMMANDS = {0x111: 36, 0x166: 36, 0x167: 10, 0x15f: 12, 0x128: 20}
 VDF_OPERATIONS = {5: ({0x138: 24}, 160), 6: ({0x153: 14}, 168), 7: ({0x14c: 40}, 192),
-                  8: ({0x141: 8, 0x152: 16, 0x162: 10}, 176), 9: (BB_COMMANDS, 192),
+                  8: ({0x141: 8, 0x152: 16, 0x162: 10, 0x163: 14, 0x170: 12}, 176), 9: (BB_COMMANDS, 192),
                   12: ({0x15e: 10}, 168)}
 CONFIG_OPERATIONS = {**VDF_OPERATIONS, 10: ({0x148: 12}, 1192), 13: ({0x402d: 24}, 176),
-                     14: ({0x4014: 24, 0x4057: 12}, 192)}
+                     14: ({0x4014: 24, 0x4057: 12, 0x403f: 16}, 192)}
 STARTUP_CONTROL_MODE_BODY = bytes.fromhex('00000100010000000100000000000000')
+FOCUS_RESET_POLICY = 'actual-optical-frame-focus-off-v1'
 HIST_CANONICAL = bytes.fromhex('4801040001010000')
 PUBLIC_LIBRARIES = {
     'usr/lib/appFw.so': '2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b',
@@ -188,6 +312,30 @@ require = writeback.require
 
 class MissingEvidence(ValueError):
     pass
+
+
+class CrankControlRejected(ValueError):
+    """Keep the actual rejected C result and bytes available to the report."""
+    def __init__(self, event):
+        self.event = event
+        super().__init__('crank_control_rejected: actual_c_result=' + repr(event.get('actual_c_result')) +
+                         '; error=' + repr(event.get('error')))
+
+
+class MovieFormatRejected(ValueError):
+    """Retain an actual C0 commit even when the independent readback later fails."""
+    def __init__(self, event):
+        self.event = event
+        super().__init__('movie_format_rejected: actual_c_result=' + repr(event.get('actual_c_result')) +
+                         '; error=' + repr(event.get('error')))
+
+
+class OuCrankControlRejected(ValueError):
+    """Retain the actual OP23 C result independently of a later validation error."""
+    def __init__(self, event):
+        self.event = event
+        super().__init__('ou_crank_control_rejected: actual_c_result=' + repr(event.get('actual_c_result')) +
+                         '; validation_error=' + repr(event.get('validation_error')) + '; error=' + repr(event.get('error')))
 
 
 def needed(ok, detail):
@@ -941,10 +1089,33 @@ def check_profile(manifest):
         'physical_Xsync_capability_verified')})
     backup = manifest.get('backup_transport')
     needed(type(backup) is dict, 'runtime-manifest.json: backup_transport')
-    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, DISPLAY_POLICY, BIT_WIDTH_POLICY, STILL_FORMAT_POLICY,
-                   STARTUP_CONTROL_POLICY, BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY):
+    if any(value is not None for target in (manifest, backup) for key, value in target.items()
+           if key.startswith('functional_camera_bb_timecode_control_')):
+        check_bb_timecode_policy(manifest)
+    check_bb_timecode_presets_policy(manifest)
+    crank_keys = {'functional_camera_' + key for key in CP_CRANK_CONTROL_POLICY}
+    require(all(not key.startswith('functional_camera_cp_crank_control_') or key in crank_keys
+                for target in (manifest, backup) for key in target),
+            'typed functional profile drift: undeclared crank control policy field')
+    movie_keys = {'functional_camera_' + key for key in CP_MOVIE_FORMAT_POLICY}
+    require(all(not key.startswith('functional_camera_cp_movie_format_') or key in movie_keys
+                for target in (manifest, backup) for key in target),
+            'typed functional profile drift: undeclared movie format policy field')
+    ou_keys = {'functional_camera_' + key for key in CP_OU_CRANK_CONTROL_POLICY}
+    require(all(not key.startswith('functional_camera_cp_ou_crank_control_') or key in ou_keys
+                for target in (manifest, backup) for key in target),
+            'typed functional profile drift: undeclared OU crank control policy field')
+    for policy in (VDF_POLICY, ZEBRA_POLICY, LAYOUT_POLICY, BIT_WIDTH_POLICY, STILL_FORMAT_POLICY,
+                   STARTUP_CONTROL_POLICY, BB_POLICY, HIST_POLICY, XSYNC_POLICY, BACKGROUND_POLICY,
+                   CP_PARAMETER_BANK_POLICY, CP_CRANK_CONTROL_POLICY, CP_MOVIE_FORMAT_POLICY, CP_OU_CRANK_CONTROL_POLICY):
         if any('functional_camera_' + key in manifest or 'functional_camera_' + key in backup for key in policy):
             expected.update(policy)
+    if any('functional_camera_' + key in manifest or 'functional_camera_' + key in backup for key in DISPLAY_POLICY):
+        matching = [policy for policy in (DISPLAY_POLICY, ZERO6_DISPLAY_POLICY, LEGACY_DISPLAY_POLICY) if all(
+            typed_equal(manifest.get('functional_camera_' + key), value) and
+            typed_equal(backup.get('functional_camera_' + key), value) for key, value in policy.items())]
+        require(len(matching) == 1, 'typed functional profile drift: display policy')
+        expected.update(matching[0])
     for key, value in expected.items():
         key = 'functional_camera_' + key
         require(key in manifest and key in backup and typed_equal(manifest[key], value) and
@@ -1109,6 +1280,14 @@ def check_batch(run, batch, manifest):
         else:
             require(Path(name).name == 'build-functional-camera-model.py', 'run host implementation not indexed: ' + name)
             host_index_omissions.append(name)
+    if any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+           if type(target) is dict for key, value in target.items()
+           if key.startswith('functional_camera_bb_timecode_control_')):
+        bb_timecode_module().source_bindings(manifest, types.SimpleNamespace(**globals()), frozen)
+    if any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+           if type(target) is dict for key, value in target.items()
+           if key.startswith('functional_camera_bb_timecode_preset_')):
+        bb_timecode_presets_module().source_bindings(manifest, types.SimpleNamespace(**globals()), frozen)
     for name, digest in files.items():
         if name in frozen:
             require(digest == frozen[name], 'manifest frozen source drift: ' + name)
@@ -1423,9 +1602,17 @@ def mp4_samples(raw):
 def frame_console_kernel(item, byte_offset, raw_lf_line):
     """Split only approved C producer grammars and their paired exact UIPC trailers."""
     joined = re.fullmatch(
-        rb'((?:FUNCTIONAL_CAMERA_CONTROL_COMMIT|FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE|'
+        rb'((?:FUNCTIONAL_CAMERA_CONTROL_COMMIT|FUNCTIONAL_CAMERA_CONTROL_RESOURCES_(?:TTS_TABLE|RESERVED)|'
         rb'FUNCTIONAL_CAMERA_TRANSFER|FUNCTIONAL_STARTUP_CONTROL_PREDECESSORS|'
         rb'FUNCTIONAL_FACE_DMM_SOURCE_BOUND|NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES|'
+        rb'FULL_HDMI_VIDEO_STATE_NATIVE_FREE|'
+        rb'FUNCTIONAL_CP_PARAMETER_BANK_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'FUNCTIONAL_CP_CRANK_CONTROL_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'FUNCTIONAL_CP_MOVIE_FORMAT_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'FUNCTIONAL_CP_OU_CRANK_CONTROL_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'FUNCTIONAL_BB_TIMECODE_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'FUNCTIONAL_BB_TIMECODE_PRESET_(?:EVENT|BYTES|RESOURCE_DEPENDENCIES|RESOURCES_(?:TTS_TABLE|RESERVED))|'
+        rb'NATIVE_BB_TIMECODE_INPUT_AUDIT|NATIVE_BB_TIMECODE_PRESET_INPUT_AUDIT|'
         rb'FUNCTIONAL_VDF_PATH_(?:REQUEST_FREE|SEND|COMPLETE|RECEIVE|AP_FREE)) [^\r\n]*)'
         rb'(\[ (?:0|[1-9][0-9]{0,9})\.[0-9]{6}\] (?:'
         rb'UDIF: cdev_ioctl\(\) Line 100: uipc: warning ret = -1022|'
@@ -1433,14 +1620,31 @@ def frame_console_kernel(item, byte_offset, raw_lf_line):
     if joined is None:
         return item, None
     payload, kernel, ending = joined.groups()
-    if ((payload.startswith(b'FUNCTIONAL_VDF_PATH_') or
-            payload.startswith(b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE ')) !=
-            (b'] [K]**UIPC ERROR** free_dynamic_msgq_id:' in kernel) or console_producer_fields(payload) is None):
+    dynamic = b'] [K]**UIPC ERROR** free_dynamic_msgq_id:' in kernel
+    dynamic_only = payload.startswith((b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE ',
+                                       b'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_RESERVED '))
+    either_trailer = payload.startswith((b'FUNCTIONAL_CAMERA_CONTROL_COMMIT ', b'FUNCTIONAL_VDF_PATH_',
+                                         b'FUNCTIONAL_CP_PARAMETER_BANK_', b'FUNCTIONAL_CP_CRANK_CONTROL_',
+                                         b'FUNCTIONAL_CP_MOVIE_FORMAT_', b'FUNCTIONAL_CP_OU_CRANK_CONTROL_',
+                                         b'FULL_HDMI_VIDEO_STATE_NATIVE_FREE ', b'FUNCTIONAL_BB_TIMECODE_',
+                                         b'NATIVE_BB_TIMECODE_INPUT_AUDIT ', b'NATIVE_BB_TIMECODE_PRESET_INPUT_AUDIT '))
+    if ((not either_trailer and dynamic_only != dynamic)
+            or console_producer_fields(payload) is None):
         return item, None
     return payload + ending, dict(raw=kernel.decode('ascii'), bytes=len(kernel), sha256=sha(kernel),
         byte_offset=byte_offset + len(payload), raw_lf_line=raw_lf_line, cause='unknown',
         line_ending=ending.decode('ascii'), payload=dict(raw=payload.decode('ascii'), bytes=len(payload),
             sha256=sha(payload), byte_offset=byte_offset))
+
+
+def bb_timecode_module():
+    """Fixed stdlib-only reader, loaded lazily for this exact producer family."""
+    return source_module(Path(__file__).with_name('check_bb_timecode.py'))
+
+
+def bb_timecode_presets_module():
+    """Fixed independent preset reader; the old six-API owner is unchanged."""
+    return source_module(Path(__file__).with_name('check_bb_timecode_presets.py'))
 
 
 def console_producer_fields(payload):
@@ -1449,6 +1653,30 @@ def console_producer_fields(payload):
     if not all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*=[!-~]+', part) for part in parts):
         return None
     fields = writeback.unique_object(part.split('=', 1) for part in parts)
+    if tag.startswith(('FUNCTIONAL_BB_TIMECODE_PRESET_', 'NATIVE_BB_TIMECODE_PRESET_')):
+        return bb_timecode_presets_module().producer_fields(tag, fields, types.SimpleNamespace(**globals()))
+    if tag.startswith('FUNCTIONAL_BB_TIMECODE_') or tag == 'NATIVE_BB_TIMECODE_INPUT_AUDIT':
+        return bb_timecode_module().producer_fields(tag, fields, types.SimpleNamespace(**globals()))
+    bank_resources = {
+        '_RESOURCE_DEPENDENCIES': 'pid tid accepted proc_ap_consumed input_ap_consumed output_ap_consumed output_faults current_request_retained_expected capture_verified',
+        '_RESOURCES_TTS_TABLE': 'pid tid appfw_base table_va address bytes reads unchanged atomic_snapshot raw_before raw_after ownership_verified',
+        '_RESOURCES_RESERVED': ('tid accepted dmm_enabled dmm_bound dmm_slots dmm_opens dmm_handles dmm_generations dmm_epochs '
+            'dmm_creators dmm_allocation_count dmm_lifecycle_changed dmm_domain foreign_speech_kept data_frozen control_bound '
+            'control_live control_faults allocations releases connection_started connections format_pending blocked format_consumed '
+            'buffer_released connection_reply_frees connection_faults vef_init vef_owner vef_objects vef_pending vef_live '
+            'vef_retained vef_faults pinmem_init pinmem_owner pinmem_objects pinmem_pending pinmem_live pinmem_retained '
+            'pinmem_faults global_dmm_idle_verified original_cp_executed capture_verified'),
+    }
+    for suffix, order in bank_resources.items():
+        if (tag in ('FUNCTIONAL_CP_PARAMETER_BANK' + suffix, 'FUNCTIONAL_CP_CRANK_CONTROL' + suffix,
+                    'FUNCTIONAL_CP_MOVIE_FORMAT' + suffix, 'FUNCTIONAL_CP_OU_CRANK_CONTROL' + suffix) or
+                tag == 'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_RESERVED' and suffix == '_RESOURCES_RESERVED'):
+            if list(fields) != order.split():
+                return None
+            try:
+                return fields if vdf_resource_diagnostic(dict(tag='FUNCTIONAL_VDF_PATH' + suffix, fields=fields)) else None
+            except ValueError:
+                return None
     vdf = tag in {'FUNCTIONAL_VDF_PATH_' + name for name in ('REQUEST_FREE', 'SEND', 'COMPLETE', 'RECEIVE', 'AP_FREE')}
     if vdf:
         schema = ('pid:pid tid:tid phase:u32 cycle:u64 requests:u32 completed_cycles:u32 busy:u32 guard:u32 faults:u32 '
@@ -1463,6 +1691,30 @@ def console_producer_fields(payload):
             'raw:raw ack_wire:raw12 canonical_config:raw16 canonical_zebra8:raw8 canonical_layout32:raw32 '
             'canonical_display16:raw16 canonical_bb32:raw32 canonical_bit_width8:raw8 model_result_bytes:u32 '
             'realresultbytes:u32 model_result_fnv1a64:digest model_result_hex:raw')
+    elif tag == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_EVENT':
+        schema = CP_OU_CRANK_EVENT_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES':
+        schema = CP_OU_CRANK_BYTES_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_MOVIE_FORMAT_EVENT':
+        schema = CP_MOVIE_EVENT_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_MOVIE_FORMAT_BYTES':
+        schema = CP_MOVIE_BYTES_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_CRANK_CONTROL_EVENT':
+        schema = CP_CRANK_EVENT_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_CRANK_CONTROL_BYTES':
+        schema = CP_CRANK_BYTES_SCHEMA
+    elif tag == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT':
+        schema = ('event:bank_event pid:pid tid:tid transaction:u64 sender_tid:tid source:hex32 destination:hex32 '
+            'command:hex32 bytes:u32 native_fnv1a:digest cookie:hex32 busy:bit guard:bit faults:u32 error:i32 model_rc:i32 '
+            'model_called:bit model_committed:bit verified:bit owned:bit retained:pointer releasing:bit request_freed:bit '
+            'free_rc:i32 free_tid:tid commits:u64 released:u64 model_instance:u64 bank_generation:u64 '
+            'before_config_generation:u64 config_generation:u64 fps:u32 before_used:u64 before_required:u64 '
+            'before_token:u64 before_instance:u64 bank_used:u64 bank_required:u64 bank_token:u64 bank_instance:u64 '
+            'after_used:u64 after_required:u64 after_token:u64 after_instance:u64 policy:full-190-slot-bank-fps4151-v1 '
+            'oneway:1 ACK_sent:0 notification_sent:0 functional_model:1 original_CP:0 physical_ASIC_verified:0 capture_verified:0')
+    elif tag == 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES':
+        schema = ('pid:pid tid:tid transaction:u64 kind:bank_kind total:u32 offset:u32 bytes:u32 raw:raw '
+            'native_fnv1a:digest model_instance:u64 bank_generation:u64 capture_verified:0')
     elif tag == 'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_TTS_TABLE':
         # menu-observe.c:tracked_native_reserve_resources; only complete unchanged reads are framed.
         schema = ('pid:pid tid:tid appfw_base:hex64 table_va:0x5f66b08 address:hex64 bytes:144 '
@@ -1480,6 +1732,14 @@ def console_producer_fields(payload):
         schema = ('pid:pid tid:tid op:hex32 caller_pc:pointer caller_va:hex64 library_base:pointer '
             'source:hex32 reads:reads first:hex32 second:hex32 rc:i32 '
             'producer:process-local-software-owner original_cp_verified:0 capture_verified:0')
+    elif tag == 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE':
+        # hdmi-video-state.c:full_hdmi_video_state_release; only its complete rc=0 formatter.
+        schema = ('tid:pid receiver:u32 sender:pid destination:hex32 pointer:pointer lease:u64 kind:u32 '
+            'bytes:u32 rc:0 received:bit consumed:1 original_cp_executed:0 hardware_verified:0 capture_verified:0')
+    elif tag == 'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE':
+        # pin-peer-connection.inc:376; same complete successful Scalar subset as Graph.
+        schema = ('pid:pid tid:pid sender:pid waiter:1 destination:hex32 expected:hex32 reply:pointer '
+            'bytes:56 command:0x8001 rc:0 faults:0 ap_consumed:1 capture_verified:0')
     elif tag == 'FUNCTIONAL_CAMERA_TRANSFER':
         schema = ('seq:interval op:u32 source:hex32 destination:hex32 command:hex32 bytes:u32 native_fnv:hex64 '
             'request_bytes:u64 request_fnv:hex64 returned_bytes:u64 returned_fnv:hex64 required:u64 '
@@ -1502,6 +1762,11 @@ def console_producer_fields(payload):
             'notification_mode:u32 business_ready:u32 functional_model:1 original_CP:0 physical_ASIC_verified:0 '
             'fixed_optics_policy:integrated-noneLIF LIF_tuple:0,0,0 cache4:0 original_getters_executed:0 '
             'original_source_proof:0 EE:0 frame:0 capture:0')
+        if 'mode_selector' in fields:
+            schema = schema.replace('notification_mode:u32 business_ready:u32',
+                'notification_mode:u32 mode_selector:bit mode_complete:bit mode0_requests:u32 '
+                'mode0_complete:bit mode0_cycles_completed:u32 mode1_cycle_id:u64 '
+                'mode1_cycle_generation:u32 selector_policy:opaque-state-refresh-v1 business_ready:u32')
     else:
         return None
     schema = [part.split(':', 1) for part in schema.split()]
@@ -1538,6 +1803,22 @@ def console_producer_fields(payload):
         elif kind == 'bit':
             if text not in ('0', '1'):
                 return None
+        elif kind == 'ou_event':
+            if text not in ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REQUEST_FREE', 'COMMIT', 'REFUSED', 'FAULT'):
+                return None
+        elif kind == 'crank_event':
+            if text not in ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REPLY', 'ALLOCATED', 'SENT',
+                            'REQUEST_FREE', 'COMMIT', 'RECEIVE', 'REPLY_FREE', 'REFUSED', 'FAULT', 'CLEANUP_FREE'):
+                return None
+        elif kind == 'crank_kind':
+            if text not in ('request', 'before_state', 'receipt', 'after_state', 'reply'):
+                return None
+        elif kind == 'bank_event':
+            if text not in ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'OWNED_FREE', 'COMMIT', 'REFUSED'):
+                return None
+        elif kind == 'bank_kind':
+            if text not in ('request', 'before_state', 'receipt', 'after_state'):
+                return None
         elif kind == 'origin':
             if text not in ('native-osal', 'api40-source-snapshot'):
                 return None
@@ -1563,6 +1844,33 @@ def console_producer_fields(payload):
         if (not 0x10000 <= base < 0x7ff0000000 or number(fields['address']) != base + 0x5f66b08 or
                 fields['raw_before'] != fields['raw_after']):
             return None
+    elif tag == 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES':
+        total = {'request': 2564, 'before_state': 128, 'receipt': 2756, 'after_state': 128}[fields['kind']]
+        offset, count = number(fields['offset']), number(fields['bytes'])
+        if (not number(fields['transaction']) or number(fields['total']) != total or offset % 128 or
+                offset >= total or count != min(128, total - offset) or len(fields['raw']) != 2 * count):
+            return None
+    elif tag == 'FUNCTIONAL_CP_OU_CRANK_CONTROL_BYTES':
+        total, event = {'request': (12, 'BEGIN'), 'before_state': (128, 'BEFORE'),
+                        'receipt': (224, 'MODEL'), 'after_state': (128, 'AFTER')}[fields['kind']]
+        offset, count = number(fields['offset']), number(fields['bytes'])
+        if (not number(fields['transaction']) or fields['event'] != event or number(fields['total']) != total or
+                offset % 128 or offset >= total or count != min(128, total - offset) or len(fields['raw']) != 2 * count):
+            return None
+    elif tag == 'FUNCTIONAL_CP_MOVIE_FORMAT_BYTES':
+        total, event = {'request': (20, 'BEGIN'), 'before_state': (128, 'BEFORE'), 'receipt': (240, 'MODEL'),
+                        'after_state': (128, 'AFTER'), 'reply': (12, 'REPLY')}[fields['kind']]
+        offset, count = number(fields['offset']), number(fields['bytes'])
+        if (not number(fields['transaction']) or fields['event'] != event or number(fields['total']) != total or
+                offset % 128 or offset >= total or count != min(128, total - offset) or len(fields['raw']) != 2 * count):
+            return None
+    elif tag == 'FUNCTIONAL_CP_CRANK_CONTROL_BYTES':
+        total, event = {'request': (12, 'BEGIN'), 'before_state': (128, 'BEFORE'), 'receipt': (208, 'MODEL'),
+                        'after_state': (128, 'AFTER'), 'reply': (12, 'REPLY')}[fields['kind']]
+        offset, count = number(fields['offset']), number(fields['bytes'])
+        if (not number(fields['transaction']) or fields['event'] != event or number(fields['total']) != total or
+                offset % 128 or offset >= total or count != min(128, total - offset) or len(fields['raw']) != 2 * count):
+            return None
     elif tag == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES':
         count, offset = number(fields['bytes']), number(fields['offset'])
         if not (number(fields['sequence']) and 0 < count <= 128 and offset % 128 == 0 and
@@ -1571,6 +1879,24 @@ def console_producer_fields(payload):
     elif tag == 'FUNCTIONAL_FACE_DMM_SOURCE_BOUND':
         callsites = {0x20: 0x35522a4, 0x21: 0x3552c60, 0x23: 0x35524a8, 0x24: 0x3552694, 0x25: 0x35528ac}
         if callsites.get(number(fields['op'])) != number(fields['caller_va']):
+            return None
+    elif tag == 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE':
+        kind, destination, receiver = (number(fields[key]) for key in ('kind', 'destination', 'receiver'))
+        if (kind not in (1, 2, 3) or number(fields['bytes']) != {1: 12, 2: 20, 3: 16}[kind] or
+                destination >> 28 != 8 or not destination & 0x0fffffff or
+                fields['pointer'] == '(nil)' or not number(fields['lease']) or receiver >= 2**31):
+            return None
+        if kind == 1:
+            if (fields['received'] == '1') != (receiver > 0):
+                return None
+        elif fields['received'] != '1' or fields['receiver'] != fields['tid']:
+            return None
+        if kind == 3 and destination != 0x80920572:
+            return None
+    elif tag == 'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE':
+        destination = number(fields['destination'])
+        if (fields['tid'] != fields['sender'] or fields['destination'] != fields['expected'] or
+                destination >> 28 != 8 or not destination & 0x0fffffff or fields['reply'] == '(nil)'):
             return None
     elif tag == 'FUNCTIONAL_CAMERA_TRANSFER':
         op = int(fields['op'])
@@ -1585,8 +1911,8 @@ def console_producer_fields(payload):
 
 
 def frame_console_transfer_echo(item, byte_offset, raw_lf_line):
-    """Frame only the two observed exact prefixes; retain the prefix as unknown-cause evidence."""
-    prefixes = (b"'; elOBS ", b"/OBS ")
+    """Frame only the three observed exact prefixes; retain the prefix as unknown-cause evidence."""
+    prefixes = (b"'; elOBS ", b"/OBS ", b"AND_DONE_e86OBS ")
     prefix = next((p for p in prefixes if item.startswith(p + b'FUNCTIONAL_CAMERA_TRANSFER ')), None)
     if prefix is None:
         return item, None
@@ -1633,10 +1959,42 @@ def frame_console_adf_host(item, byte_offset, raw_lf_line, following):
             sha256=sha(payload), byte_offset=byte_offset))
 
 
+def frame_console_scalar_host(item, byte_offset, raw_lf_line, following):
+    """Rejoin only a Scalar tag interrupted by one exact warning; preserve both raw spans."""
+    tag = b'OBS FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE '
+    warning = next((w for w in ADF_HOST_WARNINGS if item.endswith(w)), None)
+    if warning is None:
+        return item, None
+    prefix = item[:-len(warning)]
+    if not len(b'OBS ') < len(prefix) < len(tag) or not tag.startswith(prefix):
+        return item, None
+    needed(following is not None, 'Scalar/vvfat boundary lacks the original guest continuation')
+    record = prefix + following
+    if not record.startswith(tag):
+        return item, None
+    require(len(record) <= 8192, 'Scalar/vvfat reconstructed record exceeds budget')
+    joined = re.fullmatch(rb'(OBS [^\r\n]+)(\r?\n)', record)
+    require(joined is not None and console_producer_fields(joined[1][4:]) is not None,
+            'unproved complete Scalar connect native-free producer after tag repair')
+    payload, ending = joined.groups()
+    original = item + following
+    return record, dict(raw=warning.decode('ascii'), bytes=len(warning), sha256=sha(warning),
+        byte_offset=byte_offset + len(prefix), raw_lf_line=raw_lf_line, raw_lf_end=raw_lf_line + 1,
+        cause='unknown', guest_bytes_invented=False, line_ending=ending.decode('ascii'),
+        raw_record_start=byte_offset, raw_record_end=byte_offset + len(original),
+        raw_record_hex=original.hex(), raw_record_sha256=sha(original),
+        payload=dict(raw=record.decode('ascii'), bytes=len(record), sha256=sha(record),
+            spans=[dict(byte_offset=byte_offset, bytes=len(prefix)),
+                   dict(byte_offset=byte_offset + len(item), bytes=len(following))]))
+
+
 def parse_console(raw):
     require(len(raw) <= MAX_LOG, 'console exceeds budget')
     rows, byte_offset, raw_lf_line = [], 0, 1
     fragments, skip_host_ending = raw.splitlines(keepends=True), False
+    timecode_observed = any(re.match(
+        rb'(?:/ # )?(?:OBS )?(?:FUNCTIONAL_BB_TIMECODE_(?:PRESET_)?(?:EVENT|BYTES)|NATIVE_BB_TIMECODE_(?:PRESET_)?INPUT_AUDIT) ',
+        item) for item in fragments)
     for line, item in enumerate(fragments, 1):
         require(len(item) <= 8192, 'console line exceeds budget')
         start, physical_line = byte_offset, raw_lf_line
@@ -1645,6 +2003,8 @@ def parse_console(raw):
         if skip_host_ending:
             skip_host_ending = False
             continue
+        item, scalar_diagnostic = frame_console_scalar_host(item, start, physical_line,
+            fragments[line] if line < len(fragments) else None)
         item, echo_diagnostic = frame_console_transfer_echo(item, start, physical_line)
         if echo_diagnostic is not None:
             start = echo_diagnostic['payload']['byte_offset']
@@ -1654,18 +2014,36 @@ def parse_console(raw):
             item, start = item[4:], start + 4
         item, host_diagnostic = frame_console_adf_host(item, start, physical_line,
                                                       fragments[line] if line < len(fragments) else None)
-        skip_host_ending = host_diagnostic is not None
+        skip_host_ending = host_diagnostic is not None or scalar_diagnostic is not None
         item, kernel_diagnostic = frame_console_kernel(item, start, physical_line)
         tag = item.split(b' ', 1)[0].rstrip(b'\r\n')
-        if not tag.startswith((b'FUNCTIONAL_', b'FSYS_WRITE_', b'MPR_WRITE_')) and tag.decode('ascii', 'ignore') not in (
-                *BACKGROUND_FREE_TAGS, 'NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK', 'NATIVE_CP302C_NOCONVERT_ALL13_READBACK',
+        if not timecode_observed and tag in (b'FULL_BB_SET_MODE_REPLY_QUEUED', b'FULL_BB_SET_MODE_COMMIT',
+                b'FULL_BB_SET_MODE_REPLY_FREE', b'FULL_BB_SET_MODE_FAULT', b'FULL_BB_SET_MODE_RECOVERY_FREE'):
+            continue
+        if not tag.startswith((b'FUNCTIONAL_', b'FSYS_WRITE_', b'MPR_WRITE_', b'NATIVE_BB_TIMECODE_')) and tag.decode('ascii', 'ignore') not in (
+                *BACKGROUND_FREE_TAGS, 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE',
+                'NATIVE_BB_TIMECODE_INPUT_AUDIT', 'FULL_BB_SET_MODE_REPLY_QUEUED',
+                'FULL_BB_SET_MODE_COMMIT', 'FULL_BB_SET_MODE_REPLY_FREE',
+                'FULL_BB_SET_MODE_FAULT', 'FULL_BB_SET_MODE_RECOVERY_FREE',
+                'NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK', 'NATIVE_CP302C_NOCONVERT_ALL13_READBACK',
                 'NATIVE_CP_BACKGROUND_INPUT_AUDIT', 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES',
-                'NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'NATIVE_CP_STARTUP_DIAGNOSTIC_REPLY_FREE'):
+                'NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC_REPLY_FREE', 'NATIVE_CP_STARTUP_DIAGNOSTIC_REPLY_FREE',
+                'NATIVE_CP_OUTPUT_POLICY_CONSUMED', 'NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE',
+                'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE', 'NATIVE_CP_EE_DIAGNOSTIC_COMPLETE',
+                'NATIVE_CP_EE_DIAGNOSTIC_FAULT', 'NATIVE_CP_EE_DIAGNOSTIC_REFUSED',
+                'NATIVE_CP_EE_DIAGNOSTIC_CLEANUP_FREE',
+                'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REQUEST_FREE', 'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REPLY_FREE',
+                'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_COMPLETE', 'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_FAULT',
+                'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_REFUSED', 'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_CLEANUP_FREE'):
             continue
         require(item.endswith(b'\n'), 'truncated evidence trace')
         parts = item.decode('ascii', 'strict').rstrip('\r\n').split(' ')
         # Diagnostic failure prose is retained, never parsed as a successful record.
-        if not all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*=[!-~]+', part) for part in parts[1:]):
+        if (not all(re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*=[!-~]+', part) for part in parts[1:]) or
+                parts[0] == 'FUNCTIONAL_CAMERA_CONTROL_RESOURCES_RESERVED' and
+                console_producer_fields(item.rstrip(b'\r\n')) is None or
+                parts[0].startswith(('FUNCTIONAL_BB_TIMECODE_PRESET_', 'NATIVE_BB_TIMECODE_PRESET_')) and
+                console_producer_fields(item.rstrip(b'\r\n')) is None):
             rows.append({'tag': parts[0], 'line': line, 'fields': {}, 'diagnostic': ' '.join(parts[1:])})
             if kernel_diagnostic is not None:
                 rows[-1]['kernel_diagnostic'] = kernel_diagnostic
@@ -1676,10 +2054,76 @@ def parse_console(raw):
             rows[-1]['kernel_diagnostic'] = kernel_diagnostic
         if host_diagnostic is not None:
             rows[-1]['host_diagnostic'] = host_diagnostic
+        if scalar_diagnostic is not None:
+            rows[-1]['host_diagnostic'] = scalar_diagnostic
         if echo_diagnostic is not None:
             rows[-1]['console_prefix_diagnostic'] = echo_diagnostic
         require(len(rows) <= MAX_EVENTS, 'trace record budget exceeded')
     return rows
+
+
+def bounded_control_witness(row):
+    """The large-line allowance is for complete typed C buffers, never arbitrary prose."""
+    require(type(row) is dict, 'oversized control witness envelope differs')
+    expected = set(('actual_c_result actual_core_sha256 event kind model_called model_committed model_instance '
+                    'monotonic_ns native_acceptance observation opcode origin output_payload request_payload sequence').split())
+    if type(row.get('opcode')) is int and row['opcode'] in (22, 23):
+        expected.update(('admission_error', 'input_hex', 'request_fnv1a64', 'error'))
+        if row['opcode'] == 23:
+            expected.add('validation_error')
+    require(set(row) == expected, 'oversized control witness envelope differs')
+    op = row['opcode']
+    require(type(op) is int and (op, row['kind']) in ((21, 'model_crank_control'), (22, 'model_movie_format'),
+                                                   (23, 'model_ou_crank_control')) and
+            type(row['actual_c_result']) is int and row['actual_c_result'] == 0 and
+            row['model_called'] is True and row['model_committed'] is True and row['native_acceptance'] is False and
+            type(row['model_instance']) is int and 0 < row['model_instance'] < 2**64 and
+            type(row['sequence']) is int and 0 < row['sequence'] < 2**64,
+            'oversized control witness kind/opcode/C-call types differ')
+    writeback.hash_hex(row['actual_core_sha256'], 64)
+    observed, origin = row['observation'], row['origin']
+    require(type(observed) is dict and type(origin) is dict and set(origin) ==
+            set('producer_tid source destination command bytes fnv1a64'.split()),
+            'oversized control witness original schema differs')
+    input_bytes, output_bytes, command = {21: (12, 208, 0x409d), 22: (20, 240, 0x4000),
+                                          23: (12, 224, 0x4072)}[op]
+    require(all(type(origin[k]) is int and origin[k] == expected for k, expected in
+                dict(source=0x80020002, destination=0x90030001, command=command, bytes=input_bytes).items()) and
+            type(origin['producer_tid']) is int and 0 < origin['producer_tid'] < 2**31 and
+            type(origin['fnv1a64']) is int and 0 <= origin['fnv1a64'] < 2**64,
+            'oversized control witness native input/source/destination differs')
+    for key, size, direction in (('request_payload', input_bytes, 'in'), ('output_payload', output_bytes, 'out')):
+        reference = row[key]
+        require(type(reference) is dict and type(reference.get('bytes')) is int and reference['bytes'] == size and
+                reference.get('direction') == direction and type(reference.get('opcode')) is int and reference['opcode'] == op and
+                type(reference.get('sequence')) is int and reference['sequence'] == row['sequence'] and
+                type(reference.get('model_instance')) is int and reference['model_instance'] == row['model_instance'] and
+                typed_equal(reference.get('origin'), origin), 'oversized control witness payload identity/length differs')
+    packet = raw_hex(observed, 'request_hex', input_bytes)
+    raw = raw_hex(observed, 'returned_hex', output_bytes)
+    prior = raw_hex(observed, 'before_state_hex', 128)
+    buffer = observed.get('output_buffer_hex')
+    require(type(buffer) is str and len(buffer) % 2 == 0 and 2 * output_bytes <= len(buffer) <= 2 * DATA_BYTES,
+            'oversized control witness C buffer capacity differs')
+    capacity = len(buffer) // 2
+    require(origin['fnv1a64'] == fnv(packet), 'oversized control witness whole original input differs')
+    if op == 21:
+        cp_crank_control_observation(observed, raw, packet, row['model_instance'], prior,
+                                     observed.get('bank_generation'), capacity)
+    elif op == 22:
+        require(row['admission_error'] is None and type(row['error']) is int and row['error'] == 0 and
+                raw_hex(row, 'input_hex', 20) == packet and type(row['request_fnv1a64']) is int and
+                row['request_fnv1a64'] == fnv(packet), 'movie format broker original input/error binding differs')
+        cp_movie_format_observation(observed, raw, packet, row['model_instance'], prior,
+                                    observed.get('bank_generation'), observed.get('crank_generation'), capacity)
+    else:
+        require(row['admission_error'] is None and row['validation_error'] is None and
+                type(row['error']) is int and row['error'] == 0 and raw_hex(row, 'input_hex', 12) == packet and
+                type(row['request_fnv1a64']) is int and row['request_fnv1a64'] == fnv(packet),
+                'OU crank broker original input/error binding differs')
+        cp_ou_crank_control_observation(observed, raw, packet, row['model_instance'], prior,
+            observed.get('bank_generation'), observed.get('crank_generation'), observed.get('movie_generation'), capacity)
+    return True
 
 
 def jsonl(raw):
@@ -1689,9 +2133,13 @@ def jsonl(raw):
     for index, line in enumerate(raw.splitlines(), 1):
         require(index <= MAX_EVENTS and len(line) <= 2 * 1024**2, 'broker event/line budget exceeded')
         row = object_json(line)
-        require(len(line) <= 16384 or row.get('kind') in ('ap_source_result', 'response') and
-                row.get('opcode') == 11 and row.get('actual_c_result', 1) is None and
-                row.get('source_provider_kind') == 'paused-source-snapshot-v1',
+        source = (row.get('kind') in ('ap_source_result', 'response') and row.get('opcode') == 11 and
+                  row.get('actual_c_result', 1) is None and
+                  row.get('source_provider_kind') == 'paused-source-snapshot-v1')
+        control = (type(row.get('opcode')) is int and
+                   (row.get('opcode'), row.get('kind')) in ((21, 'model_crank_control'), (22, 'model_movie_format'),
+                                                           (23, 'model_ou_crank_control')))
+        require(len(line) <= 16384 or source or len(line) <= 192 * 1024 and control and bounded_control_witness(row),
                 'oversized non-source broker event')
         require(type(row.get('event')) is int and row['event'] == index and
                 uint(row.get('monotonic_ns')) >= last_time, 'broker event sequence/time differs')
@@ -1773,7 +2221,8 @@ def startup_control_config(canonical):
     require(len(canonical) == 32, 'Startup control canonical must be exactly32 bytes')
     command, size = struct.unpack_from('<2H', canonical)
     require((command == 0x4014 and size == 16 and canonical[4:20] == STARTUP_CONTROL_MODE_BODY or
-             command == 0x4057 and size == 4 and canonical[4:20] == bytes(16)) and
+             command == 0x4057 and size == 4 and canonical[4:20] == bytes(16) or
+             command == 0x403f and size == 8 and canonical[4:20] == bytes(16)) and
             canonical[20:24] == bytes(4), 'Startup control unsupported command/body/reserved bytes')
     return command
 
@@ -1816,7 +2265,10 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
                     (command == 0x152 and body_bytes == 8 and body[0] == 3 and body[1] == 0 and
                      body[2] <= 2 and body[3] in (0, 10, 40) and body[4] == 0 and
                      tuple(body[5:]) in ((81, 90, 240), (210, 16, 146), (29, 255, 83), (235, 128, 128))) or
-                    (command == 0x162 and body_bytes == 2 and body == bytes(8)),
+                    (command == 0x162 and body_bytes == 2 and body == bytes(8)) or
+                    (command == 0x163 and body_bytes == 6 and body == bytes(8)) or
+                    (command == 0x170 and body_bytes == 4 and all(value <= 1 for value in body[:3]) and
+                     body[3:] == bytes(5)),
                     'Display unsupported command/body/enabled feature')
             require(raw[160:] == canonical, 'Display independent canonical16/save/readback differs')
         require(route is not None and raw[128:144] == route, 'Zebra/layout/display changed the current committed VDF route')
@@ -1858,10 +2310,253 @@ def vdf_result(raw, canonical, instance, opcode=5, route=None):
     return value
 
 
+def cp_parameter_bank_result(raw, packet, instance, prior):
+    """Read the functional opaque bank and its actual Config48 FPS projection."""
+    require(len(packet) == 2564 and packet[0] == 5 and struct.unpack_from('<H', packet, 2)[0] == 0x4063,
+            'parameter bank requires the complete original4063 packet')
+    table = (NATIVE / 'runtime/analysis/device-models/cp-parameter-batch.c').read_bytes()
+    require(sha(table) == '8f627e77d94d63434e4be7de3d398a1e3865946c44c7244f2b2553a483409a2e',
+            'parameter bank strict source layout drift')
+    slots = [tuple(int(word, 16) for word in item) for item in re.findall(
+        rb'\{(0x[0-9a-f]+),(0x[0-9a-f]+),(0x[0-9a-f]+)\}', table)]
+    require(len(slots) == 190, 'parameter bank fixed190 slot table differs')
+    end = 8
+    for command, offset, size in slots:
+        require(offset == end and 8 <= size <= len(packet) - end and packet[offset] == 5 and
+                struct.unpack_from('<H', packet, offset + 2)[0] == command,
+                'parameter bank original fixed slot header/extent differs')
+        end += size
+    require(end == len(packet) and len(raw) == 2756 and struct.unpack_from('<2I', raw) == (1, 2756),
+            'parameter bank full result size/version differs')
+    keys = ('model_instance', 'bank_generation', 'before_config_generation', 'config_generation',
+            'input_fnv', 'fps', 'slots', 'raw_bytes', 'reserved')
+    value = dict(zip(keys, struct.unpack_from('<5Q4I', raw, 8)))
+    state = raw[64:192]
+    require(len(prior) == 128 and struct.unpack_from('<I', prior)[0] == 1 and
+            prior[104:112] == bytes(8) and prior[120:] == bytes(8) and
+            struct.unpack_from('<Q', prior, 48)[0] == instance and
+            value['model_instance'] == instance > 0 and 0 < value['bank_generation'] < 2**64 and
+            value['before_config_generation'] == struct.unpack_from('<Q', prior, 56)[0] and
+            0 < value['before_config_generation'] < 2**64 - 1 and
+            value['config_generation'] == value['before_config_generation'] + 1 and
+            value['input_fnv'] == fnv(packet) and value['slots'] == 190 and
+            value['raw_bytes'] == 2564 and value['reserved'] == 0 and
+            value['fps'] == struct.unpack_from('<I', packet, 0x86c)[0] and 0 < value['fps'] <= 120,
+            'parameter bank actual identity/generation/input/FPS projection differs')
+    expected_state = bytearray(prior)
+    struct.pack_into('<I', expected_state, 16, value['fps'])
+    struct.pack_into('<Q', expected_state, 56, value['config_generation'])
+    require(state == bytes(expected_state) and raw[192:] == packet,
+            'parameter bank independent full readback/State128/config/frame differs')
+    value['frame_generation'] = struct.unpack_from('<Q', state, 112)[0]
+    return value
+
+
+def cp_crank_control_result(raw, packet, instance, prior, expected_bank_generation):
+    """Decode software mode0 against a caller-supplied current legal bank generation."""
+    require(isinstance(packet, bytes) and len(packet) == 12 and packet[0] == 5 and
+            packet[2:4] == b'\x9d\x40' and packet[8:] == bytes(4),
+            'crank control requires full original12 type5/409d mode0')
+    require(isinstance(raw, bytes) and len(raw) == 208 and struct.unpack_from('<2I', raw) == (1, 208),
+            'crank control full208 result size/version differs')
+    require(type(instance) is int and 0 < instance < 2**64 and
+            type(expected_bank_generation) is int and 0 < expected_bank_generation < 2**64,
+            'crank control needs the current legal instance/bank generation')
+    require(isinstance(prior, bytes) and len(prior) == 128,
+            'crank control needs the complete live prior State128')
+    abi, caps, width, height, fps, quality, aperture, iso, shutter, focus = struct.unpack_from('<8I2Q', prior)
+    before = struct.unpack_from('<Q', prior, 56)[0]
+    require(abi == 1 and caps == 15 and struct.unpack_from('<Q', prior, 48)[0] == instance and
+            0 < before < 2**64 - 1 and prior[104:112] == bytes(8) and prior[120:] == bytes(8) and
+            0 < width <= 8192 and 0 < height <= 8192 and 0 < fps <= 120 and 0 < quality <= 100 and
+            aperture in (400, 800, 1600) and iso and shutter and (focus == 2**64 - 1 or focus >= 100000) and
+            struct.unpack_from('<Q', prior, 64)[0] > 0 and struct.unpack_from('<Q', prior, 112)[0] > 0,
+            'crank control prior State128 is uninitialized/busy/streaming/invalid')
+    keys = ('model_instance', 'crank_generation', 'bank_generation', 'before_config_generation',
+            'config_generation', 'input_fnv', 'mode', 'fps')
+    value = dict(zip(keys, struct.unpack_from('<6Q2I', raw, 8)))
+    require(value['model_instance'] == instance and value['crank_generation'] > 0 and
+            value['bank_generation'] == expected_bank_generation and
+            value['before_config_generation'] == before and value['config_generation'] == before + 1 and
+            value['input_fnv'] == fnv(packet) and value['mode'] == 0 and value['fps'] == fps,
+            'crank control instance/current bank/crank/config generation/input/FPS differs')
+    expected = bytearray(prior)
+    struct.pack_into('<Q', expected, 56, before + 1)
+    require(raw[64:192] == bytes(expected) and raw[192:204] == packet and raw[204:] == bytes(4),
+            'crank control full12 readback/reserved/State128/config/frame/counters differs')
+    value['frame_generation'] = struct.unpack_from('<Q', prior, 112)[0]
+    return value
+
+
+def cp_crank_control_observation(observed, raw, packet, instance, prior, expected_bank_generation, capacity):
+    """The actual C output, independent getter and both live STATE queries must agree."""
+    keys = {'actual_c_result', 'returned_hex', 'readback_verified', 'model_called', 'model_committed',
+            'request_hex', 'before_state_c_result', 'before_state_hex', 'result', 'output_buffer_hex',
+            'after_state_c_result', 'after_state_hex', 'query_c_result', 'crank_generation',
+            'bank_generation', 'snapshot_hex'}
+    require(type(observed) is dict and set(observed) == keys and observed['readback_verified'] is True and
+            observed['model_called'] is True and observed['model_committed'] is True and
+            all(type(observed[k]) is int and observed[k] == 0 for k in
+                ('actual_c_result', 'query_c_result', 'before_state_c_result', 'after_state_c_result')) and
+            typed_equal(observed['result'], dict(token=0, total=0, offset=0, used=208)),
+            'crank control independent actual C query/readback missing or failed')
+    require(type(capacity) is int and 208 <= capacity <= DATA_BYTES and
+            raw_hex(observed, 'returned_hex', 208) == raw_hex(observed, 'snapshot_hex', 208) == raw and
+            raw_hex(observed, 'request_hex', 12) == packet and
+            raw_hex(observed, 'before_state_hex', 128) == prior and
+            raw_hex(observed, 'after_state_hex', 128) == raw[64:192] and
+            raw_hex(observed, 'output_buffer_hex', capacity) == raw + bytes(capacity - 208),
+            'crank control independent request/full208/fullSTATE/output buffer bytes differ')
+    value = cp_crank_control_result(raw, packet, instance, prior, expected_bank_generation)
+    require(all(type(observed[k]) is int and observed[k] == value[k] for k in
+                ('crank_generation', 'bank_generation')),
+            'crank control independent query generation differs')
+    return value
+
+
+def cp_movie_format_result(raw, packet, instance, prior, expected_bank_generation, expected_crank_generation):
+    """Decode the declared format5/rate1,0 software route; opaque bytes remain exact."""
+    require(type(packet) is bytes and len(packet) == 20 and packet[0] == 5 and packet[2:4] == b'\x00\x40' and
+            packet[8:11] == b'\x05\x01\0' and packet[12:18] == bytes(6) and packet[18] == 1,
+            'movie format requires full original20 type5/4000 supported selectors')
+    require(type(raw) is bytes and len(raw) == 240 and struct.unpack_from('<2I', raw) == (1, 240),
+            'movie format full240 result size/version differs')
+    require(all(type(value) is int and 0 < value < 2**64 for value in
+                (instance, expected_bank_generation, expected_crank_generation)),
+            'movie format needs the current legal instance/bank/crank generation')
+    require(type(prior) is bytes and len(prior) == 128, 'movie format needs the complete live prior State128')
+    abi, caps, width, height, fps, quality, aperture, iso, shutter, focus = struct.unpack_from('<8I2Q', prior)
+    before = struct.unpack_from('<Q', prior, 56)[0]
+    require(abi == 1 and caps == 15 and struct.unpack_from('<Q', prior, 48)[0] == instance and
+            0 < before < 2**64 - 1 and prior[104:112] == bytes(8) and prior[120:] == bytes(8) and
+            0 < width <= 8192 and 0 < height <= 8192 and 0 < fps <= 120 and 0 < quality <= 100 and
+            aperture in (400, 800, 1600) and iso and shutter and (focus == 2**64 - 1 or focus >= 100000) and
+            struct.unpack_from('<Q', prior, 64)[0] > 0 and struct.unpack_from('<Q', prior, 112)[0] > 0,
+            'movie format prior State128 is uninitialized/busy/streaming/invalid')
+    keys = ('model_instance', 'movie_generation', 'bank_generation', 'crank_generation',
+            'before_config_generation', 'config_generation', 'input_fnv', 'format', 'rate', 'fps', 'codec')
+    value = dict(zip(keys, struct.unpack_from('<7Q4I', raw, 8)))
+    require(value['model_instance'] == instance and value['movie_generation'] > 0 and
+            value['bank_generation'] == expected_bank_generation and value['crank_generation'] == expected_crank_generation and
+            value['before_config_generation'] == before and value['config_generation'] == before + 1 and
+            value['input_fnv'] == fnv(packet) and (value['format'], value['rate'], value['fps'], value['codec']) == (5, 0, fps, 1),
+            'movie format instance/current bank/crank/config generation/input/FPS/software mapping differs')
+    expected = bytearray(prior)
+    struct.pack_into('<Q', expected, 56, before + 1)
+    require(raw[80:208] == bytes(expected) and raw[208:228] == packet and raw[228:] == bytes(12),
+            'movie format full20 readback/reserved/State128/config/frame/counters differs')
+    value['frame_generation'] = struct.unpack_from('<Q', prior, 112)[0]
+    return value
+
+
+def cp_movie_format_observation(observed, raw, packet, instance, prior,
+                                expected_bank_generation, expected_crank_generation, capacity):
+    keys = {'actual_c_result', 'returned_hex', 'readback_verified', 'model_called', 'model_committed',
+            'request_hex', 'before_state_c_result', 'before_state_hex', 'result', 'output_buffer_hex',
+            'after_state_c_result', 'after_state_hex', 'query_c_result', 'movie_generation',
+            'bank_generation', 'crank_generation', 'snapshot_hex', 'input_hex', 'input_fnv1a64',
+            'returned_bytes', 'returned_fnv1a64'}
+    require(type(observed) is dict and set(observed) == keys and observed['readback_verified'] is True and
+            observed['model_called'] is True and observed['model_committed'] is True and
+            all(type(observed[k]) is int and observed[k] == 0 for k in
+                ('actual_c_result', 'query_c_result', 'before_state_c_result', 'after_state_c_result')) and
+            typed_equal(observed['result'], dict(token=0, total=0, offset=0, used=240)),
+            'movie format independent actual C query/readback missing or failed')
+    require(type(capacity) is int and 240 <= capacity <= DATA_BYTES and
+            raw_hex(observed, 'returned_hex', 240) == raw_hex(observed, 'snapshot_hex', 240) == raw and
+            raw_hex(observed, 'request_hex', 20) == raw_hex(observed, 'input_hex', 20) == packet and
+            type(observed['input_fnv1a64']) is int and observed['input_fnv1a64'] == fnv(packet) and
+            type(observed['returned_bytes']) is int and observed['returned_bytes'] == 240 and
+            type(observed['returned_fnv1a64']) is int and observed['returned_fnv1a64'] == fnv(raw) and
+            raw_hex(observed, 'before_state_hex', 128) == prior and
+            raw_hex(observed, 'after_state_hex', 128) == raw[80:208] and
+            raw_hex(observed, 'output_buffer_hex', capacity) == raw + bytes(capacity - 240),
+            'movie format independent request/full240/fullSTATE/output buffer bytes differ')
+    value = cp_movie_format_result(raw, packet, instance, prior, expected_bank_generation, expected_crank_generation)
+    require(all(type(observed[k]) is int and observed[k] == value[k] for k in
+                ('movie_generation', 'bank_generation', 'crank_generation')),
+            'movie format independent query generation differs')
+    return value
+
+
+def cp_ou_crank_control_result(raw, packet, instance, prior, expected_bank_generation,
+                               expected_crank_generation, expected_movie_generation):
+    """Decode exact OuCrank224; the current tuple and all State128 bytes are binding."""
+    require(type(packet) is bytes and len(packet) == 12 and packet[0] == 5 and
+            packet[2:4] == b'\x72\x40' and packet[8:] == bytes(4),
+            'OU crank requires full original12 type5/4072 mode0')
+    require(type(raw) is bytes and len(raw) == 224 and struct.unpack_from('<2I', raw) == (1, 224),
+            'OU crank full224 result size/version differs')
+    require(all(type(value) is int and 0 < value < 2**64 for value in
+                (instance, expected_bank_generation, expected_crank_generation, expected_movie_generation)),
+            'OU crank needs the current legal instance/bank/crank/movie tuple')
+    require(type(prior) is bytes and len(prior) == 128, 'OU crank needs the complete live prior State128')
+    abi, caps, width, height, fps, quality, aperture, iso, shutter, focus = struct.unpack_from('<8I2Q', prior)
+    before = struct.unpack_from('<Q', prior, 56)[0]
+    require(abi == 1 and caps == 15 and struct.unpack_from('<Q', prior, 48)[0] == instance and
+            0 < before < 2**64 - 1 and prior[104:112] == bytes(8) and prior[120:] == bytes(8) and
+            0 < width <= 8192 and 0 < height <= 8192 and 0 < fps <= 120 and 0 < quality <= 100 and
+            aperture in (400, 800, 1600) and iso and shutter and (focus == 2**64 - 1 or focus >= 100000) and
+            struct.unpack_from('<Q', prior, 64)[0] > 0 and struct.unpack_from('<Q', prior, 112)[0] > 0,
+            'OU crank prior State128 is uninitialized/busy/streaming/invalid')
+    keys = ('model_instance', 'ou_generation', 'bank_generation', 'crank_generation', 'movie_generation',
+            'before_config_generation', 'config_generation', 'input_fnv', 'mode', 'fps')
+    value = dict(zip(keys, struct.unpack_from('<8Q2I', raw, 8)))
+    require(value['model_instance'] == instance and value['ou_generation'] > 0 and
+            value['bank_generation'] == expected_bank_generation and value['crank_generation'] == expected_crank_generation and
+            value['movie_generation'] == expected_movie_generation and value['before_config_generation'] == before and
+            value['config_generation'] == before + 1 and value['input_fnv'] == fnv(packet) and
+            value['mode'] == 0 and value['fps'] == fps, 'OU crank current tuple/config generation/input/FPS differs')
+    expected = bytearray(prior)
+    struct.pack_into('<Q', expected, 56, before + 1)
+    require(raw[80:208] == bytes(expected) and raw[208:220] == packet and raw[220:] == bytes(4),
+            'OU crank full12 readback/reserved/State128/config/frame/counters differs')
+    value['frame_generation'] = struct.unpack_from('<Q', prior, 112)[0]
+    return value
+
+
+def cp_ou_crank_control_observation(observed, raw, packet, instance, prior,
+                                    expected_bank_generation, expected_crank_generation, expected_movie_generation, capacity):
+    # functional_camera_broker.Core.execute keeps actual C0 separate from postvalidation.
+    keys = {'actual_c_result', 'returned_hex', 'readback_verified', 'model_called', 'model_committed',
+            'input_hex', 'request_hex', 'input_fnv1a64', 'software_mode', 'validation_error', 'ou_generation',
+            'bank_generation', 'crank_generation', 'movie_generation', 'predecessor_proof',
+            'before_state_c_result', 'before_state_hex', 'c_call_succeeded', 'returned_bytes', 'returned_fnv1a64',
+            'output_buffer_hex', 'result', 'after_state_c_result', 'after_state_hex', 'query_c_result', 'snapshot_hex',
+            'state_delta_verified'}
+    require(type(observed) is dict and set(observed) == keys and all(observed[key] is True for key in
+                ('readback_verified', 'model_called', 'model_committed', 'c_call_succeeded', 'state_delta_verified')) and
+            observed['software_mode'] == 'ou_crank_mode0' and observed['validation_error'] is None and
+            type(observed['predecessor_proof']) is dict and
+            all(type(observed[key]) is int and observed[key] == 0 for key in
+                ('actual_c_result', 'query_c_result', 'before_state_c_result', 'after_state_c_result')) and
+            typed_equal(observed['result'], dict(token=0, total=0, offset=0, used=224)),
+            'OU crank independent actual C query/readback missing or failed')
+    require(type(capacity) is int and 224 <= capacity <= DATA_BYTES and
+            raw_hex(observed, 'returned_hex', 224) == raw_hex(observed, 'snapshot_hex', 224) == raw and
+            raw_hex(observed, 'request_hex', 12) == raw_hex(observed, 'input_hex', 12) == packet and
+            type(observed['input_fnv1a64']) is int and observed['input_fnv1a64'] == fnv(packet) and
+            type(observed['returned_bytes']) is int and observed['returned_bytes'] == 224 and
+            type(observed['returned_fnv1a64']) is int and observed['returned_fnv1a64'] == fnv(raw) and
+            raw_hex(observed, 'before_state_hex', 128) == prior and raw_hex(observed, 'after_state_hex', 128) == raw[80:208] and
+            raw_hex(observed, 'output_buffer_hex', capacity) == raw + bytes(capacity - 224),
+            'OU crank independent request/full224/fullSTATE/output buffer bytes differ')
+    value = cp_ou_crank_control_result(raw, packet, instance, prior,
+        expected_bank_generation, expected_crank_generation, expected_movie_generation)
+    require(all(type(observed[key]) is int and observed[key] == value[key] for key in
+                ('ou_generation', 'bank_generation', 'crank_generation', 'movie_generation')),
+            'OU crank independent query tuple/generation differs')
+    return value
+
+
 def vdf_history(run, transport):
     """Join display commits to the actual latest state/job and unchanged route."""
     route, config, generation, geometry = b'\x00\x01\x01' + bytes(13), None, None, None
-    parameters, preserve_parameters, last_lease = None, False, 0
+    parameters, preserve_parameters, last_lease, last_state = None, False, 0, None
+    current_bank, last_crank, consumed_bank = None, 0, 0
+    current_crank, last_movie, movie_pairs = None, 0, set()
+    current_movie, current_settings, last_ou, ou_tuples = None, None, 0, set()
+    optical_retained = False
     values = {}
     for tx in transport['transfers']:
         op = tx['opcode']
@@ -1879,6 +2574,74 @@ def vdf_history(run, transport):
             parameters = raw[8:48]
             config, generation = struct.unpack_from('<Q', raw, 56)[0], struct.unpack_from('<Q', raw, 112)[0]
             geometry = struct.unpack_from('<2I', raw, 8)
+            last_state = raw
+        elif op == 20:
+            raw = transfer_output(run, tx)
+            packet = payload_read(run, tx['request_payload'])
+            value = cp_parameter_bank_result(raw, packet, transport['model_instance'], last_state or b'')
+            require(value['before_config_generation'] == config and value['frame_generation'] == generation and
+                    tx['token'] == 0 and tx.get('frame') is None,
+                    'parameter bank lacks latest STATE or borrowed a frame/retained result')
+            last_state, config = raw[64:192], value['config_generation']
+            parameters, preserve_parameters = last_state[8:48], False
+            current_bank = value
+            values[tx['first']] = value
+        elif op == 21:
+            require(current_bank is not None, 'crank control has no decoded current parameter bank')
+            raw = transfer_output(run, tx)
+            packet = payload_read(run, tx['request_payload'])
+            value = cp_crank_control_result(raw, packet, transport['model_instance'], last_state or b'',
+                                            current_bank['bank_generation'])
+            require(value['before_config_generation'] == config and value['frame_generation'] == generation and
+                    value['fps'] == current_bank['fps'] and value['crank_generation'] == last_crank + 1 and
+                    value['bank_generation'] != consumed_bank and tx['token'] == 0 and tx.get('frame') is None,
+                    'crank control current bank/FPS/once-only history or no-frame binding differs')
+            last_crank, consumed_bank = value['crank_generation'], value['bank_generation']
+            last_state, config = raw[64:192], value['config_generation']
+            parameters = last_state[8:48]
+            current_crank = value
+            values[tx['first']] = value
+        elif op == 22:
+            require(current_bank is not None and current_crank is not None and
+                    current_crank['bank_generation'] == current_bank['bank_generation'],
+                    'movie format has no decoded current parameter bank/crank pair')
+            require(tx.get('frame') is None and tx['token'] == 0 and not optical_retained,
+                    'movie format borrowed a frame proof or retained result/optical frame')
+            raw, packet = transfer_output(run, tx), payload_read(run, tx['request_payload'])
+            value = cp_movie_format_result(raw, packet, transport['model_instance'], last_state or b'',
+                current_bank['bank_generation'], current_crank['crank_generation'])
+            pair = (value['bank_generation'], value['crank_generation'])
+            require(value['before_config_generation'] == config and value['frame_generation'] == generation and
+                    value['fps'] == current_bank['fps'] and value['movie_generation'] == last_movie + 1 and
+                    pair not in movie_pairs, 'movie format current bank/crank/FPS/once-only history differs')
+            movie_pairs.add(pair)
+            last_movie = value['movie_generation']
+            last_state, config = raw[80:208], value['config_generation']
+            parameters = last_state[8:48]
+            current_movie = value
+            values[tx['first']] = value
+        elif op == 23:
+            require(current_bank is not None and current_crank is not None and current_movie is not None and
+                    current_crank['bank_generation'] == current_movie['bank_generation'] == current_bank['bank_generation'] and
+                    current_movie['crank_generation'] == current_crank['crank_generation'],
+                    'OU crank has no decoded current bank/crank/movie tuple')
+            require(tx.get('frame') is None and tx['token'] == 0 and not optical_retained,
+                    'OU crank borrowed a frame proof or retained result/optical frame')
+            raw, packet = transfer_output(run, tx), payload_read(run, tx['request_payload'])
+            value = cp_ou_crank_control_result(raw, packet, transport['model_instance'], last_state or b'',
+                current_bank['bank_generation'], current_crank['crank_generation'], current_movie['movie_generation'])
+            identity = (value['bank_generation'], value['crank_generation'], value['movie_generation'])
+            require(current_settings is not None and current_settings['config_generation'] == config and
+                    current_settings['config_generation'] > current_movie['config_generation'] and
+                    current_settings['frame_generation'] == generation,
+                    'OU crank requires the current committed4057 configuration/frame checkpoint')
+            require(value['before_config_generation'] == config and value['frame_generation'] == generation and
+                    value['fps'] == current_bank['fps'] and value['ou_generation'] == last_ou + 1 and
+                    identity not in ou_tuples, 'OU crank current tuple/FPS/once-only history differs')
+            ou_tuples.add(identity)
+            last_ou, last_state, config = value['ou_generation'], raw[80:208], value['config_generation']
+            parameters = last_state[8:48]
+            values[tx['first']] = value
         elif op in CONFIG_OPERATIONS:
             raw = transfer_output(run, tx)
             canonical = payload_read(run, tx['request_payload'])
@@ -1893,13 +2656,19 @@ def vdf_history(run, transport):
                     'VDF reused an old rendered RGB lease')
             values[tx['first']] = value
             config, generation, route = value['config_generation'], value['frame_generation'], raw[128:144]
+            if op == 14 and startup_control_config(canonical) == 0x4057:
+                current_settings = value
             preserve_parameters = preserve_parameters or op in (6, 7, 8, 9, 10, 12, 13, 14)
         elif op == 4:
             preserve_parameters = False
-        elif tx.get('frame') is not None:
+        elif op not in (18, 19) and tx.get('frame') is not None:
             proof = tx['frame']['proof']
             config, generation = proof['config_generation'], proof['frame_generation']
-        if tx.get('frame') is not None and tx['frame']['proof']['render_observed']:
+        if op == 17:
+            optical_retained = True
+        elif op in (19, 66):
+            optical_retained = False
+        if op != 17 and tx.get('frame') is not None and tx['frame']['proof']['render_observed']:
             last_lease = tx['frame']['proof']['lease_generation']
     return values
 
@@ -2148,7 +2917,7 @@ def check_vdf_path(run, rows, transport):
     require(all(tx['opcode'] in (1, native_opcodes[tx['origin']['command']])
                 for tx in transport['transfers'] if tx['origin']['destination'] == 0x92840747 and
                 tx['origin']['command'] in native_opcodes),
-            'VDF original0138/0153/014c/0141/0152/0162/015e was relabelled as a media/configuration operation')
+            'VDF original0138/0153/014c/0141/0152/0162/0163/015e was relabelled as a media/configuration operation')
     if any(tx['opcode'] == 12 for tx in transfers):
         check_frames(run, transport, require_codecs=False)
     return {'required': True, 'verified': True, 'cycles': checked, 'diagnostics': diagnostics,
@@ -2208,6 +2977,140 @@ def check_still_format(run, manifest, rows, transport):
     return _check_cp_configuration(run, manifest, rows, transport)
 
 
+def check_focus_reset(run, manifest, rows, transport):
+    """Exact original403f(0,0), real RGB transaction, then original reply ownership."""
+    family = 'FUNCTIONAL_CAMERA_FOCUS_MAGNIFICATION_'
+    tags = {family + suffix for suffix in ('RESET_REQUEST', 'BACKEND', 'APPLIED',
+        'APPLIED_REPLY_RECEIVED', 'APPLIED_REPLY_FREE')}
+    legacy = {family + suffix for suffix in ('UNAVAILABLE', 'REPLY_RECEIVED', 'REPLY_FREE')}
+    require(all(r['tag'] in tags | legacy for r in rows if r['tag'].startswith(family)),
+            'Focus reset unknown original producer')
+    selected = [r for r in rows if r['tag'] in tags or r['tag'] == 'FUNCTIONAL_FOCUS_RESET_MODEL']
+    transfers = [tx for tx in transport['transfers'] if tx['opcode'] == 14 and tx['origin']['command'] == 0x403f]
+    result = dict(required=bool(selected or transfers), verified=False, status='not_observed', cycles=[],
+                  missing=[], magnification_disabled=False, AP_consumed=False, capture_verified=False,
+                  physical_asic_compatibility_verified=False, original_CP_executed=False)
+    if not result['required']:
+        return result
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and all(typed_equal(manifest.get('functional_camera_' + k), v) and
+            typed_equal(backup.get('functional_camera_' + k), v) for k, v in STARTUP_CONTROL_POLICY.items()),
+            'Focus reset lacks explicit actual RGB software policy')
+    requests, identities = [], set()
+    for row in selected:
+        needed('diagnostic' not in row, 'Focus reset incomplete original formatter')
+        if row['tag'] != family + 'RESET_REQUEST':
+            continue
+        f = row['fields']
+        wire = raw_hex(f, 'raw', 16)
+        sender, cookie, fingerprint = number(f['tid']), number(f['token']), fnv(wire)
+        require(set(f) == set('pid tid source destination cmd token request_bytes raw native_fnv policy capture_verified'.split()) and
+                0 < sender < 2**31 and number(f['pid']) == transport['pid'] and
+                wire[:4] == b'\x05\0\x3f\x40' and wire[8:] == bytes(8) and
+                struct.unpack_from('<I', wire, 4)[0] == cookie and 0 <= cookie < 2**32 and
+                all(number(f[k]) == v for k, v in dict(source=0x80020002, destination=0x90040193,
+                    cmd=0x403f, request_bytes=16, native_fnv=fingerprint, capture_verified=0).items()) and
+                f.get('policy') == FOCUS_RESET_POLICY and (sender, cookie) not in identities,
+                'Focus reset original16/source/neutral body/cookie/fingerprint differs or repeats')
+        identities.add((sender, cookie))
+        requests.append((row, sender, cookie, fingerprint))
+    require(not any(r['tag'] == family + 'APPLIED' for r in selected) or transfers,
+            'Focus reset success ACK without actual Core RGB operation')
+    result['status'] = 'incomplete'
+    if not transfers:
+        result['missing'].append('actual successful original-bound OP14/403f full192 RGB transaction')
+        return result
+    history, claimed = vdf_history(run, transport), set()
+    for tx in transfers:
+        origin = tx['origin']
+        require(type(tx['opcode']) is int and tx['provider_kind'] == 'core' and tx['token'] == 0 and
+                tx['first'] == tx['last'] and all(type(origin[k]) is int and origin[k] == v for k, v in
+                    dict(source=0x80020002, destination=0x90040193, command=0x403f, bytes=16).items()) and
+                type(origin['producer_tid']) is int and 0 < origin['producer_tid'] < 2**31 and
+                type(origin['fnv1a64']) is int and 0 <= origin['fnv1a64'] < 2**64,
+                'Focus reset actual opcode/Core provider/original source tuple differs')
+        matches = [(r, tid, cookie, fingerprint) for r, tid, cookie, fingerprint in requests
+                   if tid == origin['producer_tid'] and fingerprint == origin['fnv1a64']]
+        require(len(matches) == 1, 'Focus reset needs its unique original16 request')
+        request, sender, cookie, fingerprint = matches[0]
+        require((sender, cookie) not in claimed, 'Focus reset reused one original request for multiple Core operations')
+        claimed.add((sender, cookie))
+        index = transport['transfers'].index(tx)
+        require(index > 0, 'Focus reset missing preceding State128')
+        before = transport['transfers'][index - 1]
+        require(before['opcode'] == 2 and before['origin'] == origin and
+                request['line'] < before['line'] < tx['line'], 'Focus reset STATE origin/order differs')
+        state, output = transfer_output(run, before), transfer_output(run, tx)
+        canonical, value = payload_read(run, tx['request_payload']), history[tx['first']]
+        require(len(state) == 128 and struct.unpack_from('<2I', state) == (1, 15) and
+                struct.unpack_from('<2I', state, 8) == (640, 480) and state[104:112] == bytes(8) and
+                state[120:] == bytes(8) and startup_control_config(canonical) == 0x403f and
+                struct.unpack_from('<Q', state, 48)[0] == transport['model_instance'] and
+                struct.unpack_from('<Q', canonical, 24)[0] == fnv(state[8:48]) and
+                struct.unpack_from('<Q', state, 56)[0] == value['before_config_generation'] and
+                struct.unpack_from('<Q', state, 112)[0] == value['before_frame_generation'],
+                'Focus reset actual State128/current optics fingerprint differs')
+        noncodec_proof(tx, value, transport, output)
+        def one(tag, predicate):
+            found = [r for r in selected if r['tag'] == tag and predicate(r['fields'])]
+            require(len(found) <= 1, 'Focus reset duplicate original ' + tag)
+            if not found and tag != 'FUNCTIONAL_FOCUS_RESET_MODEL':
+                require(not any(r['tag'] == tag and number(r['fields']['token']) == cookie for r in selected),
+                        'Focus reset recorded reply/backend has wrong original sender')
+            return found[0] if found else None
+        by_cookie = lambda f: number(f['token']) == cookie and number(f.get('sender_tid', f.get('tid'))) == sender
+        by_origin = lambda f: number(f['native_fnv']) == fingerprint and number(f['tid']) == sender
+        model = one('FUNCTIONAL_FOCUS_RESET_MODEL', by_origin)
+        backend = one(family + 'BACKEND', by_cookie)
+        applied = one(family + 'APPLIED', by_cookie)
+        received = one(family + 'APPLIED_REPLY_RECEIVED', by_cookie)
+        freed = one(family + 'APPLIED_REPLY_FREE', by_cookie)
+        if any(r is None for r in (model, backend, applied, received, freed)):
+            result['missing'].append('complete MODEL/BACKEND/APPLIED/original RECEIVE/sender FREE for ' + str(cookie))
+            continue
+        common = dict(pid=transport['pid'], tid=sender, model_instance=transport['model_instance'],
+                      native_fnv=fingerprint, capture_verified=0)
+        expected_model = dict(common, rc=0, state_used=128, state_required=128, result_used=192,
+                              result_required=192, result_token=0, result_fnv=fnv(output), physical_ASIC_verified=0)
+        expected_backend = dict(common, cmd=0x403f, token=cookie, backend_rc=0,
+            cfg_before=value['before_config_generation'], cfg=value['config_generation'],
+            frame_before=value['before_frame_generation'], frame=value['frame_generation'],
+            canonical_fnv=fnv(canonical), model_fnv=fnv(output))
+        expected_applied = dict(common, source=0x80020002, destination=0x90040193, cmd=0x403f,
+            token=cookie, request_bytes=16, reply_bytes=12, status=0xf000, request_free_rc=0,
+            cfg=value['config_generation'], frame=value['frame_generation'], model_fnv=fnv(output),
+            rgb_bytes=921600, frame_consumed=1, frame_retired=1, magnification_disabled=1)
+        for row, expected in ((model, expected_model), (backend, expected_backend), (applied, expected_applied)):
+            f = row['fields']
+            string_fields = {'policy'} if row is not backend else set()
+            require(set(f) == set(expected) | string_fields and
+                    all(number(f[k]) == v for k, v in expected.items()) and
+                    (not string_fields or f['policy'] == FOCUS_RESET_POLICY),
+                    'Focus reset original actual model/192/backend/applied content differs')
+        receiver = number(received['fields']['tid'])
+        require(0 < receiver < 2**31 and tx['line'] < model['line'] <
+                min(backend['line'], applied['line'], received['line'], freed['line']) and
+                received['line'] < freed['line'], 'Focus reset model/send/receive/sender-free order differs')
+        for row, expected in ((received, dict(tid=receiver, sender_tid=sender)),
+                              (freed, dict(tid=sender, sender_tid=sender, receiver_tid=receiver))):
+            expected.update(source=0x90040193, destination=0x80020002, cmd=0x403f, token=cookie,
+                            bytes=12, status=0xf000, rc=0, magnification_disabled=1, capture_verified=0)
+            require(set(row['fields']) == set(expected) and all(number(row['fields'][k]) == v for k, v in expected.items()),
+                    'Focus reset original12 reply receiver/sender-free roles or content differs')
+        result['cycles'].append(dict(first=tx['first'], sender_tid=sender, receiver_tid=receiver, cookie=cookie,
+            native_fnv=fingerprint, model_instance=transport['model_instance'], cfg=value['config_generation'],
+            frame=value['frame_generation'], result_fnv=fnv(output), rgb_bytes=value['active_bytes'],
+            AP_consumed=True, capture_verified=False))
+    applied_rows = [r for r in selected if r['tag'] == family + 'APPLIED']
+    require(len(applied_rows) <= len(transfers), 'Focus reset orphan/duplicate success ACK')
+    if len(claimed) != len(requests):
+        result['missing'].append('every original reset request must have its own actual Core result')
+    if not result['missing'] and len(result['cycles']) == len(transfers):
+        require(len(selected) == 6 * len(transfers), 'Focus reset unclaimed original producer records')
+        result.update(verified=True, status='verified', magnification_disabled=True, AP_consumed=True)
+    return result
+
+
 def check_startup_control(run, manifest, rows, transport):
     return _check_cp_configuration(run, manifest, rows, transport, startup=True)
 
@@ -2216,9 +3119,12 @@ def _check_cp_configuration(run, manifest, rows, transport, *, startup=False):
     """Independent CP promises share ownership rules, never the dynamic VDF queues."""
     opcode = 14 if startup else 13
     commands, size = CONFIG_OPERATIONS[opcode]
+    if startup:
+        commands = {key: value for key, value in commands.items() if key != 0x403f}
     prefix = 'FUNCTIONAL_STARTUP_CONTROL' if startup else 'FUNCTIONAL_STILL_FORMAT'
     label = 'Startup control' if startup else 'Still format'
-    transfers = [tx for tx in transport['transfers'] if tx['opcode'] == opcode]
+    transfers = [tx for tx in transport['transfers'] if tx['opcode'] == opcode and
+                 not (startup and tx['origin']['command'] == 0x403f)]
     native = [tx for tx in transport['transfers'] if tx['origin']['destination'] == 0x90030001 and
               tx['origin']['command'] in commands]
     records = [r for r in rows if r['tag'].startswith(prefix)]
@@ -3006,6 +3912,9 @@ def check_transport(run, manifest, rows, events, build):
     require(Path(config.get('qemu', {}).get('exe', '')).name == 'qemu-system-aarch64' and
             config['qemu']['pid'] == runner['debugger_handoff']['qemu_pid'], 'original QEMU process identity differs')
     counts, transactions, pending = {}, {}, None
+    current_bank, last_crank, consumed_bank = None, 0, 0
+    current_crank, last_movie, movie_pairs = None, 0, set()
+    current_movie, last_ou, ou_tuples = None, 0, set()
     payload_budget, paths, payload_inodes = [512 * 1024**2, 65536], set(), set()
     def actual_payload(event, direction, tx, token, total, offset):
         key = 'request_payload' if direction == 'in' else 'output_payload'
@@ -3031,7 +3940,10 @@ def check_transport(run, manifest, rows, events, build):
         require(kind in ('binding', 'attached', 'request', 'core_result', 'ap_source_result', 'source_cancel',
                          'response', 'physical_mode_restored',
                          'resume_suppressed', 'detach_commit', 'mailbox_detached', 'cancel_cleanup',
-                         'debugger_disconnected', 'cleanup', 'model_frame'), 'failed/rejected/unknown broker event')
+                         'debugger_disconnected', 'cleanup', 'model_frame', 'model_parameter_bank',
+                         'model_crank_control', 'crank_control_rejected', 'model_movie_format',
+                         'movie_format_rejected', 'model_ou_crank_control',
+                         'ou_crank_control_rejected'), 'failed/rejected/unknown broker event')
         counts[kind] = counts.get(kind, 0) + 1
         if counts.get('detach_commit'):
             require(kind in ('detach_commit', 'physical_mode_restored', 'mailbox_detached',
@@ -3069,6 +3981,15 @@ def check_transport(run, manifest, rows, events, build):
                         'actual RELEASE_RESULT16 token/whole-output FNV differs')
             elif event['opcode'] != 66:
                 require(active_result is None or event['opcode'] == 2, 'new operation overlaps retained result')
+            if event['opcode'] == 33:
+                require(not incoming or incoming == b'\x01\x00\x00\x00',
+                        'actual video frame force-IDR flags differ')
+            if event['opcode'] == 17:
+                require(incoming[:4] == b'\x05\x00\x38\x40' and incoming[8] in (2, 10, 12, 8, 9, 3) and
+                        incoming[9:12] == bytes(3) and origin['source'] == 0x80020002 and
+                        origin['destination'] == 0x90040193 and origin['command'] == 0x4038 and
+                        origin['bytes'] == 16 and origin['fnv1a64'] == fnv(incoming),
+                        'actual retained capture lacks exact4038 origin')
             pending['request_data'] = incoming
             transactions[seq] = pending
         elif kind in ('core_result', 'ap_source_result', 'response'):
@@ -3076,6 +3997,23 @@ def check_transport(run, manifest, rows, events, build):
             require(pending is not None and event.get('sequence') == pending['request']['sequence'] and
                     event.get('opcode') == pending['request']['opcode'] and kind not in pending and
                     kind in (result_kind, 'response'), 'unmatched/duplicate/wrong provider result/response')
+            if (kind == 'core_result' and pending['request']['opcode'] == 23 and
+                    event.get('actual_c_result') is None and type(event.get('admission_error')) is int and
+                    event['admission_error'] == -errno.EBUSY):
+                require(event.get('actual_core_sha256') == build['model_sha256'] and
+                        typed_equal(event.get('origin'), pending['origin']) and
+                        typed_equal(event.get('request_payload'), pending['request'].get('request_payload')),
+                        'OU crank rejected admission original call/library binding differs')
+                pending[kind] = event
+                continue
+            if (kind == 'core_result' and pending['request']['opcode'] in (21, 22, 23) and
+                    type(event.get('actual_c_result')) is int and -4095 <= event['actual_c_result'] < 0):
+                require(event.get('actual_core_sha256') == build['model_sha256'] and
+                        typed_equal(event.get('origin'), pending['origin']) and
+                        typed_equal(event.get('request_payload'), pending['request'].get('request_payload')),
+                        'rejected crank control actual C call binding differs')
+                pending[kind] = event
+                continue
             if pending['source_call']:
                 require(event.get('actual_c_result', 1) is None and type(event.get('actual_source_result')) is int and
                         event['actual_source_result'] == 0 and event.get('source_provider_kind') == 'paused-source-snapshot-v1',
@@ -3083,6 +4021,12 @@ def check_transport(run, manifest, rows, events, build):
             else:
                 require(type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
                         'actual_source_result' not in event, 'actual model C execution failed')
+            if pending['request']['opcode'] == 20:
+                require(event.get('actual_core_sha256') == build['model_sha256'],
+                        'parameter bank actual C result/library binding differs')
+            elif pending['request']['opcode'] in (21, 22, 23):
+                require(event.get('actual_core_sha256') == build['model_sha256'],
+                        'crank control actual C result/library binding differs')
             count, token, total, offset = (uint(event.get(key)) for key in ('returned_bytes', 'token', 'total', 'offset'))
             require(count <= pending['capacity'] and total <= 64 * 1024**2 and offset <= total and
                     (token and 0 < count <= total - offset or not token and not total and not offset), 'actual C result bounds')
@@ -3108,7 +4052,7 @@ def check_transport(run, manifest, rows, events, build):
                                 'actual result chunk ownership differs')
                         capacity = struct.unpack_from('<I', pending['request_data'], 16)[0]
                     else:
-                        require(op in (11, 16, 33, 34) and active_result is None and offset == 0 and
+                        require(op in (11, 16, 17, 18, 33, 34) and active_result is None and offset == 0 and
                                 (token >= 1 << 63) == (op == 11),
                                 'actual encoded/source lease overlaps/has invalid origin')
                         header = pending['raw_header']
@@ -3139,8 +4083,191 @@ def check_transport(run, manifest, rows, events, build):
                 struct.pack_into('<4Q', response, 64, uint(event.get('returned_fnv1a64')), total, offset, token)
                 require(sha(response) == event.get('response_header_sha256'), 'committed response header differs')
                 pending = None
+        elif kind == 'model_parameter_bank':
+            require(pending is not None and pending['request']['opcode'] == 20 and 'core_result' in pending and
+                    'parameter_bank' not in pending and event.get('opcode') == 20 and
+                    event.get('sequence') == pending['request']['sequence'] and
+                    type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
+                    event.get('actual_core_sha256') == build['model_sha256'] and event.get('native_acceptance') is False and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    typed_equal(event.get('output_payload'), pending['core_result'].get('output_payload')),
+                    'parameter bank query differs from the actual original C call')
+            observed = event.get('observation')
+            require(type(observed) is dict and set(observed) == {'actual_c_result', 'returned_hex', 'readback_verified',
+                    'before_state_c_result', 'before_state_hex', 'result', 'query_c_result', 'bank_generation',
+                    'snapshot_hex', 'after_state_c_result', 'after_state_hex'} and observed['readback_verified'] is True and
+                    all(type(observed[k]) is int and observed[k] == 0 for k in
+                        ('actual_c_result', 'query_c_result', 'before_state_c_result', 'after_state_c_result')) and
+                    typed_equal(observed['result'], dict(token=0, total=0, offset=0, used=2756)),
+                    'parameter bank independent actual C query/readback missing or failed')
+            bank_output = payload_read(run, pending['core_result']['output_payload'])
+            require(raw_hex(observed, 'returned_hex', 2756) == raw_hex(observed, 'snapshot_hex', 2756) == bank_output,
+                    'parameter bank independently queried full2756 differs from actual C output')
+            bank_value = cp_parameter_bank_result(bank_output, pending['request_data'], mailbox['nonce'],
+                                                  raw_hex(observed, 'before_state_hex', 128))
+            require(raw_hex(observed, 'after_state_hex', 128) == bank_output[64:192] and
+                    type(observed['bank_generation']) is int and observed['bank_generation'] == bank_value['bank_generation'],
+                    'parameter bank independent actual post-STATE differs')
+            pending['parameter_bank'] = event
+            current_bank = bank_value
+        elif kind == 'model_crank_control':
+            require(pending is not None and pending['request']['opcode'] == 21 and 'core_result' in pending and
+                    'crank_control' not in pending and event.get('opcode') == 21 and
+                    event.get('sequence') == pending['request']['sequence'] and
+                    type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
+                    event.get('actual_core_sha256') == build['model_sha256'] and event.get('native_acceptance') is False and
+                    event.get('model_called') is True and event.get('model_committed') is True and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    typed_equal(event.get('output_payload'), pending['core_result'].get('output_payload')),
+                    'crank control query differs from the actual original C call')
+            origin = pending['origin']
+            require(current_bank is not None and origin['source'] == 0x80020002 and
+                    origin['destination'] == 0x90030001 and origin['command'] == 0x409d and
+                    origin['bytes'] == 12 and origin['fnv1a64'] == fnv(pending['request_data']) and
+                    struct.unpack_from('<I', pending['raw_header'], 52)[0] == 0,
+                    'crank control current bank/original409d/source/destination/full12 origin differs')
+            observed = event.get('observation')
+            output = payload_read(run, pending['core_result']['output_payload'])
+            value = cp_crank_control_observation(observed, output, pending['request_data'], mailbox['nonce'],
+                raw_hex(observed, 'before_state_hex', 128) if type(observed) is dict else b'',
+                current_bank['bank_generation'], pending['capacity'])
+            require(value['fps'] == current_bank['fps'] and value['crank_generation'] == last_crank + 1 and
+                    value['bank_generation'] != consumed_bank,
+                    'crank control current bank/FPS/monotonic crank/once-only query differs')
+            last_crank, consumed_bank = value['crank_generation'], value['bank_generation']
+            pending['crank_control'] = event
+            current_crank = value
+        elif kind == 'model_movie_format':
+            bounded_control_witness(event)
+            require(pending is not None and pending['request']['opcode'] == 22 and 'core_result' in pending and
+                    'movie_format' not in pending and type(event.get('opcode')) is int and event['opcode'] == 22 and
+                    type(event.get('sequence')) is int and event['sequence'] == pending['request']['sequence'] and
+                    type(event.get('actual_c_result')) is int and event['actual_c_result'] == 0 and
+                    event.get('actual_core_sha256') == build['model_sha256'] and event.get('native_acceptance') is False and
+                    event.get('model_called') is True and event.get('model_committed') is True and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    typed_equal(event.get('output_payload'), pending['core_result'].get('output_payload')),
+                    'movie format query differs from the actual original C call')
+            origin = pending['origin']
+            require(current_bank is not None and current_crank is not None and
+                    current_crank['bank_generation'] == current_bank['bank_generation'] and
+                    origin['source'] == 0x80020002 and origin['destination'] == 0x90030001 and
+                    origin['command'] == 0x4000 and origin['bytes'] == 20 and origin['fnv1a64'] == fnv(pending['request_data']) and
+                    struct.unpack_from('<I', pending['raw_header'], 52)[0] == 0,
+                    'movie format current bank/crank/original4000/source/destination/full20 origin differs')
+            observed = event.get('observation')
+            output = payload_read(run, pending['core_result']['output_payload'])
+            value = cp_movie_format_observation(observed, output, pending['request_data'], mailbox['nonce'],
+                raw_hex(observed, 'before_state_hex', 128) if type(observed) is dict else b'',
+                current_bank['bank_generation'], current_crank['crank_generation'], pending['capacity'])
+            pair = (value['bank_generation'], value['crank_generation'])
+            require(value['fps'] == current_bank['fps'] and value['movie_generation'] == last_movie + 1 and
+                    pair not in movie_pairs, 'movie format current bank/crank/FPS/monotonic/once-only query differs')
+            last_movie = value['movie_generation']
+            movie_pairs.add(pair)
+            pending['movie_format'] = event
+            current_movie = value
+        elif kind == 'model_ou_crank_control':
+            bounded_control_witness(event)
+            require(pending is not None and pending['request']['opcode'] == 23 and 'core_result' in pending and
+                    'ou_crank_control' not in pending and event['sequence'] == pending['request']['sequence'] and
+                    event['actual_core_sha256'] == build['model_sha256'] and
+                    typed_equal(event['origin'], pending['origin']) and
+                    typed_equal(event['request_payload'], pending['request'].get('request_payload')) and
+                    typed_equal(event['output_payload'], pending['core_result'].get('output_payload')),
+                    'OU crank query differs from the actual original C call')
+            origin = pending['origin']
+            require(current_bank is not None and current_crank is not None and current_movie is not None and
+                    current_crank['bank_generation'] == current_movie['bank_generation'] == current_bank['bank_generation'] and
+                    current_movie['crank_generation'] == current_crank['crank_generation'] and
+                    struct.unpack_from('<I', pending['raw_header'], 52)[0] == 0,
+                    'OU crank original source/current tuple/flags differ')
+            observed = event['observation']
+            output = payload_read(run, pending['core_result']['output_payload'])
+            value = cp_ou_crank_control_observation(observed, output, pending['request_data'], mailbox['nonce'],
+                raw_hex(observed, 'before_state_hex', 128), current_bank['bank_generation'],
+                current_crank['crank_generation'], current_movie['movie_generation'], pending['capacity'])
+            identity = (value['bank_generation'], value['crank_generation'], value['movie_generation'])
+            require(value['fps'] == current_bank['fps'] and value['ou_generation'] == last_ou + 1 and
+                    identity not in ou_tuples, 'OU crank current tuple/FPS/monotonic/once-only query differs')
+            last_ou = value['ou_generation']
+            ou_tuples.add(identity)
+            pending['ou_crank_control'] = event
+        elif kind == 'ou_crank_control_rejected':
+            require(pending is not None and type(event.get('opcode')) is int and
+                    pending['request']['opcode'] == event['opcode'] == 23 and
+                    type(event.get('sequence')) is int and event['sequence'] == pending['request']['sequence'] and
+                    event.get('actual_core_sha256') == build['model_sha256'] and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    event.get('native_acceptance') is False and
+                    (event.get('actual_c_result') is None and event.get('admission_error') == -errno.EBUSY or
+                     type(event.get('actual_c_result')) is int and -4095 <= event['actual_c_result'] <= 0),
+                    'OU crank rejection lacks its actual original C request/library')
+            rejected = payload_read(run, event.get('output_payload'))
+            if 'core_result' in pending:
+                core = pending['core_result']
+                require(typed_equal(event.get('actual_c_result'), core.get('actual_c_result')) and
+                        typed_equal(event.get('output_payload'), core.get('output_payload')) and
+                        len(rejected) == core.get('returned_bytes') and sha(rejected) == core.get('returned_sha256') and
+                        fnv(rejected) == core.get('returned_fnv1a64'),
+                        'OU crank rejection differs from original actual C rc/output')
+            observed = event.get('observation')
+            require(type(observed) is dict and raw_hex(event, 'input_hex', 12) == pending['request_data'] and
+                    type(event.get('request_fnv1a64')) is int and event['request_fnv1a64'] == fnv(pending['request_data']) and
+                    ('returned_hex' not in observed or raw_hex(observed, 'returned_hex', len(rejected)) == rejected) and
+                    ('actual_c_result' not in observed or typed_equal(observed['actual_c_result'], event['actual_c_result'])),
+                    'OU crank rejection actual C0/negative result or output differs')
+            raise OuCrankControlRejected(event)
+        elif kind == 'movie_format_rejected':
+            require(pending is not None and pending['request']['opcode'] == event.get('opcode') == 22 and
+                    type(event.get('opcode')) is int and event.get('sequence') == pending['request']['sequence'] and
+                    event.get('actual_core_sha256') == build['model_sha256'] and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    event.get('native_acceptance') is False and type(event.get('actual_c_result')) is int and
+                    -4095 <= event['actual_c_result'] <= 0, 'movie format rejection lacks its actual original C request/library')
+            rejected = payload_read(run, event.get('output_payload'))
+            if 'core_result' in pending:
+                core = pending['core_result']
+                require(typed_equal(event.get('actual_c_result'), core.get('actual_c_result')) and
+                        typed_equal(event.get('output_payload'), core.get('output_payload')) and
+                        len(rejected) == core.get('returned_bytes') and sha(rejected) == core.get('returned_sha256') and
+                        fnv(rejected) == core.get('returned_fnv1a64'),
+                        'movie format rejection differs from the original actual C rc/output')
+            observed = event.get('observation')
+            require(type(observed) is dict and
+                    ('returned_hex' not in observed or raw_hex(observed, 'returned_hex', len(rejected)) == rejected) and
+                    ('actual_c_result' not in observed or typed_equal(observed['actual_c_result'], event['actual_c_result'])),
+                    'movie format rejection actual C0/negative result or output differs')
+            raise MovieFormatRejected(event)
+        elif kind == 'crank_control_rejected':
+            require(pending is not None and pending['request']['opcode'] == event.get('opcode') == 21 and
+                    event.get('sequence') == pending['request']['sequence'] and
+                    event.get('actual_core_sha256') == build['model_sha256'] and
+                    typed_equal(event.get('origin'), pending['origin']) and
+                    typed_equal(event.get('request_payload'), pending['request'].get('request_payload')) and
+                    event.get('native_acceptance') is False,
+                    'crank control rejection lacks its actual original request/library')
+            rejected = payload_read(run, event.get('output_payload'))
+            if 'core_result' in pending:
+                core = pending['core_result']
+                require(typed_equal(event.get('actual_c_result'), core.get('actual_c_result')) and
+                        typed_equal(event.get('output_payload'), core.get('output_payload')) and
+                        len(rejected) == core.get('returned_bytes') and sha(rejected) == core.get('returned_sha256') and
+                        fnv(rejected) == core.get('returned_fnv1a64'),
+                        'crank control rejection differs from the original actual C rc/output')
+            observed = event.get('observation')
+            require(type(observed) is dict and
+                    ('returned_hex' not in observed or raw_hex(observed, 'returned_hex', len(rejected)) == rejected),
+                    'crank control rejection actual output differs')
+            raise CrankControlRejected(event)
         elif kind == 'model_frame':
-            require(pending is not None and 'core_result' in pending and 'frame' not in pending and
+            require(pending is not None and pending['request']['opcode'] not in (21, 22, 23) and
+                    'core_result' in pending and 'frame' not in pending and
                     event.get('sequence') == pending['request']['sequence'] and
                     event.get('opcode') == pending['request']['opcode'] and
                     event.get('actual_c_result') == 0 and event.get('actual_core_sha256') == build['model_sha256'] and
@@ -3244,7 +4371,14 @@ def check_transport(run, manifest, rows, events, build):
                         'fnv1a64': f'{value:016x}', 'request_payload': tx['request']['request_payload'],
                         'output_payloads': output_payloads, 'frame': tx.get('frame'),
                         'token': token, 'model_instance': mailbox['nonce'],
-                        'provider_kind': 'source' if tx['source_call'] else 'core'})
+                        'provider_kind': 'source' if tx['source_call'] else 'core',
+                        **({'parameter_bank': tx['parameter_bank']} if 'parameter_bank' in tx else {}),
+                        **({'crank_control': tx['crank_control'], 'capacity': tx['capacity']}
+                           if 'crank_control' in tx else {}),
+                        **({'movie_format': tx['movie_format'], 'capacity': tx['capacity']}
+                           if 'movie_format' in tx else {}),
+                        **({'ou_crank_control': tx['ou_crank_control'], 'capacity': tx['capacity']}
+                           if 'ou_crank_control' in tx else {})})
     require(covered == set(transactions), 'broker responses not fully consumed by actual guest bridge')
     needed(all(counts.get(key) == 1 for key in ('binding', 'attached', 'cancel_cleanup', 'cleanup',
                                               'detach_commit', 'mailbox_detached', 'debugger_disconnected')),
@@ -3298,9 +4432,15 @@ def check_transport(run, manifest, rows, events, build):
             'Layout operation lacks the explicit initial-case0 software policy')
     if any(tx['opcode'] == 8 for tx in checked):
         backup = manifest.get('backup_transport')
-        require(type(backup) is dict and all(
+        display_policies = (DISPLAY_POLICY,)
+        if all(tx['origin']['command'] in (0x141, 0x152, 0x162, 0x163) for tx in checked if tx['opcode'] == 8):
+            display_policies += (ZERO6_DISPLAY_POLICY,)
+        if all(tx['origin']['command'] in (0x141, 0x152, 0x162) for tx in checked if tx['opcode'] == 8):
+            display_policies += (LEGACY_DISPLAY_POLICY,)
+        require(type(backup) is dict and any(all(
             typed_equal(manifest.get('functional_camera_' + key), value) and
-            typed_equal(backup.get('functional_camera_' + key), value) for key, value in DISPLAY_POLICY.items()),
+            typed_equal(backup.get('functional_camera_' + key), value) for key, value in policy.items())
+            for policy in display_policies),
             'Display operation lacks the explicit disabled/off software policy')
     for opcode, policy in ((9, BB_POLICY), (10, HIST_POLICY), (12, BIT_WIDTH_POLICY),
                            (13, STILL_FORMAT_POLICY), (14, STARTUP_CONTROL_POLICY)):
@@ -3316,6 +4456,9 @@ def check_transport(run, manifest, rows, events, build):
     result['startup_control'] = check_startup_control(run, manifest, rows, result)
     if result['startup_control']['required'] and not result['startup_control']['verified']:
         result['verified'] = False
+    result['focus_reset'] = check_focus_reset(run, manifest, rows, result)
+    if result['focus_reset']['required'] and not result['focus_reset']['verified']:
+        result['verified'] = False
     result['histogram'] = check_histogram(run, rows, result)
     result['control'] = check_control(run, rows, result)
     if result['control']['required']:
@@ -3323,9 +4466,1529 @@ def check_transport(run, manifest, rows, events, build):
         require(type(backup) is dict and all(typed_equal(manifest.get('functional_camera_' + key), value) and
                 typed_equal(backup.get('functional_camera_' + key), value) for key, value in XSYNC_POLICY.items()),
                 'control timing lacks the exact typed software clock policy')
+    result['parameter_bank'] = check_cp_parameter_bank(run, manifest, rows, result)
+    result['crank_control_content'] = check_cp_crank_control_content(run, manifest, rows, result)
+    if result['crank_control_content']['required'] and not result['crank_control_content']['verified']:
+        result['verified'] = False
+    result['movie_format_content'] = check_cp_movie_format_content(run, manifest, rows, result)
+    if result['movie_format_content']['required'] and not result['movie_format_content']['verified']:
+        result['verified'] = False
+    result['ou_crank_control_content'] = check_cp_ou_crank_control_content(run, manifest, rows, result)
+    if result['ou_crank_control_content']['required'] and not result['ou_crank_control_content']['verified']:
+        result['verified'] = False
     result['background_start'] = check_background_start(run, manifest, rows, result)
     if result['background_start']['required'] and not result['background_start']['verified']:
         result['verified'] = False
+    timecode_rows = [row for row in rows if not row['tag'].startswith(
+        ('FUNCTIONAL_BB_TIMECODE_PRESET_', 'NATIVE_BB_TIMECODE_PRESET_'))]
+    result['bb_timecode_control'] = check_bb_timecode_control(run, manifest, timecode_rows, result)
+    if result['bb_timecode_control']['required'] and not result['bb_timecode_control']['verified']:
+        result['verified'] = False
+    result['bb_timecode_presets'] = check_bb_timecode_presets(run, manifest, rows, result)
+    if result['bb_timecode_presets']['required'] and not result['bb_timecode_presets']['verified']:
+        result['verified'] = False
+    return result
+
+
+def check_bb_timecode_policy(manifest, observed=False):
+    """Return whether exact typed TC policy is selected; OFF/strict None stays absent."""
+    if not observed and not any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+            if type(target) is dict for key, value in target.items()
+            if key.startswith('functional_camera_bb_timecode_control_')):
+        return False
+    return bb_timecode_module().policy(manifest, types.SimpleNamespace(**globals()), observed)
+
+
+def check_bb_timecode_control(run, manifest, rows, transport):
+    """Keep old runs absent; require source and content closure for observed TC."""
+    seen = any(row['tag'].startswith(('FUNCTIONAL_BB_TIMECODE_', 'NATIVE_BB_TIMECODE_')) for row in rows)
+    if not seen and not any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+            if type(target) is dict for key, value in target.items()
+            if key.startswith('functional_camera_bb_timecode_control_')):
+        return dict(status='not_observed', required=False, verified=False, transactions=[],
+                    content_join_verified=False, native_completion_verified=False,
+                    native_virtual_controls_verified=False, commands_observed=[], all_three_complete=False,
+                    frame_consumed=False, capture_verified=False, physical_asic_compatibility_verified=False,
+                    original_CP_executed=False, original_CP_RAM_verified=False, original_RTOS_verified=False,
+                    original_fifo_identity_verified=False, minimal_business_patch=None)
+    return bb_timecode_module().check(run, manifest, rows, transport, types.SimpleNamespace(**globals()))
+
+
+def check_bb_timecode_presets_policy(manifest, observed=False):
+    """Absent/strict None stays absent; selected preset policy is exact and typed."""
+    if not observed and not any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+            if type(target) is dict for key, value in target.items()
+            if key.startswith('functional_camera_bb_timecode_preset_')):
+        return False
+    return bb_timecode_presets_module().policy(manifest, types.SimpleNamespace(**globals()), observed)
+
+
+def check_bb_timecode_presets(run, manifest, rows, transport):
+    """Require actual old TC content closure; preset names never enter the old reader."""
+    seen = any(row['tag'].startswith(('FUNCTIONAL_BB_TIMECODE_PRESET_', 'NATIVE_BB_TIMECODE_PRESET_')) for row in rows)
+    if not seen and not any(value is not None for target in (manifest, manifest.get('backup_transport', {}))
+            if type(target) is dict for key, value in target.items()
+            if key.startswith('functional_camera_bb_timecode_preset_')):
+        return dict(status='not_observed', required=False, verified=False, transactions=[],
+                    content_join_verified=False, native_completion_verified=False,
+                    native_virtual_controls_verified=False, commands_observed=[], all_two_complete=False,
+                    frame_consumed=False, capture_verified=False, physical_asic_compatibility_verified=False,
+                    original_CP_executed=False, original_CP_RAM_verified=False, original_RTOS_verified=False,
+                    original_fifo_identity_verified=False, minimal_business_patch=None)
+    return bb_timecode_presets_module().check(run, manifest, rows, transport, types.SimpleNamespace(**globals()))
+
+
+def cp_crank_original_audit(rows, packet, pid, sender, lower, upper, pointer=None):
+    """An API-entry audit is a byte/source witness, never an IPC completion."""
+    found = []
+    for row in rows:
+        f = row['fields']
+        if (row['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and lower < row['line'] < upper and
+                f.get('bytes') == str(len(packet)) and f.get('pid') == str(pid) and f.get('tid') == str(sender) and
+                (pointer is None or f.get('pointer') == pointer)):
+            selected = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES' and
+                row['line'] < r['line'] < upper and all(r['fields'].get(k) == f.get(k) for k in ('pid', 'tid', 'sequence'))]
+            data = bytearray()
+            for chunk in selected:
+                c = chunk['fields']
+                require('diagnostic' not in chunk and set(c) == set('pid tid sequence offset bytes raw'.split()),
+                        'crank original audit chunk formatter incomplete')
+                require(number(c['offset']) == len(data) and number(c['bytes']) == min(128, len(packet) - len(data)),
+                        'crank original audit chunk gap/overlap/size differs')
+                data.extend(raw_hex(c, 'raw', number(c['bytes'])))
+            if bytes(data) == packet:
+                found.append(row)
+    require(len(found) == 1, 'crank original complete audit missing/ambiguous')
+    row = found[0]; f = row['fields']
+    require('diagnostic' not in row and set(f) == set(('pid tid sequence entry pointer destination bytes source '
+            'size_known source_known bytes_complete complete producer_return consumed state_verified capture_verified').split()) and
+            f['entry'] == 'async' and f['pointer'] != '(nil)' and number(f['sequence']) > 0 and
+            number(f['destination']) == 0x90030001 and number(f['source']) == 0x80020002 and
+            all(f[k] == '1' for k in ('size_known', 'source_known', 'bytes_complete', 'complete')) and
+            all(f[k] == '0' for k in ('consumed', 'state_verified', 'capture_verified')),
+            'crank original audit source/metadata/scope differs')
+    return row
+
+
+def cp_crank_predecessors(run, rows, transport, begin, reservation, bank, bank_tx, prior):
+    """Resource34 accepted=1 cannot replace the original predecessor contents."""
+    pid, sender = transport['pid'], number(begin['fields']['sender_tid'])
+    held = [r for r in rows if r['tag'].startswith('FUNCTIONAL_CP_CRANK_CONTROL_RESOURCE') and
+            begin['line'] < r['line'] <= reservation['line']]
+    table, reserved = held[1]['fields'], held[2]['fields']
+    require(number(held[0]['fields']['pid']) == number(table['pid']) == pid and
+            all(number(r['fields']['tid']) == sender for r in held), 'crank resource34 original PID/TID differs')
+    fixed = dict(dmm_enabled='1', dmm_bound='1', dmm_slots='1/1', dmm_opens='1/1',
+        dmm_handles='0x8400/0x8401', dmm_generations='1/1', dmm_epochs='1/2', dmm_creators='1/1',
+        dmm_allocation_count='2', dmm_lifecycle_changed='0', dmm_domain='2', foreign_speech_kept='1',
+        control_bound='1', connection_started='1', connections='1', format_consumed='1', buffer_released='1',
+        connection_reply_frees='1', vef_init='1', vef_owner='0x905a0048', pinmem_init='1', pinmem_owner='0x90590818')
+    require(all(reserved[k] == value for k, value in fixed.items()) and
+            number(reserved['allocations']) == number(reserved['releases']) > 0 and
+            number(reserved['vef_objects']) > 0 and number(reserved['pinmem_objects']) > 0,
+            'crank resource34 TTS/DMM/registry domain differs')
+    speech = raw_hex(table, 'raw_before', 144)
+    require(raw_hex(table, 'raw_after', 144) == speech, 'crank resource34 TTS full readback changed')
+    for slot in range(2):
+        offset = slot * 0x48
+        require(struct.unpack_from('<I', speech, offset)[0] == 0x1a + slot and
+                struct.unpack_from('<2I', speech, offset + 0x18) == (0x8400 | slot, 0x80000) and
+                struct.unpack_from('<Q', speech, offset + 0x20)[0] == 0x1e000000 + slot * 0x80000,
+                'crank resource34 full TTS does not bind both DMM slots')
+    bank_end = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and
+                r['fields'].get('transaction') == str(bank['transaction']) and r['fields'].get('event') == 'COMMIT']
+    require(len(bank_end) == 1 and bank['original_free_line'] < bank_end[0]['line'] < begin['line'] and
+            all(bank_end[0]['fields'][k] == '0' for k in ('guard', 'faults', 'error', 'free_rc', 'releasing')) and
+            all(bank_end[0]['fields'][k] == '1' for k in ('verified', 'owned', 'model_committed', 'request_freed')) and
+            bank_end[0]['fields']['retained'] == '(nil)', 'crank current bank lacks actual clean request free')
+    bank_owned = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and
+                  r['fields'].get('transaction') == str(bank['transaction']) and r['fields'].get('event') == 'OWNED_FREE']
+    require(len(bank_owned) == 1 and bank_owned[0]['line'] == bank['original_free_line'] and
+            bank_owned[0]['fields'].get('request_freed') == '1' and bank_owned[0]['fields'].get('free_rc') == '0' and
+            bank_owned[0]['fields'].get('retained') == '(nil)' and bank_owned[0]['fields'].get('faults') == '0',
+            'crank current bank actual OWNED_FREE receipt missing/differs')
+    require(transfer_output(run, bank_tx)[64:192] == prior,
+            'crank live before STATE is not the complete current bank after STATE')
+    frees = []
+    for tag in BACKGROUND_FREE_TAGS:
+        found = [r for r in rows if r['tag'] == tag and r['line'] < held[0]['line']]
+        require(len(found) == 1, 'crank all13 original free missing/ambiguous: ' + tag)
+        row = found[0]; f = row['fields']
+        require('diagnostic' not in row and f.get('pid') == str(pid) and f.get('bytes') == '56' and
+                all(f.get(k) == '0' for k in ('rc', 'faults', 'capture_verified')) and f.get('ap_consumed') == '1' and
+                0 < number(f['tid']) < 2**31 and number(f['destination']) == number(f['expected']) and
+                number(f['destination']) >> 28 == 8 and number(f['destination']) & 0x0fffffff and
+                f.get('reply', f.get('pointer', '(nil)')) != '(nil)' and
+                ('sender' not in f or f['sender'] == f['tid'] and f.get('waiter') == '1') and
+                ('command' not in f or number(f['command']) == 0x8001) and
+                all(f[k] == '0' for k in ('frames_verified', 'pcm_verified') if k in f),
+                'crank all13 original free content differs')
+        free_keys = set('pid tid destination expected bytes rc faults ap_consumed capture_verified'.split())
+        free_keys.add('reply' if tag.endswith('_NATIVE_REPLY_FREE') else 'pointer')
+        if tag.endswith('_NATIVE_REPLY_FREE') or tag in ('FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_FREE',
+                                                       'FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE'):
+            free_keys.update(('sender', 'waiter'))
+        if tag.endswith('_NATIVE_REPLY_FREE'):
+            free_keys.add('command')
+        else:
+            if tag != 'FULL_ADF_HDMI_AUDIO_CONNECT_REPLY_FREE':
+                free_keys.add('frames_verified')
+            if tag == 'FULL_IMAGING_ADF_CONNECT_REPLY_FREE':
+                free_keys.add('pcm_verified')
+        if tag == 'FULL_PINMEM_HDMI_VIDEO_CONNECT_NATIVE_REPLY_FREE':
+            free_keys.add('producer_tid')
+        require(set(f) == free_keys and re.fullmatch(r'0x[1-9a-f][0-9a-f]{0,15}', f.get('reply', f.get('pointer', ''))),
+                'crank all13 original free typed fields/pointer differ')
+        frees.append(row['line'])
+    all13 = [r for r in rows if r['tag'] in ('NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK',
+            'NATIVE_CP302C_NOCONVERT_ALL13_READBACK') and max(frees) < r['line'] < held[0]['line'] and
+            r['fields'].get('pid') == str(pid) and r['fields'].get('tid') == str(sender)]
+    require(all13 and all('diagnostic' not in r and all(r['fields'].get(k) == '1' for k in
+            ('accepted', 'video_AP_consumed', 'OSD_AP_consumed', 'audio_AP_consumed')) and
+            r['fields'].get('OSD_live') == '16' and r['fields'].get('OSD_owners_each') ==
+            r['fields'].get('OSD_opens_each') == '2' and r['fields'].get('global_DMM_idle_claimed') ==
+            r['fields'].get('capture_verified') == '0' for r in all13), 'crank all13 current retirement readback differs')
+    mode_rows = [r for r in rows if r['tag'] in ('FUNCTIONAL_CAMERA_CONTROL_COMMIT', 'FUNCTIONAL_CAMERA_CONTROL_SENT',
+                'FUNCTIONAL_CAMERA_CONTROL_AP_FREE', 'FUNCTIONAL_CAMERA_CONTROL_OWNED_FREE') and r['line'] < begin['line']]
+    needed(mode_rows, 'crank current mode retirement')
+    latest = mode_rows[-1]['fields']; cycle = latest.get('cycle_id')
+    require(all(latest.get(k) == '1' for k in ('start_complete', 'mode1_complete', 'mode_complete', 'notification_AP_consumed')) and
+            all(latest.get(k) == '0' for k in ('faults', 'busy', 'guard')) and
+            number(latest['model_instance']) == transport['model_instance'], 'crank current mode retirement differs')
+    leases = {}
+    for row in mode_rows:
+        f = row['fields']
+        if f.get('index') in ('0', '1') or f.get('cycle_id') == cycle:
+            leases[number(f['index'])] = f
+    require(set(leases) == set(range(5)), 'crank current mode lacks all five retired leases')
+    for index, f in leases.items():
+        require(f.get('pid') == str(pid) and number(f['model_instance']) == transport['model_instance'] and
+                f.get('retained') == '(nil)' and f.get('freed') == '1' and
+                all(f.get(k) == '0' for k in ('faults', 'releasing', 'send_inflight', 'free_rc', 'send_rc', 'allocate_rc')) and
+                (index not in (1, 3, 4) or f.get('consumed') == '1') and
+                0 < number(f['free_tid']) < 2**31 and number(f['free_tid']) == number(f['receiver_tid'] if index == 4 else f['sender_tid']),
+                'crank mode lease is live/faulted/unconsumed or freed by a foreign thread')
+    strict = [r for r in rows if r['tag'].startswith('NATIVE_CP_EE_DIAGNOSTIC_') and
+              r['fields'].get('opcode') == '0x409d' and r['line'] < begin['line']]
+    require(len(strict) == 3 and {r['tag'] for r in strict} == {'NATIVE_CP_EE_DIAGNOSTIC_' + name for name in
+            ('REQUEST_FREE', 'REPLY_FREE', 'COMPLETE')}, 'crank strict initial409d independent history missing/replayed')
+    initial_fields = set(('pid opcode sender_tid waiter_tid attempts requests busy guard faults source request_destination '
+        'destination bytes request cookie wire_fnv1a32 source_byte1_known reply freed_reply reply_free_destination '
+        'reply_free_source reply_free_bytes allocate_rc send_rc request_free_rc reply_free_rc queued request_freed '
+        'reply_freed clean_completion ap_consumed oneway oneway_consumed virtual_field_mask virtual_fields_readback '
+        'virtual_fields_consumed virtual_fields virtual_readback retained_request live_reply retained_cleanup '
+        'diagnostic_only virtual_padding business_applied source_dependencies_closed configured published generation '
+        'native_cp EE frame capture').split())
+    require(all('diagnostic' not in r and set(r['fields']) == initial_fields for r in strict),
+            'crank strict initial409d complete formatter missing/extended')
+    strict_at = {r['tag']: r['line'] for r in strict}
+    require(strict_at['NATIVE_CP_EE_DIAGNOSTIC_REQUEST_FREE'] < strict_at['NATIVE_CP_EE_DIAGNOSTIC_COMPLETE'],
+            'crank strict initial409d completed before actual original request free')
+    initial = strict[-1]['fields']; wire = raw_hex(initial, 'request', 12)
+    ack = b'\x01\0\x9d\x40' + wire[4:8] + struct.pack('<I', 0xf000)
+    digest = 2166136261
+    for byte in wire:
+        digest = ((digest ^ byte) * 16777619) & 0xffffffff
+    strict_sender = number(initial['sender_tid'])
+    require(wire[0] == 5 and wire[2:4] == b'\x9d\x40' and 0 < strict_sender < 2**31 and
+            all(number(initial[k]) == value for k, value in dict(pid=pid, waiter_tid=strict_sender, attempts=1, requests=1,
+                source=0x80020002, request_destination=0x90030001, destination=0x80020002, bytes=12,
+                cookie=struct.unpack_from('<I', wire, 4)[0], wire_fnv1a32=digest, reply_free_destination=0x80020002,
+                reply_free_source=0x90030001, reply_free_bytes=12, virtual_field_mask=15, virtual_fields_consumed=15).items()) and
+            raw_hex(initial, 'reply', 12) == raw_hex(initial, 'freed_reply', 12) == ack and
+            all(initial[k] == '1' for k in ('queued', 'request_freed', 'reply_freed', 'clean_completion', 'ap_consumed',
+                'virtual_fields_readback', 'diagnostic_only', 'virtual_padding')) and
+            all(initial[k] == '0' for k in ('busy', 'guard', 'faults', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc',
+                'oneway', 'oneway_consumed', 'source_byte1_known', 'business_applied', 'source_dependencies_closed', 'configured',
+                'published', 'generation', 'native_cp', 'EE', 'frame', 'capture')) and
+            all(initial[k] == '(nil)' for k in ('retained_request', 'live_reply', 'retained_cleanup')) and
+            initial['virtual_fields'] == initial['virtual_readback'] == ','.join(str(byte) for byte in wire[8:12]),
+            'crank strict initial409d full request/reply/free history differs')
+    for r in strict:
+        require(all(number(r['fields'][k]) == expected for k, expected in
+                dict(pid=pid, sender_tid=strict_sender, attempts=1, requests=1, source=0x80020002,
+                     request_destination=0x90030001, destination=0x80020002, bytes=12).items()),
+                'crank strict initial409d original identity changed')
+        require(all(r['fields'][k] == initial[k] for k in ('cookie', 'wire_fnv1a32', 'source_byte1_known', 'reply',
+                    'virtual_field_mask', 'virtual_fields_readback', 'virtual_fields_consumed', 'virtual_fields', 'virtual_readback',
+                    'diagnostic_only', 'virtual_padding', 'business_applied', 'source_dependencies_closed', 'configured',
+                    'published', 'generation', 'native_cp', 'EE', 'frame', 'capture')),
+                'crank strict initial409d immutable bytes/virtual fields/scope changed')
+    require(all('diagnostic' not in r and r['fields'].get('request') == wire.hex() and r['fields'].get('pid') == str(pid) and
+                r['fields'].get('attempts') == r['fields'].get('requests') == '1' and
+                all(r['fields'].get(k) == '0' for k in ('faults', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc'))
+                for r in strict), 'crank strict initial409d was reset/faulted')
+    stages = [r for r in rows if r['tag'] == 'NATIVE_CP_OUTPUT_POLICY_CONSUMED' and
+              bank_end[0]['line'] < r['line'] < begin['line']]
+    require(len(stages) == 1, 'crank later40f9 independent stage/free missing/ambiguous')
+    stage = stages[0]; f = stage['fields']; policy_sender = number(f.get('tid', '0'))
+    require(0 < policy_sender < 2**31, 'crank later40f9 original producer invalid')
+    expected = dict(pid=str(pid), tid=str(policy_sender), bytes='20', slots='0', copied_readback='1', config_fields='4',
+        known_mask='15', request_free_rc='0', request_retained='0', stage_only='1', semantic_applied='0', semantic_slots='0',
+        generation_advanced='0', published='0', ACK_sent='0', original_CP_executed='0', EE_verified='0', capture_verified='0')
+    require('diagnostic' not in stage and set(f) == set(expected) | {'wire_fnv1a'} and
+            all(f.get(k) == value for k, value in expected.items()), 'crank later40f9 actual stage/free fields differ')
+    audits = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and
+              bank_end[0]['line'] < r['line'] < stage['line'] and r['fields'].get('bytes') == '20' and
+              r['fields'].get('pid') == str(pid) and r['fields'].get('tid') == str(policy_sender)]
+    require(len(audits) == 1, 'crank later40f9 original source audit missing/ambiguous')
+    chunks = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES' and
+              audits[0]['line'] < r['line'] < stage['line'] and all(r['fields'].get(k) == audits[0]['fields'].get(k)
+              for k in ('pid', 'tid', 'sequence'))]
+    require(len(chunks) == 1, 'crank later40f9 full20 original bytes missing')
+    policy = raw_hex(chunks[0]['fields'], 'raw', 20)
+    cp_crank_original_audit(rows, policy, pid, policy_sender, bank_end[0]['line'], stage['line'], audits[0]['fields']['pointer'])
+    require(policy[0] == 5 and policy[2:4] == b'\xf9\x40' and
+            policy[4:8] == payload_read(run, bank_tx['request_payload'])[4:8] and
+            writeback.hash_hex(f['wire_fnv1a'], 16) == f'{fnv(policy):016x}' and
+            max(r['line'] for r in strict) < stage['line'], 'crank later40f9 source/cookie/full20 seal differs')
+    base = number(table['appfw_base'])
+    require(base <= number(audits[0]['fields']['producer_return']) < base + 0x8000000,
+            'crank later40f9 source callsite outside original appFw')
+    return dict(bank_free_line=bank['original_free_line'], strict_initial_free_line=max(r['line'] for r in strict),
+                output_policy_free_line=stage['line'], output_policy_sender_tid=policy_sender,
+                resource_lines=[r['line'] for r in held])
+
+
+def check_cp_crank_native(run, rows, transport, tx, before, after, bank, bank_tx, value, transaction, previous_end):
+    family = 'FUNCTIONAL_CP_CRANK_CONTROL_'
+    records = [r for r in rows if r['tag'] == family + 'EVENT' and number(r['fields']['transaction']) == transaction]
+    names = ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REPLY', 'ALLOCATED', 'SENT', 'REQUEST_FREE', 'COMMIT', 'RECEIVE', 'REPLY_FREE')
+    require(len(records) == len(names) and {r['fields']['event'] for r in records} == set(names),
+            'crank failed/replayed/missing original lifecycle')
+    at = {r['fields']['event']: r for r in records}
+    require([r['line'] for r in records] == sorted({r['line'] for r in records}) and
+            [at[name]['line'] for name in names[:10]] == sorted(at[name]['line'] for name in names[:10]) and
+            previous_end < at['BEGIN']['line'] < before['line'] < at['BEFORE']['line'] < tx['line'] < at['MODEL']['line'] <
+            after['line'] < at['AFTER']['line'] and at['ALLOCATED']['line'] < at['RECEIVE']['line'] < at['REPLY_FREE']['line'],
+            'crank original/call/send/receive/free order differs')
+    require(max(at['COMMIT']['line'], at['REPLY_FREE']['line']) == records[-1]['line'],
+            'crank lacks a final original clean completion')
+    chunks = [r for r in rows if r['tag'] == family + 'BYTES' and number(r['fields']['transaction']) == transaction]
+    packet, output = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+    prior, following = transfer_output(run, before), transfer_output(run, after)
+    reply = b'\x01\0\x9d\x40' + packet[4:8] + struct.pack('<I', 0xf000)
+    streams = (('request', packet, 'BEGIN'), ('before_state', prior, 'BEFORE'), ('receipt', output, 'MODEL'),
+               ('after_state', following, 'AFTER'), ('reply', reply, 'REPLY'))
+    require(len(chunks) == 6, 'crank orphan/missing original full byte chunks')
+    for kind, raw, event in streams:
+        parent = at[event]; boundary = min(r['line'] for r in records if r['line'] > parent['line'])
+        selected = [r for r in chunks if r['fields']['kind'] == kind]
+        data = bytearray()
+        for row in selected:
+            f = row['fields']
+            require(parent['line'] < row['line'] < boundary and number(f['offset']) == len(data) and
+                    all(f[k] == parent['fields'][k] for k in ('event', 'pid', 'tid', 'transaction', 'native_fnv1a',
+                                                            'model_instance', 'bank_generation', 'crank_generation')) and
+                    number(f['total']) == len(raw) and int(f['content_fnv1a'], 16) == fnv(raw),
+                    'crank byte stream stage/transaction/ticket/identity/seal differs')
+            data.extend(raw_hex(f, 'raw', number(f['bytes'])))
+        require(bytes(data) == raw, 'crank full request12/STATE128/receipt208/reply12 differs')
+    resources = [r for r in rows if r['tag'].startswith(family + 'RESOURCE') and
+                 at['BEGIN']['line'] < r['line'] < before['line']]
+    require([r['tag'] for r in resources] == [family + name for name in
+            ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')],
+            'crank independent resource34 cohort missing/reordered')
+    predecessors = cp_crank_predecessors(run, rows, transport, at['BEGIN'], resources[-1], bank, bank_tx, prior)
+    pid, sender = transport['pid'], tx['origin']['producer_tid']
+    request_pointer = at['BEGIN']['fields']['request_pointer']
+    reply_pointer = at['ALLOCATED']['fields']['reply_pointer']
+    require(request_pointer != '(nil)' and reply_pointer != '(nil)' and
+            abs(number(request_pointer) - number(reply_pointer)) >= 12 and
+            at['ALLOCATED']['fields']['allocation_pointer'] == reply_pointer,
+            'crank independent ACK allocation aliases the original request')
+    audit = cp_crank_original_audit(rows, packet, pid, sender, previous_end, at['BEGIN']['line'], request_pointer)
+    base = number(resources[1]['fields']['appfw_base'])
+    require(base <= number(audit['fields']['producer_return']) < base + 0x8000000,
+            'crank request source callsite outside original appFw')
+    previous = [r for r in rows if r['tag'] == family + 'EVENT' and r['line'] == previous_end]
+    previous_bank = number(previous[0]['fields']['bank_generation']) if previous else 0
+    receiver = number(at['RECEIVE']['fields']['tid'])
+    require(0 < sender < 2**31 and 0 < receiver < 2**31, 'crank actual sender/transport receiver invalid')
+    sender_progress = (0,) * 5
+    for row in records:
+        name, f = row['fields']['event'], row['fields']; line = row['line']
+        # Only synchronous sender stages share log order; RECEIVE carries its own locked snapshot.
+        reached = lambda event: line >= at[event]['line']
+        require(all(number(f[k]) == expected for k, expected in dict(pid=pid, sender_tid=sender,
+            tid=receiver if name == 'RECEIVE' else sender, transaction=transaction, requests=transaction,
+            source=0x80020002, destination=0x90030001, command=0x409d, bytes=12,
+            cookie=struct.unpack_from('<I', packet, 4)[0], model_instance=value['model_instance'],
+            bank_generation=value['bank_generation'], bank_transaction=bank['transaction'],
+            bank_commits=bank['bank_generation'], bank_released=bank['bank_generation'],
+            bank_source=0x80020002, bank_destination=0x90030001, bank_command=0x4063, bank_bytes=2564).items()) and
+            int(f['native_fnv1a'], 16) == fnv(packet) and int(f['bank_native_fnv1a'], 16) == bank_tx['origin']['fnv1a64'] and
+            f['request_pointer'] == request_pointer and f['error'] == f['faults'] == '0' and
+            all(f[k] == '0' for k in ('reply_releasing', 'reply_inspecting', 'reply_alias', 'reply_cleanup_freed')),
+            'crank immutable native transaction/pointer/source/origin/error differs')
+        started, inflight, sent, received, freed, request_freed, releasing, busy, guard = (
+            number(f[key]) for key in ('send_started', 'send_inflight', 'ACK_sent', 'reply_received',
+                'reply_freed', 'request_freed', 'request_releasing', 'busy', 'guard'))
+        if name == 'RECEIVE':
+            require((started, inflight, sent) in ((1, 1, 0), (1, 0, 1)) and received == 1 and freed == 0 and
+                    (busy, guard) in ((1, 1), (1, 0), (0, 0)) and
+                    (not (request_freed or releasing) or sent) and not (request_freed and releasing) and
+                    (request_freed or (busy, guard) == (1, 1)),
+                    'crank RECEIVE locked send/request-free/guard snapshot is invalid')
+        else:
+            sent_stage = reached('SENT')
+            inline = name == 'REPLY_FREE' and not sent_stage
+            require((started, inflight, sent) == (int(sent_stage or inline), int(inline), int(sent_stage)) and
+                    request_freed == int(reached('REQUEST_FREE')) and freed == int(reached('REPLY_FREE')) and
+                    releasing == 0 and (busy, guard) == ((1, 0) if name == 'BEGIN' else
+                        (0, 0) if reached('COMMIT') else (1, 1)),
+                    'crank synchronous sender send/free/busy/guard phase differs')
+        require(received in (0, 1) and (not received or started) and (not freed or received),
+                'crank receive/free flags precede the actual send/receive')
+        progress = (started, sent, request_freed, received, freed)
+        if number(f['tid']) == sender:
+            require(all(old <= current for old, current in zip(sender_progress, progress)),
+                    'crank same-sender lifecycle snapshot regressed')
+            sender_progress = progress
+        expected = dict(before_rc=0 if reached('BEFORE') else -61, model_rc=0 if reached('MODEL') else -61,
+            after_rc=0 if reached('AFTER') else -61, allocate_rc=0 if reached('ALLOCATED') else -61,
+            send_rc=0 if sent else -61, request_free_rc=0 if request_freed else -61,
+            receive_rc=0 if received else -61, reply_free_rc=0 if freed else -61,
+            model_called=int(reached('MODEL')), model_committed=int(reached('MODEL')), verified=int(reached('VERIFIED')),
+            owned=int(reached('VERIFIED')), reply_allocated=int(reached('ALLOCATED')), reply_valid=int(reached('ALLOCATED')),
+            receiver_tid=receiver if received else 0, request_free_tid=sender if request_freed else 0,
+            reply_free_tid=sender if freed else 0,
+            commits=value['crank_generation'] - 1 + int(reached('MODEL')),
+            verified_commits=value['crank_generation'] - 1 + int(reached('VERIFIED')),
+            last_bank_generation=value['bank_generation'] if reached('VERIFIED') else previous_bank,
+            last_crank_generation=value['crank_generation'] if reached('VERIFIED') else value['crank_generation'] - 1,
+            crank_generation=value['crank_generation'] if reached('MODEL') else 0,
+            before_config_generation=value['before_config_generation'] if reached('BEFORE') else 0,
+            config_generation=value['config_generation'] if reached('MODEL') else 0,
+            frame_generation=value['frame_generation'] if reached('BEFORE') else 0, fps=value['fps'] if reached('BEFORE') else 0, mode=0)
+        require(all(f[k] == str(expected_value) for k, expected_value in expected.items()),
+                'crank actual C rc/generation/lifecycle/ticket counters differ')
+        for prefix, size, stage in (('before', 128, 'BEFORE'), ('crank', 208, 'MODEL'), ('after', 128, 'AFTER')):
+            require(all(number(f[prefix + suffix]) == expected_value for suffix, expected_value in
+                (('_used', size if reached(stage) else 0), ('_required', size if reached(stage) else 0),
+                 ('_token', 0), ('_instance', value['model_instance'] if reached(stage) else 0))),
+                'crank full real bridge result metadata differs')
+        require(f['retained_request'] == (request_pointer if reached('VERIFIED') and not request_freed else '(nil)') and
+                f['retained_reply'] == (reply_pointer if reached('ALLOCATED') and not freed else '(nil)') and
+                all(f[k] == (reply_pointer if reached('ALLOCATED') else '(nil)') for k in ('reply_pointer', 'allocation_pointer')) and
+                int(f['receipt_fnv1a'], 16) == (fnv(output) if reached('MODEL') else 0) and
+                int(f['reply_fnv1a'], 16) == (fnv(reply) if reached('REPLY') else 0),
+                'crank actual retained/allocated/freed pointer or full content seal differs')
+        consumed = bool(sent and received and freed and not inflight)
+        complete = bool(number(f['owned']) and number(f['verified']) and request_freed and consumed and
+                        not busy and not guard and not releasing)
+        require(number(f['reply_consumed']) == int(consumed) and number(f['complete']) == int(complete) and
+                number(f['completions']) == value['crank_generation'] - 1 + int(complete),
+                'crank ACK/COMMIT is not actual original receive/free completion')
+    terminal = records[-1]['fields']
+    require(terminal['complete'] == terminal['reply_consumed'] == '1' and all(terminal[k] == '0' for k in
+            ('busy', 'guard', 'faults', 'request_releasing', 'reply_releasing', 'reply_inspecting', 'send_inflight')) and
+            terminal['retained_request'] == terminal['retained_reply'] == '(nil)', 'crank final owner is not idle/clean/consumed')
+    return dict(transaction=transaction, sender_tid=sender, receiver_tid=receiver, request_pointer=request_pointer,
+        reply_pointer=reply_pointer, reply_sha256=sha(reply), source_audit_sequence=number(audit['fields']['sequence']),
+        original_free_line=at['REQUEST_FREE']['line'], reply_receive_line=at['RECEIVE']['line'],
+        reply_free_line=at['REPLY_FREE']['line'], complete_line=records[-1]['line'], **predecessors)
+
+
+def check_cp_crank_control_content(run, manifest, rows, transport):
+    """Join complete Core21 consumption to its original native transaction and resources."""
+    transfers = transport['transfers']
+    jobs = [(index, tx) for index, tx in enumerate(transfers) if tx['opcode'] == 21]
+    native = [row for row in rows if row['tag'].startswith('FUNCTIONAL_CP_CRANK_CONTROL_')]
+    result = dict(required=bool(jobs), verified=False, content_join_verified=False, transactions=[],
+                  native_completion_verified=False, missing_native_observations=[], frame_consumed=False,
+                  capture_verified=False, physical_asic_compatibility_verified=False)
+    if not jobs:
+        require(not native, 'crank control native records lack actual Core21')
+        return result
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and manifest.get('functional_camera_profile') == PROFILE and
+            backup.get('functional_camera_profile') == PROFILE and all(
+                {key for key in target if key.startswith('functional_camera_cp_crank_control_')} ==
+                {'functional_camera_' + key for key in CP_CRANK_CONTROL_POLICY} for target in (manifest, backup)) and all(
+                typed_equal(manifest.get('functional_camera_' + key), value) and
+                typed_equal(backup.get('functional_camera_' + key), value)
+                for key, value in CP_CRANK_CONTROL_POLICY.items()),
+            'crank control lacks its complete explicit functional mode0 software policy')
+    needed(transport.get('parameter_bank', {}).get('verified') is True,
+           'crank control needs the completed current original parameter-bank owner')
+    for index, _ in jobs:
+        require(index > 0 and index + 1 < len(transfers), 'crank control live State128 queries missing')
+        require(all(part.get('frame') is None for part in transfers[index - 1:index + 2]),
+                'crank control queries/core/no-frame binding differs')
+    history = vdf_history(run, transport)
+    bank_receipts = transport['parameter_bank']['transactions']
+    native_ids, previous_end, covered_resources = [], 0, set()
+    if native:
+        allowed = {'FUNCTIONAL_CP_CRANK_CONTROL_' + suffix for suffix in
+                   ('EVENT', 'BYTES', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+        for row in native:
+            require(row['tag'] in allowed and 'diagnostic' not in row and bool(row['fields']),
+                    'crank failed/unknown/incomplete original formatter')
+            payload = (row['tag'] + ' ' + ' '.join(k + '=' + v for k, v in row['fields'].items())).encode('ascii')
+            require(console_producer_fields(payload) == row['fields'], 'crank original producer grammar differs')
+        native_ids = sorted({number(r['fields']['transaction']) for r in native if r['tag'].endswith('_EVENT')})
+        require(native_ids == list(range(1, len(jobs) + 1)) and
+                {number(r['fields']['transaction']) for r in native if r['tag'].endswith('_BYTES')} == set(native_ids),
+                'crank original transaction/event/byte census differs')
+    for ordinal, (index, tx) in enumerate(jobs):
+        require(index > 0 and index + 1 < len(transfers), 'crank control live State128 queries missing')
+        before, after, origin = transfers[index - 1], transfers[index + 1], tx['origin']
+        require(before['opcode'] == after['opcode'] == 2 and before['origin'] == after['origin'] == origin and
+                before['first'] == before['last'] == tx['first'] - 1 and
+                tx['first'] == tx['last'] == after['first'] - 1 and after['first'] == after['last'] and
+                before['line'] < tx['line'] < after['line'] and all(part['token'] == 0 and
+                    part.get('frame') is None and part.get('provider_kind') == 'core' for part in (before, tx, after)),
+                'crank control queries/core/no-frame binding differs')
+        needed(type(tx.get('crank_control')) is dict, 'crank control independent actual C query event')
+        banks = [part for part in transfers[:index] if part['opcode'] == 20]
+        require(banks, 'crank control lacks its current canonical prior bank decode')
+        bank = banks[-1]
+        bank_value = history[bank['first']]
+        completed = [item for item in bank_receipts if item['model_sequence'] == bank['first'] and
+                     item['bank_generation'] == bank_value['bank_generation'] and
+                     item['model_instance'] == transport['model_instance'] and
+                     item['original_free_line'] < before['line']]
+        require(len(completed) == 1, 'crank control current bank was not originally freed before live STATE')
+        packet, output = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+        prior, following = transfer_output(run, before), transfer_output(run, after)
+        value = cp_crank_control_observation(tx['crank_control'].get('observation'), output, packet,
+            transport['model_instance'], prior, bank_value['bank_generation'], tx['capacity'])
+        require(value == history[tx['first']] and following == output[64:192] and
+                origin['source'] == 0x80020002 and origin['destination'] == 0x90030001 and
+                origin['command'] == 0x409d and origin['bytes'] == 12 and origin['fnv1a64'] == fnv(packet),
+                'crank control current canonical bank/original whole input/history/post-STATE differs')
+        transaction = dict(model_sequence=tx['first'], bank_model_sequence=bank['first'],
+            before_STATE_sequence=before['first'], after_STATE_sequence=after['first'],
+            packet_sha256=sha(packet), result_sha256=sha(output), **value)
+        if native:
+            joined = check_cp_crank_native(run, rows, transport, tx, before, after, completed[0], bank,
+                                          value, native_ids[ordinal], previous_end)
+            transaction.update(joined)
+            previous_end = joined['complete_line']
+            covered_resources.update(joined['resource_lines'])
+        result['transactions'].append(transaction)
+    result['content_join_verified'] = True
+    if native:
+        require(covered_resources == {r['line'] for r in native if r['tag'].startswith('FUNCTIONAL_CP_CRANK_CONTROL_RESOURCE')},
+                'crank orphan/reused resource34 claim')
+        result.update(verified=True, native_completion_verified=True)
+    else:
+        result['missing_native_observations'] = list(CP_CRANK_NATIVE_JOINS)
+    return result
+
+
+# Insert before check_cp_movie_format_content; replace that function with the one below.
+# SOURCE_ONLY: exact movie_format_record formatter, distinct from the unchanged crank family.
+CP_MOVIE_EVENT_SCHEMA = (
+    'event:crank_event pid:pid tid:tid transaction:u64 sender_tid:tid receiver_tid:tid source:hex32 destination:hex32 '
+    'command:hex32 bytes:u32 native_fnv1a:digest cookie:hex32 busy:bit guard:bit faults:u32 error:i32 '
+    'before_rc:i32 model_rc:i32 after_rc:i32 validation_rc:i32 model_called:bit model_committed:bit verified:bit owned:bit complete:bit '
+    'retained_request:pointer retained_reply:pointer request_pointer:pointer reply_pointer:pointer allocation_pointer:pointer '
+    'request_releasing:bit request_freed:bit request_free_rc:i32 request_free_tid:tid reply_releasing:bit reply_inspecting:bit '
+    'reply_allocated:bit reply_valid:bit reply_alias:bit allocate_rc:i32 send_started:bit send_inflight:bit send_rc:i32 ACK_sent:bit '
+    'reply_received:bit receive_rc:i32 reply_freed:bit reply_cleanup_freed:bit reply_free_rc:i32 reply_free_tid:tid reply_consumed:bit '
+    'requests:u64 commits:u64 verified_commits:u64 completions:u64 model_instance:u64 bank_generation:u64 crank_generation:u64 movie_generation:u64 '
+    'last_bank_generation:u64 last_crank_generation:u64 last_movie_generation:u64 before_config_generation:u64 config_generation:u64 frame_generation:u64 '
+    'software_format:u32 software_rate_index:u32 fps:u32 software_codec:u32 '
+    'bank_transaction:u64 bank_commits:u64 bank_released:u64 bank_source:hex32 bank_destination:hex32 bank_command:hex32 bank_bytes:u32 bank_native_fnv1a:digest '
+    'crank_transaction:u64 crank_completions:u64 crank_source:hex32 crank_destination:hex32 crank_command:hex32 crank_bytes:u32 crank_native_fnv1a:digest '
+    'receipt_fnv1a:digest reply_fnv1a:digest before_used:u64 before_required:u64 before_token:u64 before_instance:u64 '
+    'movie_used:u64 movie_required:u64 movie_token:u64 movie_instance:u64 after_used:u64 after_required:u64 after_token:u64 after_instance:u64 '
+    'policy:active-config-movie-format5-rate1-0-v1 functional_model:1 original_CP:0 physical_ASIC_verified:0 EE:0 frame:0 capture:0 capture_verified:0')
+CP_MOVIE_BYTES_SCHEMA = (
+    'event:crank_event pid:pid tid:tid transaction:u64 kind:crank_kind total:u64 offset:u64 bytes:u64 raw:raw '
+    'native_fnv1a:digest content_fnv1a:digest model_instance:u64 bank_generation:u64 crank_generation:u64 movie_generation:u64 '
+    'functional_model:1 original_CP:0 physical_ASIC_verified:0 capture_verified:0')
+
+
+def cp_movie_format_initial_history(rows, pid, bank_begin):
+    """Keep the original single diagnostic4000 separate from the later functional transaction."""
+    family = 'NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_'
+    names = ('REQUEST_FREE', 'REPLY_FREE', 'COMPLETE')
+    history = [r for r in rows if r['tag'].startswith(family)]
+    allowed = {family + name for name in names +
+               ('PREDECESSORS', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+    require(all(r['tag'] in allowed and 'diagnostic' not in r for r in history),
+            'movie initial strict4000 failed/unknown history')
+    records = [r for r in history if r['tag'] in {family + name for name in names}]
+    require(len(records) == 3 and {r['tag'] for r in records} == {family + name for name in names},
+            'movie initial strict4000 missing/repeated lifecycle')
+    at = {r['tag'].removeprefix(family): r for r in records}
+    require(at['REQUEST_FREE']['line'] < at['COMPLETE']['line'] and
+            max(r['line'] for r in records) < bank_begin,
+            'movie initial strict4000 must finish before the first functional bank')
+    earlier409d = [r for r in rows if r['tag'] == 'NATIVE_CP_EE_DIAGNOSTIC_REPLY_FREE' and
+                   r['fields'].get('opcode') == '0x409d']
+    require(len(earlier409d) == 1 and earlier409d[0]['line'] < min(r['line'] for r in records),
+            'movie initial strict4000 lacks the original preceding strict409d retirement')
+    fields = ('pid opcode sender_tid waiter_tid attempts requests busy guard faults source request_destination destination bytes '
+        'request cookie wire_fnv1a32 reply freed_reply reply_free_destination reply_free_source reply_free_bytes allocate_rc send_rc '
+        'request_free_rc reply_free_rc queued request_freed reply_freed clean_completion ap_consumed known_field_mask '
+        'virtual_field_mask virtual_fields_readback virtual_fields_consumed virtual_fields virtual_readback retained_request live_reply '
+        'retained_cleanup diagnostic_only no_publication virtual_padding source_byte1_known source_business_applied current_known '
+        'source_dependency_closed business_applied source_dependencies_closed configured published pending_complete generation '
+        'native_verified native_cp EE frame capture').split()
+    final = records[-1]['fields']
+    packet = raw_hex(final, 'request', 20)
+    require(packet[:4] == b'\x05\0\0\x40' and packet[8:] == bytes.fromhex('050100000000000000000100'),
+            'movie initial strict4000 original20 differs from unchanged cold diagnostic')
+    reply = b'\x01\0\0\x40' + packet[4:8] + struct.pack('<I', 0xf000)
+    digest = 2166136261
+    for byte in packet:
+        digest = ((digest ^ byte) * 16777619) & 0xffffffff
+    sender = number(final['sender_tid'])
+    require(0 < sender < 2**31, 'movie initial strict4000 sender invalid')
+    for row in records:
+        f = row['fields']
+        require(set(f) == set(fields) and all(number(f[k]) == value for k, value in dict(
+            pid=pid, opcode=0x4000, sender_tid=sender, attempts=1, requests=1, source=0x80020002,
+            request_destination=0x90030001, destination=0x80020002, bytes=20,
+            cookie=struct.unpack_from('<I', packet, 4)[0], wire_fnv1a32=digest,
+            known_field_mask=127, virtual_field_mask=127, virtual_fields_consumed=127).items()) and
+            raw_hex(f, 'request', 20) == packet and raw_hex(f, 'reply', 12) == reply and
+            f['virtual_fields'] == f['virtual_readback'] == '5,1,0,0,0,0,1' and
+            all(f[k] == '1' for k in ('queued', 'virtual_fields_readback',
+                'diagnostic_only', 'no_publication', 'virtual_padding')) and
+            all(f[k] == '0' for k in ('faults', 'allocate_rc', 'send_rc', 'request_free_rc', 'reply_free_rc',
+                'source_byte1_known', 'source_business_applied', 'current_known', 'source_dependency_closed',
+                'business_applied', 'source_dependencies_closed', 'configured', 'published', 'pending_complete',
+                'generation', 'native_verified', 'native_cp', 'EE', 'frame', 'capture')) and
+            f['retained_cleanup'] == '(nil)' and
+            all(f[k] in ('0', '1') for k in ('busy', 'guard', 'request_freed', 'reply_freed', 'clean_completion', 'ap_consumed')),
+            'movie initial strict4000 immutable input/transport-only scope/attempts differs')
+        freed = f['reply_freed'] == '1'
+        require((f['retained_request'] == '(nil)' if f['request_freed'] == '1' else
+                 bool(re.fullmatch(r'0x[1-9a-f][0-9a-f]{0,15}', f['retained_request']))) and
+                number(f['waiter_tid']) == (sender if freed else 0) and
+                raw_hex(f, 'freed_reply', 12) == (reply if freed else bytes(12)) and
+                all(number(f[k]) == value for k, value in dict(reply_free_destination=0x80020002 if freed else 0,
+                    reply_free_source=0x90030001 if freed else 0, reply_free_bytes=12 if freed else 0).items()) and
+                (f['live_reply'] == '(nil)' if freed else bool(re.fullmatch(r'0x[1-9a-f][0-9a-f]{0,15}', f['live_reply']))) and
+                number(f['clean_completion']) == number(f['ap_consumed']) ==
+                    int(freed and f['request_freed'] == '1' and f['busy'] == f['guard'] == '0'),
+                'movie initial strict4000 actual same-sender free/readback/completion differs')
+    require(at['REPLY_FREE']['fields']['reply_freed'] == at['REQUEST_FREE']['fields']['request_freed'] == '1' and
+            at['COMPLETE']['fields']['busy'] == at['COMPLETE']['fields']['guard'] == '0' and
+            final['clean_completion'] == final['ap_consumed'] == '1' and final['live_reply'] == '(nil)',
+            'movie initial strict4000 is not cleanly retired')
+    return dict(strict_initial_sender_tid=sender, strict_initial_free_line=at['REPLY_FREE']['line'],
+                strict_initial_complete_line=records[-1]['line'])
+
+
+def cp_movie_format_predecessors(rows, transport, begin, resources, bank, crank, before_line):
+    """Resource35 must carry current contents, not just accepted=1 or older receipts."""
+    pid, sender = transport['pid'], number(begin['fields']['sender_tid'])
+    require([r['tag'] for r in resources] == ['FUNCTIONAL_CP_MOVIE_FORMAT_' + name for name in
+            ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')],
+            'movie resource35 cohort missing/reordered/repeated')
+    dependencies, table, reserved = (r['fields'] for r in resources)
+    require(number(dependencies['pid']) == number(table['pid']) == pid and
+            all(number(r['fields']['tid']) == sender for r in resources), 'movie resource35 PID/TID differs')
+    fixed = dict(dmm_enabled='1', dmm_bound='1', dmm_slots='1/1', dmm_opens='1/1',
+        dmm_handles='0x8400/0x8401', dmm_generations='1/1', dmm_epochs='1/2', dmm_creators='1/1',
+        dmm_allocation_count='2', dmm_lifecycle_changed='0', dmm_domain='2', foreign_speech_kept='1',
+        control_bound='1', connection_started='1', connections='1', format_consumed='1', buffer_released='1',
+        connection_reply_frees='1', vef_init='1', vef_owner='0x905a0048', pinmem_init='1', pinmem_owner='0x90590818')
+    require(all(reserved[k] == value for k, value in fixed.items()) and
+            number(reserved['allocations']) == number(reserved['releases']) > 0 and
+            number(reserved['vef_objects']) > 0 and number(reserved['pinmem_objects']) > 0,
+            'movie resource35 DMM/PIN/VEF allocation domain differs')
+    speech = raw_hex(table, 'raw_before', 144)
+    require(raw_hex(table, 'raw_after', 144) == speech, 'movie resource35 TTS144 changed')
+    for slot in range(2):
+        offset = slot * 0x48
+        require(struct.unpack_from('<I', speech, offset)[0] == 0x1a + slot and
+                struct.unpack_from('<2I', speech, offset + 0x18) == (0x8400 | slot, 0x80000) and
+                struct.unpack_from('<Q', speech, offset + 0x20)[0] == 0x1e000000 + slot * 0x80000,
+                'movie resource35 complete TTS144 does not bind both DMM slots')
+    banks = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and r['line'] < begin['line']]
+    cranks = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_CRANK_CONTROL_EVENT' and r['line'] < begin['line']]
+    needed(banks and cranks, 'movie current completed native bank/crank')
+    b, k = banks[-1]['fields'], cranks[-1]['fields']
+    require(banks[-1]['fields']['event'] == 'COMMIT' and number(b['transaction']) == bank['transaction'] and
+            bank['original_free_line'] < banks[-1]['line'] < crank['complete_line'] < begin['line'] and
+            all(b[key] == '1' for key in ('model_called', 'model_committed', 'verified', 'owned', 'request_freed')) and
+            all(b[key] == '0' for key in ('guard', 'faults', 'error', 'free_rc', 'releasing')) and b['retained'] == '(nil)' and
+            number(b['model_instance']) == transport['model_instance'] and
+            number(b['bank_generation']) == bank['bank_generation'] == crank['bank_generation'] and
+            number(b['commits']) == number(b['released']) == bank['bank_generation'],
+            'movie current native bank is not the actual closed predecessor')
+    require(cranks[-1]['line'] == crank['complete_line'] and number(k['transaction']) == crank['transaction'] and
+            number(k['model_instance']) == transport['model_instance'] and
+            all(k[key] == '1' for key in ('model_called', 'model_committed', 'verified', 'owned', 'complete', 'request_freed',
+                'reply_allocated', 'reply_valid', 'send_started', 'ACK_sent', 'reply_received', 'reply_freed', 'reply_consumed')) and
+            all(k[key] == '0' for key in ('busy', 'guard', 'faults', 'error', 'before_rc', 'model_rc', 'after_rc', 'allocate_rc',
+                'send_rc', 'request_free_rc', 'reply_free_rc', 'receive_rc', 'reply_alias', 'reply_cleanup_freed',
+                'request_releasing', 'reply_releasing', 'reply_inspecting', 'send_inflight')) and
+            k['retained_request'] == k['retained_reply'] == '(nil)' and
+            0 < number(k['sender_tid']) < 2**31 and 0 < number(k['receiver_tid']) < 2**31 and
+            k['request_free_tid'] == k['reply_free_tid'] == k['sender_tid'] and
+            number(k['crank_generation']) == crank['crank_generation'] and
+            number(k['commits']) == number(k['verified_commits']) == number(k['completions']) == crank['crank_generation'],
+            'movie current native crank lacks real receive/sender frees/idle completion')
+    # Reuse the existing all13 parser/content checks through the recomputed crank proof; recheck current readback here.
+    frees = []
+    for tag in BACKGROUND_FREE_TAGS:
+        found = [r for r in rows if r['tag'] == tag and r['line'] < resources[0]['line']]
+        require(len(found) == 1 and 'diagnostic' not in found[0] and
+                found[0]['fields'].get('pid') == str(pid) and found[0]['fields'].get('rc') == '0' and
+                found[0]['fields'].get('faults') == '0' and found[0]['fields'].get('ap_consumed') == '1',
+                'movie all13 actual predecessor free missing/faulted: ' + tag)
+        frees.append(found[0]['line'])
+    all13 = [r for r in rows if r['tag'] in ('NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK',
+        'NATIVE_CP302C_NOCONVERT_ALL13_READBACK') and max(frees) < r['line'] < before_line and
+        r['fields'].get('pid') == str(pid) and r['fields'].get('tid') == str(sender)]
+    require(all13 and all('diagnostic' not in r and all(r['fields'].get(key) == '1' for key in
+            ('accepted', 'video_AP_consumed', 'OSD_AP_consumed', 'audio_AP_consumed')) and
+            r['fields'].get('OSD_live') == '16' and r['fields'].get('OSD_owners_each') ==
+            r['fields'].get('OSD_opens_each') == '2' and r['fields'].get('global_DMM_idle_claimed') ==
+            r['fields'].get('capture_verified') == '0' for r in all13), 'movie current all13 retirement readback differs')
+    mode = cp_parameter_mode_retirement(rows, begin['line'], pid, transport['model_instance'])
+    leases = {}
+    for row in rows:
+        f = row['fields']
+        if (row['tag'].startswith('FUNCTIONAL_CAMERA_CONTROL_') and row['line'] <= mode['line'] and
+                (f.get('index') in ('0', '1') or f.get('cycle_id') == mode['fields']['cycle_id']) and 'index' in f):
+            leases[number(f['index'])] = row
+    require(set(leases) == set(range(5)), 'movie current mode lacks all five real retired leases')
+    for index, row in leases.items():
+        f = row['fields']
+        require('diagnostic' not in row and f.get('pid') == str(pid) and
+                number(f['model_instance']) == transport['model_instance'] and f.get('retained') == '(nil)' and
+                f.get('freed') == '1' and all(f.get(key) == '0' for key in
+                    ('faults', 'releasing', 'send_inflight', 'free_rc', 'send_rc', 'allocate_rc')) and
+                (index not in (1, 3, 4) or f.get('queued') == f.get('received') == f.get('consumed') == '1') and
+                (index < 2 or f.get('sender_tid') == mode['fields']['sender_tid'] and
+                 f.get('lease_cycle_id') == mode['fields']['cycle_id'] and all(f.get(key) == mode['fields'].get(key)
+                 for key in ('cycle_id', 'cycle_generation', 'config_generation', 'frame_generation', 'native_fnv1a'))) and
+                0 < number(f['free_tid']) < 2**31 and f['free_tid'] == f['receiver_tid' if index == 4 else 'sender_tid'],
+                'movie current mode lease still live/faulted/foreign/unconsumed')
+        actual_free = [r for r in rows if r['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_' +
+            ('AP_FREE' if index in (1, 3, 4) else 'OWNED_FREE') and r['line'] <= mode['line'] and all(
+            r['fields'].get(key) == f.get(key) for key in ('pid', 'index', 'model_instance', 'lease_cycle_id',
+                'sender_tid', 'receiver_tid', 'free_tid', 'freed', 'free_rc', 'retained'))]
+        require(actual_free, 'movie current mode lacks its actual original free event')
+    first_bank = min(r['line'] for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and
+                     r['fields'].get('event') == 'BEGIN')
+    initial = cp_movie_format_initial_history(rows, pid, first_bank)
+    return dict(bank_free_line=bank['original_free_line'], crank_complete_line=crank['complete_line'],
+        current_mode_retired_line=mode['line'], resource_lines=[r['line'] for r in resources], **initial)
+
+
+def check_cp_movie_format_native(run, rows, transport, tx, before, after, bank, bank_tx,
+                                 crank, crank_tx, value, transaction, previous_end):
+    family = 'FUNCTIONAL_CP_MOVIE_FORMAT_'
+    records = [r for r in rows if r['tag'] == family + 'EVENT' and number(r['fields']['transaction']) == transaction]
+    names = ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REPLY', 'ALLOCATED', 'SENT',
+             'REQUEST_FREE', 'COMMIT', 'RECEIVE', 'REPLY_FREE')
+    require(len(records) == len(names) and {r['fields']['event'] for r in records} == set(names),
+            'movie failed/replayed/missing original lifecycle')
+    at = {r['fields']['event']: r for r in records}
+    require([r['line'] for r in records] == sorted({r['line'] for r in records}) and
+            [at[name]['line'] for name in names[:10]] == sorted(at[name]['line'] for name in names[:10]) and
+            previous_end < at['BEGIN']['line'] < before['line'] < at['BEFORE']['line'] < tx['line'] < at['MODEL']['line'] <
+            after['line'] < at['AFTER']['line'] and at['ALLOCATED']['line'] < at['RECEIVE']['line'] < at['REPLY_FREE']['line'] and
+            max(at['COMMIT']['line'], at['REPLY_FREE']['line']) == records[-1]['line'],
+            'movie original/call/send/real receive/free order differs')
+    packet, output = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+    prior, following = transfer_output(run, before), transfer_output(run, after)
+    require(value == cp_movie_format_observation(tx['movie_format'].get('observation'), output, packet,
+            transport['model_instance'], prior, bank['bank_generation'], crank['crank_generation'], tx['capacity']) and
+            following == output[80:208], 'movie native receipt/query/full STATE content differs')
+    reply = b'\x01\0\0\x40' + packet[4:8] + struct.pack('<I', 0xf000)
+    chunks = [r for r in rows if r['tag'] == family + 'BYTES' and number(r['fields']['transaction']) == transaction]
+    require(len(chunks) == 6, 'movie orphan/missing original complete byte streams')
+    for kind, raw, event in (('request', packet, 'BEGIN'), ('before_state', prior, 'BEFORE'),
+            ('receipt', output, 'MODEL'), ('after_state', following, 'AFTER'), ('reply', reply, 'REPLY')):
+        parent = at[event]; boundary = min(r['line'] for r in records if r['line'] > parent['line'])
+        selected = [r for r in chunks if r['fields']['kind'] == kind]; data = bytearray()
+        for row in selected:
+            f = row['fields']
+            require(parent['line'] < row['line'] < boundary and number(f['offset']) == len(data) and
+                    number(f['bytes']) == min(128, len(raw) - len(data)) and number(f['total']) == len(raw) and
+                    all(f[key] == parent['fields'][key] for key in ('event', 'pid', 'tid', 'transaction', 'native_fnv1a',
+                        'model_instance', 'bank_generation', 'crank_generation', 'movie_generation')) and
+                    int(f['content_fnv1a'], 16) == fnv(raw), 'movie byte stream stage/ticket/identity/seal differs')
+            data.extend(raw_hex(f, 'raw', number(f['bytes'])))
+        require(bytes(data) == raw, 'movie full request20/STATE128/receipt240/after128/reply12 differs')
+    resources = [r for r in rows if r['tag'].startswith(family + 'RESOURCE') and at['BEGIN']['line'] < r['line'] < before['line']]
+    predecessors = cp_movie_format_predecessors(rows, transport, at['BEGIN'], resources, bank, crank, before['line'])
+    pid, sender = transport['pid'], tx['origin']['producer_tid']
+    request_pointer, reply_pointer = at['BEGIN']['fields']['request_pointer'], at['ALLOCATED']['fields']['reply_pointer']
+    require(request_pointer != '(nil)' and reply_pointer != '(nil)' and
+            number(request_pointer) + 20 <= 2**64 and number(reply_pointer) + 12 <= 2**64 and
+            (number(reply_pointer) + 12 <= number(request_pointer) or number(request_pointer) + 20 <= number(reply_pointer)) and
+            at['ALLOCATED']['fields']['allocation_pointer'] == reply_pointer,
+            'movie independent reply allocation aliases the original20 request')
+    audit = cp_crank_original_audit(rows, packet, pid, sender,
+        max(previous_end, crank['complete_line']), at['BEGIN']['line'], request_pointer)
+    base = number(resources[1]['fields']['appfw_base'])
+    require(base <= number(audit['fields']['producer_return']) < base + 0x8000000,
+            'movie original20 source callsite outside original appFw')
+    previous = [r for r in rows if r['tag'] == family + 'EVENT' and r['line'] == previous_end]
+    previous_bank = number(previous[0]['fields']['bank_generation']) if previous else 0
+    previous_crank = number(previous[0]['fields']['crank_generation']) if previous else 0
+    receiver = number(at['RECEIVE']['fields']['tid'])
+    require(0 < sender < 2**31 and 0 < receiver < 2**31 and
+            transaction == value['movie_generation'] and value['before_config_generation'] >= crank['config_generation'],
+            'movie actual sender/receiver/transaction/current config invalid')
+    sender_progress = (0,) * 5
+    for row in records:
+        name, f, line = row['fields']['event'], row['fields'], row['line']
+        reached = lambda event: line >= at[event]['line']
+        require(all(number(f[key]) == expected for key, expected in dict(pid=pid, sender_tid=sender,
+            tid=receiver if name == 'RECEIVE' else sender, transaction=transaction, requests=transaction,
+            source=0x80020002, destination=0x90030001, command=0x4000, bytes=20,
+            cookie=struct.unpack_from('<I', packet, 4)[0], model_instance=value['model_instance'],
+            bank_generation=value['bank_generation'], crank_generation=value['crank_generation'],
+            bank_transaction=bank['transaction'], bank_commits=bank['bank_generation'], bank_released=bank['bank_generation'],
+            bank_source=0x80020002, bank_destination=0x90030001, bank_command=0x4063, bank_bytes=2564,
+            crank_transaction=crank['transaction'], crank_completions=crank['crank_generation'],
+            crank_source=0x80020002, crank_destination=0x90030001, crank_command=0x409d, crank_bytes=12).items()) and
+            int(f['native_fnv1a'], 16) == fnv(packet) and
+            int(f['bank_native_fnv1a'], 16) == bank_tx['origin']['fnv1a64'] and
+            int(f['crank_native_fnv1a'], 16) == crank_tx['origin']['fnv1a64'] and
+            f['request_pointer'] == request_pointer and f['error'] == f['faults'] == '0' and
+            all(f[key] == '0' for key in ('reply_releasing', 'reply_inspecting', 'reply_alias', 'reply_cleanup_freed')),
+            'movie immutable native ticket/PID/source/pointer/predecessor/error differs')
+        started, inflight, sent, received, freed, request_freed, releasing, busy, guard = (number(f[key]) for key in
+            ('send_started', 'send_inflight', 'ACK_sent', 'reply_received', 'reply_freed', 'request_freed',
+             'request_releasing', 'busy', 'guard'))
+        if name == 'RECEIVE':
+            require((started, inflight, sent) in ((1, 1, 0), (1, 0, 1)) and received == 1 and freed == 0 and
+                    (busy, guard) in ((1, 1), (1, 0), (0, 0)) and
+                    (not (request_freed or releasing) or sent) and not (request_freed and releasing) and
+                    (request_freed or (busy, guard) == (1, 1)),
+                    'movie RECEIVE locked send/request-free/guard snapshot invalid')
+        else:
+            sent_stage = reached('SENT'); inline = name == 'REPLY_FREE' and not sent_stage
+            require((started, inflight, sent) == (int(sent_stage or inline), int(inline), int(sent_stage)) and
+                    request_freed == int(reached('REQUEST_FREE')) and freed == int(reached('REPLY_FREE')) and releasing == 0 and
+                    (busy, guard) == ((1, 0) if name == 'BEGIN' else (0, 0) if reached('COMMIT') else (1, 1)),
+                    'movie synchronous sender send/free/busy/guard phase differs')
+        require(received in (0, 1) and (not received or started) and (not freed or received),
+                'movie receive/free flags precede actual send/receive')
+        progress = (started, sent, request_freed, received, freed)
+        if number(f['tid']) == sender:
+            require(all(old <= current for old, current in zip(sender_progress, progress)),
+                    'movie same-sender lifecycle snapshot regressed')
+            sender_progress = progress
+        # Compare canonical signed formatter strings directly; number() is deliberately unsigned.
+        expected = dict(before_rc=0 if reached('BEFORE') else -61, model_rc=0 if reached('MODEL') else -61,
+            after_rc=0 if reached('AFTER') else -61, validation_rc=0 if reached('MODEL') else -61,
+            allocate_rc=0 if reached('ALLOCATED') else -61, send_rc=0 if sent else -61,
+            request_free_rc=0 if request_freed else -61, receive_rc=0 if received else -61, reply_free_rc=0 if freed else -61,
+            model_called=int(reached('MODEL')), model_committed=int(reached('MODEL')), verified=int(reached('VERIFIED')),
+            owned=int(reached('VERIFIED')), reply_allocated=int(reached('ALLOCATED')), reply_valid=int(reached('ALLOCATED')),
+            receiver_tid=receiver if received else 0, request_free_tid=sender if request_freed else 0, reply_free_tid=sender if freed else 0,
+            commits=value['movie_generation'] - 1 + int(reached('MODEL')),
+            verified_commits=value['movie_generation'] - 1 + int(reached('VERIFIED')),
+            last_bank_generation=value['bank_generation'] if reached('VERIFIED') else previous_bank,
+            last_crank_generation=value['crank_generation'] if reached('VERIFIED') else previous_crank,
+            last_movie_generation=value['movie_generation'] if reached('VERIFIED') else value['movie_generation'] - 1,
+            movie_generation=value['movie_generation'] if reached('MODEL') else 0,
+            before_config_generation=value['before_config_generation'] if reached('BEFORE') else 0,
+            config_generation=value['config_generation'] if reached('MODEL') else 0,
+            frame_generation=value['frame_generation'] if reached('BEFORE') else 0,
+            fps=value['fps'] if reached('BEFORE') else 0, software_format=5 if reached('MODEL') else 0,
+            software_rate_index=0, software_codec=1 if reached('MODEL') else 0)
+        require(all(f[key] == str(expected_value) for key, expected_value in expected.items()),
+                'movie actual C/validation rc/generations/ticket/lifecycle counters differ')
+        for prefix, size, stage in (('before', 128, 'BEFORE'), ('movie', 240, 'MODEL'), ('after', 128, 'AFTER')):
+            require(all(number(f[prefix + suffix]) == expected_value for suffix, expected_value in
+                (('_used', size if reached(stage) else 0), ('_required', size if reached(stage) else 0),
+                 ('_token', 0), ('_instance', value['model_instance'] if reached(stage) else 0))),
+                'movie full actual bridge source/destination sizes/token/instance differ')
+        require(f['retained_request'] == (request_pointer if reached('VERIFIED') and not request_freed else '(nil)') and
+                f['retained_reply'] == (reply_pointer if reached('ALLOCATED') and not freed else '(nil)') and
+                all(f[key] == (reply_pointer if reached('ALLOCATED') else '(nil)') for key in ('reply_pointer', 'allocation_pointer')) and
+                int(f['receipt_fnv1a'], 16) == (fnv(output) if reached('MODEL') else 0) and
+                int(f['reply_fnv1a'], 16) == (fnv(reply) if reached('REPLY') else 0),
+                'movie retained/allocated/freed pointers or full receipt240/reply12 seal differs')
+        consumed = bool(sent and received and freed and not inflight)
+        complete = bool(number(f['owned']) and number(f['verified']) and request_freed and consumed and not busy and not guard and not releasing)
+        require(number(f['reply_consumed']) == int(consumed) and number(f['complete']) == int(complete) and
+                number(f['completions']) == value['movie_generation'] - 1 + int(complete),
+                'movie ACK/COMMIT cannot replace actual original receive and sender frees')
+    final = records[-1]['fields']
+    require(final['complete'] == final['reply_consumed'] == '1' and all(final[key] == '0' for key in
+            ('busy', 'guard', 'faults', 'request_releasing', 'reply_releasing', 'reply_inspecting', 'send_inflight')) and
+            final['retained_request'] == final['retained_reply'] == '(nil)', 'movie final native owner not idle/clean/consumed')
+    return dict(transaction=transaction, sender_tid=sender, receiver_tid=receiver, request_pointer=request_pointer,
+        reply_pointer=reply_pointer, reply_sha256=sha(reply), source_audit_sequence=number(audit['fields']['sequence']),
+        original_free_line=at['REQUEST_FREE']['line'], reply_receive_line=at['RECEIVE']['line'], reply_free_line=at['REPLY_FREE']['line'],
+        complete_line=records[-1]['line'], native_control_transaction_verified=True, **predecessors)
+
+
+def check_cp_movie_format_content(run, manifest, rows, transport):
+    """Join complete Core22/query240 to the actual native movie transaction and resource35."""
+    transfers = transport['transfers']
+    jobs = [(index, tx) for index, tx in enumerate(transfers) if tx['opcode'] == 22]
+    native = [r for r in rows if r['tag'].startswith('FUNCTIONAL_CP_MOVIE_FORMAT_')]
+    result = dict(required=bool(jobs), verified=False, content_join_verified=False, transactions=[],
+        native_completion_verified=False, native_control_transaction_verified=False, missing_native_observations=[],
+        frame_consumed=False, capture_verified=False, physical_asic_compatibility_verified=False)
+    if not jobs:
+        require(not native, 'movie format native records lack actual Core22')
+        return result
+    # Reject incomplete/borrowed frame jobs before any predecessor/history scan.
+    for index, tx in jobs:
+        require(0 < index < len(transfers) - 1 and all(part.get('frame') is None and part.get('token') == 0 and
+                part.get('provider_kind') == 'core' for part in transfers[index - 1:index + 2]),
+                'movie format queries/core/no-frame binding differs')
+        needed(type(tx.get('movie_format')) is dict, 'movie format independent actual C query event')
+        witness = tx['movie_format']
+        if witness.get('kind') == 'movie_format_rejected':
+            raise MovieFormatRejected(witness)
+        require(witness.get('kind') == 'model_movie_format' and type(witness.get('opcode')) is int and
+                witness['opcode'] == 22 and type(witness.get('actual_c_result')) is int and witness['actual_c_result'] == 0 and
+                witness.get('model_called') is True and witness.get('model_committed') is True and
+                witness.get('native_acceptance') is False and witness.get('sequence') == tx['first'] and
+                witness.get('model_instance') == transport['model_instance'] and witness.get('origin') == tx['origin'],
+                'movie format actual typed Core22 success witness differs')
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and manifest.get('functional_camera_profile') == PROFILE and
+            backup.get('functional_camera_profile') == PROFILE and all(
+                {key for key in target if key.startswith('functional_camera_cp_movie_format_')} ==
+                {'functional_camera_' + key for key in CP_MOVIE_FORMAT_POLICY} for target in (manifest, backup)) and all(
+                typed_equal(manifest.get('functional_camera_' + key), value) and
+                typed_equal(backup.get('functional_camera_' + key), value) for key, value in CP_MOVIE_FORMAT_POLICY.items()),
+            'movie format lacks its complete explicit software mapping policy')
+    needed(transport.get('parameter_bank', {}).get('verified') is True and
+           transport.get('crank_control_content', {}).get('content_join_verified') is True,
+           'movie format needs the decoded current original parameter bank and crank')
+    history = vdf_history(run, transport)
+    native_ids, previous_end, covered_resources = [], 0, set()
+    bank_proof, crank_proof = None, None
+    if native:
+        allowed = {'FUNCTIONAL_CP_MOVIE_FORMAT_' + name for name in
+                   ('EVENT', 'BYTES', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+        for row in native:
+            require(row['tag'] in allowed and 'diagnostic' not in row and bool(row['fields']),
+                    'movie failed/unknown/incomplete original formatter')
+            payload = (row['tag'] + ' ' + ' '.join(key + '=' + value for key, value in row['fields'].items())).encode('ascii')
+            require(console_producer_fields(payload) == row['fields'], 'movie original producer grammar differs')
+        native_ids = sorted({number(r['fields']['transaction']) for r in native if r['tag'].endswith('_EVENT')})
+        require(native_ids == list(range(1, len(jobs) + 1)) and
+                {number(r['fields']['transaction']) for r in native if r['tag'].endswith('_BYTES')} == set(native_ids),
+                'movie original transaction/event/byte census differs')
+        # Recompute predecessor receipts against these rows/transfers; caller booleans cannot establish real native closure.
+        bank_proof = check_cp_parameter_bank(run, manifest, rows, transport)
+        crank_proof = check_cp_crank_control_content(run, manifest, rows, dict(transport, parameter_bank=bank_proof))
+        needed(bank_proof.get('verified') is True and crank_proof.get('verified') is True and
+               crank_proof.get('native_completion_verified') is True, 'movie current bank/crank original native completion')
+    for ordinal, (index, tx) in enumerate(jobs):
+        before, after, origin = transfers[index - 1], transfers[index + 1], tx['origin']
+        require(before['opcode'] == after['opcode'] == 2 and before['origin'] == after['origin'] == origin and
+                before['first'] == before['last'] == tx['first'] - 1 and
+                tx['first'] == tx['last'] == after['first'] - 1 and after['first'] == after['last'] and
+                before['line'] < tx['line'] < after['line'], 'movie format live STATE/core query order/binding differs')
+        banks = [part for part in transfers[:index] if part['opcode'] == 20]
+        cranks = [part for part in transfers[:index] if part['opcode'] == 21]
+        require(banks and cranks and banks[-1]['first'] < cranks[-1]['first'],
+                'movie format lacks its current bank/crank canonical prior decode')
+        bank_tx, crank_tx = banks[-1], cranks[-1]
+        bank_value, crank_value = history[bank_tx['first']], history[crank_tx['first']]
+        require(crank_value['bank_generation'] == bank_value['bank_generation'], 'movie format crank belongs to a stale parameter bank')
+        packet, raw = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+        prior, following = transfer_output(run, before), transfer_output(run, after)
+        value = cp_movie_format_observation(tx['movie_format'].get('observation'), raw, packet, transport['model_instance'],
+            prior, bank_value['bank_generation'], crank_value['crank_generation'], tx['capacity'])
+        require(value == history[tx['first']] and following == raw[80:208] and value['fps'] == bank_value['fps'] and
+                origin['source'] == 0x80020002 and origin['destination'] == 0x90030001 and
+                origin['command'] == 0x4000 and origin['bytes'] == 20 and origin['fnv1a64'] == fnv(packet),
+                'movie format actual full original input/current pair/history/post-STATE differs')
+        transaction = dict(model_sequence=tx['first'], bank_model_sequence=bank_tx['first'], crank_model_sequence=crank_tx['first'],
+            before_STATE_sequence=before['first'], after_STATE_sequence=after['first'], packet_sha256=sha(packet), result_sha256=sha(raw), **value)
+        if native:
+            banks_done = [item for item in bank_proof['transactions'] if item['model_sequence'] == bank_tx['first'] and
+                item['bank_generation'] == bank_value['bank_generation'] and item['model_instance'] == transport['model_instance']]
+            cranks_done = [item for item in crank_proof['transactions'] if item['model_sequence'] == crank_tx['first'] and
+                item['bank_generation'] == bank_value['bank_generation'] and item['crank_generation'] == crank_value['crank_generation'] and
+                item['model_instance'] == transport['model_instance'] and item['complete_line'] < before['line']]
+            require(len(banks_done) == len(cranks_done) == 1, 'movie current bank/crank native receipt missing/ambiguous/stale')
+            joined = check_cp_movie_format_native(run, rows, transport, tx, before, after, banks_done[0], bank_tx,
+                cranks_done[0], crank_tx, value, native_ids[ordinal], previous_end)
+            transaction.update(joined); previous_end = joined['complete_line']; covered_resources.update(joined['resource_lines'])
+        result['transactions'].append(transaction)
+    result['content_join_verified'] = True
+    result['native_records_observed'] = len(native)
+    if native:
+        require(covered_resources == {r['line'] for r in native if r['tag'].startswith('FUNCTIONAL_CP_MOVIE_FORMAT_RESOURCE')},
+                'movie orphan/reused resource35 claim')
+        result.update(verified=True, native_completion_verified=True, native_control_transaction_verified=True)
+    else:
+        result['missing_native_observations'] = list(CP_MOVIE_NATIVE_JOINS)
+    return result
+
+
+def cp_ou_crank_initial_history(rows, pid, bank_begin):
+    """The already-used strict4072 is immutable one-way history, never a new reply."""
+    family = 'NATIVE_CP_EE_DIAGNOSTIC_'
+    records = [r for r in rows if r['tag'].startswith(family) and r['fields'].get('opcode') == '0x4072']
+    require(len(records) == 2 and [r['tag'] for r in records] == [family + 'REQUEST_FREE', family + 'COMPLETE'] and
+            records[0]['line'] < records[1]['line'] < bank_begin,
+            'OU crank strict initial4072 missing/repeated/late one-way history')
+    keys = set(('pid opcode sender_tid waiter_tid attempts requests busy guard faults source request_destination destination bytes '
+        'request cookie wire_fnv1a32 source_byte1_known reply freed_reply reply_free_destination reply_free_source reply_free_bytes '
+        'allocate_rc send_rc request_free_rc reply_free_rc queued request_freed reply_freed clean_completion ap_consumed '
+        'oneway oneway_consumed virtual_field_mask virtual_fields_readback virtual_fields_consumed virtual_fields virtual_readback '
+        'retained_request live_reply retained_cleanup diagnostic_only virtual_padding business_applied source_dependencies_closed '
+        'configured published generation native_cp EE frame capture').split())
+    final = records[-1]['fields']
+    require(all('diagnostic' not in r and set(r['fields']) == keys for r in records),
+            'OU crank strict initial4072 complete formatter differs')
+    wire = raw_hex(final, 'request', 12)
+    require(wire[0] == 5 and wire[2:4] == b'\x72\x40' and wire[8:] == bytes(4),
+            'OU crank strict initial4072 original12/bodyzero differs')
+    digest = 2166136261
+    for byte in wire:
+        digest = ((digest ^ byte) * 16777619) & 0xffffffff
+    sender = number(final['sender_tid'])
+    require(0 < sender < 2**31, 'OU crank strict initial4072 sender invalid')
+    for ordinal, row in enumerate(records):
+        f = row['fields']
+        expected = dict(pid=pid, opcode=0x4072, sender_tid=sender, waiter_tid=0, attempts=1, requests=1,
+            busy=1 - ordinal, guard=1 - ordinal, faults=0, source=0x80020002, request_destination=0x90030001,
+            destination=0, bytes=12, cookie=struct.unpack_from('<I', wire, 4)[0], wire_fnv1a32=digest,
+            source_byte1_known=0, reply_free_destination=0, reply_free_source=0, reply_free_bytes=0,
+            allocate_rc=0, send_rc=0, request_free_rc=0, reply_free_rc=0, queued=0, request_freed=1, reply_freed=0,
+            clean_completion=ordinal, ap_consumed=0, oneway=1, oneway_consumed=1, virtual_field_mask=3,
+            virtual_fields_readback=1, virtual_fields_consumed=3, diagnostic_only=1, virtual_padding=1,
+            business_applied=0, source_dependencies_closed=0, configured=0, published=0, generation=0,
+            native_cp=0, EE=0, frame=0, capture=0)
+        require(all(number(f[key]) == value for key, value in expected.items()) and
+                raw_hex(f, 'request', 12) == wire and f['reply'] == f['freed_reply'] == 'none' and
+                f['virtual_fields'] == f['virtual_readback'] == '0,0,0,0' and
+                all(f[key] == '(nil)' for key in ('retained_request', 'live_reply', 'retained_cleanup')),
+                'OU crank strict initial4072 immutable bytes/one-way/free/attempts/scope differs')
+    return dict(strict_initial4072_free_line=records[0]['line'], strict_initial4072_complete_line=records[1]['line'])
+
+
+def cp_ou_crank_predecessors(run, rows, transport, begin, resources, bank, crank, movie,
+                            startup, startup_tx, prior, before_line):
+    """Check the actual resource36 and current native owners after reservation."""
+    family = 'FUNCTIONAL_CP_OU_CRANK_CONTROL_'
+    pid, sender = transport['pid'], number(begin['fields']['sender_tid'])
+    require([r['tag'] for r in resources] == [family + name for name in
+            ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')],
+            'OU crank resource36 cohort missing/reordered/repeated')
+    for row in resources:
+        payload = (row['tag'] + ' ' + ' '.join(key + '=' + value for key, value in row['fields'].items())).encode('ascii')
+        require('diagnostic' not in row and console_producer_fields(payload) == row['fields'],
+                'OU crank resource36 original producer grammar differs')
+    dependencies, table, reserved = (r['fields'] for r in resources)
+    require(number(dependencies['pid']) == number(table['pid']) == pid and
+            all(number(r['fields']['tid']) == sender for r in resources), 'OU crank resource36 PID/TID differs')
+    fixed = dict(dmm_enabled='1', dmm_bound='1', dmm_slots='1/1', dmm_opens='1/1',
+        dmm_handles='0x8400/0x8401', dmm_generations='1/1', dmm_epochs='1/2', dmm_creators='1/1',
+        dmm_allocation_count='2', dmm_lifecycle_changed='0', dmm_domain='2', foreign_speech_kept='1',
+        control_bound='1', connection_started='1', connections='1', format_consumed='1', buffer_released='1',
+        connection_reply_frees='1', vef_init='1', vef_owner='0x905a0048', pinmem_init='1', pinmem_owner='0x90590818')
+    require(all(reserved[key] == value for key, value in fixed.items()) and
+            number(reserved['allocations']) == number(reserved['releases']) > 0 and
+            number(reserved['vef_objects']) > 0 and number(reserved['pinmem_objects']) > 0,
+            'OU crank resource36 TTS/DMM/PIN/VEF allocation domain differs')
+    speech = raw_hex(table, 'raw_before', 144)
+    require(raw_hex(table, 'raw_after', 144) == speech, 'OU crank resource36 TTS144 changed')
+    for slot in range(2):
+        offset = slot * 0x48
+        require(struct.unpack_from('<I', speech, offset)[0] == 0x1a + slot and
+                struct.unpack_from('<2I', speech, offset + 0x18) == (0x8400 | slot, 0x80000) and
+                struct.unpack_from('<Q', speech, offset + 0x20)[0] == 0x1e000000 + slot * 0x80000,
+                'OU crank resource36 full TTS does not bind both DMM slots')
+    for prefix, proof, end_key in (('FUNCTIONAL_CP_PARAMETER_BANK_', bank, 'original_free_line'),
+            ('FUNCTIONAL_CP_CRANK_CONTROL_', crank, 'complete_line'), ('FUNCTIONAL_CP_MOVIE_FORMAT_', movie, 'complete_line')):
+        found = [r for r in rows if r['tag'] == prefix + 'EVENT' and r['line'] < begin['line']]
+        require(found and number(found[-1]['fields']['transaction']) == proof['transaction'] and
+                number(found[-1]['fields']['model_instance']) == transport['model_instance'] and
+                proof[end_key] <= found[-1]['line'] < begin['line'],
+                'OU crank latest native bank/crank/movie is not the recomputed closed predecessor')
+        if prefix != 'FUNCTIONAL_CP_PARAMETER_BANK_':
+            require(found[-1]['line'] == proof[end_key] and found[-1]['fields']['complete'] == '1',
+                    'OU crank latest native crank/movie is not idle/complete')
+    require(bank['original_free_line'] < crank['complete_line'] < movie['complete_line'] < startup['free_line'] < begin['line'] and
+            startup['AP_consumed'] is True and startup['command'] == 0x4057 and
+            startup['model_instance'] == transport['model_instance'] and
+            startup['config_generation'] == struct.unpack_from('<Q', prior, 56)[0] > movie['config_generation'] and
+            startup['frame_generation'] == struct.unpack_from('<Q', prior, 112)[0] and
+            startup['config40_fnv1a64'] == f'{fnv(prior[8:48]):016x}',
+            'OU crank current4057 actual free/config/frame/config40 checkpoint differs')
+    startup_rows = [r for r in rows if r['tag'] == 'FUNCTIONAL_STARTUP_CONTROL' and r['line'] < begin['line']]
+    needed(startup_rows, 'OU crank current4057 actual owner records')
+    latest = startup_rows[-1]
+    require(number(latest['fields']['cycle']) == startup['cycle'] and latest['fields']['AP_consumed'] == '1' and
+            latest['line'] >= startup['free_line'] and latest['fields']['retained'] == '0',
+            'OU crank newer/incomplete startup owner replaced current4057')
+    startup_records = [r for r in startup_rows if r['fields'].get('cycle') == str(startup['cycle'])]
+    require(len(startup_records) == 4 and {r['fields']['event'] for r in startup_records} ==
+            {'REQUEST_FREE', 'RECEIVE', 'SENDER_FREE', 'CYCLE'}, 'OU crank current4057 original lease lifecycle differs')
+    startup_at = {r['fields']['event']: r for r in startup_records}
+    tickets = [r for r in rows if r['tag'] == 'FUNCTIONAL_STARTUP_CONTROL_TICKET_BOUND' and
+               r['fields'].get('cycle') == str(startup['cycle'])]
+    require(len(tickets) == 1 and tickets[0]['line'] == startup['ticket_line'] and
+            startup_at['REQUEST_FREE']['line'] < startup['ticket_line'] < startup['receive_line'] < startup['free_line'] and
+            startup_at['RECEIVE']['line'] == startup['receive_line'] and startup_at['SENDER_FREE']['line'] == startup['free_line'] and
+            startup_at['REQUEST_FREE']['fields']['request'] == latest['fields']['request'] == '(nil)' and
+            startup_at['REQUEST_FREE']['fields']['req_free_rc'] == latest['fields']['req_free_rc'] == '0' and
+            startup['sender_tid'] > 0 and startup['receiver_tid'] > 0,
+            'OU crank current4057 lacks real sender request/reply retirement')
+    wire = bytes.fromhex(startup['original_wire'])
+    reply = b'\x01\0\x57\x40' + wire[4:8] + struct.pack('<I', 0xf000)
+    ticket = tickets[0]['fields']
+    require(len(wire) == 12 and wire[0] == 5 and wire[2:4] == b'\x57\x40' and wire[8:] == bytes(4) and
+            all(number(ticket[key]) == value for key, value in dict(pid=pid, tid=startup['sender_tid'],
+                cycle=startup['cycle'], source=0x90030001, destination=0x80020002, bytes=12,
+                cookie=struct.unpack_from('<I', wire, 4)[0]).items()) and raw_hex(ticket, 'reply', 12) == reply and
+            ticket.get('before_actual_send') == '1' and ticket.get('physical_ASIC_verified') == ticket.get('capture_verified') == '0',
+            'OU crank current4057 original reply ticket/source/cookie/full12 differs')
+    canonical, output = payload_read(run, startup_tx['request_payload']), transfer_output(run, startup_tx)
+    require(startup_control_config(canonical) == 0x4057 and canonical[4:24] == bytes(20) and
+            struct.unpack_from('<Q', canonical, 24)[0] == fnv(prior[8:48]),
+            'OU crank current4057 saved settings/config40 seal differs')
+    value = vdf_result(output, canonical, transport['model_instance'], 14, output[128:144])
+    p = noncodec_proof(startup_tx, value, transport, output)
+    require(typed_equal({key: p['after'][key] for key in ('rendered', 'consumed', 'jpeg_encoded', 'video_encoded')},
+                dict(zip(('rendered', 'consumed', 'jpeg_encoded', 'video_encoded'), struct.unpack_from('<4Q', prior, 64)))) and
+            p['config_generation'] == startup['config_generation'] and p['frame_generation'] == startup['frame_generation'],
+            'OU crank current4057 proof/live State128 counters differ')
+    frees = []
+    for tag in BACKGROUND_FREE_TAGS:
+        found = [r for r in rows if r['tag'] == tag and r['line'] < resources[0]['line']]
+        require(len(found) == 1 and 'diagnostic' not in found[0] and
+                found[0]['fields'].get('pid') == str(pid) and found[0]['fields'].get('rc') == '0' and
+                found[0]['fields'].get('faults') == '0' and found[0]['fields'].get('ap_consumed') == '1',
+                'OU crank all13 actual free missing/faulted: ' + tag)
+        frees.append(found[0]['line'])
+    all13 = [r for r in rows if r['tag'] in ('NATIVE_CP302C_DIAGNOSTIC_ALL13_READBACK',
+        'NATIVE_CP302C_NOCONVERT_ALL13_READBACK') and max(frees) < r['line'] < before_line and
+        r['fields'].get('pid') == str(pid) and r['fields'].get('tid') == str(sender)]
+    require(all13 and any(resources[-1]['line'] < r['line'] for r in all13) and all(
+            'diagnostic' not in r and all(r['fields'].get(key) == '1' for key in
+                ('accepted', 'video_AP_consumed', 'OSD_AP_consumed', 'audio_AP_consumed')) and
+            r['fields'].get('OSD_live') == '16' and r['fields'].get('OSD_owners_each') ==
+            r['fields'].get('OSD_opens_each') == '2' and r['fields'].get('global_DMM_idle_claimed') ==
+            r['fields'].get('capture_verified') == '0' for r in all13),
+            'OU crank current post-reservation all13 retirement readback differs')
+    mode = cp_parameter_mode_retirement(rows, before_line, pid, transport['model_instance'])
+    require(mode['line'] < resources[0]['line'], 'OU crank current mode changed after resource36 reservation')
+    first_bank = min(r['line'] for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT' and
+                     r['fields'].get('event') == 'BEGIN')
+    initial = cp_ou_crank_initial_history(rows, pid, first_bank)
+    return dict(resource_lines=[r['line'] for r in resources], bank_free_line=bank['original_free_line'],
+        crank_complete_line=crank['complete_line'], movie_complete_line=movie['complete_line'],
+        startup_free_line=startup['free_line'], current_mode_retired_line=mode['line'], **initial)
+
+
+def check_cp_ou_crank_native(run, rows, transport, tx, before, after, bank, bank_tx, crank, crank_tx,
+                             movie, movie_tx, startup, startup_tx, value, transaction, previous_end):
+    family = 'FUNCTIONAL_CP_OU_CRANK_CONTROL_'
+    records = [r for r in rows if r['tag'] == family + 'EVENT' and number(r['fields']['transaction']) == transaction]
+    names = ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'REQUEST_FREE', 'COMMIT')
+    require(len(records) == len(names) and [r['fields']['event'] for r in records] == list(names) and
+            [r['line'] for r in records] == sorted({r['line'] for r in records}),
+            'OU crank failed/replayed/missing one-way original lifecycle')
+    at = {r['fields']['event']: r for r in records}
+    require(previous_end < at['BEGIN']['line'] < before['line'] < at['BEFORE']['line'] < tx['line'] <
+            at['MODEL']['line'] < after['line'] < at['AFTER']['line'],
+            'OU crank original/STATE/actual Core23/STATE/free order differs')
+    packet, output = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+    prior, following = transfer_output(run, before), transfer_output(run, after)
+    require(following == output[80:208], 'OU crank native full after-State128 differs')
+    chunks = [r for r in rows if r['tag'] == family + 'BYTES' and number(r['fields']['transaction']) == transaction]
+    require(len(chunks) == 5, 'OU crank orphan/missing original complete byte streams')
+    for kind, raw, event in (('request', packet, 'BEGIN'), ('before_state', prior, 'BEFORE'),
+                            ('receipt', output, 'MODEL'), ('after_state', following, 'AFTER')):
+        parent = at[event]
+        boundary = min(r['line'] for r in records if r['line'] > parent['line'])
+        data = bytearray()
+        for row in [r for r in chunks if r['fields']['kind'] == kind]:
+            f = row['fields']
+            require(parent['line'] < row['line'] < boundary and number(f['offset']) == len(data) and
+                    number(f['bytes']) == min(128, len(raw) - len(data)) and number(f['total']) == len(raw) and
+                    all(f[key] == parent['fields'][key] for key in ('event', 'pid', 'tid', 'transaction', 'native_fnv1a',
+                        'model_instance', 'bank_generation', 'crank_generation', 'movie_generation', 'ou_generation')) and
+                    int(f['content_fnv1a'], 16) == fnv(raw), 'OU crank byte stream stage/ticket/identity/seal differs')
+            data.extend(raw_hex(f, 'raw', number(f['bytes'])))
+        require(bytes(data) == raw, 'OU crank complete request12/STATE128/receipt224/after128 differs')
+    resources = [r for r in rows if r['tag'].startswith(family + 'RESOURCE') and
+                 at['BEGIN']['line'] < r['line'] < before['line']]
+    predecessors = cp_ou_crank_predecessors(run, rows, transport, at['BEGIN'], resources,
+        bank, crank, movie, startup, startup_tx, prior, before['line'])
+    pid, sender = transport['pid'], tx['origin']['producer_tid']
+    pointer = at['BEGIN']['fields']['request_pointer']
+    require(pointer != '(nil)' and 0 < number(pointer) <= 2**64 - 12,
+            'OU crank original request pointer missing/overflow')
+    audit = cp_crank_original_audit(rows, packet, pid, sender,
+        max(previous_end, movie['complete_line'], startup['free_line']), at['BEGIN']['line'], pointer)
+    base = number(resources[1]['fields']['appfw_base'])
+    require(base <= number(audit['fields']['producer_return']) < base + 0x8000000,
+            'OU crank original12 source callsite outside original appFw')
+    previous = [r for r in rows if r['tag'] == family + 'EVENT' and r['line'] == previous_end]
+    old = previous[0]['fields'] if previous else {}
+    require(transaction == value['ou_generation'] and 0 < sender < 2**31,
+            'OU crank actual sender/monotonic transaction differs')
+    progress = (0,) * 5
+    for row in records:
+        f, line = row['fields'], row['line']
+        reached = lambda event: line >= at[event]['line']
+        require(all(number(f[key]) == expected for key, expected in dict(pid=pid, tid=sender, sender_tid=sender,
+            transaction=transaction, requests=transaction, source=0x80020002, destination=0x90030001, command=0x4072, bytes=12,
+            cookie=struct.unpack_from('<I', packet, 4)[0], model_instance=value['model_instance'],
+            bank_generation=value['bank_generation'], crank_generation=value['crank_generation'], movie_generation=value['movie_generation'],
+            bank_transaction=bank['transaction'], bank_commits=bank['bank_generation'], bank_released=bank['bank_generation'],
+            crank_transaction=crank['transaction'], crank_completions=crank['crank_generation'],
+            movie_transaction=movie['transaction'], movie_completions=movie['movie_generation'],
+            startup_cycle=startup['cycle'], startup_completed_cycles=startup['cycle'],
+            startup_config_generation=startup['config_generation'], startup_frame_generation=startup['frame_generation'],
+            startup_lease_generation=startup['lease_generation']).items()) and
+            f['request_pointer'] == pointer and all(f[key] == '0' for key in ('guard_fault', 'faults', 'error', 'releasing')) and
+            int(f['native_fnv1a'], 16) == fnv(packet) and int(f['startup_result_fnv1a'], 16) == int(startup['result_fnv1a64'], 16) and
+            int(f['startup_config40_fnv1a'], 16) == fnv(prior[8:48]),
+            'OU crank immutable native ticket/PID/pointer/current predecessor/seal differs')
+        for prefix, source_tx in (('bank', bank_tx), ('crank', crank_tx), ('movie', movie_tx), ('startup', startup_tx)):
+            origin = source_tx['origin']
+            require(all(number(f[prefix + '_' + key]) == origin[key] for key in ('source', 'destination', 'command', 'bytes')) and
+                    int(f[prefix + '_native_fnv1a'], 16) == origin['fnv1a64'],
+                    'OU crank native predecessor original source/command/full input seal differs')
+        expected = dict(busy=int(not reached('COMMIT')), guard=int(reached('BEFORE') and not reached('COMMIT')),
+            before_rc=0 if reached('BEFORE') else -61, model_rc=0 if reached('MODEL') else -61,
+            after_rc=0 if reached('AFTER') else -61, validation_rc=0 if reached('MODEL') else -61,
+            free_rc=0 if reached('REQUEST_FREE') else -61, free_tid=sender if reached('REQUEST_FREE') else 0,
+            model_called=int(reached('MODEL')), model_committed=int(reached('MODEL')), verified=int(reached('VERIFIED')),
+            owned=int(reached('VERIFIED')), complete=int(reached('COMMIT')), request_freed=int(reached('REQUEST_FREE')),
+            commits=value['ou_generation'] - 1 + int(reached('MODEL')),
+            verified_commits=value['ou_generation'] - 1 + int(reached('VERIFIED')),
+            completions=value['ou_generation'] - 1 + int(reached('COMMIT')),
+            released=value['ou_generation'] - 1 + int(reached('REQUEST_FREE')),
+            ou_generation=value['ou_generation'] if reached('MODEL') else 0,
+            before_config_generation=value['before_config_generation'] if reached('BEFORE') else 0,
+            config_generation=value['config_generation'] if reached('MODEL') else 0,
+            frame_generation=value['frame_generation'] if reached('BEFORE') else 0,
+            mode=0, fps=value['fps'] if reached('BEFORE') else 0)
+        for prefix in ('bank', 'crank', 'movie', 'ou'):
+            key = prefix + '_generation'
+            expected['last_' + key] = value[key] if reached('VERIFIED') else number(old.get(key, '0'))
+        require(all(f[key] == str(expected_value) for key, expected_value in expected.items()),
+                'OU crank actual C/validation/free result/generation/lifecycle counters differ')
+        for prefix, size, stage in (('before', 128, 'BEFORE'), ('ou', 224, 'MODEL'), ('after', 128, 'AFTER')):
+            require(all(number(f[prefix + suffix]) == expected_value for suffix, expected_value in
+                (('_used', size if reached(stage) else 0), ('_required', size if reached(stage) else 0),
+                 ('_token', 0), ('_instance', value['model_instance'] if reached(stage) else 0))),
+                'OU crank full actual bridge size/token/instance differs')
+        require(f['retained_request'] == (pointer if reached('VERIFIED') and not reached('REQUEST_FREE') else '(nil)') and
+                int(f['receipt_fnv1a'], 16) == (fnv(output) if reached('MODEL') else 0),
+                'OU crank retained request or complete receipt224 seal differs')
+        current = tuple(number(f[key]) for key in ('model_called', 'model_committed', 'verified', 'request_freed', 'complete'))
+        require(all(a <= b for a, b in zip(progress, current)), 'OU crank same-sender snapshot regressed')
+        progress = current
+    return dict(transaction=transaction, sender_tid=sender, request_pointer=pointer,
+        source_audit_sequence=number(audit['fields']['sequence']), original_free_line=at['REQUEST_FREE']['line'],
+        complete_line=at['COMMIT']['line'], native_control_transaction_verified=True,
+        oneway=True, ACK_sent=False, reply_allocated=False, reply_sent=False, reply_received=False, **predecessors)
+
+
+def check_cp_ou_crank_control_content(run, manifest, rows, transport):
+    """Formal OP23 proof requires this run's native one-way retirement and all predecessors."""
+    transfers = transport['transfers']
+    jobs = [(index, tx) for index, tx in enumerate(transfers) if tx['opcode'] == 23]
+    family = 'FUNCTIONAL_CP_OU_CRANK_CONTROL_'
+    native = [r for r in rows if r['tag'].startswith(family)]
+    result = dict(required=bool(jobs), verified=False, content_join_verified=False, transactions=[],
+        native_completion_verified=False, native_control_transaction_verified=False, missing_native_observations=[],
+        frame_consumed=False, capture_verified=False, physical_asic_compatibility_verified=False)
+    if not jobs:
+        require(not native, 'OU crank native records lack actual Core23')
+        return result
+    for index, tx in jobs:
+        require(0 < index < len(transfers) - 1 and all(part.get('frame') is None and part.get('token') == 0 and
+                part.get('provider_kind') == 'core' for part in transfers[index - 1:index + 2]),
+                'OU crank queries/core/no-frame binding differs')
+        needed(type(tx.get('ou_crank_control')) is dict, 'OU crank independent actual C query event')
+        witness = tx['ou_crank_control']
+        if witness.get('kind') == 'ou_crank_control_rejected':
+            raise OuCrankControlRejected(witness)
+        bounded_control_witness(witness)
+        require(witness['opcode'] == 23 and witness['sequence'] == tx['first'] and
+                witness['model_instance'] == transport['model_instance'] and typed_equal(witness['origin'], tx['origin']) and
+                typed_equal(witness['request_payload'], tx['request_payload']) and
+                len(tx['output_payloads']) == 1 and typed_equal(witness['output_payload'], tx['output_payloads'][0]),
+                'OU crank actual typed Core23 success witness differs')
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and manifest.get('functional_camera_profile') == backup.get('functional_camera_profile') == PROFILE and
+            all({key for key in target if key.startswith('functional_camera_cp_ou_crank_control_')} ==
+                {'functional_camera_' + key for key in CP_OU_CRANK_CONTROL_POLICY} for target in (manifest, backup)) and
+            all(typed_equal(manifest.get('functional_camera_' + key), value) and
+                typed_equal(backup.get('functional_camera_' + key), value) for key, value in CP_OU_CRANK_CONTROL_POLICY.items()),
+            'OU crank lacks its complete explicit one-way mode0 software policy')
+    needed(native, 'OU crank original one-way EVENT/BYTES/resource36 records missing')
+    allowed = {family + name for name in ('EVENT', 'BYTES', 'RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+    for row in native:
+        require(row['tag'] in allowed and 'diagnostic' not in row and bool(row['fields']),
+                'OU crank failed/unknown/incomplete original formatter')
+        payload = (row['tag'] + ' ' + ' '.join(key + '=' + value for key, value in row['fields'].items())).encode('ascii')
+        require(console_producer_fields(payload) == row['fields'], 'OU crank original producer grammar differs')
+    native_ids = sorted({number(r['fields']['transaction']) for r in native if r['tag'] == family + 'EVENT'})
+    require(native_ids == list(range(1, len(jobs) + 1)) and
+            {number(r['fields']['transaction']) for r in native if r['tag'] == family + 'BYTES'} == set(native_ids),
+            'OU crank original transaction/event/byte census differs')
+    history = vdf_history(run, transport)
+    # These functions parse actual rows/payloads again. Cached caller booleans are never admission.
+    bank_proof = check_cp_parameter_bank(run, manifest, rows, transport)
+    current = dict(transport, parameter_bank=bank_proof)
+    crank_proof = check_cp_crank_control_content(run, manifest, rows, current)
+    current['crank_control_content'] = crank_proof
+    movie_proof = check_cp_movie_format_content(run, manifest, rows, current)
+    startup_proof = check_startup_control(run, manifest, rows, current)
+    needed(all(proof.get('verified') is True for proof in (bank_proof, crank_proof, movie_proof, startup_proof)),
+           'OU crank current bank/crank/movie/functional4057 actual native completion')
+    previous_end, covered = 0, set()
+    for ordinal, (index, tx) in enumerate(jobs):
+        before, after, origin = transfers[index - 1], transfers[index + 1], tx['origin']
+        require(before['opcode'] == after['opcode'] == 2 and typed_equal(before['origin'], origin) and
+                typed_equal(after['origin'], origin) and before['first'] == before['last'] == tx['first'] - 1 and
+                tx['first'] == tx['last'] == after['first'] - 1 and after['first'] == after['last'] and
+                before['line'] < tx['line'] < after['line'], 'OU crank live STATE/Core23 query order/origin differs')
+        previous = {}
+        for op in (20, 21, 22, 14):
+            found = [part for part in transfers[:index] if part['opcode'] == op]
+            require(found, 'OU crank lacks current bank/crank/movie/functional4057 canonical prior decode')
+            previous[op] = found[-1]
+        bank_tx, crank_tx, movie_tx, startup_tx = (previous[op] for op in (20, 21, 22, 14))
+        require(bank_tx['first'] < crank_tx['first'] < movie_tx['first'] < startup_tx['first'] < before['first'] and
+                startup_tx['origin']['command'] == 0x4057, 'OU crank current tuple/4057 order differs')
+        bank_value, crank_value, movie_value = (history[part['first']] for part in (bank_tx, crank_tx, movie_tx))
+        packet, raw = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+        prior, following = transfer_output(run, before), transfer_output(run, after)
+        value = cp_ou_crank_control_observation(tx['ou_crank_control']['observation'], raw, packet,
+            transport['model_instance'], prior, bank_value['bank_generation'], crank_value['crank_generation'],
+            movie_value['movie_generation'], tx['capacity'])
+        require(value == history[tx['first']] and following == raw[80:208] and value['fps'] == bank_value['fps'] and
+                origin['source'] == 0x80020002 and origin['destination'] == 0x90030001 and origin['command'] == 0x4072 and
+                origin['bytes'] == 12 and origin['fnv1a64'] == fnv(packet), 'OU crank actual whole input/current tuple/history differs')
+        proofs = []
+        for proof, source_tx in ((bank_proof, bank_tx), (crank_proof, crank_tx), (movie_proof, movie_tx)):
+            found = [item for item in proof['transactions'] if item['model_sequence'] == source_tx['first'] and
+                     item['model_instance'] == transport['model_instance']]
+            require(len(found) == 1, 'OU crank current native predecessor receipt missing/ambiguous/stale')
+            proofs.append(found[0])
+        settings = [item for item in startup_proof['cycles'] if item['first'] == startup_tx['first']]
+        require(len(settings) == 1 and typed_equal(tx['ou_crank_control']['observation']['predecessor_proof'],
+                startup_tx['frame']['proof']), 'OU crank predecessor proof is not this actual current4057')
+        joined = check_cp_ou_crank_native(run, rows, transport, tx, before, after, proofs[0], bank_tx,
+            proofs[1], crank_tx, proofs[2], movie_tx, settings[0], startup_tx, value, native_ids[ordinal], previous_end)
+        previous_end = joined['complete_line']
+        covered.update(joined['resource_lines'])
+        result['transactions'].append(dict(model_sequence=tx['first'], bank_model_sequence=bank_tx['first'],
+            crank_model_sequence=crank_tx['first'], movie_model_sequence=movie_tx['first'], startup_model_sequence=startup_tx['first'],
+            before_STATE_sequence=before['first'], after_STATE_sequence=after['first'], packet_sha256=sha(packet), result_sha256=sha(raw),
+            **value, **joined))
+    require(covered == {r['line'] for r in native if r['tag'].startswith(family + 'RESOURCE')},
+            'OU crank orphan/reused resource36 claim')
+    result.update(verified=True, content_join_verified=True, native_completion_verified=True,
+                  native_control_transaction_verified=True, native_records_observed=len(native))
+    return result
+
+
+def cp_parameter_mode_retirement(rows, begin_line, pid, instance):
+    """Use the real latest AP_FREE when the notification retires after COMMIT."""
+    resource_tags = {'FUNCTIONAL_CAMERA_CONTROL_' + name for name in
+                     ('RESOURCE_DEPENDENCIES', 'RESOURCES_TTS_TABLE', 'RESOURCES_RESERVED')}
+    history = [r for r in rows if r['tag'].startswith('FUNCTIONAL_CAMERA_CONTROL_') and
+               r['tag'] not in resource_tags and r['line'] < begin_line]
+    needed(history, 'parameter bank preceding current functional mode retirement')
+    require(all(r['tag'].removeprefix('FUNCTIONAL_CAMERA_CONTROL_') in
+                ('PROBE', 'SENT', 'AP_FREE', 'OWNED_FREE', 'COMMIT', 'RECEIVE') and 'diagnostic' not in r for r in history),
+            'parameter bank preceding mode contains a failed/unknown lifecycle')
+    row = history[-1]; mode = row['fields']
+    require(row['tag'] in ('FUNCTIONAL_CAMERA_CONTROL_COMMIT', 'FUNCTIONAL_CAMERA_CONTROL_AP_FREE') and
+            'diagnostic' not in row and all(mode.get(k) == '1' for k in
+                ('start_complete', 'mode1_complete', 'mode_complete', 'notification_AP_consumed')) and
+            all(mode.get(k) == '0' for k in ('faults', 'busy', 'guard')) and
+            number(mode['model_instance']) == instance and number(mode['pid']) == pid,
+            'parameter bank used historical mode1 before current ACK/full retirement')
+    if row['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_AP_FREE':
+        cycle, sender = mode.get('cycle_id'), mode.get('sender_tid')
+        commits = [r for r in history if r['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_COMMIT' and
+                   r['fields'].get('cycle_id') == cycle]
+        require(commits and commits[-1]['line'] < row['line'] and all(commits[-1]['fields'].get(k) == mode.get(k)
+                for k in ('pid', 'sender_tid', 'model_instance', 'config_generation', 'frame_generation',
+                          'cycle_generation', 'cycle_id', 'native_fnv1a')) and
+                mode.get('index') in ('3', '4') and mode.get('role') == ('3' if mode['index'] == '4' else '2') and
+                mode.get('lease_cycle_id') == cycle and mode.get('tid') == mode.get('free_tid') ==
+                mode.get('receiver_tid' if mode['index'] == '4' else 'sender_tid'),
+                'parameter bank current notification free transaction/generation/receiver differs')
+        leases = {}
+        for item in history:
+            f = item['fields']
+            if f.get('index') in ('0', '1') or f.get('cycle_id') == cycle:
+                leases[number(f['index'])] = item
+        require(set(leases) == set(range(5)), 'parameter bank current mode lacks all five retired leases')
+        for index, item in leases.items():
+            f = item['fields']
+            require('diagnostic' not in item and item['tag'] == 'FUNCTIONAL_CAMERA_CONTROL_' +
+                    ('AP_FREE' if index in (1, 3, 4) else 'OWNED_FREE') and f.get('pid') == str(pid) and
+                    number(f['model_instance']) == instance and f.get('retained') == '(nil)' and f.get('freed') == '1' and
+                    all(f.get(k) == '0' for k in ('faults', 'releasing', 'send_inflight', 'free_rc', 'send_rc', 'allocate_rc')) and
+                    (index not in (1, 3, 4) or f.get('queued') == f.get('received') == f.get('consumed') == '1') and
+                    (index < 2 or f.get('sender_tid') == sender and f.get('lease_cycle_id') == cycle and
+                     all(f.get(k) == mode.get(k) for k in
+                         ('cycle_id', 'cycle_generation', 'config_generation', 'frame_generation', 'native_fnv1a'))) and
+                    0 < number(f['free_tid']) < 2**31 and f.get('tid') == f.get('free_tid') ==
+                    f.get('receiver_tid' if index == 4 else 'sender_tid'),
+                    'parameter bank current mode lease is live/faulted/unconsumed/foreign')
+    return row
+
+
+def check_cp_parameter_bank(run, manifest, rows, transport):
+    """Join the complete functional bank to its original one-way request/free."""
+    transfers = transport['transfers']
+    jobs = [(i, tx) for i, tx in enumerate(transfers) if tx['opcode'] == 20]
+    events = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_EVENT']
+    chunks = [r for r in rows if r['tag'] == 'FUNCTIONAL_CP_PARAMETER_BANK_BYTES']
+    resources = [r for r in rows if r['tag'] in {'FUNCTIONAL_CP_PARAMETER_BANK' + suffix for suffix in
+                 ('_RESOURCE_DEPENDENCIES', '_RESOURCES_TTS_TABLE', '_RESOURCES_RESERVED')}]
+    result = dict(required=bool(jobs), verified=False, transactions=[], frame_consumed=False,
+                  capture_verified=False, physical_asic_compatibility_verified=False)
+    if not jobs:
+        require(not events and not chunks and not resources, 'parameter bank native records lack actual Core20')
+        return result
+    backup = manifest.get('backup_transport')
+    require(type(backup) is dict and all(typed_equal(manifest.get('functional_camera_' + key), value) and
+            typed_equal(backup.get('functional_camera_' + key), value) for key, value in CP_PARAMETER_BANK_POLICY.items()),
+            'parameter bank lacks its complete explicit software policy')
+    for row in events + chunks + resources:
+        needed('diagnostic' not in row and bool(row['fields']), 'parameter bank complete original formatter')
+        payload = (row['tag'] + ' ' + ' '.join(key + '=' + value for key, value in row['fields'].items())).encode('ascii')
+        require(console_producer_fields(payload) == row['fields'], 'parameter bank producer grammar differs')
+    ids = sorted({number(r['fields']['transaction']) for r in events})
+    needed(len(ids) == len(jobs) and ids and ids[0] > 0, 'parameter bank original transaction/event census')
+    require({number(r['fields']['transaction']) for r in chunks} == set(ids),
+            'parameter bank orphan or missing complete byte streams')
+    previous_bank, previous_line, covered_resources = 0, 0, set()
+    names = ('BEGIN', 'BEFORE', 'MODEL', 'AFTER', 'VERIFIED', 'OWNED_FREE', 'COMMIT')
+    for transaction, (index, tx) in zip(ids, jobs):
+        records = [r for r in events if number(r['fields']['transaction']) == transaction]
+        require([r['fields']['event'] for r in records] == list(names),
+                'parameter bank failed/replayed/missing original lifecycle')
+        at = dict(zip(names, records)); final = at['COMMIT']['fields']; origin = tx['origin']
+        require(index > 0 and index + 1 < len(transfers), 'parameter bank live State128 queries missing')
+        before, after = transfers[index - 1], transfers[index + 1]
+        require(before['opcode'] == after['opcode'] == 2 and before['origin'] == after['origin'] == origin and
+                before['first'] == before['last'] == tx['first'] - 1 and
+                tx['first'] == tx['last'] == after['first'] - 1 and after['first'] == after['last'] and
+                all(part['token'] == 0 and part.get('frame') is None and part.get('provider_kind') == 'core'
+                    for part in (before, tx, after)), 'parameter bank queries/core/no-frame binding differs')
+        needed(type(tx.get('parameter_bank')) is dict, 'parameter bank independent actual C query event')
+        packet, output = payload_read(run, tx['request_payload']), transfer_output(run, tx)
+        prior, following = transfer_output(run, before), transfer_output(run, after)
+        witness = tx['parameter_bank'].get('observation')
+        needed(type(witness) is dict, 'parameter bank independent C State128 observation')
+        require(raw_hex(witness, 'before_state_hex', 128) == prior and
+                raw_hex(witness, 'after_state_hex', 128) == following,
+                'parameter bank independent queries differ from bracketing live State128')
+        value = cp_parameter_bank_result(output, packet, transport['model_instance'], prior)
+        require(value['bank_generation'] == previous_bank + 1 and following == output[64:192] and
+                origin['source'] == 0x80020002 and origin['destination'] == 0x90030001 and
+                origin['command'] == 0x4063 and origin['bytes'] == 2564 and origin['fnv1a64'] == fnv(packet),
+                'parameter bank actual whole input/history/post-STATE differs')
+        previous_bank = value['bank_generation']
+        require(previous_line < at['BEGIN']['line'] < before['line'] < at['BEFORE']['line'] < tx['line'] <
+                at['MODEL']['line'] < after['line'] < at['AFTER']['line'] < at['VERIFIED']['line'] <
+                at['OWNED_FREE']['line'] < at['COMMIT']['line'], 'parameter bank original/call order differs')
+        native_streams = {}
+        for kind, size, event in (('request', 2564, 'BEGIN'), ('before_state', 128, 'BEFORE'),
+                                  ('receipt', 2756, 'MODEL'), ('after_state', 128, 'AFTER')):
+            selected = [r for r in chunks if number(r['fields']['transaction']) == transaction and r['fields']['kind'] == kind]
+            needed(selected, 'parameter bank full native bytes: ' + kind)
+            data = bytearray(); parent = at[event]; boundary = records[names.index(event) + 1]['line']
+            for row in selected:
+                f = row['fields']
+                require(parent['line'] < row['line'] < boundary and number(f['offset']) == len(data) and
+                        number(f['total']) == size and all(f[k] == parent['fields'][k] for k in
+                        ('pid', 'tid', 'native_fnv1a', 'model_instance', 'bank_generation')),
+                        'parameter bank byte chunk offset/identity/stage differs')
+                data.extend(raw_hex(f, 'raw', number(f['bytes'])))
+            require(len(data) == size, 'parameter bank native bytes truncated')
+            native_streams[kind] = bytes(data)
+        require(native_streams == dict(request=packet, before_state=prior, receipt=output, after_state=following),
+                'parameter bank original bank/result/query bytes differ from actual Core payloads')
+        for row in records:
+            f = row['fields']
+            require(all(number(f[key]) == value for key, value in dict(pid=transport['pid'], tid=origin['producer_tid'],
+                    sender_tid=origin['producer_tid'], source=origin['source'], destination=origin['destination'],
+                    command=0x4063, bytes=2564, cookie=struct.unpack_from('<I', packet, 4)[0]).items()) and
+                    int(f['native_fnv1a'], 16) == origin['fnv1a64'] and f['busy'] == '1' and
+                    f['error'] == f['model_rc'] == f['faults'] == '0', 'parameter bank native identity/error differs')
+        require(all(final[key] == '1' for key in ('model_called', 'model_committed', 'verified', 'owned', 'request_freed')) and
+                all(final[key] == '0' for key in ('guard', 'releasing', 'free_rc')) and final['retained'] == '(nil)' and
+                number(final['free_tid']) == origin['producer_tid'] and
+                number(final['commits']) == number(final['released']) == value['bank_generation'] and
+                all(number(final[key]) == value[key] for key in ('model_instance', 'bank_generation',
+                    'before_config_generation', 'config_generation', 'fps')) and
+                all(number(final[name + '_used']) == number(final[name + '_required']) == size and
+                    number(final[name + '_token']) == 0 and number(final[name + '_instance']) == transport['model_instance']
+                    for name, size in (('before', 128), ('bank', 2756), ('after', 128))),
+                'parameter bank actual commit/readback/request free is incomplete')
+        verified, freed = at['VERIFIED']['fields'], at['OWNED_FREE']['fields']
+        require(verified['owned'] == verified['verified'] == '1' and verified['request_freed'] == '0' and
+                verified['retained'] != '(nil)' and freed['request_freed'] == '1' and freed['free_rc'] == '0' and
+                freed['retained'] == '(nil)' and number(freed['released']) == value['bank_generation'],
+                'parameter bank lacked the retained original request before actual free')
+        audits = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT' and
+                  previous_line < r['line'] < at['BEGIN']['line'] and r['fields'].get('pointer') == verified['retained']]
+        require(len(audits) == 1, 'parameter bank missing/duplicate original pointer audit')
+        audit = audits[0]; af = audit['fields']; data = bytearray()
+        audit_chunks = [r for r in rows if r['tag'] == 'NATIVE_CP_BACKGROUND_INPUT_AUDIT_BYTES' and
+                        audit['line'] < r['line'] < at['BEGIN']['line'] and
+                        all(r['fields'].get(k) == af.get(k) for k in ('pid', 'tid', 'sequence'))]
+        for row in audit_chunks:
+            f = row['fields']; require(number(f['offset']) == len(data), 'parameter bank audit chunk gap/overlap')
+            data.extend(raw_hex(f, 'raw', number(f['bytes'])))
+        require(bytes(data) == packet and af['entry'] == 'async' and all(af.get(k) == '1' for k in
+                ('size_known', 'source_known', 'bytes_complete', 'complete')) and all(af.get(k) == '0' for k in
+                ('consumed', 'state_verified', 'capture_verified')) and all(number(af[k]) == v for k, v in
+                dict(pid=transport['pid'], tid=origin['producer_tid'], source=origin['source'],
+                     destination=origin['destination'], bytes=2564).items()), 'parameter bank original full audit differs')
+        held = [r for r in resources if at['BEGIN']['line'] < r['line'] < before['line']]
+        require([r['tag'] for r in held] == ['FUNCTIONAL_CP_PARAMETER_BANK' + suffix for suffix in
+                ('_RESOURCE_DEPENDENCIES', '_RESOURCES_TTS_TABLE', '_RESOURCES_RESERVED')],
+                'parameter bank independent resource33 cohort missing/reordered')
+        for row in held:
+            require(number(row['fields']['tid']) == origin['producer_tid'], 'parameter bank resource owner thread differs')
+            covered_resources.add(row['line'])
+        table, reserved = held[1]['fields'], held[2]['fields']
+        require(number(held[0]['fields']['pid']) == number(table['pid']) == transport['pid'],
+                'parameter bank resource33 PID differs from this original process')
+        fixed = dict(dmm_enabled='1', dmm_bound='1', dmm_slots='1/1', dmm_opens='1/1',
+            dmm_handles='0x8400/0x8401', dmm_generations='1/1', dmm_epochs='1/2', dmm_creators='1/1',
+            dmm_allocation_count='2', dmm_lifecycle_changed='0', dmm_domain='2', foreign_speech_kept='1',
+            control_bound='1', connection_started='1', connections='1', format_consumed='1', buffer_released='1',
+            connection_reply_frees='1', vef_init='1', vef_owner='0x905a0048', pinmem_init='1', pinmem_owner='0x90590818')
+        require(all(reserved[k] == expected for k, expected in fixed.items()) and
+                number(reserved['allocations']) == number(reserved['releases']) > 0 and
+                number(reserved['vef_objects']) > 0 and number(reserved['pinmem_objects']) > 0,
+                'parameter bank resource33 is not the admitted speech-initial allocation/idle registry')
+        speech = raw_hex(table, 'raw_before', 144)
+        require(raw_hex(table, 'raw_after', 144) == speech, 'parameter bank speech table changed during reservation')
+        for slot in range(2):
+            entry = slot * 0x48
+            require(struct.unpack_from('<I', speech, entry)[0] == 0x1a + slot and
+                    struct.unpack_from('<2I', speech, entry + 0x18) == (0x8400 | slot, 0x80000) and
+                    struct.unpack_from('<Q', speech, entry + 0x20)[0] == 0x1e000000 + slot * 0x80000,
+                    'parameter bank resource33 TTS bytes do not bind the two admitted DMM slots')
+        require(number(af['producer_return']) == number(table['appfw_base']) + 0x3535a68,
+                'parameter bank original one-way sender callsite differs')
+        cp_parameter_mode_retirement(rows, at['BEGIN']['line'], transport['pid'], transport['model_instance'])
+        result['transactions'].append(dict(transaction=transaction, bank_generation=value['bank_generation'],
+            source_audit_sequence=number(af['sequence']), original_free_line=at['OWNED_FREE']['line'],
+            model_sequence=tx['first'], before_STATE_sequence=before['first'], after_STATE_sequence=after['first'],
+            result_sha256=sha(output), packet_sha256=sha(packet), **{k: value[k] for k in
+            ('model_instance', 'before_config_generation', 'config_generation', 'frame_generation', 'fps')}))
+        previous_line = at['COMMIT']['line']
+    require(covered_resources == {r['line'] for r in resources}, 'parameter bank orphan resource33 claim')
+    result['verified'] = True
     return result
 
 
@@ -3363,11 +6026,98 @@ def camera_packets(raw):
     return packets
 
 
+def retained_frame_proof(op, incoming, output, p, delta, retained, generation, config, result_token, instance):
+    expected_kind = {17: 7, 18: 8, 19: 9, 66: 9}[op]
+    result_data = output if op in (17, 18) else b''
+    require(p['consumer_kind'] == expected_kind and p['result_bytes'] == len(result_data) and
+            p['result_fnv1a64'] == fnv(result_data) and p['result_token'] == result_token,
+            'retained frame result/proof binding differs')
+    if op == 17:
+        require(retained is None and len(incoming) == 16 and len(output) >= 96,
+                'retained capture overlaps an existing frame or is truncated')
+        version, header = struct.unpack_from('<2I', output)
+        token, model, lifetime, saved_config, frame_generation = struct.unpack_from('<5Q', output, 8)
+        width, height, stride, pixels = struct.unpack_from('<4I', output, 48)
+        size, digest = struct.unpack_from('<2Q', output, 64)
+        require(version == 1 and header == 96 and token and model == instance and
+                lifetime == p['model_lifetime'] and saved_config == config and frame_generation == generation + 1 and
+                0 < width <= 8192 and 0 < height <= 8192 and stride == width * 3 and pixels == 1 and
+                size == stride * height == len(output) - 96 and digest == fnv(output[96:]) and
+                output[80:84] == incoming[4:8] and output[84] == incoming[8] and
+                output[85:88] == bytes(3) and struct.unpack_from('<Q', output, 88)[0] == fnv(incoming),
+                'retained frame header/pixels/original request differ')
+        require(p['render_observed'] == 1 and p['render_status'] == 0 and
+                p['frame_generation'] == frame_generation and p['config_generation'] == saved_config and
+                p['lease_generation'] > 0 and (p['width'], p['height'], p['stride']) == (width, height, stride) and
+                p['active_bytes'] == size and p['source_fnv1a64'] == digest and
+                p['source_state'] == p['final_state'] == 3 and not p['retired'] and
+                p['retire_status'] == -errno.ENODATA and not p['encoder_consumed'] and
+                delta == dict(rendered=1, consumed=1, jpeg_encoded=0, video_encoded=0, retired=0),
+                'capture copy was falsely reported as encoding or retirement')
+        retained = dict(token=token, config=saved_config, frame=frame_generation,
+                        lease=p['lease_generation'], width=width, height=height, stride=stride,
+                        size=size, digest=digest, encoded_mask=0)
+    else:
+        require(retained is not None and len(incoming) in ((32, 160) if op == 18 else (0,) if op == 66 else (16,)) and
+                (op == 66 or struct.unpack_from('<Q', incoming)[0] == retained['token']) and
+                p['config_generation'] == retained['config'] and p['frame_generation'] == retained['frame'] and
+                p['lease_generation'] == retained['lease'] and
+                (p['width'], p['height'], p['stride']) == (retained['width'], retained['height'], retained['stride']) and
+                p['active_bytes'] == retained['size'] and p['source_fnv1a64'] == retained['digest'] and
+                not p['render_observed'] and delta['rendered'] == delta['video_encoded'] == 0,
+                'retained frame token/source/lifetime changed across calls')
+        if op == 18:
+            selector, reserved = struct.unpack_from('<2I', incoming, 8)
+            flags, width, height, quality = struct.unpack_from('<4I', incoming, 16)
+            require(selector <= 2 and not reserved and not retained['encoded_mask'] & (1 << selector) and
+                    flags & 3 in (1, 2) and not flags & ~7 and len(incoming) == (160 if flags & 4 else 32) and
+                    0 < width <= 8192 and 0 < height <= 8192 and 0 < quality <= 100 and
+                    (not flags & 4 or all(incoming[32:])), 'retained JPEG parameters/selector differ')
+            if flags & 2:
+                require(output[:2] == b'\xff\xda' and output[-2:] == b'\xff\xd9',
+                        'retained scan output lacks actual scan/EOI')
+                encoded = output
+            else:
+                parts = jpeg_parts(output)
+                require(parts['geometry'] == (width, height), 'retained JPEG target geometry differs')
+                encoded = parts['scan']
+            require(p['encoder_consumed'] == 1 and not p['retired'] and p['retire_status'] == -errno.ENODATA and
+                    p['final_state'] == 3 and
+                    delta == dict(rendered=0, consumed=1, jpeg_encoded=1, video_encoded=0, retired=0) and
+                    p['encoded_bytes'] == len(encoded) and p['encoded_fnv1a64'] == fnv(encoded),
+                    'retained JPEG was rerendered, retired, or lacks actual encoded bytes')
+            retained = dict(retained, encoded_mask=retained['encoded_mask'] | (1 << selector))
+        else:
+            require(not result_token and p['retired'] == 1 and p['retire_status'] == 0 and
+                    p['final_state'] == 1 and not p['encoder_consumed'] and
+                    not p['consumer_entered'] and not p['consumer_returned'] and
+                    delta == dict(rendered=0, consumed=0, jpeg_encoded=0, video_encoded=0, retired=1),
+                    'retained frame release lacks actual optical retirement')
+            if op == 19:
+                mask, disposition = struct.unpack_from('<2I', incoming, 8)
+                require(disposition in (0, 1) and mask == retained['encoded_mask'] and
+                        (disposition or mask & 1), 'retained release forged a completed selector')
+            return None
+    require(p['consumer_entered'] == p['consumer_returned'] == 1 and p['consumer_status'] == 0 and
+            p['consumer_before_state'] == p['consumer_after_state'] == 4 and
+            p['source_fnv1a64'] == p['consumer_before_fnv1a64'] == p['consumer_after_fnv1a64'],
+            'retained source copy/encoder read differs from immutable pixels')
+    return retained
+
+
 def check_frames(run, transport, *, require_media=True, require_codecs=None):
     # Existing component callers use require_codecs; both defaults still require all media jobs.
     require_media = require_media and require_codecs is not False
     jobs, counts, serial, lifetime, generation, config = [], None, 0, None, 0, None
     sensor_initialized, video_geometry, geometry = False, None, None
+    retained = None
+    for tx in transport['transfers']:
+        if tx['opcode'] == 22:
+            require(tx.get('frame') is None and tx.get('token') == 0,
+                    'movie format borrowed a frame proof or retained result')
+        if tx['opcode'] == 23:
+            require(tx.get('frame') is None and tx.get('token') == 0,
+                    'OU crank borrowed a frame proof or retained result')
     display_history = vdf_history(run, transport)
     for tx in transport['transfers']:
         op, event = tx['opcode'], tx.get('frame')
@@ -3390,13 +6140,30 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
                         struct.unpack_from('<I', raw, 16)[0] == 30 and struct.unpack_from('<I', raw, 108)[0] == 1,
                         'actual VIDEO_BEGIN configuration/State128 geometry differs')
         vdf = None
+        if op == 21:
+            crank = display_history[tx['first']]
+            require(event is None and crank['before_config_generation'] == config and
+                    crank['frame_generation'] == generation and tx['token'] == 0,
+                    'crank control borrowed a frame proof or changed frame/config history')
+            config = crank['config_generation']
+        if op == 22:
+            movie = display_history[tx['first']]
+            require(retained is None and movie['before_config_generation'] == config and movie['frame_generation'] == generation,
+                    'movie format changed frame/config history or overlaps a retained optical frame')
+            config = movie['config_generation']
+        if op == 23:
+            ou = display_history[tx['first']]
+            require(retained is None and event is None and tx['token'] == 0 and
+                    ou['before_config_generation'] == config and ou['frame_generation'] == generation,
+                    'OU crank changed frame/config history or overlaps a retained optical frame')
+            config = ou['config_generation']
         if op in CONFIG_OPERATIONS:
             vdf = display_history[tx['first']]
             require(vdf['before_config_generation'] == config and vdf['before_frame_generation'] == generation and
                     (vdf['width'], vdf['height']) == geometry and tx['token'] == 0,
                     'VDF before generations/geometry differ from actual model history')
             config = vdf['config_generation']
-        required = op in CONFIG_OPERATIONS or op in (16, 33, 34) or op == 1 and not sensor_initialized
+        required = op in CONFIG_OPERATIONS or op in (16, 17, 18, 19, 33, 34) or op == 66 and retained is not None or op == 1 and not sensor_initialized
         needed(not required or type(event) is dict, 'model_frame: actual per-job RGB consumer snapshot for opcode=' + str(op))
         if event is None:
             if op in (1, 2, 3, 32, 66) and counts is not None:
@@ -3420,7 +6187,8 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
         require(p['version'] == 1 and p['struct_bytes'] == 376 and p['serial'] == serial + 1 and
                 p['model_instance'] == transport['model_instance'] and p['owner_pid'] == transport['owner_pid'] and
                 p['model_lifetime'] > 0 and (lifetime is None or p['model_lifetime'] == lifetime) and
-                p['opcode'] == op and p['operation_status'] == 0 and p['config_generation'] == config,
+                p['opcode'] == op and p['operation_status'] == 0 and
+                (op in (18, 19) or op == 66 and retained is not None or p['config_generation'] == config),
                 'actual frame instance/lifetime/configuration/operation differs')
         before, after = p['before'], p['after']
         require(counts is None or before == counts, 'actual per-job counter history differs')
@@ -3428,6 +6196,19 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
         require(all(value >= 0 for value in delta.values()), 'actual model counters regressed')
         output = transfer_output(run, tx)
         kind = p['consumer_kind']
+        if op in (17, 18, 19) or op == 66 and retained is not None:
+            incoming = payload_read(run, tx['request_payload'])
+            retained = retained_frame_proof(op, incoming, output, p, delta, retained,
+                                             generation, config, tx['token'], transport['model_instance'])
+            serial, lifetime, counts = p['serial'], p['model_lifetime'], after
+            if op == 17:
+                generation = p['frame_generation']
+            if op == 66:
+                require(state_counts == {k: after[k] for k in state_counts} and state_generation == generation,
+                        'retained CANCEL State128 differs from actual retirement')
+            jobs.append({'first': tx['first'], 'opcode': op, 'proof': p,
+                         'retained_frame_operation': True, 'encoded_result_sha256': tx['sha256']})
+            continue
         result_data = b'' if kind in (0, 4) and op not in (12, 13, 14) else output
         require(p['result_bytes'] == len(result_data) and p['result_fnv1a64'] == fnv(result_data) and p['result_token'] == tx['token'],
                 'actual coded result is not this frame job output')
@@ -3476,6 +6257,14 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
                             job['proof']['packet_generation'] == packet['generation'] for job in jobs) for packet in packets),
                             'actual drained packet lacks a prior same-generation encoder consumption')
                 require(op != 34 or packets and packets[-1]['eos'], 'actual encoder drain/EOS missing')
+                if op == 33:
+                    incoming = payload_read(run, tx['request_payload'])
+                    require(incoming in (b'', b'\x01\x00\x00\x00'),
+                            'actual video frame force-IDR flags differ')
+                    if incoming:
+                        require(len(packets) == 1 and packets[0]['key'] == 1 and
+                                any(nal[0] & 31 == 5 for nal in packets[0]['nals']),
+                                'forced video frame lacks actual IDR NAL')
             require(p['encoded_bytes'] == len(encoded) and p['encoded_fnv1a64'] == fnv(encoded),
                     'actual encoder-coded bytes differ from reconstructed result')
         serial, lifetime, generation, counts = p['serial'], p['model_lifetime'], p['frame_generation'], after
@@ -3484,6 +6273,7 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
         if op == 1:
             require(state_counts == {k: after[k] for k in state_counts} and state_generation == generation,
                     'actual INIT State128/probe receipt differs')
+    needed(retained is None, 'model_frame: retained optical frame has not been retired')
     needed(sensor_initialized, 'model_frame: actual INIT sensor probe')
     needed(not require_media or all(any(job['opcode'] == op for job in jobs) for op in (16, 33, 34)),
            'model_frame: actual INIT, JPEG, H264 and drain jobs')
@@ -3500,6 +6290,68 @@ def stored_bytes(storage, item):
     require(len(raw) == item['bytes'] and sha(raw) == item['sha256'] and f'{fnv(raw):016x}' == item['fnv1a64'],
             'decoded SD product changed before compressed-data join')
     return raw
+
+
+def check_retained_jpeg_input(run, job, tx, transport, body, selector):
+    binding = job['original-input-binding']
+    descriptor = job['original-input-descriptor']
+    released = job['original-input-release']
+    bf, df, rf = binding['fields'], descriptor['fields'], released['fields']
+    token = number(bf['frame_token'])
+    incoming = payload_read(run, tx['request_payload'])
+    require(len(incoming) == 32 and struct.unpack_from('<QII', incoming) == (token, selector, 0),
+            'retained native JPEG request token/selector differs')
+    sources = [t for t in transport['transfers'] if t['opcode'] == 17 and t['first'] < tx['first'] and
+               len(transfer_output(run, t)) >= 96 and struct.unpack_from('<Q', transfer_output(run, t), 8)[0] == token]
+    require(len(sources) == 1, 'retained native input lacks unique prior actual CMOS capture')
+    source = sources[0]
+    frame = transfer_output(run, source)
+    original = payload_read(run, source['request_payload'])
+    origin = source['origin']
+    require(len(original) == 16 and original[:4] == b'\x05\x00\x38\x40' and
+            original[8] in (2, 10, 12, 8, 9, 3) and original[9:12] == bytes(3) and
+            origin['source'] == 0x80020002 and origin['destination'] == 0x90040193 and
+            origin['command'] == 0x4038 and origin['bytes'] == 16 and origin['fnv1a64'] == fnv(original) and
+            frame[80:84] == original[4:8] and frame[84] == original[8] and
+            struct.unpack_from('<Q', frame, 88)[0] == fnv(original), 'retained input original4038 correlation differs')
+    model, lifetime, config, generation = struct.unpack_from('<4Q', frame, 16)
+    width, height, stride, pixel_format = struct.unpack_from('<4I', frame, 48)
+    size, digest = struct.unpack_from('<2Q', frame, 64)
+    require(model == transport['model_instance'] and lifetime == number(bf['frame_lifetime']) and
+            config == number(bf['input_cfg']) and generation == number(bf['input_frame']) and
+            size == len(frame) - 96 == width * height * 3 == number(bf['source_bytes']) and
+            pixel_format == 1 and stride == width * 3 and fnv(frame[96:]) == digest == int(bf['source_fnv'], 16),
+            'retained native input changed source RGB or captured identity')
+    needed(type(tx.get('frame')) is dict, 'retained native JPEG actual frame proof')
+    proof = tx['frame']['proof']
+    require(proof['consumer_kind'] == 8 and proof['model_lifetime'] == lifetime and
+            proof['config_generation'] == config and proof['frame_generation'] == generation and
+            proof['source_fnv1a64'] == proof['consumer_before_fnv1a64'] == proof['consumer_after_fnv1a64'] == digest and
+            proof['render_observed'] == proof['retired'] == 0 and proof['encoder_consumed'] == 1,
+            'native JPEG rerendered instead of consuming retained source')
+    image = raw_hex(df, 'image72', 72)
+    metadata_unit, pixel_unit = number(bf['metadata_unit']), number(bf['pixel_unit'])
+    require(metadata_unit and pixel_unit and metadata_unit != pixel_unit and
+            struct.unpack_from('<3I', body, 0x18) == (0, metadata_unit, 0) and
+            struct.unpack_from('<2I', image) == (0, pixel_unit) and image[8:28] == bytes(20) and
+            image[0x1c] == 1 and image[0x1d] == 0 and image[0x1f:0x26] == bytes([0, 0, 8, 1, 1, 2, 0]) and
+            struct.unpack_from('<2H', image, 0x2e) == (width, height) and
+            image[0x32:0x36] == bytes(4) and struct.unpack_from('<2H', image, 0x36) == (width, height) and
+            image[0x3a:0x3e] == bytes(4) and struct.unpack_from('<2H', image, 0x3e) == (width, height) and
+            struct.unpack_from('<H', image, 0x42)[0] == 0,
+            'original typed metadata/pixel descriptor differs from source allocation')
+    require(number(df['metadata_address']) and number(df['metadata_bytes']) == 1024 and
+            number(df['pixel_address']) and number(df['pixel_bytes']) == size and df['input_readonly'] == '1' and
+            re.fullmatch('[0-9a-f]{16}', df['metadata_fnv']) and
+            all(number(bf[key]) > 0 and number(rf[key]) == number(bf[key]) for key in ('metadata_token', 'pixel_token')) and
+            number(rf['frame_token']) == token and rf['input_release_rc'] == '0' and
+            rf['actual_native_terminal'] == rf['input_refs_released'] == '1' and
+            tx['line'] < binding['line'] < descriptor['line'] < job['output-readback']['line'] and
+            job['original-maincomp-config']['line'] < released['line'] < job['original-rescmd-done']['line'],
+            'native input was released before actual MainComp DONE or changed its held ranges')
+    return dict(model_instance=model, model_lifetime=lifetime, frame_token=token,
+                config_generation=config, frame_generation=generation, source_fnv1a64=f'{digest:016x}',
+                source_geometry=(width, height), source_capture_first=source['first'])
 
 
 def check_jpeg(rows, transport, storage, run=None):
@@ -3556,7 +6408,11 @@ def check_jpeg(rows, transport, storage, run=None):
                     event['fields'].get('model_instance') == of['model_instance']
                     for tag, event in job.items() if tag not in ('original-request', 'original-request-lease')),
                 'JPEG native consumption/readback order/hash differs')
-        transfers = [tx for tx in transport['transfers'] if tx['opcode'] == 16 and
+        retained_input = any(tag in job for tag in ('original-input-binding', 'original-input-descriptor', 'original-input-release'))
+        if retained_input:
+            require(main and all(tag in job for tag in ('original-input-binding', 'original-input-descriptor', 'original-input-release')),
+                    'retained JPEG lacks complete native input lifecycle receipts')
+        transfers = [tx for tx in transport['transfers'] if tx['opcode'] == (18 if retained_input else 16) and
                      tx['origin']['source'] == number(f['source']) and tx['origin']['destination'] == number(f['destination']) and
                      tx['origin']['command'] == number(f['command']) and
                      tx['origin']['fnv1a64'] == int(f['trigger_fnv'], 16) and
@@ -3615,12 +6471,31 @@ def check_jpeg(rows, transport, storage, run=None):
                 int(of['readback_fnv'], 16) == int(of['output_fnv'], 16) == fnv(encoded[skip:]),
                 'actual encoder result differs from original leased JPEG readback bytes')
         still = payload_read(run, tx['request_payload'])
+        input_identity = None
+        if retained_input:
+            input_identity = check_retained_jpeg_input(run, job, tx, transport, body, selector)
+            still = still[16:]
+        if 'original-output-retained' in job:
+            copied = job['original-output-retained']
+            cf = copied['fields']
+            needed(all(key in cf for key in ('frame_token', 'copied_bytes', 'copied_fnv',
+                    'original_output_bytes', 'original_output_fnv', 'model_token', 'lease_token', 'actual_native_terminal')),
+                   'retained native JPEG output copy missing content/lease fields')
+            require(main and retained_input and selector in (0, 1) and
+                    job['original-maincomp-config']['line'] < copied['line'] < job['original-input-release']['line'] < done['line'] and
+                    number(cf['frame_token']) == number(job['original-input-binding']['fields']['frame_token']) and
+                    number(cf['copied_bytes']) == len(encoded) and int(cf['copied_fnv'], 16) == fnv(encoded) and
+                    number(cf['original_output_bytes']) == len(encoded) - skip and
+                    int(cf['original_output_fnv'], 16) == fnv(encoded[skip:]) and
+                    number(cf['model_token']) == tx['token'] and number(cf['lease_token']) == number(lease['lease_token']) and
+                    cf.get('actual_native_terminal') == '1',
+                    'retained native JPEG output copy lost actual bytes/lease or preceded MainComp DONE')
         require(len(still) == 16 and struct.unpack_from('<4I', still)[:3] == (1, *parts['geometry']) and
                 all(a == 0 or a == b for a, b in zip(struct.unpack_from('<2H', body, 0x40), parts['geometry'])),
                 'actual original JPEG dimensions differ from encoder job')
         needed(type(tx.get('frame')) is dict, 'JPEG actual same-frame encoder proof')
         proof = tx['frame']['proof']
-        require(proof['consumer_kind'] == 1 and proof['model_instance'] == transport['model_instance'] and
+        require(proof['consumer_kind'] == (8 if retained_input else 1) and proof['model_instance'] == transport['model_instance'] and
                 all(proof[key] > 0 for key in ('model_lifetime', 'config_generation', 'frame_generation')),
                 'JPEG transfer has wrong actual consumer/instance/generation')
         receivers = []
@@ -3678,7 +6553,8 @@ def check_jpeg(rows, transport, storage, run=None):
                     'JPEG independent MainComp Exec/ACK argument/original config readback differs')
             for tag, event in job.items():
                 if tag in ('original-maincomp-exec', 'original-maincomp-config', 'original-received-done',
-                           'original-freed-done', 'original-rescmd-done'):
+                           'original-freed-done', 'original-rescmd-done', 'original-input-release',
+                           'original-output-retained'):
                     require(number(event['fields']['comp_object']) == comp, 'JPEG MainComp object drift')
                 else:
                     require(event['fields']['comp_object'] == '(nil)', 'JPEG premature MainComp association')
@@ -3711,6 +6587,7 @@ def check_jpeg(rows, transport, storage, run=None):
                         'join_identity': {key: f[key] for key in ('pid', 'source', 'destination', 'manager', 'control', 'context')},
                         'primary_geometry': primary, 'native_config': job['original-maincomp-exec']['fields']['native_config'] if main else None,
                         'cross_selector_same_sensor_frame_verified': False,
+                        'retained_input_identity': input_identity,
                         'original_method_and_ResCmd_observed': True, 'actual_reply_free_verified': True, 'raw_request_observed': True,
                         'output_readback_bytes': number(of['bytes']), 'output_fnv1a64': of['output_fnv'],
                         'lease': {key: lease[key] for key in lease if key.startswith('lease_')},
@@ -3773,8 +6650,9 @@ def check_video(rows, transport, storage, run=None):
         command = number(f['command'])
         require(command not in by_command, 'ambiguous repeated video operation')
         by_command[command] = row
-    needed(set(by_command) == {0, 1, 3, 4}, 'FUNCTIONAL_MPR_OPERATION: successful original Open/Start/Stop/Close commands 0,1,3,4')
-    require([by_command[c]['line'] for c in (0, 1, 3, 4)] == sorted(by_command[c]['line'] for c in (0, 1, 3, 4)),
+    needed(set(by_command) in ({0, 1, 3, 4}, {0, 1, 2, 3, 4}), 'FUNCTIONAL_MPR_OPERATION: successful original Open/Start/Stop/Close commands 0,1,3,4')
+    lifecycle = (0, 1, 2, 3, 4) if 2 in by_command else (0, 1, 3, 4)
+    require([by_command[c]['line'] for c in lifecycle] == sorted(by_command[c]['line'] for c in lifecycle),
             'original video operation order differs')
     start_fnv = number(packets[0]['fields']['native_start_fnv'])
     require(start_fnv == number(by_command[1]['fields']['native_fnv']), 'packet has different original Start digest')
@@ -3787,7 +6665,7 @@ def check_video(rows, transport, storage, run=None):
     received = [row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_EVENT_RECEIVED']
     freed = [row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_EVENT_FREE']
     needed(received and freed, 'FUNCTIONAL_MPR_EVENT_RECEIVED/FUNCTIONAL_MPR_EVENT_FREE')
-    require(len(received) == len(freed) == 4, 'original video event receive/free count differs')
+    require(len(received) == len(freed) == len(lifecycle), 'original video event receive/free count differs')
     seen, commands = set(), set()
     for recv in received:
         f = recv['fields']
@@ -3804,9 +6682,9 @@ def check_video(rows, transport, storage, run=None):
                 f.get('rc') == free['fields'].get('rc') == '0' and number(f['src']) == 0x8055001f and
                 number(f['dst']) == 0x80c70047 and number(f['command']) in by_command,
                 'original event receive/free SID/body/lifecycle differs')
-    require(commands == {0, 1, 3, 4}, 'missing actual Open/Start/Stop/Close event consumption')
+    require(commands == set(lifecycle), 'missing actual Open/Start/Stop/Close event consumption')
     requests = [row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_REQUEST']
-    needed(len(requests) == 4, 'FUNCTIONAL_MPR_REQUEST: actual original Open/Start/Stop/Close raw bytes')
+    needed(len(requests) == len(lifecycle), 'FUNCTIONAL_MPR_REQUEST: actual original Open/Start/Stop/Close raw bytes')
     request_jobs, last_request = {}, 0
     opened_fields = opened[0]['fields']
     memory_generation = number(opened_fields['memory_generation'])
@@ -3831,6 +6709,28 @@ def check_video(rows, transport, storage, run=None):
                     ('request_seq', 'epoch', 'memory_generation', 'pid', 'producer_tid', 'native_fnv')) and
                 number(operation['instance']) == transport['model_instance'], 'original video operation/request identity differs')
         request_jobs[command], last_request = request, seq
+    force_requests = [row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_FORCE_REQUEST']
+    force_done = [row for row in rows if row['tag'] == 'FUNCTIONAL_MPR_FORCE_IDR']
+    require(len(force_requests) == len(force_done) == int(2 in by_command),
+            'native command2 opaque/waiter/completion receipts missing or extra')
+    force_factor = None
+    if force_requests:
+        request, fr = request_jobs[2], force_requests[0]
+        rf, f = request['fields'], fr['fields']
+        original, opaque = raw_hex(rf, 'wire_hex', 48), raw_hex(f, 'opaque4', 4)
+        force_factor = number(f['expected_factor'])
+        require(force_factor in (1, 0x1004) and number(f['expected_result']) >= 4096 and
+                request['line'] < fr['line'] < by_command[2]['line'] and
+                number(f['request_seq']) == number(rf['request_seq']) and number(f['native_fnv']) == fnv(original) and
+                struct.unpack_from('<I', original, 0x10)[0] == number(f['parameter_bytes']) == 4 and
+                struct.unpack_from('<Q', original, 8)[0] == number(f['parameter_p']) and
+                struct.unpack_from('<Q', original, 0x28)[0] == number(f['parameter_v']) and
+                by_command[1]['line'] < request['line'] and
+                all(number(f[k]) > 0 for k in ('parameter_generation', 'parameter_token', 'parameter_v')) and
+                number(f['parameter_fnv']) == fnv(opaque) and number(f['opaque_word']) == int.from_bytes(opaque, 'little') and
+                f.get('software_policy') == 'opaque4-force-this-frame-v1' and
+                f.get('original_argument_semantics_verified') == f.get('capture_verified') == '0',
+                'native command2 opaque parameter/pin/waiter source differs')
     for recv in received:
         f = recv['fields']
         free = next(row for row in freed if row['fields']['seq'] == f['seq'])
@@ -3840,7 +6740,7 @@ def check_video(rows, transport, storage, run=None):
         rf = request['fields']
         original = raw_hex(rf, 'wire_hex', 48)
         event_wire = bytearray(48)
-        struct.pack_into('<H', event_wire, 2, command * 2 + 1)
+        struct.pack_into('<H', event_wire, 2, (4 if force_factor == 1 else 5) if command == 2 else command * 2 + 1)
         event_wire[0x18], event_wire[0x1c] = original[0x18], original[0x1c]
         event_wire[0x1a:0x1c] = original[0x1a:0x1c]
         struct.pack_into('<I', event_wire, 0x24, 0x4e0)
@@ -3866,15 +6766,26 @@ def check_video(rows, transport, storage, run=None):
     video_transfers = [tx for tx in transport['transfers'] if tx['opcode'] in (33, 34)]
     needed(video_transfers, 'actual video encoder result transfer')
     config, actual_samples, actual_packets, sources = None, [], [], []
+    forced_transfers = [tx for tx in video_transfers if tx['origin']['command'] == 2]
+    require(len(forced_transfers) == int(2 in by_command), 'native command2 forced transfer count differs')
     for tx in video_transfers:
-        command = 3 if tx['opcode'] == 34 else 1
+        command = tx['origin']['command']
+        require(command in ((3,) if tx['opcode'] == 34 else (1, 2)) and command in request_jobs,
+                'actual video frame lost native Start/command2/Stop origin')
         rf = request_jobs[command]['fields']
         require(tx['origin']['fnv1a64'] == number(rf['native_fnv']) and tx['origin']['command'] == command and
                 tx['origin']['source'] == 0x80c70047 and tx['origin']['destination'] == 0x8055001f and
                 tx['origin']['bytes'] == 48 and type(tx.get('frame')) is dict,
                 'actual video frame lost native Start/Stop origin or frame proof')
         raw = transfer_output(run, tx)
-        for packet in camera_packets(raw):
+        decoded_packets = camera_packets(raw)
+        if command == 2:
+            require(tx['opcode'] == 33 and payload_read(run, tx['request_payload']) == b'\x01\x00\x00\x00' and
+                    len(decoded_packets) == 1 and decoded_packets[0]['packet'] and decoded_packets[0]['key'] == 1 and
+                    any(nal[0] & 31 == 5 for nal in decoded_packets[0]['nals']) and
+                    force_requests[0]['line'] < tx['line'] < force_done[0]['line'],
+                    'native command2 lacks its own actual forced IDR NAL5 transfer')
+        for packet in decoded_packets:
             if packet['packet']:
                 if config is None:
                     config = packet['parameters']
@@ -3925,7 +6836,7 @@ def check_video(rows, transport, storage, run=None):
                     number(ef['pid']) == transport['pid'] and number(ef['epoch']) == epoch and
                     number(ef['instance']) == transport['model_instance'] and number(ef['memory_generation']) == memory_generation and
                     number(ef['native_start_fnv']) == start_fnv and number(ef['request_seq']) == number(f['request_seq']) and
-                    number(ef['call_request_seq']) == number(request_jobs[3 if tx['opcode'] == 34 else 1]['fields']['request_seq']) and
+                    number(ef['call_request_seq']) == number(request_jobs[tx['origin']['command']]['fields']['request_seq']) and
                     number(ef['call_native_fnv']) == tx['origin']['fnv1a64'] and
                     number(ef['model_token']) == tx['token'] and number(ef['result_bytes']) == tx['bytes'] and
                     number(ef['source_offset']) == offset and number(ef['source_bytes']) == len(original) and
@@ -3979,6 +6890,20 @@ def check_video(rows, transport, storage, run=None):
         published[index] = publication
         write_cursor, slot_generations[slot] = slot, number(f['slot_generation'])
     require(used == es_used <= number(opened_fields['es_capacity']), 'actual ES aggregate/capacity differs')
+    if forced_transfers:
+        tx, done = forced_transfers[0], force_done[0]
+        f, rf = done['fields'], force_requests[0]['fields']
+        actual_publications = [r for r in publishes if number(r['fields']['call_request_seq']) == number(rf['request_seq'])]
+        forced_packets = [r for r in packets if number(r['fields']['model_token']) == tx['token']]
+        receive = next(r for r in received if number(r['fields']['command']) == 2)
+        require(actual_publications and len(forced_packets) == 1 and
+                max(r['line'] for r in actual_publications + forced_packets) < done['line'] < receive['line'] and
+                done['line'] < by_command[2]['line'] and
+                all(f.get(k) == rf.get(k) for k in ('request_seq', 'native_fnv', 'opaque_word', 'expected_factor', 'expected_result',
+                    'software_policy', 'original_argument_semantics_verified', 'capture_verified')) and
+                number(f['model_token']) == tx['token'] and number(f['frame_generation']) == tx['frame']['proof']['packet_generation'] and
+                f.get('actual_IDR_NAL5') == f.get('publication_complete') == '1',
+                'native command2 success preceded actual ES/PI/counter publication or changed waiter')
     returned, prior_read, outstanding = set(), 0, 0
     for row in sorted(publishes + returns, key=lambda row: row['line']):
         f = row['fields']
@@ -4049,6 +6974,7 @@ def check_video(rows, transport, storage, run=None):
             'memory_generation': memory_generation, 'last_frame_generation': previous_generation, 'last_es_used': es_used,
             'event_receive_free_pairs': len(seen), 'original_PI_consumer_observed': True,
             'PI_published_and_returned': len(published), 'raw_encoded_NAL_join_verified': True,
+            'native_forced_IDR_requests': len(forced_transfers), 'native_force_waiter_factor': force_factor,
             'path': item['path'], 'samples': len(actual_samples),
             'ordered_NAL_payload_sha256': sha(b''.join(nal for sample in actual_samples for nal in sample)),
             'sample_extents': movie['extents'], 'original_Fsys_contributions': item['areas'],
@@ -4131,6 +7057,15 @@ def evaluate(run, batch):
             code = 'TRACE_MISSING' if isinstance(error, (MissingEvidence, FileNotFoundError)) else 'EVIDENCE_INVALID'
             result['missing'].append({'code': code, 'stage': name, 'detail': f'{type(error).__name__}: {error}'})
             result['evidence'][name] = {'verified': False}
+            if isinstance(error, CrankControlRejected):
+                result['evidence'][name].update(crank_control_rejected=error.event,
+                    capture_verified=False, physical_asic_compatibility_verified=False)
+            if isinstance(error, MovieFormatRejected):
+                result['evidence'][name].update(movie_format_rejected=error.event,
+                    capture_verified=False, physical_asic_compatibility_verified=False)
+            if isinstance(error, OuCrankControlRejected):
+                result['evidence'][name].update(ou_crank_control_rejected=error.event,
+                    capture_verified=False, physical_asic_compatibility_verified=False)
             return None
     run = stage('run', writeback.directory, run)
     if run is None:
@@ -4187,6 +7122,18 @@ def evaluate(run, batch):
             result['missing'].extend(dict(item, stage='functional_AP_source_snapshot_consumed')
                                      for item in source.get('missing', []))
     if transport is not None:
+        if transport.get('crank_control_content', {}).get('required'):
+            result['evidence']['crank_control_content'] = transport['crank_control_content']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='crank_control_native', detail=detail)
+                                     for detail in transport['crank_control_content']['missing_native_observations'])
+        if transport.get('movie_format_content', {}).get('required'):
+            result['evidence']['movie_format_content'] = transport['movie_format_content']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='movie_format_native', detail=detail)
+                                     for detail in transport['movie_format_content']['missing_native_observations'])
+        if transport.get('ou_crank_control_content', {}).get('required'):
+            result['evidence']['ou_crank_control_content'] = transport['ou_crank_control_content']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='ou_crank_control_native', detail=detail)
+                                     for detail in transport['ou_crank_control_content']['missing_native_observations'])
         if transport['background_start']['required']:
             result['evidence']['background_start'] = transport['background_start']
             # A successful full transport supersedes the preliminary no-broker pass.
@@ -4204,6 +7151,10 @@ def evaluate(run, batch):
             result['evidence']['startup_control'] = transport['startup_control']
             result['missing'].extend(dict(code='TRACE_MISSING', stage='startup_control', detail=detail)
                                      for detail in transport['startup_control']['missing'])
+        if transport['focus_reset']['required']:
+            result['evidence']['focus_reset'] = transport['focus_reset']
+            result['missing'].extend(dict(code='TRACE_MISSING', stage='focus_reset', detail=detail)
+                                     for detail in transport['focus_reset']['missing'])
         if transport['histogram']['required']:
             result['evidence']['histogram'] = transport['histogram']
         if transport['control']['required']:

@@ -18,7 +18,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 REPORT = HERE.parents[1] / "report"
-EVIDENCE = HERE / "scratch/functional-still-format-owner"
+EVIDENCE = HERE.parents[1] / "validation/tmp/functional-still-format-owner"
 SOURCES = (
     "functional-camera-core/functional-camera-core.c",
     "virtual-optics/optics.c",
@@ -28,6 +28,7 @@ SOURCES = (
     "virtual-jpeg-sos/jpeg-sos.c",
     "virtual-video-engine/video-engine.c",
     "virtual-camera-pipeline/camera-pipeline.c",
+    "../runtime/analysis/device-models/cp-parameter-batch.c",
 )
 PREFLIGHT = ("old-M", "short", "long", "source", "type", "command", "destination",
              "default-off", "predecessor", "no-init", "no-active", "torn-preflight")
@@ -66,7 +67,7 @@ def owner_binary(request):
         "functional-still-format.c", "functional-still-format.h", "test-functional-still-format.c",
         "cp-capture-format.c", "cp-capture-format.h")]
     inputs += [REPORT / source for source in SOURCES]
-    save_log(f"inputs-{mode}.json", {str(path.relative_to(HERE.parents[1])): hashlib.sha256(path.read_bytes()).hexdigest()
+    save_log(f"inputs-{mode}.json", {str(path.resolve().relative_to(HERE.parents[1])): hashlib.sha256(path.read_bytes()).hexdigest()
                                     for path in inputs})
     with tempfile.TemporaryDirectory(prefix=f"build-{mode}-", dir=EVIDENCE) as directory:
         binary = Path(directory) / "functional-still-format"

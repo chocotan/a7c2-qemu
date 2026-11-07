@@ -25,6 +25,9 @@ struct fcam_model;
 #define FCAM_PROOF_VDF UINT64_C(4)
 #define FCAM_PROOF_BB_STARTUP UINT64_C(5)
 #define FCAM_PROOF_HISTOGRAM UINT64_C(6)
+#define FCAM_PROOF_FRAME_CAPTURE UINT64_C(7)
+#define FCAM_PROOF_FRAME_STILL UINT64_C(8)
+#define FCAM_PROOF_FRAME_RELEASE UINT64_C(9)
 struct fcam_proof_counts {
     uint64_t rendered, consumed, jpeg_encoded, video_encoded, retired;
 };
@@ -138,12 +141,46 @@ void fcam_model_destroy(struct fcam_model *model);
  * notification, UI or original capture acceptance is established by these ops.
  * Recording/pending-result/busy/fault states reject before touching old work.
  * Route mapping is functional-profile policy, not a Sony physical ASIC claim.
+ * CP_PARAMETER_BANK(full original2564) returns ParameterBank2756. Every slot
+ * is validated by a fresh strict one-shot stager, then the whole bank is saved.
+ * The explicit software projection changes only Config48 fps from slot4151;
+ * existing configure commits one generation even when fps is unchanged. All
+ * validation precedes this commit; rejected transactions preserve bank/config.
+ * Requires INIT, idle stream/optics and no result or retained frame. There is
+ * no rendering, encoding, frame-generation change or new frame proof. The
+ * bank's committed State128 and all2564 bytes have an independent read API;
+ * later Configure/STATE/CANCEL preserve this historical bank receipt.
+ * CP_CRANK_CONTROL(full original12) returns Crank208. The declared finite
+ * software mode0 consumes unchanged current Config48/FPS through configure,
+ * advances config_generation once, and consumes one authorization from the
+ * current committed parameter-bank generation. Repeat on that bank is ESTALE.
+ * Requires initialized same-instance valid bank/FPS, idle stream/optics and no
+ * pending result/retained frame. Byte1/cookie remain opaque; bytes8..11 are0.
+ * Rejection preserves authorization/state/output; no frame proof or media.
+ * CP_MOVIE_FORMAT(full original20) returns MovieFormat240 after a committed
+ * same-instance parameter bank and crank. Observed format5/raw rate1,0 maps
+ * to existing RGB888/H.264 at the current bank FPS. Configure consumes actual
+ * current Config48 unchanged; only config_generation advances. One transaction
+ * per bank/crank pair; no frame lease/proof/media. Byte1/cookie/11/19 are opaque.
+ * Once installed, its sealed mapping is checked at VIDEO_BEGIN and actual video
+ * consumers; callers without this bank keep the existing route. Later Configure
+ * preserves the historical receipt without requiring old State128 == live state.
+ * CP_OU_CRANK_CONTROL(full original12/type5/4072/body0) returns OuCrank224.
+ * Requires the current bank/crank/movie tuple and just-completed functional4057
+ * settings/config40/seal plus its successful real RGB proof at current generation.
+ * Existing configure consumes unchanged Config48 once per tuple; only config
+ * generation advances. No frame/proof/media/native reply is produced.
  * AUTOFOCUS(AF32) returns: u64 focus_um,
  * u64 score_Q16, u32 coarse_samples,refinement_samples; bytes24..31 zero.
  * STILL returns encoded JPEG or its actual SOS/entropy/EOI suffix. VIDEO_FRAME
  * and VIDEO_END return Packet96 + actual Annex-B config + actual packet bytes;
  * a buffered frame has zero used/total/token, while real drained EOS always has
- * a Packet96 header with FCAM_PACKET_EOS. No MP4 mux or host file writes.
+ * a Packet96 header with FCAM_PACKET_EOS. VIDEO_FRAME's optional four-byte
+ * FORCE_IDR flag is validated before rendering and encodes that real RGB frame.
+ * It succeeds only with one actual key packet containing IDR NAL type5; missing
+ * output faults the stream after consumption, so it must not be retried.
+ * A following empty VIDEO_FRAME restores automatic picture selection.
+ * No MP4 mux or host file writes.
  *
  * Encoded results are model-owned, <=FCAM_MAX_RESULT_BYTES, one at a time.
  * The creating request copies min(out_capacity,total) bytes (capacity >=1).
@@ -162,6 +199,42 @@ int fcam_model_request(struct fcam_model *model, uint32_t opcode,
                        const uint8_t *input, size_t in_size,
                        uint8_t *output, size_t out_capacity,
                        struct fcam_exec_result *result);
+
+/* Read-only committed ParameterBank2756, under the same external lock as the
+ * request. Exact nonzero bank_generation prevents stale-bank substitution;
+ * receipt instance and committed config generation bind the query. Later
+ * configuration changes do not rewrite its historical State128. Rejects busy,
+ * fork, wrong size, private-storage aliases, missing/stale/corrupt bank. */
+int fcam_model_cp_parameter_bank_snapshot(const struct fcam_model *model,
+    uint64_t bank_generation, uint8_t *output, size_t output_bytes);
+
+/* Read-only independently reconstructed Crank208 under the same external lock.
+ * Exact nonzero crank_generation and bank_generation must identify the current
+ * bank and saved commit. Checks original12, full before/after State128 and the
+ * instance/lifetime/generation seal; rejects busy/fork/aliases/stale/corruption.
+ * Later Configure preserves this historical receipt; a new bank makes it stale.
+ * Does not render, encode, advance counters or change the prior frame proof. */
+int fcam_model_cp_crank_control_snapshot(const struct fcam_model *model,
+    uint64_t crank_generation, uint64_t bank_generation,
+    uint8_t *output, size_t output_bytes);
+
+/* Read-only independently rebuilt MovieFormat240. Exact nonzero movie/bank/
+ * crank generations identify the current saved commit. Validates original20,
+ * full before/after State128 and instance/lifetime/predecessor seals. Historical
+ * state survives Configure. Rejects missing/stale/corrupt/fork/busy/aliases;
+ * never renders, encodes, advances counters or changes the prior frame proof. */
+int fcam_model_cp_movie_format_snapshot(const struct fcam_model *model,
+    uint64_t movie_generation, uint64_t bank_generation, uint64_t crank_generation,
+    uint8_t *output, size_t output_bytes);
+
+/* Independently rebuild OuCrank224 from saved original12, before/after State128,
+ * current tuple, predecessor4057 checkpoint/proof and instance/lifetime seal.
+ * Exact nonzero IDs reject stale substitution; historical state survives later
+ * Configure without rewriting older bank/crank/movie receipts. Same lock as
+ * request; rejects wrong size, alias, busy, fork and corrupt domain. No frames. */
+int fcam_model_cp_ou_crank_snapshot(const struct fcam_model *model,
+    uint64_t ou_generation, uint64_t bank_generation, uint64_t crank_generation,
+    uint64_t movie_generation, uint8_t *output, size_t output_bytes);
 
 #ifdef __cplusplus
 }

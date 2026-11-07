@@ -27,6 +27,7 @@ SOURCES = (
     "virtual-jpeg-sos/jpeg-sos.c",
     "virtual-video-engine/video-engine.c",
     "virtual-camera-pipeline/camera-pipeline.c",
+    "../runtime/analysis/device-models/cp-parameter-batch.c",
 )
 
 
@@ -40,13 +41,13 @@ LAYOUT_SCENARIOS = (
 )
 LAYOUT_BODY = bytes.fromhex("07010100000000008002e0010000000000000000000000000300000000000000")
 DISPLAY_SCENARIOS = (
-    "display-mixed", "display-mixed-address-reuse", "display-fresh-request-lease", "display-small-frame", "display-palette-variants",
+    "display-mixed", "display-mixed-address-reuse", "display-fresh-request-lease", "display-small-frame", "display-palette-variants", "display-zero6",
     "display-no-active", "display-disabled", "display-unsupported", "display-malformed-envelope",
     "display-peaking-result-tail", "display-peaking-result-input-fnv",
     "display-flag-result-tail", "display-flag-result-input-fnv", "display-flag-result-length",
     "display-flag-result-borrowed", "refresh-global-queue", "refresh-legacy-queue",
 )
-DISPLAY_ACKS = {"0141": "0d2041110c00018000005900", "0152": "0d2052110c00018000005900", "0162": "0d2062110c00018000005900"}
+DISPLAY_ACKS = {"0141": "0d2041110c00018000005900", "0152": "0d2052110c00018000005900", "0162": "0d2062110c00018000005900", "0163": "0d2063110c00018000005900"}
 DISPLAY_PALETTES = (bytes((81, 90, 240)), bytes((210, 16, 146)), bytes((29, 255, 83)), bytes((235, 128, 128)))
 
 
@@ -196,7 +197,7 @@ def test_real_core_guest_display_integration(integration_binary, scenario):
         assert receipt["ack_wire"] == DISPLAY_ACKS[command]
         typed = bytes.fromhex(receipt["canonical_display16"])
         assert len(typed) == 16 and int.from_bytes(typed[:4], "little") == int(command, 16)
-        body_bytes = 8 if command == "0152" else 2 if command == "0162" else 0
+        body_bytes = 8 if command == "0152" else 2 if command == "0162" else 6 if command == "0163" else 0
         assert int.from_bytes(typed[4:8], "little") == body_bytes
         if command == "0152":
             assert typed[8:10] == b"\x03\x00" and typed[10] <= 2
@@ -238,14 +239,17 @@ def test_real_core_guest_display_integration(integration_binary, scenario):
         assert (f"refresh_queue_bound=1 refresh_queue_source={queue_source} unbound_rejections=2 bound_source_rejections=3 "
                 "bind_core_state_unchanged=1 bind_proof_unchanged=1") in result.stdout
     else:
-        extra = 3 if scenario == "display-palette-variants" else 0
+        extra = 2 if scenario == "display-zero6" else 3 if scenario == "display-palette-variants" else 0
         frames = 6 + extra
         configs = frames + int(scenario == "display-small-frame")
         assert len(receipts) == 2 + extra
         assert [receipt["command"] for receipt in receipts[:2]] == ["0152", "0162"]
         assert receipts[0]["canonical_display16"] == "52010000080000000300010000eb8080"
         assert receipts[1]["canonical_display16"] == "62010000020000000000000000000000"
-        if extra:
+        if scenario == 'display-zero6':
+            assert [receipt['command'] for receipt in receipts[2:]] == ['0163', '0163']
+            assert all(receipt['canonical_display16'] == '63010000060000000000000000000000' for receipt in receipts[2:])
+        if scenario == 'display-palette-variants':
             assert {bytes.fromhex(receipt["canonical_display16"])[13:] for receipt in receipts
                     if receipt["command"] == "0152"} == set(DISPLAY_PALETTES)
         assert (f"display_sequence config={configs} frame={frames} rendered={frames} consumed={frames - 1} "
@@ -253,6 +257,37 @@ def test_real_core_guest_display_integration(integration_binary, scenario):
         assert f"same_ack_address={int(scenario == 'display-mixed-address-reuse')} stale_across_commands=1" in result.stdout
         assert "instance=00000000009a1701" in result.stdout
         assert "physical_asic_verified=false original_ap_verified=false" in result.stdout
+
+
+@pytest.mark.parametrize('scenario', ('eframing-output', 'eframing-output-reuse') + tuple(
+    f'eframing-output-tail-{offset}' for offset in range(16)))
+def test_0170_real_core_owner_rgb_readback_and_ack_lifetimes(integration_binary, scenario):
+    env = {**os.environ, 'ASAN_OPTIONS': 'detect_leaks=1:halt_on_error=1:abort_on_error=1',
+           'UBSAN_OPTIONS': 'halt_on_error=1:print_stacktrace=1'}
+    result = subprocess.run([str(integration_binary), scenario], cwd=integration_binary.parent,
+                            env=env, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'Sanitizer' not in result.stderr and 'runtime error:' not in result.stderr
+    check_allocation_lifetimes(result.stdout, scenario)
+    assert 'functional_reply_policy=1170_status590000 original_CP0170_producer_verified=0' in result.stdout
+    assert 'capture_verified=false' in result.stdout
+    receipts = rows(result.stdout, 'display176')
+    outputs = [item for item in receipts if item['command'] == '0170']
+    if '-tail-' in scenario:
+        assert not outputs
+        assert 'core_bytes=176 guest_rc=-71 ack_delta=0' in result.stdout
+        return
+    assert len(outputs) == 9
+    assert [item['command'] for item in receipts[:3]] == ['0152', '0162', '0163']
+    for index, receipt in enumerate(outputs):
+        mask = min(index, 7)
+        canonical = struct.pack('<2I', 0x170, 4) + bytes((mask >> bit) & 1 for bit in range(3)) + bytes(5)
+        assert bytes.fromhex(receipt['canonical_display16']) == canonical
+        assert receipt['input_fnv'] == f'{fnv64(canonical):016x}'
+        assert receipt['ack_wire'] == '0d2070110c00018000005900'
+        assert receipt['origin_source'] == '81cf61c7' and receipt['active_bytes'] == '921600'
+        assert int(receipt['source_fnv'], 16) and receipt['source_fnv'] == receipt['sink_fnv']
+        assert all(receipt[key] == '1' for key in ('same_tid', 'actual_free', 'stale_ticket_rejected'))
 
 
 def fnv64(data):

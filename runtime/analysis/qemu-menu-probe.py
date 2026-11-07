@@ -18,6 +18,7 @@ from contextlib import ExitStack, nullcontext
 from gpe_captures import raster_sources
 from headless_osd_capture import capture as capture_headless_osd
 from initramfs_identity import verify_image
+from boot_probe_receipt import begin as begin_boot_receipt, finish as finish_boot_receipt, validate_profile
 from language_fonts import FONT_GUEST, FONT_SPECS
 from backup_profile import (ADF_PROFILE, INPUT_PROFILE, OUTPUT_PROFILE, BB_SET_MODE_PROFILE,
                             IMAGING_CONNECT_PROFILE, IMAGING_CONTROL_CONNECT_PROFILE, IMAGING_ADF_CONNECT_PROFILE,
@@ -74,7 +75,16 @@ parser.add_argument("--native-display", choices=('none', 'gtk', 'sdl'),
                     help="enable standard ramfb and guest snapshot bridge (none permits QMP screendump)")
 parser.add_argument("--firmware-identity", action="store_true", help="supply verified selected-FDAT identity files on virtual RAM storage; no real base-updater partition")
 parser.add_argument("--display-info-service", action="store_true", help="return the verified panel/EVF info protocol for explicitly configured 640x480 virtual displays")
+parser.add_argument('--boot-profile', default=os.environ.get('A7C2_BOOT_PROFILE', 'direct-bootin'),
+                    help='native probe profile; original boot-chain profiles use full-system/boot-session.py')
+parser.add_argument('--require-full-boot', action='store_true',
+                    default=os.environ.get('A7C2_REQUIRE_FULL_BOOT') == '1',
+                    help='refuse this diagnostic route when full boot coverage is required')
 args = parser.parse_args()
+try:
+    validate_profile(args.boot_profile, args.require_full_boot)
+except ValueError as error:
+    parser.error(str(error))
 input_key_mode = os.environ.get('MENU_INJECT_KEY', '')
 live_key_file = os.environ.get('MENU_LIVE_KEY_FILE')
 if live_key_file not in (None, '', '/tmp/menu-key.request'):
@@ -674,9 +684,48 @@ from scope_observer_profile import (prepare as prepare_scope_observer,
                                     record_exit as record_scope_exit,
                                     source_root as scope_source_root)
 scope_observer = prepare_scope_observer(base.parents[1], env, out)
+writer_observer = None
+writer_profile = env.get('A7C2_SHUTTER_WRITER_PROFILE', 'qemu-readonly-shutter-writer-v1')
+if writer_profile not in ('qemu-readonly-shutter-writer-v1', 'qemu-readonly-shutter-writer-v2',
+                          'qemu-readonly-shutter-writer-v3', 'qemu-readonly-shutter-writer-v4',
+                          'qemu-readonly-shutter-writer-v5',
+                          'qemu-readonly-shutter-writer-v6',
+                          'qemu-readonly-shutter-writer-v7'):
+    raise ValueError('Unknown auxiliary writer profile')
+if 'A7C2_SHUTTER_WRITER_PROFILE' in env and not all(env.get(key) for key in
+        ('A7C2_SHUTTER_WRITER_BUILD', 'A7C2_SHUTTER_WRITER_BUILD_SHA256')):
+    raise ValueError('Explicit writer profile requires its independent build and SHA256')
+writer_component = base.parents[1] / {
+    'qemu-readonly-shutter-writer-v1': 'report/2026-11-03-qemu-shutter-writer-observer-v1',
+    'qemu-readonly-shutter-writer-v2': 'report/2026-11-03-qemu-shutter-writer-observer-v2',
+    'qemu-readonly-shutter-writer-v3': 'report/2026-11-03-qemu-shutter-writer-observer-v3',
+    'qemu-readonly-shutter-writer-v4': 'report/2026-11-04-qemu-shutter-record-observer-v4',
+    'qemu-readonly-shutter-writer-v5': 'report/2026-11-04-qemu-shutter-descriptor-observer-v5',
+    'qemu-readonly-shutter-writer-v6': 'report/2026-11-04-qemu-shutter-pointer-observer-v6',
+    'qemu-readonly-shutter-writer-v7': 'report/2026-11-04-qemu-shutter-pointer-observer-v7',
+}[writer_profile]
+writer_runtime_name = {'qemu-readonly-shutter-writer-v1': 'writer_runtime.py',
+    'qemu-readonly-shutter-writer-v2': 'writer_origin_runtime.py',
+    'qemu-readonly-shutter-writer-v3': 'writer_upstream_runtime.py',
+    'qemu-readonly-shutter-writer-v4': 'writer_record_runtime.py',
+    'qemu-readonly-shutter-writer-v5': 'writer_descriptor_runtime.py',
+    'qemu-readonly-shutter-writer-v6': 'writer_pointer_runtime.py',
+    'qemu-readonly-shutter-writer-v7': 'writer_pointer7_runtime.py'}[writer_profile]
+writer_requested = any(key in env for key in ('A7C2_SHUTTER_WRITER_PROFILE', 'A7C2_SHUTTER_WRITER_BUILD',
+    'A7C2_SHUTTER_WRITER_BUILD_SHA256', 'QEMU_SHUTTER_WRITER_PLUGIN', 'QEMU_SHUTTER_WRITER_SHA256'))
+if writer_requested:
+    from importlib.util import spec_from_file_location, module_from_spec
+    sys.path.insert(0, str(writer_component))
+    writer_spec = spec_from_file_location('camera_auxiliary_writer', writer_component / writer_runtime_name)
+    writer_api = module_from_spec(writer_spec)
+    writer_spec.loader.exec_module(writer_api)
+    writer_observer = writer_api.stage(writer_component, env, out,
+        Path(env['QEMU_SYSTEM_DIR']) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64'), scope_observer)
+
 
 manifest = {'probe_args': vars(args).copy(), 'settle_seconds': int(os.environ.get('MENU_SETTLE_SECONDS', '90')),
             'readonly_scope_observer':scope_observer,
+            'readonly_shutter_writer':writer_observer,
             'backup_sync_profile':backup_sync or None,
             'backup_transport':backup_profile_receipt,
             'backup_original_cp_executed':False,
@@ -828,7 +877,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'gui_model_capture.py',base / 'menu_live.py',base / 'media_state_readback.py',
              base.parent.parent / 'report/camera-input-coverage/input_bindings.py',
              base / 'wifi_toggle.py',base / 'ethernet_peer.py',base / 'menu_control.py',base / 'usb_network.py',
-             base / 'ee_entry_snapshot.py',
+             base / 'ee_entry_snapshot.py', base / 'capture_gate_readback.py',
              base / 'sd_hotplug.py',base / 'sd-hotplug-runtime.c',base / 'sd-hotplug-runtime.h',base / 'sd-state.c',base / 'sd-state.h',
              base / 'instance_lifecycle.py',base / 'setting_store.py',
              base / 'settings_checkpoint.py',base / 'settings_instance.py',base / 'user-settings-checkpoint.c',
@@ -846,6 +895,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'menu-root/simulation/media-camera.fat',
              base / 'menu-root/simulation/menu-readmem',
              base / 'sd-window-export.c',base / 'sd_transport.py',
+             base / 'directory_sd.py',base / 'directory_snapshot.py',
              base / 'sd_flush_barrier.py',base / 'sd_export_lifecycle.py',
              base / 'menu-root/simulation/sd-window-export',
              base / 'native-pin-control-region.py', base / 'menu-root/simulation/pin-control-probe',
@@ -887,7 +937,11 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
 if scope_observer is not None:
     for path in (Path(scope_observer['build_receipt']), Path(scope_observer['library']),
                  *(scope_source_root(base.parents[1], scope_observer['profile']) / name
-                   for name in scope_observer['source_sha256'])):
+                   for name in dict(scope_observer['source_sha256'], **scope_observer.get('fixture_source_sha256', {})))):
+        manifest['files'][str(path)] = sha256_file(path)
+if writer_observer is not None:
+    for path in (Path(writer_observer['build_receipt']), Path(writer_observer['library']),
+                 *(writer_component / name for name in writer_observer['source_sha256'])):
         manifest['files'][str(path)] = sha256_file(path)
 if functional_camera is not None:
     for path in (base/'functional_camera_runner.py', base/'functional_camera_broker.py',
@@ -1025,10 +1079,14 @@ if manifest['rc_board_profile']:
             raise RuntimeError('RC reference source differs from build receipt: '+name)
     manifest['rc_reference_build']=receipt
     (out/'rc-reference-build.json').write_text(json.dumps(receipt,indent=2)+'\n')
+manifest['qemu_log_streams'] = dict(schema='qemu-separated-host-stderr-v1',
+    guest_serial=str(out / 'console.log'), host_stderr=str(out / 'qemu-stderr.log'), merged=False)
 (out / 'runtime-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-with (out / "console.log").open("a" if live_fd else "w") as console, ExitStack() as qmp_resources:
+boot_receipt = begin_boot_receipt(out, Path(command[-1]), command, profile=args.boot_profile)
+with (out / "console.log").open("a" if live_fd else "w") as console, \
+        (out / 'qemu-stderr.log').open('xb') as qemu_stderr, ExitStack() as qmp_resources:
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=console,
-                            stderr=subprocess.STDOUT, env=env,
+                            stderr=qemu_stderr, env=env,
                             pass_fds=tuple(fd for fd in (host_sd_fd,directory_sd_fd) if fd is not None))
     early_media_watch=None
     qmp_quit_attempted=[False]
@@ -1047,7 +1105,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, ExitStack()
                     break
                 except (FileNotFoundError, ConnectionRefusedError):
                     if proc.poll() is not None or time.monotonic() > deadline:
-                        raise RuntimeError("QMP unavailable; inspect console.log")
+                        raise RuntimeError("QMP unavailable; inspect console.log and qemu-stderr.log")
                     time.sleep(0.1)
             with nullcontext(qmp_resources.enter_context(sock.makefile("rwb"))) as stream:
                 if "QMP" not in json.loads(stream.readline()):
@@ -1951,7 +2009,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, ExitStack()
                                                  'path':os.environ['A7C2_DIRECTORY_SD']},
                                     quiesce=flush_and_stop,guest_sync=lambda:barrier_serial('/simulation/host-sd-probe sync',timeout=90),
                                     original_mount=lambda:b'HOST_BLOCK_SD_STAGE name=PFDRV_mount caller=Fsys+0x80f54 result=0 ' in (out/'console.log').read_bytes(),
-                                    commit_status=lambda:read_commit_status(out/'console.log'))
+                                    commit_status=lambda:read_commit_status(out/'qemu-stderr.log'))
                             if host_sd_fd is not None:
                                 from host_sd_snapshot import snapshot
                                 opened=os.fstat(host_sd_fd)
@@ -2351,7 +2409,19 @@ with (out / "console.log").open("a" if live_fd else "w") as console, ExitStack()
                     raise RuntimeError('Owned camera VM still running; retain lease, never SIGKILL')
                 proc.kill()
                 proc.wait(timeout=5)
+        finish_boot_receipt(out, boot_receipt)
         record_scope_exit(out, scope_observer, proc)
+        if writer_observer is not None:
+            writer_api.record_exit(out, writer_observer, proc)
+        if not qemu_stderr.closed:
+            qemu_stderr.flush()
+            os.fsync(qemu_stderr.fileno())
+            closed_manifest = json.loads((out / 'runtime-manifest.json').read_text())
+            host_stderr_sha256 = sha256_file(out / 'qemu-stderr.log')
+            closed_manifest['files'][str(out / 'qemu-stderr.log')] = host_stderr_sha256
+            closed_manifest['qemu_log_streams'].update(host_stderr_bytes=(out / 'qemu-stderr.log').stat().st_size,
+                                                     host_stderr_sha256=host_stderr_sha256)
+            (out / 'runtime-manifest.json').write_text(json.dumps(closed_manifest, indent=2) + '\n')
 def convert_screens(run_dir):
     """Candidate RGB565 interpretations only: neither display use nor pixel format is verified."""
     try:
@@ -2540,6 +2610,8 @@ if static_injection is not None:
                        'send_lines': [line.decode('utf-8', 'replace') for line in sends]}
     summary['static_key_injection'] = injection_proof
     (out/'static-key-injection.json').write_text(json.dumps(injection_proof, indent=2)+'\n')
+summary['boot_flow'] = finish_boot_receipt(out, boot_receipt, summary)
+summary['full_boot_verified'] = summary['boot_flow']['full_boot_verified']
 (out / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
 print(json.dumps(summary, indent=2))
 print('Capture completion does not establish a rendered menu.')

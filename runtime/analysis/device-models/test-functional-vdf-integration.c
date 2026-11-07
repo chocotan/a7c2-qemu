@@ -22,7 +22,7 @@ struct message { void *next; unsigned int flags, source, size, reserved; unsigne
 _Static_assert(offsetof(struct message, body) == 24, "OSAL public envelope");
 _Static_assert(sizeof(struct fcam_frame_proof) == 376, "real proof ABI");
 static const uint64_t instance = UINT64_C(0x9a1701);
-static const unsigned char ack_wire[11][12] = {
+static const unsigned char ack_wire[13][12] = {
     {0x0d, 0x20, 0x38, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0},
     {0x0d, 0x20, 0x53, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0},
     {0x0d, 0x20, 0x4c, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0},
@@ -33,7 +33,10 @@ static const unsigned char ack_wire[11][12] = {
     {0x0d, 0x20, 0x66, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0},
     {0x0d, 0x20, 0x67, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0},
     {0x0d, 0x20, 0x5f, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0},
-    {0x0d, 0x20, 0x28, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0}
+    {0x0d, 0x20, 0x28, 0x11, 12, 0, 1, 0x80, 0, 0, 0, 0},
+    {0x0d, 0x20, 0x63, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0},
+    /* Explicit functional group reply; original CP0170 producer unverified. */
+    {0x0d, 0x20, 0x70, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0}
 };
 /* Explicit virtual x,y,w,h=0,0,640,480; zero output means full RGB pass-through. */
 static const unsigned char layout_wire[40] = {
@@ -47,7 +50,8 @@ _Static_assert(FCAM_OP_VDF_LAYOUT == 7 && FCAM_LAYOUT_INPUT_BYTES == 32 &&
     FUNCTIONAL_VDF_MAX_REQUEST_BYTES == 40, "layout component contract");
 _Static_assert(FCAM_OP_VDF_DISPLAY_CONFIG == 8 && FCAM_DISPLAY_INPUT_BYTES == 16 &&
     FCAM_DISPLAY_RESULT_BYTES == 176 && FCAM_DISPLAY_R_CONFIG == 160 && FCAM_PROOF_VDF == 4 &&
-    FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES == 16 && FUNCTIONAL_VDF_FLAG_REQUEST_BYTES == 10,
+    FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES == 16 && FUNCTIONAL_VDF_FLAG_REQUEST_BYTES == 10 &&
+    FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES == 12,
     "typed display component contract");
 _Static_assert(FCAM_OP_BB_STARTUP_CONFIG == 9 && FCAM_BB_INPUT_BYTES == 32 &&
     FCAM_BB_RESULT_BYTES == 192 && FCAM_BB_CLASS == 5 && FCAM_PROOF_BB_STARTUP == 5 &&
@@ -100,7 +104,7 @@ static unsigned int request_bytes, result_bytes, corrupt_tail;
 static uint64_t previous_ticket;
 static uintptr_t request_address, previous_ack_address;
 static int corrupt_result, zebra, layout, display, reuse_ack, expected_core_rc;
-static unsigned int palette = 3, level = 1, magnification;
+static unsigned int palette = 3, level = 1, magnification, output_mask = 3;
 static struct fcam_bridge_result authentic_metadata;
 static int early_stage_case;
 static const unsigned int early_caller = UINT32_C(0x81cf0012);
@@ -179,7 +183,7 @@ static void configure(unsigned int width, unsigned int height) {
     assert(u64(after + FCAM_S_GENERATION) == u64(before + FCAM_S_GENERATION) + 1);
     assert(!memcmp(before + FCAM_S_RENDERED, after + FCAM_S_RENDERED, 64));
 }
-static unsigned int ack_index(void) { return bb ? 5u + bb : display ? 2u + (unsigned int)display : layout ? 2u : (unsigned int)zebra; }
+static unsigned int ack_index(void) { return display == 5 ? 12u : display == 4 ? 11u : bb ? 5u + bb : display ? 2u + (unsigned int)display : layout ? 2u : (unsigned int)zebra; }
 static int allocate(unsigned int destination, void **out, unsigned int bytes, unsigned int option) {
     assert(!allocated_ack && destination == caller && bytes == 12 && option == 1);
     assert(layout || display || bb ? !original && stage == 1 : original && !stage);
@@ -286,7 +290,7 @@ static const struct full_imaging_io stage_io = {early_allocate, early_release, s
 static uint32_t opcode(void) {
     return bb ? FCAM_OP_BB_STARTUP_CONFIG : display ? FCAM_OP_VDF_DISPLAY_CONFIG : layout ? FCAM_OP_VDF_LAYOUT : zebra ? FCAM_OP_VDF_ZEBRA : FCAM_OP_VDF_PATH;
 }
-static unsigned int command(void) { return bb ? bb_commands[bb - 1] : display ? display == 1 ? 0x0152 : display == 2 ? 0x0162 : 0x0141 : layout ? 0x014c : zebra ? 0x0153 : 0x0138; }
+static unsigned int command(void) { return bb ? bb_commands[bb - 1] : display ? display == 5 ? 0x0170 : display == 4 ? 0x0163 : display == 1 ? 0x0152 : display == 2 ? 0x0162 : 0x0141 : layout ? 0x014c : zebra ? 0x0153 : 0x0138; }
 static const unsigned char *operation_input(void) {
     return bb ? canonical_bb : display ? canonical_display : layout ? canonical_layout : zebra ? canonical_zebra : canonical;
 }
@@ -461,7 +465,7 @@ static void check_core(const unsigned char before[128], const struct fcam_frame_
 }
 static void prepare_request(unsigned int active, unsigned int sender) {
     caller = sender; stage = 0; assert(!original && !allocated_ack && !queued_ack && !received_ack);
-    request_bytes = bb ? bb_request_bytes[bb - 1] : display ? display == 1 ? FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES :
+    request_bytes = bb ? bb_request_bytes[bb - 1] : display ? display == 5 ? FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES : display == 4 ? FUNCTIONAL_VDF_ZERO6_REQUEST_BYTES : display == 1 ? FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES :
         display == 2 ? FUNCTIONAL_VDF_FLAG_REQUEST_BYTES : FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES :
         layout ? FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES : zebra ? FUNCTIONAL_VDF_ZEBRA_REQUEST_BYTES : FUNCTIONAL_VDF_PATH_REQUEST_BYTES;
     result_bytes = bb ? FCAM_BB_RESULT_BYTES : display ? FCAM_DISPLAY_RESULT_BYTES : layout ? FCAM_LAYOUT_RESULT_BYTES : zebra ? FCAM_ZEBRA_RESULT_BYTES : FCAM_VDF_RESULT_BYTES;
@@ -479,7 +483,13 @@ static void prepare_request(unsigned int active, unsigned int sender) {
         static const unsigned char peaking[16] = {0x0d, 0x20, 0x52, 1, 16, 0, 1, 0x80, 3, 0, 1, 0, 0, 235, 128, 128};
         static const unsigned char flag[10] = {0x0d, 0x20, 0x62, 1, 10, 0, 1, 0x80, 0, 0};
         static const unsigned char refresh[8] = {0x0d, 0x20, 0x41, 1, 8, 0, 1, 0x80};
-        memcpy(p, display == 1 ? peaking : display == 2 ? flag : refresh, request_bytes);
+        static const unsigned char zero6[14] = {0x0d, 0x20, 0x63, 1, 14, 0, 1, 0x80};
+        static const unsigned char output[12] = {0x0d, 0x20, 0x70, 1, 12, 0, 1, 0x80};
+        memcpy(p, display == 5 ? output : display == 4 ? zero6 : display == 1 ? peaking : display == 2 ? flag : refresh, request_bytes);
+        if (display == 5) {
+            assert(output_mask < 8);
+            for (unsigned int i = 0; i < 3; i++) p[8 + i] = (unsigned char)((output_mask >> i) & 1u);
+        }
         if (display == 1) {
             assert(palette < 4 && level <= 2);
             p[10] = (unsigned char)level; p[11] = (unsigned char)magnification;
@@ -819,6 +829,9 @@ static void display_sequence(const char *scenario) {
         return;
     }
     unsigned int extra = 0;
+    if (!strcmp(scenario, "display-zero6")) {
+        display=4;cycle(1,UINT32_C(0x81cf0163));cycle(1,UINT32_C(0x81cf0164));extra=2;
+    }
     if (!strcmp(scenario, "display-palette-variants")) {
         static const unsigned int magnifications[3] = {0, 10, 40};
         display = 1;
@@ -844,6 +857,28 @@ static void display_sequence(const char *scenario) {
         configs, frames, frames, frames - 1, frames, frames, after_init.requests, after_init.completed_cycles,
         (unsigned long long)p.width, (unsigned long long)p.height, reuse_ack,
         (unsigned long long)p.model_instance, (unsigned long long)p.model_lifetime);
+}
+static void eframing_output_sequence(const char *scenario) {
+    assert(!functional_vdf_path_owner_init());
+    cycle(1, UINT32_C(0x81cf0123));
+    zebra = 1; cycle(1, UINT32_C(0x81cf4567)); zebra = 0;
+    layout = 1; cycle(1, UINT32_C(0x81cf89ab)); layout = 0;
+    display = 1; cycle(1, UINT32_C(0x81cf0152));
+    display = 2; cycle(1, UINT32_C(0x81cf0162));
+    display = 4; cycle(1, UINT32_C(0x81cf0163));
+    display = 5;
+    if (!strncmp(scenario, "eframing-output-tail-", 21)) {
+        assert(sscanf(scenario, "eframing-output-tail-%u", &corrupt_tail) == 1 && corrupt_tail < 16);
+        corrupt_result = 2; cycle(1, UINT32_C(0x81cf61c7));
+        assert(owner().faults && !owner().ap_consumed && sends == 6 && path_calls == 7);
+    } else {
+        assert(!strcmp(scenario, "eframing-output") || !strcmp(scenario, "eframing-output-reuse"));
+        for (output_mask = 0; output_mask < 8; output_mask++) cycle(1, UINT32_C(0x81cf61c7));
+        output_mask = 7; cycle(1, UINT32_C(0x81cf61c7));
+        assert(owner().completed_cycles == 15 && owner().ap_consumed && sends == 15 && path_calls == 15);
+    }
+    printf("eframing_output tuples=%u result176=1 functional_reply_policy=1170_status590000 "
+        "original_CP0170_producer_verified=0 capture_verified=false\n", corrupt_result ? 0u : 8u);
 }
 static void early_stage_sequence(void) {
     unsigned char before[128], after[128]; state_request(FCAM_OP_STATE, NULL, 0, before);
@@ -1385,19 +1420,21 @@ int main(int argc, char **argv) {
     corrupt_result = !strcmp(argv[1], "corrupt-result");
     const int layout_case = !strncmp(argv[1], "layout-", 7), display_case = !strncmp(argv[1], "display-", 8);
     const int refresh_case = !strcmp(argv[1], "refresh-global-queue") || !strcmp(argv[1], "refresh-legacy-queue");
+    const int output_case = !strncmp(argv[1], "eframing-output", 15);
     early_stage_case = !strcmp(argv[1], "early-stage-real-layout");
     const int bb_hist_case = !strncmp(argv[1], "bb-", 3) || !strncmp(argv[1], "hist-", 5);
     bb_observed_initial = !strcmp(argv[1], "bb-observed-initial");
-    reuse_ack = !strcmp(argv[1], "layout-mixed-address-reuse") || !strcmp(argv[1], "display-mixed-address-reuse") ||
+    reuse_ack = !strcmp(argv[1], "eframing-output-reuse") || !strcmp(argv[1], "layout-mixed-address-reuse") || !strcmp(argv[1], "display-mixed-address-reuse") ||
         !strcmp(argv[1], "bb-mixed-address-reuse");
     fresh_request_lease = !strcmp(argv[1], "layout-fresh-request-lease") || !strcmp(argv[1], "display-fresh-request-lease") ||
         !strcmp(argv[1], "bb-fresh-request-lease");
-    assert(sequence || mixed || bad_zebra || corrupt_result || layout_case || display_case || refresh_case || early_stage_case || bb_hist_case || !strcmp(argv[1], "enabled-opaque"));
+    assert(sequence || mixed || bad_zebra || corrupt_result || layout_case || display_case || refresh_case || output_case || early_stage_case || bb_hist_case || !strcmp(argv[1], "enabled-opaque"));
     model = fcam_model_create(instance); assert(model);
     assert(!proof().serial);
     unsigned char initial[128]; state_request(FCAM_OP_INIT, NULL, 0, initial);
     assert(u64(initial + FCAM_S_RENDERED) == 1 && u64(initial + FCAM_S_FRAME_GENERATION) == 1);
     assert(!u64(initial + FCAM_S_CONSUMED) && proof().serial == 1 && proof().after.retired == 1);
+    if (output_case) { eframing_output_sequence(argv[1]); goto done; }
     if (bb_hist_case) { bb_hist_sequence(argv[1]); goto done; }
     if (early_stage_case) { early_stage_sequence(); goto done; }
     if (layout_case) { layout_sequence(argv[1]); goto done; }

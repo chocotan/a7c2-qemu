@@ -191,6 +191,8 @@ FIRSTBOOT_CONTROLS = {
     'temperature-cancel': ((0x431,), (170,100,460,235), 'cc18445617b5d5ac474b854fe6c41a50a20eb594a466e8d4d232266abb67ac9e'),
     'creators-guide': ((0x1f4,), (235,400,405,452), '581af34609bce4146df3f10e78a92cf7d139a14fc931c58d95afdfa1cdc50513'),
     'touch-guide': ((0x1e6,), (10,310,620,395), '0be8ce575c04091007d45b1e6ef01eb17cca90487e0e66951a1dcc11f0e7034b'),
+    # _moj1293 original Auto/Scene choice, selected Intelligent Auto; ENTER confirms it.
+    'still-scene-choice': ((0xd4,), (125,0,400,130), '86c43f05c484d3dab19083439f0b1229b4ec877991d01720d1f13b2aafcbcd16'),
     'shooting': ((0,), (145,0,375,34),
         ('5987f429f9018ee8f94a76a34e6dfd5544a5aeacf26d6d2ff0646194caface54',
          'bc37def4380cc8406c5018c7c3f96ca0dbac344df55b82d02e18300f0de31b18')),
@@ -219,6 +221,8 @@ def firstboot_frame(image, console):
         if page=='system-error':
             result.update(page='failed',reason='original LCD displays 系统出错')
         elif screen in candidates:
+            if page=='still-scene-choice' and count!=98:
+                continue
             if page=='shooting' and (count!=565 or len(screens)<2 or screens[-2][1]!=0x343 or
                     not any(item[1]==0x347 for item in screens) or
                     not any(item[1]==0x1e6 for item in screens)):
@@ -527,6 +531,8 @@ def main():
             any(flag in sys.argv for flag in ('--sustain','--body-controls-probe','--mode-probe',
                                               '--switch-probe','--mode-wheel-probe','--focus-controls-probe'))):
         raise ValueError('--natural-shutter requires isolated Simplified-Chinese new UI firstboot and SD export')
+    if '--natural-movie-after-shutter' in sys.argv and '--natural-shutter' not in sys.argv:
+        raise ValueError('--natural-movie-after-shutter requires --natural-shutter')
     if '--enter-still-mode' in sys.argv and '--natural-shutter' not in sys.argv:
         raise ValueError('--enter-still-mode requires --natural-shutter')
     if '--reenter-still-mode' in sys.argv and '--natural-shutter' not in sys.argv:
@@ -1080,6 +1086,16 @@ def main():
                                     'still_capture_verified':False}
                                 proof_path.write_text(json.dumps(proof,indent=2)+'\n')
                             if '--natural-shutter' in sys.argv:
+                                if '--reenter-still-mode' in sys.argv:
+                                    selected=wait_lcd_settled(proof['images'][-1],lambda label:capture(label,'any'),wait,
+                                        'reenter-still-choice',lambda image:image['firstboot_ui']['page'] in
+                                        ('shooting','still-scene-choice'),changed=False)
+                                    if selected['firstboot_ui']['page']=='still-scene-choice':
+                                        proof['reenter_still_mode']['scene_choice']=firstboot_step(selected,
+                                            lambda:(run/'console.log').read_text(errors='replace'),
+                                            lambda label:capture(label,'any'),action,wait,
+                                            lambda:run/proof['images'][-1]['image'],'reenter-still-confirm')
+                                        proof_path.write_text(json.dumps(proof,indent=2)+'\n')
                                 wait_lcd_settled(proof['images'][-1],lambda label:capture(label,'any'),wait,
                                     'natural-shutter-ready',
                                     lambda image:image['firstboot_ui']['page']=='shooting',changed=False)
@@ -1091,6 +1107,23 @@ def main():
                                 deadline=time.monotonic()+15
                                 while time.monotonic()<deadline:idle();time.sleep(.05)
                                 capture('natural-shutter-after','any')
+                            if '--natural-movie-after-shutter' in sys.argv:
+                                movie={'input_sequence_completed':False,'mode_input_submission_event_verified':False,
+                                       'rec_input_submissions':0,'recording_started_verified':False,
+                                       'recording_stopped_verified':False,'movie_saved_verified':False}
+                                proof['natural_movie']=movie
+                                proof_path.write_text(json.dumps(proof,indent=2)+'\n')
+                                for label,key,seconds in (('mode','MODE_MOVIE',5),('rec-first','REC',10),
+                                                          ('rec-second','REC',5)):
+                                    action(key,True)
+                                    if key=='MODE_MOVIE':movie['mode_input_submission_event_verified']=True
+                                    else:movie['rec_input_submissions']+=1
+                                    proof_path.write_text(json.dumps(proof,indent=2)+'\n')
+                                    deadline=time.monotonic()+seconds
+                                    while time.monotonic()<deadline:idle();time.sleep(.05)
+                                    capture('natural-movie-'+label,'any')
+                                movie['input_sequence_completed']=True
+                                proof_path.write_text(json.dumps(proof,indent=2)+'\n')
                             if '--mode-probe' in sys.argv:
                                 reenter_probe='--mode-reenter-probe' in sys.argv
                                 positions=('P','A') if reenter_probe else ('P','A','S','M','AUTO')

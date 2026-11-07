@@ -44,6 +44,8 @@ struct job {
     struct lease lease;
     unsigned command;
     uint64_t request_sequence, epoch, memory_generation, instance;
+    uint32_t expected_factor;
+    uint64_t expected_result, parameter_generation, parameter_token, parameter_address;
     long producer_pid, producer_tid;
 };
 struct reply_lease {
@@ -202,13 +204,38 @@ static int validate_open(const struct lease *l) {
     }
     return 0;
 }
-static int read_parameters(const struct job *j,unsigned bytes,uint8_t *out) {
+static int expected_waiter(uintptr_t base,uint32_t *factor,uint64_t *result) {
+    uint8_t code[36],probe[48];uint64_t factor_address,result_address,pointer,again_pointer;
+    uint32_t value,again;int rc=memory_read(base+0x27be14,code,sizeof code);
+    if(rc)return rc;
+    if(fnv(code,sizeof code)!=UINT64_C(0x3d00109bcdc0aa69))return -ELIBBAD;
+    if((rc=global64(base,0x2fdf50,&factor_address)) ||
+       (rc=global64(base,0x2fcfc0,&result_address)))return rc;
+    if(factor_address!=base+0x369eb0 || result_address!=base+0x3b7b50)return -ELIBBAD;
+    if((rc=read32(factor_address,&value)) || (rc=global64(base,0x3b7b50,&pointer)))return rc;
+    if((value!=1 && value!=0x1004) || !span(pointer,48))return -EPROTO;
+    if((rc=memory_read(pointer,probe,sizeof probe)))return rc;
+    if((rc=read32(factor_address,&again)) || (rc=global64(base,0x3b7b50,&again_pointer)))return rc;
+    if(value!=again || pointer!=again_pointer)return -ESTALE;
+    *factor=value;*result=pointer;return 0;
+}
+static int waiter_current(const struct job *j) {
+    if(j->command!=2)return 0;
+    uint32_t factor;uint64_t result;
+    int rc=expected_waiter(library,&factor,&result);
+    return rc?rc:factor==j->expected_factor && result==j->expected_result?0:-ESTALE;
+}
+static int read_parameters(struct job *j,unsigned bytes,uint8_t *out) {
     struct functional_mpr_memory_lease pin={0};
     int rc=acquire_memory(u64(j->wire+0x28),bytes,&pin);if(rc)return rc;
     if(pin.span.unit_type!=2 || pin.span.group || !logical_pointer(&pin,u64(j->wire+8)))rc=-ESTALE;
     if(!rc)rc=functional_mpr_memory_validate(&pin);
     if(!rc)rc=memory_read(pin.address,out,bytes);
     if(!rc)rc=functional_mpr_memory_validate(&pin);
+    if(!rc && j->command==2) {
+        j->parameter_generation=pin.span.generation;
+        j->parameter_token=pin.token;j->parameter_address=pin.address;
+    }
     int released=release_memory(&pin);return rc?rc:released;
 }
 static int snapshot_open(uintptr_t base,const uint8_t wire[48],const uint8_t *a,struct lease *out) {
@@ -285,7 +312,7 @@ static void event_note(const struct reply_lease *r,const char *tag,int rc) {
         " instance=%#" PRIx64 " epoch=%" PRIu64 " memory_generation=%" PRIu64
         " request_seq=%" PRIu64 " native_fnv=%#" PRIx64 " reply_address=%#" PRIxPTR
         " operation_error=%d wire_hex=%s request_hex=%s",
-        r->sequence,(unsigned)(u16(r->wire+2)-1u)/2u,fnv(r->wire,48),
+        r->sequence,u16(r->request_wire+2)==2?2u:(unsigned)(u16(r->wire+2)-1u)/2u,fnv(r->wire,48),
         FUNCTIONAL_MPR_CODEC_DESTINATION,FUNCTIONAL_MPR_CODEC_SOURCE,r->received,rc,s.state,s.pending,s.owned_replies,
         (long)getpid(),(long)syscall(SYS_gettid),r->receiver_pid,r->receiver_tid,r->producer_pid,r->producer_tid,
         r->instance,r->epoch,r->memory_generation,r->request_sequence,r->native_fnv,(uintptr_t)r->pointer,
@@ -302,11 +329,25 @@ static void request_note(const struct job *j,int rc) {
         j->request_sequence,j->command,rc,j->producer_pid,j->producer_tid,j->origin.source,j->origin.destination,
         j->origin.wire_fnv1a64,j->epoch,j->memory_generation,j->instance,wire_hex);
     note(&j->io,"FUNCTIONAL_MPR_REQUEST ",text);
+    if(j->command==2 && !rc) {
+        char bytes[9];hex_bytes(j->parameter,4,bytes);
+        snprintf(text,sizeof text,
+            "request_seq=%" PRIu64 " native_fnv=%#" PRIx64 " opaque4=%s opaque_word=%#x"
+            " parameter_v=%#" PRIx64 " parameter_p=%#" PRIx64 " parameter_generation=%" PRIu64
+            " parameter_token=%#" PRIx64 " parameter_fnv=%#" PRIx64 " parameter_bytes=4"
+            " expected_factor=%#x expected_result=%#" PRIx64
+            " software_policy=opaque4-force-this-frame-v1 original_argument_semantics_verified=0 capture_verified=0",
+            j->request_sequence,j->origin.wire_fnv1a64,bytes,u32(j->parameter),j->parameter_address,
+            u64(j->wire+8),j->parameter_generation,j->parameter_token,fnv(j->parameter,4),
+            j->expected_factor,j->expected_result);
+        note(&j->io,"FUNCTIONAL_MPR_FORCE_REQUEST ",text);
+    }
 }
 
 /* Source CallbackFromAvbbc reads command+2, error+14, codec+18/format+1c,
  * message-id+24 and copies all 48 bytes into its waiting PayloadCodec. */
 static int send_event(const struct job *j,unsigned command,int error) {
+    int waiter=waiter_current(j);if(waiter)return waiter;
     void *p=NULL;unsigned index=REPLIES;
     pthread_mutex_lock(&mutex);
     for(unsigned i=0;i<REPLIES;i++){
@@ -340,10 +381,13 @@ static int send_event(const struct job *j,unsigned command,int error) {
     if(alias)return -EADDRINUSE;
     int rc=allocated;
     if(!rc && j->io.size(p)!=48)rc=-EMSGSIZE;
-    uint8_t wire[48]={0};p16(wire+2,(uint16_t)(2*command+1));p32(wire+0x14,(uint32_t)error);
+    uint8_t wire[48]={0};
+    p16(wire+2,(uint16_t)(j->command==2?(j->expected_factor==1?4u:5u):2*command+1));
+    p32(wire+0x14,(uint32_t)error);
     wire[0x18]=j->wire[0x18];wire[0x1c]=j->wire[0x1c];p16(wire+0x1a,u16(j->wire+0x1a));p32(wire+0x24,EVENT_MESSAGE);
     if(!rc){memcpy(p,wire,48);j->io.set_source(p,FUNCTIONAL_MPR_CODEC_DESTINATION);
         if(!canonical(&j->io,p,wire,FUNCTIONAL_MPR_CODEC_DESTINATION))rc=-EBADMSG;}
+    if(!rc)rc=waiter_current(j);
     if(!rc){
         pthread_mutex_lock(&mutex);memcpy(replies[index].wire,wire,48);replies[index].stage=1;pthread_mutex_unlock(&mutex);
         rc=j->io.send(FUNCTIONAL_MPR_CODEC_SOURCE,p);
@@ -648,6 +692,41 @@ static int next_frame(void) {
     rc=bridge(&start_job.origin,FCAM_OP_VIDEO_FRAME,NULL,0,result_bytes,RESULT_CAP,&r);
     return rc?rc:packet_result(result_bytes,r.used,0,r.result_token,&start_job);
 }
+static int force_frame(const struct job *j) {
+    int rc=validate_open(&live);if(rc)return rc;
+    if(!stream_live)return -EPIPE;
+    if((rc=waiter_current(j)) || (rc=wait_ring(config_published?3:4)))return rc;
+    uint8_t flag[4];p32(flag,FCAM_VIDEO_FRAME_FORCE_IDR);
+    struct fcam_bridge_result result={0};
+    rc=bridge(&j->origin,FCAM_OP_VIDEO_FRAME,flag,sizeof flag,result_bytes,RESULT_CAP,&result);
+    if(rc)return rc;
+    if(result.used<96 || u32(result_bytes+40)!=1)return -EPROTO;
+    uint64_t count=u64(result_bytes+48);uint32_t config=u32(result_bytes+64);
+    if(!count || config>result.used-96 || count!=result.used-96-config)return -EPROTO;
+    size_t bytes=0;uint16_t ignored=0;
+    rc=convert(result_bytes+96+config,(size_t)count,avcc,avcc_capacity,&bytes,&ignored,&ignored,0);
+    if(rc)return rc;
+    int idr=0;
+    for(size_t at=0;at<bytes;) {
+        uint32_t size=(uint32_t)avcc[at]<<24|(uint32_t)avcc[at+1]<<16|(uint32_t)avcc[at+2]<<8|avcc[at+3];
+        if((avcc[at+4]&31u)==5)idr=1;
+        at+=4u+size;
+    }
+    if(!idr)return -EPROTO;
+    rc=packet_result(result_bytes,result.used,0,result.result_token,j);
+    if(!rc)rc=validate_open(&live);
+    if(!rc)rc=waiter_current(j);
+    if(!rc) {
+        char text[512];snprintf(text,sizeof text,
+            "request_seq=%" PRIu64 " native_fnv=%#" PRIx64 " opaque_word=%#x expected_factor=%#x"
+            " expected_result=%#" PRIx64 " frame_generation=%" PRIu64 " model_token=%#" PRIx64
+            " actual_IDR_NAL5=1 publication_complete=1 software_policy=opaque4-force-this-frame-v1 original_argument_semantics_verified=0 capture_verified=0",
+            j->request_sequence,j->origin.wire_fnv1a64,u32(j->parameter),j->expected_factor,
+            j->expected_result,frame_generation,result.result_token);
+        note(&j->io,"FUNCTIONAL_MPR_FORCE_IDR ",text);
+    }
+    return rc;
+}
 static int drain(const struct job *j) {
     int rc=wait_ring(2);if(rc)return rc;
     struct fcam_bridge_result r={0};rc=bridge(&j->origin,FCAM_OP_VIDEO_END,NULL,0,result_bytes,RESULT_CAP,&r);
@@ -693,6 +772,8 @@ static int execute(const struct job *j) {
            u32(state+FCAM_S_FPS)!=VIRTUAL_FPS || u32(state+FCAM_S_STREAM_STATE)!=1))rc=-EPROTO;
         if(!rc){stream_live=1;rc=next_frame();}
         if(!rc){pthread_mutex_lock(&mutex);stats.state=FMPR_RECORDING;stats.native_start_fnv=j->origin.wire_fnv1a64;pthread_mutex_unlock(&mutex);}
+    }else if(j->command==2){
+        rc=force_frame(j);
     }else if(j->command==3){
         if(stream_live)rc=drain(j);else rc=-EPIPE;
         if(!rc){pthread_mutex_lock(&mutex);stats.state=FMPR_DRAINED;pthread_mutex_unlock(&mutex);}
@@ -783,8 +864,7 @@ int functional_mpr_codec_dispatch(unsigned int dst,void *request,const struct fu
     unsigned message=u32(j.wire+0x24);
     if(message!=MPR_MESSAGE){if(message==0x1610){*result=-ENOTSUP;return 1;}return 0;}
     if(j.command>4)return 0;
-    if(j.command==2){*result=-ENOTSUP;note(io,"FUNCTIONAL_MPR_UNSUPPORTED ","EncIPicture needs a real force-IDR model operation");return 1;}
-    unsigned expected=j.command==0?0x98:j.command==1?0x80:j.command==3?0x10:0;
+    unsigned expected=j.command==0?0x98:j.command==1?0x80:j.command==2?4:j.command==3?0x10:0;
     if(u32(j.wire+0x10)!=expected || j.wire[0x19] || j.wire[0x1e] || u16(j.wire+0x1a) || j.wire[0x18]!=0x20 || j.wire[0x1c]==0x44){*result=-ENOTSUP;return 1;}
     j.origin=(struct fcam_native_origin){FUNCTIONAL_MPR_CODEC_SOURCE,dst,j.command,48,fnv(j.wire,48)};
     pthread_mutex_lock(&mutex);
@@ -792,6 +872,7 @@ int functional_mpr_codec_dispatch(unsigned int dst,void *request,const struct fu
     if(!base)rc=-ENODEV;else if(stopping)rc=-ESHUTDOWN;else if(reserved)rc=-EBUSY;
     else if(j.command==0 && stats.state!=FMPR_CLOSED)rc=-EALREADY;
     else if(j.command==1 && stats.state!=FMPR_OPEN)rc=-EPIPE;
+    else if(j.command==2 && stats.state!=FMPR_RECORDING)rc=-EPIPE;
     else if(j.command==3 && stats.state!=FMPR_RECORDING && stats.state!=FMPR_FAULT)rc=-EPIPE;
     else if(j.command==4 && stats.state==FMPR_CLOSED)rc=-EPIPE;
     else if(request_sequence==UINT64_MAX || (j.command==0 && stats.epoch==UINT64_MAX))rc=-EOVERFLOW;
@@ -804,6 +885,7 @@ int functional_mpr_codec_dispatch(unsigned int dst,void *request,const struct fu
     pthread_mutex_unlock(&mutex);
     if(rc){*result=rc;return 1;}
     if(expected)rc=read_parameters(&j,expected,j.parameter);
+    if(!rc && j.command==2)rc=expected_waiter(base,&j.expected_factor,&j.expected_result);
     if(!rc && j.command==0){
         rc=snapshot_open(base,j.wire,j.parameter,&j.lease);
         if(!rc)j.memory_generation=j.lease.pins[PIN_ES].span.generation;

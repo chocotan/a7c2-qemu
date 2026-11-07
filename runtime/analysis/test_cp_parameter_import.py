@@ -1,4 +1,5 @@
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import hashlib
 import os
 import subprocess
@@ -6,6 +7,7 @@ import subprocess
 HERE=Path(__file__).resolve().parent
 
 
+@requires_original_assets('seed-backup.bin')
 def test_actual_public_stage_selects_source_defaults_atomically(tmp_path):
     seed=HERE/'menu-root/seed-backup.bin'
     assert hashlib.sha256(seed.read_bytes()).hexdigest()=='3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'

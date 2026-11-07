@@ -240,12 +240,12 @@ def read_config(path, config_sha256=None):
     require(type(config) is dict, 'Watcher configuration must be a JSON object')
     scope = config.get('readonly_scope_observer')
     profile = scope.get('profile') if type(scope) is dict else None
-    shutter_gate = profile == scope_observer_profile.PROFILE_SHUTTER_GATE_V1
+    shutter_gate = type(profile) is str and profile in scope_observer_profile.SHUTTER_GATE_PROFILES
     require(len(raw) <= (32 * 1024 if shutter_gate else 16 * 1024),
             'Watcher configuration exceeded profile byte bound')
     if shutter_gate:
         config = scope_observer_profile.shutter_gate_json(raw)
-        require(scope.get('trace_schema') == 'readonly_shutter_gate_v1' and
+        require(scope.get('trace_schema') == scope_observer_profile.SHUTTER_GATE_PROFILES[profile]['trace_schema'] and
                 not scope_observer_profile.SHUTTER_GATE_ALIASES & scope.keys(),
                 'Shutter gate configuration schema/root alias differs')
         scope_observer_profile.shutter_gate_file(path)
@@ -253,6 +253,20 @@ def read_config(path, config_sha256=None):
         require(type(profile) is str and profile in scope_observer_profile.SOURCE_SETS,
                 'Unknown scope observer profile')
     return config
+
+
+def read_result(config):
+    scope = config.get('readonly_scope_observer')
+    gate2 = type(scope) is dict and scope.get('profile') == 'qemu-readonly-shutter-gate-v2' and \
+        scope.get('trace_schema') == 'readonly_shutter_gate_v2'
+    result = parse_json(checked_read(Path(config['run']) / (PREFIX + '-result.json'),
+                                     32 * 1024 if gate2 else 16 * 1024))
+    require(type(result) is dict, 'Watcher result must be a JSON object')
+    if gate2:
+        require(result.get('readonly_scope_observer') == scope and
+                result.get('running_QEMU_sha256') == config.get('running_QEMU_sha256'),
+                'Watcher result scope differs from current configuration')
+    return result
 
 
 def process_identity(pid):
@@ -309,7 +323,7 @@ def scope_binding(root, receipt_value, running_qemu_sha256):
             require(not {'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256',
                          'source_root', 'Source_root', 'sourceDependencyFrozen'} & scope.keys(),
                     'Scope observer v3 manifest has a schema digest/root alias')
-    if build['profile'] == scope_observer_profile.PROFILE_SHUTTER_GATE_V1:
+    if build['profile'] in scope_observer_profile.SHUTTER_GATE_PROFILES:
         require(not scope_observer_profile.SHUTTER_GATE_ALIASES & scope.keys(),
                 'Shutter gate manifest has a schema digest/root alias')
         for name in ('trace_schema', 'trace_schema_sha256', 'source_contract_sha256',
@@ -321,7 +335,7 @@ def scope_binding(root, receipt_value, running_qemu_sha256):
     require(hashlib.sha256(checked_read(receipt_path, 1024 * 1024)).hexdigest() == build['build_receipt_sha256'],
             'Scope observer build receipt changed during validation')
     staged = root / 'readonly-scope-observer.so'
-    if build['profile'] == scope_observer_profile.PROFILE_SHUTTER_GATE_V1:
+    if build['profile'] in scope_observer_profile.SHUTTER_GATE_PROFILES:
         scope_observer_profile.shutter_gate_file(staged)
     require(scope.get('library') == str(staged) and
             hashlib.sha256(checked_read(staged, 16 * 1024 * 1024)).hexdigest() == build['library_sha256'],
@@ -682,7 +696,7 @@ class Watch:
                     data = parse_json(checked_read(ready, 16384))
                     require(data == dict(connected=True, armed=True, context=self.config['context']), 'Unverified observer readiness')
                     if self.process.poll() is not None:
-                        result = parse_json(checked_read(self.run / (PREFIX + '-result.json'), 16384))
+                        result = read_result(self.config)
                         require(not result.get('error') and result.get('detached') is True,
                                 'HDMI debugger failed after arming; inspect its result')
                     return
@@ -718,7 +732,7 @@ class Watch:
         detached = False
         if self.process is not None:
             try:
-                result = parse_json(checked_read(self.run / (PREFIX + '-result.json'), 16384))
+                result = read_result(self.config)
                 detached = result.get('detached') is True
             except (OSError, ValueError) as error:
                 errors.append(str(error))

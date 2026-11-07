@@ -123,9 +123,9 @@ static int encoding_open(struct encoding *encoding, size_t width,
     context->color_primaries = AVCOL_PRI_BT709;
     context->color_trc = AVCOL_TRC_BT709;
     const char *const names[] = {"preset", "tune", "profile", "crf",
-                                "x264-params"};
+                                "x264-params", "forced-idr"};
     const char *const values[] = {"veryfast", "zerolatency", "baseline", "18",
-                                 "annexb=1:repeat-headers=1"};
+                                 "annexb=1:repeat-headers=1", "1"};
     for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
         const int error = av_opt_set(context->priv_data, names[i], values[i], 0);
         if (error < 0) {
@@ -309,9 +309,9 @@ enum video_engine_status video_engine_stream_drain(struct video_engine_stream *s
     return status == VIDEO_ENGINE_OK ? receive_packets(stream, 0) : status;
 }
 
-enum video_engine_status video_engine_stream_feed_rgb888(
+static enum video_engine_status stream_feed_rgb888(
     struct video_engine_stream *stream, const struct video_engine_rgb *frame,
-    int64_t pts, int64_t duration)
+    int64_t pts, int64_t duration, int force_idr)
 {
     enum video_engine_status status = stream_active(stream);
     if (status != VIDEO_ENGINE_OK) {
@@ -360,6 +360,7 @@ enum video_engine_status video_engine_stream_feed_rgb888(
     }
     encoding->yuv->pts = pts;
     encoding->yuv->duration = duration;
+    encoding->yuv->pict_type = force_idr ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
     error = avcodec_send_frame(encoding->codec, encoding->yuv);
     if (error < 0) {
         return stream_codec_fault(stream, error);
@@ -370,6 +371,20 @@ enum video_engine_status video_engine_stream_feed_rgb888(
     stream->pending_duration = duration;
     stream->next_pts = pts + duration;
     return receive_packets(stream, 0);
+}
+
+enum video_engine_status video_engine_stream_feed_rgb888(
+    struct video_engine_stream *stream, const struct video_engine_rgb *frame,
+    int64_t pts, int64_t duration)
+{
+    return stream_feed_rgb888(stream, frame, pts, duration, 0);
+}
+
+enum video_engine_status video_engine_stream_feed_idr_rgb888(
+    struct video_engine_stream *stream, const struct video_engine_rgb *frame,
+    int64_t pts, int64_t duration)
+{
+    return stream_feed_rgb888(stream, frame, pts, duration, 1);
 }
 
 enum video_engine_status video_engine_stream_finish(struct video_engine_stream *stream)

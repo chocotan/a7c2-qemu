@@ -23,6 +23,7 @@ SOURCES = (
     "virtual-jpeg-sos/jpeg-sos.c",
     "virtual-video-engine/video-engine.c",
     "virtual-camera-pipeline/camera-pipeline.c",
+    "../runtime/analysis/device-models/cp-parameter-batch.c",
 )
 SCENARIOS = (
     "deferred-thread", "immediate", "dynamic-source", "cookie-zero", "cookie-max",

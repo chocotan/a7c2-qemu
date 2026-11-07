@@ -127,6 +127,8 @@ static int sink_packet(const struct video_engine_stream_packet *packet, void *op
             CAPACITY, sink_packet, sink) == VIDEO_ENGINE_INVALID_STATE);
         assert(video_engine_stream_feed_rgb888(sink->stream, &frame, 100, 1) ==
                VIDEO_ENGINE_INVALID_STATE);
+        assert(video_engine_stream_feed_idr_rgb888(sink->stream, &frame, 100, 1) ==
+               VIDEO_ENGINE_INVALID_STATE);
         assert(video_engine_stream_drain(sink->stream) == VIDEO_ENGINE_INVALID_STATE);
         assert(video_engine_stream_finish(sink->stream) == VIDEO_ENGINE_INVALID_STATE);
         assert(video_engine_stream_cancel(sink->stream) == VIDEO_ENGINE_INVALID_STATE);
@@ -315,6 +317,7 @@ static void sticky(struct sink *sink, enum video_engine_status status,
     assert(before.state == VIDEO_ENGINE_STREAM_FAULT && before.status == status);
     assert(before.codec_error == codec_error && before.sink_error == sink_error);
     assert(video_engine_stream_feed_rgb888(sink->stream, &frame, 100, 1) == status);
+    assert(video_engine_stream_feed_idr_rgb888(sink->stream, &frame, 100, 1) == status);
     assert(video_engine_stream_drain(sink->stream) == status);
     assert(video_engine_stream_finish(sink->stream) == status);
     assert(video_engine_stream_begin(sink->stream, WIDTH, HEIGHT, 25, CAPACITY,
@@ -484,6 +487,108 @@ static void long_stream(void)
     video_engine_stream_destroy(stream);
 }
 
+typedef enum video_engine_status (*feed_operation)(struct video_engine_stream *,
+    const struct video_engine_rgb *, int64_t, int64_t);
+
+static void forced_contract(void)
+{
+    const feed_operation operations[] = {video_engine_stream_feed_rgb888,
+                                         video_engine_stream_feed_idr_rgb888};
+    for (size_t i = 0; i < 2; ++i) {
+        const feed_operation feed = operations[i];
+        struct sink sink;
+        setup(&sink);
+        assert(feed(NULL, &frame, 0, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        assert(feed(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_INVALID_STATE);
+        begin(&sink, CAPACITY);
+        assert(feed(sink.stream, NULL, 0, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        struct video_engine_rgb bad = frame;
+        bad.data = NULL;
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        bad = frame;
+        bad.stride = WIDTH * 3 - 1;
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        bad = frame;
+        --bad.size;
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_INPUT_TOO_SMALL);
+        bad = frame;
+        bad.stride = SIZE_MAX;
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_SIZE_OVERFLOW);
+        bad = frame;
+        bad.data = (const uint8_t *)(UINTPTR_MAX - 3u);
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_SIZE_OVERFLOW);
+        assert(feed(sink.stream, (const struct video_engine_rgb *)(UINTPTR_MAX - 3u),
+                    0, 1) == VIDEO_ENGINE_SIZE_OVERFLOW);
+        assert(feed(sink.stream, (const struct video_engine_rgb *)sink.stream,
+                    0, 1) == VIDEO_ENGINE_OVERLAP);
+        bad = frame;
+        bad.data = (const uint8_t *)sink.stream;
+        assert(feed(sink.stream, &bad, 0, 1) == VIDEO_ENGINE_OVERLAP);
+        const int64_t times[][2] = {{-1, 1}, {0, 0}, {0, -1}, {INT64_MAX, 1}};
+        for (size_t j = 0; j < sizeof(times) / sizeof(times[0]); ++j)
+            assert(feed(sink.stream, &frame, times[j][0], times[j][1]) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        counts(&sink, 0, 0, 0, 0);
+        defer_receive = 1;
+        assert(feed(sink.stream, &frame, 5, 2) == VIDEO_ENGINE_OK);
+        counts(&sink, 1, 0, 0, 0);
+        assert(feed(sink.stream, &frame, 4, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        assert(feed(sink.stream, &frame, 7, 1) == VIDEO_ENGINE_INVALID_STATE);
+        assert(video_engine_stream_drain(sink.stream) == VIDEO_ENGINE_OK);
+        counts(&sink, 1, 1, 1, 0);
+        assert(feed(sink.stream, &frame, 5, 1) == VIDEO_ENGINE_INVALID_ARGUMENT);
+        assert(video_engine_stream_finish(sink.stream) == VIDEO_ENGINE_OK);
+        assert(feed(sink.stream, &frame, 7, 1) == VIDEO_ENGINE_INVALID_STATE);
+        assert(video_engine_stream_cancel(sink.stream) == VIDEO_ENGINE_OK);
+        assert(feed(sink.stream, &frame, 7, 1) == VIDEO_ENGINE_INVALID_STATE);
+        counts(&sink, 1, 1, 1, 0);
+        video_engine_stream_destroy(sink.stream);
+    }
+}
+
+static void forced_failures(void)
+{
+    const feed_operation operations[] = {video_engine_stream_feed_rgb888,
+                                         video_engine_stream_feed_idr_rgb888};
+    for (size_t i = 0; i < 2; ++i) {
+        const feed_operation feed = operations[i];
+        struct sink sink;
+        setup(&sink);
+        begin(&sink, CAPACITY);
+        writable_error = AVERROR(ENOMEM);
+        assert(feed(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_NO_MEMORY);
+        counts(&sink, 0, 0, 0, 0);
+        sticky(&sink, VIDEO_ENGINE_NO_MEMORY, AVERROR(ENOMEM), 0);
+        begin(&sink, CAPACITY);
+        send_error = AVERROR_EXTERNAL;
+        assert(feed(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_CODEC_ERROR);
+        counts(&sink, 0, 0, 0, 0);
+        sticky(&sink, VIDEO_ENGINE_CODEC_ERROR, AVERROR_EXTERNAL, 0);
+        begin(&sink, CAPACITY);
+        receive_error = AVERROR_EXTERNAL;
+        assert(feed(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_CODEC_ERROR);
+        counts(&sink, 1, 0, 0, 0);
+        sticky(&sink, VIDEO_ENGINE_CODEC_ERROR, AVERROR_EXTERNAL, 0);
+        begin(&sink, 1);
+        assert(feed(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_OUTPUT_TOO_SMALL);
+        counts(&sink, 1, 1, 0, 0);
+        assert(sink.attempts == 0);
+        sticky(&sink, VIDEO_ENGINE_OUTPUT_TOO_SMALL, 0, 0);
+        begin(&sink, CAPACITY);
+        assert(video_engine_stream_feed_rgb888(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_OK);
+        sink.fail_at = 2;
+        sink.fail_code = -77;
+        assert(feed(sink.stream, &frame, 1, 1) == VIDEO_ENGINE_SINK_ERROR);
+        counts(&sink, 2, 2, 1, 0);
+        sticky(&sink, VIDEO_ENGINE_SINK_ERROR, 0, -77);
+        sink.fail_code = 0;
+        begin(&sink, CAPACITY);
+        assert(video_engine_stream_feed_rgb888(sink.stream, &frame, 0, 1) == VIDEO_ENGINE_OK);
+        assert(video_engine_stream_finish(sink.stream) == VIDEO_ENGINE_OK);
+        counts(&sink, 1, 1, 1, 0);
+        video_engine_stream_destroy(sink.stream);
+    }
+}
+
 int main(void)
 {
     av_log_set_level(AV_LOG_ERROR);
@@ -495,6 +600,8 @@ int main(void)
     codec_failures();
     pending_and_eos();
     long_stream();
-    puts("8 streaming C self-test groups passed");
+    forced_contract();
+    forced_failures();
+    puts("8 streaming C self-test groups passed; 2 forced-IDR groups passed");
     return 0;
 }

@@ -495,6 +495,9 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 if input_session is None:
                     raise ValueError('Legacy input mailbox does not support held contacts')
                 result = input_session.handle(request)
+                if (result.get('ok') is True and request.get('op') in ('press', 'tap')
+                        and request.get('key') == 'SHUTTER'):
+                    shutter_submitted = True
             elif (action=='sd_card' and set(request)=={'action','present'}
                     and type(request['present']) is bool):
                 if sd_card is None:raise ValueError('This run has no SD hotplug profile')

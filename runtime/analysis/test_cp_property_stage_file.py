@@ -1,4 +1,5 @@
 from pathlib import Path
+from test_export_assets import requires_original_assets
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ HERE = Path(__file__).resolve().parent
 ALH_PINS = json.loads((HERE.parents[1]/'report/lif-enable-input-contract/source-pins.json').read_text())['public_property']
 
 
+@requires_original_assets('seed-backup.bin')
 @pytest.mark.parametrize('versioned_stat', [False, True])
 def test_public_stage_file_loader_actual_content_and_failures(tmp_path, versioned_stat):
     original = HERE/'menu-root/seed-backup.bin'
@@ -119,6 +121,7 @@ int main(int argc,char **argv) {
         subprocess.run([str(binary), str(path), str(mode), str(expected)], check=True, env=env, timeout=10)
 
 
+@requires_original_assets('seed-backup.bin', 'lib/libc-2.25.so', 'lib/libdl-2.25.so', 'lib/libpthread-2.25.so', 'lib/ld-2.25.so')
 def test_public_stage_file_loader_with_original_aarch64_libc(tmp_path):
     qemu = HERE.parent/'sources/qemu-11.1.2/build-user/qemu-aarch64'
     if not shutil.which('clang') or not qemu.is_file():

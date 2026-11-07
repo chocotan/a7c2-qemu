@@ -1,0 +1,383 @@
+/* SPDX-License-Identifier: MIT */
+#include <qemu-plugin.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+#if QEMU_PLUGIN_VERSION != 7
+#error "This observer requires the reviewed QEMU plugin API 7 header"
+#endif
+_Static_assert(UINTPTR_MAX == UINT64_MAX, "Opaque event PCs require a flat 64-bit host");
+QEMU_PLUGIN_EXPORT int qemu_plugin_version = QEMU_PLUGIN_VERSION;
+
+#define LOW48_MAX UINT64_C(0x0000ffffffffffff)
+#define SITE_COUNT 3U
+#define SITE_QUOTA 16U
+#define FAULT_QUOTA 32U
+#define MAX_DESCRIPTORS 4096U
+#define LINE_LIMIT 2048U
+
+static const char *const site_names[SITE_COUNT] = {"setter_entry", "store_pre", "ret_pre"};
+static const unsigned char writer12[12] = {
+    0xa1,0xb7,0x02,0xd0,0x20,0x70,0x05,0xb9,0xc0,0x03,0x5f,0xd6
+};
+enum reg_index { REG_PC, REG_X0, REG_X1, REG_X30, REG_CPSR, REG_SP, REG_TTBR0_EL1, REG_TPIDR_EL0, REG_COUNT };
+static const char *const reg_names[REG_COUNT] = {"pc", "x0", "x1", "x30", "cpsr", "sp", "TTBR0_EL1", "TPIDR_EL0"};
+struct reg_ref { struct qemu_plugin_register *handle; bool found; };
+static struct {
+    GMutex lock;
+    FILE *log;
+    GByteArray *buffer;
+    struct reg_ref regs[REG_COUNT];
+    uint64_t base, conflicting_base, faults, suppressed_faults;
+    uint64_t suppressed[SITE_COUNT], unbound[SITE_COUNT];
+    unsigned int records[SITE_COUNT], sequence, fault_lines, anchor_seen_mask;
+    bool install_called, initialized, regs_ready, candidate_found, ambiguous;
+    bool disabled, closed, io_failed, io_reported;
+    const char *stop;
+} observer;
+
+static void increment(uint64_t *value)
+{
+    if (*value != UINT64_MAX) { ++*value; }
+}
+
+static void io_failure(const char *stage)
+{
+    int saved = errno;
+    observer.io_failed = true;
+    observer.disabled = true;
+    observer.stop = "host_io_failure";
+    if (!observer.io_reported) {
+        observer.io_reported = true;
+        (void)fprintf(stderr, "scope_observer_host_error stage=%s errno=0x%x "
+            "status=native_unverified identity=unknown capture=0x0 physical=0x0 retirement=0x0\n",
+            stage, (unsigned int)saved);
+    }
+}
+
+static bool record_v(const char *kind, const char *format, va_list args)
+{
+    char body[1900], line[LINE_LIMIT];
+    int body_length, length;
+    if (!observer.log || observer.closed || observer.io_failed) { return false; }
+    body_length = vsnprintf(body, sizeof(body), format, args);
+    if (body_length < 0 || (size_t)body_length >= sizeof(body) ||
+        strchr(body, '\n') || strchr(body, '\r')) {
+        errno = EINVAL;
+        io_failure("format");
+        return false;
+    }
+    length = snprintf(line, sizeof(line),
+        "kind=%s %s status=native_unverified identity=unknown binding=unbound "
+        "pid=unknown tid=unknown capture=0x0 physical=0x0 retirement=0x0\n", kind, body);
+    if (length < 0 || (size_t)length >= sizeof(line)) {
+        errno = EINVAL;
+        io_failure("line_limit");
+        return false;
+    }
+    errno = 0;
+    if (fwrite(line, 1, (size_t)length, observer.log) != (size_t)length) {
+        io_failure("write");
+        return false;
+    }
+    if (fflush(observer.log) != 0 || ferror(observer.log)) {
+        io_failure("flush");
+        return false;
+    }
+    return true;
+}
+
+static bool record(const char *kind, const char *format, ...)
+{
+    va_list args;
+    bool ok;
+    va_start(args, format);
+    ok = record_v(kind, format, args);
+    va_end(args);
+    return ok;
+}
+
+static void fault(const char *format, ...)
+{
+    va_list args;
+    increment(&observer.faults);
+    if (observer.fault_lines == FAULT_QUOTA) {
+        increment(&observer.suppressed_faults);
+        return;
+    }
+    va_start(args, format);
+    if (record_v("fault", format, args)) { ++observer.fault_lines; }
+    va_end(args);
+}
+
+static bool derive_base(uint64_t pc, uint64_t *base)
+{
+    uint64_t b;
+    if (pc < UINT64_C(0x2767978) || pc > LOW48_MAX - 11U) { return false; }
+    b=pc-UINT64_C(0x2767978);
+    if (!b || (b&UINT64_C(0xfff)) || b>LOW48_MAX-UINT64_C(0x7e5d577)) { return false; }
+    *base=b;return true;
+}
+
+static bool read_exact(enum reg_index r, unsigned int site, uint64_t *value)
+{
+    size_t required = r == REG_CPSR ? 4U : 8U;
+    bool ok;
+    if (!observer.regs[r].found) {
+        fault("reason=unknown_register reg=%s required_length=0x%zx "
+              "read_attempted=0x0 read_length=0x0 api_ok=0x0", reg_names[r], required);
+        return false;
+    }
+    /* QEMU appends; clear all prior backing bytes as well as the visible length. */
+    if (observer.buffer->len) { memset(observer.buffer->data, 0, observer.buffer->len); }
+    g_byte_array_set_size(observer.buffer, 8);
+    memset(observer.buffer->data, 0, 8);
+    g_byte_array_set_size(observer.buffer, 0);
+    ok = qemu_plugin_read_register(observer.regs[r].handle, observer.buffer);
+    if (!ok || observer.buffer->len != required) {
+        fault("reason=register_read site=%s reg=%s required_length=0x%zx "
+              "read_attempted=0x1 read_length=0x%x api_ok=0x%x",
+              site_names[site], reg_names[r], required, observer.buffer->len, ok ? 1U : 0U);
+        return false;
+    }
+    *value = 0;
+    for (size_t i = 0; i < required; ++i) {
+        *value |= (uint64_t)observer.buffer->data[i] << (8U * i);
+    }
+    return true;
+}
+
+static bool optional(enum reg_index r, unsigned int site, const char *name, char out[192])
+{
+    uint64_t value;
+    int length;
+    if (observer.regs[r].found) {
+        if (!read_exact(r, site, &value)) { return false; }
+        length = snprintf(out, 192, "%s_available=0x1 %s_raw=0x%016" PRIx64
+            " %s_read_length=0x8 %s_api_ok=0x1", name, name, value, name, name);
+    } else {
+        length = snprintf(out, 192, "%s_available=0x0 %s_raw=unknown "
+            "%s_read_length=0x0 %s_api_ok=unknown", name, name, name, name);
+    }
+    if (length < 0 || length >= 192) {
+        errno = EINVAL;
+        io_failure("optional_format");
+        return false;
+    }
+    return true;
+}
+
+static void site_exec(unsigned int vcpu, void *userdata)
+{
+    uint64_t packed = (uint64_t)(uintptr_t)userdata;
+    unsigned int site = (unsigned int)(packed & UINT64_C(3));
+    uint64_t event_pc = packed & LOW48_MAX & ~UINT64_C(3), base;
+    uint64_t pc, x0, x1, lr, cpsr;
+    char options[3][192];
+    g_mutex_lock(&observer.lock);
+    if (observer.closed || observer.disabled) { goto out; }
+    if (vcpu != 0U) {
+        observer.disabled = true; observer.stop = "vcpu_limit";
+        fault("reason=vcpu_limit vcpu=0x%x reinitialized=0x0",vcpu); goto out;
+    }
+    if (site >= SITE_COUNT || packed & ~LOW48_MAX || event_pc < site * 4U ||
+        !derive_base(event_pc - site * 4U, &base) || !observer.candidate_found || base != observer.base) {
+        observer.disabled = true; observer.stop = "invalid_callback_context";
+        fault("reason=invalid_callback_context packed_raw=0x%016" PRIx64,packed); goto out;
+    }
+    if (!observer.regs_ready) {
+        observer.disabled = true; observer.stop = "registers_not_ready";
+        fault("reason=registers_not_ready"); goto out;
+    }
+    if (observer.records[site] == SITE_QUOTA) { increment(&observer.suppressed[site]); goto out; }
+    if (!read_exact(REG_PC,site,&pc) || !read_exact(REG_X0,site,&x0) ||
+        !read_exact(REG_X1,site,&x1) || !read_exact(REG_X30,site,&lr) ||
+        !read_exact(REG_CPSR,site,&cpsr)) { goto out; }
+    switch (cpsr & UINT64_C(0x1f)) {
+    case 0: case 4: case 5: case 8: case 9: case 12: case 13: break;
+    default:
+        fault("reason=invalid_mode site=%s cpsr_raw=0x%08" PRIx64,site_names[site],cpsr); goto out;
+    }
+    /* Store/RET taps require the ADRP result in X1; this is no memory readback. */
+    if (site && x1 != base + UINT64_C(0x7e5d000)) {
+        observer.disabled = true; observer.stop = "destination_base_mismatch";
+        fault("reason=destination_base_mismatch site=%s x1_raw=0x%016" PRIx64
+              " expected_x1=0x%016" PRIx64,site_names[site],x1,base+UINT64_C(0x7e5d000)); goto out;
+    }
+    if (!optional(REG_SP,site,"sp",options[0]) ||
+        !optional(REG_TTBR0_EL1,site,"ttbr0_el1",options[1]) ||
+        !optional(REG_TPIDR_EL0,site,"tpidr_el0",options[2])) { goto out; }
+    if (record("shutter_writer",
+        "site=%s vcpu=0x%x ordinal=0x%x writer_sequence=0x%x callback_phase=before_instruction "
+        "event_pc=0x%016" PRIx64 " gdb_pc_raw=0x%016" PRIx64 " candidate_base=0x%016" PRIx64
+        " anchor_length=0xc x0_raw=0x%016" PRIx64 " input_w0=0x%08" PRIx32
+        " x1_raw=0x%016" PRIx64 " x30_raw=0x%016" PRIx64 " cpsr_raw=0x%08" PRIx64
+        " cpsr_m=0x%02" PRIx64 " context_mode=%s expected_destination=0x%016" PRIx64
+        " destination_base_checked=0x%x gdb_pc_read_length=0x8 gdb_pc_api_ok=0x1 "
+        "x0_read_length=0x8 x0_api_ok=0x1 x1_read_length=0x8 x1_api_ok=0x1 "
+        "x30_read_length=0x8 x30_api_ok=0x1 cpsr_read_length=0x4 cpsr_api_ok=0x1 api_ok=0x1 "
+        "%s %s %s store_retirement_verified=0x0 memory_readback_verified=0x0",
+        site_names[site],vcpu,observer.records[site]+1U,observer.sequence+1U,
+        event_pc,pc,base,x0,(uint32_t)x0,x1,lr,cpsr,cpsr&UINT64_C(0x1f),
+        (cpsr&UINT64_C(0x1f))==0U ? "EL0t" : "other_aarch64",
+        base+UINT64_C(0x7e5d570),site ? 1U : 0U,options[0],options[1],options[2])) {
+        ++observer.records[site]; ++observer.sequence;
+        observer.anchor_seen_mask |= 1U << site;
+    }
+out:
+    g_mutex_unlock(&observer.lock);
+}
+
+/* Each callback is registered only from a contiguous, exact full twelve-byte body. */
+static int match_window(struct qemu_plugin_tb *tb, size_t start, size_t count, uint64_t pc)
+{
+    if (count - start < 3U) { return 0; }
+    for (size_t j=0;j<3U;++j) {
+        struct qemu_plugin_insn *insn=qemu_plugin_tb_get_insn(tb,start+j);
+        unsigned char local[4]={0};
+        if (qemu_plugin_insn_size(insn)!=4U || qemu_plugin_insn_vaddr(insn)!=pc+4U*j ||
+            qemu_plugin_insn_data(insn,local,sizeof(local))!=sizeof(local) ||
+            memcmp(local,writer12+4U*j,sizeof(local))) { return -1; }
+    }
+    return 1;
+}
+
+static void tb_trans(struct qemu_plugin_tb *tb, void *userdata)
+{
+    size_t count=qemu_plugin_tb_n_insns(tb);
+    (void)userdata;
+    g_mutex_lock(&observer.lock);
+    for (size_t i=0;i<count && !observer.closed && !observer.disabled;++i) {
+        struct qemu_plugin_insn *first=qemu_plugin_tb_get_insn(tb,i);
+        uint64_t pc=qemu_plugin_insn_vaddr(first),base;
+        int matched;
+        if (!derive_base(pc,&base)) { continue; }
+        matched=match_window(tb,i,count,pc);
+        if (matched!=1) {
+            if (matched==-1 && observer.candidate_found && base==observer.base) {
+                observer.disabled=true;observer.stop="anchor_changed";
+                fault("reason=anchor_changed translated_pc=0x%016" PRIx64,pc);
+            }
+            continue;
+        }
+        if (observer.candidate_found && observer.base!=base) {
+            observer.ambiguous=true;observer.disabled=true;observer.stop="base_conflict";
+            observer.conflicting_base=base;
+            fault("reason=base_conflict candidate_base=0x%016" PRIx64
+                  " conflicting_base=0x%016" PRIx64,observer.base,base);break;
+        }
+        observer.base=base;observer.candidate_found=true;
+        for (unsigned int site=0;site<SITE_COUNT;++site) {
+            struct qemu_plugin_insn *tap=qemu_plugin_tb_get_insn(tb,i+site);
+            qemu_plugin_register_vcpu_insn_exec_cb(tap,site_exec,QEMU_PLUGIN_CB_R_REGS,
+                (void *)(uintptr_t)(pc+site*4U+site));
+        }
+        i+=2U;
+    }
+    g_mutex_unlock(&observer.lock);
+}
+
+static void vcpu_init(unsigned int vcpu, void *userdata)
+{
+    GArray *descriptors;
+    (void)userdata;
+    g_mutex_lock(&observer.lock);
+    if (observer.closed || observer.disabled) { goto out; }
+    if (vcpu != 0U || observer.initialized) {
+        observer.disabled = true; observer.stop = "vcpu_limit";
+        fault("reason=vcpu_limit vcpu=0x%x reinitialized=0x%x",vcpu,observer.initialized ? 1U : 0U);
+        goto out;
+    }
+    observer.initialized = true;
+    descriptors = qemu_plugin_get_registers();
+    if (!descriptors || !descriptors->len || descriptors->len > MAX_DESCRIPTORS) {
+        observer.disabled = true; observer.stop = "register_list";
+        fault("reason=register_list descriptor_count=0x%x",descriptors ? descriptors->len : 0U);
+    } else {
+        for (guint i = 0; i < descriptors->len; ++i) {
+            const qemu_plugin_reg_descriptor *d = &g_array_index(descriptors,qemu_plugin_reg_descriptor,i);
+            for (size_t r = 0; r < REG_COUNT; ++r) {
+                if (d->name && strcmp(d->name,reg_names[r]) == 0) {
+                    if (observer.regs[r].found) {
+                        observer.disabled = true; observer.stop = "duplicate_register";
+                        fault("reason=duplicate_register reg=%s",reg_names[r]);
+                    }
+                    observer.regs[r] = (struct reg_ref){.handle=d->handle,.found=true};
+                }
+            }
+        }
+        for (size_t r = 0; r < REG_SP; ++r) {
+            if (!observer.regs[r].found) {
+                observer.disabled = true; observer.stop = "unknown_register";
+                fault("reason=unknown_register reg=%s required_length=0x%x "
+                      "read_attempted=0x0 read_length=0x0 api_ok=0x0",
+                      reg_names[r], r == REG_CPSR ? 4U : 8U);
+            }
+        }
+        observer.regs_ready = !observer.disabled;
+    }
+    if (descriptors) { g_array_unref(descriptors); }
+out:
+    g_mutex_unlock(&observer.lock);
+}
+
+static void plugin_exit(void *userdata)
+{
+    (void)userdata;
+    g_mutex_lock(&observer.lock);
+    if (!observer.closed) {
+        (void)record("end", "stop=%s ambiguous=0x%x candidate_found=0x%x "
+            "candidate_base=0x%016" PRIx64 " conflicting_base=0x%016" PRIx64 " anchor_seen_mask=0x%x "
+            "site0_records=0x%x site1_records=0x%x site2_records=0x%x writer_sequence=0x%x "
+            "site0_suppressed=0x%" PRIx64 " site1_suppressed=0x%" PRIx64 " site2_suppressed=0x%" PRIx64
+            " fault_lines=0x%x faults=0x%" PRIx64 " suppressed_faults=0x%" PRIx64 " close_result=unknown",
+            observer.stop ? observer.stop : "none",observer.ambiguous ? 1U : 0U,
+            observer.candidate_found ? 1U : 0U,observer.base,observer.conflicting_base,observer.anchor_seen_mask,
+            observer.records[0],observer.records[1],observer.records[2],observer.sequence,
+            observer.suppressed[0],observer.suppressed[1],observer.suppressed[2],
+            observer.fault_lines,observer.faults,observer.suppressed_faults);
+        observer.closed = true; observer.disabled = true;
+        if (observer.log && fclose(observer.log) != 0) { io_failure("close"); }
+        observer.log = NULL;
+        if (observer.buffer) { g_byte_array_unref(observer.buffer); observer.buffer = NULL; }
+    }
+    g_mutex_unlock(&observer.lock);
+}
+
+QEMU_PLUGIN_EXPORT int qemu_plugin_install(qemu_plugin_id_t id, const qemu_info_t *info,
+                                          int argc, char **argv)
+{
+    const char *reason = NULL;
+    if (observer.install_called) {
+        (void)fprintf(stderr,"scope_observer_host_error reason=duplicate_install\n"); return 1;
+    }
+    observer.install_called = true;
+    if (argc != 1 || !argv || !argv[0] || strncmp(argv[0],"log=/",5) || strlen(argv[0]) > 4096U ||
+        strchr(argv[0],'\r') || strchr(argv[0],'\n')) {
+        (void)fprintf(stderr,"scope_observer_host_error reason=one_absolute_host_log_required\n"); return 1;
+    }
+    observer.log = fopen(argv[0]+4,"wx");
+    if (!observer.log) { io_failure("exclusive_open"); return 1; }
+    if (!record("begin", "schema=readonly_shutter_writer_v1 plugin_api=0x7 max_vcpus=0x1 sites=0x3 "
+        "site_quota=0x10 fault_quota=0x20 register_byte_order=little "
+        "identity_limit=raw_context_only_no_pid_tid_module_identity")) {
+        plugin_exit(NULL); return 1;
+    }
+    if (!info || !info->target_name || strcmp(info->target_name,"aarch64")) {
+        reason = "target_requires_aarch64_little_endian";
+    } else if (info->version.min > 7 || info->version.cur < 7) { reason = "plugin_api_range";
+    } else if (!info->system_emulation) { reason = "system_emulation_required";
+    } else if (info->system.smp_vcpus != 1 || info->system.max_vcpus != 1) { reason = "single_vcpu_required"; }
+    if (reason) {
+        observer.disabled = true; observer.stop = reason; fault("reason=%s",reason);
+        plugin_exit(NULL); return 1;
+    }
+    observer.buffer = g_byte_array_sized_new(8);
+    qemu_plugin_register_vcpu_init_cb(id,vcpu_init,NULL);
+    qemu_plugin_register_vcpu_tb_trans_cb(id,tb_trans,NULL);
+    qemu_plugin_register_atexit_cb(id,plugin_exit,NULL);
+    return 0;
+}

@@ -28,6 +28,7 @@ CORE_SOURCES = (
     "virtual-jpeg-sos/jpeg-sos.c",
     "virtual-video-engine/video-engine.c",
     "virtual-camera-pipeline/camera-pipeline.c",
+    "../runtime/analysis/device-models/cp-parameter-batch.c",
 )
 OWNER_SOURCES = (
     "functional-background-start.c", "functional-camera-control.c",
@@ -40,6 +41,7 @@ HARNESS = r'''
 #define _GNU_SOURCE
 #include "runtime/analysis/device-models/functional-background-start.h"
 #include "runtime/analysis/device-models/functional-camera-control.h"
+#include "runtime/analysis/device-models/functional-startup-control.h"
 #include "report/functional-camera-core/functional-camera-core.h"
 #include "report/virtual-optical-frame-owner/optical-frame-owner.h"
 #include <assert.h>
@@ -51,6 +53,10 @@ HARNESS = r'''
 #include <sys/syscall.h>
 #include <unistd.h>
 
+/* This background-only fixture provides no OU startup predecessor. */
+void functional_startup_control_snapshot(struct functional_startup_control_snapshot *out) {
+    *out = (struct functional_startup_control_snapshot){0};
+}
 struct message { void *next; unsigned int flags, source, size, reserved; unsigned char body[]; };
 _Static_assert(offsetof(struct message, body) == 24, "actual OSAL metadata head");
 static struct fcam_model *model;

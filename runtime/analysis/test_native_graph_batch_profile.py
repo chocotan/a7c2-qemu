@@ -239,13 +239,13 @@ def test_prepare_rejects_new_bad_switches_and_broken_guest_chain_before_candidat
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_real_receipt_manifest_and_typed_validator_cover_all_new_fields(tmp_path,enabled):
+def test_real_receipt_manifest_and_typed_validator_cover_all_new_fields(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     launcher=load_script('batch_receipt_launcher','start-menu.py')
     host=launcher.profile_environment(host_environment(tmp_path,build,steps=3 if enabled else 0),natural_boot=True)
     with directory_lease(tmp_path/'card') as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     path=Path(host['MENU_BACKUP_PROFILE_RECEIPT']);receipt=json.loads(path.read_text())
     active={**OLD_PROFILES,**{name:profile if enabled else '' for name,_,profile in FAMILIES}}
     fields={name:getattr(backup,name+'_profile_fields')(profile) for name,profile in active.items()}

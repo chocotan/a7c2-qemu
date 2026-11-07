@@ -11,7 +11,7 @@
 struct message { unsigned int owner, source, bytes, live;unsigned char data[32]; } pool[16];
 static void *queued,*last_reply;
 static int alloc_error,send_error,free_error,alias_allocate;
-static void *alias;
+static void *alias,*mutate_signal_request;
 static unsigned int requests_freed,replies_freed,allocations;
 static unsigned int expected_rate_selector,expected_rate_value;
 static struct {
@@ -29,6 +29,7 @@ static struct message *message(void *p) {
 }
 static int allocate(unsigned int owner,void **out,unsigned int bytes,unsigned int wait) {
     assert(wait==1 && bytes<=32);allocations++;
+    if (mutate_signal_request) { ((unsigned char *)mutate_signal_request)[8]^=1;mutate_signal_request=0; }
     if (alias_allocate) { *out=alias;return 0; }
     if (alloc_error) { *out=0;return alloc_error; }
     if (race.active && owner==race.destination) {
@@ -78,7 +79,7 @@ static void record(const char *tag,const char *line) {
 static const struct full_imaging_io io={allocate,release,set_source,send,size,source,record};
 static struct full_hdmi_snapshot snapshot(void) { struct full_hdmi_snapshot s;full_hdmi_snapshot(&s);return s; }
 static void reset(void) {
-    full_hdmi_test_reset();memset(pool,0,sizeof pool);queued=last_reply=alias=0;
+    full_hdmi_test_reset();memset(pool,0,sizeof pool);queued=last_reply=alias=mutate_signal_request=0;
     alloc_error=send_error=free_error=alias_allocate=0;requests_freed=replies_freed=allocations=0;
 }
 static void *request(unsigned int command,unsigned int value,unsigned int sid) {
@@ -298,8 +299,59 @@ static void audio_connected_marker(void) {
     finish(0x10a,1,0x81b10005);assert(!full_hdmi_audio_pin_connected_one());
     puts("HDMI_SHARED_AUDIO_CONNECTED_ONE_OLD_UNKNOWN_CONFIG_PRESERVED_PASS");
 }
+static void signal_mode_configuration(void) {
+    reset();int rc=123;const unsigned int sid=0x81cf61c7;
+    for(unsigned int mode=0;mode<3;mode++){
+        void *p=request(0x102,0,sid);unsigned int count=allocations;
+        assert(!full_hdmi_dispatch(FULL_HDMI_CP,p,&io,(int)mode,&rc) && allocations==count && message(p)->live);
+        assert(!snapshot().signal_mode_known && !release(FULL_HDMI_CP,p));
+    }
+    transaction(0x10a,3,0x81cf61c8);
+    const unsigned int values[]={0,1,2,0};
+    for(unsigned int i=0;i<4;i++){
+        struct full_hdmi_snapshot before=snapshot();void *p=request(0x102,values[i],sid);
+        assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && !rc);
+        struct full_hdmi_snapshot after=snapshot();
+        assert(after.signal_mode_known && after.signal_mode==values[i] && after.signal_mode_applied==i+1 && after.signal_mode_owner_pid==getpid());
+        assert(after.known==before.known && after.definition==before.definition && after.applied==before.applied);
+        const unsigned char ack[12]={0,0x25,2,0x81,12,0,1,0,0,0,0,0};
+        assert(queued && size(queued)==12 && !memcmp(queued,ack,12) && !message(p)->live);
+        assert(full_hdmi_release_reply(sid,queued,release,record,&rc) && !rc);queued=0;
+    }
+    void *p=request(0x10a,0,sid);unsigned int count=allocations;rc=123;
+    assert(!full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==123 && allocations==count);
+    assert(!release(FULL_HDMI_CP,p));
+    for(unsigned int bad=0;bad<5;bad++){
+        p=request(0x102,0,sid);struct full_hdmi_snapshot before=snapshot();
+        if(bad==0)message(p)->bytes=11;
+        if(bad==1)((unsigned char *)p)[4]=16;
+        if(bad==2)((unsigned char *)p)[8]=3;
+        if(bad==3)((unsigned char *)p)[9]=1;
+        if(bad==4)message(p)->source=FULL_HDMI_CP;
+        count=allocations;
+        assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==-1021 && allocations==count);
+        struct full_hdmi_snapshot after=snapshot();assert(!memcmp(&before,&after,sizeof before) && !release(FULL_HDMI_CP,p));
+    }
+    p=request(0x102,2,sid);struct full_hdmi_snapshot before=snapshot();alloc_error=-66;
+    assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==-66 && message(p)->live);
+    alloc_error=0;struct full_hdmi_snapshot after=snapshot();assert(!memcmp(&before,&after,sizeof before));assert(!release(FULL_HDMI_CP,p));
+    p=request(0x102,2,sid);before=snapshot();send_error=-67;
+    assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==-67 && message(p)->live && !queued);
+    send_error=0;after=snapshot();assert(!memcmp(&before,&after,sizeof before));assert(!release(FULL_HDMI_CP,p));
+    p=request(0x102,0,sid);before=snapshot();mutate_signal_request=p;
+    assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==-1021 && message(p)->live && !queued);
+    after=snapshot();assert(!memcmp(&before,&after,sizeof before) && !release(FULL_HDMI_CP,p));
+    pid_t child=fork();assert(child>=0);
+    if(!child){alarm(2);p=request(0x102,1,sid);assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && rc==-1021);_exit(0);}
+    int child_status;assert(waitpid(child,&child_status,0)==child && WIFEXITED(child_status) && !WEXITSTATUS(child_status));
+    p=request(0x102,1,sid);free_error=-71;
+    assert(full_hdmi_dispatch(FULL_HDMI_CP,p,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&rc) && !rc && snapshot().faults && snapshot().retained_request==p && queued);
+    free_error=0;assert(full_hdmi_release_reply(sid,queued,release,record,&rc) && !rc);queued=0;
+    assert(!release(FULL_HDMI_CP,p));
+    puts("HDMI_FUNCTIONAL_SIGNAL_MODE_NATIVE102_12B_READBACK_ROLLBACK_STRICT_PASS");
+}
 int main(void) {
     alarm(15);
-    configuration();resolution_configuration();rate_configuration();errors_and_activation();reused_pool();reply_and_cleanup_faults();interleaved_real_free();audio_connected_marker();
+    configuration();resolution_configuration();rate_configuration();errors_and_activation();reused_pool();reply_and_cleanup_faults();interleaved_real_free();audio_connected_marker();signal_mode_configuration();
     puts("HDMI_DEFINITION_STATE_NORMALIZATION_GETTER_OWNERSHIP_ABA_PASS");return 0;
 }

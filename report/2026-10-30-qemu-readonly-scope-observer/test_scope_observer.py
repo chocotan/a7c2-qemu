@@ -17,7 +17,7 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 QEMU = HERE.parents[1] / "source/build/qemu-SRBXNK/qemu-11.1.2"
-SCRATCH = HERE.parents[1] / "runtime/analysis/scratch/functional-M-v2-plugin-tests"
+SCRATCH = HERE.parents[5] / "analysis/scratch/functional-M-v2-plugin-tests"
 FLAGS = ["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g"]
 REGISTERS = ("pc", "x0", "x19", "x20", "x21", "x23", "x24", "x29", "x30", "cpsr", "sp")
 TOKENS = ("TTBR0_EL1", "TPIDR_EL0")
@@ -432,7 +432,7 @@ def test_authoritative_schema_tracks_current_production_source():
     assert schema["profile"] == contract["profile"] == "qemu-readonly-scope-v2"
     assert contract["schema"] == "readonly_scope_source_contract_v2"
     assert contract["v2_schema_sha256"] == hashlib.sha256(schema_raw).hexdigest()
-    assert schema["source"].endswith("report/" + HERE.name + "/scope-observer.c")
+    assert (HERE.parents[5] / schema["source"]).resolve() == HERE / "scope-observer.c"
     required = {"scope-observer.c", "late-sites.inc", "build-plugin.sh",
                 "log-schema-v2.json", "source-contract-v2.json", "check_run_context_v2.py",
                 "check_run_context.py", "integration/scope_trace_checks_v2.py",

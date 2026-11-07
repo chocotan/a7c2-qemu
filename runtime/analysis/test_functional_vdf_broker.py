@@ -48,10 +48,11 @@ def layout_response():
     return b.LAYOUT_INITIAL_BODY, route, bytes(raw)
 
 
-def display_response(command):
+def display_response(command, body=None):
     route, base = response()
-    body = bytes.fromhex('0300010000eb8080') if command == 0x152 else bytes(8)
-    data = struct.pack('<2I', command, 8 if command == 0x152 else 2 if command == 0x162 else 0) + body
+    if body is None:
+        body = bytes.fromhex('0300010000eb8080') if command == 0x152 else bytes(8)
+    data = struct.pack('<2I', command, 8 if command == 0x152 else 2 if command == 0x162 else 6 if command == 0x163 else 4 if command == 0x170 else 0) + body
     raw = bytearray(base + data)
     struct.pack_into('<I', raw, 4, 176)
     struct.pack_into('<Q', raw, 40, b.fnv64(data))
@@ -108,7 +109,7 @@ def still_format_response():
 
 def startup_control_response(command=0x4014):
     body = b.STARTUP_CAP_MODE_BODY if command == 0x4014 else bytes(16)
-    data = struct.pack('<2H', command, 16 if command == 0x4014 else 4) + body + bytes(4) + struct.pack('<Q', b.fnv64(bytes(40)))
+    data = struct.pack('<2H', command, 16 if command == 0x4014 else 8 if command == 0x403f else 4) + body + bytes(4) + struct.pack('<Q', b.fnv64(bytes(40)))
     route, base = response()
     raw = bytearray(base + data)
     struct.pack_into('<I', raw, 4, 192)
@@ -131,6 +132,35 @@ def core_with_reply(raw):
     core = b.Core.__new__(b.Core)
     core.model, core.instance, core.library = object(), INSTANCE, Library()
     return core
+
+
+@pytest.mark.parametrize('mask', range(8))
+def test_0170_functional_output_all_boolean_tuples_and_consistent_invalid_echoes(mask):
+    body = bytes((mask >> bit) & 1 for bit in range(3)) + bytes(5)
+    data, route, raw = display_response(0x170, body)
+    core = core_with_reply(raw)
+    core.vdf_route = route
+    assert core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, data, 176)[1] == raw
+    assert core.vdf_route == route
+    mutations = [(offset, value) for offset in range(8, 11) for value in (2, 255)]
+    mutations += [(offset, 1) for offset in range(11, 16)]
+    mutations += [(0, 0x71), (2, 1), (4, 3), (5, 1), (6, 1), (7, 1)]
+    for offset, value in mutations:
+        invalid, forged = bytearray(data), bytearray(raw)
+        invalid[offset] = value
+        forged[160:] = invalid
+        struct.pack_into('<Q', forged, 40, b.fnv64(invalid))
+        core = core_with_reply(bytes(forged))
+        core.vdf_route = route
+        with pytest.raises(ValueError, match='disabled-feature policy'):
+            core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, bytes(invalid), 176)
+        assert core.vdf_route == route
+    forged = bytearray(raw)
+    forged[171] ^= 1
+    core = core_with_reply(bytes(forged))
+    core.vdf_route = route
+    with pytest.raises(ValueError, match='display configuration/readback'):
+        core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, data, 176)
 
 
 @pytest.mark.parametrize('command', [0x111, 0x166, 0x167, 0x15f, 0x128])
@@ -344,7 +374,7 @@ def test_layout_requires_an_existing_active_route():
         core.execute(INSTANCE, b.VDF_LAYOUT, data, 192)
 
 
-@pytest.mark.parametrize('command', [0x141, 0x152, 0x162])
+@pytest.mark.parametrize('command', [0x141, 0x152, 0x162, 0x163])
 def test_display_typed_configuration_reads_back_without_changing_route(command):
     data, route, raw = display_response(command)
     core = core_with_reply(raw)
@@ -377,7 +407,7 @@ def test_display_rejects_unmodelled_features_even_with_consistent_mock_readback(
         core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, bytes(data), 176)
 
 
-@pytest.mark.parametrize('command', [0x4014, 0x4057])
+@pytest.mark.parametrize('command', [0x4014, 0x4057, 0x403f])
 def test_startup_control_requires_actual_STATE_fingerprint_and_active_route(command):
     data, route, raw = startup_control_response(command)
     core = core_with_reply(raw)
@@ -395,10 +425,11 @@ def test_startup_control_requires_actual_STATE_fingerprint_and_active_route(comm
         core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
 
 
+@pytest.mark.parametrize('command', [0x4014, 0x4057, 0x403f])
 @pytest.mark.parametrize('offset', [0, 4, 8, 16, 24, 32, 40, 56, 64, 72, 80, 84, 92, 96,
                                    100, 104, 108, 112, 116, 120, 128, 144, 152, 160, 191])
-def test_startup_control_corrupt_full192_class_or_readback_rejected(offset):
-    data, route, raw = startup_control_response()
+def test_startup_control_corrupt_full192_class_or_readback_rejected(offset, command):
+    data, route, raw = startup_control_response(command)
     changed = bytearray(raw)
     changed[offset] ^= 1
     if offset == 32:
@@ -409,8 +440,9 @@ def test_startup_control_corrupt_full192_class_or_readback_rejected(offset):
         core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
 
 
-def test_startup_control_consistent_echo_cannot_authorize_unknown_tuple():
-    data, route, raw = startup_control_response()
+@pytest.mark.parametrize('command', [0x4014, 0x4057, 0x403f])
+def test_startup_control_consistent_echo_cannot_authorize_unknown_tuple(command):
+    data, route, raw = startup_control_response(command)
     for offset in range(32):
         incoming, output = bytearray(data), bytearray(raw)
         incoming[offset] ^= 1
@@ -514,6 +546,7 @@ def test_still_format_consistent_echo_does_not_authorize_other_tuple():
     (b.VDF_LAYOUT, b.LAYOUT_INITIAL_BODY, 192),
     (b.VDF_DISPLAY_CONFIG, display_response(0x152)[0], 176),
     (b.VDF_DISPLAY_CONFIG, display_response(0x162)[0], 176),
+    (b.VDF_DISPLAY_CONFIG, display_response(0x163)[0], 176),
     (b.VDF_DISPLAY_CONFIG, display_response(0x141)[0], 176),
 ])
 def test_vdf_request_requires_exact_body(opcode, data, capacity):

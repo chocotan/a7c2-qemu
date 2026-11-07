@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A7C2 per-run virtual USB control status",
+  "type": "object",
+  "required": ["schema", "run_id", "lease_id", "phase", "blocked_reason", "backend_ready", "cable_connected", "exported", "host_enumerated", "authentication_verified", "guest_root_verified", "preload_recovery_required", "target", "owned_port"],
+  "properties": {
+    "schema": {"const": "a7c2.usb-control.v1"},
+    "run_id": {"type": ["string", "null"]},
+    "lease_id": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "phase": {"enum": ["disconnected", "blocked", "attached", "enumerated", "recovery_required", "error"]},
+    "blocked_reason": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "object", "required": ["code", "detail"], "properties": {"code": {"type": "string"}, "detail": {"type": "string"}}, "additionalProperties": false}
+      ]
+    },
+    "backend_ready": {"type": "boolean"},
+    "cable_connected": {"type": "boolean"},
+    "exported": {"type": "boolean"},
+    "host_enumerated": {"type": "boolean"},
+    "authentication_verified": {"const": false, "description": "The USB control layer does not perform jiritsu authentication. Real consumer results must be presented separately."},
+    "guest_root_verified": {"const": false, "description": "A USB/IP attachment or synthetic backend never proves guest root."},
+    "preload_recovery_required": {"type": "boolean"},
+    "target": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["sysfs_path", "vhci_controller", "local_busid", "busnum", "devnum", "vendor_id", "product_id", "virtual_ancestor_verified"],
+          "properties": {
+            "sysfs_path": {"type": "string"},
+            "vhci_controller": {"type": "string"},
+            "local_busid": {"type": "string"},
+            "busnum": {"type": "integer", "minimum": 1},
+            "devnum": {"type": "integer", "minimum": 1},
+            "vendor_id": {"type": "integer", "minimum": 0, "maximum": 65535},
+            "product_id": {"type": "integer", "minimum": 0, "maximum": 65535},
+            "virtual_ancestor_verified": {"const": true}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "owned_port": {"type": ["object", "null"]},
+    "device": {"type": "object"}
+  },
+  "additionalProperties": false
+}

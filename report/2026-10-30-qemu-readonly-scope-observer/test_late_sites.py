@@ -20,7 +20,7 @@ _fixture = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_fixture)
 FLAGS, HERE, QEMU = _fixture.FLAGS, _fixture.HERE, _fixture.QEMU
 
-SCRATCH = HERE.parents[1] / "runtime/analysis/scratch/functional-M-v2-late-tests"
+SCRATCH = HERE.parents[5] / "analysis/scratch/functional-M-v2-late-tests"
 SITES = ("M_cmp_pre", "M_bne_pre", "request0_bl_pre")
 OFFSETS = dict(zip(SITES, (0x209EE58, 0x209EE5C, 0x209EE9C)))
 BASE = 0x5500000000

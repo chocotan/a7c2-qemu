@@ -1,0 +1,130 @@
+--- a/hw/core/null-machine.c
++++ b/hw/core/null-machine.c
+@@ -73,6 +73,14 @@
+         sysbus_mmio_map(wdt_bus, 0, 0xf1052000);
+         sysbus_mmio_map(wdt_bus, 1, 0xf1388300);
+     }
++    if (g_getenv("QEMU_CP_EDMA_GATE")) {
++        DeviceState *gate = qdev_new("sony-cp-edma-gate");
++        SysBusDevice *gate_bus = SYS_BUS_DEVICE(gate);
++        sysbus_realize_and_unref(gate_bus, &error_fatal);
++        sysbus_mmio_map(gate_bus, 0, 0xf11e0274);
++        /* Original CP pcidma_init/ISR table: GIC INTID0x193 (403). */
++        sysbus_connect_irq(gate_bus, 0, qdev_get_gpio_in(gic, 0x193 - 32));
++    }
+ }
+ 
+ static void machine_none_init(MachineState *mch)
+--- a/hw/misc/meson.build
++++ b/hw/misc/meson.build
+@@ -170,3 +170,4 @@
+ system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
+ system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_spacc_stub.c'))
+ system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cxd_bus_stub.c'))
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cp_edma_gate.c'))
+--- /dev/null
++++ b/hw/misc/sony_cp_edma_gate.c
+@@ -0,0 +1,103 @@
++/*
++ * CXD90057 INTERRUPT0_ENABLE, EDMA_INT low16 only.
++ * Sony drivers/pci/dwc/pcie-designware.{h,c}: +0x20274 and clear/set RW.
++ * No link/status/DMA completion registers are supplied by this device.
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++#include "qemu/osdep.h"
++#include "qemu/module.h"
++#include "hw/core/irq.h"
++#include "hw/core/sysbus.h"
++
++#define TYPE_SONY_CP_EDMA_GATE "sony-cp-edma-gate"
++OBJECT_DECLARE_SIMPLE_TYPE(SonyCpEdmaGate, SONY_CP_EDMA_GATE)
++
++struct SonyCpEdmaGate {
++    SysBusDevice parent_obj;
++    MemoryRegion enable_reg;
++    qemu_irq irq;
++    uint32_t enabled, levels;
++};
++
++static void gate_update(SonyCpEdmaGate *s)
++{
++    qemu_set_irq(s->irq, (s->enabled & s->levels) != 0);
++}
++
++static void gate_input(void *opaque, int number, int level)
++{
++    SonyCpEdmaGate *s = SONY_CP_EDMA_GATE(opaque);
++    if (level) {
++        s->levels |= 1U << number;
++    } else {
++        s->levels &= ~(1U << number);
++    }
++    gate_update(s);
++}
++
++static MemTxResult gate_read(void *opaque, hwaddr offset, uint64_t *value,
++                             unsigned size, MemTxAttrs attrs)
++{
++    SonyCpEdmaGate *s = opaque;
++    if (offset) {
++        return MEMTX_ERROR;
++    }
++    *value = s->enabled;
++    return MEMTX_OK;
++}
++
++static MemTxResult gate_write(void *opaque, hwaddr offset, uint64_t value,
++                              unsigned size, MemTxAttrs attrs)
++{
++    SonyCpEdmaGate *s = opaque;
++    if (offset || (value & ~UINT64_C(0xffff))) {
++        return MEMTX_ERROR;
++    }
++    s->enabled = value;
++    gate_update(s);
++    return MEMTX_OK;
++}
++
++static const MemoryRegionOps gate_ops = {
++    .read_with_attrs = gate_read, .write_with_attrs = gate_write,
++    .endianness = DEVICE_LITTLE_ENDIAN,
++    .valid = { .min_access_size = 4, .max_access_size = 4, .unaligned = false },
++};
++
++static void gate_reset(DeviceState *dev)
++{
++    SonyCpEdmaGate *s = SONY_CP_EDMA_GATE(dev);
++    /* Quiescent model initial state, not a measured physical reset value.
++     * CP unconditionally ORs all low16 bits; no ready state depends on this. */
++    s->enabled = 0;
++    gate_update(s);
++}
++
++static void gate_realize(DeviceState *dev, Error **errp)
++{
++    SonyCpEdmaGate *s = SONY_CP_EDMA_GATE(dev);
++    memory_region_init_io(&s->enable_reg, OBJECT(dev), &gate_ops, s,
++                          "sony-cp-edma-enable", 4);
++    sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->enable_reg);
++    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
++    qdev_init_gpio_in_named(dev, gate_input, "edma", 16);
++}
++
++static void gate_class_init(ObjectClass *klass, const void *data)
++{
++    DeviceClass *dc = DEVICE_CLASS(klass);
++    dc->realize = gate_realize;
++    device_class_set_legacy_reset(dc, gate_reset);
++    dc->desc = "Sony CP eDMA interrupt enable gate only";
++    /* shortcut: no migration state; add VMState before a migratable board. */
++}
++
++static const TypeInfo gate_type = {
++    .name = TYPE_SONY_CP_EDMA_GATE, .parent = TYPE_SYS_BUS_DEVICE,
++    .instance_size = sizeof(SonyCpEdmaGate), .class_init = gate_class_init,
++};
++static void gate_register_types(void)
++{
++    type_register_static(&gate_type);
++}
++type_init(gate_register_types)

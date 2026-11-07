@@ -171,7 +171,7 @@ def test_prepare_rejects_invalid_fifth_before_candidate_or_files(tmp_path,monkey
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_receipt_manifest_and_shell_exports_preserve_all_four_profiles(tmp_path,enabled):
+def test_receipt_manifest_and_shell_exports_preserve_all_four_profiles(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     env=host_environment(tmp_path,build)
     if not enabled:env.pop(HOST)
@@ -179,7 +179,7 @@ def test_receipt_manifest_and_shell_exports_preserve_all_four_profiles(tmp_path,
     host=launcher.profile_environment(env,natural_boot=True)
     with directory_lease(Path(env['A7C2_DIRECTORY_SD'])) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     fields=backup.infrabb_vef_control_connection_profile_fields(PROFILE if enabled else '')
     receipt=json.loads(Path(host['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
     previous=(backup.infrabb_vef_connection_profile_fields(backup.INFRABB_VEF_CONNECT_PROFILE),

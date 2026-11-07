@@ -200,6 +200,53 @@ def run_tests(m):
         return added
     added = accepts(lambda: verify(log))
     assert all(edge['early_unadmitted_requests']['unadmitted'] for edge in added)
+    # HOST_TEST: same actual peer-effects consumer, with only this producer's exact framing changed.
+    checker_path = Path(__file__).resolve().parents[3] / 'report/functional-graph-evidence/check_graph.py'
+    spec = importlib.util.spec_from_file_location('_drawinfo_event6_framing_content_test', checker_path)
+    checker = importlib.util.module_from_spec(spec); spec.loader.exec_module(checker)
+    tag = 'FULL_PINMEM_DRAWINFO_CONNECT_EVENT6_ENQUEUED'
+    guest = (b'OBS FULL_PINMEM_DRAWINFO_CONNECT_EVENT6_ENQUEUED producer_raw=0x5d74ba event=6 '
+        b'parameter_bytes=12 cleared_bytes=12 token=0x504d6000 raw=00604d500000000000000000 '
+        b'token_policy=owned-answer-plus24-map saved_original_request_bytes=64 queue_phase=1 '
+        b'wait_primary=6 wait_secondary=0 keep_pending=1 context_kind=2 '
+        b'original_CP_event_pointer_identity_verified=0 original_RTOS_scheduling_verified=0 capture_verified=0')
+    kernel = b'[ 5723.585987] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+    for warning in (b'', *checker.WARNINGS):
+        original = log.one(tag)
+        parsed, repairs = checker.console_records(b'\n' * (original['line'] - 1) + guest + warning + kernel + b'\r\n')
+        assert guest + b'\r\n' + kernel in parsed and len(repairs) == 1 + bool(warning)
+        rejects(lambda: checker.bind_repairs({}, repairs))
+        candidate = copy.deepcopy(log); row = candidate.one(tag)
+        parsed_tag, parsed_fields = checker.parse_record(guest + b'\r\n')
+        assert parsed_tag == tag and all(original['fields'][k] == v for k, v in parsed_fields.items()
+                                        if k in original['fields'])
+        row.update(fields=parsed_fields, raw=guest.decode())
+        corrupt = copy.deepcopy(candidate)
+        corrupt.one('FULL_PINMEM_DRAWINFO_CONNECT_EVENT6_CONSUMED')['fields']['token_body_binding_verified'] = '0'
+        rejects(lambda: verify(corrupt))
+        proof = accepts(lambda: verify(candidate))
+        checker.bind_repairs({'actual_peer_effects': proof}, repairs)
+        assert all(r['content_verifier_joined'] for r in repairs)
+        assert proof[3]['event_enqueued'] is row
+    tag = 'FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_QUEUED'
+    original = log.one(tag)
+    fields = original['fields']
+    guest = ('OBS ' + tag + ' ' + ' '.join(k + '=' + fields[k] for k in
+        ('pid', 'tid', 'source', 'destination', 'pointer', 'bytes', 'raw')) +
+        ' transport_owner=virtual-local-caller original_CP_executed=0 frames_verified=0 capture_verified=0').encode()
+    for warning in (b'', *checker.WARNINGS):
+        parsed, repairs = checker.console_records(b'\n' * (original['line'] - 1) + guest + warning + kernel + b'\r\n')
+        assert guest + b'\r\n' + kernel in parsed and len(repairs) == 1 + bool(warning)
+        rejects(lambda: checker.bind_repairs({}, repairs))
+        candidate = copy.deepcopy(log); row = candidate.one(tag)
+        parsed_tag, parsed_fields = checker.parse_record(guest + b'\r\n')
+        assert parsed_tag == tag and all(fields[k] == value for k, value in parsed_fields.items() if k in fields)
+        row.update(fields=parsed_fields, raw=guest.decode())
+        corrupt = copy.deepcopy(candidate); corrupt.one(tag)['fields']['pointer'] = '0x9999'
+        rejects(lambda: verify(corrupt))
+        proof = accepts(lambda: verify(candidate))
+        checker.bind_repairs({'actual_peer_effects': proof}, repairs)
+        assert all(r['content_verifier_joined'] for r in repairs) and proof[0]['REPLY_QUEUED'] is row
     def mutate(tag, field, value, index=0):
         changed = copy.deepcopy(log)
         changed.rows(tag)[index]['fields'][field] = value

@@ -1,5 +1,11 @@
 # 本包验证记录
 
+## 11月7日当前源码移交
+
+本轮同步当前权威工作树的原生模型/依赖，并新增独立完整系统的持久盘、开发UI、USB和P1 U/D/E源码。公开包实际检查、修复前失败、精确跳过理由和来源身份见[本次源码发布收据](2026-11-07-source-publication.json)；[最新进展](../docs/tech/2026-11-07-current-progress.md)给出已闭合v35原guest结果与pre-dat4精确恢复。研究host601/926与旧22,952等计数均不算本轮公开包结果。
+
+本轮没有执行QEMU、原guest、宿主USB或物理设备，也没有编译完整整机QEMU或原Sony ABI。宿主DTC/libfdt及项目DTB由随附公开源单独构建，供无固件的profile检查使用。Sony原件/seed/kernel模块/独立历史证据相关测试只在明确边界skip；存在但身份错误继续失败。完整更新、完整启动、source/runtime闭包、USB认证、成片和物理兼容保持false，40a5禁用。下方11月6日及以前章节保留原日期结论，不覆盖此次源码更新。
+
 ## 11月6日文档更新
 
 新增[当前研究进展](../docs/tech/2026-11-06-current-progress.md)与[进度JSON](2026-11-06-progress.json)。研究完整离线批`unified-camera-vxju27_y`实际通过**22,952 tests／20,213 subtests**，JUnit 43,165、0 failure／error／skip，1,388 sources／277 modules；四个gate阶段、双原ABI／actualAPI与独立读回通过。原3dgq完整批**21,557／20,131（14 failure／1,390 error）保持FAIL**，必要失败项复查**1,431／1,698 PASS**。原固件QEMU运行`run-ehgdk5qp`在晚期4000（OP22）返回240B、config 24→25，4057完成，下一4072发送断言失败，UI1／FirmwareFault；卡无JPEG／MP4，`capture_verified=false`。

@@ -5,7 +5,9 @@
   "trace_schema_sha256": "9d1456b1fafbfa3367abe0ce225cf4575410a20db48e3442b26374174cb8f34f",
   "state": "SOURCE_DRAFT_NOT_BUILT_TESTED_OR_READY",
   "component": "2026-10-31-qemu-shutter-gate-observer-v1",
-  "fixed_future_source_root": "report/2026-10-31-qemu-shutter-gate-observer-v1",
+  "fixed_future_source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera/report/2026-10-31-qemu-shutter-gate-observer-v1",
+  "fixed_interface": "analysis/scratch/functional-shutter-gate-v1-parent/INTERFACE.json",
+  "operand_interface": "analysis/scratch/functional-shutter-gate-v1-parent/OPERAND_INTERFACE.json",
   "actual_build_source_names_required": [
     "scope-observer.c", "build-plugin.sh", "build-runtime.py", "log-schema-shutter-gate-v1.json", "source-contract-shutter-gate-v1.json", "check_shutter_gate_v1.py", "integration/shutter_gate_trace_checks_v1.py"
   ],
@@ -46,7 +48,7 @@
   "limits": {"quota_per_site": 16, "maximum_success_rows": 64, "maximum_fault_lines": 32, "maximum_rows": 98, "maximum_line_bytes_exclusive": 2048, "maximum_file_bytes_conservative": 200704, "maximum_descriptors": 4096},
   "raw_preservation": "Direct parser returns rows/raw_ledger/begin/end. Ledger retains original LF-inclusive raw hex/ascii, SHA256, byte offset/length and ordered canonical pairs, including refusal evidence; no conversion to legacy raw.",
   "close": "End close_result unknown; reader requires owned normal wrapper returncode0, unchanged full trace/assets and no scope_observer_host_error diagnostic.",
-  "direct_assertion": "assert_shutter_gate_trace_v1(raw_log,declaration,expected), where the explicit frozen expected object contains case/site_rows/minimum_suppressed/discriminator_expected. Compare all required full64 xN, actual CPSR/NZCV, available independent SP/tokens, exact event and entry form, ordered first16 rows per site; bool never substitutes for int.",
+  "direct_assertion": "assert_shutter_gate_trace_v1(raw_log,declaration,expected), where expected follows frozen OPERAND_INTERFACE expected.case/site_rows/minimum_suppressed/discriminator_expected. Compare all required full64 xN, actual CPSR/NZCV, available independent SP/tokens, exact event and entry form, ordered first16 rows per site; bool never substitutes for int.",
   "context_candidates": "Enumerate every entry/internal raw-index combination with same B/CPU0/EL0t, both available exact8 tokens equal, x23=entry x0, low32 x22=low32 entry x1, checked x19=x29+0x48; when either SP available require both and checked entrySP-0x50=internalSP=x29. Do not choose nearest or ordinal match. LR match is a separate raw candidate flag.",
   "Main_FLOW": "Strict original Main35 formatter supplies numeric B/LF/reported PID/TID only. Full x0..x3 uniquely matching same-run SHUTTER_FLOW final code2070000 is a content candidate. Four-site plugin supplies no Main-to-token bridge.",
   "maximum_claim": "raw_context_candidate_match; invocation_pairing unknown; missing callbacks unknown",

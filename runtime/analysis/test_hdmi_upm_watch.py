@@ -15,6 +15,18 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hdmi_upm_watch as w
 
+GATE_PROFILES = ('qemu-readonly-shutter-gate-v1', 'qemu-readonly-shutter-gate-v2')
+
+
+@pytest.fixture(autouse=True)
+def optional_original_kernel_assets(monkeypatch):
+    original = w.original_opcodes
+    def checked(texts):
+        if any(not (w.BASE / 'menu-root/usr/kmod' / (name + '.ko')).is_file() for name in w.SHAS):
+            pytest.skip('original Sony kernel modules are external; synthetic ownership/config tests remain enabled')
+        return original(texts)
+    monkeypatch.setattr(w, 'original_opcodes', checked)
+
 def test_unresponsive_debugger_is_retained_without_sigkill():
     events = []
     class Stuck:
@@ -122,14 +134,15 @@ def test_listener_is_bound_in_owned_qemu_namespace(owned_qemu, scenario):
             w.owned_config(fixture.run, 1234, TEXTS)
 
 
-@pytest.fixture(params=(1, 2, 3, 4))
+@pytest.fixture(params=(1, 2, 3, 4, 5))
 def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
     fixture = owned_qemu
     profile = w.scope_observer_profile
     version = {1: profile.PROFILE, 2: profile.PROFILE_V2, 3: profile.PROFILE_V3,
-               4: profile.PROFILE_SHUTTER_GATE_V1}[request.param]
+               4: profile.PROFILE_SHUTTER_GATE_V1, 5: profile.PROFILE_SHUTTER_GATE_V2}[request.param]
+    gate = profile.SHUTTER_GATE_PROFILES.get(version)
     names = profile.SOURCE_SETS[version]
-    native = tmp_path / 'package'
+    native = tmp_path
     monkeypatch.setattr(profile, 'PUBLIC_NATIVE_ROOT', native)
     base = native / 'runtime/analysis'
     base.mkdir(parents=True)
@@ -145,19 +158,19 @@ def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
         (source / 'source-contract-v3.json').write_text(json.dumps(dict(
             schema='readonly_scope_source_contract_v3', profile=version, trace_schema='readonly_scope_v3',
             trace_schema_sha256=profile.sha(schema), actual_build_source_names_required=list(names))))
-    if version == profile.PROFILE_SHUTTER_GATE_V1:
-        for name in profile.FIXTURE_NAMES_SHUTTER_GATE_V1:
+    if gate is not None:
+        for name in gate['fixture_names']:
             path = source / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'HOST_TEST shutter-gate fixture ' + name.encode())
-        schema = source / profile.SHUTTER_GATE_SCHEMA_FILE
-        schema.write_text(json.dumps(dict(schema='readonly_shutter_gate_v1', profile=version)))
-        (source / profile.SHUTTER_GATE_CONTRACT_FILE).write_text(json.dumps(dict(
-            schema='readonly_shutter_gate_source_contract_v1', profile=version,
-            trace_schema='readonly_shutter_gate_v1', trace_schema_sha256=profile.sha(schema),
+        schema = source / gate['schema_file']
+        schema.write_text(json.dumps(dict(schema=gate['trace_schema'], profile=version)))
+        (source / gate['contract_file']).write_text(json.dumps(dict(
+            schema=gate['source_contract_schema'], profile=version,
+            trace_schema=gate['trace_schema'], trace_schema_sha256=profile.sha(schema),
             actual_build_source_names_required=list(names),
-            actual_fixture_source_names_required=list(profile.FIXTURE_NAMES_SHUTTER_GATE_V1),
-            actualAPI_cases=list(profile.SHUTTER_GATE_CASES), actualAPI_environment_names=list(profile.SHUTTER_GATE_API_ENV))))
+            actual_fixture_source_names_required=list(gate['fixture_names']),
+            actualAPI_cases=list(profile.SHUTTER_GATE_CASES), actualAPI_environment_names=list(gate['api_env']))))
     header = native / 'source/build/qemu-SRBXNK/qemu-11.1.2/include/plugins/qemu-plugin.h'
     header.parent.mkdir(parents=True)
     header.write_bytes(b'owned API7 header')
@@ -167,8 +180,8 @@ def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
     struct.pack_into('<HH', elf, 16, 3, 62)
     library.write_bytes(elf)
     receipt = tmp_path / 'scope-build.json'
-    if version == profile.PROFILE_SHUTTER_GATE_V1:
-        work = native / 'runtime/analysis/scratch/functional-shutter-gate-v1-readonly-plugin/build-HOST_TEST'
+    if gate is not None:
+        work = native / 'runtime/analysis/scratch' / gate['build_scratch'] / 'build-HOST_TEST'
         work.mkdir(parents=True)
         library = library.rename(work / 'scope-observer.so')
         receipt = work / 'build-receipt.json'
@@ -182,7 +195,7 @@ def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
             trace_schema_sha256=data['source_sha256']['log-schema-' + suffix + '.json'],
             source_contract_sha256=data['source_sha256']['source-contract-' + suffix + '.json'],
             runtime_verified=False, capture_verified=False, physical_asic_compatibility_verified=False)
-    if version == profile.PROFILE_SHUTTER_GATE_V1:
+    if gate is not None:
         work = library.parent
         imports = profile.SHUTTER_GATE_IMPORTS | {'fwrite', 'g_byte_array_set_size'}
         audit = dict(
@@ -198,15 +211,15 @@ def scope_owned(owned_qemu, tmp_path, monkeypatch, request):
         (work / 'plugin-build-command.json').write_text(json.dumps(dict(command=['sh', str(source / 'build-plugin.sh')],
             returncode=0, stdout=str(library) + '\n', stderr='')))
         (tmp_path / 'candidate-static-audit.json').write_text('{"HOST_TEST":"not actual evidence"}')
-        data.update(trace_schema='readonly_shutter_gate_v1',
-            trace_schema_sha256=data['source_sha256'][profile.SHUTTER_GATE_SCHEMA_FILE],
-            source_contract_sha256=data['source_sha256'][profile.SHUTTER_GATE_CONTRACT_FILE],
-            fixture_source_sha256={name: profile.sha(source / name) for name in profile.FIXTURE_NAMES_SHUTTER_GATE_V1},
+        data.update(trace_schema=gate['trace_schema'],
+            trace_schema_sha256=data['source_sha256'][gate['schema_file']],
+            source_contract_sha256=data['source_sha256'][gate['contract_file']],
+            fixture_source_sha256={name: profile.sha(source / name) for name in gate['fixture_names']},
             qemu=str(fixture.binary), plugin_build_command_sha256=profile.sha(work / 'plugin-build-command.json'),
             readonly_import_audit_sha256=profile.sha(work / 'readonly-import-audit.json'),
             candidate_static_audit_sha256=profile.sha(tmp_path / 'candidate-static-audit.json'),
             runtime_verified=False, capture_verified=False, physical_asic_compatibility_verified=False)
-    if version in (profile.PROFILE_V3, profile.PROFILE_SHUTTER_GATE_V1):
+    if version == profile.PROFILE_V3 or gate is not None:
         monkeypatch.setattr(profile, 'V3_QEMU_SHA256', profile.sha(fixture.binary))
         monkeypatch.setattr(profile, 'V3_HEADER_SHA256', profile.sha(header))
     receipt.write_text(json.dumps(data))
@@ -260,7 +273,7 @@ def test_v2_scope_schema_metadata_cannot_differ_from_validated_receipt(scope_own
         scope[key] = value
         f.manifest_path.write_text(json.dumps(f.manifest))
         message = ('Shutter gate manifest schema/audit binding changed' if
-                   scope['profile'] == w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1 else
+                   scope['profile'] in w.scope_observer_profile.SHUTTER_GATE_PROFILES else
                    scope['profile'][-2:] + ' manifest schema binding changed')
         with pytest.raises(ValueError, match=message):
             w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
@@ -301,15 +314,16 @@ def test_shutter_gate_manifest_keeps_source7_fixture7_and_rejects_alias_or_mixed
     f = scope_owned
     profile = w.scope_observer_profile
     scope = f.manifest['readonly_scope_observer']
-    if scope['profile'] != profile.PROFILE_SHUTTER_GATE_V1:
+    if scope['profile'] not in profile.SHUTTER_GATE_PROFILES:
         return
+    gate = profile.SHUTTER_GATE_PROFILES[scope['profile']]
     config = w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
     bound = config['readonly_scope_observer']
-    assert bound['trace_schema'] == 'readonly_shutter_gate_v1'
-    assert bound['trace_schema_sha256'] == profile.sha(f.source / 'log-schema-shutter-gate-v1.json')
-    assert bound['source_contract_sha256'] == profile.sha(f.source / 'source-contract-shutter-gate-v1.json')
-    assert set(bound['source_sha256']) == set(profile.SOURCE_NAMES_SHUTTER_GATE_V1)
-    assert set(bound['fixture_source_sha256']) == set(profile.FIXTURE_NAMES_SHUTTER_GATE_V1)
+    assert bound['trace_schema'] == gate['trace_schema']
+    assert bound['trace_schema_sha256'] == profile.sha(f.source / gate['schema_file'])
+    assert bound['source_contract_sha256'] == profile.sha(f.source / gate['contract_file'])
+    assert set(bound['source_sha256']) == set(profile.SOURCE_SETS[scope['profile']])
+    assert set(bound['fixture_source_sha256']) == set(gate['fixture_names'])
     assert len(bound['source_sha256']) == len(bound['fixture_source_sha256']) == 7
     for alias in profile.SHUTTER_GATE_ALIASES:
         scope[alias] = bound['trace_schema_sha256']
@@ -337,7 +351,7 @@ def test_shutter_gate_manifest_keeps_source7_fixture7_and_rejects_alias_or_mixed
 def test_shutter_gate_fixture_audit_and_staged_links_fail_closed(scope_owned):
     f = scope_owned
     profile = w.scope_observer_profile
-    if f.manifest['readonly_scope_observer']['profile'] != profile.PROFILE_SHUTTER_GATE_V1:
+    if f.manifest['readonly_scope_observer']['profile'] not in profile.SHUTTER_GATE_PROFILES:
         return
     for path in (f.source / 'integration/fixture.S', f.library.parent / 'readonly-import-audit.json'):
         raw = path.read_bytes()
@@ -352,6 +366,13 @@ def test_shutter_gate_fixture_audit_and_staged_links_fail_closed(scope_owned):
             w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
         path.unlink()
         saved.rename(path)
+    saved = f.staged.with_name('staged.saved')
+    f.staged.rename(saved)
+    f.staged.symlink_to(saved)
+    with pytest.raises(ValueError):
+        w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
+    f.staged.unlink()
+    saved.rename(f.staged)
     os.link(f.staged, f.staged.with_name('extra-link'))
     with pytest.raises(ValueError, match='single-link'):
         w.owned_config(f.run, 1234, TEXTS, MAILBOX, f.receipt)
@@ -1068,11 +1089,14 @@ def test_gdb_failure_always_deletes_hardware_breakpoints_and_detaches(tmp_path, 
 
 
 def reader_config_fixture(profile=None):
-    """HOST_METADATA shape only; all absolute paths below are inert synthetic strings."""
+    """Synthetic provenance shape only; none of these assets or processes exist."""
     host = Path('/HOST_TEST/config-reader-fixture/isolated-workspace-with-complete-reviewed-build-provenance')
     native = host / 'final/a7c2-re/report/2026-10-17-qemu-native-camera'
     run = native / 'runtime/analysis/menu-runs/run-HOST_TEST-config-reader'
-    work = host / 'analysis/scratch/functional-shutter-gate-v1-readonly-plugin/build-HOST_TEST'
+    p = w.scope_observer_profile
+    gate_version = profile if profile in p.SHUTTER_GATE_PROFILES else p.PROFILE_SHUTTER_GATE_V1
+    gate = p.SHUTTER_GATE_PROFILES[gate_version]
+    work = host / 'analysis/scratch' / gate['build_scratch'] / 'build-HOST_TEST'
     candidate = host / 'analysis/scratch/HOST_TEST-reviewed-qemu/source/build/qemu-plugin-HOST_TEST'
     binary = candidate / 'build/qemu-system-aarch64'
     receipt = work / 'build-receipt.json'
@@ -1090,15 +1114,14 @@ def reader_config_fixture(profile=None):
         limit=w.LIMIT, seconds=w.SECONDS)
     if profile is None:
         return config
-    p = w.scope_observer_profile
-    source = {name: digest(name) for name in p.SOURCE_NAMES_SHUTTER_GATE_V1}
-    fixtures = {name: digest(name) for name in p.FIXTURE_NAMES_SHUTTER_GATE_V1}
+    source = {name: digest(name) for name in p.SOURCE_SETS[gate_version]}
+    fixtures = {name: digest(name) for name in gate['fixture_names']}
     build = dict(profile=profile, build_receipt=str(receipt), build_receipt_sha256=digest(receipt),
         library=str(library), library_sha256=digest(library), qemu_sha256=w.READONLY_SCOPE_QEMU_SHA,
         qemu_header_sha256=p.V3_HEADER_SHA256, source_sha256=source, identity_binding='unverified',
         capture_verified=False, physical_asic_compatibility_verified=False,
-        trace_schema='readonly_shutter_gate_v1', trace_schema_sha256=source[p.SHUTTER_GATE_SCHEMA_FILE],
-        source_contract_sha256=source[p.SHUTTER_GATE_CONTRACT_FILE], fixture_source_sha256=fixtures,
+        trace_schema=gate['trace_schema'], trace_schema_sha256=source[gate['schema_file']],
+        source_contract_sha256=source[gate['contract_file']], fixture_source_sha256=fixtures,
         plugin_build_command_sha256=digest(work / 'plugin-build-command.json'),
         readonly_import_audit_sha256=digest(work / 'readonly-import-audit.json'),
         candidate_static_audit_sha256=digest(candidate / 'binary-static-audit.json'))
@@ -1117,8 +1140,10 @@ def reader_config_fixture(profile=None):
         native / 'report/2026-10-31-qemu-M-writer-observer-v3/log-schema-v3.json',
         library, receipt, work / 'readonly-import-audit.json', work / 'plugin-build-command.json')
     parent = host / 'analysis/scratch/HOST_TEST-normal-memory-acceptance/parent-readback.json'
+    ready_name = {p.PROFILE_SHUTTER_GATE_V1: 'readonly-shutter-gate-v1-runtime-ready.json',
+                  p.PROFILE_SHUTTER_GATE_V2: 'readonly-shutter-gate-v2-runtime-ready.json'}[gate_version]
     plan = dict(nonce=7654321, batch=str(batch), batch_ready_sha256=digest(batch),
-        runtime_ready=reference(batch / 'readonly-shutter-gate-v1-runtime-ready.json'),
+        runtime_ready=reference(batch / ready_name),
         parent_readback=reference(parent),
         fresh_guest=reference(native / 'runtime/analysis/scratch/HOST_TEST-plan-next/fresh-public-guest.json'),
         runtime_assets_sha256={str(path): digest(path) for path in assets},
@@ -1139,8 +1164,9 @@ def config_bytes_at_bound(config, size):
     return raw + b' ' * (size - len(raw))
 
 
-def test_new_config_reader_keeps_complete_source7_fixture7_plan17_provenance(tmp_path, monkeypatch):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
+def test_new_config_reader_keeps_complete_source7_fixture7_plan17_provenance(tmp_path, monkeypatch, gate_profile):
+    config = reader_config_fixture(gate_profile)
     raw = json.dumps(config).encode('ascii')
     assert 16 * 1024 < len(raw) <= 32 * 1024
     scope = config['readonly_scope_observer']
@@ -1156,9 +1182,10 @@ def test_new_config_reader_keeps_complete_source7_fixture7_plan17_provenance(tmp
     assert w.read_config(path, w.hashlib.sha256(raw).hexdigest()) == config
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('size,accepted', [(32 * 1024, True), (32 * 1024 + 1, False)])
-def test_new_config_reader_exact_byte_ceiling(tmp_path, monkeypatch, size, accepted):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_new_config_reader_exact_byte_ceiling(tmp_path, monkeypatch, size, accepted, gate_profile):
+    config = reader_config_fixture(gate_profile)
     raw = config_bytes_at_bound(config, size)
     path = tmp_path / 'config.json'
     path.write_bytes(raw)
@@ -1219,10 +1246,11 @@ def test_legacy_config_reader_preserves_duplicate_field_rejection(tmp_path, prof
         w.read_config(path)
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('token', ['NaN', 'Infinity', '-Infinity', '1e999'])
 @pytest.mark.parametrize('nested', [False, True])
-def test_new_config_reader_rejects_all_nonfinite_numbers(tmp_path, token, nested):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_new_config_reader_rejects_all_nonfinite_numbers(tmp_path, token, nested, gate_profile):
+    config = reader_config_fixture(gate_profile)
     target = config['readonly_scope_observer']['plan_binding'] if nested else config
     target['host_numeric_probe'] = 'HOST_TEST-number-token'
     raw = json.dumps(config).encode('ascii').replace(b'"HOST_TEST-number-token"', token.encode('ascii'))
@@ -1232,12 +1260,13 @@ def test_new_config_reader_rejects_all_nonfinite_numbers(tmp_path, token, nested
         w.read_config(path)
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('nested', [False, True])
-def test_new_config_reader_rejects_duplicate_json_fields(tmp_path, nested):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_new_config_reader_rejects_duplicate_json_fields(tmp_path, nested, gate_profile):
+    config = reader_config_fixture(gate_profile)
     raw = json.dumps(config).encode('ascii')
     if nested:
-        field = b'"profile": "qemu-readonly-shutter-gate-v1"'
+        field = ('"profile": "' + gate_profile + '"').encode('ascii')
         raw = raw.replace(field, field + b',' + field, 1)
     else:
         raw = b'{"run":"HOST_TEST-duplicate",' + raw[1:]
@@ -1247,10 +1276,11 @@ def test_new_config_reader_rejects_duplicate_json_fields(tmp_path, nested):
         w.read_config(path)
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('alias', ['source_root', 'Source_root', 'root', 'sourceDependencyFrozen',
                                    'schema_sha256', 'log_schema_sha256', 'v3_schema_sha256'])
-def test_new_config_reader_rejects_schema_and_root_aliases(tmp_path, alias):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_new_config_reader_rejects_schema_and_root_aliases(tmp_path, alias, gate_profile):
+    config = reader_config_fixture(gate_profile)
     config['readonly_scope_observer'][alias] = 'HOST_TEST-rejected-alias'
     path = tmp_path / 'config.json'
     path.write_text(json.dumps(config))
@@ -1258,7 +1288,8 @@ def test_new_config_reader_rejects_schema_and_root_aliases(tmp_path, alias):
         w.read_config(path)
 
 
-@pytest.mark.parametrize('profile', ['qemu-readonly-shutter-gate-v1-alias', 'qemu-readonly-scope-v4', '', 1, {}])
+@pytest.mark.parametrize('profile', ['qemu-readonly-shutter-gate-v1-alias', 'qemu-readonly-shutter-gate-v2-alias',
+                                    'qemu-readonly-shutter-gate-v3', 'qemu-readonly-scope-v4', '', 1, {}])
 def test_config_reader_does_not_accept_unknown_profile_names(tmp_path, profile):
     config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
     config['readonly_scope_observer']['profile'] = profile
@@ -1269,9 +1300,10 @@ def test_config_reader_does_not_accept_unknown_profile_names(tmp_path, profile):
         w.read_config(path)
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('schema', [None, 'readonly_scope_v3', 'readonly_shutter_gate_v1-alias'])
-def test_config_reader_requires_exact_new_schema(tmp_path, schema):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_config_reader_requires_exact_new_schema(tmp_path, schema, gate_profile):
+    config = reader_config_fixture(gate_profile)
     config['readonly_scope_observer']['trace_schema'] = schema
     path = tmp_path / 'config.json'
     path.write_text(json.dumps(config))
@@ -1279,13 +1311,26 @@ def test_config_reader_requires_exact_new_schema(tmp_path, schema):
         w.read_config(path)
 
 
+@pytest.mark.parametrize('gate_profile,schema', [
+    ('qemu-readonly-shutter-gate-v1', 'readonly_shutter_gate_v2'),
+    ('qemu-readonly-shutter-gate-v2', 'readonly_shutter_gate_v1')])
+def test_config_reader_refuses_cross_version_gate_schema(tmp_path, gate_profile, schema):
+    config = reader_config_fixture(gate_profile)
+    config['readonly_scope_observer']['trace_schema'] = schema
+    path = tmp_path / 'config.json'
+    path.write_text(json.dumps(config))
+    with pytest.raises(ValueError, match='schema/root alias'):
+        w.read_config(path)
+
+
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('failure', ['group-write', 'world-write', 'uid', 'file-symlink',
                                      'parent-symlink', 'noncanonical', 'hardlink', 'directory'])
-def test_new_config_reader_keeps_file_trust_guards(tmp_path, monkeypatch, failure):
+def test_new_config_reader_keeps_file_trust_guards(tmp_path, monkeypatch, failure, gate_profile):
     directory = tmp_path / 'actual'
     directory.mkdir()
     path = directory / 'config.json'
-    path.write_text(json.dumps(reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)))
+    path.write_text(json.dumps(reader_config_fixture(gate_profile)))
     if failure in ('group-write', 'world-write'):
         path.chmod(0o664 if failure == 'group-write' else 0o646)
     elif failure == 'uid':
@@ -1313,7 +1358,8 @@ def test_new_config_reader_keeps_file_trust_guards(tmp_path, monkeypatch, failur
 @pytest.mark.parametrize('profile,size,accepted', [
     (None, 16 * 1024 + 1, False), ('qemu-readonly-scope-v1', 16 * 1024 + 1, False),
     ('qemu-readonly-scope-v2', 16 * 1024 + 1, False), ('qemu-readonly-scope-v3', 16 * 1024 + 1, False),
-    ('qemu-readonly-shutter-gate-v1', 17465, True), ('qemu-readonly-shutter-gate-v1', 32 * 1024 + 1, False)])
+    ('qemu-readonly-shutter-gate-v1', 17465, True), ('qemu-readonly-shutter-gate-v1', 32 * 1024 + 1, False),
+    ('qemu-readonly-shutter-gate-v2', 17465, True), ('qemu-readonly-shutter-gate-v2', 32 * 1024 + 1, False)])
 def test_config_reader_limits_utf8_bytes_instead_of_characters(tmp_path, profile, size, accepted):
     config = reader_config_fixture(profile)
     if profile is not None:
@@ -1324,7 +1370,7 @@ def test_config_reader_limits_utf8_bytes_instead_of_characters(tmp_path, profile
     assert count > 0
     config['host_text_probe'] = 'é' * count + 'x' * remainder
     raw = json.dumps(config, ensure_ascii=False).encode('utf-8')
-    ceiling = 32 * 1024 if profile == w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1 else 16 * 1024
+    ceiling = 32 * 1024 if profile in w.scope_observer_profile.SHUTTER_GATE_PROFILES else 16 * 1024
     assert len(raw) == size and len(raw.decode('utf-8')) < ceiling
     path = tmp_path / 'config.json'
     path.write_bytes(raw)
@@ -1372,8 +1418,9 @@ def test_both_actual_config_consumers_use_one_reader_before_debugger_calls():
     assert debugger_calls and read.lineno < validate.lineno < min(node.lineno for node in debugger_calls)
 
 
-def test_both_consumers_load_same_large_config_without_live_debugger_use(tmp_path, monkeypatch):
-    config = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
+def test_both_consumers_load_same_large_config_without_live_debugger_use(tmp_path, monkeypatch, gate_profile):
+    config = reader_config_fixture(gate_profile)
     info = tmp_path.stat()
     config.update(run=str(tmp_path), run_device=info.st_dev, run_inode=info.st_ino)
     path = tmp_path / (w.PREFIX + '-config.json')
@@ -1408,9 +1455,10 @@ def test_both_consumers_load_same_large_config_without_live_debugger_use(tmp_pat
     assert not (tmp_path / (w.PREFIX + '-result.json')).exists()
 
 
+@pytest.mark.parametrize('gate_profile', GATE_PROFILES)
 @pytest.mark.parametrize('mutation', ['renamed-v3', 'receipt', 'source7', 'fixture7', 'plan17'])
-def test_reader_profile_claim_never_bypasses_actual_owned_config_equality(tmp_path, monkeypatch, mutation):
-    authoritative = reader_config_fixture(w.scope_observer_profile.PROFILE_SHUTTER_GATE_V1)
+def test_reader_profile_claim_never_bypasses_actual_owned_config_equality(tmp_path, monkeypatch, mutation, gate_profile):
+    authoritative = reader_config_fixture(gate_profile)
     claimed = copy.deepcopy(authoritative)
     scope = claimed['readonly_scope_observer']
     if mutation == 'renamed-v3':
@@ -1437,3 +1485,70 @@ def test_reader_profile_claim_never_bypasses_actual_owned_config_equality(tmp_pa
     assert calls == [(claimed['run'], claimed['owner_pid'], claimed['context']['module_texts'],
                       claimed['mailbox'], claimed['scope_build_receipt'])]
     assert not (tmp_path / (w.PREFIX + '-events.jsonl')).exists()
+
+
+def result_fixture(run, profile='qemu-readonly-shutter-gate-v2', size=21140):
+    scope = None if profile is None else dict(profile=profile, trace_schema='readonly_shutter_gate_v2')
+    config = dict(run=str(run), context=w.context(TEXTS), readonly_scope_observer=scope,
+                  running_QEMU_sha256=w.READONLY_SCOPE_QEMU_SHA)
+    result = dict(detached=True, receipts=2, readonly_scope_observer=copy.deepcopy(scope),
+                  running_QEMU_sha256=w.READONLY_SCOPE_QEMU_SHA, last_observation='')
+    result['last_observation'] = 'x' * (size - len(json.dumps(result).encode('ascii')))
+    raw = json.dumps(result).encode('ascii')
+    assert len(raw) == size
+    (run / (w.PREFIX + '-result.json')).write_bytes(raw)
+    return config, result
+
+
+@pytest.mark.parametrize('size', [16384, 16385, 21140, 32768, 32769])
+def test_gate2_result_bound_is_exact_and_does_not_hide_large_detach_receipt(tmp_path, size):
+    config, result = result_fixture(tmp_path, size=size)
+    if size > 32768:
+        with pytest.raises(ValueError, match='Untrusted file'):
+            w.read_result(config)
+    else:
+        assert w.read_result(config) == result
+
+
+@pytest.mark.parametrize('profile', [None, 'qemu-readonly-scope-v1', 'qemu-readonly-scope-v2',
+                                    'qemu-readonly-scope-v3', 'qemu-readonly-shutter-gate-v1', 'unknown'])
+def test_other_results_keep_the_exact_16k_bound(tmp_path, profile):
+    config, result = result_fixture(tmp_path, profile, 16384)
+    assert w.read_result(config) == result
+    result_fixture(tmp_path, profile, 16385)
+    with pytest.raises(ValueError, match='Untrusted file'):
+        w.read_result(config)
+
+
+@pytest.mark.parametrize('damage', ['scope', 'QEMU', 'missing-scope', 'schema', 'symlink', 'writable', 'non-object'])
+def test_gate2_large_result_still_requires_current_trusted_provenance(tmp_path, damage):
+    config, result = result_fixture(tmp_path)
+    path = tmp_path / (w.PREFIX + '-result.json')
+    if damage == 'schema':
+        config['readonly_scope_observer']['trace_schema'] = 'wrong'
+    elif damage == 'symlink':
+        path.rename(tmp_path / 'retained.json'); path.symlink_to(tmp_path / 'retained.json')
+    elif damage == 'writable':
+        path.chmod(0o666)
+    else:
+        if damage == 'scope': result['readonly_scope_observer']['profile'] = 'qemu-readonly-scope-v3'
+        elif damage == 'QEMU': result['running_QEMU_sha256'] = '0' * 64
+        elif damage == 'missing-scope': result.pop('readonly_scope_observer')
+        else: result = []
+        path.write_text(json.dumps(result))
+    with pytest.raises(ValueError):
+        w.read_result(config)
+
+
+def test_large_gate2_result_is_consumed_by_start_and_stop_without_reconnect(tmp_path, monkeypatch):
+    config, result = result_fixture(tmp_path)
+    monkeypatch.setattr(w, 'owned_config', lambda *args: config)
+    monkeypatch.setattr(w, 'revalidate', lambda _: config)
+    def launch(*args, **kwargs):
+        w.publish_json(tmp_path, w.PREFIX + '-ready.json', dict(connected=True, armed=True, context=config['context']))
+        return types.SimpleNamespace(poll=lambda: 0)
+    monkeypatch.setattr(w.subprocess, 'Popen', launch)
+    monkeypatch.setattr(w.subprocess, 'run', lambda *a, **k: pytest.fail('already detached; no reconnect permitted'))
+    watcher = w.start(tmp_path, os.getpid(), TEXTS)
+    assert watcher.stop() == dict(debugger_stopped=True, detached=True, safe_to_close=True, errors=[])
+    assert w.read_result(config) == result

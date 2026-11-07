@@ -42,6 +42,21 @@ struct functional_jpeg_codec_snapshot {
  * snapshot(). Original 104-byte requests and 16-byte responses are copied;
  * media bodies are identified by actual leased readback ranges/FNV, never hex. */
 int functional_jpeg_codec_enable(void (*record)(const char *, const char *));
+struct capture_input;
+/* Explicit functional job attachment only, before original Main Exec. Holds
+ * allocation lifetime across all native selectors. NULL detaches only when
+ * no worker/request is pending. Never creates a capture/queue request or DONE.
+ * Requires actual mapper/typed input bindings and the original SDK hash guard. */
+int functional_jpeg_codec_attach_capture(struct capture_input *);
+struct capture_output_memory;
+/* After both attached-frame Main and Thm original MainComp DONE/free/config
+ * checks complete, copy-validated results can create one native output owner.
+ * No frame re-render, synthetic DONE, OSAL send, MPR or media write occurs here.
+ * The caller supplies the actual original mapping base and owns *out; it pins
+ * the captured input even if the JPEG attachment later detaches. ENODATA until
+ * both results exist; EALREADY after transfer; refusal leaves all results held. */
+int functional_jpeg_codec_capture_output(uint64_t actual_original_map_base,
+    struct capture_output_memory **out);
 /* Parent calls from the real OSAL send interception, before legacy emulation.
  * Only an actual original Without_Pin or Main ExecCmd on this thread can claim a
  * request. Main selectors 0/1/2 share this worker; Main ACK is nonterminal and

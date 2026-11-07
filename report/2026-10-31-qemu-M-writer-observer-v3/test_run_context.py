@@ -413,3 +413,6 @@ class V3ReceiptBindingTests(unittest.TestCase):
                 with self.subTest(change=change), self.assertRaises(checker.RejectedTrace) as caught:
                     checker.check_run(run, expected)
                 self.assertEqual(caught.exception.evidence['raw_hex'], raw.hex())
+
+
+

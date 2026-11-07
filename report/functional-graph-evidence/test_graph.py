@@ -31,6 +31,203 @@ def record(tag, line=1, **fields):
             'raw': 'OBS ' + tag + ' ' + ' '.join(key + '=' + value for key, value in fields.items())}
 
 
+class RunMOfAdfEvent6BoundaryTests(unittest.TestCase):
+    # run-m_ofe61t console.log LF line 17959, bytes [1952723,1953338); framing only.
+    RECORD = (
+        b'OBS FULL_ADF_CONNECT_EVENT6_CONSUMED consumer_raw=0x5dd814 work_raw=0xf882c '
+        b'context_getters_raw=0x5db244,0x5db25a,0x5db24a,0x5db39a parameter_bytes=12 '
+        b'parameter_fnv=cbc44d59d8b1ce12 token=0x504d0002 actual_parameter_read=1 '
+        b'token_body_binding_verified=1 saved_dynamic_destination=0x81cf61c4 '
+        b'saved_request_fnv=3c363567f86cd393 reply_peer=0,1,0,0x9058003f '
+        b'full_peer_u32_verified=4 source_complete_raw=0x5839a6 status=0 tail=0 consumed=1 pending=0 '
+        b'original_CP_event_pointer_identity_verified=0 original_RTOS_scheduling_verified=0 '
+        b'capture_verified=0[ 5448.307871] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n')
+    KERNEL = b'[ 5448.307871] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+    PAYLOAD = RECORD[:-len(KERNEL)]
+    KEYS = ('consumer_raw work_raw context_getters_raw parameter_bytes parameter_fnv token actual_parameter_read '
+            'token_body_binding_verified saved_dynamic_destination saved_request_fnv reply_peer full_peer_u32_verified '
+            'source_complete_raw status tail consumed pending original_CP_event_pointer_identity_verified '
+            'original_RTOS_scheduling_verified capture_verified').split()
+
+    def test_original_raw_line_keeps_exact_spans_fields_and_provisional_status(self):
+        raw = self.RECORD + b'\r\n'
+        self.assertEqual(len(self.RECORD), 615)
+        self.assertEqual(v.sha(self.RECORD), '8dd915a262a43715b8c313771111b2818bb986282a79c839dd4fec31f9b78689')
+        self.assertEqual(v.sha(raw), '72537673daaeb7162aba8c1c6be7822678006d3769f8b03d1b7f87a65bb8af68')
+        parsed, repairs = v.console_records(raw)
+        self.assertEqual(parsed, self.PAYLOAD + b'\r\n' + self.KERNEL)
+        self.assertEqual(len(repairs), 1)
+        repair = repairs[0]
+        self.assertEqual(repair['kind'], 'complete-AdfEvent6-UIPC-boundary')
+        self.assertEqual(tuple(repair[key] for key in ('raw_record_start', 'raw_kernel_start', 'raw_kernel_end',
+                         'raw_guest_ending_start', 'raw_guest_ending_end')), (0, 544, 615, 615, 617))
+        self.assertEqual(repair['raw_record_hex'], self.RECORD.hex())
+        self.assertEqual(repair['raw_record_sha256'], v.sha(self.RECORD))
+        self.assertEqual(repair['kernel_raw_hex'], self.KERNEL.hex())
+        self.assertEqual(repair['kernel_sha256'], v.sha(self.KERNEL))
+        self.assertEqual(repair['raw_lf_line'], 1)
+        self.assertEqual(repair['cause'], 'unknown')
+        self.assertTrue(repair['guest_payload_unchanged'])
+        self.assertFalse(repair['guest_bytes_invented'])
+        self.assertEqual((repair['removed_bytes'], repair['framing_bytes_inserted']), (0, 0))
+        self.assertNotIn('content_verifier_joined', repair)
+        tag, fields = v.parse_record(self.PAYLOAD + b'\r\n')
+        self.assertEqual(tag, 'FULL_ADF_CONNECT_EVENT6_CONSUMED')
+        self.assertEqual(list(fields), self.KEYS)
+        for key in ('original_CP_event_pointer_identity_verified', 'original_RTOS_scheduling_verified', 'capture_verified'):
+            self.assertEqual(fields[key], '0')
+        value = 0xcbf29ce484222325
+        for byte in struct.pack('<I', 0x504d0002) + bytes(8):
+            value = ((value ^ byte) * 0x100000001b3) & (2**64 - 1)
+        self.assertEqual(fields['parameter_fnv'], f'{value:016x}')
+        with self.assertRaises(v.UnjoinedRepairs):
+            v.bind_repairs({}, repairs)
+
+    def test_source_defined_dynamic_fields_and_canonical_padding_are_not_run_pinned(self):
+        guest = self.PAYLOAD.replace(b'0x81cf61c4', b'0x80000001').replace(
+            b'saved_request_fnv=3c363567f86cd393', b'saved_request_fnv=0123456789abcdef')
+        for timestamp in (b'[    0.000001]', b'[   23.123456]', b'[ 5448.307871]', b'[12345.000001]'):
+            kernel = timestamp + b' UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+            with self.subTest(timestamp=timestamp):
+                parsed, repairs = v.console_records(guest + kernel + b'\r\n')
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(len(repairs), 1)
+                self.assertNotIn('content_verifier_joined', repairs[0])
+
+    def test_missing_renamed_duplicate_order_unknown_and_bad_length_fields_fail_closed(self):
+        parts = self.PAYLOAD.split(b' ')
+        malformed = [self.PAYLOAD + b' extra=0', self.PAYLOAD + b'[foreign]',
+                     b' '.join(parts[:2] + [parts[3], parts[2]] + parts[4:])]
+        for index, token in enumerate(parts[2:], 2):
+            key, value = token.split(b'=', 1)
+            malformed.extend((b' '.join(parts[:index] + parts[index + 1:]),
+                              self.PAYLOAD.replace(token, b'unknown_' + token, 1),
+                              self.PAYLOAD.replace(token, key + b'=unknown', 1),
+                              self.PAYLOAD + b' ' + token))
+        for before, after in ((b'parameter_bytes=12', b'parameter_bytes=11'),
+                (b'parameter_bytes=12', b'parameter_bytes=13'),
+                (b'parameter_fnv=cbc44d59d8b1ce12', b'parameter_fnv=cbc44d59d8b1ce1'),
+                (b'parameter_fnv=cbc44d59d8b1ce12', b'parameter_fnv=cbc44d59d8b1ce123'),
+                (b'parameter_fnv=cbc44d59d8b1ce12', b'parameter_fnv=cbc44d59d8b1ce13'),
+                (b'token=0x504d0002', b'token=0x504d0001'),
+                (b'0x81cf61c4', b'0x80000000'), (b'0x81cf61c4', b'0x91cf61c4'),
+                (b'0x81cf61c4', b'0x181cf61c4'),
+                (b'saved_request_fnv=3c363567f86cd393', b'saved_request_fnv=3c363567f86cd39'),
+                (b'saved_request_fnv=3c363567f86cd393', b'saved_request_fnv=3c363567f86cd3930'),
+                (b'reply_peer=0,1,0,0x9058003f', b'reply_peer=0,1,1,0x9058003f'),
+                (b'capture_verified=0', b'capture_verified=1'),
+                (b'capture_verified=0', b'capture_verified=False'),
+                (b'consumed=1', b'consumed=True')):
+            malformed.append(self.PAYLOAD.replace(before, after, 1))
+        for guest in malformed:
+            for raw in (guest + b'\r\n', guest + self.KERNEL + b'\r\n'):
+                with self.subTest(raw=raw), self.assertRaises(ValueError):
+                    v.console_records(raw)
+
+    def test_unknown_tag_suffix_kernel_and_noncanonical_timestamp_fail_closed(self):
+        for tag in (b'FULL_ADF_CONNECT_EVENT6_UNKNOWN', b'FULL_SCALAR_CONNECT_EVENT6_CONSUMED'):
+            raw = self.RECORD.replace(b'FULL_ADF_CONNECT_EVENT6_CONSUMED', tag, 1) + b'\r\n'
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                v.console_records(raw)
+        for kernel in (self.KERNEL.replace(b'Line 100', b'Line 101'),
+                self.KERNEL.replace(b'-1022', b'-1021'), self.KERNEL.replace(b'UDIF:', b'FOREIGN:'),
+                self.KERNEL.replace(b'[ 5448.', b'[5448.'), self.KERNEL.replace(b'[ 5448.', b'[ 05448.'),
+                self.KERNEL.replace(b'.307871]', b'.3078710]'), self.KERNEL[:-2] + b' extra\r\n',
+                b'[ 5448.307871] arbitrary diagnostic\r\n',
+                b'[ 5448.307871] [K]**UIPC ERROR** free_dynamic_msgq_id: QID[81cf61c4] M=1 C=0 S=0 A=1\r\n',
+                self.KERNEL + self.KERNEL):
+            with self.subTest(kernel=kernel), self.assertRaises(ValueError):
+                v.console_records(self.PAYLOAD + kernel + b'\r\n')
+
+    def test_truncation_interrupted_guest_ending_and_duplicate_kernel_fail_closed(self):
+        for raw in (self.RECORD, self.RECORD[:-1], self.RECORD[:-2], self.RECORD + b'\r',
+                    self.RECORD + b'\n', self.RECORD + b'foreign\r\n',
+                    self.PAYLOAD[:-1] + self.KERNEL + b'\r\n',
+                    self.PAYLOAD + self.KERNEL[:-2] + b'\r\n',
+                    self.RECORD + self.KERNEL + b'\r\n'):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                v.console_records(raw)
+
+    def test_standalone_guest_kernel_and_unrelated_diagnostics_remain_unchanged(self):
+        for raw in (self.PAYLOAD + b'\r\n', self.KERNEL,
+                    b'unrelated [ 5448.307871] diagnostic\r\n'):
+            with self.subTest(raw=raw):
+                self.assertEqual(v.console_records(raw), (raw, []))
+
+
+class Run9sxHdmiPromptBoundaryTests(unittest.TestCase):
+    # Public original bytes only; this fixture never supplies a native-positive graph.
+    RECORD = (
+        b'/ # OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE tid=352 receiver=352 sender=384 '
+        b'destination=0x802a0116 pointer=0x7fabc1af80 lease=15 kind=2 bytes=20 rc=0 '
+        b'received=1 consumed=1 original_cp_executed=0 hardware_verified=0 capture_verified=0'
+        b'[ 5788.347794] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n')
+    PAYLOAD, KERNEL = RECORD[8:231], RECORD[231:]
+
+    def test_exact_prompt_boundary_keeps_raw_prefix_kernel_guest_ending_and_unjoined_status(self):
+        raw = self.RECORD + b'\r\n'
+        self.assertEqual(v.sha(self.RECORD),
+                         'c55bf039bdd1812e792ef7c4ad010905afe8dec123df74682a35b0301408f56e')
+        parsed, repairs = v.console_records(raw)
+        self.assertEqual(parsed, b'OBS ' + self.PAYLOAD + b'\r\n' + self.KERNEL)
+        self.assertEqual([row['kind'] for row in repairs],
+                         ['exact-HdmiStateNativeFree-console-prefix', 'complete-HdmiStateNativeFree-UIPC-boundary'])
+        prefix, kernel = repairs
+        self.assertEqual((prefix['raw_prefix_start'], prefix['raw_prefix_end'], prefix['removed_bytes']), (0, 4, 4))
+        self.assertEqual(prefix['console_prefix'], '/ # ')
+        self.assertEqual((kernel['raw_kernel_start'], kernel['raw_kernel_end']), (231, 302))
+        self.assertEqual((kernel['raw_guest_ending_start'], kernel['raw_guest_ending_end']), (302, 304))
+        for repair in repairs:
+            self.assertEqual(repair['raw_record_hex'], self.RECORD.hex())
+            self.assertEqual(repair['raw_record_sha256'], v.sha(self.RECORD))
+            self.assertEqual(repair['raw_lf_line'], 1)
+            self.assertEqual(repair['cause'], 'unknown')
+            self.assertFalse(repair['guest_bytes_invented'])
+            self.assertTrue(repair['guest_payload_unchanged'])
+            self.assertNotIn('content_verifier_joined', repair)
+        tag, fields = v.parse_record(parsed.split(b'\n', 1)[0] + b'\n')
+        self.assertEqual(tag, 'FULL_HDMI_VIDEO_STATE_NATIVE_FREE')
+        self.assertEqual(fields['capture_verified'], '0')
+        with self.assertRaises(v.UnjoinedRepairs):
+            v.bind_repairs({}, repairs)
+
+    def test_missing_renamed_order_duplicate_type_nonzero_rc_and_unknown_tail_fail_closed(self):
+        parts = self.PAYLOAD.split(b' ')
+        malformed = []
+        for index, token in enumerate(parts[1:], 1):
+            key, value = token.split(b'=', 1)
+            malformed += [b' '.join(parts[:index] + parts[index + 1:]),
+                          self.PAYLOAD.replace(token, b'unknown_' + key + b'=' + value, 1),
+                          self.PAYLOAD.replace(token, key + b'=unknown', 1),
+                          self.PAYLOAD + b' ' + token]
+        malformed += [self.PAYLOAD.replace(b'tid=352 receiver=352', b'receiver=352 tid=352'),
+            self.PAYLOAD.replace(b'rc=0', b'rc=-1021'), self.PAYLOAD.replace(b'rc=0', b'rc=1'),
+            self.PAYLOAD.replace(b'receiver=352', b'receiver=351'),
+            self.PAYLOAD.replace(b'destination=0x802a0116', b'destination=0x802a0117'),
+            self.PAYLOAD.replace(b'kind=2 bytes=20', b'kind=3 bytes=16'),
+            self.PAYLOAD.replace(b'capture_verified=0', b'capture_verified=1'), self.PAYLOAD + b' extra=0']
+        for payload in malformed:
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                v.console_records(b'/ # OBS ' + payload + self.KERNEL + b'\r\n')
+        for kernel in (self.KERNEL.replace(b'-1022', b'-1021'), self.KERNEL.replace(b'5788.', b'05788.'),
+                       self.KERNEL[:-2] + b' extra\r\n', self.KERNEL[:-2], self.KERNEL[:-1]):
+            with self.subTest(kernel=kernel), self.assertRaises(ValueError):
+                v.console_records(b'/ # OBS ' + self.PAYLOAD + kernel + b'\r\n')
+        for ending in (b'', b'nonempty\r\n', b'\n'):
+            with self.subTest(ending=ending), self.assertRaises(ValueError):
+                v.console_records(self.RECORD + ending)
+
+    def test_prefix_extension_does_not_expand_other_graph_families_or_standalone_rows(self):
+        for prefix in (b'xOBS ', b'/ OBS ', b' / # OBS ', b'/ # OBS  '):
+            raw = prefix + self.PAYLOAD + self.KERNEL + b'\r\n'
+            with self.subTest(prefix=prefix):
+                self.assertEqual(v.console_records(raw), (raw, []))
+        standalone = b'/ # OBS ' + self.PAYLOAD + b'\r\n'
+        self.assertEqual(v.console_records(standalone), (standalone, []))
+        other = self.RECORD.replace(b'FULL_HDMI_VIDEO_STATE_NATIVE_FREE ', b'FULL_HDMI_OTHER_NATIVE_FREE ', 1) + b'\r\n'
+        self.assertEqual(v.console_records(other), (other, []))
+
+
 class GraphEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -95,6 +292,126 @@ class GraphEvidenceTests(unittest.TestCase):
         edge['REPLY_FREE'] = log.one(edge['REPLY_FREE']['tag'])
         return log, repairs, {'identity': ('701', '723'), 'edges': [edge]}
 
+    def adf_output_fixture(self, repaired='MONITOR'):
+        original, _ = v.console_records(self.adf_control_fixture())
+        rows = original.decode().splitlines()
+        edges, rows = rows[-2:], rows[:-2]
+        prefix = 'FULL_ADF_SET_OUTPUT'
+        zeros = ('original_cp_executed=0 hardware_verified=0 native_frequency_verified=0 '
+                 'original_event_identity_verified=0 pcm_verified=0 frames_verified=0 capture_verified=0')
+        def add(suffix, body, tid=802):
+            rows.append(f'OBS {prefix}_{suffix} {body} pid=701 tid={tid} scope=virtualOutputConfigurationNoChange {zeros}')
+        add('REQUEST', 'generation=3 caller=0x81cf6100 request=0x3000 bytes=26 raw=0d202d031a000180000001000101010100000000000000000000 format20=0000000001000101010100000000000000000000 format_readback=1 normal_completion=0', 723)
+        rows.append('OBS FULL_ADF_SET_OUTPUT_RESOURCES_RESERVED tid=802 accepted=1 dmm_domain=2 foreign_speech_kept=1 global_dmm_idle_verified=0 capture_verified=0')
+        add('DEPENDENCIES', 'generation=3 original_AP1336_reply_freed=1 same_Output60_owner=1 same_monitor=1 same_command_buffer=1 same_disable_bank=1 same_source7_clock=1 control3_mask=8 control3_callback=0 wire_bitmap=0 computed_mask=8 system_sound_activity_snapshot_known=0 mask_invariant_W0_O8=1 power20=0 power22=0 counter_before=8 epoch_before=8')
+        add('MONITOR_COMMAND', 'generation=3 monitor_generation=2 control13d=1 mode=1 enable=0 channel=0 opcode=0xb0 bytes=16 raw=b0000000100000000000000000000000 newly_queued=1 old_history_replayed=0')
+        add('MONITOR', 'generation=3 same_initialized_monitor=1 prepare_notify1=1 commit_notify4=1 configure_notify2=1 format_bytes=20 format_copied=1 cache_first8_equal=1 flag240=0 flag242=0 control13d_still_submitted=1 emitted_AF_total=1 emitted_B0_total=2 unknown243_known=0')
+        add('AVIO_QUEUED', 'generation=3 output_generation=2 read=3 write=4 count=1 target=8 change=0 job_contract=0000080000000000616f6600 control3_mask=8 control3_callback=0 callback_in_job=1 required_free_slots_gt5=1 shadow_writes_added=0 completed=0')
+        add('EVENT', 'generation=3 event=9 guest_timerfd_expirations=1 deadline_ns=9000000 observed_ns=9000010 hardware_counter=9 epoch=9 queued=1 consumed=1 hardware_source=7 software_source=5 policy_period_ns=1000000 getter_advances=0')
+        add('DISABLE_READBACK', 'generation=3 global_event=9 same_disable_bank=1 calls=3 writes=21 readbacks=21 active0400=0 route8828=0 route882c=0 route8830=0 route8928=0 route892c=0 route8930=0 controla000=0')
+        add('AIP_CONSUMED', 'generation=3 global_event=9 priority=4 B0_newly_consumed=1 snapshot_count=1 checked=1 cursor_words=3 task_rc=0 ring_read=10 ring_write=10 disable_calls=3 writes=21 readbacks=21 previous_AB_status1_history_preserved=1 previous_uninspected7_rechecked=0')
+        add('CALLBACK', 'generation=3 output_generation=2 global_event=9 status=0 pop_before_callback=1 read=4 write=4 count=0 output_finished=0 controller_callback_slot=0 format_cache_kept=1 inner_queued=1 raw=042001830c00010000000000 outer_published=0')
+        add('INNER_RELAY', 'generation=3 source=0x9058003f target=0x928407b9 raw=042001830c00010000000000 callback_status=0 outer_status=0x580000 format_cache_kept=1 controller_callback_slot=0')
+        add('APPLIED', 'generation=3 format_bytes=20 format_copies=1 format_readbacks=1 control3_old_mask=8 target_mask=8 system_sound_snapshot_known=0 monitor_configures=1 B0_newly_consumed=1 disable_writes_total=21 disable_readbacks_total=21 global_event=9 avio_job_consumed=1 callback_status=0 shadow_writes_added=0 inner_consumed=1 outer_status=0x580000')
+        add('QUEUED', 'generation=3 destination=0x81cf6100 source=0x92840747 reply=0x4000 bytes=12 raw=0d202d130c00018000005800 B0_new=1 AVIO_NoOp_consumed=1 global_event=9')
+        add('COMMIT', 'generation=3 request=0x3000 request_free_rc=0 retained_request=0 clean_completion=1 queued=1 ap_consumed=0')
+        add('REPLY_FREE', 'generation=3 destination=0x81cf6100 expected=0x81cf6100 pointer=0x4000 kind=queued-reply rc=0 faults=0 retained=0 ap_consumed=1 metadata_completion_only=1', 723)
+        return b''.join(line.encode() + (v.WARNINGS[0] if line.startswith(f'OBS {prefix}_{repaired} ') else b'') + b'\r\n' for line in rows + edges)
+
+    def test_each_output_record_requires_original_input_output_lifetimes(self):
+        suffixes = ('REQUEST', 'DEPENDENCIES', 'MONITOR_COMMAND', 'MONITOR', 'AVIO_QUEUED', 'EVENT',
+                    'DISABLE_READBACK', 'AIP_CONSUMED', 'CALLBACK', 'INNER_RELAY', 'APPLIED', 'QUEUED', 'COMMIT', 'REPLY_FREE')
+        for suffix in suffixes:
+            with self.subTest(suffix=suffix):
+                log, repairs, proof = self.adf_control_context(self.adf_output_fixture(suffix))
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs(proof, repairs)
+                joins = v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+                output = joins[0]['set_output']
+                self.assertEqual(output['original_caller'], '0x81cf6100')
+                self.assertIs(output['actual_AP_free'], log.one('FULL_ADF_SET_OUTPUT_REPLY_FREE'))
+                self.assertTrue(v.bind_repairs({'actual_ADF_lifetimes': joins}, repairs)[0]['content_verifier_joined'])
+                self.assertFalse(joins[0]['capture_verified'])
+                self.assertFalse(joins[0]['physical_asic_compatibility_verified'])
+                self.assertNotIn('graph_verified', joins[0])
+
+    def test_output_missing_duplicate_or_reordered_work_and_AP_free_refused(self):
+        raw = self.adf_output_fixture()
+        request = next(row for row in raw.splitlines(keepends=True) if row.startswith(b'OBS FULL_ADF_SET_OUTPUT_REQUEST '))
+        raw = raw.replace(request, request[:-2] + v.WARNINGS[1] + b'\r\n', 1)
+        lines = raw.splitlines(keepends=True)
+        tags = ('FULL_ADF_PROC_REPLY_FREE', 'FULL_ADF_SET_INPUT_REPLY_FREE', 'FULL_ADF_SET_OUTPUT_REQUEST',
+                'FULL_ADF_SET_OUTPUT_MONITOR_COMMAND', 'FULL_ADF_SET_OUTPUT_MONITOR', 'FULL_ADF_SET_OUTPUT_EVENT',
+                'FULL_ADF_SET_OUTPUT_DISABLE_READBACK', 'FULL_ADF_SET_OUTPUT_AIP_CONSUMED',
+                'FULL_ADF_SET_OUTPUT_CALLBACK', 'FULL_ADF_SET_OUTPUT_INNER_RELAY',
+                'FULL_ADF_SET_OUTPUT_APPLIED', 'FULL_ADF_SET_OUTPUT_QUEUED',
+                'FULL_ADF_SET_OUTPUT_COMMIT', 'FULL_ADF_SET_OUTPUT_REPLY_FREE')
+        for tag in tags:
+            line = next(row for row in lines if row.startswith(('OBS ' + tag + ' ').encode()))
+            for changed in (raw.replace(line, b'', 1), raw.replace(line, line + line, 1)):
+                with self.subTest(tag=tag, length=len(changed)), self.assertRaises(ValueError):
+                    log, repairs, proof = self.adf_control_context(changed)
+                    v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+        for left, right in (('MONITOR_COMMAND', 'MONITOR'), ('EVENT', 'CALLBACK'), ('COMMIT', 'REPLY_FREE')):
+            changed = list(lines)
+            a, b = (next(index for index, row in enumerate(changed) if row.startswith(('OBS FULL_ADF_SET_OUTPUT_' + name + ' ').encode())) for name in (left, right))
+            changed[a], changed[b] = changed[b], changed[a]
+            with self.subTest(left=left, right=right), self.assertRaises(ValueError):
+                log, repairs, proof = self.adf_control_context(b''.join(changed))
+                v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+
+    def test_output_wrong_wire_owner_timer_work_suffix_and_claims_refused(self):
+        raw = self.adf_output_fixture()
+        changes = ((b'caller=0x81cf6100', b'caller=0x80000000'),
+                   (b'caller=0x81cf6100', b'caller=0x90000000'),
+                   (b'request=0x3000', b'request=0x4000'),
+                   (b'raw=0d202d031a000180000001000101010100000000000000000000', b'raw=0d202d031a000180000001000101010100000000000000000001'),
+                   (b'raw=0d202d130c00018000005800', b'raw=0d202d130c00018000000000'),
+                   (b'expected=0x81cf6100', b'expected=0x81cf6101'),
+                   (b'tid=802', b'tid=723'), (b'capture_verified=0\r\n', b'capture_verified=1\r\n'),
+                   (b'same_initialized_monitor=1', b'same_initialized_monitor=0'),
+                   (b'deadline_ns=9000000', b'deadline_ns=9000020'),
+                   (b'deadline_ns=9000000', b'deadline_ns=09000000'),
+                   (b'observed_ns=9000010', b'observed_ns=18446744073709551616'),
+                   (b'previous_AB_status1_history_preserved=1', b'previous_AB_status1_history_preserved=0'),
+                   (b'format_cache_kept=1', b'format_cache_kept=0'),
+                   (b'unknown243_known=0', b'unknown243_known=1'),
+                   (b'flag240=0', b'flag240=0 extra=1'))
+        for before, after in changes:
+            with self.subTest(before=before, after=after), self.assertRaises(ValueError):
+                log, repairs, proof = self.adf_control_context(raw.replace(before, after, 1))
+                v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+
+    def test_output_static_monitor_work_matches_existing_producer_literals(self):
+        log, repairs, proof = self.adf_control_context(self.adf_output_fixture())
+        joins = v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+        source = v.read(v.RUNTIME / 'device-models/adf-set-output-device.c').decode()
+        for key in ('dependencies', 'monitor_command', 'monitor', 'avio_queued', 'aip', 'callback', 'relay', 'applied'):
+            row = joins[0]['set_output'][key]
+            body = row['raw'].split(' ', 2)[2].split(' pid=', 1)[0]
+            with self.subTest(key=key):
+                self.assertIn('log_event("' + row['tag'] + ' ","' + body + '");', source)
+
+    def test_output_partial_proof_or_unconsumed_resource_repair_stays_unjoined(self):
+        raw = self.adf_output_fixture()
+        log, repairs, proof = self.adf_control_context(raw)
+        joins = v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+        for field in ('line', 'raw'):
+            changed = copy.deepcopy(joins)
+            row = changed[0]['set_output']['monitor']
+            row[field] = 999 if field == 'line' else row[field] + ' extra=1'
+            with self.subTest(field=field), self.assertRaises(v.UnjoinedRepairs):
+                v.bind_repairs({'joins': changed}, copy.deepcopy(repairs))
+        resources = self.adf_output_fixture('RESOURCES_RESERVED')
+        plain, _ = v.console_records(raw)
+        plain_line = next(row for row in plain.splitlines(keepends=True) if row.startswith(b'OBS FULL_ADF_SET_OUTPUT_MONITOR '))
+        resources = resources.replace(plain_line, plain_line[:-2] + v.WARNINGS[0] + b'\r\n', 1)
+        log, repairs, proof = self.adf_control_context(resources)
+        joins = v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+        self.assertEqual(len(repairs), 2)
+        with self.assertRaises(v.UnjoinedRepairs):
+            v.bind_repairs({'joins': joins}, repairs)
+
     def test_adf_effects_join_only_after_actual_content_checks(self):
         log, repairs, proof = self.adf_control_context(self.adf_control_fixture())
         self.assertEqual(len(repairs), 2)
@@ -109,6 +426,41 @@ class GraphEvidenceTests(unittest.TestCase):
         self.assertFalse(joins[0]['physical_asic_compatibility_verified'])
         self.assertNotIn('graph_verified', joins[0])
         self.assertEqual(v.check_repaired_adf_controls(log, [], proof, self.graph), [])
+
+    def test_each_exact_adf_callback_repair_alone_requires_actual_lifetimes(self):
+        original, _ = v.console_records(self.adf_control_fixture())
+        tags = ('FULL_ADF_PROC_INPUT_QUEUED', 'FULL_ADF_PROC_INPUT_DRAINED',
+                'FULL_ADF_SET_INPUT_DEPENDENCIES', 'FULL_ADF_SET_INPUT_METADATA',
+                'FULL_ADF_SET_INPUT_GLEE', 'FULL_ADF_SET_INPUT_CONTROL102', 'FULL_ADF_SET_INPUT_HOTSHOE') + tuple(
+                    prefix + '_' + suffix for prefix in ('FULL_ADF_PROC', 'FULL_ADF_SET_INPUT')
+                    for suffix in ('REQUEST', 'QUEUED', 'COMMIT', 'REPLY_FREE'))
+        for tag in tags:
+            line = next(line for line in original.splitlines(keepends=True) if line.startswith(('OBS ' + tag + ' ').encode()))
+            raw = original.replace(line, line[:-2] + v.WARNINGS[0] + b'\r\n', 1)
+            log, repairs, proof = self.adf_control_context(raw)
+            with self.subTest(tag=tag):
+                self.assertEqual(len(repairs), 1)
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs(proof, repairs)
+                joins = v.check_repaired_adf_controls(log, repairs, proof, self.graph)
+                self.assertTrue(v.bind_repairs({'actual_ADF_lifetimes': joins}, repairs)[0]['content_verifier_joined'])
+                self.assertFalse(joins[0]['capture_verified'])
+                self.assertFalse(joins[0]['physical_asic_compatibility_verified'])
+                for changed in (raw.replace(line[:-2], line[:-2].replace(b'generation=', b'generation=9', 1), 1),
+                                raw.replace(line[:-2], line[:-2].replace(b'pid=701', b'pid=702', 1), 1),
+                                raw.replace(line[:-2], line[:-2] + b' extra=1', 1)):
+                    with self.subTest(changed=changed), self.assertRaises(ValueError):
+                        changed_log, changed_repairs, changed_proof = self.adf_control_context(changed)
+                        v.check_repaired_adf_controls(changed_log, changed_repairs, changed_proof, self.graph)
+                for freed_tag in ('FULL_ADF_PROC_REPLY_FREE', 'FULL_ADF_SET_INPUT_REPLY_FREE'):
+                    freed = next(row for row in raw.splitlines(keepends=True) if row.startswith(('OBS ' + freed_tag + ' ').encode()))
+                    changed_raw = raw.replace(freed, b'', 1)
+                    if freed_tag == tag:
+                        anchor = next(row for row in changed_raw.splitlines(keepends=True) if row.startswith(b'OBS FULL_ADF_PROC_INPUT_QUEUED '))
+                        changed_raw = changed_raw.replace(anchor, anchor[:-2] + v.WARNINGS[1] + b'\r\n', 1)
+                    with self.subTest(missing=freed_tag), self.assertRaises(ValueError):
+                        changed_log, changed_repairs, changed_proof = self.adf_control_context(changed_raw)
+                        v.check_repaired_adf_controls(changed_log, changed_repairs, changed_proof, self.graph)
 
     def test_adf_returned_rows_keep_exact_source_literals(self):
         log, repairs, proof = self.adf_control_context(self.adf_control_fixture())
@@ -292,6 +644,116 @@ class GraphEvidenceTests(unittest.TestCase):
                         self.assertTrue(repair['guest_payload_unchanged'])
                         self.assertFalse(repair['guest_bytes_invented'])
                         self.assertNotIn('content_verifier_joined', repair)
+
+    def scalar_connect_native_free_fixture(self, ending=b'\r\n'):
+        # Retained transport sample only; never a native-positive graph fixture.
+        return (b'OBS FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE pid=259 tid=383 sender=383 waiter=1 '
+                b'destination=0x81cf61c4 expected=0x81cf61c4 reply=0x7f8f73ee40 bytes=56 '
+                b'command=0x8001 rc=0 faults=0 ap_consumed=1 capture_verified=0' + ending)
+
+    def test_scalar_connect_free_shared_tag_prefix_source_offsets_and_endings(self):
+        source = v.read(v.RUNTIME / 'device-models/pin-peer-connection.inc').decode()
+        scalar = v.read(v.RUNTIME / 'device-models/scalar-connection.c').decode()
+        observer = v.read(v.RUNTIME / 'menu-observe.c').decode()
+        self.assertIn('#define EDGE_TAG "SCALAR"', scalar)
+        self.assertIn('#include "pin-peer-connection.inc"', scalar)
+        self.assertIn('"pid=%d tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p '
+                      'bytes=56 command=0x8001 rc=%d faults=%u ap_consumed=%u capture_verified=0"', source)
+        self.assertIn('record(rc?"FULL_" EDGE_TAG "_CONNECT_FAULT ":'
+                      '"FULL_" EDGE_TAG "_CONNECT_NATIVE_REPLY_FREE ",line);', source)
+        self.assertIn('"OBS %s%s\\n", prefix, name ? name : ""', observer)
+        prefix = b'boot\rprogress\r\n' + v.WARNINGS[1]
+        for ending in (b'\n', b'\r\n'):
+            guest = self.scalar_connect_native_free_fixture(ending)
+            self.assertEqual(v.console_records(guest), (guest, []))
+            for warning in v.WARNINGS:
+                for cut in range(len(b'OBS ') + 1, len(v.SCALAR_CONNECT_NATIVE_FREE_TAG)):
+                    raw = prefix + guest[:cut] + warning + guest[cut:]
+                    with self.subTest(ending=ending, warning=warning, cut=cut):
+                        parsed, repairs = v.console_records(raw)
+                        self.assertEqual(parsed, prefix + guest)
+                        repair, = repairs
+                        self.assertEqual(repair['kind'], 'exact-host-vvfat-diagnostic')
+                        self.assertEqual(raw[repair['raw_warning_start']:repair['raw_warning_end']], warning)
+                        self.assertEqual((repair['raw_warning_start'], repair['raw_warning_end']),
+                                         (len(prefix) + cut, len(prefix) + cut + len(warning)))
+                        self.assertEqual((repair['raw_record_start'], repair['raw_record_end']),
+                                         (len(prefix), len(raw)))
+                        self.assertEqual((repair['raw_lf_line'], repair['raw_lf_end'], repair['parsed_line']),
+                                         (3, 4, 3))
+                        self.assertEqual(bytes.fromhex(repair['raw_record_hex']), raw[len(prefix):])
+                        self.assertEqual(repair['raw_record_sha256'], v.sha(raw[len(prefix):]))
+                        self.assertEqual(repair['repaired_record'], guest.rstrip(b'\r\n').decode())
+                        self.assertEqual(repair['repaired_record_sha256'], v.sha(guest.rstrip(b'\r\n')))
+                        self.assertEqual(repair['cause'], 'unknown')
+                        self.assertTrue(repair['guest_payload_unchanged'])
+                        self.assertFalse(repair['guest_bytes_invented'])
+                        self.assertNotIn('content_verifier_joined', repair)
+
+    def test_scalar_connect_free_tag_repair_stays_provisional(self):
+        guest = self.scalar_connect_native_free_fixture()
+        cut = len(b'OBS FULL')
+        original = guest[:cut] + v.WARNINGS[0] + guest[cut:]
+        self.assertEqual(v.sha(original), '31a8b5911e787490f61f2eb876b19ed20251e395fe40f2ac34bf5bc752fdded6')
+        parsed, repairs = v.console_records(original)
+        self.assertEqual(parsed, guest)
+        row = self.graph.Log(parsed).one('FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE')
+        self.assertEqual(row['raw'], guest.rstrip(b'\r\n').decode())
+        self.assertEqual(row['fields']['rc'], '0')
+        self.assertEqual(row['fields']['command'], '0x8001')
+        for proof in ({}, {'tag_count_only': {'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE': 1}}):
+            with self.subTest(proof=proof), self.assertRaises(v.UnjoinedRepairs):
+                v.bind_repairs(proof, repairs)
+        self.assertNotIn('content_verifier_joined', repairs[0])
+        # This proves framing and refusal of unjoined evidence, not graph consumption.
+
+    def test_scalar_connect_free_partial_tag_rejects_nonproducer_records(self):
+        guest, cut = self.scalar_connect_native_free_fixture(), len(b'OBS FULL')
+        body = guest[len(v.SCALAR_CONNECT_NATIVE_FREE_TAG):-2].split(b' ')
+        mutations = [v.SCALAR_CONNECT_NATIVE_FREE_TAG + b' '.join(body[:i] + body[i + 1:]) + b'\r\n'
+                     for i in range(len(body))]
+        for old, new in (
+            (b'pid=259', b'pid=0'), (b'pid=259', b'pid=2147483648'),
+            (b'tid=383', b'tid=2147483648'), (b'tid=383', b'tid=0383'),
+            (b'sender=383', b'sender=384'), (b'sender=383', b'sender=2147483648'),
+            (b'waiter=1', b'waiter=0'), (b'destination=0x81cf61c4', b'destination=0x80000000'),
+            (b'expected=0x81cf61c4', b'expected=0x81cf61c5'),
+            (b'destination=0x81cf61c4', b'destination=0x71cf61c4'),
+            (b'reply=0x7f8f73ee40', b'reply=0x0'),
+            (b'reply=0x7f8f73ee40', b'reply=0x10000000000000000'),
+            (b'bytes=56', b'bytes=55'), (b'command=0x8001', b'command=0x8002'),
+            (b'rc=0', b'rc=-1'), (b'faults=0', b'faults=1'),
+            (b'ap_consumed=1', b'ap_consumed=0'), (b'capture_verified=0', b'capture_verified=1'),
+            (b'pid=259 tid=383', b'tid=383 pid=259'),
+            (b'pid=259 tid=383', b'pid=259  tid=383'),
+            (b'pid=259 tid=383', b'pid=259\ttid=383'),
+            (b'_NATIVE_REPLY_FREE ', b'_NATIVE_REPLY_FREE  '),
+            (b'\r\n', b'\r\r\n'), (b'\r\n', b' \r\n'),
+            (b'\r\n', b' extra=1\r\n'), (b'\r\n', b' capture_verified=0\r\n'),
+            (b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE', b'FULL_ADF_CONNECT_NATIVE_REPLY_FREE'),
+            (b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE', b'FULL_SCALAR_CONNECT_COMMIT'),
+            (b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE', b'FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE_EXTRA'),
+        ):
+            mutations.append(guest.replace(old, new, 1))
+        mutations.append(guest.replace(b'destination=0x81cf61c4 expected=0x81cf61c4',
+                                     b'destination=0x80000000 expected=0x80000000'))
+        for changed in mutations:
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                v.console_records(changed[:cut] + v.WARNINGS[0] + changed[cut:])
+        with self.assertRaises(v.SourceMissing):
+            v.console_records(guest[:cut] + v.WARNINGS[0])
+        with self.assertRaises(ValueError):
+            v.console_records(guest[:cut] + v.WARNINGS[0] + guest[cut:-2])
+        with self.assertRaises(ValueError):
+            v.console_records(guest[:cut] + v.WARNINGS[0] * 9 + guest[cut:])
+        for unknown in (v.WARNINGS[0].replace(b'pending', b'unknown'),
+                        v.WARNINGS[0].replace(b'warning:', b'Warning:'),
+                        v.WARNINGS[0].replace(b'commit ', b'commit  '),
+                        v.WARNINGS[0][:-1] + b'\r\n'):
+            raw = guest[:cut] + unknown + guest[cut:]
+            with self.subTest(unknown=unknown):
+                self.assertEqual(v.console_records(raw), (raw, []))
+                self.assertEqual(self.graph.Log(raw).rows('FULL_SCALAR_CONNECT_NATIVE_REPLY_FREE'), [])
 
     def test_imaging_control_tag_split_refuses_nonliteral_and_unknown_warning(self):
         guest, cut = v.IMAGING_CONTROL_COMMIT + b'\r\n', len(b'OBS FULL_IMAG')
@@ -1033,6 +1495,77 @@ class GraphEvidenceTests(unittest.TestCase):
                     self.assertEqual(raw[repair['raw_guest_ending_start']:repair['raw_guest_ending_end']], b'\r\n')
                     self.assertEqual(repair['framing_bytes_inserted'], 0)
 
+    def test_all_osd_internal_free_kernel_boundaries_require_actual_storage_lifetimes(self):
+        original = self.osd_source_fixture()
+        kernel = b'[ 4793.279766] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        mixed, expected, targets = [], [], 0
+        for row in original.splitlines(keepends=True):
+            if row.startswith(b'OBS FULL_PINMEM_OSD_CONNECT_INTERNAL_FREE '):
+                targets += 1
+                mixed.append(row[:-2] + kernel + b'\r\n')
+                expected.append(row + kernel)
+            else:
+                mixed.append(row); expected.append(row)
+        raw = b''.join(mixed)
+        parsed, repairs = v.console_records(raw)
+        self.assertEqual((targets, len(repairs)), (114, 114))
+        self.assertEqual(parsed, b''.join(expected))
+        with self.assertRaises(v.UnjoinedRepairs):
+            v.bind_repairs({}, repairs)
+        log = self.graph.Log(parsed)
+        proof = self.osd.verify_osd_edge(log, 3, ('701', '723'), 2, self.graph)
+        self.assertEqual(len(proof['internal_frees']), 114)
+        self.assertTrue(all(row['content_verifier_joined'] for row in v.bind_repairs(proof, repairs)))
+        for repair in repairs:
+            self.assertEqual(repair['kind'], 'complete-OsdInternalFree-UIPC-boundary')
+            self.assertEqual(raw[repair['raw_kernel_start']:repair['raw_kernel_end']], kernel)
+            self.assertEqual(raw[repair['raw_guest_ending_start']:repair['raw_guest_ending_end']], b'\r\n')
+            self.assertFalse(repair['guest_bytes_invented'])
+        self.assertFalse(proof['capture_verified'])
+        for key, value in (('owner', '0x81cf619c'), ('pointer', '0xffff'), ('rc', '1'), ('pool_references_released', '1')):
+            changed = self.graph.Log(parsed)
+            changed.rows(self.osd.PREFIX + '_INTERNAL_FREE')[0]['fields'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self.osd.verify_osd_edge(changed, 3, ('701', '723'), 2, self.graph)
+        first = log.rows(self.osd.PREFIX + '_INTERNAL_FREE')[0]
+        for field, value in (('line', first['line'] + 1), ('raw', first['raw'] + ' extra=1')):
+            borrowed = copy.deepcopy(proof)
+            borrowed['internal_frees'][0][field] = value
+            with self.subTest(field=field), self.assertRaises(v.UnjoinedRepairs):
+                v.bind_repairs(borrowed, copy.deepcopy(repairs))
+        line = first['raw'].encode() + b'\r\n'
+        for replacement in (b'', line + line):
+            with self.subTest(replacement=replacement), self.assertRaises(ValueError):
+                self.osd_content_join(original.replace(line, replacement, 1))
+        self.assertIn('"owner=%#x pointer=%p rc=%d pool_references_released=0"',
+                      v.read(v.RUNTIME / 'device-models/pinmem-osd-connection.c').decode())
+
+    def test_osd_internal_free_kernel_boundary_refuses_unknown_suffix_and_failed_free(self):
+        guest = b'OBS FULL_PINMEM_OSD_CONNECT_INTERNAL_FREE owner=0x81cf619b pointer=0x1234 rc=0 pool_references_released=0'
+        kernel = b'[ 4793.279766] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        raw = guest + kernel + b'\r\n'
+        for before, after in ((b'owner=0x81cf619b', b'owner=0x80000000'),
+                              (b'owner=0x81cf619b', b'owner=0x90000000'),
+                              (b'pointer=0x1234', b'pointer=0'),
+                              (b'pointer=0x1234', b'pointer=0x10000000000000000'),
+                              (b'rc=0', b'rc=1'), (b'pool_references_released=0', b'pool_references_released=1'),
+                              (b'pool_references_released=0', b'pool_references_released=0 extra=1'),
+                              (b'Line 100:', b'Line 101:'), (b'ret = -1022', b'ret = -1021'),
+                              (b'[ 4793.279766]', b'[04793.279766]')):
+            with self.subTest(before=before, after=after), self.assertRaises(ValueError):
+                v.console_records(raw.replace(before, after, 1))
+        for changed in (guest + kernel + b'not_empty\r\n', guest + kernel + b'\n',
+                        guest + kernel + kernel + b'\r\n', guest[:-1] + kernel + b'\r\n'):
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                v.console_records(changed)
+        with self.assertRaises(v.SourceMissing):
+            v.console_records(guest + kernel)
+        self.assertEqual(v.console_records(guest + b'\r\n'), (guest + b'\r\n', []))
+        unknown = raw.replace(b'FULL_PINMEM_OSD_CONNECT', b'FULL_UNKNOWN', 1)
+        self.assertEqual(v.console_records(unknown), (unknown, []))
+        with self.assertRaises(ValueError):
+            v.console_records(raw.replace(b'FULL_PINMEM_OSD_CONNECT', b'FULL_PINMEM_HDMI_VIDEO_CONNECT', 1))
+
     def test_osd_complete_printf_grammar_is_source_bound(self):
         source = v.read(v.RUNTIME / 'device-models/pinmem-osd-connection.c').decode()
         self.assertIn('"bank=%u ordinal=%u handle=%#x unit=%#x extent=256 physical=%#llx cp_alias=%#x '
@@ -1577,6 +2110,132 @@ class GraphEvidenceTests(unittest.TestCase):
             self.assertEqual(v.console_records(original), (original, []))
             self.assertEqual(self.graph.Log(original).rows(tag), [])
 
+    def test_resource_dependencies_family_exact_successful_guard_boundary(self):
+        self.assertEqual(len(v.RESOURCE_DEPENDENCIES), 13)
+        kernel = b'[ 5450.864803] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        body = (b' pid=260 tid=385 accepted=1 proc_ap_consumed=1 input_ap_consumed=1 '
+                b'output_ap_consumed=1 output_faults=0 current_request_retained_expected=1 capture_verified=0')
+        for tag in v.RESOURCE_DEPENDENCIES:
+            guest = b'OBS ' + tag.encode() + body
+            for host in (b'', *v.WARNINGS):
+                with self.subTest(tag=tag, host=host):
+                    parsed, repairs = v.console_records(guest + host + kernel + b'\r\n')
+                    self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                    self.assertEqual(len(repairs), 1 + bool(host))
+                    self.assertEqual(repairs[-1]['kind'], 'complete-ResourceDependencies-UIPC-boundary')
+                    self.assertFalse(repairs[-1]['guest_bytes_invented'])
+                    with self.assertRaises(v.UnjoinedRepairs):
+                        v.bind_repairs({}, repairs)
+                    row = self.graph.Log(parsed).one(tag)
+                    with self.assertRaises(v.UnjoinedRepairs):
+                        v.bind_repairs({'wrong': dict(row, line=row['line'] + 1)}, repairs)
+
+    def test_resource_dependencies_reject_changed_guard_scope_kernel_and_unknown_prefix(self):
+        kernel = b'[ 5450.864803] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        body = (b' pid=260 tid=385 accepted=1 proc_ap_consumed=1 input_ap_consumed=1 '
+                b'output_ap_consumed=1 output_faults=0 current_request_retained_expected=1 capture_verified=0')
+        for tag in v.RESOURCE_DEPENDENCIES:
+            raw = b'OBS ' + tag.encode() + body + kernel + b'\r\n'
+            for before, after in ((b'pid=260', b'pid=2147483648'), (b'tid=385', b'tid=2147483648'),
+                                  (b'accepted=1', b'accepted=0'), (b'proc_ap_consumed=1', b'proc_ap_consumed=0'),
+                                  (b'input_ap_consumed=1', b'input_ap_consumed=0'), (b'output_ap_consumed=1', b'output_ap_consumed=0'),
+                                  (b'output_faults=0', b'output_faults=1'), (b'current_request_retained_expected=1', b'current_request_retained_expected=0'),
+                                  (b'capture_verified=0', b'capture_verified=1'), (b'capture_verified=0', b'capture_verified=0 extra=1'),
+                                  (b'Line 100:', b'Line 101:'), (b'UDIF:', b'OTHER:'), (b'ret = -1022', b'ret = -1021')):
+                with self.subTest(tag=tag, before=before), self.assertRaises(ValueError):
+                    v.console_records(raw.replace(before, after))
+            for damaged in (raw[:-2] + b'junk\r\n', raw[:-2] + b'\n'):
+                with self.subTest(tag=tag, ending=damaged[-10:]), self.assertRaises(ValueError):
+                    v.console_records(damaged)
+        for prefix in ('FULL_ADF_CONNECT_UNKNOWN', 'FULL_IMAGING_PIN_CONNECT_EXTRA'):
+            with self.subTest(prefix=prefix), self.assertRaises(ValueError):
+                v.console_records(b'OBS ' + prefix.encode() + b'_RESOURCE_DEPENDENCIES' + body + kernel + b'\r\n')
+        for prefix in ('NATIVE_CP302C_NOCONVERT', 'FULL_BB_SET_MODE', 'FULL_UNKNOWN'):
+            raw = b'OBS ' + prefix.encode() + b'_RESOURCE_DEPENDENCIES' + body + kernel + b'\r\n'
+            self.assertEqual(v.console_records(raw), (raw, []))
+
+    def test_resource_tts_family_matches_all_finite_shared_producer_prefixes(self):
+        source = v.read(v.RUNTIME / 'menu-observe.c').decode()
+        block = source.split('static int tracked_native_reserve_resources(int adf) {', 1)[1].split('};', 1)[0]
+        prefixes = tuple(value for value in re.findall(r'"([A-Z][A-Z0-9_]*)"', block) if (value + '_').startswith(v.GRAPH_ROOTS))
+        self.assertEqual(prefixes, v.RESOURCE_TTS_PREFIXES)
+        self.assertEqual(len(prefixes), 17)
+        guest, kernel, _ = self.scalar_tts_boundary_fixture()
+        for prefix in prefixes:
+            table = guest.replace(b'FULL_SCALAR_CONNECT', prefix.encode(), 1)
+            for warning in (b'', v.WARNINGS[0]):
+                raw = table + warning + kernel + b'\r\n'
+                with self.subTest(prefix=prefix, warning=warning):
+                    parsed, repairs = v.console_records(raw)
+                    self.assertEqual(parsed, table + b'\r\n' + kernel)
+                    self.assertEqual(len(repairs), 1 + bool(warning))
+                    self.assertEqual(repairs[-1]['repaired_record'].encode(), table)
+                    self.assertEqual(bytes.fromhex(repairs[-1]['kernel_raw_hex']), kernel)
+                    self.assertFalse(repairs[-1]['guest_bytes_invented'])
+                    with self.assertRaises(v.UnjoinedRepairs):
+                        v.bind_repairs({}, repairs)
+
+    def test_resource_tts_family_refuses_unknown_prefix_payload_domain_and_kernel(self):
+        guest, kernel, _ = self.scalar_tts_boundary_fixture()
+        for prefix in v.RESOURCE_TTS_PREFIXES:
+            table = guest.replace(b'FULL_SCALAR_CONNECT', prefix.encode(), 1)
+            raw = table + kernel + b'\r\n'
+            mutations = (
+                raw.replace(b'pid=260', b'pid=2147483648'),
+                raw.replace(b'tid=384', b'tid=2147483648'),
+                raw.replace(b'0x7f61cf4000', b'0xffff'),
+                raw.replace(b'0x7f61cf4000', b'0x7ff0000000'),
+                raw.replace(b'address=0x7f67c5ab08', b'address=0x7f67c5ab09'),
+                raw.replace(b'table_va=0x5f66b08', b'table_va=0x5f66b09'),
+                raw.replace(b'raw_after=1a', b'raw_after=1b'),
+                raw.replace(b'reads=144/144', b'reads=143/144'),
+                raw.replace(b'ownership_verified=0', b'ownership_verified=1'),
+                raw.replace(b'ownership_verified=0', b'ownership_verified=0 extra=1'),
+                raw.replace(b'atomic_snapshot=0', b'atomic_snapshot=1'),
+                raw.replace(b'unchanged=1', b'unchanged=0'),
+                raw.replace(b'Line 100:', b'Line 101:'),
+                raw.replace(b'ret = -1022', b'ret = -1021'),
+                raw[:-2] + b'junk\r\n', raw[:-2] + b'\n')
+            for changed in mutations:
+                with self.subTest(prefix=prefix, changed=changed), self.assertRaises(ValueError):
+                    v.console_records(changed)
+        for prefix in ('FULL_PINMEM_UNKNOWN', 'FULL_PINMEM_HDMI_VIDEO_CONNECT_OTHER'):
+            raw = guest.replace(b'FULL_SCALAR_CONNECT', prefix.encode(), 1) + kernel + b'\r\n'
+            with self.subTest(prefix=prefix), self.assertRaises(ValueError):
+                v.console_records(raw)
+        for prefix in (b'NATIVE_CP302C_NOCONVERT', b'FULL_BB_SET_MODE', b'FULL_UNKNOWN'):
+            unrelated = guest.replace(b'FULL_SCALAR_CONNECT', prefix, 1) + kernel + b'\r\n'
+            self.assertEqual(v.console_records(unrelated), (unrelated, []))
+
+    def test_resource_tts_uipc_join_requires_same_table_speech_owner_and_actual_edge(self):
+        parsed, _ = v.console_records(self.zfq_resource_raw()[0])
+        base = self.graph.Log(parsed)
+        kernel = b'[ 4645.802427] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        for prefix in ('FULL_VEF_PINMEM_INPUT_CONNECT', 'FULL_PINMEM_HDMI_VIDEO_CONNECT'):
+            for table in base.rows(prefix + '_RESOURCES_TTS_TABLE'):
+                guest = table['raw'].encode()
+                raw = parsed.replace(guest + b'\r\n', guest + kernel + b'\r\n', 1)
+                repaired, repairs = v.console_records(raw)
+                log = self.graph.Log(repaired)
+                proof = self.zfq_resource_context(log)
+                with self.subTest(prefix=prefix, tid=table['fields']['tid']):
+                    self.assertEqual(len(repairs), 1)
+                    with self.assertRaises(v.UnjoinedRepairs):
+                        v.bind_repairs(proof, repairs)
+                    proof['resource_joins'] = v.check_repaired_resources(log, repairs, proof, self.graph)
+                    v.bind_repairs(proof, repairs)
+                    self.assertTrue(repairs[0]['content_verifier_joined'])
+                    self.assertEqual(len(proof['resource_joins']), 1)
+                    self.assertFalse(proof['resource_joins'][0]['capture_verified'])
+                    wrong = copy.deepcopy(proof)
+                    wrong['legacy_histories']['Speech']['table_sha256'] = '0' * 64
+                    with self.assertRaises(ValueError):
+                        v.check_repaired_resources(log, repairs, wrong, self.graph)
+                    missing = self.graph.Log(repaired)
+                    missing.records = [row for row in missing.records if row['tag'] != prefix + ('_REPLY_FREE' if prefix == 'FULL_VEF_PINMEM_INPUT_CONNECT' else '_NATIVE_REPLY_FREE')]
+                    with self.assertRaises(ValueError):
+                        v.check_repaired_resources(missing, repairs, self.zfq_resource_context(missing), self.graph)
+
     def test_scalar_tts_exact_actual_boundary_retains_raw_bytes_sha_and_unknown_cause(self):
         guest, kernel, raw = self.scalar_tts_boundary_fixture()
         parsed, repairs = v.console_records(raw)
@@ -1783,7 +2442,7 @@ class GraphEvidenceTests(unittest.TestCase):
         source = v.read(v.RUNTIME / 'device-models/hdmi-device.c').decode()
         for token in (
             '"tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p lease=%llu command=%#x bytes=%u status=%u rc=%d"',
-            'record(*result?"FULL_HDMI_FAULT ":"FULL_HDMI_NATIVE_REPLY_FREE ",line);',
+            'record(*result?"FULL_HDMI_FAULT ":found.command==0x0102?"FULL_HDMI_SIGNAL_MODE_REPLY_FREE ":"FULL_HDMI_NATIVE_REPLY_FREE ",line);',
             'int resolution=command==0x0101 || command==0x0201;', 'int rate=command==0x0117;',
             'command!=0x010a && command!=0x020a',
             'reply_bytes=command==0x020a?16:command==0x0201?20:12;',
@@ -2040,6 +2699,36 @@ class GraphEvidenceTests(unittest.TestCase):
                 'resources': {self.graph.six.SIXTH[0]: log.one(self.graph.six.SIXTH[0] + '_RESOURCES_RESERVED')},
                 'legacy_histories': {'Speech': self.graph.tts.prove_initial_creation(log.raw)}}
 
+    def test_resource_reservations_kernel_boundaries_need_original_content_join(self):
+        original,_=self.zfq_resource_raw()
+        clean=original
+        for warning in v.WARNINGS:clean=clean.replace(warning,b'')
+        kernel=b'[ 5522.223792] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        prefixes=(b'OBS FULL_VEF_PINMEM_INPUT_CONNECT_RESOURCES_RESERVED ',
+                  b'OBS FULL_PINMEM_HDMI_VIDEO_CONNECT_RESOURCES_RESERVED ')
+        rows=clean.splitlines(keepends=True)
+        affected=[r for r in rows if r.startswith(prefixes)]
+        self.assertEqual(len(affected),6)
+        raw=b''.join(r.rstrip(b'\r\n')+kernel+b'\r\n' if r.startswith(prefixes) else r for r in rows)
+        parsed,repairs=v.console_records(raw)
+        self.assertEqual(parsed.count(kernel),6)
+        self.assertEqual(parsed.replace(kernel,b''),v.console_records(clean)[0])
+        self.assertEqual(len(repairs),6)
+        with self.assertRaises(v.UnjoinedRepairs):v.bind_repairs({},repairs)
+        log=self.graph.Log(parsed);proof=self.zfq_resource_context(log)
+        proof['repaired_resource_snapshot_joins']=v.check_repaired_resources(log,repairs,proof,self.graph)
+        v.bind_repairs(proof,repairs)
+        self.assertTrue(all(r['content_verifier_joined'] for r in repairs))
+        self.assertEqual(len(proof['repaired_resource_snapshot_joins']),6)
+        for row in affected:
+            wire=row.rstrip(b'\r\n')+kernel+b'\r\n'
+            for old,new in ((b'accepted=1',b'accepted=0'),(b'dmm_handles=0x8400/0x8401',b'dmm_handles=0x8401/0x8400'),
+                (b'foreign_speech_kept=1',b'foreign_speech_kept=0'),(b'capture_verified=0',b'capture_verified=1'),
+                (b'ret = -1022',b'ret = -1'),(b'5522.223792',b'05522.223792'),
+                (b'RESOURCES_RESERVED',b'RESOURCES_RESERVED_UNKNOWN')):
+                with self.subTest(row=row[:60],old=old),self.assertRaises(ValueError):
+                    v.console_records(wire.replace(old,new,1))
+
     def test_zfq_actual_resource_windows_require_new_content_join(self):
         raw, windows = self.zfq_resource_raw()
         self.assertEqual([v.sha(window) for window in windows], [
@@ -2187,6 +2876,88 @@ class GraphEvidenceTests(unittest.TestCase):
             rows += [published, sent, freed]
         log = self.graph.Log(b''); log.records = rows
         return log
+
+    def hdmi_state_native_free_window(self):
+        guest = (b'OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE tid=352 receiver=352 sender=384 '
+            b'destination=0x802a0116 pointer=0x7f9eabdc00 lease=7 kind=2 bytes=20 rc=0 received=1 consumed=1 '
+            b'original_cp_executed=0 hardware_verified=0 capture_verified=0')
+        kernel = b'[ 4660.814662] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        return guest, kernel
+
+    def test_hdmi_state_native_free_exact_uipc_boundary_requires_actual_content(self):
+        guest, kernel = self.hdmi_state_native_free_window()
+        for warning in (b'', *v.WARNINGS):
+            with self.subTest(warning=warning):
+                raw = guest + warning + kernel + b'\r\n'
+                parsed, repairs = v.console_records(raw)
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(len(repairs), 1 + bool(warning))
+                boundary = repairs[-1]
+                self.assertEqual(boundary['kind'], 'complete-HdmiStateNativeFree-UIPC-boundary')
+                self.assertEqual(raw[boundary['raw_kernel_start']:boundary['raw_kernel_end']], kernel)
+                self.assertEqual(raw[boundary['raw_guest_ending_start']:boundary['raw_guest_ending_end']], b'\r\n')
+                self.assertFalse(boundary['guest_bytes_invented'])
+                with self.assertRaises(v.UnjoinedRepairs): v.bind_repairs({}, repairs)
+                self.assertTrue(all('content_verifier_joined' not in item for item in repairs))
+
+    def test_hdmi_state_repair_joins_only_after_all24_real_condition_lifecycles(self):
+        _, kernel = self.hdmi_state_native_free_window()
+        rows = self.conditions().records
+        parts = []
+        selected = None
+        for row in rows:
+            if row['tag'] == self.hdmi.STATE + '_NATIVE_FREE':
+                f = row['fields']
+                guest = ('OBS FULL_HDMI_VIDEO_STATE_NATIVE_FREE tid={tid} receiver={receiver} sender={sender} '
+                    'destination={destination} pointer={pointer} lease={lease} kind=2 bytes=20 rc=0 received=1 consumed=1 '
+                    'original_cp_executed=0 hardware_verified=0 capture_verified=0').format(**f).encode()
+                if selected is None:
+                    selected = guest
+                    parts.append(guest + kernel + b'\r\n')
+                else:
+                    parts.append(guest + b'\r\n')
+            else:
+                parts.append(row['raw'].encode() + b'\r\n')
+        raw = b''.join(parts)
+        parsed, repairs = v.console_records(raw)
+        with self.assertRaises(v.UnjoinedRepairs): v.bind_repairs({}, repairs)
+        log = self.graph.Log(parsed)
+        proof = self.hdmi.verify_conditions(log)
+        self.assertEqual(len(proof['messages']), 24)
+        v.bind_repairs({'HDMI_conditions': proof}, repairs)
+        self.assertTrue(all(item['content_verifier_joined'] for item in repairs))
+        for mutation in ('missing', 'wrong-published-value', 'wrong-receiver', 'wrong-pointer'):
+            log = self.graph.Log(parsed)
+            if mutation == 'missing':
+                log.records.pop()
+            elif mutation == 'wrong-published-value':
+                log.rows(self.hdmi.STATE + '_MESSAGE_PUBLISHED')[0]['fields']['raw'] = struct.pack('<5I', 2, 0, 2, 0, 0).hex()
+            elif mutation == 'wrong-receiver':
+                log.rows(self.hdmi.STATE + '_NATIVE_FREE')[0]['fields']['receiver'] = '742'
+            else:
+                log.rows(self.hdmi.STATE + '_NATIVE_FREE')[0]['fields']['pointer'] = '0x9999'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                self.hdmi.verify_conditions(log)
+
+    def test_hdmi_state_native_free_rejects_partial_domain_owner_scope_kernel_and_suffix(self):
+        guest, kernel = self.hdmi_state_native_free_window()
+        changes = ((b'tid=352', b'tid=2147483648'), (b'receiver=352', b'receiver=2147483648'),
+            (b'receiver=352', b'receiver=353'), (b'sender=384', b'sender=0'),
+            (b'destination=0x802a0116', b'destination=0x802a0117'),
+            (b'pointer=0x7f9eabdc00', b'pointer=0x0'), (b'lease=7', b'lease=18446744073709551616'),
+            (b'kind=2', b'kind=3'), (b'bytes=20', b'bytes=16'), (b'rc=0', b'rc=-1'),
+            (b'received=1', b'received=0'), (b'consumed=1', b'consumed=0'),
+            (b'original_cp_executed=0', b'original_cp_executed=1'),
+            (b'hardware_verified=0', b'hardware_verified=1'), (b'capture_verified=0', b'capture_verified=1'))
+        for before, after in changes:
+            with self.subTest(field=before), self.assertRaises(ValueError):
+                v.console_records(guest.replace(before, after) + kernel + b'\r\n')
+        for raw in (guest + kernel, guest + kernel + b'nonempty\r\n', guest + b' extra=1' + kernel + b'\r\n',
+                    guest + b' tid=352' + kernel + b'\r\n',
+                    guest + kernel.replace(b'Line 100', b'Line 101') + b'\r\n',
+                    guest + kernel.replace(b'-1022', b'-1023') + b'\r\n',
+                    guest + kernel.replace(b'[ 4660.', b'[4660.') + b'\r\n'):
+            with self.subTest(raw=raw[-100:]), self.assertRaises(ValueError): v.console_records(raw)
 
     def test_known_native_condition_body_host_fixture(self):
         result = self.hdmi.verify_conditions(self.conditions())
@@ -2509,6 +3280,404 @@ class GraphEvidenceTests(unittest.TestCase):
             v.object_json(b'{"x":NaN}')
 
 
+    def hdmi_request_uipc_window(self):
+        caller = 0x81cf619b
+        wire = self.hdmi.frame(64, 1, 2, self.hdmi.S + self.hdmi.P, caller, bytes(4))
+        guest = record('FULL_PINMEM_HDMI_VIDEO_CONNECT_REQUEST', pid=701, producer_tid=723,
+            source=hex(caller), destination='0x90590818', pointer='0x7f10002000', bytes=64,
+            raw=wire.hex(), original_CP_executed=0, original_RTOS_scheduling_verified=0,
+            frames_verified=0, capture_verified=0)['raw'].encode()
+        kernel = b'[ 5650.897903] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        return guest, kernel
+
+    def test_complete_hdmi_request_warning_kernel_window_preserves_bytes_and_provisional_status(self):
+        guest, kernel = self.hdmi_request_uipc_window()
+        for warning in (b'', *v.WARNINGS):
+            with self.subTest(warning=warning):
+                raw = guest + warning + kernel + b'\r\n'
+                parsed, repairs = v.console_records(raw)
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(len(repairs), 1 + bool(warning))
+                boundary = repairs[-1]
+                self.assertEqual(boundary['kind'], 'complete-HdmiVideoRequest-UIPC-boundary')
+                self.assertEqual(raw[boundary['raw_kernel_start']:boundary['raw_kernel_end']], kernel)
+                self.assertEqual(raw[boundary['raw_guest_ending_start']:boundary['raw_guest_ending_end']], b'\r\n')
+                self.assertFalse(boundary['guest_bytes_invented'])
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs({}, repairs)
+                self.assertTrue(all('content_verifier_joined' not in item for item in repairs))
+
+    def test_complete_hdmi_request_kernel_boundary_rejects_unknown_or_changed_envelopes(self):
+        guest, kernel = self.hdmi_request_uipc_window()
+        cases = {
+            'wrong-destination': guest.replace(b'destination=0x90590818', b'destination=0x90590819'),
+            'partial-wire': guest.replace(b'bytes=64 raw=', b'bytes=63 raw='),
+            'duplicate-field': guest + b' pid=701',
+            'overflow-producer': guest.replace(b'producer_tid=723', b'producer_tid=2147483648'),
+            'wire-source-mismatch': guest.replace(b'source=0x81cf619b', b'source=0x81cf619c'),
+            'wire-marker': guest.replace(b'a0a0a0a0', b'a0a0a0a1'),
+            'changed-scope': guest.replace(b'frames_verified=0', b'frames_verified=1'),
+        }
+        for name, altered in cases.items():
+            with self.subTest(name=name), self.assertRaises((ValueError, v.SourceMissing)):
+                v.console_records(altered + v.WARNINGS[0] + kernel + b'\r\n')
+        for name, raw in (
+            ('kernel-error', guest + kernel.replace(b'-1022', b'-1023') + b'\r\n'),
+            ('kernel-source', guest + kernel.replace(b'Line 100', b'Line 101') + b'\r\n'),
+            ('timestamp', guest + kernel.replace(b'[ 5650.', b'[5650.') + b'\r\n'),
+            ('missing-guest-ending', guest + v.WARNINGS[0] + kernel),
+            ('nonempty-guest-ending', guest + v.WARNINGS[0] + kernel + b'unknown\r\n')):
+            with self.subTest(name=name), self.assertRaises((ValueError, v.SourceMissing)):
+                v.console_records(raw)
+
+
+    def vef_control_queue_kernel_window(self):
+        wire = struct.pack('<IIHHIII4H6I', 0, 0xa0a0a0a0, 1, 56, 24, 56, 0,
+                           0x1000, 0x8001, 32, 2, 8, 2, 0, 0x905a0048, 0, 0)
+        guest = (b'OBS FULL_VEF_PINMEM_CONTROL_CONNECT_REPLY_QUEUED pid=259 tid=384 '
+            b'source=0x905a0048 destination=0x81cf61c4 pointer=0x7f7a543840 bytes=56 raw=' + wire.hex().encode() +
+            b' transport_owner=virtual-local-caller original_CP_executed=0 frames_verified=0 capture_verified=0')
+        kernel = b'[ 4740.759098] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        return guest, kernel, wire
+
+    def test_vef_control_queue_exact_kernel_boundary_remains_provisional(self):
+        guest, kernel, _ = self.vef_control_queue_kernel_window()
+        for warning in (b'', *v.WARNINGS):
+            with self.subTest(warning=warning):
+                raw = guest + warning + kernel + b'\r\n'
+                parsed, repairs = v.console_records(raw)
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(len(repairs), 1 + bool(warning))
+                self.assertEqual(repairs[-1]['kind'], 'complete-VefControlQueue-UIPC-boundary')
+                self.assertEqual(raw[repairs[-1]['raw_kernel_start']:repairs[-1]['raw_kernel_end']], kernel)
+                self.assertFalse(repairs[-1]['guest_bytes_invented'])
+                with self.assertRaises(v.UnjoinedRepairs): v.bind_repairs({}, repairs)
+
+    def test_vef_control_queue_rejects_wrong_wire_source_scope_and_kernel(self):
+        guest, kernel, wire = self.vef_control_queue_kernel_window()
+        for offset in (0, 4, 8, 10, 12, 16, 20, 24, 26, 28, 30, 32, 36, 40, 44, 48, 52):
+            bad = bytearray(wire); bad[offset] ^= 1
+            with self.subTest(offset=offset), self.assertRaises(ValueError):
+                v.console_records(guest.replace(wire.hex().encode(), bad.hex().encode()) + kernel + b'\r\n')
+        for before, after in ((b'source=0x905a0048', b'source=0x905a0049'),
+            (b'destination=0x81cf61c4', b'destination=0x90000000'),
+            (b'bytes=56', b'bytes=55'), (b'pid=259', b'pid=2147483648'),
+            (b'original_CP_executed=0', b'original_CP_executed=1'),
+            (b'frames_verified=0', b'frames_verified=1'), (b'capture_verified=0', b'capture_verified=1')):
+            with self.subTest(field=before), self.assertRaises(ValueError):
+                v.console_records(guest.replace(before, after) + kernel + b'\r\n')
+        for raw in (guest + kernel, guest + kernel + b'nonempty\r\n',
+                    guest + b' extra=1' + kernel + b'\r\n',
+                    guest + kernel.replace(b'-1022', b'-1021') + b'\r\n'):
+            with self.subTest(raw=raw[-90:]), self.assertRaises(ValueError):
+                v.console_records(raw)
+
+    def drawinfo_event6_kernel_window(self):
+        guest = (b'OBS FULL_PINMEM_DRAWINFO_CONNECT_EVENT6_ENQUEUED producer_raw=0x5d74ba event=6 '
+            b'parameter_bytes=12 cleared_bytes=12 token=0x504d6000 raw=00604d500000000000000000 '
+            b'token_policy=owned-answer-plus24-map saved_original_request_bytes=64 queue_phase=1 '
+            b'wait_primary=6 wait_secondary=0 keep_pending=1 context_kind=2 '
+            b'original_CP_event_pointer_identity_verified=0 original_RTOS_scheduling_verified=0 capture_verified=0')
+        kernel = b'[ 5723.585987] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        return guest, kernel
+
+    def test_drawinfo_event6_exact_kernel_boundary_keeps_raw_bytes_and_requires_content(self):
+        guest, kernel = self.drawinfo_event6_kernel_window()
+        for warning in (b'', *v.WARNINGS):
+            with self.subTest(warning=warning):
+                raw = guest + warning + kernel + b'\r\n'
+                parsed, repairs = v.console_records(raw)
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(len(repairs), 1 + bool(warning))
+                boundary = repairs[-1]
+                self.assertEqual(boundary['kind'], 'complete-DrawInfoEvent6-UIPC-boundary')
+                self.assertEqual(raw[boundary['raw_kernel_start']:boundary['raw_kernel_end']], kernel)
+                self.assertEqual(raw[boundary['raw_guest_ending_start']:boundary['raw_guest_ending_end']], b'\r\n')
+                self.assertFalse(boundary['guest_bytes_invented'])
+                with self.assertRaises(v.UnjoinedRepairs): v.bind_repairs({}, repairs)
+
+    def test_drawinfo_event6_join_requires_complete_peer_effects_consumption(self):
+        def load_peer_module(name, filename):
+            path = v.RUNTIME / 'scratch' / filename
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+        helper = load_peer_module('drawinfo_event6_peer_vectors', 'test_evaluate_graph_batch_native.py')
+        evaluator = load_peer_module('drawinfo_event6_peer_evaluator', 'evaluate-graph-batch-native.py')
+        helper.run_tests(evaluator)
+
+    def test_drawinfo_event6_rejects_changed_producer_body_scope_and_unknown_kernel(self):
+        guest, kernel = self.drawinfo_event6_kernel_window()
+        for before, after in (
+            (b'producer_raw=0x5d74ba', b'producer_raw=0x5d74bb'),
+            (b'event=6', b'event=8'), (b'parameter_bytes=12', b'parameter_bytes=11'),
+            (b'cleared_bytes=12', b'cleared_bytes=0'), (b'token=0x504d6000', b'token=0x504d0000'),
+            (b'raw=00604d500000000000000000', b'raw=01604d500000000000000000'),
+            (b'saved_original_request_bytes=64', b'saved_original_request_bytes=63'),
+            (b'queue_phase=1', b'queue_phase=0'), (b'wait_primary=6', b'wait_primary=5'),
+            (b'wait_secondary=0', b'wait_secondary=1'), (b'keep_pending=1', b'keep_pending=0'),
+            (b'context_kind=2', b'context_kind=1'),
+            (b'original_CP_event_pointer_identity_verified=0', b'original_CP_event_pointer_identity_verified=1'),
+            (b'original_RTOS_scheduling_verified=0', b'original_RTOS_scheduling_verified=1'),
+            (b'capture_verified=0', b'capture_verified=1')):
+            with self.subTest(field=before), self.assertRaises((ValueError, v.SourceMissing)):
+                v.console_records(guest.replace(before, after) + kernel + b'\r\n')
+        for raw in (guest + b' extra=1' + kernel + b'\r\n', guest + kernel,
+                    guest + kernel + b'nonempty\r\n', guest + kernel.replace(b'-1022', b'-1021') + b'\r\n',
+                    guest + kernel.replace(b'Line 100', b'Line 101') + b'\r\n'):
+            with self.subTest(raw=raw[-100:]), self.assertRaises((ValueError, v.SourceMissing)):
+                v.console_records(raw)
+
+
+    def format_notify_sixth_fixture(self):
+        """Reuse the real sixth-only semantic fixture, without running its self-test."""
+        import ast
+        source = v.NATIVE / 'runtime/analysis/scratch/evaluate-six-edges-native.py'
+        tree = ast.parse(source.read_bytes())
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'self_test')
+        start = next(index for index, node in enumerate(function.body)
+                     if isinstance(node, ast.Assign) and any(isinstance(target, ast.Tuple) and
+                        [value.id for value in target.elts] == ['records', 'handle', 'identity']
+                        for target in node.targets))
+        finish = next(index for index, node in enumerate(function.body)
+                      if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and
+                         isinstance(node.value.func, ast.Name) and node.value.func.id == 'verify_sixth')
+        namespace = dict(self.graph.six.__dict__)
+        exec(compile(ast.Module(body=function.body[start:finish], type_ignores=[]),
+                     'retained-sixth-only-fixture-construction', 'exec'), namespace)
+        rows, edge, identity = namespace['records'], namespace['edge'], namespace['identity']
+        for row in rows:
+            if not row['fields']:
+                row['fields']['HOST_TEST'] = '1'
+            row['raw'] = 'OBS ' + row['tag'] + ' ' + ' '.join(key + '=' + value for key, value in row['fields'].items())
+        return rows, edge, identity
+
+    def test_vef_three_format_notifications_uipc_join_only_after_real_sixth_lifecycle(self):
+        kernel = b'[ 4896.680166] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        for hop in (1, 2, 3):
+            with self.subTest(hop=hop):
+                rows, old_edge, identity = self.format_notify_sixth_fixture()
+                target = next(row for row in rows if row['tag'].endswith('_FORMAT_NOTIFY_CONSUMED') and row['fields']['hop'] == str(hop))
+                wire = b''.join(row['raw'].encode() + (kernel + b'\r\n' if row is target else b'\r\n') for row in rows)
+                parsed, repairs = v.console_records(wire)
+                self.assertEqual(len(repairs), 1)
+                self.assertFalse(repairs[0].get('content_verifier_joined', False))
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs({}, repairs)
+                log = self.graph.six.Log(parsed)
+                edge = {name: log.records[value['line'] - 1] if isinstance(value, dict) and 'line' in value else value
+                        for name, value in old_edge.items()}
+                self.graph.six.verify_sixth(log, edge, identity)
+                joined = v.bind_repairs({'edge': edge}, repairs)
+                self.assertTrue(joined[0]['content_verifier_joined'])
+                self.assertEqual(len(edge['DMM_requests']), 9)
+                self.assertEqual(len(edge['notices_consumed']), 3)
+                for failure in ('missing-notice', 'duplicate-notice', 'wrong-handle', 'wrong-hop', 'wrong-owner'):
+                    damaged = copy.deepcopy(log)
+                    notices = damaged.rows('FULL_VEF_PINMEM_INPUT_CONNECT_FORMAT_NOTIFY_CONSUMED')
+                    if failure == 'missing-notice':
+                        damaged.records.remove(notices[hop - 1])
+                    elif failure == 'duplicate-notice':
+                        damaged.records.append(copy.deepcopy(notices[hop - 1]))
+                    else:
+                        field, value = {'wrong-handle': ('handle', '0x9000'), 'wrong-hop': ('hop', '4'),
+                                        'wrong-owner': ('source', '0x90050004')}[failure]
+                        notices[hop - 1]['fields'][field] = value
+                    with self.assertRaises((ValueError, self.old.EvidenceError)):
+                        self.graph.six.verify_sixth(damaged, copy.deepcopy(edge), identity)
+
+    def test_vef_format_notify_uipc_requires_complete_coupled_source_and_original_guest_ending(self):
+        producer = (b'OBS FULL_VEF_PINMEM_INPUT_CONNECT_FORMAT_NOTIFY_CONSUMED hop=2 source=0x905a0048 '
+                    b'destination=0x9284074a handle=0x8c00 offset=0 size=0x404 actual_notification_consumed=1 extra_share=0')
+        kernel = b'[ 4896.680166] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        valid = producer + kernel + b'\r\n'
+        parsed, repairs = v.console_records(valid)
+        self.assertTrue(parsed.startswith(producer + b'\r\n'))
+        self.assertIn(kernel, parsed)
+        self.assertEqual(len(repairs), 1)
+        mutations = (
+            valid[:-2], producer + kernel + b'x\r\n', producer + kernel.replace(b'-1022', b'-1') + b'\r\n',
+            producer + kernel.replace(b'UDIF:', b'OTHER:') + b'\r\n', producer + kernel.replace(b'[ 4896.', b'[4896.') + b'\r\n',
+            valid.replace(b'hop=2', b'hop=1'), valid.replace(b'0x8c00', b'0x0'), valid.replace(b'offset=0', b'offset=1'),
+            valid.replace(b'size=0x404', b'size=0x400'), valid.replace(b'consumed=1', b'consumed=0'),
+            valid.replace(b'extra_share=0', b'extra_share=1'), valid.replace(b'extra_share=0[', b'extra_share=0 extra=1['),
+        )
+        for raw in mutations:
+            with self.subTest(raw=raw), self.assertRaises((ValueError, v.SourceMissing)):
+                v.console_records(raw)
+
+
+
+    def hdmi_state_success_bytes(self, row):
+        f = row['fields']
+        if row['tag'].endswith('_NATIVE_FREE'):
+            text = ('tid={tid} receiver={receiver} sender={sender} destination={destination} pointer={pointer} '
+                    'lease={lease} kind={kind} bytes={bytes} rc=0 received=1 consumed=1').format(**f)
+        else:
+            text = ('tid={tid} source={source} destination={destination} pointer={pointer} lease={lease} '
+                    'kind={kind} index={index} bytes={bytes} raw={raw} rc=0').format(**f)
+        return ('OBS ' + row['tag'] + ' ' + text +
+                ' original_cp_executed=0 hardware_verified=0 capture_verified=0').encode()
+
+    def hdmi_state_success_leases(self):
+        rows = list(self.conditions().records)
+        for kind, indices in ((1, (0x102, 0x109, 0x127)), (3, (0, 1))):
+            for ordinal, index in enumerate(indices):
+                wire = (struct.pack('<4HI', 0x2500, index | 0x8000, 12, 1, 0) if kind == 1 else
+                        struct.pack('<4I', 0x00920117, index * 2, 0x009a0000, 0))
+                fields = dict(pointer=hex(0x8000 + kind * 256 + ordinal * 32), lease=100 + kind * 10 + ordinal,
+                              kind=kind, bytes=len(wire), destination='0x80021111' if kind == 1 else '0x80920572',
+                              source='0x909a015a', tid=723, rc=0, index=index, raw=wire.hex())
+                names = ('MESSAGE_PUBLISHED', 'MESSAGE_SENT', 'NATIVE_FREE') if kind == 1 else (
+                         'MESSAGE_PUBLISHED', 'KERNEL_RETIRED', 'MESSAGE_SENT')
+                for suffix in names:
+                    f = dict(fields)
+                    if suffix == 'NATIVE_FREE':
+                        f = {k: value for k, value in f.items() if k not in ('source', 'index', 'raw')}
+                        f.update(tid=741, receiver=741, sender=723, received=1, consumed=1)
+                    rows.append(record(self.hdmi.STATE + '_' + suffix, **f))
+        return rows
+
+    def test_hdmi_success_family_repairs_require_original_29_complete_lease_consumers(self):
+        kernel = b'[ 4568.276515] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        rows = self.hdmi_state_success_leases()
+        for ordinal, target in enumerate(rows):
+            if target['tag'].endswith('_NATIVE_FREE') and target['fields']['kind'] == '2':
+                continue
+            with self.subTest(tag=target['tag'], kind=target['fields']['kind'], ordinal=ordinal):
+                wire = b''.join(self.hdmi_state_success_bytes(row) +
+                        (kernel + b'\r\n' if row is target else b'\r\n') for row in rows)
+                parsed, repairs = v.console_records(wire)
+                self.assertEqual(len(repairs), 1)
+                self.assertFalse(repairs[0]['guest_bytes_invented'])
+                with self.assertRaises(v.UnjoinedRepairs): v.bind_repairs({}, repairs)
+                log = self.graph.Log(parsed)
+                proof = {'conditions': self.hdmi.verify_conditions(log),
+                         'prefix': self.hdmi._leases(log, 1), 'UPM': self.hdmi._leases(log, 3, True)}
+                self.assertEqual(len(proof['conditions']['messages']), 24)
+                self.assertEqual(len(proof['prefix']), 3)
+                self.assertEqual(len(proof['UPM']), 2)
+                v.bind_repairs(proof, repairs)
+                self.assertTrue(repairs[0]['content_verifier_joined'])
+                for mutation in ('missing-send', 'duplicate-publish', 'wrong-receiver', 'wrong-pointer'):
+                    broken = self.graph.Log(parsed)
+                    kind = target['fields']['kind']
+                    matches = [row for row in broken.rows(self.hdmi.STATE + '_MESSAGE_SENT') if row['fields']['kind'] == kind]
+                    first = matches[0]
+                    if mutation == 'missing-send':
+                        broken.records.remove(first)
+                    elif mutation == 'duplicate-publish':
+                        first = next(row for row in broken.rows(self.hdmi.STATE + '_MESSAGE_PUBLISHED') if row['fields']['kind'] == kind)
+                        broken.records.append(copy.deepcopy(first))
+                    elif mutation == 'wrong-receiver' and kind != '3':
+                        first = next(row for row in broken.rows(self.hdmi.STATE + '_NATIVE_FREE') if row['fields']['kind'] == kind)
+                        first['fields']['receiver'] = '742'
+                    else:
+                        first['fields']['pointer'] = '0xdead'
+                    with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                        self.hdmi._leases(broken, int(kind), kind == '3')
+
+    def test_hdmi_success_family_exact_producer_domains_and_kernel_boundaries(self):
+        kernel = b'[ 4568.276515] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        rows = self.hdmi_state_success_leases()
+        for kind in ('1', '2', '3'):
+            target = next(row for row in rows if row['tag'].endswith('_MESSAGE_PUBLISHED') and row['fields']['kind'] == kind)
+            guest = self.hdmi_state_success_bytes(target)
+            for suffix in (b'', b' extra=1', b' tid=723'):
+                if suffix:
+                    with self.assertRaises(ValueError): v.console_records(guest + suffix + kernel + b'\r\n')
+                else:
+                    parsed, repairs = v.console_records(guest + kernel + b'\r\n')
+                    self.assertEqual(len(repairs), 1)
+                    self.assertEqual(parsed, guest + b'\r\n' + kernel)
+            changes = ((b'tid=723', b'tid=2147483648'), (b'lease=', b'unknown='),
+                       (b'pointer=0x', b'pointer=0x0x'), (b'rc=0', b'rc=-1'),
+                       (b'original_cp_executed=0', b'original_cp_executed=1'),
+                       (b'hardware_verified=0', b'hardware_verified=1'),
+                       (b'capture_verified=0', b'capture_verified=1'),
+                       (b'source=' + target['fields']['source'].encode(), b'source=0x90000000'),
+                       (b'destination=' + target['fields']['destination'].encode(), b'destination=0x90000001'),
+                       (b'bytes=' + target['fields']['bytes'].encode(), b'bytes=19'),
+                       (b'raw=' + target['fields']['raw'].encode(), b'raw=' + b'00' * int(target['fields']['bytes'])))
+            for before, after in changes:
+                with self.subTest(kind=kind, before=before), self.assertRaises(ValueError):
+                    v.console_records(guest.replace(before, after) + kernel + b'\r\n')
+            for ending in (b'', b'x\r\n', b'\n'):
+                with self.assertRaises(ValueError): v.console_records(guest + kernel + ending)
+            for bad_kernel in (kernel.replace(b'Line 100', b'Line 101'), kernel.replace(b'-1022', b'-1023'),
+                               kernel.replace(b'[ 4568.', b'[4568.')):
+                with self.assertRaises(ValueError): v.console_records(guest + bad_kernel + b'\r\n')
+            if kind != '3':
+                with self.assertRaises(ValueError):
+                    v.console_records(guest.replace(b'_MESSAGE_PUBLISHED ', b'_KERNEL_RETIRED ') + kernel + b'\r\n')
+        target = next(row for row in rows if row['fields']['kind'] == '2' and row['fields'].get('index') == '22')
+        guest = self.hdmi_state_success_bytes(target)
+        for index in (11, 24, 26, 999):
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                v.console_records(guest.replace(b'index=22 ', f'index={index} '.encode()) + kernel + b'\r\n')
+
+    @staticmethod
+    def upm_mailbox_bytes(suffix, index):
+        raw = struct.pack('<4I', 0x00920117, index * 2, 0x009a0000, 0).hex()
+        effective = struct.pack('<4I', 0x00920117, 3 if index else 0, 0x009a0000, 0).hex()
+        return (f'OBS FULL_HDMI_UPM_MAILBOX_{suffix} pid=259 tid=384 user_va=0x7e30000000 '
+                f'physical=0x500000000 bytes=4096 nonce=0x1234 upm_text=0xffffff8000100000 '
+                f'osal_text=0xffffff8000200000 version=1 record_bytes=256 lease=5 U=0x7f10000000 '
+                f'index={index} raw={raw} effective={effective}').encode()
+
+    def test_upm_mailbox_exact_shared_formatter_retains_kernel_and_requires_content(self):
+        kernel = b'[ 5716.191497] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        for suffix, index in (('INIT', 0), ('PREPARE', 1), ('CONSUMED', 0), ('CONSUMED', 1)):
+            guest = self.upm_mailbox_bytes(suffix, index)
+            with self.subTest(suffix=suffix, index=index):
+                original = guest + kernel + b'\r\n'
+                parsed, repairs = v.console_records(original)
+                self.assertEqual(parsed, guest + b'\r\n' + kernel)
+                self.assertEqual(parsed.count(kernel), 1)
+                self.assertEqual(len(repairs), 1)
+                proof = repairs[0]
+                self.assertEqual(proof['kind'], 'complete-HdmiUpmMailbox-UIPC-boundary')
+                self.assertEqual(proof['cause'], 'unknown')
+                self.assertFalse(proof['guest_bytes_invented'])
+                self.assertEqual(proof['raw_kernel_start'], len(guest))
+                self.assertEqual(bytes.fromhex(proof['kernel_raw_hex']), kernel)
+                self.assertEqual(proof['kernel_sha256'], v.sha(kernel))
+                self.assertEqual(bytes.fromhex(proof['raw_record_hex']), original[:-2])
+                self.assertEqual(proof['raw_record_sha256'], v.sha(original[:-2]))
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs({}, repairs)
+
+    def test_upm_mailbox_unknown_fields_stage_bounds_and_kernel_fail_closed(self):
+        kernel = b'[ 5716.191497] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+        guest = self.upm_mailbox_bytes('CONSUMED', 1)
+        bad = ((b'pid=259', b'pid=0'), (b'tid=384', b'tid=2147483648'),
+               (b'user_va=0x7e30000000', b'user_va=0x7e30000001'),
+               (b'physical=0x500000000', b'physical=0x500000001'),
+               (b'bytes=4096', b'bytes=4095'), (b'nonce=0x1234', b'nonce=0'),
+               (b'upm_text=0xffffff8000100000', b'upm_text=0x100000'),
+               (b'version=1', b'version=2'), (b'record_bytes=256', b'record_bytes=255'),
+               (b'lease=5', b'lease=0'), (b'index=1', b'index=2'),
+               (b'raw=170192000200000000009a0000000000', b'raw=' + b'00' * 16),
+               (b'effective=170192000300000000009a0000000000', b'effective=' + b'00' * 16))
+        for before, after in bad:
+            with self.subTest(field=before), self.assertRaises(ValueError):
+                v.console_records(guest.replace(before, after) + kernel + b'\r\n')
+        for payload in (guest + b' extra=1', guest + b' pid=259',
+                        guest.replace(b'CONSUMED', b'INIT'),
+                        self.upm_mailbox_bytes('PREPARE', 0),
+                        guest.replace(b'CONSUMED', b'CONSUMED_EXTRA')):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                v.console_records(payload + kernel + b'\r\n')
+        for bad_kernel in (kernel.replace(b'Line 100', b'Line 101'), kernel.replace(b'-1022', b'-1023'),
+                           kernel.replace(b'[ 5716.', b'[5716.'), kernel + kernel):
+            with self.subTest(kernel=bad_kernel), self.assertRaises(ValueError):
+                v.console_records(guest + bad_kernel + b'\r\n')
+        for ending in (b'', b'\n', b'extra\r\n'):
+            with self.subTest(ending=ending), self.assertRaises(ValueError):
+                v.console_records(guest + kernel + ending)
+
+
 class QemuFileAdmissionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -2544,6 +3713,61 @@ class QemuFileAdmissionTests(unittest.TestCase):
         Path(self.manifest['readonly_scope_observer']['library']).write_bytes(b'HOST_TEST substituted plugin')
         with self.assertRaisesRegex(ValueError, 'SHA256 differs'):
             v.check_qemu_files(self.reader, self.manifest, self.frozen)
+
+    def gate_assets(self, version):
+        manifest, frozen = copy.deepcopy(self.manifest), dict(self.frozen)
+        scope = manifest['readonly_scope_observer']
+        scope.update(profile=f'qemu-readonly-shutter-gate-v{version}',
+            trace_schema=f'readonly_shutter_gate_v{version}', trace_schema_sha256='3' * 64,
+            source_contract_sha256='4' * 64, fixture_source_sha256={'integration/fixture.S': '5' * 64},
+            plugin_build_command_sha256='6' * 64, readonly_import_audit_sha256='7' * 64,
+            candidate_static_audit_sha256='8' * 64, plan_binding={})
+        root = self.reader.NATIVE / f'report/HOST_TEST_gate_v{version}'
+        root.mkdir(parents=True)
+        for name in scope['source_sha256']:
+            (root / name).write_bytes(b'HOST_TEST source ' + name.encode())
+            frozen[str(root / name)] = manifest['files'][str(root / name)] = scope['source_sha256'][name]
+        fixture = root / 'integration/fixture.S'
+        fixture.parent.mkdir()
+        fixture.write_bytes(b'HOST_TEST owned gate fixture')
+        scope['fixture_source_sha256'][fixture.relative_to(root).as_posix()] = self.reader.sha(fixture.read_bytes())
+        frozen[str(fixture)] = manifest['files'][str(fixture)] = self.reader.sha(fixture.read_bytes())
+        expected = {key: value for key, value in scope.items() if key not in ('log', 'plan_binding')}
+        api = self.reader.RUNTIME / 'scope_observer_profile.py'
+        api.parent.mkdir(parents=True, exist_ok=True)
+        # The production validator has separate real API/build tests; this owned stub proves delegation and indexing.
+        api.write_text('from pathlib import Path\n'
+            'def source_root(native, profile):\n    return Path(' + repr(str(root)) + ')\n'
+            'def validate_build(native, receipt, binary):\n'
+            '    assert str(native) == ' + repr(str(self.reader.NATIVE)) + '\n'
+            '    assert receipt == ' + repr(scope['build_receipt']) + '\n'
+            '    assert binary == ' + repr(manifest['backup_transport']['binary']) + '\n'
+            '    return ' + repr(expected) + '\n')
+        frozen[str(api)] = manifest['files'][str(api)] = self.reader.sha(api.read_bytes())
+        return manifest, frozen, fixture, api
+
+    def test_exact_gate_profiles_delegate_to_frozen_validator_and_consume_fixture_assets(self):
+        for version in (1, 2):
+            manifest, frozen, fixture, api = self.gate_assets(version)
+            result = v.check_qemu_files(self.reader, manifest, frozen)
+            self.assertEqual(result['selected_candidate_sha256'], v.READONLY_SCOPE_QEMU_SHA256)
+            self.assertIs(manifest['readonly_scope_observer']['capture_verified'], False)
+            for path in (fixture, api):
+                changed = copy.deepcopy(manifest)
+                del changed['files'][str(path)]
+                with self.subTest(version=version, missing=str(path)), self.assertRaises(ValueError):
+                    v.check_qemu_files(self.reader, changed, frozen)
+            for key, value in (('capture_verified', True), ('identity_binding', 'verified'),
+                               ('profile', 'qemu-readonly-shutter-gate-v3'), ('trace_schema_sha256', '0' * 64)):
+                changed = copy.deepcopy(manifest)
+                changed['readonly_scope_observer'][key] = value
+                with self.subTest(version=version, changed=key), self.assertRaises(ValueError):
+                    v.check_qemu_files(self.reader, changed, frozen)
+            with self.assertRaises(ValueError):
+                v.check_qemu_files(self.reader, manifest, None)
+            fixture.write_bytes(b'HOST_TEST changed gate fixture')
+            with self.assertRaises(ValueError):
+                v.check_qemu_files(self.reader, manifest, frozen)
 
     def test_new_candidate_needs_exact_scope_and_source_bindings(self):
         for field, value in (('profile', 'wrong'), ('qemu_sha256', v.SELECTED_QEMU_SHA256),
@@ -2590,6 +3814,176 @@ class QemuFileAdmissionTests(unittest.TestCase):
         self.production.write_bytes(b'HOST_TEST replaced production reference')
         with self.assertRaisesRegex(ValueError, 'SHA256 differs'):
             v.check_qemu_files(self.reader, self.manifest, self.frozen)
+
+
+class PinBirthAndFaceRowFramingTests(unittest.TestCase):
+    """HOST_TEST framing/joins; actual Get verifier, mocked OP11 orchestration."""
+    @classmethod
+    def setUpClass(cls):
+        cls.graph, _, _ = v.load_content_helpers(current_dependencies())
+
+    kernel = b'[  414.902621] UDIF: cdev_ioctl() Line 100: uipc: warning ret = -1022\r\n'
+    created = (b'OBS FULL_OSDPIN_PIN_CREATED slot=0 type=1 dir=3 index=0 owner=0x9080003b state=1 '
+               b'peer_type=255 peer_dir=255 peer_index=0 peer_owner=0 ')
+    face = (b'OBS FUNCTIONAL_FACE_DMM_PROC_ROW pid=701 tid=723 birth_observation=9 pass=4 '
+            b'row_offset=1029 row_bytes=96 chunk_offset=0 chunk_bytes=96 raw=' + b'61' * 96 +
+            b' diagnostic_only=1')
+
+    def test_two_producers_remain_provisional_until_exact_content_join(self):
+        for payload in (self.created, self.face):
+            with self.subTest(payload=payload[:40]):
+                raw = payload + self.kernel + b'\r\n'
+                parsed, repairs = v.console_records(raw)
+                self.assertEqual(parsed, payload + b'\r\n' + self.kernel)
+                self.assertEqual(len(repairs), 1)
+                self.assertFalse(repairs[0].get('content_verifier_joined', False))
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs({}, repairs)
+                with self.assertRaises(v.UnjoinedRepairs):
+                    v.bind_repairs({'row': dict(line=2, raw=payload.decode(), tag='forged', fields={})}, repairs)
+                self.assertEqual(bytes.fromhex(repairs[0]['raw_record_hex']), raw[:-2])
+
+    def test_bad_producer_kernel_ending_and_chunk_bounds_still_rejected(self):
+        bad = [self.created.replace(b'slot=0', b'slot=1'),
+               self.created.replace(b'owner=0x9080003b', b'owner=0x9080003c'),
+               self.created.replace(b'state=1', b'state=2'),
+               self.created.replace(b'peer_type=255', b'peer_type=1'), self.created + b'unknown=1 ',
+               self.face.replace(b'pass=4', b'pass=5'),
+               self.face.replace(b'birth_observation=9', b'birth_observation=18446744073709551616'),
+               self.face.replace(b'pid=701', b'pid=2147483648'),
+               self.face.replace(b'row_offset=1029', b'row_offset=2097152'),
+               self.face.replace(b'row_bytes=96', b'row_bytes=2049'),
+               self.face.replace(b'chunk_offset=0', b'chunk_offset=1'),
+               self.face.replace(b'chunk_bytes=96', b'chunk_bytes=95'),
+               self.face.replace(b'raw=61', b'raw=6'),
+               self.face.replace(b'diagnostic_only=1', b'diagnostic_only=0')]
+        for payload in bad:
+            with self.subTest(payload=payload[:120]), self.assertRaises(ValueError):
+                v.console_records(payload + self.kernel + b'\r\n')
+        for kernel in (self.kernel.replace(b'Line 100', b'Line 101'),
+                       self.kernel.replace(b'-1022', b'-1021'),
+                       self.kernel.replace(b'[  414.', b'[ 414.'),
+                       self.kernel.replace(b'UDIF:', b'FOREIGN:')):
+            for payload in (self.created, self.face):
+                with self.subTest(kernel=kernel), self.assertRaises(ValueError):
+                    v.console_records(payload + kernel + b'\r\n')
+        for suffix in (b'', b'foreign\r\n', b'\n'):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                v.console_records(self.created + self.kernel + suffix)
+
+    def pin_fixture(self):
+        caller, owner, tid = 0x81cf61c6, 0x9080003b, 723
+        request = self.graph.old.frame_bytes(48, 0, 2, (1, 3, 0, 0), caller)
+        reply = self.graph.old.frame_bytes(56, 0x8000, 2, (1, 3, 0, 1, owner, 0), owner)
+        rows = [record('PIN_QUERY', tid=tid, destination=hex(owner), source=hex(caller), bytes=48, raw=request.hex()),
+            record('FULL_OSDPIN_REQUEST', tid=tid, destination=hex(owner), source=hex(caller),
+                   reply_destination=hex(caller), bytes=48, raw=request.hex()), self.created.decode(),
+            record('FULL_OSDPIN_REPLY_QUEUED', tid=tid, source=hex(owner), destination=hex(caller),
+                   reply='0x2000', lease=1, bytes=56, raw=reply.hex()),
+            record('FULL_OSDPIN_COMMIT', tid=tid, slot=0, type=1, dir=3, index=0, pin_state=1,
+                   owner=hex(owner), status=0, queries=1, reply='0x2000', lease=1, request_free_rc=0,
+                   connect_performed=0, pixels_consumed=0, camera_startup_verified=0),
+            record('FULL_OSDPIN_NATIVE_REPLY_FREE', tid=tid, sender=tid, waiter=1, destination=hex(caller),
+                   expected=hex(caller), reply='0x2000', lease=1, bytes=56, rc=0),
+            record('FULL_IMAGING_PIN_CONNECT_REQUEST', pid=701, tid=777)]
+        raw = b''
+        for row in rows:
+            text = row if isinstance(row, str) else row['raw']
+            raw += text.encode() + (self.kernel if text.startswith('OBS FULL_OSDPIN_PIN_CREATED ') else b'') + b'\r\n'
+        parsed, repairs = v.console_records(raw)
+        log = self.graph.Log(parsed)
+        proof = dict(identity=('701', '777'), edges=[{'REQUEST': log.one('FULL_IMAGING_PIN_CONNECT_REQUEST')}])
+        return log, repairs, proof
+
+    def test_pin_creation_requires_actual_first_get_wire_commit_and_original_thread_free(self):
+        log, repairs, proof = self.pin_fixture()
+        proof['initialization'] = v.check_repaired_osdpin_created(log, repairs, proof, self.graph)
+        v.bind_repairs(proof, repairs)
+        content = proof['initialization'][0]['first_Get']
+        self.assertEqual(content['actual_same_sender_free']['fields']['tid'], '723')
+        self.assertEqual(content['request']['fields']['tid'], '723')
+        for change in ('reply_wire', 'free_tid', 'missing_free', 'queries', 'duplicate_creation', 'wrong_raw'):
+            log, repairs, proof = self.pin_fixture()
+            if change == 'reply_wire':
+                row = log.one('FULL_OSDPIN_REPLY_QUEUED'); raw = bytearray.fromhex(row['fields']['raw'])
+                raw[44] = 2; row['fields']['raw'] = raw.hex()
+            elif change == 'free_tid': log.one('FULL_OSDPIN_NATIVE_REPLY_FREE')['fields']['tid'] = '777'
+            elif change == 'missing_free': log.records = [r for r in log.records if r['tag'] != 'FULL_OSDPIN_NATIVE_REPLY_FREE']
+            elif change == 'queries': log.one('FULL_OSDPIN_COMMIT')['fields']['queries'] = '2'
+            elif change == 'duplicate_creation': log.records.append(copy.deepcopy(log.one('FULL_OSDPIN_PIN_CREATED')))
+            else: repairs[0]['repaired_record'] += ' '
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                v.check_repaired_osdpin_created(log, repairs, proof, self.graph)
+
+    def face_fixture(self):
+        unit, handle, birth, token = 0x1d9, 0x42d, 9, 0xface000000000001
+        rows = []
+        request, reply = bytearray(40), bytearray(40)
+        struct.pack_into('<3I', request, 0, 0x20, unit, 0)
+        struct.pack_into('<Hh', reply, 0, 0x8020, 0)
+        struct.pack_into('<I', reply, 12, handle)
+        for event in (1, 2, 3, 4):
+            rows.append(record('FUNCTIONAL_FACE_DMM_AP_OBSERVATION', pid=701, tid=723, event=event,
+                observation=birth, sender_tid=723, active=int(event != 4), source='0x80946180', op='0x20',
+                unit=hex(unit), handle=0, request='0x1000', dropped=0, request_raw=request.hex(),
+                send_seen=int(event >= 2), send_rc=0, received=int(event >= 3), free_attempts=int(event == 4),
+                free_rc=0, reply_source='0x61003c', reply_bytes=40, reply='0x2000', reply_raw=reply.hex(), capture_verified=0))
+        def proc(phase, owners, opens):
+            raw = (f'{handle:04x}     {unit:08x}  {2 if opens else 1:04x}    {owners:02x}     {opens:02x}    '
+                   f'00    {handle >> 10:02x}      0000002e  424000000  00064000  00ce').encode()
+            rows.append(record('FUNCTIONAL_FACE_DMM_PROC_READ', pid=701, tid=723, birth_observation=birth,
+                **{'pass': phase}, unit=hex(unit), handle=hex(handle), eof=1, table_bytes=4096, parse_rc=0,
+                diagnostic_only=1, atomic_snapshot_verified=0, competing_readers_excluded=0))
+            rows.append(record('FUNCTIONAL_FACE_DMM_PROC_ROW', pid=701, tid=723, birth_observation=birth,
+                **{'pass': phase}, row_offset=256, row_bytes=len(raw), chunk_offset=0,
+                chunk_bytes=len(raw), raw=raw.hex(), diagnostic_only=1))
+        proc(1, 1, 0); proc(2, 1, 0)
+        rows.append(record('FUNCTIONAL_FACE_DMM_PROC_BIRTH', pid=701, tid=723, birth_observation=birth,
+            unit=hex(unit), handle=hex(handle), software_allocation_token=hex(token), capture_rc=0,
+            relation='0x2e', generation=1, owners=1, opens=0, state=1, address='0x424000000',
+            bytes=409600, extent_id='0xce', diagnostic_only=1, observed_at_original_birth=1,
+            allocation_pin_verified=0, capture_verified=0))
+        proc(3, 2, 1); proc(4, 2, 1)
+        rows.append(record('FUNCTIONAL_FACE_SOURCE_CURRENT_METADATA', pid=701, tid=723, birth_observation=birth,
+            unit=hex(unit), handle=hex(handle), software_allocation_token=hex(token), rc=0,
+            relation='0x2e', generation=1, owners=2, opens=1, state=2, address='0x424000000',
+            bytes=409600, extent_id='0xce', shares=0, segments=1, diagnostic_only=1,
+            native_atomicity_verified=0, original_global_writer_exclusion_verified=0, capture_verified=0))
+        raw = b'HOST_TEST_echo\rHOST_TEST_continuation\r\n'
+        for row in rows:
+            raw += row['raw'].encode() + (self.kernel if row['tag'] == 'FUNCTIONAL_FACE_DMM_PROC_ROW' and
+                row['fields']['pass'] == '4' else b'') + b'\r\n'
+        parsed, repairs = v.console_records(raw)
+        frozen = current_dependencies()
+        reader = v.source_module('report/functional-camera-evidence/check_evidence.py', frozen)
+        return self.graph.Log(parsed), repairs, reader, frozen
+
+    def test_face_row_requires_original_ticket_and_same_birth_two_raw_reads(self):
+        log, repairs, reader, frozen = self.face_fixture()
+        proof = v.check_repaired_face_proc_rows(log, repairs, reader, frozen)
+        v.bind_repairs({'face': proof}, repairs)
+        self.assertEqual(proof[0]['decoded']['owners'], 2)
+        self.assertEqual(proof[0]['decoded']['opens'], 1)
+        self.assertFalse(proof[0]['allocation_pin_verified'])
+        for change in ('birth_failed', 'capture_promoted', 'wrong_birth', 'wrong_token', 'wrong_read_thread',
+                       'wrong_line', 'bad_second_row', 'native_free_missing', 'metadata_address'):
+            log, repairs, reader, frozen = self.face_fixture()
+            born = log.one('FUNCTIONAL_FACE_DMM_PROC_BIRTH')
+            if change == 'birth_failed': born['fields']['capture_rc'] = '-1'
+            elif change == 'capture_promoted': born['fields']['capture_verified'] = '1'
+            elif change == 'wrong_birth': born['fields']['birth_observation'] = '10'
+            elif change == 'wrong_token': born['fields']['software_allocation_token'] = '0xface000000000002'
+            elif change == 'wrong_read_thread':
+                log.records = [r for r in log.records if r['tag'] != 'FUNCTIONAL_FACE_DMM_PROC_READ' or r['fields']['pass'] != '4']
+            elif change == 'wrong_line': repairs[0]['parsed_line'] += 1
+            elif change == 'bad_second_row':
+                log = self.graph.Log(log.raw.replace(b'raw=30343264', b'raw=30353264', 1))
+            elif change == 'native_free_missing':
+                log.records = [r for r in log.records if not (r['tag'] ==
+                    'FUNCTIONAL_FACE_DMM_AP_OBSERVATION' and r['fields']['event'] == '4')]
+            else: log.one('FUNCTIONAL_FACE_SOURCE_CURRENT_METADATA')['fields']['address'] = '0x424000001'
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                v.check_repaired_face_proc_rows(log, repairs, reader, frozen)
 
 
 if __name__ == '__main__':

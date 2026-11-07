@@ -21,7 +21,7 @@ def test_actual_bounded_backup_and_receive_hooks(tmp_path):
     source = (HERE / 'menu-observe.c').read_text()
     snippets = '\n'.join(function(source, name) for name in (
         'hdmi_video_backup_read', 'native_hdmi_video_progress',
-        'native_hdmi_video_received', 'native_cp_state_received', 'u_osal_rcv_msg_tmo'))
+        'native_hdmi_video_received', 'native_cp_state_received', 'native_pin_peer_received', 'u_osal_rcv_msg_tmo'))
     code = r'''
 #include <assert.h>
 #include <errno.h>
@@ -30,6 +30,7 @@ def test_actual_bounded_backup_and_receive_hooks(tmp_path):
 #include <string.h>
 #include <unistd.h>
 #include "device-models/imaging-device.h"
+#include "test-capture-inactive-fixture.h"
 #define syscall(number) ((void)(number),99L)
 static int stored_size,read_result,reads,observed,progressed,received,result_code;
 static int pinmem_hdmi_video_connection_enabled,cp_owned_state_enabled,publication_received;
@@ -57,7 +58,19 @@ static int full_hdmi_public_backup_read(int fd,unsigned int key,void *out,unsign
  if(!length || (cap && !out))return -1021;
  *length=1;if(cap)((unsigned char *)out)[0]=0x7b;return 0;
 }
-static unsigned int functional_still_format_used,functional_startup_control_used;
+/* Timecode is disabled in this older receive-hook fixture. */
+static unsigned int functional_bb_timecode_control_used;
+int full_bb_timecode_control_observe_receive(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!functional_bb_timecode_control_used);return 0;
+}
+static unsigned int functional_cp_movie_format_used=0;
+static void native_movie_format_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"movie-format is disabled in this graph fixture");
+}
+static unsigned int functional_still_format_used,functional_startup_control_used,functional_cp_crank_control_used;
+static void native_crank_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
+ (void)id;(void)p;(void)source;(void)bytes;assert(!"crank-control is disabled in this graph fixture");
+}
 static void native_startup_control_received(unsigned int id,void *p,unsigned int source,unsigned int bytes){
  (void)id;(void)p;(void)source;(void)bytes;assert(!"startup-control is disabled in this graph fixture");
 }
@@ -111,6 +124,17 @@ static int functional_mpr_codec_observe_received(unsigned int id,void *p,const s
 }
 static int full_pinmem_hdmi_video_connection_progress(void) {
  assert(observed>progressed);progressed++;errno=EIO;return 1;
+}
+/* PinMem peers are disabled independently of the graph observers under test. */
+static unsigned int pinmem_peer_connections_used=0,peer_receive_calls[3];
+static unsigned long long full_scalar_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[0]++;assert(!"PinMem scalar peer is disabled in this graph fixture");return 0;
+}
+static unsigned long long full_adf_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[1]++;assert(!"PinMem ADF peer is disabled in this graph fixture");return 0;
+}
+static unsigned long long full_pinmem_drawinfo_connection_observe_receive(unsigned int id,void *message){
+ (void)id;(void)message;peer_receive_calls[2]++;assert(!"PinMem drawinfo peer is disabled in this graph fixture");return 0;
 }
 static int receive_api(unsigned int id,void **p,long timeout) {
  assert(id==16 && timeout==27 && native_receive_depth);received++;*p=stored;
@@ -171,6 +195,7 @@ int main(void) {
  functional_camera_enabled=0;
  native_cp_state_received(16,&message,0);assert(publication_received==3 && functional_received==2 && mpr_received==1 && errno==ERANGE);
  assert(!functional_startup_control_used);
+ assert(!pinmem_peer_connections_used && !peer_receive_calls[0] && !peer_receive_calls[1] && !peer_receive_calls[2]);
  puts("PASS actual bounded Backup, unknown absence, errno, real receive, nested receive and failure boundaries");
  return 0;
 }
@@ -178,8 +203,9 @@ int main(void) {
     path = tmp_path / 'observer-boundaries.c'
     path.write_text(code)
     binary = tmp_path / 'observer-boundaries'
-    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic',
-                    '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-fno-pie', '-no-pie',
-                    '-I', str(HERE), str(path), '-o', str(binary)], check=True, capture_output=True, text=True)
+    built = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic',
+                            '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-fno-pie', '-no-pie',
+                            '-I', str(HERE), str(path), '-o', str(binary)], capture_output=True, text=True)
+    assert built.returncode == 0, built.stdout + built.stderr
     result = subprocess.run([str(binary)], check=True, capture_output=True, text=True)
     assert result.stdout.startswith('PASS actual bounded Backup')

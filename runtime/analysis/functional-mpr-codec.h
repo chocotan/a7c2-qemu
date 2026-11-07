@@ -36,7 +36,13 @@ int functional_mpr_codec_bind(uintptr_t base, const char *sha256);
 /* 0=delegate. Accepted work owns an immutable copy before releasing request.
  * FUNCTIONAL_MPR_REQUEST retains all 48 bytes, origin and open generation.
  * A handled validation error retains the request and returns negative errno
- * in result. Real replies use original queued MPR receiver transport. */
+ * in result. Real replies use original queued MPR receiver transport.
+ * Functional210/2 policy: exact4 original parameter bytes remain opaque;
+ * accept only live RECORDING and actual expected-factor1/1004 + stable result
+ * pointer from the pinned original getter. Consume one actual forced-IDR frame,
+ * verify NAL5, publish/read back ES/PI/counter, then send only event4(factor1)
+ * or event5(factor1004). This is an explicit software behavior, not recovered
+ * Sony parameter semantics or physical ASIC state. Failure never becomes ACK. */
 int functional_mpr_codec_dispatch(unsigned int destination, void *request,
     const struct full_imaging_io *, int enabled, int *result);
 /* Observe immediately after original receive; does not consume the message.

@@ -50,9 +50,15 @@ static const unsigned char zebra_success[12] = {0x0d, 0x20, 0x53, 0x11, 12, 0, 1
 static const unsigned char layout_success[12] = {0x0d, 0x20, 0x4c, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0};
 static const unsigned char peaking_success[12] = {0x0d, 0x20, 0x52, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0};
 static const unsigned char flag_success[12] = {0x0d, 0x20, 0x62, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0};
+static const unsigned char zero6_success[12] = {0x0d, 0x20, 0x63, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0};
+/* Functional group policy only; no original CP0170 producer evidence. */
+static const unsigned char eframing_output_success[12] = {
+    0x0d, 0x20, 0x70, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0
+};
+_Static_assert(FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES == 12, "original0170 request12");
 static const unsigned char refresh_success[12] = {0x0d, 0x20, 0x41, 0x11, 12, 0, 1, 0x80, 0, 0, 0x59, 0};
 #define success_wire (bb_index(0x0100u | saved_wire[2]) >= 0 ? bb_success[bb_index(0x0100u | saved_wire[2])] : \
-    saved_wire[2] == 0x41 ? refresh_success : saved_wire[2] == 0x52 ? peaking_success : saved_wire[2] == 0x62 ? flag_success : \
+    saved_wire[2] == 0x70 ? eframing_output_success : saved_wire[2] == 0x63 ? zero6_success : saved_wire[2] == 0x41 ? refresh_success : saved_wire[2] == 0x52 ? peaking_success : saved_wire[2] == 0x62 ? flag_success : \
     saved_wire[2] == 0x4c ? layout_success : saved_wire[2] == 0x53 ? zebra_success : path_success)
 static const struct full_imaging_io io;
 static const struct native_cp_state_publication_guard guard;
@@ -140,7 +146,7 @@ static void set_source(void *p, unsigned int src) {
 }
 static int allocate(unsigned int dst, void **pointer, unsigned int bytes, unsigned int option) {
     inspect(); assert(dst == saved_source && bytes == 12 && option == 1); allocations++;
-    if (saved_bytes == FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES || saved_wire[2] == 0x52 || saved_wire[2] == 0x62 ||
+    if (saved_bytes == FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES || saved_wire[2] == 0x52 || saved_wire[2] == 0x62 || saved_wire[2] == 0x63 || saved_wire[2] == 0x70 ||
         saved_wire[2] == 0x41 || bb_index(0x0100u | saved_wire[2]) >= 0)
         assert(snapshot().leases[0].freed && request_frees == path_calls);
     if (is("alloc-fail")) { *pointer = NULL; return -ENOMEM; }
@@ -318,7 +324,7 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op, const
         memcpy(config, model_route, sizeof config);
     } else if (display) {
         unsigned char expected[FCAM_DISPLAY_INPUT_BYTES] = {0};
-        const unsigned int body_bytes = saved_wire[2] == 0x41 ? 0u : saved_wire[2] == 0x52 ? 8u : 2u;
+        const unsigned int body_bytes = saved_wire[2] == 0x41 ? 0u : saved_wire[2] == 0x52 ? 8u : saved_wire[2] == 0x63 ? 6u : saved_wire[2] == 0x70 ? 4u : 2u;
         put32(expected, origin->command); put32(expected + 4, body_bytes);
         memcpy(expected + 8, saved_wire + 8, body_bytes);
         assert(!memcmp(input, expected, sizeof expected));
@@ -432,6 +438,10 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op, const
         put64(out + FCAM_VDF_R_BEFORE_CONFIG_GENERATION, model_config - 2);
         put64(out + FCAM_VDF_R_CONFIG_GENERATION, model_config - 1);
     }
+    if (is("result-duplicate-frame")) {
+        put64(out + FCAM_VDF_R_BEFORE_FRAME_GENERATION, model_frame - 2);
+        put64(out + FCAM_VDF_R_FRAME_GENERATION, model_frame - 1);
+    }
     if (is("mutated-request")) ((unsigned char *)active_request)[saved_bytes == 8 ? 0 : saved_bytes - 1] ^= 1;
     if (is("mutated-padding")) ((unsigned char *)active_request)[30] ^= 1;
     if (is("mutated-source")) envelope(active_request)->source++;
@@ -528,12 +538,19 @@ static void *display_request(int flag) {
         0x0d, 0x20, 0x52, 1, 16, 0, 1, 0x80, 3, 0, 1, 0, 0, 235, 128, 128
     };
     static const unsigned char palettes[4][3] = {{81, 90, 240}, {210, 16, 146}, {29, 255, 83}, {235, 128, 128}};
-    saved_bytes = flag == 2 ? FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES :
+    saved_bytes = flag == 4 ? FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES : flag == 3 ? FUNCTIONAL_VDF_ZERO6_REQUEST_BYTES : flag == 2 ? FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES :
         flag ? FUNCTIONAL_VDF_FLAG_REQUEST_BYTES : FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES;
     saved_source = flag == 2 ? refresh_source :
-        is("dynamic-source") ? UINT32_C(0x81cfa752) : UINT32_C(0x81cf61c5);
+        is("dynamic-source") ? UINT32_C(0x81cfa752) : flag == 4 ? UINT32_C(0x81cf61c7) : UINT32_C(0x81cf61c5);
     unsigned char *p = message(saved_bytes, saved_source); memcpy(p, wire, saved_bytes);
-    if (flag == 2) { p[2] = 0x41; p[4] = 8; }
+    if (flag == 4) {
+        unsigned int mask = 3;
+        if (starts("tuple-")) assert(sscanf(scenario, "tuple-%u", &mask) == 1 && mask < 8);
+        p[2] = 0x70; p[4] = 12;
+        for (unsigned int i = 0; i < 3; i++) p[8 + i] = (unsigned char)((mask >> i) & 1u);
+        p[11] = 0;
+    } else if (flag == 3) { p[2]=0x63;p[4]=14;memset(p+8,0,6); }
+    else if (flag == 2) { p[2] = 0x41; p[4] = 8; }
     else if (flag) { p[2] = 0x62; p[4] = 10; p[8] = p[9] = 0; }
     if (!flag && starts("palette-")) {
         unsigned int index = 4; assert(sscanf(scenario, "palette-%u", &index) == 1 && index < 4);
@@ -573,12 +590,13 @@ static void *bb_request(unsigned int index) {
 }
 static void finish_cycle(void) { receive_ticket = observe(ack_pointer); consume(ack_pointer, receive_ticket); }
 static int run_config(int kind) {
-    const int layout = kind == 1, display = kind >= 2 && kind <= 4, bb = kind >= 5;
+    const int zero6 = kind == 11, eframing_output = kind == 12;
+    const int layout = kind == 1, display = (kind >= 2 && kind <= 4) || zero6 || eframing_output, bb = kind >= 5 && kind <= 9;
     const int flag = kind == 3, refresh = kind == 4, configured = layout || display || bb;
     const unsigned int bb_kind = bb ? (unsigned int)(kind - 5) : 0;
     static const char *const bb_prefixes[FCAM_BB_FEATURES] = {"bb0111-", "bb0166-", "bb0167-", "bb015f-", "bb0128-"};
-    const int display_kind = refresh ? 2 : flag;
-    const char *prefix = bb ? (observed_initial ? "bb0166-initial-" : bb_prefixes[bb_kind]) : refresh ? "refresh-" : flag ? "flag-" : display ? "peaking-" : layout ? "layout-" : "zebra-";
+    const int display_kind = eframing_output ? 4 : zero6 ? 3 : refresh ? 2 : flag;
+    const char *prefix = eframing_output ? "output-" : zero6 ? "zero6-" : bb ? (observed_initial ? "bb0166-initial-" : bb_prefixes[bb_kind]) : refresh ? "refresh-" : flag ? "flag-" : display ? "peaking-" : layout ? "layout-" : "zebra-";
     const char *test = scenario + strlen(prefix);
     const int legacy_refresh = refresh && !strcmp(test, "legacy-source-repeat");
     const int mixed_reuse = configured && !strcmp(test, "mixed-address-reuse");
@@ -601,6 +619,7 @@ static int run_config(int kind) {
         refresh_source = legacy_refresh ? UINT32_C(0x81cf0012) : UINT32_C(0x80946189);
         assert(!functional_vdf_path_bind_refresh_queue(refresh_source));
     }
+    if (eframing_output && is("bound-global-source")) assert(!functional_vdf_path_bind_refresh_queue(refresh_source));
     const struct functional_vdf_path_snapshot before = snapshot();
     const unsigned int calls = path_calls, allocated = allocations, released = frees, sent = sends;
     void *p = bb ? bb_request(bb_kind) : display ? display_request(display_kind) : layout ? layout_request() : zebra_request(); int rc = 999;
@@ -609,11 +628,26 @@ static int run_config(int kind) {
         assert(sscanf(scenario, "invalid-body-%u", &offset) == 1 && offset < bb_bodies[bb_kind]);
         ((unsigned char *)p)[8 + offset] ^= (bb_kind == 2 && !offset ? 2u : 1u);
     }
+    if (zero6 && starts("invalid-body-")) {
+        unsigned offset=6;assert(sscanf(scenario,"invalid-body-%u",&offset)==1 && offset<6);
+        ((unsigned char *)p)[8+offset]=1;
+    }
     if (bb && is("invalid-period")) put32((unsigned char *)p + 12, 11);
     if (bb && is("invalid-period-high")) put32((unsigned char *)p + 12, UINT32_MAX);
     if (layout && starts("invalid-body-")) {
         unsigned int offset = 32; assert(sscanf(scenario, "invalid-body-%u", &offset) == 1 && offset < 32);
         ((unsigned char *)p)[8 + offset] ^= 1;
+    }
+    if (eframing_output && starts("invalid-value-")) {
+        unsigned int offset = 3, value = 0;
+        assert(sscanf(scenario, "invalid-value-%u-%u", &offset, &value) == 2 && offset < 3 && value >= 2 && value <= 255);
+        ((unsigned char *)p)[8 + offset] = (unsigned char)value;
+    }
+    if (eframing_output && is("invalid-reserved")) ((unsigned char *)p)[11] = 1;
+    if (eframing_output && starts("invalid-wire-flags-")) {
+        unsigned int bit = 16;
+        assert(sscanf(scenario, "invalid-wire-flags-%u", &bit) == 1 && bit < 16);
+        ((unsigned char *)p)[6 + bit / 8] ^= (unsigned char)(1u << (bit % 8));
     }
     if (is("invalid-enable")) ((unsigned char *)p)[9] = 1;
     if (is("invalid-enable255")) ((unsigned char *)p)[9] = 255;
@@ -634,9 +668,9 @@ static int run_config(int kind) {
     if (is("short-request")) envelope(p)->size = saved_bytes - 1;
     if (is("long-request")) envelope(p)->size = saved_bytes + 1;
     if (is("bad-source")) envelope(p)->source = FUNCTIONAL_VDF_PATH_SID;
-    if (bb && is("source-zero")) envelope(p)->source = 0;
-    if (bb && is("source-other-domain")) envelope(p)->source = UINT32_C(0x81ce6100);
-    if (bb && is("bound-global-source")) {
+    if ((bb || eframing_output) && is("source-zero")) envelope(p)->source = 0;
+    if ((bb || eframing_output) && is("source-other-domain")) envelope(p)->source = UINT32_C(0x81ce6100);
+    if ((bb || eframing_output) && is("bound-global-source")) {
         assert(!functional_vdf_path_bind_refresh_queue(UINT32_C(0x80946189)));
         envelope(p)->source = UINT32_C(0x80946189);
     }
@@ -650,9 +684,10 @@ static int run_config(int kind) {
         const int handled = is("wrong-destination") ? functional_vdf_path_dispatch(1, p, &io, &guard, 1, &rc) :
             dispatch(p, is("default-off") ? 0 : is("enabled-two") ? 2 : 1, &io, &guard, &rc);
         assert(!handled && rc == 999 && path_calls == calls && frees == released && allocations == allocated);
+        if (eframing_output) { const struct functional_vdf_path_snapshot after = snapshot(); assert(!memcmp(&before, &after, sizeof before)); }
         cleanup(); return 0;
     }
-    if (bb && is("guard-lost")) ready_calls = 0;
+    if ((bb || eframing_output) && is("guard-lost")) ready_calls = 0;
     struct full_imaging_io callbacks = io;
     struct native_cp_state_publication_guard g = guard;
     if (is("missing-callback")) callbacks.source = NULL;
@@ -663,9 +698,10 @@ static int run_config(int kind) {
         is("source-zero") || is("source-other-domain") || is("missing-callback") || is("missing-guard") ||
         is("guard-fail") || is("guard-miss") || (configured && (is("inactive") || is("cold-inactive")))) {
         assert(rc < 0 && !s.faults && path_calls == calls && allocations == allocated && frees == released && sends == sent);
+        if (eframing_output) assert(!memcmp(&before, &s, sizeof before));
         assert(s.cycle == before.cycle && s.completed_cycles == before.completed_cycles); cleanup(); return 0;
     }
-    assert(s.origin.command == (bb ? bb_commands[bb_kind] : refresh ? 0x0141u : display ? flag ? 0x0162u : 0x0152u : layout ? 0x014cu : 0x0153u) &&
+    assert(s.origin.command == (bb ? bb_commands[bb_kind] : eframing_output ? 0x0170u : zero6 ? 0x0163u : refresh ? 0x0141u : display ? flag ? 0x0162u : 0x0152u : layout ? 0x014cu : 0x0153u) &&
         s.origin.bytes == saved_bytes && s.origin.source == saved_source);
     assert(s.origin.wire_fnv1a64 == fnv(saved_wire, saved_bytes) && !memcmp(s.original_wire, saved_wire, saved_bytes));
     assert(!memcmp(s.canonical_config, before.canonical_config, sizeof s.canonical_config));
@@ -954,6 +990,8 @@ int main(int argc, char **argv) {
     if (starts("layout-")) return run_config(1);
     if (starts("peaking-")) return run_config(2);
     if (starts("flag-")) return run_config(3);
+    if (starts("zero6-")) return run_config(11);
+    if (starts("output-")) return run_config(12);
     unsigned int active = is("disable") || starts("disable-forged-") ? 0u : 1u;
     void *p = request(active); int rc = 999, handled;
     if (is("reentrant-dispatch")) {

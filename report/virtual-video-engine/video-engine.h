@@ -131,6 +131,21 @@ enum video_engine_status video_engine_stream_begin(
 enum video_engine_status video_engine_stream_feed_rgb888(
     struct video_engine_stream *stream, const struct video_engine_rgb *frame,
     int64_t pts, int64_t duration);
+/* Same feed contract, but this frame requests a real H.264 IDR via libx264,
+ * including repeated Annex-B SPS/PPS. No request is queued for a later feed;
+ * subsequent normal feeds restore automatic picture selection (periodic or
+ * scene-change keyframes remain possible). No separate config/opcode is used.
+ * Validation/state rejection consumes no frame. Codec faults before successful
+ * send also consume none; inspect snapshot.frames_consumed for acceptance.
+ * Packet-bound/receive/sink failure AFTER acceptance still consumes this frame
+ * and faults the stream; never retry it. A rejected sink packet is received but
+ * not published, with the exact sink_error retained. cancel/begin are required
+ * for recovery, as for normal feed. OK can leave one accepted frame pending;
+ * drain/finish it before another feed. Input must remain a live valid object.
+ */
+enum video_engine_status video_engine_stream_feed_idr_rgb888(
+    struct video_engine_stream *stream, const struct video_engine_rgb *frame,
+    int64_t pts, int64_t duration);
 /* drain receives available actual packets without sending EOS. finish sends
  * EOS exactly once and drains to EOF; success becomes FINISHED, repeat finish
  * is harmless. Empty finish is valid. cancel is idempotent and never flushes.

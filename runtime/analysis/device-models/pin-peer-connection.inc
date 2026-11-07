@@ -27,6 +27,12 @@
 #define EDGE_TEST_EVENT_CONSUME EDGE_JOIN(EDGE_NATIVE_DISPATCH,_test_event_consume)
 #endif
 #define EVENT_TOKEN (0x504d0000u | (SOURCE_TYPE<<12) | SOURCE_INDEX)
+static _Atomic(void *) watched_reply;
+static unsigned long long allocation_sequence,receive_sequence;
+static struct { unsigned long long generation,ticket; unsigned int destination; long receiver; } observation;
+static _Thread_local struct {
+    void *pointer; unsigned long long generation,ticket; unsigned int destination; int pid;
+} receipt;
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static _Atomic int process_pid;
 static struct scalar_connection_snapshot state;
@@ -245,13 +251,19 @@ static int dispatch(unsigned int dst,void *request,const struct full_imaging_io 
     if(enqueue_event6(io,answer,expected) || consume_event6(io) || source_posthook(io) ||
        drop(io,d,&forward) || drop(io,d,&answer) || readback(&before_source,&before_peer,1,native))goto failed;
     if(make(io,d,56,&final))goto failed;
+    pthread_mutex_lock(&mutex);
+    if(allocation_sequence==~0ULL){pthread_mutex_unlock(&mutex);fault(io,"allocation-generation-exhausted");goto failed;}
+    allocation_sequence++;pthread_mutex_unlock(&mutex);
     memset(expected,0,sizeof expected);envelope(expected,56,0x8001,2);for(unsigned int i=0;i<4;i++)put32(expected+32+4*i,S[i]);memcpy(final,expected,56);
     if(set_source(io,final,FULL_PINMEM_CP) || !canonical(io,final,expected,56,FULL_PINMEM_CP) || !canonical(io,request,saved_request,64,d) ||
        readback(&before_source,&before_peer,1,native))goto failed;
     unsigned char final_wire[56];memcpy(final_wire,final,sizeof final_wire);
     pthread_mutex_lock(&mutex);
     if(state.faults || state.live_reply || state.releasing_reply || current_request!=request){pthread_mutex_unlock(&mutex);goto failed;}
-    state.live_reply=final;pthread_mutex_unlock(&mutex);
+    if(!allocation_sequence || allocation_sequence==~0ULL){pthread_mutex_unlock(&mutex);fault(io,"allocation-generation-exhausted-or-uninitialized");goto failed;}
+    state.live_reply=final;state.allocation_generation=allocation_sequence;
+    observation.generation=allocation_sequence;observation.destination=d;observation.ticket=0;observation.receiver=0;
+    atomic_store(&watched_reply,final);pthread_mutex_unlock(&mutex);
     int sent=io->send(d,final);
     if(sent){
         char line[560];pthread_mutex_lock(&mutex);
@@ -262,7 +274,7 @@ static int dispatch(unsigned int dst,void *request,const struct full_imaging_io 
             state.faults++;state.clean_completion=0;
             snprintf(line,sizeof line,"reason=send-failed-after-release pid=%d owner_pid=%d tid=%ld sender=%ld destination=%#x expected=%#x reply=%p live=%p inflight=%u event6_inflight=%u phase=%u busy=%u queued=%u send_rc=%d faults=%u capture_verified=0",getpid(),state.owner_pid,syscall(SYS_gettid),sender,d,state.reply_destination,final,state.live_reply,state.releasing_reply,state.event6_inflight,state.phase,state.busy,state.queued,sent,state.faults);
             final=0;
-        }else state.live_reply=0;
+        }else{state.live_reply=0;atomic_store(&watched_reply,0);}
         pthread_mutex_unlock(&mutex);
         if(lease_fault)event(io,"SEND_RELEASE_FAULT ",line);
         goto failed;
@@ -296,27 +308,79 @@ done:
 }
 int EDGE_DISPATCH(unsigned int dst,void *request,const struct full_imaging_io *io,int enabled,int *result){return dispatch(dst,request,io,0,enabled,0,result);}
 int EDGE_NATIVE_DISPATCH(unsigned int dst,void *request,const struct full_imaging_io *io,const struct full_adf_proc_guard *guard,int enabled,int *result){return dispatch(dst,request,io,guard,enabled,1,result);}
-int EDGE_RELEASE(unsigned int d,void *message,int (*release)(unsigned int,void *),void (*record)(const char *,const char *),int *result){
+/* Only the real successful allocator-return boundary may call this observer.
+ * One watched address per endpoint avoids an all-message heap ledger. */
+unsigned long long EDGE_OBSERVE_ALLOCATE(unsigned int d,void *message){
+    if(!message || atomic_load(&watched_reply)!=message || !pid_matches())return 0;
+    pthread_mutex_lock(&mutex);unsigned long long generation=0;
+    if(state.live_reply==message && state.releasing_reply){
+        if(allocation_sequence!=~0ULL)generation=++allocation_sequence;
+        observation.generation=generation;observation.destination=d;
+        observation.ticket=0;observation.receiver=0;
+    }
+    pthread_mutex_unlock(&mutex);return generation;
+}
+/* Called once after a successful outer receive; never reads the message. */
+unsigned long long EDGE_OBSERVE_RECEIVE(unsigned int d,void *message){
+    if(!message || atomic_load(&watched_reply)!=message || !pid_matches())return 0;
+    long tid=syscall(SYS_gettid);int pid=(int)getpid();unsigned long long ticket=0;
+    pthread_mutex_lock(&mutex);
+    if(state.live_reply==message && observation.generation && observation.destination==d &&
+       (!observation.receiver || observation.receiver==tid) && receive_sequence!=~0ULL){
+        if(!observation.ticket){observation.ticket=++receive_sequence;observation.receiver=tid;}
+        ticket=observation.ticket;
+        receipt.pointer=message;receipt.generation=observation.generation;receipt.ticket=ticket;receipt.destination=d;receipt.pid=pid;
+        if(observation.generation==state.allocation_generation){state.receive_ticket=ticket;state.receiver_tid=tid;}
+    }
+    pthread_mutex_unlock(&mutex);return ticket;
+}
+int EDGE_RELEASE_TICKET(unsigned int d,void *message,int (*release)(unsigned int,void *),void (*record)(const char *,const char *),int *result,unsigned long long ticket){
     if(!message || !release || !result || !pid_matches())return 0;
+    long tid=syscall(SYS_gettid);int pid=(int)getpid();
     pthread_mutex_lock(&mutex);
     if(message!=state.live_reply){pthread_mutex_unlock(&mutex);return 0;}
     unsigned int dst=state.reply_destination;long waiter=sender;
-    if(d!=dst || state.releasing_reply){
-        char line[560];state.faults++;state.clean_completion=0;
-        snprintf(line,sizeof line,"reason=%s pid=%d owner_pid=%d tid=%ld sender=%ld destination=%#x expected=%#x reply=%p live=%p inflight=%u event6_inflight=%u phase=%u busy=%u queued=%u faults=%u rc=-1021 capture_verified=0",d!=dst?"wrong-destination":"release-inflight",getpid(),state.owner_pid,syscall(SYS_gettid),waiter,d,dst,message,state.live_reply,state.releasing_reply,state.event6_inflight,state.phase,state.busy,state.queued,state.faults);
+    int received=ticket && receipt.pid==pid && receipt.pointer==message && receipt.ticket==ticket;
+    /* A different allocation, proven by allocator return AND actual receive,
+     * belongs to its real owner even while the old free callback is returning. */
+    if(received && receipt.generation!=state.allocation_generation && receipt.generation==observation.generation &&
+       receipt.destination==observation.destination && ticket==observation.ticket && observation.receiver==tid){
+        unsigned long long old_generation=state.allocation_generation,new_generation=receipt.generation;
         pthread_mutex_unlock(&mutex);
-        if(record)record("FULL_" EDGE_TAG "_CONNECT_RELEASE_REJECT_FAULT ",line);
+        if(record){char line[340];snprintf(line,sizeof line,"endpoint=" EDGE_TAG " pid=%d tid=%ld pointer=%p destination=%#x old_generation=%llu allocation_generation=%llu receive_ticket=%llu old_owner_claimed=0 capture_verified=0",pid,tid,message,d,old_generation,new_generation,ticket);
+            record("PIN_PEER_FOREIGN_GENERATION ",line);}
+        return 0;
+    }
+    int own_received=received && receipt.generation==state.allocation_generation && receipt.destination==dst &&
+        state.receive_ticket==ticket && state.receiver_tid==tid;
+    if(d!=dst || state.releasing_reply || (state.native_guarded && !own_received)){
+        char line[560],identity[480];state.faults++;state.clean_completion=0;
+        const char *reason=d!=dst?"wrong-destination":state.releasing_reply?"release-inflight":"missing-or-stale-receive-ticket";
+        const char *tag=d!=dst || state.releasing_reply?"FULL_" EDGE_TAG "_CONNECT_RELEASE_REJECT_FAULT ":"PIN_PEER_RECEIPT_REJECT_FAULT ";
+        snprintf(line,sizeof line,"reason=%s pid=%d owner_pid=%d tid=%ld sender=%ld destination=%#x expected=%#x reply=%p live=%p inflight=%u event6_inflight=%u phase=%u busy=%u queued=%u faults=%u rc=-1021 capture_verified=0",reason,pid,state.owner_pid,tid,waiter,d,dst,message,state.live_reply,state.releasing_reply,state.event6_inflight,state.phase,state.busy,state.queued,state.faults);
+        snprintf(identity,sizeof identity,"endpoint=" EDGE_TAG " phase=reject pid=%d tid=%ld pointer=%p destination=%#x allocation_generation=%llu observed_generation=%llu receipt_generation=%llu receive_ticket=%llu receiver_tid=%ld capture_verified=0",pid,tid,message,d,state.allocation_generation,observation.generation,receipt.generation,ticket,state.receiver_tid);
+        pthread_mutex_unlock(&mutex);
+        if(record){record(tag,line);record("PIN_PEER_RELEASE_IDENTITY ",identity);}
         *result=-1021;return 1;
     }
+    unsigned long long generation=state.allocation_generation;
+    int native=(int)state.native_guarded;
     state.releasing_reply=1;pthread_mutex_unlock(&mutex);
-    int rc=release(d,message);long tid=syscall(SYS_gettid);
+    int rc=release(d,message);
     pthread_mutex_lock(&mutex);state.releasing_reply=0;
-    if(rc){state.faults++;state.clean_completion=0;}else{state.live_reply=0;state.native_reply_frees++;state.waiter_frees+=(tid==waiter);
-        state.reply_freed=1;state.ap_consumed=(tid==waiter);forget(message);}
+    if(rc){state.faults++;state.clean_completion=0;}else{state.live_reply=0;atomic_store(&watched_reply,0);state.native_reply_frees++;
+        int ap=tid==waiter && (!native || own_received);
+        state.waiter_frees+=(unsigned int)ap;state.reply_freed=1;state.ap_consumed=(unsigned int)ap;forget(message);
+        if(receipt.pointer==message && receipt.generation==generation && receipt.ticket==ticket)memset(&receipt,0,sizeof receipt);}
     unsigned int faults=state.faults,consumed=state.ap_consumed;pthread_mutex_unlock(&mutex);
-    if(record){char line[380];snprintf(line,sizeof line,"pid=%d tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p bytes=56 command=0x8001 rc=%d faults=%u ap_consumed=%u capture_verified=0",getpid(),tid,waiter,(unsigned int)(tid==waiter),d,dst,message,rc,faults,consumed);
-        record(rc?"FULL_" EDGE_TAG "_CONNECT_FAULT ":"FULL_" EDGE_TAG "_CONNECT_NATIVE_REPLY_FREE ",line);}
+    if(record){char line[380],identity[360];snprintf(line,sizeof line,"pid=%d tid=%ld sender=%ld waiter=%u destination=%#x expected=%#x reply=%p bytes=56 command=0x8001 rc=%d faults=%u ap_consumed=%u capture_verified=0",pid,tid,waiter,(unsigned int)(tid==waiter),d,dst,message,rc,faults,consumed);
+        record(rc?"FULL_" EDGE_TAG "_CONNECT_FAULT ":"FULL_" EDGE_TAG "_CONNECT_NATIVE_REPLY_FREE ",line);
+        snprintf(identity,sizeof identity,"endpoint=" EDGE_TAG " phase=free-return pid=%d tid=%ld pointer=%p destination=%#x allocation_generation=%llu receive_ticket=%llu rc=%d capture_verified=0",pid,tid,message,d,generation,ticket,rc);
+        record("PIN_PEER_RELEASE_IDENTITY ",identity);}
     *result=rc;return 1;
+}
+int EDGE_RELEASE(unsigned int d,void *message,int (*release)(unsigned int,void *),void (*record)(const char *,const char *),int *result){
+    return EDGE_RELEASE_TICKET(d,message,release,record,result,receipt.pointer==message?receipt.ticket:0);
 }
 #if defined(FULL_PIN_CONNECTION_TEST) || defined(FULL_VEF_TEST)
 void EDGE_TEST_EVENT_CORRUPT(unsigned int kind){
@@ -344,6 +408,8 @@ void EDGE_RESET(void){
     /* Test fixtures dispose retained buffers themselves before resetting. */
     if(atomic_load(&process_pid) && !pid_matches())return;
     pthread_mutex_lock(&mutex);state=(struct scalar_connection_snapshot){0};memset(messages,0,sizeof messages);memset(saved_request,0,sizeof saved_request);
-    memset(&event6,0,sizeof event6);current_request=0;sender=0;atomic_store(&process_pid,(int)getpid());pthread_mutex_unlock(&mutex);
+    memset(&event6,0,sizeof event6);current_request=0;sender=0;allocation_sequence=receive_sequence=0;
+    memset(&observation,0,sizeof observation);memset(&receipt,0,sizeof receipt);atomic_store(&watched_reply,0);
+    atomic_store(&process_pid,(int)getpid());pthread_mutex_unlock(&mutex);
 }
 #endif

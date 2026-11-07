@@ -37,6 +37,19 @@ IDLE, REQUEST, RESPONSE, CLOSED, DETACHED = range(5)
 INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG = 1, 2, 3, 4, 5, 6, 7, 8
 BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT = 9, 10, source_snapshot.OP
 VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL = 12, 13, 14
+CP_PARAMETER_BANK = 20
+CP_CRANK_CONTROL = 21
+CP_MOVIE_FORMAT = 22
+CP_OU_CRANK_CONTROL = 23
+CP_OU_CRANK_INPUT_BYTES, CP_OU_CRANK_RESULT_BYTES = 12, 224
+CP_OU_CRANK_STATE_OFFSET, CP_OU_CRANK_READBACK_OFFSET = 80, 208
+CP_MOVIE_FORMAT_INPUT_BYTES, CP_MOVIE_FORMAT_RESULT_BYTES = 20, 240
+CP_MOVIE_FORMAT_STATE_OFFSET, CP_MOVIE_FORMAT_READBACK_OFFSET = 80, 208
+CP_CRANK_INPUT_BYTES, CP_CRANK_RESULT_BYTES = 12, 208
+CP_CRANK_STATE_OFFSET, CP_CRANK_READBACK_OFFSET = 64, 192
+CP_PARAMETER_BANK_BYTES, CP_PARAMETER_BANK_RESULT_BYTES = 2564, 2756
+CP_PARAMETER_BANK_STATE_OFFSET, CP_PARAMETER_BANK_READBACK_OFFSET = 64, 192
+CP_PARAMETER_BANK_SLOTS, CP_PARAMETER_FPS_AT = 190, 0x86c
 STARTUP_CONTROL_INPUT_BYTES, STARTUP_CONTROL_RESULT_BYTES = 32, 192
 STARTUP_CAP_MODE_BODY = bytes.fromhex('00000100010000000100000000000000')
 STILL_FORMAT_INPUT = bytes.fromhex('02000001000100000001000100000000')
@@ -46,11 +59,12 @@ BB_INPUT_BYTES, BB_RESULT_BYTES = 32, 192
 BB_0166_OBSERVED_INITIAL_BODY = bytes.fromhex('00010000000000000000000008000000070000000100000001000000')
 HIST_INPUT_BYTES, HIST_RESULT_BYTES, HIST_BINS_OFFSET = 8, 1192, 168
 LAYOUT_INITIAL_BODY = bytes.fromhex('07010100000000008002e0010000000000000000000000000300000000000000')
-STILL, VIDEO_BEGIN, VIDEO_FRAME, VIDEO_END = 16, 32, 33, 34
+STILL, FRAME_CAPTURE, FRAME_STILL, FRAME_RELEASE = 16, 17, 18, 19
+VIDEO_BEGIN, VIDEO_FRAME, VIDEO_END = 32, 33, 34
 READ_RESULT, RELEASE_RESULT, CANCEL = 64, 65, 66
 OPS = {INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG,
-       BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL, STILL, VIDEO_BEGIN, VIDEO_FRAME,
-       VIDEO_END, READ_RESULT, RELEASE_RESULT, CANCEL}
+       BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL, CP_PARAMETER_BANK, CP_CRANK_CONTROL, CP_MOVIE_FORMAT, CP_OU_CRANK_CONTROL, STILL, VIDEO_BEGIN, VIDEO_FRAME,
+       VIDEO_END, FRAME_CAPTURE, FRAME_STILL, FRAME_RELEASE, READ_RESULT, RELEASE_RESULT, CANCEL}
 FNV_SEED = 0xcbf29ce484222325
 
 
@@ -79,7 +93,17 @@ def startup_control_input_valid(data, fingerprint):
     command, count = struct.unpack_from('<2H', data)
     return data[20:24] == bytes(4) and (
         command == 0x4014 and count == 16 and data[4:20] == STARTUP_CAP_MODE_BODY or
-        command == 0x4057 and count == 4 and data[4:20] == bytes(16))
+        command == 0x4057 and count == 4 and data[4:20] == bytes(16) or
+        command == 0x403f and count == 8 and data[4:20] == bytes(16))
+
+
+def movie_format_input_valid(data):
+    return len(data) == CP_MOVIE_FORMAT_INPUT_BYTES and data[0] == 5 and data[2:4] == b'\x00\x40' and \
+        data[8:11] == b'\x05\x01\x00' and data[12:18] == bytes(6) and data[18] == 1
+
+
+def ou_crank_input_valid(data):
+    return len(data) == CP_OU_CRANK_INPUT_BYTES and data[0] == 5 and data[2:4] == b'\x72\x40' and data[8:] == bytes(4)
 
 
 def origin(raw):
@@ -273,10 +297,52 @@ def validate_request(raw, data, mailbox, previous):
     sizes = {INIT: (0, 48), STATE: (0,), CONFIGURE: (48,), AUTOFOCUS: (32,), VDF_PATH: (16,), VDF_ZEBRA: (8,), VDF_LAYOUT: (32,), VDF_DISPLAY_CONFIG: (16,),
              BB_STARTUP_CONFIG: (BB_INPUT_BYTES,), HISTOGRAM: (HIST_INPUT_BYTES,), VDF_BIT_WIDTH: (BIT_WIDTH_INPUT_BYTES,),
              STILL_FORMAT: (STILL_FORMAT_INPUT_BYTES,), STARTUP_CONTROL: (STARTUP_CONTROL_INPUT_BYTES,),
+             CP_PARAMETER_BANK: (CP_PARAMETER_BANK_BYTES,), CP_CRANK_CONTROL: (CP_CRANK_INPUT_BYTES,),
+             CP_MOVIE_FORMAT: (CP_MOVIE_FORMAT_INPUT_BYTES,), CP_OU_CRANK_CONTROL: (CP_OU_CRANK_INPUT_BYTES,),
              AP_SOURCE_SNAPSHOT: range(360, 1177, 8), STILL: (16, 144),
-             VIDEO_BEGIN: (48,), VIDEO_FRAME: (0,), VIDEO_END: (0,), READ_RESULT: (24,),
+             FRAME_CAPTURE: (16,), FRAME_STILL: (32, 160), FRAME_RELEASE: (16,),
+             VIDEO_BEGIN: (48,), VIDEO_FRAME: (0, 4), VIDEO_END: (0,), READ_RESULT: (24,),
              RELEASE_RESULT: (16,), CANCEL: (0,)}
     require(size in sizes[op], 'Opcode request size differs')
+    require(op != VIDEO_FRAME or not size or data == b'\x01\x00\x00\x00',
+            'Invalid video frame force-IDR flags')
+    if op == CP_PARAMETER_BANK:
+        require(data[0] == 5 and int.from_bytes(data[2:4], 'little') == 0x4063 and
+                u32(raw, 52) == 0 and u32(raw, 100) == 0x80020002 and u32(raw, 104) == 0x90030001 and
+                u32(raw, 108) == 0x4063 and u32(raw, 112) == CP_PARAMETER_BANK_BYTES and
+                u64(raw, 120) == fnv64(data), 'Parameter bank requires the complete original4063 origin/FNV')
+        require(capacity >= CP_PARAMETER_BANK_RESULT_BYTES, 'Parameter bank requires full2756 response capacity')
+    if op == CP_CRANK_CONTROL:
+        require(data[0] == 5 and int.from_bytes(data[2:4], 'little') == 0x409d and
+                u32(raw, 52) == 0 and u32(raw, 100) == 0x80020002 and u32(raw, 104) == 0x90030001 and
+                u32(raw, 108) == 0x409d and u32(raw, 112) == CP_CRANK_INPUT_BYTES and
+                u64(raw, 120) == fnv64(data), 'Crank control requires the complete original409d origin/FNV')
+        require(data[8:] == bytes(4), 'Crank control only defines software mode0')
+        require(capacity >= CP_CRANK_RESULT_BYTES, 'Crank control requires full208 response capacity')
+    if op == CP_MOVIE_FORMAT:
+        require(movie_format_input_valid(data) and u32(raw, 52) == 0 and
+                u32(raw, 100) == 0x80020002 and u32(raw, 104) == 0x90030001 and
+                u32(raw, 108) == 0x4000 and u32(raw, 112) == CP_MOVIE_FORMAT_INPUT_BYTES and
+                u64(raw, 120) == fnv64(data), 'Movie format requires full original4000 format5/rate1,0 origin/FNV')
+        require(capacity >= CP_MOVIE_FORMAT_RESULT_BYTES, 'Movie format requires full240 response capacity')
+    if op == CP_OU_CRANK_CONTROL:
+        require(ou_crank_input_valid(data) and u32(raw, 52) == 0 and
+                u32(raw, 100) == 0x80020002 and u32(raw, 104) == 0x90030001 and
+                u32(raw, 108) == 0x4072 and u32(raw, 112) == CP_OU_CRANK_INPUT_BYTES and
+                u64(raw, 120) == fnv64(data), 'OU crank requires full original4072 mode0 origin/FNV')
+        require(capacity >= CP_OU_CRANK_RESULT_BYTES, 'OU crank requires full224 response capacity')
+    if op == FRAME_CAPTURE:
+        require(data[:4] == b'\x05\x00\x38\x40' and data[8] in (2, 10, 12, 8, 9, 3) and
+                data[9:12] == bytes(3) and u32(raw, 100) == 0x80020002 and
+                u32(raw, 104) == 0x90040193 and u32(raw, 108) == 0x4038 and
+                u32(raw, 112) == 16 and u64(raw, 120) == fnv64(data),
+                'Capture requires the exact original4038 body and origin')
+    if op == FRAME_STILL:
+        require(u64(data, 0) and u32(data, 8) <= 2 and not u32(data, 12),
+                'Invalid retained-frame selector or token')
+    if op == FRAME_RELEASE:
+        require(u64(data, 0) and u32(data, 8) <= 7 and u32(data, 12) <= 1,
+                'Invalid retained-frame retirement')
     require(op != AP_SOURCE_SNAPSHOT or u32(raw, 52) == 1, 'Snapshot requires actual API40 origin flag')
     if op == READ_RESULT:
         require(u32(data, 20) == 0 and 0 < u32(data, 16) <= capacity and u64(data, 0),
@@ -641,6 +707,15 @@ class Core:
         require(path.resolve() == path and re.fullmatch('[0-9a-f]{64}', expected_sha256 or ''), 'Explicit nonsymlink core library and accepted SHA256 required')
         self.fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
         self.model = self.instance = self.vdf_route = None
+        self.parameter_bank_generation = 0
+        self.parameter_bank_fps = None
+        self.parameter_bank_observation = None
+        self.crank_generation = self.crank_bank_generation = 0
+        self.crank_control_observation = None
+        self.movie_generation = self.movie_bank_generation = self.movie_crank_generation = 0
+        self.movie_format_observation = None
+        self.ou_generation = self.ou_bank_generation = self.ou_crank_generation = self.ou_movie_generation = 0
+        self.ou_crank_control_observation = None
         try:
             digest, identity = file_digest_fd(self.fd)
             require(digest == expected_sha256, 'Actual core library SHA256 differs from accepted build')
@@ -656,6 +731,18 @@ class Core:
             lib.fcam_model_request.restype = ctypes.c_int
             lib.fcam_model_proof_snapshot.argtypes = [ctypes.c_void_p, ctypes.POINTER(FrameProof), ctypes.c_size_t]
             lib.fcam_model_proof_snapshot.restype = ctypes.c_int
+            lib.fcam_model_cp_parameter_bank_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+                                                                 ctypes.c_void_p, ctypes.c_size_t]
+            lib.fcam_model_cp_parameter_bank_snapshot.restype = ctypes.c_int
+            lib.fcam_model_cp_crank_control_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+                ctypes.c_uint64, ctypes.c_void_p, ctypes.c_size_t]
+            lib.fcam_model_cp_crank_control_snapshot.restype = ctypes.c_int
+            lib.fcam_model_cp_movie_format_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+                ctypes.c_uint64, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_size_t]
+            lib.fcam_model_cp_movie_format_snapshot.restype = ctypes.c_int
+            lib.fcam_model_cp_ou_crank_snapshot.argtypes = [ctypes.c_void_p, ctypes.c_uint64,
+                ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_size_t]
+            lib.fcam_model_cp_ou_crank_snapshot.restype = ctypes.c_int
         except BaseException:
             os.close(self.fd)
             raise
@@ -671,10 +758,102 @@ class Core:
                 return -(ctypes.get_errno() or errno.EIO), b'', ExecResult()
             self.instance = instance
         require(instance == self.instance, 'Actual C model instance differs from mailbox nonce')
+        before_state = None
+        if op == CP_PARAMETER_BANK:
+            self.parameter_bank_observation = dict(actual_c_result=None, returned_hex='', readback_verified=False)
+            before_error, before_state, _ = self.execute(instance, STATE, b'', 128)
+            self.parameter_bank_observation.update(before_state_c_result=before_error, before_state_hex=before_state.hex())
+            require(before_error == 0, 'Parameter bank live before-State128 query failed')
+        if op == CP_CRANK_CONTROL:
+            self.crank_control_observation = dict(actual_c_result=None, returned_hex='', readback_verified=False,
+                model_called=False, model_committed=False, request_hex=data.hex())
+            before_error, before_state, before_result = self.execute(instance, STATE, b'', 128)
+            self.crank_control_observation.update(before_state_c_result=before_error, before_state_hex=before_state.hex())
+            require(before_error == 0 and before_result.used == 128, 'Crank control live before-State128 query failed')
+        if op == CP_MOVIE_FORMAT:
+            self.movie_format_observation = dict(actual_c_result=None, returned_hex='', readback_verified=False,
+                model_called=False, model_committed=False, request_hex=data.hex(), input_hex=data.hex(),
+                input_fnv1a64=fnv64(data))
+            before_error, before_state, before_result = self.execute(instance, STATE, b'', 128)
+            self.movie_format_observation.update(before_state_c_result=before_error, before_state_hex=before_state.hex())
+            require(before_error == 0 and before_result.used == 128, 'Movie format live before-State128 query failed')
+        if op == CP_OU_CRANK_CONTROL:
+            self.ou_crank_control_observation = dict(actual_c_result=None, returned_hex='', readback_verified=False,
+                model_called=False, model_committed=False, input_hex=data.hex(), request_hex=data.hex(),
+                input_fnv1a64=fnv64(data), software_mode='ou_crank_mode0', validation_error=None,
+                ou_generation=self.ou_generation + 1, bank_generation=self.parameter_bank_generation,
+                crank_generation=self.crank_generation, movie_generation=self.movie_generation,
+                predecessor_proof=self.proof_snapshot())
+            before_error, before_state, before_result = self.execute(instance, STATE, b'', 128)
+            self.ou_crank_control_observation.update(before_state_c_result=before_error, before_state_hex=before_state.hex())
+            require(before_error == 0 and before_result.used == 128, 'OU crank live before-State128 query failed')
         incoming = ctypes.create_string_buffer(data, max(1, len(data)))
         output = ctypes.create_string_buffer(max(1, capacity))
         result = ExecResult()
         error = self.library.fcam_model_request(self.model, op, incoming, len(data), output, capacity, ctypes.byref(result))
+        if op == CP_PARAMETER_BANK:
+            self.parameter_bank_observation.update(actual_c_result=error,
+                returned_hex=bytes(output.raw[:min(result.used, capacity)]).hex(),
+                result=dict(token=result.token, total=result.total, offset=result.offset, used=result.used))
+        if op == CP_CRANK_CONTROL:
+            observed = self.crank_control_observation
+            observed.update(actual_c_result=error, model_called=True,
+                returned_hex=bytes(output.raw[:min(result.used, capacity)]).hex(),
+                output_buffer_hex=bytes(output.raw[:capacity]).hex(),
+                result=dict(token=result.token, total=result.total, offset=result.offset, used=result.used))
+            after_error, after_state, after_result = self.execute(instance, STATE, b'', 128)
+            observed.update(after_state_c_result=after_error, after_state_hex=after_state.hex(),
+                model_committed=after_error == 0 and len(after_state) == 128 and u64(after_state, 48) == instance and
+                    u64(before_state, 56) < 2**64 - 1 and u64(after_state, 56) == u64(before_state, 56) + 1)
+            require(after_error == 0 and after_result.used == 128, 'Crank control live after-State128 query failed')
+            if error:
+                require(after_state == before_state and output.raw[:capacity] == bytes(capacity),
+                        'Failed crank control changed actual state/output')
+        if op == CP_MOVIE_FORMAT:
+            observed = self.movie_format_observation
+            returned = bytes(output.raw[:min(result.used, capacity)])
+            observed.update(actual_c_result=error, model_called=True, returned_hex=returned.hex(),
+                returned_bytes=len(returned), returned_fnv1a64=fnv64(returned),
+                output_buffer_hex=bytes(output.raw[:capacity]).hex(),
+                result=dict(token=result.token, total=result.total, offset=result.offset, used=result.used))
+            after_error, after_state, after_result = self.execute(instance, STATE, b'', 128)
+            observed.update(after_state_c_result=after_error, after_state_hex=after_state.hex(),
+                model_committed=after_error == 0 and len(after_state) == 128 and u64(after_state, 48) == instance and
+                    u64(before_state, 56) < 2**64 - 1 and u64(after_state, 56) == u64(before_state, 56) + 1)
+            require(after_error == 0 and after_result.used == 128, 'Movie format live after-State128 query failed')
+            if error:
+                require(after_state == before_state and output.raw[:capacity] == bytes(capacity),
+                        'Failed movie format changed actual state/output')
+        if op == CP_OU_CRANK_CONTROL:
+            observed = self.ou_crank_control_observation
+            returned = bytes(output.raw[:min(result.used, capacity)])
+            observed.update(actual_c_result=error, model_called=True, c_call_succeeded=error == 0,
+                returned_hex=returned.hex(), returned_bytes=len(returned), returned_fnv1a64=fnv64(returned),
+                output_buffer_hex=bytes(output.raw[:capacity]).hex(),
+                result=dict(token=result.token, total=result.total, offset=result.offset, used=result.used))
+            after_error, after_state, after_result = self.execute(instance, STATE, b'', 128)
+            expected_state = bytearray(before_state)
+            if u64(before_state, 56) < 2**64 - 1:
+                struct.pack_into('<Q', expected_state, 56, u64(before_state, 56) + 1)
+            observed.update(after_state_c_result=after_error, after_state_hex=after_state.hex(),
+                model_committed=error == 0 and after_error == 0 and after_result.used == 128 and
+                    u64(after_state, 48) == instance and u64(before_state, 56) < 2**64 - 1 and
+                    u64(after_state, 56) == u64(before_state, 56) + 1,
+                state_delta_verified=after_error == 0 and u64(before_state, 56) < 2**64 - 1 and
+                    after_state == bytes(expected_state))
+            if not error:
+                readback = ctypes.create_string_buffer(CP_OU_CRANK_RESULT_BYTES)
+                query_error = None
+                try:
+                    query_error = self.library.fcam_model_cp_ou_crank_snapshot(self.model,
+                        observed['ou_generation'], observed['bank_generation'], observed['crank_generation'],
+                        observed['movie_generation'], readback, CP_OU_CRANK_RESULT_BYTES)
+                finally:
+                    observed.update(query_c_result=query_error, snapshot_hex=bytes(readback.raw).hex())
+            require(after_error == 0 and after_result.used == 128, 'OU crank live after-State128 query failed')
+            if error:
+                require(after_state == before_state and output.raw[:capacity] == bytes(capacity),
+                        'Failed OU crank changed actual state/output')
         require(-4095 <= error <= 0, 'Core returned an invalid errno')
         if error:
             require(not any((result.token, result.total, result.offset, result.used)), 'Failed core request returned uncommitted result metadata')
@@ -740,6 +919,9 @@ class Core:
                                body[5:] in (bytes((81, 90, 240)), bytes((210, 16, 146)),
                                             bytes((29, 255, 83)), bytes((235, 128, 128))))
                     require(peaking or command == 0x162 and body_bytes == 2 and body == bytes(8) or
+                            command == 0x163 and body_bytes == 6 and body == bytes(8) or
+                            command == 0x170 and body_bytes == 4 and
+                            all(value <= 1 for value in body[:3]) and body[3:] == bytes(5) or
                             command == 0x141 and body_bytes == 0 and body == bytes(8),
                             'Actual display disabled-feature policy differs')
                 committed_route = getattr(self, 'vdf_route', None)
@@ -770,6 +952,112 @@ class Core:
                 require(actual[32:40] == bytes(8) and actual[48:72] == bytes(24),
                         'Disabled VDF route claimed frame consumption')
             self.vdf_route = route
+        elif op == CP_PARAMETER_BANK:
+            observed = self.parameter_bank_observation
+            require(result.used == CP_PARAMETER_BANK_RESULT_BYTES and not result.token and
+                    u32(actual, 0) == VERSION and u32(actual, 4) == CP_PARAMETER_BANK_RESULT_BYTES and
+                    u64(actual, 8) == instance and u64(actual, 16) == self.parameter_bank_generation + 1 and
+                    u64(actual, 24) == u64(before_state, 56) and u64(actual, 32) == u64(before_state, 56) + 1 and
+                    u64(actual, 40) == fnv64(data) and u32(actual, 48) == u32(data, CP_PARAMETER_FPS_AT) and
+                    u32(actual, 52) == CP_PARAMETER_BANK_SLOTS and u32(actual, 56) == CP_PARAMETER_BANK_BYTES and
+                    u32(actual, 60) == 0 and actual[CP_PARAMETER_BANK_READBACK_OFFSET:] == data,
+                    'Actual parameter bank receipt identity/generation/full2564-byte readback differs')
+            readback = ctypes.create_string_buffer(CP_PARAMETER_BANK_RESULT_BYTES)
+            query_error = self.library.fcam_model_cp_parameter_bank_snapshot(self.model, u64(actual, 16),
+                readback, CP_PARAMETER_BANK_RESULT_BYTES)
+            observed.update(query_c_result=query_error, bank_generation=u64(actual, 16),
+                            snapshot_hex=bytes(readback.raw).hex())
+            require(query_error == 0 and bytes(readback.raw) == actual,
+                    'Independent actual C parameter-bank query differs')
+            after_error, after_state, _ = self.execute(instance, STATE, b'', 128)
+            observed.update(after_state_c_result=after_error, after_state_hex=after_state.hex())
+            expected_state = bytearray(before_state)
+            struct.pack_into('<I', expected_state, 16, u32(data, CP_PARAMETER_FPS_AT))
+            struct.pack_into('<Q', expected_state, 56, u64(before_state, 56) + 1)
+            require(after_error == 0 and after_state == bytes(expected_state) ==
+                    actual[CP_PARAMETER_BANK_STATE_OFFSET:CP_PARAMETER_BANK_READBACK_OFFSET],
+                    'Parameter bank changed unrelated config/counters or lacks its actual live after-State128')
+            observed['readback_verified'] = True
+            self.parameter_bank_generation = u64(actual, 16)
+            self.parameter_bank_fps = u32(actual, 48)
+        elif op == CP_CRANK_CONTROL:
+            observed = self.crank_control_observation
+            require(len(data) == CP_CRANK_INPUT_BYTES and data[0] == 5 and data[2:4] == b'\x9d\x40' and
+                    data[8:] == bytes(4) and result.used == CP_CRANK_RESULT_BYTES and not result.token and
+                    u32(actual, 0) == VERSION and u32(actual, 4) == CP_CRANK_RESULT_BYTES and u64(actual, 8) == instance and
+                    u64(actual, 16) == self.crank_generation + 1 and
+                    u64(actual, 24) == self.parameter_bank_generation > 0 and
+                    self.crank_bank_generation != self.parameter_bank_generation and
+                    u64(actual, 32) == u64(before_state, 56) < 2**64 - 1 and
+                    u64(actual, 40) == u64(before_state, 56) + 1 and u64(actual, 48) == fnv64(data) and
+                    u32(actual, 56) == 0 and u32(actual, 60) == u32(before_state, 16) == self.parameter_bank_fps and
+                    actual[192:204] == data and actual[204:] == bytes(4),
+                    'Actual crank control receipt identity/bank/generation/full12-byte readback differs')
+            readback = ctypes.create_string_buffer(CP_CRANK_RESULT_BYTES)
+            query_error = self.library.fcam_model_cp_crank_control_snapshot(self.model, u64(actual, 16), u64(actual, 24),
+                readback, CP_CRANK_RESULT_BYTES)
+            observed.update(query_c_result=query_error, crank_generation=u64(actual, 16),
+                            bank_generation=u64(actual, 24), snapshot_hex=bytes(readback.raw).hex())
+            require(query_error == 0 and bytes(readback.raw) == actual, 'Independent actual C crank-control query differs')
+            expected_state = bytearray(before_state)
+            struct.pack_into('<Q', expected_state, 56, u64(before_state, 56) + 1)
+            require(after_state == bytes(expected_state) == actual[CP_CRANK_STATE_OFFSET:CP_CRANK_READBACK_OFFSET],
+                    'Crank control changed unrelated config/counters or lacks its actual live after-State128')
+            observed['readback_verified'] = True
+            self.crank_generation, self.crank_bank_generation = u64(actual, 16), u64(actual, 24)
+        elif op == CP_MOVIE_FORMAT:
+            observed = self.movie_format_observation
+            readback = ctypes.create_string_buffer(CP_MOVIE_FORMAT_RESULT_BYTES)
+            movie, bank, crank = self.movie_generation + 1, self.parameter_bank_generation, self.crank_generation
+            query_error = None
+            try:
+                query_error = self.library.fcam_model_cp_movie_format_snapshot(self.model, movie, bank, crank,
+                    readback, CP_MOVIE_FORMAT_RESULT_BYTES)
+            finally:
+                observed.update(query_c_result=query_error, movie_generation=movie, bank_generation=bank,
+                    crank_generation=crank, snapshot_hex=bytes(readback.raw).hex())
+            require(movie_format_input_valid(data) and result.used == CP_MOVIE_FORMAT_RESULT_BYTES and not result.token and
+                    u32(actual, 0) == VERSION and u32(actual, 4) == CP_MOVIE_FORMAT_RESULT_BYTES and
+                    u64(actual, 8) == instance and u64(actual, 16) == movie and
+                    u64(actual, 24) == bank > 0 and u64(actual, 32) == crank > 0 and
+                    self.crank_bank_generation == bank and
+                    (self.movie_bank_generation, self.movie_crank_generation) != (bank, crank) and
+                    u64(actual, 40) == u64(before_state, 56) < 2**64 - 1 and
+                    u64(actual, 48) == u64(before_state, 56) + 1 and u64(actual, 56) == fnv64(data) and
+                    u32(actual, 64) == 5 and u32(actual, 68) == 0 and
+                    u32(actual, 72) == u32(before_state, 16) == self.parameter_bank_fps and
+                    1 <= u32(actual, 72) <= 120 and u32(actual, 76) == 1 and
+                    actual[208:228] == data and actual[228:] == bytes(12),
+                    'Actual movie format receipt identity/predecessors/mapping/full20-byte readback differs')
+            require(query_error == 0 and bytes(readback.raw) == actual, 'Independent actual C movie-format query differs')
+            expected_state = bytearray(before_state)
+            struct.pack_into('<Q', expected_state, 56, u64(before_state, 56) + 1)
+            require(after_state == bytes(expected_state) == actual[CP_MOVIE_FORMAT_STATE_OFFSET:CP_MOVIE_FORMAT_READBACK_OFFSET],
+                    'Movie format changed unrelated config/counters or lacks its actual live after-State128')
+            observed['readback_verified'] = True
+            self.movie_generation, self.movie_bank_generation, self.movie_crank_generation = movie, bank, crank
+        elif op == CP_OU_CRANK_CONTROL:
+            observed = self.ou_crank_control_observation
+            ou, bank, crank, movie = (observed[key] for key in
+                ('ou_generation', 'bank_generation', 'crank_generation', 'movie_generation'))
+            require(ou_crank_input_valid(data) and result.used == CP_OU_CRANK_RESULT_BYTES and not result.token and
+                    u32(actual, 0) == VERSION and u32(actual, 4) == CP_OU_CRANK_RESULT_BYTES and
+                    u64(actual, 8) == instance and u64(actual, 16) == ou and u64(actual, 24) == bank > 0 and
+                    u64(actual, 32) == crank > 0 and u64(actual, 40) == movie > 0 and
+                    self.crank_bank_generation == self.movie_bank_generation == bank and self.movie_crank_generation == crank and
+                    (self.ou_bank_generation, self.ou_crank_generation, self.ou_movie_generation) != (bank, crank, movie) and
+                    u64(actual, 48) == u64(before_state, 56) < 2**64 - 1 and
+                    u64(actual, 56) == u64(before_state, 56) + 1 and u64(actual, 64) == fnv64(data) and
+                    u32(actual, 72) == 0 and u32(actual, 76) == u32(before_state, 16) == self.parameter_bank_fps and
+                    1 <= u32(actual, 76) <= 120 and actual[208:220] == data and actual[220:] == bytes(4),
+                    'Actual OU crank receipt identity/tuple/full12-byte readback differs')
+            require(observed.get('query_c_result') == 0 and bytes.fromhex(observed['snapshot_hex']) == actual,
+                    'Independent actual C OU-crank query differs')
+            require(observed['model_committed'] and observed['state_delta_verified'] and
+                    after_state == actual[CP_OU_CRANK_STATE_OFFSET:CP_OU_CRANK_READBACK_OFFSET],
+                    'OU crank changed unrelated state/counters or lacks its actual live after-State128')
+            observed['readback_verified'] = True
+            self.ou_generation, self.ou_bank_generation, self.ou_crank_generation, self.ou_movie_generation = ou, bank, crank, movie
         elif op == AUTOFOCUS:
             require(result.used == 32 and not result.token and actual[24:] == bytes(8), 'Actual core AF result differs')
         elif op == RELEASE_RESULT:
@@ -801,6 +1089,15 @@ class Core:
             self.library.fcam_model_destroy(self.model)
             self.model = self.instance = self.vdf_route = None
             self.configuration_fingerprint = None
+            self.parameter_bank_generation = 0
+            self.parameter_bank_fps = None
+            self.parameter_bank_observation = None
+            self.crank_generation = self.crank_bank_generation = 0
+            self.crank_control_observation = None
+            self.movie_generation = self.movie_bank_generation = self.movie_crank_generation = 0
+            self.movie_format_observation = None
+            self.ou_generation = self.ou_bank_generation = self.ou_crank_generation = self.ou_movie_generation = 0
+            self.ou_crank_control_observation = None
 
     def close(self):
         self.destroy_model()
@@ -1024,7 +1321,7 @@ class Broker:
                     len(data) > 0, 'Actual READ_RESULT token/cursor/bytes differs')
             status = 'chunk'
         elif result.token:
-            require(op in (STILL, VIDEO_FRAME, VIDEO_END, AP_SOURCE_SNAPSHOT) and transfer is None and result.offset == 0 and
+            require(op in (STILL, FRAME_CAPTURE, FRAME_STILL, VIDEO_FRAME, VIDEO_END, AP_SOURCE_SNAPSHOT) and transfer is None and result.offset == 0 and
                     0 < len(data) == result.used <= result.total <= MAX_RESULT and
                     (result.token >= source_snapshot.TOKEN_BASE) == (op == AP_SOURCE_SNAPSHOT),
                     'Actual result lease overlaps or has invalid bytes')
@@ -1124,11 +1421,83 @@ class Broker:
         source = self.source()
         source_call = op != CANCEL and (op == AP_SOURCE_SNAPSHOT or u32(request, 52) == 1 or
             token >= source_snapshot.TOKEN_BASE or source.active is not None)
+        if op in (CP_PARAMETER_BANK, CP_CRANK_CONTROL, CP_MOVIE_FORMAT, CP_OU_CRANK_CONTROL):
+            source_call = False
+            if op == CP_PARAMETER_BANK:
+                self.core.parameter_bank_observation = None
+            elif op == CP_CRANK_CONTROL:
+                self.core.crank_control_observation = None
+            elif op == CP_MOVIE_FORMAT:
+                self.core.movie_format_observation = None
+            else:
+                self.core.ou_crank_control_observation = None
+        bank_admission_error = op in (CP_PARAMETER_BANK, CP_CRANK_CONTROL, CP_MOVIE_FORMAT, CP_OU_CRANK_CONTROL) and (source.active is not None or self.transfer is not None)
         if source_call:
             error, data, result, metadata = self.call_source(request, incoming, capacity)
         else:
             try:
-                error, data, result = self.core.execute(self.mailbox['nonce'], op, incoming, capacity)
+                if bank_admission_error:
+                    error, data, result = -errno.EBUSY, b'', ExecResult()
+                else:
+                    error, data, result = self.core.execute(self.mailbox['nonce'], op, incoming, capacity)
+                if op == CP_CRANK_CONTROL:
+                    crank_proof = self.core.proof_snapshot()
+                    previous = self.last_frame['serial'] if self.last_frame else 0
+                    require(crank_proof is None or crank_proof['serial'] == previous and
+                            (self.last_frame is None or crank_proof == self.last_frame),
+                            'Crank-control operation changed or borrowed a frame proof')
+                if op == CP_MOVIE_FORMAT:
+                    movie_proof = self.core.proof_snapshot()
+                    previous = self.last_frame['serial'] if self.last_frame else 0
+                    require(movie_proof is None or movie_proof['serial'] == previous and
+                            (self.last_frame is None or movie_proof == self.last_frame),
+                            'Movie-format operation changed or borrowed a frame proof')
+                if op == CP_OU_CRANK_CONTROL:
+                    ou_proof = self.core.proof_snapshot()
+                    previous = self.last_frame['serial'] if self.last_frame else 0
+                    require(ou_proof is None or ou_proof['serial'] == previous and
+                            (self.last_frame is None or ou_proof == self.last_frame),
+                            'OU-crank operation changed or borrowed a frame proof')
+            except BaseException as failure:
+                if op == CP_PARAMETER_BANK:
+                    observed = self.core.parameter_bank_observation or {}
+                    actual_output = bytes.fromhex(observed.get('returned_hex', ''))
+                    rejected_output = self.payloads.retain(request, 'out', actual_output, event=self.event_serial + 1)
+                    self.emit('parameter_bank_rejected', sequence=self.sequence, opcode=op, origin=origin(request),
+                              actual_c_result=observed.get('actual_c_result'), actual_core_sha256=self.core.digest,
+                              request_payload=input_ref, output_payload=rejected_output, observation=observed,
+                              error=str(failure), native_acceptance=False)
+                elif op == CP_CRANK_CONTROL:
+                    observed = self.core.crank_control_observation or {}
+                    actual_output = bytes.fromhex(observed.get('returned_hex', ''))
+                    rejected_output = self.payloads.retain(request, 'out', actual_output, event=self.event_serial + 1)
+                    self.emit('crank_control_rejected', sequence=self.sequence, opcode=op, origin=origin(request),
+                              actual_c_result=observed.get('actual_c_result'), actual_core_sha256=self.core.digest,
+                              model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                              request_payload=input_ref, output_payload=rejected_output, observation=observed,
+                              error=str(failure), native_acceptance=False)
+                elif op == CP_MOVIE_FORMAT:
+                    observed = self.core.movie_format_observation or {}
+                    actual_output = bytes.fromhex(observed.get('returned_hex', ''))
+                    rejected_output = self.payloads.retain(request, 'out', actual_output, event=self.event_serial + 1)
+                    self.emit('movie_format_rejected', sequence=self.sequence, opcode=op, origin=origin(request),
+                              actual_c_result=observed.get('actual_c_result'), actual_core_sha256=self.core.digest,
+                              model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                              input_hex=incoming.hex(), request_fnv1a64=fnv64(incoming),
+                              request_payload=input_ref, output_payload=rejected_output, observation=observed,
+                              error=str(failure), native_acceptance=False)
+                elif op == CP_OU_CRANK_CONTROL:
+                    observed = self.core.ou_crank_control_observation or {}
+                    observed['validation_error'] = str(failure)
+                    actual_output = bytes.fromhex(observed.get('returned_hex', ''))
+                    rejected_output = self.payloads.retain(request, 'out', actual_output, event=self.event_serial + 1)
+                    self.emit('ou_crank_control_rejected', sequence=self.sequence, opcode=op, origin=origin(request),
+                              actual_c_result=observed.get('actual_c_result'), actual_core_sha256=self.core.digest,
+                              model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                              input_hex=incoming.hex(), request_fnv1a64=fnv64(incoming),
+                              request_payload=input_ref, output_payload=rejected_output, observation=observed,
+                              error=str(failure), validation_error=str(failure), native_acceptance=False)
+                raise
             finally:
                 if op == CANCEL:
                     receipt = source.cancel()
@@ -1139,7 +1508,10 @@ class Broker:
         if op == CANCEL and not source_call and error and self.transfer and self.transfer.get('provider_kind') == 'source':
             self.transfer = None
         result_fields = dict(actual_c_result=None, actual_source_result=error, source_provider_kind='paused-source-snapshot-v1',
-                             source_snapshot=metadata) if source_call else dict(actual_c_result=error)
+                             source_snapshot=metadata) if source_call else (
+            dict(actual_c_result=None, admission_error=-errno.EBUSY) if bank_admission_error else dict(actual_c_result=error))
+        if op in (CP_PARAMETER_BANK, CP_CRANK_CONTROL, CP_MOVIE_FORMAT, CP_OU_CRANK_CONTROL):
+            result_fields['actual_core_sha256'] = self.core.digest
         self.emit('ap_source_result' if source_call else 'core_result', sequence=self.sequence, opcode=op,
                   origin=origin(request), **result_fields,
                   returned_bytes=len(data), returned_sha256=hashlib.sha256(data).hexdigest(), returned_fnv1a64=fnv64(data),
@@ -1151,8 +1523,59 @@ class Broker:
                                      request_payload=input_ref, output_payload=output_ref, result_transfer=observed_transfer)
         if source_call:
             return error, data, result
-        proof = self.core.proof_snapshot()  # Read only, after the one original call, under broker serialization.
+        proof = crank_proof if op == CP_CRANK_CONTROL else movie_proof if op == CP_MOVIE_FORMAT else ou_proof if op == CP_OU_CRANK_CONTROL else self.core.proof_snapshot()
         previous = self.last_frame['serial'] if self.last_frame else 0
+        if op == CP_PARAMETER_BANK:
+            require(proof is None or proof['serial'] == previous and (self.last_frame is None or proof == self.last_frame),
+                    'Parameter-bank operation changed or borrowed a frame proof')
+            if not error:
+                observed = self.core.parameter_bank_observation
+                require(observed is not None and observed.get('readback_verified') is True,
+                        'Parameter-bank success lacks independent actual C readback')
+                self.emit('model_parameter_bank', sequence=self.sequence, opcode=op, origin=origin(request),
+                          actual_c_result=error, actual_core_sha256=self.core.digest, observation=observed,
+                          request_payload=input_ref, output_payload=output_ref, native_acceptance=False)
+        if op == CP_CRANK_CONTROL:
+            observed = self.core.crank_control_observation or {}
+            if error:
+                self.emit('crank_control_rejected', sequence=self.sequence, opcode=op, origin=origin(request),
+                          actual_c_result=result_fields['actual_c_result'], actual_core_sha256=self.core.digest,
+                          admission_error=-errno.EBUSY if bank_admission_error else None,
+                          model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                          request_payload=input_ref, output_payload=output_ref, observation=observed,
+                          error=error, native_acceptance=False)
+            else:
+                require(observed.get('readback_verified') is True,
+                        'Crank-control success lacks independent actual C readback')
+                self.emit('model_crank_control', sequence=self.sequence, opcode=op, origin=origin(request),
+                          actual_c_result=error, actual_core_sha256=self.core.digest, observation=observed,
+                          model_called=True, model_committed=True,
+                          request_payload=input_ref, output_payload=output_ref, native_acceptance=False)
+        if op == CP_MOVIE_FORMAT:
+            observed = self.core.movie_format_observation or {}
+            if not error:
+                require(observed.get('readback_verified') is True,
+                        'Movie-format success lacks independent actual C readback')
+            self.emit('movie_format_rejected' if error else 'model_movie_format',
+                      sequence=self.sequence, opcode=op, origin=origin(request),
+                      actual_c_result=result_fields['actual_c_result'], actual_core_sha256=self.core.digest,
+                      admission_error=-errno.EBUSY if bank_admission_error else None,
+                      model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                      input_hex=incoming.hex(), request_fnv1a64=fnv64(incoming),
+                      request_payload=input_ref, output_payload=output_ref, observation=observed,
+                      error=error, native_acceptance=False)
+        if op == CP_OU_CRANK_CONTROL:
+            observed = self.core.ou_crank_control_observation or {}
+            if not error:
+                require(observed.get('readback_verified') is True, 'OU-crank success lacks independent actual C readback')
+            self.emit('ou_crank_control_rejected' if error else 'model_ou_crank_control',
+                      sequence=self.sequence, opcode=op, origin=origin(request),
+                      actual_c_result=result_fields['actual_c_result'], actual_core_sha256=self.core.digest,
+                      admission_error=-errno.EBUSY if bank_admission_error else None,
+                      model_called=observed.get('model_called', False), model_committed=observed.get('model_committed', False),
+                      input_hex=incoming.hex(), request_fnv1a64=fnv64(incoming),
+                      request_payload=input_ref, output_payload=output_ref, observation=observed,
+                      error=error, validation_error=None, native_acceptance=False)
         if op in (BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL) and not error:
             require(proof is not None and proof['serial'] == previous + 1 and
                     proof['consumer_kind'] == (4 if op in (VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL) else 5 if op == BB_STARTUP_CONFIG else 6),

@@ -19,7 +19,7 @@ import pytest
 HERE = Path(__file__).resolve().parent
 BASE = HERE.with_name("2026-10-30-qemu-readonly-scope-observer")
 QEMU = HERE.parents[1] / "source/build/qemu-SRBXNK/qemu-11.1.2"
-SCRATCH = HERE.parents[1] / "runtime/analysis/scratch/functional-M-writer-v3-plugin-tests"
+SCRATCH = HERE.parents[5] / "analysis/scratch/functional-M-writer-v3-plugin-tests"
 FLAGS = ["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g"]
 REGISTERS = ("pc", "x0", "x19", "x20", "x21", "x23", "x24", "x29", "x30", "cpsr", "sp")
 TOKENS = ("TTBR0_EL1", "TPIDR_EL0")

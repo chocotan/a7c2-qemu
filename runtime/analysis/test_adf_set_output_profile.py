@@ -114,7 +114,7 @@ def guest_environment(setup):
 
 
 @pytest.fixture(scope='module')
-def output_host(tmp_path_factory):
+def output_host(tmp_path_factory, synthetic_backup_profile):
     directory=tmp_path_factory.mktemp('output-profile')
     build,_=build_fixture(directory)
     launcher=backup.load_module('output_complete_launcher',HERE/'start-menu.py')
@@ -122,7 +122,7 @@ def output_host(tmp_path_factory):
         'A7C2_BACKUP_BUILD':str(build),'A7C2_DIRECTORY_SD':str(directory/'card')},natural_boot=True)
     with directory_lease(directory/'card') as lease:
         host.update(directory_profile(HERE,lease,directory/'profiles'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     return host
 
 
@@ -374,7 +374,29 @@ def test_observer_prior_snapshots_never_take_current_endpoint_mutex(tmp_path):
 #include "adf-set-input-device.h"
 #include "functional-still-format.h"
 #include "functional-startup-control.h"
+#include "functional-camera-control.h"
+#include "bb-timecode-control.h"
+/* Timecode is inactive in this older owner-mock fixture. */
+static unsigned int functional_bb_timecode_control_used;
+void full_bb_timecode_control_snapshot(struct full_bb_timecode_snapshot *out){
+ assert(!functional_bb_timecode_control_used);*out=(struct full_bb_timecode_snapshot){0};
+}
 static unsigned int functional_still_format_used,functional_startup_control_used;
+static unsigned int functional_cp_ou_crank_control_used=0;
+void native_functional_camera_ou_crank_snapshot(struct native_functional_camera_ou_crank_snapshot *s) {
+ (void)s;assert(!"OU crank is disabled in this ADF fixture");
+}
+static unsigned int functional_cp_movie_format_used=0;
+void native_functional_camera_movie_format_snapshot(struct native_functional_camera_movie_format_snapshot *s) {
+ (void)s;assert(!"movie-format is disabled in this ADF fixture");
+}
+static unsigned int functional_cp_parameter_bank_used,functional_cp_crank_control_used;
+void native_functional_camera_crank_snapshot(struct native_functional_camera_crank_snapshot *s) {
+ (void)s;assert(!"crank-control is disabled in this ADF fixture");
+}
+void native_functional_camera_parameter_snapshot(struct native_functional_camera_parameter_snapshot *s) {
+ (void)s;assert(!"parameter-bank is disabled in this ADF fixture");
+}
 void functional_still_format_snapshot(struct functional_still_format_snapshot *s) {(void)s;assert(0);}
 void functional_startup_control_snapshot(struct functional_startup_control_snapshot *s) {
  (void)s;assert(!"startup-control is disabled in this ADF fixture");

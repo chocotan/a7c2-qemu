@@ -1,0 +1,20 @@
+{
+  "builder_before_sha256": "48f0dc68e99f1afa7ba3aa626eb07603d1a2fb05ca4202c0565a19889fceeb0e",
+  "declared_source_delta_change": "flash-qemu.c VMState v1; retained-state=false now explicitly rejects migration; board/build/profile goldens unchanged",
+  "qtest": {
+    "board_source_sha256": "c8ef4fc4a27c1cd12cf1937518cce7939ee2719abf2374792b3620b4a5841e6d",
+    "source_delta_sha256": "c04aeffa004e74cff12830fdd481488aa36ec4d3da8e2f9d225cef5f367fd6b1",
+    "qemu_binary_sha256": "c48b4e05fb7915d7aead3f3c94c3945806f43e253d3c9a93d1011ad117b8c199",
+    "board_profile": "qtest-fixture",
+    "test_fixture_only": true,
+    "frozen_ninja_sha256": "22d25739b714f316c306b3aa87c76d3515f01f4c8461f9dcaedd012c50607274"
+  },
+  "production": {
+    "board_source_sha256": "f68e460a80ebd59e12b8a6d7d2f766d416731103ea5eacb38edb3065fedb9534",
+    "source_delta_sha256": "c04aeffa004e74cff12830fdd481488aa36ec4d3da8e2f9d225cef5f367fd6b1",
+    "qemu_binary_sha256": "c48b4e05fb7915d7aead3f3c94c3945806f43e253d3c9a93d1011ad117b8c199",
+    "board_profile": "persistent-flash-cold-v1",
+    "test_fixture_only": false,
+    "frozen_ninja_sha256": "22d25739b714f316c306b3aa87c76d3515f01f4c8461f9dcaedd012c50607274"
+  }
+}

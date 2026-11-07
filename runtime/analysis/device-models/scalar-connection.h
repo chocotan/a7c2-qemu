@@ -8,6 +8,8 @@ struct scalar_connection_snapshot {
     unsigned int started,faults,pending_event6,event6_consumed,yc_callback_seen,yc_format_published;
     unsigned int source_state,peer_state;
     unsigned long long connections,native_reply_frees,waiter_frees;
+    unsigned long long allocation_generation,receive_ticket;
+    long receiver_tid;
     int owner_pid;
     unsigned int initialized,native_guarded,busy,guard_held,requests,clean_completion,ap_consumed;
     unsigned int request_freed,queued,reply_freed,unadmitted_count,retained_messages,releasing_reply,reply_destination;
@@ -23,13 +25,20 @@ struct scalar_connection_snapshot {
  * require explicit PID construction, the predecessor and cold Get/free state,
  * and one resource reservation. A virtual 12B event6 parameter maps an owned
  * reply body using a 32-bit token; it carries no native or CP pointer. Callbacks
- * run outside the private mutex. AP consumption requires the original sender
- * thread's successful free. The finite native ordering defers the AP reply
+ * run outside the private mutex. Native AP consumption requires the original
+ * sender thread's actual successful receive and successful free. The finite native ordering defers the AP reply
  * until the source post-callback has returned; RTOS timing is not modeled. */
 int full_scalar_connection_owner_init(void);
 int full_scalar_connection_native_dispatch(unsigned int,void *,const struct full_imaging_io *,const struct full_adf_proc_guard *,int,int *);
 int full_scalar_connection_dispatch(unsigned int,void *,const struct full_imaging_io *,int,int *);
 int full_scalar_connection_release(unsigned int,void *,int (*)(unsigned int,void *),void (*)(const char *,const char *),int *);
+/* Trusted boundaries only: actual successful allocator return / outer receive.
+ * Observers never inspect buffer bytes; only the owned reply address is watched.
+ * Native release requires the receiving thread's stored generation receipt.
+ * Unknown/bypassed allocator aliases cannot establish a foreign generation. */
+unsigned long long full_scalar_connection_observe_allocate(unsigned int,void *);
+unsigned long long full_scalar_connection_observe_receive(unsigned int,void *);
+int full_scalar_connection_release_ticket(unsigned int,void *,int (*)(unsigned int,void *),void (*)(const char *,const char *),int *,unsigned long long);
 void full_scalar_connection_snapshot(struct scalar_connection_snapshot *);
 #if defined(FULL_PIN_CONNECTION_TEST) || defined(FULL_VEF_TEST)
 void full_scalar_connection_test_event_corrupt(unsigned int);

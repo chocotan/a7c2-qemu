@@ -9,6 +9,7 @@ import pytest
 
 from test_adf_set_input_device import public_adf_input_seed
 from test_infrabb_vef_connection import FLAGS, ENV, BB_BACKENDS
+from test_final_graph_observer_wiring import function
 
 HERE = Path(__file__).resolve().parent
 MODEL = HERE / 'device-models'
@@ -38,6 +39,7 @@ def test_same_hdmi_owner_connected_one_preserves_configuration(hdmi_marker_binar
                             text=True, env=ENV, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     assert 'HDMI_SHARED_AUDIO_CONNECTED_ONE_OLD_UNKNOWN_CONFIG_PRESERVED_PASS' in result.stdout
+    assert 'HDMI_FUNCTIONAL_SIGNAL_MODE_NATIVE102_12B_READBACK_ROLLBACK_STRICT_PASS' in result.stdout
 
 
 @pytest.fixture(scope='module')
@@ -126,3 +128,81 @@ def test_public_cp_source_windows():
         (0x8f7e0, 20, '12800ed9c2c52e807860a1a6f51282342d939ee1eaea95c28091ba296ec27959'),
     ]:
         assert hashlib.sha256(data[offset:offset + count]).hexdigest() == expected
+
+
+@pytest.fixture(scope='module')
+def hdmi_signal_main_binary(tmp_path_factory):
+    sent = function((HERE / 'menu-observe.c').read_text(), 'osal_snd_msg')
+    start = sent.index('    if(functional_camera_enabled && id==FULL_HDMI_CP && message && real_msg_size')
+    stop = sent.index('    if(id==FULL_HDMI_CP && pinmem_hdmi_video_connection_enabled)', start)
+    fragment = sent[start:stop]
+    code = r'''
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include "device-models/hdmi-device.h"
+static int functional_camera_enabled=1,dispatch_calls,dispatch_rc,handled=1;
+static int pinmem_hdmi_video_connection_enabled=1,predecessors_ready=1,readiness_calls;
+static int cp302c_no_transition_predecessors_ready(void){readiness_calls++;return predecessors_ready;}
+static unsigned int hdmi_config_used,request_bytes=12;
+static unsigned char wire[16]={0,0x25,2,1,12,0,1,0,0,0,0,0};
+static unsigned int request_size(void *p){assert(p==wire);return request_bytes;}
+static unsigned int (*real_msg_size)(void *)=request_size;
+static unsigned int real_get_source(void *p){assert(p==wire);return 0x81cf61c7;}
+static int real_allocate_msg(unsigned int id,void **p,unsigned int bytes,unsigned int wait){(void)id;(void)p;(void)bytes;(void)wait;assert(0);return -1;}
+static int real_free_msg(unsigned int id,void *p){(void)id;(void)p;assert(0);return -1;}
+static void real_set_source(void *p,unsigned int id){(void)p;(void)id;assert(0);}
+static int real_send_msg(unsigned int id,void *p){(void)id;(void)p;assert(0);return -1;}
+static void record(const char *tag,const char *text){(void)tag;(void)text;assert(0);}
+int full_hdmi_dispatch(unsigned int id,void *p,const struct full_imaging_io *io,int mode,int *result){
+ assert(id==FULL_HDMI_CP && p==wire && mode==FULL_HDMI_SIGNAL_MODE_FUNCTIONAL && hdmi_config_used==1);
+ assert(io->size==real_msg_size && io->source==real_get_source && io->allocate==real_allocate_msg && io->release==real_free_msg && io->send==real_send_msg && io->set_source==real_set_source && io->record==record);
+ dispatch_calls++;*result=dispatch_rc;return handled;
+}
+static int actual_send(unsigned int id,void *message){
+''' + fragment + r'''
+ return -999;
+}
+int main(int argc,char **argv){
+ assert(argc==2);unsigned int id=FULL_HDMI_CP;void *p=wire;int expected=0;
+ if(!strcmp(argv[1],"disabled")){functional_camera_enabled=0;expected=-999;}
+ else if(!strcmp(argv[1],"wrong-destination")){id^=1;expected=-999;}
+ else if(!strcmp(argv[1],"wrong-type")){wire[1]=0x24;expected=-999;}
+ else if(!strcmp(argv[1],"other-command")){wire[2]=3;expected=-999;}
+ else if(!strcmp(argv[1],"short-prefix")){request_bytes=3;expected=-999;}
+ else if(!strcmp(argv[1],"null")){p=0;expected=-999;}
+ else if(!strcmp(argv[1],"no-size")){real_msg_size=0;expected=-999;}
+ else if(!strcmp(argv[1],"owner-rejected")){dispatch_rc=-1021;expected=-1021;}
+ else if(!strcmp(argv[1],"not-handled")){handled=0;expected=-ENOTSUP;}
+ else if(!strcmp(argv[1],"initializing-prefix")){predecessors_ready=0;wire[8]=1;expected=-999;}
+ else if(!strcmp(argv[1],"before-ready-off")){predecessors_ready=0;expected=-999;}
+ else if(!strcmp(argv[1],"readiness-error")){predecessors_ready=-EIO;expected=-999;}
+ else if(!strcmp(argv[1],"standalone-functional")){pinmem_hdmi_video_connection_enabled=0;predecessors_ready=0;}
+ else assert(!strcmp(argv[1],"functional-with-video-owner"));
+ assert(actual_send(id,p)==expected);
+ assert(dispatch_calls==(expected!=-999) && hdmi_config_used==(unsigned int)(expected!=-999));
+ if(!strcmp(argv[1],"initializing-prefix") || !strcmp(argv[1],"before-ready-off") || !strcmp(argv[1],"readiness-error"))assert(readiness_calls==1 && !dispatch_calls);
+ if(!strcmp(argv[1],"standalone-functional"))assert(!readiness_calls && dispatch_calls==1);
+ puts("HDMI_SIGNAL_MODE_ACTUAL_MAIN_ROUTE_PASS");return 0;
+}
+'''
+    folder = tmp_path_factory.mktemp('hdmi-signal-main')
+    source, binary = folder / 'main.c', folder / 'main'
+    source.write_text(code)
+    built = subprocess.run(FLAGS + ['-I', str(HERE), str(source), '-o', str(binary)],
+                           capture_output=True, text=True, timeout=30)
+    assert built.returncode == 0, built.stdout + built.stderr
+    return binary
+
+
+@pytest.mark.parametrize('case', ['functional-with-video-owner', 'disabled', 'wrong-destination',
+                                 'wrong-type', 'other-command', 'short-prefix', 'null', 'no-size',
+                                 'owner-rejected', 'not-handled', 'initializing-prefix', 'before-ready-off',
+                                 'readiness-error', 'standalone-functional'])
+def test_functional_hdmi102_actual_main_route(hdmi_signal_main_binary, case):
+    done = subprocess.run([str(hdmi_signal_main_binary), case], env=ENV,
+                          capture_output=True, text=True, timeout=5)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert 'HDMI_SIGNAL_MODE_ACTUAL_MAIN_ROUTE_PASS' in done.stdout
+

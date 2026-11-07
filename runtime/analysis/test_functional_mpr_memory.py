@@ -14,6 +14,7 @@ import struct
 import subprocess
 
 import pytest
+from test_export_assets import requires_original_assets
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -272,6 +273,8 @@ def test_original_sds_output_producer(original):
     assert not ({6, 0x11} & set(mode_table))
 
 
+@requires_original_assets('lib/libc-2.25.so', 'lib/libdl-2.25.so',
+                          'lib/libpthread-2.25.so', 'lib/ld-2.25.so')
 def test_aarch64_original_libc_225_link_and_imports(tmp_path):
     compiler = shutil.which("clang")
     reader = shutil.which("aarch64-linux-gnu-readelf")

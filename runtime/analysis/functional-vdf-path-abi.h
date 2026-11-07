@@ -36,6 +36,18 @@
  * 0152/body8 accepts selector3, enable0,
  * level0..2, magnification0/10/40, color_type0 and one of the four original
  * y/cb/cr triples. 0162/body2 supports only off(0,0), with six virtual zeros.
+ * 0163/body6 accepts only the observed six zeros, followed by two virtual zeros;
+ * its independent fourth bank defines RGB pass-through, not Sony feature units.
+ * 0170/body4 saves three independent wire booleans (each 0/1), reserved byte3=0,
+ * then four virtual zeros in a fifth bank. The original AP has already mapped
+ * enum0->wire1, enum1->wire0 for the first two; do not invert them again. This
+ * profile defines all eight output tuples as full-frame RGB identity selectors:
+ * each write must save/read back its own bank and consume/retire a real frame,
+ * including 000. No physical output assignment, crop, e-framing transform or
+ * original CP0170 status/history is inferred from these selectors. Its native
+ * functional reply policy is type200d/cmd1170/size12/flags8001/status0x590000
+ * after actual transaction completion; this reuses display success semantics,
+ * not a source-proven original CP0170 producer.
  * A committed active route must consume/read back/retire a full RGB frame and
  * save/read back this exact16 before replying. Config16 still means the route;
  * INPUT_FNV hashes this envelope and the final16 are its independent readback. */

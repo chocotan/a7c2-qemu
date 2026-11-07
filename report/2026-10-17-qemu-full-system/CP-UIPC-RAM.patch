@@ -1,0 +1,17 @@
+--- a/hw/core/null-machine.c
++++ b/hw/core/null-machine.c
+@@ -114,6 +114,14 @@
+     if (mch->ram) {
+         memory_region_add_subregion(get_system_memory(), 0, mch->ram);
+     }
++    if (g_getenv("QEMU_CP_UIPC_RAM")) {
++        MemoryRegion *oom = g_new0(MemoryRegion, 1);
++        /* Original1MiB buffer at0xca21e00; TCG RAM backing must be page aligned.
++         * Padding is diagnostic backing, not a proven Sony PA alias/RAM map. */
++        memory_region_init_ram(oom, NULL, "cp-uipc-oom", 0x101000,
++                               &error_fatal);
++        memory_region_add_subregion(get_system_memory(), 0x0ca21000, oom);
++    }
+ 
+     if (g_getenv("QEMU_CP_GIC")) {
+         cp_attach_gic(mch);

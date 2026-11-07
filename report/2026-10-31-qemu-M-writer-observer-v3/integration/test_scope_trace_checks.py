@@ -661,6 +661,10 @@ class V3IndependentWritersTests(unittest.TestCase):
             checks.V1['assert_scope_trace'](raw, {}, None, 0)
         old_name = '2026-10-30-qemu-readonly-scope-observer'
         historical = HERE.parent.with_name(old_name) / 'integration/scope_trace_checks_v2.py'
+        if not historical.is_file():
+            relative = Path('final/a7c2-re/report/2026-10-17-qemu-native-camera/report') / old_name
+            historical = next(parent / relative / 'integration/scope_trace_checks_v2.py'
+                              for parent in HERE.parents if (parent / relative / 'integration/scope_trace_checks_v2.py').is_file())
         old = load('HOST_TEST_historical_scope_v2_reader', historical)
         old_schema = json.loads((historical.parents[1] / 'log-schema-v2.json').read_bytes())
         with self.assertRaises(ValueError):
@@ -706,3 +710,4 @@ class V3SecondAdapterTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

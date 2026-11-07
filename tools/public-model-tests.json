@@ -229,5 +229,20 @@
   "runtime/analysis/test_shutter_gate_batch_inventory.py",
   "report/2026-10-31-qemu-shutter-gate-observer-v1/test_build_runtime.py",
   "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_fixture_driver.py",
-  "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_shutter_gate_trace_checks_v1.py"
+  "report/2026-10-31-qemu-shutter-gate-observer-v1/integration/test_shutter_gate_trace_checks_v1.py",
+  "runtime/analysis/test_bb_timecode_control.py",
+  "runtime/analysis/test_bb_timecode_presets.py",
+  "runtime/analysis/test_bb_timecode_main_wiring.py",
+  "runtime/analysis/test_identity_refused.py",
+  "runtime/analysis/test_functional_capture.py",
+  "runtime/analysis/test_functional_capture_wiring.py",
+  "runtime/analysis/test_functional_imaging_admission.py",
+  "runtime/analysis/test_boot_flow.py",
+  "runtime/analysis/test_boot_probe_receipt.py",
+  "runtime/analysis/test_sony_wbi.py",
+  "report/functional-capture-input/test_capture_input.py",
+  "report/functional-capture-output/test_capture_save.py",
+  "report/functional-capture-queue/test_capture_queue.py",
+  "report/functional-camera-evidence/test_bb_timecode.py",
+  "report/functional-camera-evidence/test_bb_timecode_presets.py"
 ]

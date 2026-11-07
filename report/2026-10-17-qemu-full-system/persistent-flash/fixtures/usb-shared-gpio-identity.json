@@ -1,0 +1,26 @@
+{
+  "schema": "a7c2.persistent-usb.shared-gpio.v1",
+  "binary_sha256": "967b3be515c7ec29b11c557e2f5471a86f44937e89dd1cb4530a029eb87a7490",
+  "baseline_identity": {
+    "source_tree": "2f5eda55f2e7f78413370105ce742ea1cbb5c833f90a79a50202b891868aece5",
+    "build_tree": "f6b3da14cc48e0fa5c73aff3443c5131428bad9dec4473ab61ac9bb5a0157f85"
+  },
+  "public_sha256": {
+    "usb-device-profile.py": "9c520bf67b088b1c8d680a0884ddd1680dbe90fa75c7076e423fd75f215d47db",
+    "usb-gadget/sony-dwc3.c": "854abf26410b88bdaafc1ea6cc955ca66c2c4bf5ac34141a5f4a2376b568debe",
+    "usb-gadget/sony-dwc3.h": "c168020e1595aa50f99db94063f2d640cf722c9ef2652b611c456ebd0b90b072",
+    "usb-gadget/sony-dwc3-bridge.c": "130d9e81e9a31d7e5ae70aab8741124555a86ac1ac9e2a55d91f94943458d8e2",
+    "usb-gadget/sony-dwc3-bridge.h": "f38c1568250bee46a15449c20a7ca84ffc3c504379bc757b8996f3e081f3eb00",
+    "usb-gadget-model.py": "dc1e597e5fe6e1cfe6bcd56d169f1497ad0ffd3c23ad98774a07af09f8414c92"
+  },
+  "source_sha256": {
+    "hw/arm/sony-usb-device-platform.inc": "0d082bb4863ec26bcc00a8515e27df36fdea23d6c3675386d68202095f014504",
+    "hw/usb/sony-dwc3.c": "d1aaaba91d3ef4a7285f8f3573892c5db5b2fc18ebe63710c357aee14042fe5a",
+    "hw/usb/sony-dwc3.h": "c168020e1595aa50f99db94063f2d640cf722c9ef2652b611c456ebd0b90b072",
+    "hw/usb/sony-dwc3-bridge.c": "130d9e81e9a31d7e5ae70aab8741124555a86ac1ac9e2a55d91f94943458d8e2",
+    "hw/usb/sony-dwc3-bridge.h": "f38c1568250bee46a15449c20a7ca84ffc3c504379bc757b8996f3e081f3eb00"
+  },
+  "historical_fresh3_fixture_sha256": "f07948ccc5618b339c403d1cc7958c6dba8f0c45b25037b5a22103928bb787c0",
+  "scope": "shared C1/VBUS source contract and qtest; original AP not yet consumed",
+  "original_guest_ap_verified": false
+}

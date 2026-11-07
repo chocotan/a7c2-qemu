@@ -17,7 +17,7 @@ static optical_frame_status checked_retire(optical_frame_owner *, const optical_
 
 enum injection { NONE, CONFIG_FAIL, SOURCE_BEFORE, SOURCE_AFTER, PARTIAL_COPY,
                  SINK_CHANGED, STALE_RETIRE, CONFIG_CHANGED, ZERO_LEASE, WRONG_LEASE,
-                 NO_CONSUMER };
+                 NO_CONSUMER, SINK_AFTER_RETIRE };
 static enum injection inject;
 static struct fcam_model *subject;
 static optical_frame_status injected_status;
@@ -78,7 +78,9 @@ static optical_frame_status checked_retire(optical_frame_owner *owner, const opt
         assert(injected_status == OPTICAL_FRAME_STALE);
         return injected_status;
     }
-    return optical_frame_retire(owner, lease);
+    const optical_frame_status status = optical_frame_retire(owner, lease);
+    if (inject == SINK_AFTER_RETIRE) subject->vdf_sink[0] ^= 1u;
+    return status;
 }
 static const uint8_t enabled[16] = {1, 5, 5};
 static const uint8_t disabled[16] = {0, 1, 1};
@@ -735,11 +737,13 @@ static void layout_failures(void)
 static const uint8_t peaking_off[FCAM_DISPLAY_INPUT_BYTES] = {
     0x52, 0x01, 0, 0, 8, 0, 0, 0, 3, 0, 1, 0, 0, 235, 128, 128};
 static const uint8_t flag_off[FCAM_DISPLAY_INPUT_BYTES] = {0x62, 0x01, 0, 0, 2};
+static const uint8_t zero6[FCAM_DISPLAY_INPUT_BYTES] = {0x63, 0x01, 0, 0, 6};
+static const uint8_t eframing_output[FCAM_DISPLAY_INPUT_BYTES] = {0x70, 0x01, 0, 0, 4, 0, 0, 0, 1, 1};
 static void display(struct fcam_model *m, const uint8_t input[FCAM_DISPLAY_INPUT_BYTES],
                       uint8_t out[FCAM_DISPLAY_RESULT_BYTES])
 {
     const struct fcam_model before = *m;
-    const size_t slot = get32(input) == 0x0141u ? 2u : (size_t)(get32(input) == 0x0162u);
+    const size_t slot = get32(input) == 0x0170u ? 4u : get32(input) == 0x0163u ? 3u : get32(input) == 0x0141u ? 2u : (size_t)(get32(input) == 0x0162u);
     struct fcam_exec_result result;
     assert(fcam_model_request(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, FCAM_DISPLAY_INPUT_BYTES,
                               out, FCAM_DISPLAY_RESULT_BYTES, &result) == 0);
@@ -753,7 +757,7 @@ static void display(struct fcam_model *m, const uint8_t input[FCAM_DISPLAY_INPUT
            !memcmp(m->display_config[slot], input, FCAM_DISPLAY_INPUT_BYTES) &&
            !memcmp(out + FCAM_DISPLAY_R_CONFIG, input, FCAM_DISPLAY_INPUT_BYTES) &&
            !memcmp(out + FCAM_VDF_R_CONFIG, before.vdf_config, FCAM_VDF_INPUT_BYTES));
-    for (size_t other = 0; other < 3; ++other)
+    for (size_t other = 0; other < 5; ++other)
         if (other != slot) assert(!memcmp(m->display_config[other], before.display_config[other], FCAM_DISPLAY_INPUT_BYTES));
     assert(m->generation == before.generation + 1 && m->frame_generation == before.frame_generation + 1 &&
            m->rendered == before.rendered + 1 && m->consumed == before.consumed + 1 &&
@@ -911,20 +915,87 @@ static void display_validation(void)
     assert(fcam_model_request(m, FCAM_OP_CANCEL, NULL, 0, out, 128, &result) == 0);
     fcam_model_destroy(m);
 }
-static void display_failures(void)
+static void zero6_actual(void)
 {
-    for (size_t feature = 0; feature < 2; ++feature)
-        for (enum injection test = CONFIG_FAIL; test <= NO_CONSUMER; ++test) {
+    struct fcam_model *m=model();uint8_t out[192],input[16];
+    reject(m,FCAM_OP_VDF_DISPLAY_CONFIG,zero6,16,176,-ENODATA);
+    path(m,enabled,out);display(m,peaking_off,out);display(m,flag_off,out);
+    const uint8_t refresh[16]={0x41,1};display(m,refresh,out);
+    display(m,zero6,out);emit("ZERO6_INPUT",zero6,16);emit("ZERO6",out,176);
+    emit("ZERO6_SOURCE",m->pool,m->vdf_copied);emit("ZERO6_SINK",m->vdf_sink,m->vdf_copied);
+    assert(!memcmp(m->display_config[3],zero6,16));
+    display(m,zero6,out);emit("ZERO6_REPEAT",out,176);
+    reject(m,FCAM_OP_VDF_DISPLAY_CONFIG,zero6,16,175,-ENOSPC);
+    memcpy(input,zero6,16);
+    for(size_t i=8;i<16;++i){input[i]=1;reject(m,FCAM_OP_VDF_DISPLAY_CONFIG,input,16,176,i<14?-ENOTSUP:-EINVAL);input[i]=0;}
+    input[4]=2;reject(m,FCAM_OP_VDF_DISPLAY_CONFIG,input,16,176,-EINVAL);
+    path(m,disabled,out);reject(m,FCAM_OP_VDF_DISPLAY_CONFIG,zero6,16,176,-ENODATA);
+    assert(!memcmp(m->display_config[3],zero6,16));fcam_model_destroy(m);
+}
+static void eframing_output_actual(void)
+{
+    struct fcam_model *m = model();
+    uint8_t out[192], input[17] = {0};
+    reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, eframing_output, 16, 176, -ENODATA);
+    path(m, enabled, out);
+    display(m, peaking_off, out); display(m, flag_off, out);
+    const uint8_t refresh[16] = {0x41, 1}; display(m, refresh, out); display(m, zero6, out);
+    for (unsigned int mask = 0; mask < 8; ++mask) {
+        memcpy(input, eframing_output, 16);
+        for (size_t i = 0; i < 3; ++i) input[8 + i] = (uint8_t)((mask >> i) & 1u);
+        display(m, input, out);
+        emit("OUTPUT_INPUT", input, 16); emit("OUTPUT", out, 176);
+        emit("OUTPUT_SOURCE", m->pool, m->vdf_copied); emit("OUTPUT_SINK", m->vdf_sink, m->vdf_copied);
+        input[8] ^= 1u;
+        assert(!memcmp(m->display_config[4], out + 160, 16));
+    }
+    memcpy(input, eframing_output, 16);
+    display(m, input, out); display(m, input, out);
+    reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 15, 176, -EINVAL);
+    reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 17, 176, -EINVAL);
+    reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 175, -ENOSPC);
+    for (size_t i = 0; i < 8; ++i) {
+        input[i] ^= 0x80u;
+        reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 176, i < 4 ? -ENOTSUP : -EINVAL);
+        input[i] ^= 0x80u;
+    }
+    for (size_t i = 8; i < 11; ++i) {
+        const uint8_t saved = input[i];
+        for (unsigned int value = 2; value <= 255; ++value) {
+            input[i] = (uint8_t)value;
+            reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 176, -ENOTSUP);
+        }
+        input[i] = saved;
+    }
+    for (size_t i = 11; i < 16; ++i) {
+        input[i] = 1; reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 176, -EINVAL);
+        input[i] = 255; reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 176, -EINVAL);
+        input[i] = 0;
+    }
+    const struct fcam_model saved = *m;
+    uint8_t state_reply[128]; struct fcam_exec_result result;
+    assert(!fcam_model_request(m, FCAM_OP_STATE, NULL, 0, state_reply, 128, &result));
+    assert(!fcam_model_request(m, FCAM_OP_CANCEL, NULL, 0, state_reply, 128, &result));
+    assert(!memcmp(m, &saved, sizeof saved));
+    path(m, disabled, out);
+    reject(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, 176, -ENODATA);
+    assert(!memcmp(m->display_config[4], eframing_output, 16));
+    fcam_model_destroy(m);
+}
+static void display_failures(size_t first_feature, size_t end_feature)
+{
+    for (size_t feature = first_feature; feature < end_feature; ++feature)
+        for (enum injection test = CONFIG_FAIL; test <= (feature == 3 ? SINK_AFTER_RETIRE : NO_CONSUMER); ++test) {
             struct fcam_model *m = model();
             uint8_t out[192], input[16]; path(m, enabled, out);
             display(m, peaking_off, out); display(m, flag_off, out);
-            memcpy(input, feature ? flag_off : peaking_off, 16);
+            memcpy(input, feature == 3 ? eframing_output : feature == 2 ? zero6 : feature ? flag_off : peaking_off, 16);
             if (!feature) { input[10] = 2; input[11] = 40; }
             const struct fcam_model before = *m;
             struct fcam_exec_result result, saved;
             memset(out, 0xa5, sizeof(out)); memset(&result, 0x59, sizeof(result));
             memcpy(&saved, &result, sizeof(saved));
-            display_fault_slot = feature;
+            display_fault_slot = feature == 3 ? 4 : feature == 2 ? 3 : feature;
             inject = test; subject = m;
             assert(fcam_model_request(m, FCAM_OP_VDF_DISPLAY_CONFIG, input, 16, out, 176, &result) == -EIO);
             inject = NONE; subject = NULL;
@@ -950,7 +1021,7 @@ static void display_failures(void)
             else {
                 assert(m->rendered == before.rendered + 1 && proof.render_observed &&
                        m->owner.info.generation == before.owner.info.generation + 1 &&
-                       m->consumed == before.consumed + (unsigned)(test == STALE_RETIRE || test == CONFIG_CHANGED));
+                       m->consumed == before.consumed + (unsigned)(test == STALE_RETIRE || test == CONFIG_CHANGED || test == SINK_AFTER_RETIRE));
                 if (test == STALE_RETIRE) {
                     assert(!proof.retired && proof.retire_status == OPTICAL_FRAME_STALE && m->retired == before.retired);
                     assert(fcam_model_request(m, FCAM_OP_CANCEL, NULL, 0, out, 128, &result) == -EIO);
@@ -972,8 +1043,12 @@ static void display_failures(void)
 int main(int argc, char **argv)
 {
     av_log_set_level(AV_LOG_ERROR);
+    if (argc == 2 && !strcmp(argv[1], "zero6")) { zero6_actual(); return 0; }
+    if (argc == 2 && !strcmp(argv[1], "eframing-output")) {
+        eframing_output_actual(); display_failures(3, 4); return 0;
+    }
     if (argc == 2 && !strcmp(argv[1], "display")) {
-        display_success(); display_validation(); display_failures();
+        display_success(); display_validation(); display_failures(0, 3);
     } else if (argc == 2 && !strcmp(argv[1], "layout")) {
         layout_success(); layout_validation(); layout_pending(); layout_failures();
     } else if (argc == 2 && !strcmp(argv[1], "zebra")) {

@@ -16,7 +16,7 @@ import pytest
 from test_final_graph_observer_wiring import function
 
 HERE = Path(__file__).resolve().parent
-LOGS = HERE / 'scratch/functional-startup-control-main-tests/logs'
+LOGS = HERE.parents[1] / 'validation/tmp/functional-startup-control-main-tests/logs'
 MODES = (
     'normal', 'repeat', 'same-cookie-address-reuse', 'receiver-thread', 'inline',
     'free-failure', 'send-failure', 'stale-cycle', 'missing-ticket',

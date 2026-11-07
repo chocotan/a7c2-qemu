@@ -12,8 +12,7 @@ import sys
 import tempfile
 here = Path(sys.argv[1])
 script = Path(sys.argv[2]).absolute()
-if (script.resolve() != script or script != here / 'build-plugin.sh' or
-        (here.parent.name, here.name) != ('report', '2026-10-31-qemu-shutter-gate-observer-v1')):
+if (script.resolve() != script or script != here / 'build-plugin.sh' or (here.parent.name, here.name) != ('report', '2026-10-31-qemu-shutter-gate-observer-v1')):
     raise ValueError('Fixed canonical shutter-gate-v1 source root required')
 scratch = here.parents[1] / 'runtime/analysis/scratch/functional-shutter-gate-v1-readonly-plugin'
 for path in (here, scratch.parent):

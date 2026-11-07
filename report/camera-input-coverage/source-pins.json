@@ -45,21 +45,23 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
-      "previous_sha256": "636a1ba0d8fede3fcae494d181643826811207666e6e42377e1a1885b4dff464",
-      "change_scope": "FirmwareMonitor preserves source-snapshot, still-format and startup-control integration faults for existing owner cleanup; input definitions and wire values remain unchanged."
+      "sha256": "46c1053e4a08b98773167e997c3f45031fc131604036e13275962cf98d251681",
+      "previous_sha256": "ec53e5857a087ef6004842e962c18c3b16c645dbbec1ec56c173a3a89957e231",
+      "change_scope": "Successful camera_input SHUTTER press/tap now sets the existing shutter_submitted flag so the requested passive sampler runs before export. The four pinned input definitions and encoders are byte-identical; collector errors and capture limits remain. Review: analysis/scratch/functional-jn70-bundle-parent/menu-live-pin-review.json. The 0vxs3wtp full batch and old pin are preserved; renewed source pin still requires the next combined full validation."
     },
     {
       "path": "runtime/analysis/menu_control.py",
       "sha256": "5624042cf7aaa8ad7ad711d4f41c6252befbdd8906d7434525ee4248579cc0ea",
-      "inherited_source_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
+      "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
+      "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
       "previous_sha256": "cc8f867aaf00d1e7ad6d0c6da19e79a5c08332074e2d26522875f574cc99f417",
-      "package_adaptation": "The public package removes the /history.png route and its private historical research path. Functional-camera owner EOF and verified broker detach handling are retained; selectors, aliases and input wire values are unchanged.",
       "change_scope": "Functional-camera owner now waits for control EOF and verified broker detach before VM exit; input wire mappings are unchanged. Focused lifecycle and complete input regressions passed before renewing this host-only pin."
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358"
+      "sha256": "dbdb080ec170c332c2b7eeacad847fabd9b7cdff52a3ac61e513412274060d6c",
+      "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
+      "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout."
     }
   ],
   "raw_to_canonical": {

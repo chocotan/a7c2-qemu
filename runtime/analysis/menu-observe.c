@@ -12,6 +12,7 @@
 #include "device-models/adf-set-input-device.h"
 #include "device-models/adf-set-output-device.h"
 #include "device-models/bb-set-mode-device.h"
+#include "device-models/bb-timecode-control.h"
 #include "device-models/imaging-pin-connection.h"
 #include "device-models/imaging-control-connection.h"
 #include "device-models/imaging-adf-connection.h"
@@ -72,6 +73,7 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "functional-mpr-codec.h"
 #include "functional-mpr-memory.h"
 #include "functional-jpeg-codec.h"
+#include "functional-capture.h"
 #include "functional-face-runtime.h"
 #include "functional-face-ap-observer.h"
 #include "functional-face-proc.h"
@@ -130,6 +132,9 @@ static unsigned int adf_set_output_used;
 static int full_adf_set_output_enabled;
 static unsigned int bb_set_mode_used;
 static int full_bb_set_mode_enabled;
+static unsigned int functional_bb_timecode_control_used, functional_bb_timecode_audit_pid;
+static unsigned long long functional_bb_timecode_audit_sequence;
+static unsigned long long functional_bb_timecode_preset_audit_sequence;
 static unsigned int imaging_pin_connection_used;
 static int imaging_pin_connection_enabled;
 static unsigned int imaging_control_connection_used;
@@ -166,6 +171,17 @@ static int cp_owned_state_enabled;
 static unsigned int cp_owned_state_used;
 static int functional_camera_enabled,functional_camera_setup_error;
 static unsigned int functional_camera_control_used,functional_mpr_codec_used,functional_vdf_path_used;
+static unsigned int functional_cp_parameter_bank_used;
+static unsigned int functional_cp_crank_control_used,functional_cp_crank_control_ticket_pid;
+static unsigned long functional_cp_crank_control_ticket_mutex[6];
+static struct { void *request, *reply; unsigned int request_destination, reply_destination; uint64_t transaction; } functional_cp_crank_control_ticket;
+static unsigned int functional_cp_movie_format_used,functional_cp_movie_format_ticket_pid;
+static unsigned long functional_cp_movie_format_ticket_mutex[6];
+static struct { void *request, *reply; unsigned int request_destination, reply_destination; uint64_t transaction; } functional_cp_movie_format_ticket;
+static unsigned int functional_cp_ou_crank_control_used,functional_cp_ou_crank_control_ticket_pid;
+static unsigned long functional_cp_ou_crank_control_ticket_mutex[6];
+static struct { void *request; unsigned int destination; uint64_t transaction; } functional_cp_ou_crank_control_ticket;
+static _Thread_local struct { void *pointer; unsigned int destination; uint64_t transaction; } functional_cp_parameter_bank_ticket;
 static unsigned int functional_still_format_used,still_format_ticket_ready,still_format_ticket_pid;
 static unsigned long still_format_ticket_pointer;
 static unsigned int still_format_ticket_destination;
@@ -228,6 +244,8 @@ static int (*real_stat_msgq)(unsigned int,void *);
 static unsigned int (*real_media_open)(const char *,unsigned int,void **);
 unsigned int mcmn_drv_open(const char *,unsigned int,void **);
 static int (*real_allocate_msg)(unsigned int, void **, unsigned int, unsigned int);
+static int (*native_real_allocate_msg)(unsigned int, void **, unsigned int, unsigned int);
+static int native_tracked_allocate_msg(unsigned int, void **, unsigned int, unsigned int);
 static int (*real_free_msg)(unsigned int, void *);
 /* Lens-version virtual service: 0x912503d0 has no kernel queue in QEMU, so requests
    valloc'd by libInfraGetVersion.so+0xe08 borrow the always-present ulog queue pool
@@ -758,7 +776,8 @@ static void initialize(void) {
     real_send_sync_direct = real_dlsym((void *)-1, "osal_snd_sync_direct");
     real_stat_msgq = real_dlsym((void *)-1,"osal_stat_msgq");
     real_media_open = real_dlsym((void *)-1,"mcmn_drv_open");
-    real_allocate_msg = real_dlsym((void *)-1, "osal_valloc_msg_wait");
+    native_real_allocate_msg = real_dlsym((void *)-1, "osal_valloc_msg_wait");
+    real_allocate_msg = native_real_allocate_msg ? native_tracked_allocate_msg : 0;
     real_free_msg = real_dlsym((void *)-1, "osal_free_msg");
     real_get_source = real_dlsym((void *)-1, "osal_get_msg_src");
     real_set_source = real_dlsym((void *)-1, "osal_set_msg_src");
@@ -1153,6 +1172,15 @@ static void initialize(void) {
     const char *functional_profile=getenv("MENU_FUNCTIONAL_CAMERA");
     functional_camera_enabled=same_name(functional_profile,FCAM_PROFILE) && cp_owned_state_enabled;
     if(functional_camera_enabled && native_functional_camera_control_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && native_functional_camera_parameter_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && native_functional_camera_crank_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && native_functional_camera_movie_format_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && native_functional_camera_ou_crank_owner_init())functional_camera_enabled=0;
+    if(functional_camera_enabled && full_bb_timecode_control_owner_init())functional_camera_enabled=0;
+    functional_bb_timecode_audit_pid=(unsigned int)getpid();
+    functional_cp_ou_crank_control_ticket_pid=(unsigned int)getpid();
+    functional_cp_crank_control_ticket_pid=(unsigned int)getpid();
+    functional_cp_movie_format_ticket_pid=(unsigned int)getpid();
     if(functional_camera_enabled && functional_still_format_owner_init())functional_camera_enabled=0;
     still_format_ticket_pid=(unsigned int)getpid();
     if(functional_camera_enabled && functional_startup_control_owner_init())functional_camera_enabled=0;
@@ -1219,7 +1247,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_",
             "FULL_DMM_UNIT_",
-            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM",
+            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_FOCUS_RESET_MODEL ", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM", "FUNCTIONAL_CP_PARAMETER_BANK_", "FUNCTIONAL_CP_CRANK_CONTROL_", "FUNCTIONAL_CP_MOVIE_FORMAT_", "FUNCTIONAL_CP_OU_CRANK_CONTROL_", "FUNCTIONAL_BB_TIMECODE_", "NATIVE_BB_TIMECODE_INPUT_AUDIT ",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
             "GUI_PROPERTY_",
@@ -6564,11 +6592,17 @@ static void install_create_screen_sentinel(unsigned long base) {
     if (getenv("MENU_MENU_INIT") || getenv("MENU_BUILD2_THEN_INIT") || getenv("MENU_APPLY_MENU")) install_menu_ctor_probe(base);
     if (getenv("MENU_CTOR_CENSUS") || getenv("MENU_ACTIVATE_CAPTURED")) install_base_ctor_probe(base);
 }
+static int functional_focus_reset_apply(const unsigned char[16],struct full_imaging_focus_reset_receipt *);
+static int functional_focus_query_read(const unsigned char[12],unsigned char[128]);
 static void *observe_application_init(void *argument) {
     record("ENTER ", "Application_System_Init");
     if(functional_camera_enabled){
         int rc=functional_mpr_memory_enable(record);
         if(!rc)rc=functional_jpeg_codec_enable(record);
+        if(!rc)rc=full_imaging_functional_enable();
+        if(!rc)rc=full_imaging_functional_bind_focus_reset(functional_focus_reset_apply);
+        if(!rc)rc=full_imaging_functional_bind_focus_query(functional_focus_query_read);
+        if(!rc)rc=functional_capture_enable(record);
         char text[180];snprintf(text,sizeof text,
             "pid=%d device_setup_rc=%d constructor_RPC=0 physical_ASIC_verified=0 capture_verified=0",getpid(),rc);
         record("FUNCTIONAL_CAMERA_APPLICATION_SETUP ",text);
@@ -7488,9 +7522,60 @@ static int tracked_native_reserve_resources(int adf) {
         "NATIVE_CP302C_NOCONVERT","NATIVE_CP_NOTIFICATION","NATIVE_CP_CAPTURE_FORMAT_DIAGNOSTIC",
         "NATIVE_CP_STARTUP_DIAGNOSTIC","NATIVE_CP_EE_DIAGNOSTIC","NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC","NATIVE_CP_STATE_PUBLICATION",
         "FUNCTIONAL_CAMERA_CONTROL","FUNCTIONAL_VDF_PATH","FUNCTIONAL_CP_ZOOM","FUNCTIONAL_HISTOGRAM","FUNCTIONAL_BACKGROUND_START",
-        "FUNCTIONAL_STILL_FORMAT","FUNCTIONAL_STARTUP_CONTROL"};
+        "FUNCTIONAL_STILL_FORMAT","FUNCTIONAL_STARTUP_CONTROL","FUNCTIONAL_CAPTURE","FUNCTIONAL_CP_PARAMETER_BANK","FUNCTIONAL_CP_CRANK_CONTROL","FUNCTIONAL_CP_MOVIE_FORMAT","FUNCTIONAL_CP_OU_CRANK_CONTROL","FUNCTIONAL_BB_TIMECODE"};
     if(adf<0 || (unsigned int)adf>=sizeof prefixes/sizeof prefixes[0] || !prefixes[adf])return -1021;
     const char *prefix=prefixes[adf];char tag[100];
+    if(adf==37 && __atomic_load_n(&functional_bb_timecode_control_used,__ATOMIC_ACQUIRE)) {
+        struct full_bb_timecode_snapshot timecode={0};full_bb_timecode_control_snapshot(&timecode);
+        if(timecode.command==0x0409u || timecode.command==0x040au)prefix="FUNCTIONAL_BB_TIMECODE_PRESET";
+    }
+    if(adf!=37 && __atomic_load_n(&functional_bb_timecode_control_used,__ATOMIC_ACQUIRE)) {
+        struct full_bb_timecode_snapshot timecode={0};full_bb_timecode_control_snapshot(&timecode);
+        if(timecode.owner_pid!=getpid() || !timecode.initialized || timecode.busy || timecode.guard_held ||
+           timecode.faults || timecode.inflight || timecode.pending_commit || timecode.retained_request ||
+           timecode.live_reply || timecode.retained_reply || timecode.retained_cleanup) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_bb_timecode_control_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
+    if(adf!=36 && __atomic_load_n(&functional_cp_ou_crank_control_used,__ATOMIC_ACQUIRE)) {
+        struct native_functional_camera_ou_crank_snapshot ou={0};
+        native_functional_camera_ou_crank_snapshot(&ou);
+        if(ou.owner_pid!=getpid() || !ou.initialized || ou.busy || ou.guard_held || ou.guard_fault || ou.faults ||
+           ou.retained_request || ou.releasing || (ou.owned && !ou.complete)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_cp_ou_crank_control_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
+    if(adf!=35 && __atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE)) {
+        struct native_functional_camera_movie_format_snapshot movie={0};
+        native_functional_camera_movie_format_snapshot(&movie);
+        if(movie.owner_pid!=getpid() || !movie.initialized || movie.busy || movie.guard_held || movie.faults ||
+           movie.retained_request || movie.retained_reply || movie.request_releasing || movie.reply_releasing ||
+           movie.reply_inspecting || movie.send_inflight || (movie.owned && !movie.complete)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_cp_movie_format_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
+    if(adf!=34 && __atomic_load_n(&functional_cp_crank_control_used,__ATOMIC_ACQUIRE)) {
+        struct native_functional_camera_crank_snapshot crank={0};
+        native_functional_camera_crank_snapshot(&crank);
+        if(crank.owner_pid!=getpid() || !crank.initialized || crank.busy || crank.guard_held || crank.faults ||
+           crank.retained_request || crank.retained_reply || crank.request_releasing || crank.reply_releasing ||
+           crank.reply_inspecting || crank.send_inflight || (crank.owned && !crank.complete)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_cp_crank_control_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
+    if(adf!=33 && __atomic_load_n(&functional_cp_parameter_bank_used,__ATOMIC_ACQUIRE)) {
+        struct native_functional_camera_parameter_snapshot bank={0};
+        native_functional_camera_parameter_snapshot(&bank);
+        if(bank.owner_pid!=getpid() || !bank.initialized || bank.busy || bank.guard_held || bank.faults ||
+           bank.releasing || bank.retained_request || (bank.owned && !bank.request_freed)) {
+            snprintf(tag,sizeof tag,"%s_RESOURCES_REFUSED ",prefix);
+            record(tag,"functional_cp_parameter_bank_live_or_faulted=1 capture_verified=0");return -ENODATA;
+        }
+    }
     if(adf!=31 && __atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE)) {
         struct functional_startup_control_snapshot startup={0};functional_startup_control_snapshot(&startup);
         if(startup.owner_pid!=getpid() || !startup.initialized || startup.busy || startup.guard_held || startup.faults ||
@@ -7981,6 +8066,10 @@ static int cp_ee_controls_after_movie_predecessors_ready(void) {
 }
 static int cp_owned_state_reserve_resources(void) {return tracked_native_reserve_resources(24);}
 static int functional_camera_control_reserve_resources(void) {return tracked_native_reserve_resources(25);}
+static int functional_cp_parameter_bank_reserve_resources(void) {return tracked_native_reserve_resources(33);}
+static int functional_cp_crank_control_reserve_resources(void) {return tracked_native_reserve_resources(34);}
+static int functional_cp_movie_format_reserve_resources(void) {return tracked_native_reserve_resources(35);}
+static int functional_cp_ou_crank_control_reserve_resources(void) {return tracked_native_reserve_resources(36);}
 static int functional_vdf_path_reserve_resources(void) {return tracked_native_reserve_resources(26);}
 static int functional_histogram_reserve_resources(void) {return tracked_native_reserve_resources(28);}
 static int functional_background_start_reserve_resources(void) {
@@ -8011,6 +8100,161 @@ static int cp_owned_state_predecessors_ready(void) {
         p->virtual_fields_readback==1 && p->virtual_fields_consumed==3 &&
         p->source==0x80020002u && p->request_destination==NATIVE_CP_EE_CONTROLS_SID &&
         !memcmp(p->virtual_fields,p->virtual_readback,sizeof p->virtual_fields);
+}
+static int functional_cp_parameter_bank_predecessors_ready(void) {
+    return cp_capture_format_predecessors_ready() && cp_owned_state_predecessors_ready();
+}
+static int functional_cp_crank_control_predecessors_ready(void) {
+    if(!functional_cp_parameter_bank_predecessors_ready())return 0;
+    struct native_cp_ee_controls_diagnostic_snapshot prior={0};
+    struct native_functional_camera_parameter_snapshot bank={0};
+    struct cp_output_policy_snapshot policy={0};
+    native_cp_ee_controls_diagnostic_snapshot(&prior);
+    native_functional_camera_parameter_snapshot(&bank);
+    const struct native_cp_ee_controls_diagnostic_lease *initial=&prior.leases[0];
+    pthread_mutex_lock(cp_parameter_batch_mutex);
+    int policy_ready=cp_output_policy_state.owner_pid==getpid() && !cp_parameter_batch_retained_request &&
+        !cp_output_policy_snapshot(&cp_output_policy_state,CP_OUTPUT_POLICY_KNOWN_MASK,&policy) &&
+        policy.config_consumed && !policy.semantic_applied && !policy.published && !policy.cp_native &&
+        !policy.ee && !policy.capture && !memcmp(policy.bytes+4,bank.request+4,4);
+    pthread_mutex_unlock(cp_parameter_batch_mutex);
+    return policy_ready && prior.owner_pid==getpid() && prior.initialized && !prior.busy && !prior.guard_held && !prior.faults &&
+        initial->opcode==0x409d && initial->attempts==1 && initial->requests==1 && initial->queued==1 &&
+        initial->clean_completion==1 && initial->ap_consumed==1 && initial->request_freed==1 && initial->reply_freed==1 &&
+        !initial->busy && !initial->guard_held && !initial->faults && !initial->allocate_rc && !initial->send_rc &&
+        !initial->request_free_rc && !initial->reply_free_rc && initial->sender_tid>0 && initial->sender_tid==initial->waiter_tid &&
+        !initial->retained_request && !initial->live_reply && !initial->retained_cleanup &&
+        bank.owner_pid==getpid() && bank.initialized && bank.model_committed && bank.verified && bank.owned && bank.request_freed &&
+        !bank.busy && !bank.guard_held && !bank.faults && !bank.releasing && !bank.retained_request &&
+        bank.model_instance && bank.bank_generation && bank.transaction;
+}
+static int functional_cp_movie_format_predecessors_ready(void) {
+    if(!functional_cp_crank_control_predecessors_ready())return 0;
+    struct native_functional_camera_parameter_snapshot bank={0};
+    struct native_functional_camera_crank_snapshot crank={0};
+    struct native_cp_movie_format_diagnostic_snapshot early={0};
+    native_functional_camera_parameter_snapshot(&bank);
+    native_functional_camera_crank_snapshot(&crank);
+    native_cp_movie_format_diagnostic_snapshot(&early);
+    return bank.owner_pid==getpid() && bank.initialized && bank.model_committed && bank.verified && bank.owned &&
+        bank.request_freed && !bank.busy && !bank.guard_held && !bank.faults && !bank.releasing && !bank.retained_request &&
+        crank.owner_pid==getpid() && crank.initialized && crank.model_committed && crank.verified && crank.owned && crank.complete &&
+        crank.model_instance==bank.model_instance && crank.bank_generation==bank.bank_generation &&
+        crank.bank_transaction==bank.transaction && crank.bank_commits==bank.commits && crank.bank_released==bank.released &&
+        crank.transaction && crank.crank_generation && crank.completions && crank.requests==crank.commits &&
+        crank.commits==crank.verified_commits && crank.verified_commits==crank.completions &&
+        crank.reply_received && crank.reply_consumed && crank.request_freed && crank.reply_freed &&
+        crank.sender_tid>0 && crank.receiver_tid>0 && crank.request_free_tid==crank.sender_tid && crank.reply_free_tid==crank.sender_tid &&
+        !crank.busy && !crank.guard_held && !crank.faults && !crank.before_rc && !crank.model_rc && !crank.after_rc &&
+        !crank.allocate_rc && !crank.send_rc && !crank.request_free_rc && !crank.reply_free_rc && !crank.receive_rc &&
+        !crank.request_releasing && !crank.reply_releasing && !crank.reply_inspecting && !crank.send_inflight &&
+        !crank.retained_request && !crank.retained_reply &&
+        early.owner_pid==getpid() && early.initialized && early.opcode==0x4000 && early.attempts==1 && early.requests==1 &&
+        early.queued==1 && early.request_freed==1 && early.reply_freed==1 && early.clean_completion==1 && early.ap_consumed==1 &&
+        early.sender_tid>0 && early.sender_tid==early.waiter_tid && !early.allocate_rc && !early.send_rc &&
+        !early.request_free_rc && !early.reply_free_rc && !early.busy && !early.guard_held && !early.faults &&
+        !early.retained_request && !early.live_reply && !early.retained_cleanup &&
+        early.source==FULL_IMAGING_AP && early.request_destination==NATIVE_CP_MOVIE_FORMAT_SID && early.destination==FULL_IMAGING_AP &&
+        early.request_bytes==20 && early.known_field_mask==CP_MOVIE_FORMAT_KNOWN_MASK &&
+        early.virtual_field_mask==CP_MOVIE_FORMAT_KNOWN_MASK && early.virtual_fields_readback==1 &&
+        early.virtual_fields_consumed==CP_MOVIE_FORMAT_KNOWN_MASK &&
+        !memcmp(early.virtual_fields,early.virtual_readback,sizeof early.virtual_fields);
+}
+static uint64_t native_ou_crank_u64(const unsigned char *p) {
+    uint64_t value=0;
+    for(unsigned int i=0;i<8;i++)value|=(uint64_t)p[i]<<(8*i);
+    return value;
+}
+static uint64_t native_ou_crank_hash(const unsigned char *p,size_t bytes) {
+    uint64_t value=UINT64_C(14695981039346656037);
+    for(size_t i=0;i<bytes;i++){value^=p[i];value*=UINT64_C(1099511628211);}
+    return value;
+}
+static int functional_cp_ou_crank_control_predecessors_ready(void) {
+    if(!functional_cp_movie_format_predecessors_ready())return 0;
+    struct native_functional_camera_control_snapshot control={0};
+    struct native_functional_camera_parameter_snapshot bank={0};
+    struct native_functional_camera_crank_snapshot crank={0};
+    struct native_functional_camera_movie_format_snapshot movie={0};
+    struct functional_startup_control_snapshot startup={0};
+    struct native_cp_ee_controls_diagnostic_snapshot strict={0};
+    native_functional_camera_control_snapshot(&control);
+    native_functional_camera_parameter_snapshot(&bank);native_functional_camera_crank_snapshot(&crank);
+    native_functional_camera_movie_format_snapshot(&movie);functional_startup_control_snapshot(&startup);
+    native_cp_ee_controls_diagnostic_snapshot(&strict);
+    const struct native_cp_ee_controls_diagnostic_lease *initial=&strict.leases[1];
+    int pid=getpid();
+    int ready=control.owner_pid==pid && control.initialized && control.functional_model && control.model_initialized && control.business_ready && control.start_complete &&
+        control.mode1_complete && control.mode1_cycles_completed && control.mode_complete && control.notification_ap_consumed &&
+        control.model_instance==bank.model_instance && !control.busy && !control.guard_held && !control.faults &&
+        bank.model_called && !bank.model_rc && !bank.free_rc && !bank.error && bank.commits && bank.commits==bank.released &&
+        bank.sender_tid>0 && bank.free_tid==bank.sender_tid &&
+        crank.model_called && crank.last_bank_generation==bank.bank_generation && crank.last_crank_generation==crank.crank_generation &&
+        movie.owner_pid==pid && movie.initialized && movie.model_called && movie.model_committed && movie.verified && movie.owned && movie.complete &&
+        movie.model_instance==bank.model_instance && movie.bank_generation==bank.bank_generation &&
+        movie.crank_generation==crank.crank_generation && movie.movie_generation && movie.transaction &&
+        movie.last_bank_generation==bank.bank_generation && movie.last_crank_generation==crank.crank_generation &&
+        movie.last_movie_generation==movie.movie_generation &&
+        movie.bank_transaction==bank.transaction && movie.bank_commits==bank.commits && movie.bank_released==bank.released &&
+        movie.crank_transaction==crank.transaction && movie.crank_completions==crank.completions &&
+        movie.completions && movie.requests==movie.commits && movie.commits==movie.verified_commits && movie.verified_commits==movie.completions &&
+        movie.reply_received && movie.reply_consumed && movie.request_freed && movie.reply_freed &&
+        movie.sender_tid>0 && movie.receiver_tid>0 && movie.request_free_tid==movie.sender_tid && movie.reply_free_tid==movie.sender_tid &&
+        !movie.busy && !movie.guard_held && !movie.faults && !movie.before_rc && !movie.model_rc && !movie.after_rc && !movie.validation_rc &&
+        !movie.allocate_rc && !movie.send_rc && !movie.request_free_rc && !movie.reply_free_rc && !movie.receive_rc && !movie.error &&
+        !movie.request_releasing && !movie.reply_releasing && !movie.reply_inspecting && !movie.send_inflight &&
+        !movie.retained_request && !movie.retained_reply &&
+        startup.owner_pid==pid && startup.initialized && startup.functional_only && startup.state_valid && startup.operation_attempted &&
+        startup.model_complete && startup.mode_applied && startup.request_owned && startup.ap_consumed &&
+        startup.command==0x4057 && startup.original_wire_bytes==12 && startup.model_instance==bank.model_instance &&
+        startup.cycle && startup.cycle==startup.requests && startup.completed_cycles==startup.requests &&
+        startup.command_completed[0] && startup.command_completed[1] &&
+        startup.command_requests[0]==startup.command_completed[0] && startup.command_requests[1]==startup.command_completed[1] &&
+        (uint64_t)startup.command_completed[0]+startup.command_completed[1]==startup.completed_cycles &&
+        !startup.busy && !startup.guard_held && !startup.faults && !startup.retained &&
+        !startup.state_bridge_rc && !startup.state_validation_rc && !startup.bridge_rc && !startup.validation_rc && !startup.transport_rc &&
+        startup.before_config_generation>=movie.config_generation && startup.before_config_generation!=UINT64_MAX &&
+        startup.config_generation==startup.before_config_generation+1 && startup.before_frame_generation!=UINT64_MAX &&
+        startup.frame_generation==startup.before_frame_generation+1 && startup.lease_generation>startup.before_lease_generation &&
+        startup.before_config_generation==native_ou_crank_u64(startup.model_state+FCAM_S_GENERATION) &&
+        startup.before_frame_generation==native_ou_crank_u64(startup.model_state+FCAM_S_FRAME_GENERATION) &&
+        startup.model_instance==native_ou_crank_u64(startup.model_state+FCAM_S_INSTANCE) &&
+        startup.model_instance==native_ou_crank_u64(startup.model_result+8) &&
+        startup.state_response.used==128 && startup.state_response.required==128 && !startup.state_response.result_token &&
+        startup.state_response.model_instance==bank.model_instance &&
+        startup.control_response.used==192 && startup.control_response.required==192 && !startup.control_response.result_token &&
+        startup.control_response.model_instance==bank.model_instance &&
+        startup.origin.source==FUNCTIONAL_CAMERA_CONTROL_AP && startup.origin.destination==FUNCTIONAL_CAMERA_CONTROL_SID &&
+        startup.origin.command==0x4057 && startup.origin.bytes==12 &&
+        startup.origin.wire_fnv1a64==native_ou_crank_hash(startup.original_wire,12) && startup.actual_origin_fnv==startup.origin.wire_fnv1a64 &&
+        startup.config_generation==native_ou_crank_u64(startup.model_result+16) &&
+        startup.frame_generation==native_ou_crank_u64(startup.model_result+24) &&
+        startup.lease_generation==native_ou_crank_u64(startup.model_result+32) &&
+        startup.result_fnv==native_ou_crank_hash(startup.model_result,sizeof startup.model_result) &&
+        startup.current_config40_fnv==native_ou_crank_hash(startup.model_state+8,40) &&
+        !memcmp(startup.canonical32,startup.model_result+160,32) &&
+        strict.owner_pid==pid && strict.initialized && !strict.busy && !strict.guard_held && !strict.faults &&
+        initial->opcode==0x4072 && initial->attempts==1 && initial->requests==1 && initial->oneway==1 &&
+        initial->oneway_consumed==1 && initial->request_freed==1 && initial->clean_completion==1 &&
+        !initial->request_free_rc && !initial->faults && !initial->busy && !initial->guard_held &&
+        !initial->retained_request && !initial->retained_cleanup && !initial->live_reply && !initial->queued &&
+        !initial->reply_freed && !initial->ap_consumed;
+    for(unsigned int i=0;i<FUNCTIONAL_CAMERA_CONTROL_LEASES;i++) {
+        const struct native_cp_state_publication_lease *lease=&control.leases[i];
+        ready=ready && !lease->pointer && lease->freed && !lease->releasing && !lease->send_inflight && !lease->faults &&
+            !lease->allocate_rc && !lease->send_rc && !lease->free_rc;
+    }
+    ready=ready && control.leases[1].consumed && control.leases[3].consumed && control.leases[4].consumed;
+    for(unsigned int i=0;i<2;i++) {
+        const struct native_cp_state_publication_lease *lease=&startup.leases[i];
+        ready=ready && lease->role==i+1 && lease->bytes==12 && !lease->pointer && lease->freed &&
+            !lease->releasing && !lease->send_inflight && !lease->faults && !lease->allocate_rc && !lease->send_rc && !lease->free_rc &&
+            lease->sender_tid>0 && lease->free_tid==lease->sender_tid &&
+            lease->wire_fnv1a64==native_ou_crank_hash(i?startup.reply_wire:startup.original_wire,12) &&
+            (!i || (lease->queued && lease->received && lease->consumed && lease->receiver_tid>0 &&
+                    lease->sender_tid==startup.leases[0].sender_tid));
+    }
+    return ready;
 }
 static int cp_owned_bootstrap_inputs(void) {
     int saved_errno=*__errno_location();
@@ -8388,6 +8632,68 @@ static int functional_vdf_prepare(void) {
     __atomic_store_n(&functional_vdf_binding,rc?3u:2u,__ATOMIC_RELEASE);
     return rc;
 }
+static uint64_t functional_focus_reset_hash(const unsigned char *p,size_t size){
+    uint64_t hash=UINT64_C(14695981039346656037);
+    for(size_t i=0;i<size;++i)hash=(hash^p[i])*UINT64_C(1099511628211);
+    return hash;
+}
+static uint64_t functional_focus_reset_u64(const unsigned char *p){
+    uint64_t value=0;for(unsigned int i=0;i<8;++i)value|=(uint64_t)p[i]<<(8*i);
+    return value;
+}
+static int functional_focus_reset_apply(const unsigned char original[16],struct full_imaging_focus_reset_receipt *out){
+    if(!original || !out || !functional_camera_enabled || functional_camera_setup_error)return -ENODEV;
+    if(original[0]!=5 || original[1] || original[2]!=0x3f || original[3]!=0x40)return -ENOTSUP;
+    for(unsigned int i=8;i<16;++i)if(original[i])return -ENOTSUP;
+    struct native_functional_camera_control_snapshot control={0};
+    native_functional_camera_control_snapshot(&control);
+    if(control.owner_pid!=getpid() || !control.model_initialized || !control.start_complete ||
+       !control.model_instance || control.faults)return -ENODATA;
+    *out=(struct full_imaging_focus_reset_receipt){0};out->origin_fnv=functional_focus_reset_hash(original,16);
+    const struct fcam_native_origin origin={FULL_IMAGING_AP,FULL_IMAGING_CP,0x403f,16,out->origin_fnv};
+    struct fcam_bridge_result state_result={0},model_result={0};
+    int rc=fcam_bridge_call(&origin,FCAM_OP_STATE,NULL,0,out->state,sizeof out->state,&state_result);
+    if(!rc && (state_result.used!=128 || state_result.required!=128 || state_result.result_token ||
+       state_result.model_instance!=control.model_instance || functional_focus_reset_u64(out->state+48)!=control.model_instance))rc=-EPROTO;
+    if(!rc){
+        out->canonical[0]=0x3f;out->canonical[1]=0x40;out->canonical[2]=8;
+        uint64_t hash=functional_focus_reset_hash(out->state+8,40);
+        for(unsigned int i=0;i<8;++i)out->canonical[24+i]=(unsigned char)(hash>>(8*i));
+        rc=fcam_bridge_call(&origin,FCAM_OP_STARTUP_CONTROL,out->canonical,sizeof out->canonical,
+                            out->result,sizeof out->result,&model_result);
+        if(!rc && (model_result.used!=192 || model_result.required!=192 || model_result.result_token ||
+           model_result.model_instance!=control.model_instance))rc=-EPROTO;
+    }
+    char text[440];snprintf(text,sizeof text,
+        "pid=%d tid=%ld rc=%d native_fnv=%#llx model_instance=%#llx state_used=%lu state_required=%lu result_used=%lu result_required=%lu result_token=%#llx result_fnv=%#llx policy=%s physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),rc,(unsigned long long)out->origin_fnv,(unsigned long long)control.model_instance,
+        (unsigned long)state_result.used,(unsigned long)state_result.required,(unsigned long)model_result.used,
+        (unsigned long)model_result.required,(unsigned long long)model_result.result_token,
+        (unsigned long long)functional_focus_reset_hash(out->result,192),FULL_IMAGING_FOCUS_RESET_POLICY);
+    record("FUNCTIONAL_FOCUS_RESET_MODEL ",text);return rc;
+}
+static int functional_focus_query_read(const unsigned char original[12],unsigned char state128[128]){
+    if(!original || !state128 || !functional_camera_enabled || functional_camera_setup_error)return -ENODEV;
+    if(original[0]!=5 || original[1] || original[2]!=0x3e || original[3]!=0x40 ||
+       original[8]!=1 || original[9]!=0x0f || original[10]!=1 || original[11])return -ENOTSUP;
+    struct native_functional_camera_control_snapshot control={0};
+    native_functional_camera_control_snapshot(&control);
+    if(control.owner_pid!=getpid() || !control.model_initialized || !control.start_complete ||
+       !control.model_instance || control.faults)return -ENODATA;
+    uint64_t hash=functional_focus_reset_hash(original,12);
+    const struct fcam_native_origin origin={FULL_IMAGING_AP,FULL_IMAGING_CP,0x403e,12,hash};
+    struct fcam_bridge_result state_result={0};
+    for(unsigned i=0;i<128;++i)state128[i]=0;
+    int rc=fcam_bridge_call(&origin,FCAM_OP_STATE,NULL,0,state128,128,&state_result);
+    if(!rc && (state_result.used!=128 || state_result.required!=128 || state_result.result_token ||
+       state_result.model_instance!=control.model_instance || functional_focus_reset_u64(state128+48)!=control.model_instance))rc=-EPROTO;
+    char text[512];snprintf(text,sizeof text,
+        "pid=%d tid=%ld rc=%d native_fnv=%#llx model_instance=%#llx state_used=%lu state_required=%lu result_token=%#llx state_fnv=%#llx policy=%s physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),rc,(unsigned long long)hash,(unsigned long long)control.model_instance,
+        (unsigned long)state_result.used,(unsigned long)state_result.required,(unsigned long long)state_result.result_token,
+        (unsigned long long)functional_focus_reset_hash(state128,128),FULL_IMAGING_FOCUS_QUERY_POLICY);
+    record("FUNCTIONAL_CAMERA_FOCUS_QUERY_MODEL ",text);return rc;
+}
 static int functional_mpr_prepare(void) {
     if(functional_camera_setup_error)return functional_camera_setup_error;
     unsigned int binding=__atomic_load_n(&functional_mpr_binding,__ATOMIC_ACQUIRE);
@@ -8414,6 +8720,105 @@ static int functional_mpr_prepare(void) {
         "pid=%d rc=%d library_base=%p host_verified_library_sha256=%s actual_symbol_offset=0x283e74 physical_ASIC_verified=0 capture_verified=0",
         getpid(),rc,info.dli_fbase,FUNCTIONAL_MPR_CODEC_LIBRARY_SHA256);
     record("FUNCTIONAL_MPR_BIND ",text);return rc;
+}
+static int functional_capture_reserve_resources(void) {return tracked_native_reserve_resources(32);}
+static int functional_capture_predecessors_ready(void) {
+    if(functional_camera_setup_error || !cp302c_no_transition_predecessors_ready())return 0;
+    struct native_functional_camera_control_snapshot control={0};
+    struct functional_vdf_path_snapshot path={0};
+    struct functional_still_format_snapshot format={0};
+    struct full_imaging_snapshot imaging={0};
+    native_functional_camera_control_snapshot(&control);functional_vdf_path_snapshot(&path);
+    functional_still_format_snapshot(&format);full_imaging_snapshot(&imaging);
+    return control.owner_pid==getpid() && control.initialized && control.model_initialized && control.start_complete &&
+        control.mode1_complete && control.mode_complete && control.notification_ap_consumed && control.model_instance &&
+        !control.busy && !control.guard_held && !control.faults &&
+        path.owner_pid==getpid() && path.initialized && path.model_complete && path.ap_consumed &&
+        path.model_instance==control.model_instance && !path.busy && !path.guard_held && !path.faults &&
+        format.owner_pid==getpid() && format.initialized && format.state_valid && format.model_complete &&
+        format.ap_consumed && format.completed_cycles && format.model_instance==control.model_instance &&
+        !format.busy && !format.guard_held && !format.faults && !format.retained &&
+        imaging.functional_owner_pid==getpid() && imaging.functional_enabled && !imaging.functional_busy &&
+        !imaging.suppressed && !(imaging.effective&~FULL_IMAGING_POWER_ON_INHIBIT) && !imaging.live_replies && !imaging.faults;
+}
+static int functional_bb_timecode_reserve_resources(void) {return tracked_native_reserve_resources(37);}
+static int functional_bb_timecode_predecessors_ready(void) {
+    if(!functional_cp_ou_crank_control_predecessors_ready())return 0;
+    struct native_functional_camera_ou_crank_snapshot ou={0};
+    struct native_functional_camera_control_snapshot control={0};
+    struct full_bb_set_mode_snapshot bb={0};
+    native_functional_camera_ou_crank_snapshot(&ou);native_functional_camera_control_snapshot(&control);
+    full_bb_set_mode_snapshot(&bb);
+    return bb.owner_pid==getpid() && bb.initialized && bb.clean_completion && bb.ap_consumed &&
+        !bb.busy && !bb.pending && !bb.guard_held && !bb.faults && !bb.retained_request && !bb.live_reply &&
+        !bb.retained_reply && !bb.retained_cleanup && ou.owner_pid==getpid() && ou.initialized &&
+        ou.model_called && ou.model_committed && ou.verified && ou.owned && ou.complete && ou.request_freed &&
+        ou.model_instance==control.model_instance && ou.transaction && ou.ou_generation &&
+        ou.requests==ou.commits && ou.commits==ou.verified_commits && ou.verified_commits==ou.completions &&
+        ou.completions==ou.released && ou.sender_tid>0 && ou.free_tid==ou.sender_tid &&
+        !ou.busy && !ou.guard_held && !ou.guard_fault && !ou.faults && !ou.releasing && !ou.retained_request &&
+        !ou.before_rc && !ou.model_rc && !ou.after_rc && !ou.validation_rc && !ou.free_rc && !ou.error &&
+        ou.config_generation==ou.before_config_generation+1 && ou.mode==0 &&
+        native_ou_crank_hash(ou.receipt,sizeof ou.receipt)==ou.receipt_fnv1a64 &&
+        !memcmp(ou.receipt+80,ou.after_state,sizeof ou.after_state);
+}
+static int native_bb_timecode_input_audit(unsigned int destination,void *request,void *caller) {
+    if(functional_bb_timecode_audit_pid!=(unsigned int)getpid())return -ESTALE;
+    if(!request || !real_msg_size || !real_get_source || real_msg_size(request)!=10)return -ENOTSUP;
+    int saved_errno=*__errno_location();unsigned int source=real_get_source(request);
+    Dl_info info={0};unsigned long raw_caller=0;int bound=0;
+    if(caller && appfw_base && real_dladdr && real_dladdr(caller,&info) && info.dli_fname &&
+       (unsigned long)info.dli_fbase==appfw_base && (unsigned long)caller>=appfw_base) {
+        size_t length=strlen(info.dli_fname);raw_caller=(unsigned long)caller-appfw_base;
+        bound=length>=8 && !strcmp(info.dli_fname+length-8,"appFw.so") &&
+            (length==8 || info.dli_fname[length-9]=='/') && raw_caller==0x34e56e8u;
+    }
+    unsigned long long sequence=__atomic_load_n(&functional_bb_timecode_audit_sequence,__ATOMIC_ACQUIRE);
+    for(;;) {
+        if(sequence==UINT64_MAX){*__errno_location()=saved_errno;return -EOVERFLOW;}
+        if(__atomic_compare_exchange_n(&functional_bb_timecode_audit_sequence,&sequence,sequence+1,0,
+            __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)){++sequence;break;}
+    }
+    const unsigned char *p=request;char raw[21],text[700];
+    for(unsigned int i=0;i<10;i++)snprintf(raw+2*i,3,"%02x",p[i]);
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld sequence=%llu pointer=%p source=%#x destination=0x92840747 command=%#x bytes=10 raw=%s fnv1a64=%016llx producer_return=%p appfw_base=%#lx caller_raw=%#lx original_sender_bound=%u consumed=0 state_verified=0 diagnostic_only=1 original_CP=0 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),sequence,request,source,(unsigned int)p[2]|(unsigned int)p[3]<<8,raw,
+        (unsigned long long)native_ou_crank_hash(p,10),caller,appfw_base,raw_caller,(unsigned int)bound);
+    record("NATIVE_BB_TIMECODE_INPUT_AUDIT ",text);*__errno_location()=saved_errno;
+    return destination==FULL_BB_TIMECODE_CONTROL_CP && (source>>28)==8 && (source&0x0fffffffu) && bound?0:-ELIBBAD;
+}
+static int native_bb_timecode_preset_input_audit(unsigned int destination,void *request,void *caller) {
+    if(functional_bb_timecode_audit_pid!=(unsigned int)getpid())return -ESTALE;
+    if(!request || !real_msg_size || !real_get_source)return -ENOTSUP;
+    unsigned int bytes=real_msg_size(request);const unsigned char *p=request;
+    if(bytes!=10 && bytes!=12)return -ENOTSUP;
+    unsigned int command=p[2]|(unsigned int)p[3]<<8;
+    if(!((command==0x0409u && bytes==10) || (command==0x040au && bytes==12)) ||
+       p[0]!=0x0d || p[1]!=0x20 || p[4]!=bytes || p[5] || p[6]!=1 || p[7]!=0x80 ||
+       (command==0x0409u && (p[8]>1 || p[9])))return -EINVAL;
+    int saved_errno=*__errno_location();unsigned int source=real_get_source(request);
+    Dl_info info={0};unsigned long raw_caller=0;int bound=0;
+    if(caller && appfw_base && real_dladdr && real_dladdr(caller,&info) && info.dli_fname &&
+       (unsigned long)info.dli_fbase==appfw_base && (unsigned long)caller>=appfw_base) {
+        size_t length=strlen(info.dli_fname);raw_caller=(unsigned long)caller-appfw_base;
+        bound=length>=8 && !strcmp(info.dli_fname+length-8,"appFw.so") &&
+            (length==8 || info.dli_fname[length-9]=='/') && raw_caller==0x34e56e8u;
+    }
+    unsigned long long sequence=__atomic_load_n(&functional_bb_timecode_preset_audit_sequence,__ATOMIC_ACQUIRE);
+    for(;;) {
+        if(sequence==UINT64_MAX){*__errno_location()=saved_errno;return -EOVERFLOW;}
+        if(__atomic_compare_exchange_n(&functional_bb_timecode_preset_audit_sequence,&sequence,sequence+1,0,
+            __ATOMIC_ACQ_REL,__ATOMIC_ACQUIRE)){++sequence;break;}
+    }
+    char raw[25],text[700];
+    for(unsigned int i=0;i<bytes;i++)snprintf(raw+2*i,3,"%02x",p[i]);
+    snprintf(text,sizeof text,
+        "pid=%d tid=%ld sequence=%llu pointer=%p source=%#x destination=0x92840747 command=%#x bytes=%u raw=%s fnv1a64=%016llx producer_return=%p appfw_base=%#lx caller_raw=%#lx original_sender_bound=%u consumed=0 state_verified=0 diagnostic_only=1 original_CP=0 physical_ASIC_verified=0 capture_verified=0",
+        getpid(),syscall(178),sequence,request,source,command,bytes,raw,
+        (unsigned long long)native_ou_crank_hash(p,bytes),caller,appfw_base,raw_caller,(unsigned int)bound);
+    record("NATIVE_BB_TIMECODE_PRESET_INPUT_AUDIT ",text);*__errno_location()=saved_errno;
+    return destination==FULL_BB_TIMECODE_CONTROL_CP && (source>>28)==8 && (source&0x0fffffffu) && bound?0:-ELIBBAD;
 }
 struct functional_face_native_proc_birth {
     int owner_pid,error;int64_t owner_tid;uint64_t observation,allocation_token;unsigned int attempted;
@@ -8999,10 +9404,127 @@ static int native_functional_startup_control_release(unsigned int destination,vo
     if(handled)native_startup_control_report_fault();
     return handled;
 }
+static void native_pin_peer_allocated(unsigned int,void **,int,unsigned int);
+static void native_crank_allocated(unsigned int,void **,int,unsigned int);
+static void native_movie_format_allocated(unsigned int,void **,int,unsigned int);
+static int native_crank_allocate(unsigned int destination,void **pointer,unsigned int bytes,unsigned int count) {
+    struct native_functional_camera_crank_snapshot crank={0};
+    native_functional_camera_crank_snapshot(&crank);
+    if(!crank.transaction || !crank.owned || !crank.verified || !real_allocate_msg ||
+       functional_cp_crank_control_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    int rc=real_allocate_msg(destination,pointer,bytes,count);
+    native_pin_peer_allocated(destination,pointer,rc,count);
+    native_crank_allocated(destination,pointer,rc,count);
+    native_movie_format_allocated(destination,pointer,rc,count);
+    if(pointer && *pointer && count==1) {
+        pthread_mutex_lock(functional_cp_crank_control_ticket_mutex);
+        if(functional_cp_crank_control_ticket.transaction!=crank.transaction) {
+            functional_cp_crank_control_ticket.request=0;functional_cp_crank_control_ticket.reply=0;
+        }
+        functional_cp_crank_control_ticket.transaction=crank.transaction;
+        functional_cp_crank_control_ticket.request=crank.request_pointer;
+        functional_cp_crank_control_ticket.request_destination=crank.origin.destination;
+        functional_cp_crank_control_ticket.reply=*pointer;
+        functional_cp_crank_control_ticket.reply_destination=destination;
+        pthread_mutex_unlock(functional_cp_crank_control_ticket_mutex);
+    }
+    return rc;
+}
+static int native_crank_send(unsigned int destination,void *pointer) {
+    struct native_functional_camera_crank_snapshot crank={0};
+    native_functional_camera_crank_snapshot(&crank);
+    if(!real_send_msg || !crank.transaction || !crank.owned || !crank.verified ||
+       crank.reply_pointer!=pointer || functional_cp_crank_control_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    pthread_mutex_lock(functional_cp_crank_control_ticket_mutex);
+    int captured=functional_cp_crank_control_ticket.reply==pointer &&
+        functional_cp_crank_control_ticket.reply_destination==destination &&
+        functional_cp_crank_control_ticket.transaction==crank.transaction;
+    pthread_mutex_unlock(functional_cp_crank_control_ticket_mutex);
+    if(!captured)return -ESTALE;
+    return real_send_msg(destination,pointer);
+}
+static uint64_t native_crank_ticket_for(unsigned int destination,void *pointer) {
+    if(functional_cp_crank_control_ticket_pid!=(unsigned int)getpid())return 0;
+    pthread_mutex_lock(functional_cp_crank_control_ticket_mutex);
+    uint64_t ticket=((functional_cp_crank_control_ticket.request==pointer &&
+             functional_cp_crank_control_ticket.request_destination==destination) ||
+            (functional_cp_crank_control_ticket.reply==pointer &&
+             functional_cp_crank_control_ticket.reply_destination==destination))?
+        functional_cp_crank_control_ticket.transaction:0;
+    pthread_mutex_unlock(functional_cp_crank_control_ticket_mutex);return ticket;
+}
+static void native_crank_received(unsigned int destination,void *pointer,unsigned int source,unsigned int bytes) {
+    const struct native_functional_camera_crank_receive event={source,bytes};
+    int result;
+    (void)native_functional_camera_crank_release(destination,pointer,0,record,&result,
+        native_crank_ticket_for(destination,pointer),&event);
+}
+static int native_movie_format_allocate(unsigned int destination,void **pointer,unsigned int bytes,unsigned int count) {
+    struct native_functional_camera_movie_format_snapshot movie={0};
+    native_functional_camera_movie_format_snapshot(&movie);
+    if(!movie.transaction || !movie.owned || !movie.verified || !real_allocate_msg ||
+       functional_cp_movie_format_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    int rc=real_allocate_msg(destination,pointer,bytes,count);
+    native_pin_peer_allocated(destination,pointer,rc,count);
+    native_crank_allocated(destination,pointer,rc,count);
+    native_movie_format_allocated(destination,pointer,rc,count);
+    if(!rc && pointer && *pointer && count==1) {
+        pthread_mutex_lock(functional_cp_movie_format_ticket_mutex);
+        if(functional_cp_movie_format_ticket.transaction!=movie.transaction) {
+            functional_cp_movie_format_ticket.request=0;functional_cp_movie_format_ticket.reply=0;
+        }
+        functional_cp_movie_format_ticket.transaction=movie.transaction;
+        functional_cp_movie_format_ticket.request=movie.request_pointer;
+        functional_cp_movie_format_ticket.request_destination=movie.origin.destination;
+        functional_cp_movie_format_ticket.reply=*pointer;
+        functional_cp_movie_format_ticket.reply_destination=destination;
+        pthread_mutex_unlock(functional_cp_movie_format_ticket_mutex);
+    }
+    return rc;
+}
+static int native_movie_format_send(unsigned int destination,void *pointer) {
+    struct native_functional_camera_movie_format_snapshot movie={0};
+    native_functional_camera_movie_format_snapshot(&movie);
+    if(!real_send_msg || !movie.transaction || !movie.owned || !movie.verified || movie.reply_pointer!=pointer ||
+       functional_cp_movie_format_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    pthread_mutex_lock(functional_cp_movie_format_ticket_mutex);
+    int captured=functional_cp_movie_format_ticket.reply==pointer &&
+        functional_cp_movie_format_ticket.reply_destination==destination &&
+        functional_cp_movie_format_ticket.transaction==movie.transaction;
+    pthread_mutex_unlock(functional_cp_movie_format_ticket_mutex);
+    if(!captured)return -ESTALE;
+    return real_send_msg(destination,pointer);
+}
+static uint64_t native_movie_format_ticket_for(unsigned int destination,void *pointer) {
+    if(functional_cp_movie_format_ticket_pid!=(unsigned int)getpid())return 0;
+    pthread_mutex_lock(functional_cp_movie_format_ticket_mutex);
+    uint64_t ticket=((functional_cp_movie_format_ticket.request==pointer &&
+             functional_cp_movie_format_ticket.request_destination==destination) ||
+            (functional_cp_movie_format_ticket.reply==pointer &&
+             functional_cp_movie_format_ticket.reply_destination==destination))?
+        functional_cp_movie_format_ticket.transaction:0;
+    pthread_mutex_unlock(functional_cp_movie_format_ticket_mutex);return ticket;
+}
+static void native_movie_format_received(unsigned int destination,void *pointer,unsigned int source,unsigned int bytes) {
+    const struct native_functional_camera_movie_format_receive event={source,bytes};
+    int result;
+    (void)native_functional_camera_movie_format_release(destination,pointer,0,record,&result,
+        native_movie_format_ticket_for(destination,pointer),&event);
+}
 static void native_cp_state_received(unsigned int id,void **message,int result) {
+    if(functional_camera_enabled && !result && message && *message && real_get_source && real_msg_size &&
+       __atomic_load_n(&functional_bb_timecode_control_used,__ATOMIC_ACQUIRE)) {
+        int saved_errno=*__errno_location();
+        (void)full_bb_timecode_control_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
+        *__errno_location()=saved_errno;
+    }
     if((!cp_owned_state_enabled && !functional_camera_enabled) || result || !message || !*message || !real_get_source || !real_msg_size)return;
     int saved_errno=*__errno_location();
     if(functional_camera_enabled){
+        if(__atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE))
+            native_movie_format_received(id,*message,real_get_source(*message),real_msg_size(*message));
+        if(__atomic_load_n(&functional_cp_crank_control_used,__ATOMIC_ACQUIRE))
+            native_crank_received(id,*message,real_get_source(*message),real_msg_size(*message));
         if(__atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE))
             native_startup_control_received(id,*message,real_get_source(*message),real_msg_size(*message));
         if(__atomic_load_n(&functional_still_format_used,__ATOMIC_ACQUIRE))
@@ -9033,9 +9555,22 @@ static void native_cp_state_received(unsigned int id,void **message,int result) 
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
             real_send_msg,real_msg_size,real_get_source,record};
         functional_jpeg_codec_observe_received(id,*message,&io);
+        functional_capture_observe_received(id,*message);
+        full_imaging_functional_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
         if(__atomic_load_n(&functional_mpr_codec_used,__ATOMIC_ACQUIRE))
             functional_mpr_codec_observe_received(id,*message,&io);
     } else native_cp_state_publication_observe_receive(id,*message,real_get_source(*message),real_msg_size(*message));
+    *__errno_location()=saved_errno;
+}
+static void native_pin_peer_received(unsigned int id,void **message,int result) {
+    if(result || !message || !*message || !__atomic_load_n(&pinmem_peer_connections_used,__ATOMIC_ACQUIRE))return;
+    int saved_errno=*__errno_location();
+    const unsigned long long tickets[3]={full_scalar_connection_observe_receive(id,*message),
+        full_adf_connection_observe_receive(id,*message),full_pinmem_drawinfo_connection_observe_receive(id,*message)};
+    for(unsigned int i=0;i<3;i++)if(tickets[i]){
+        char text[260];snprintf(text,sizeof text,"pid=%d tid=%ld endpoint=%u pointer=%p destination=%#x receive_ticket=%llu outer_successful_receive=1 capture_verified=0",getpid(),syscall(178),i,*message,id,tickets[i]);
+        record("PIN_PEER_REAL_RECEIVE ",text);
+    }
     *__errno_location()=saved_errno;
 }
 /* The shipped OSAL exports this low-level receive as well as the public one.
@@ -9046,6 +9581,7 @@ int u_osal_rcv_msg_tmo(unsigned int id,void **message,long timeout) {
     int result=real_u_rcv_msg_tmo(id,message,timeout);
     native_receive_depth--;
     if(!outer) {
+        native_pin_peer_received(id,message,result);
         native_hdmi_video_received(id,message,result);
         native_cp_state_received(id,message,result);
     }
@@ -9144,6 +9680,7 @@ int osal_rcv_msg_tmo(unsigned int id, void **message, long timeout) {
     int result = real_rcv_msg_tmo(id, message, timeout);
     native_receive_depth--;
     if(!outer) {
+        native_pin_peer_received(id,message,result);
         native_hdmi_video_received(id,message,result);
         native_cp_state_received(id,message,result);
     }
@@ -9208,6 +9745,115 @@ static unsigned int lens_pool_lookup(void *message) {
     unsigned int from = 0;
     lens_pool_lookup_flags(message, &from);
     return from;
+}
+static void native_crank_allocated(unsigned int id,void **message,int result,unsigned int count) {
+    (void)id;
+    if(result || count!=1 || !message || !*message ||
+       !__atomic_load_n(&functional_cp_crank_control_used,__ATOMIC_ACQUIRE) ||
+       functional_cp_crank_control_ticket_pid!=(unsigned int)getpid())return;
+    pthread_mutex_lock(functional_cp_crank_control_ticket_mutex);
+    if(functional_cp_crank_control_ticket.request==*message) {
+        functional_cp_crank_control_ticket.request=0;functional_cp_crank_control_ticket.request_destination=0;
+    }
+    if(functional_cp_crank_control_ticket.reply==*message) {
+        functional_cp_crank_control_ticket.reply=0;functional_cp_crank_control_ticket.reply_destination=0;
+    }
+    if(!functional_cp_crank_control_ticket.request && !functional_cp_crank_control_ticket.reply)
+        functional_cp_crank_control_ticket.transaction=0;
+    pthread_mutex_unlock(functional_cp_crank_control_ticket_mutex);
+}
+static void native_movie_format_allocated(unsigned int id,void **message,int result,unsigned int count) {
+    (void)id;
+    if(result || count!=1 || !message || !*message ||
+       !__atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE) ||
+       functional_cp_movie_format_ticket_pid!=(unsigned int)getpid())return;
+    pthread_mutex_lock(functional_cp_movie_format_ticket_mutex);
+    if(functional_cp_movie_format_ticket.request==*message) {
+        functional_cp_movie_format_ticket.request=0;functional_cp_movie_format_ticket.request_destination=0;
+    }
+    if(functional_cp_movie_format_ticket.reply==*message) {
+        functional_cp_movie_format_ticket.reply=0;functional_cp_movie_format_ticket.reply_destination=0;
+    }
+    if(!functional_cp_movie_format_ticket.request && !functional_cp_movie_format_ticket.reply)
+        functional_cp_movie_format_ticket.transaction=0;
+    pthread_mutex_unlock(functional_cp_movie_format_ticket_mutex);
+}
+static int native_ou_crank_real_free(unsigned int destination,void *pointer) {
+    if(functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    int saved_errno=*__errno_location();
+    if(!real_free_msg || pthread_mutex_lock(functional_cp_ou_crank_control_ticket_mutex))return -EIO;
+    struct native_functional_camera_ou_crank_snapshot ou={0};
+    native_functional_camera_ou_crank_snapshot(&ou);
+    int captured=ou.owner_pid==getpid() && ou.initialized && ou.verified && ou.owned && ou.transaction &&
+        ou.retained_request==pointer && ou.request_pointer==pointer && ou.origin.destination==destination && !ou.request_freed;
+    if(captured) {
+        functional_cp_ou_crank_control_ticket.request=pointer;
+        functional_cp_ou_crank_control_ticket.destination=destination;
+        functional_cp_ou_crank_control_ticket.transaction=ou.transaction;
+    }
+    pthread_mutex_unlock(functional_cp_ou_crank_control_ticket_mutex);
+    *__errno_location()=saved_errno;
+    return captured?real_free_msg(destination,pointer):-ESTALE;
+}
+static int native_ou_crank_ticket_for(unsigned int destination,void *pointer,uint64_t *ticket) {
+    if(!ticket)return -EINVAL;
+    *ticket=0;
+    if(functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+    int saved_errno=*__errno_location();
+    if(pthread_mutex_lock(functional_cp_ou_crank_control_ticket_mutex)){*__errno_location()=saved_errno;return -EIO;}
+    if(functional_cp_ou_crank_control_ticket.request==pointer && functional_cp_ou_crank_control_ticket.destination==destination)
+        *ticket=functional_cp_ou_crank_control_ticket.transaction;
+    pthread_mutex_unlock(functional_cp_ou_crank_control_ticket_mutex);
+    *__errno_location()=saved_errno;return 0;
+}
+static int native_functional_ou_crank_release(unsigned int destination,void *pointer,int *result) {
+    if(functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid()){*result=-ESTALE;return 1;}
+    uint64_t ticket=0;
+    int rc=native_ou_crank_ticket_for(destination,pointer,&ticket);
+    if(rc){*result=rc;return 1;}
+    return native_functional_camera_ou_crank_release(destination,pointer,real_free_msg,record,result,ticket);
+}
+static void native_ou_crank_allocated(unsigned int id,void **message,int result,unsigned int count) {
+    (void)id;
+    if(result || count!=1 || !message || !*message ||
+       !__atomic_load_n(&functional_cp_ou_crank_control_used,__ATOMIC_ACQUIRE) ||
+       functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid())return;
+    int saved_errno=*__errno_location();
+    if(pthread_mutex_lock(functional_cp_ou_crank_control_ticket_mutex))return;
+    if(functional_cp_ou_crank_control_ticket.request==*message) {
+        functional_cp_ou_crank_control_ticket.request=0;functional_cp_ou_crank_control_ticket.destination=0;
+        functional_cp_ou_crank_control_ticket.transaction=0;
+    }
+    pthread_mutex_unlock(functional_cp_ou_crank_control_ticket_mutex);*__errno_location()=saved_errno;
+}
+static int native_tracked_allocate_msg(unsigned int id,void **message,unsigned int size,unsigned int count) {
+    if(!native_real_allocate_msg)__builtin_trap();
+    int result=native_real_allocate_msg(id,message,size,count),saved_errno=*__errno_location();
+    if(__atomic_load_n(&functional_bb_timecode_control_used,__ATOMIC_ACQUIRE) &&
+       !result && count==1 && message && *message) {
+        /* Retire historical addresses only; never change the allocator's result. */
+        (void)full_bb_timecode_control_observe_allocate(id,*message,size,count,result);
+    }
+    native_movie_format_allocated(id,message,result,count);
+    native_ou_crank_allocated(id,message,result,count);
+    *__errno_location()=saved_errno;
+    return result;
+}
+static void native_pin_peer_allocated(unsigned int id,void **message,int result,unsigned int count) {
+    if(result || count!=1 || !message || !*message)return;
+    if(functional_cp_parameter_bank_ticket.pointer==*message) {
+        functional_cp_parameter_bank_ticket.pointer=0;functional_cp_parameter_bank_ticket.destination=0;
+        functional_cp_parameter_bank_ticket.transaction=0;
+    }
+    if(!__atomic_load_n(&pinmem_peer_connections_used,__ATOMIC_ACQUIRE))return;
+    int saved_errno=*__errno_location();
+    const unsigned long long generations[3]={full_scalar_connection_observe_allocate(id,*message),
+        full_adf_connection_observe_allocate(id,*message),full_pinmem_drawinfo_connection_observe_allocate(id,*message)};
+    for(unsigned int i=0;i<3;i++)if(generations[i]){
+        char text[280];snprintf(text,sizeof text,"pid=%d tid=%ld endpoint=%u pointer=%p destination=%#x allocation_generation=%llu allocator=osal_valloc_msg_wait actual_successful_return=1 capture_verified=0",getpid(),syscall(178),i,*message,id,generations[i]);
+        record("PIN_PEER_REAL_ALLOCATION ",text);
+    }
+    *__errno_location()=saved_errno;
 }
 int osal_valloc_msg_wait(unsigned int id, void **message, unsigned int size, unsigned int count) {
     if (!real_allocate_msg) __builtin_trap();
@@ -9276,6 +9922,9 @@ int osal_valloc_msg_wait(unsigned int id, void **message, unsigned int size, uns
     if (id == 0x912503d0 && size == 20 && count == 1 && message) {
         /* Borrow the ulog queue pool: the CP updater queue does not exist in QEMU. */
         int result = real_allocate_msg(0x8f013a, message, 20, 1);
+        native_pin_peer_allocated(0x8f013a,message,result,1);
+        native_crank_allocated(0x8f013a,message,result,1);
+        native_movie_format_allocated(0x8f013a,message,result,1);
         if (!result) {
             pthread_mutex_lock(lens_pool_lock);
             int slot = -1;
@@ -9292,6 +9941,9 @@ int osal_valloc_msg_wait(unsigned int id, void **message, unsigned int size, uns
         return result;
     }
     int result=real_allocate_msg(id, message, size, count),saved_errno=*__errno_location();
+    native_pin_peer_allocated(id,message,result,count);
+    native_crank_allocated(id,message,result,count);
+    native_movie_format_allocated(id,message,result,count);
     native_face_sdk_observation(1,id,!result && message?*message:0,size,result,__builtin_return_address(0));
     *__errno_location()=saved_errno;return result;
 }
@@ -9312,8 +9964,13 @@ static __attribute__((noinline)) void native_pin_format_readback(void) {
 }
 int osal_free_msg(unsigned int id, void *message) {
     if (!real_free_msg) __builtin_trap();
+    int ou_result;
+    if(__atomic_load_n(&functional_cp_ou_crank_control_used,__ATOMIC_ACQUIRE) &&
+       native_functional_ou_crank_release(id,message,&ou_result))return ou_result;
     int media_mount_trace=trace_media_mount_completion("FULL_MEDIA_MOUNT_FREE_ENTER ",id,message);
     int vdf_result;
+    if(functional_camera_enabled && functional_capture_release_notification(id,message,&vdf_result))return vdf_result;
+    if(functional_camera_enabled && full_imaging_release_reply(id,message,real_free_msg,record,&vdf_result))return vdf_result;
     if(__atomic_load_n(&functional_startup_control_used,__ATOMIC_ACQUIRE) &&
        native_functional_startup_control_release(id,message,&vdf_result))return vdf_result;
     if(__atomic_load_n(&functional_still_format_used,__ATOMIC_ACQUIRE) &&
@@ -9341,6 +9998,20 @@ int osal_free_msg(unsigned int id, void *message) {
             if(!vdf_result && ticket) {
                 functional_vdf_ticket.pointer=0;functional_vdf_ticket.destination=0;functional_vdf_ticket.cycle=0;
             }
+            return vdf_result;
+        }
+    }
+    if(__atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE) &&
+       native_functional_camera_movie_format_release(id,message,real_free_msg,record,&vdf_result,
+           native_movie_format_ticket_for(id,message),0))return vdf_result;
+    if(__atomic_load_n(&functional_cp_crank_control_used,__ATOMIC_ACQUIRE) &&
+       native_functional_camera_crank_release(id,message,real_free_msg,record,&vdf_result,
+           native_crank_ticket_for(id,message),0))return vdf_result;
+    if(__atomic_load_n(&functional_cp_parameter_bank_used,__ATOMIC_ACQUIRE)) {
+        uint64_t ticket=functional_cp_parameter_bank_ticket.pointer==message &&
+            functional_cp_parameter_bank_ticket.destination==id?functional_cp_parameter_bank_ticket.transaction:0;
+        if(native_functional_camera_parameter_release(id,message,real_free_msg,record,&vdf_result,ticket)) {
+            /* Keep the completed event ticket until a real allocation reuses its pointer. */
             return vdf_result;
         }
     }
@@ -9403,8 +10074,13 @@ int osal_free_msg(unsigned int id, void *message) {
     if (__atomic_load_n(&pinmem_peer_connections_used, __ATOMIC_ACQUIRE) &&
         (full_scalar_connection_release(id, message, real_free_msg, record, &vdf_result) ||
          full_adf_connection_release(id, message, real_free_msg, record, &vdf_result) ||
-         full_pinmem_drawinfo_connection_release(id, message, real_free_msg, record, &vdf_result)))
-        return vdf_result;
+         full_pinmem_drawinfo_connection_release(id, message, real_free_msg, record, &vdf_result))) {
+        int saved_errno=*__errno_location();char text[260];
+        snprintf(text,sizeof text,"pid=%d tid=%ld pointer=%p destination=%#x caller=%p rc=%d caller_module_identity_verified=0 capture_verified=0",
+            getpid(),syscall(178),message,id,__builtin_return_address(0),vdf_result);
+        record("PIN_PEER_NATIVE_FREE_ORIGIN ",text);
+        *__errno_location()=saved_errno;return vdf_result;
+    }
     if (__atomic_load_n(&adf_hdmi_audio_connection_used, __ATOMIC_ACQUIRE) &&
         full_adf_hdmi_audio_connection_release(id, message, real_free_msg, record, &vdf_result)) {
         if(!vdf_result)native_background_start_progress();
@@ -9427,6 +10103,9 @@ int osal_free_msg(unsigned int id, void *message) {
         return vdf_result;
     if (__atomic_load_n(&imaging_pin_connection_used, __ATOMIC_ACQUIRE) &&
         full_imaging_pin_connection_release(id, message, real_free_msg, record, &vdf_result))
+        return vdf_result;
+    if (__atomic_load_n(&functional_bb_timecode_control_used, __ATOMIC_ACQUIRE) &&
+        full_bb_timecode_control_release_reply(id, message, real_free_msg, record, &vdf_result))
         return vdf_result;
     if (__atomic_load_n(&bb_set_mode_used, __ATOMIC_ACQUIRE) &&
         full_bb_set_mode_release_reply(id, message, real_free_msg, record, &vdf_result))
@@ -9473,6 +10152,7 @@ int osal_free_msg(unsigned int id, void *message) {
     if(functional_camera_enabled)
         functional_face_ap_freed(&functional_face_ap_state,syscall(178),id,message,result,functional_face_ap_record_event);
     if(functional_camera_enabled)(void)functional_jpeg_codec_observe_freed(id,message,result);
+    if(functional_camera_enabled)functional_capture_observe_freed(id,message,result,(uintptr_t)__builtin_return_address(0));
     if(functional_camera_enabled && id==0x02820746u)
         native_face_sdk_observation(4,id,message,0,result,__builtin_return_address(0));
     if(media_mount_trace) {
@@ -9610,6 +10290,17 @@ static unsigned int cp_time_unavailable;
 
 int osal_snd_msg(unsigned int id, void *message) {
     audit_cp_background_input(id,message,"async",__builtin_return_address(0));
+    if(functional_camera_enabled) {
+        const struct full_imaging_io capture_io={real_allocate_msg,real_free_msg,real_set_source,
+            real_send_msg,real_msg_size,real_get_source,record};
+        int capture_result;
+        if(functional_capture_terminal_send(id,message,&capture_io,&capture_result))return capture_result;
+        if(functional_capture_dmm(id,message,&capture_io,(uintptr_t)__builtin_return_address(0),&capture_result))return capture_result;
+        const struct native_cp_state_publication_guard capture_guard={functional_capture_reserve_resources,
+            full_vef_resources_unlock,functional_capture_predecessors_ready};
+        if(functional_capture_dispatch(id,message,&capture_io,&capture_guard,&capture_result))return capture_result;
+        if(full_imaging_functional_dispatch(id,message,&capture_io,&capture_result))return capture_result;
+    }
     if(cp302c_no_transition_enabled && id==NATIVE_CP_BACKGROUND_SID) {
         __atomic_store_n(&cp302c_no_transition_used,1,__ATOMIC_RELEASE);
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
@@ -9638,13 +10329,15 @@ int osal_snd_msg(unsigned int id, void *message) {
         const unsigned char *wire=message;
         unsigned int bytes=real_msg_size(message);
         if(bytes>=4 && wire[0]==0x0d && wire[1]==0x20 && wire[3]==0x01 &&
-           (wire[2]==0x38 || wire[2]==0x53 || wire[2]==0x4c || wire[2]==0x52 || wire[2]==0x62 || wire[2]==0x41 || wire[2]==0x5e ||
+           (wire[2]==0x38 || wire[2]==0x53 || wire[2]==0x4c || wire[2]==0x52 || wire[2]==0x62 || wire[2]==0x63 || wire[2]==0x70 || wire[2]==0x41 || wire[2]==0x5e ||
             wire[2]==0x11 || wire[2]==0x66 || wire[2]==0x67 || wire[2]==0x5f || wire[2]==0x28)) {
             unsigned int required=wire[2]==0x38?FUNCTIONAL_VDF_PATH_REQUEST_BYTES:
                 wire[2]==0x53?FUNCTIONAL_VDF_ZEBRA_REQUEST_BYTES:
                 wire[2]==0x4c?FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES:
                 wire[2]==0x52?FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES:
                 wire[2]==0x62?FUNCTIONAL_VDF_FLAG_REQUEST_BYTES:
+                wire[2]==0x63?FUNCTIONAL_VDF_ZERO6_REQUEST_BYTES:
+                wire[2]==0x70?FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES:
                 wire[2]==0x5e?FUNCTIONAL_VDF_BIT_WIDTH_REQUEST_BYTES:
                 wire[2]==0x11 || wire[2]==0x66?36u:wire[2]==0x67?10u:wire[2]==0x5f?12u:wire[2]==0x28?20u:FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES;
             if(bytes!=required || wire[4]!=required || wire[5] || wire[6]!=1 || wire[7]!=0x80)
@@ -9697,6 +10390,38 @@ int osal_snd_msg(unsigned int id, void *message) {
         int result;
         if(functional_jpeg_codec_dispatch(id,message,&io,&result))return result;
     }
+    if(functional_camera_enabled && id==FUNCTIONAL_CAMERA_CONTROL_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==5 && wire[2]==0x63 && wire[3]==0x40) {
+            pthread_mutex_lock(cp_parameter_batch_mutex);
+            int post_initial=cp_parameter_batch_state.owner_pid==getpid() && cp_parameter_batch_state.staged;
+            pthread_mutex_unlock(cp_parameter_batch_mutex);
+            if(post_initial) {
+                if(bytes!=FCAM_CP_PARAMETER_BANK_BYTES)return -EMSGSIZE;
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                if(!real_get_source || real_get_source(message)!=CP_PARAMETER_BATCH_SOURCE)return -EPERM;
+                if(!functional_cp_parameter_bank_predecessors_ready())return -ENODATA;
+                int init_rc=fcam_bridge_init(record);if(init_rc)return init_rc;
+                const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+                    real_send_msg,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_cp_parameter_bank_reserve_resources,
+                    full_vef_resources_unlock,functional_cp_parameter_bank_predecessors_ready};
+                __atomic_store_n(&functional_cp_parameter_bank_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(native_functional_camera_parameter_dispatch(id,message,&io,&guard,1,&result)) {
+                    struct native_functional_camera_parameter_snapshot bank={0};
+                    native_functional_camera_parameter_snapshot(&bank);
+                    if(bank.owned && bank.transaction && (bank.retained_request==message ||
+                       (bank.request_freed && bank.request_pointer==message))) {
+                        functional_cp_parameter_bank_ticket.pointer=message;functional_cp_parameter_bank_ticket.destination=id;
+                        functional_cp_parameter_bank_ticket.transaction=bank.transaction;
+                    }
+                    return result;
+                }
+                return -ENOTSUP;
+            }
+        }
+    }
     if(functional_camera_enabled && id==FUNCTIONAL_CAMERA_CONTROL_SID){
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
             real_send_msg,real_msg_size,real_get_source,record};
@@ -9738,7 +10463,7 @@ int osal_snd_msg(unsigned int id, void *message) {
             return -ENOTSUP;
         }
         int selected=bytes>=12 && ((wire[0]==0 && bytes==24 && (command==0x3003 || command==0x3000)) ||
-            (wire[0]==5 && bytes==12 && command==0x4073 && wire[8]==1));
+            (wire[0]==5 && bytes==12 && command==0x4073 && wire[8]<=1 && !wire[9] && !wire[10] && !wire[11]));
         if(selected && functional_camera_setup_error)return functional_camera_setup_error;
         if(selected && real_get_source && real_get_source(message)==FUNCTIONAL_CAMERA_CONTROL_AP &&
            cp_owned_state_predecessors_ready()){
@@ -9810,6 +10535,46 @@ int osal_snd_msg(unsigned int id, void *message) {
         int result;
         if(native_cp_capture_format_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
     }
+    if(functional_camera_enabled && id==NATIVE_CP_MOVIE_FORMAT_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==5 && wire[2]==0 && wire[3]==0x40) {
+            struct native_functional_camera_parameter_snapshot bank={0};
+            struct native_functional_camera_crank_snapshot crank={0};
+            native_functional_camera_parameter_snapshot(&bank);
+            native_functional_camera_crank_snapshot(&crank);
+            if(bank.model_called || crank.model_called || __atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE)) {
+                if(bytes!=20)return -EMSGSIZE;
+                if(!real_get_source || real_get_source(message)!=FUNCTIONAL_CAMERA_CONTROL_AP)return -EPERM;
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                int init_rc=fcam_bridge_init(record);if(init_rc)return init_rc;
+                const struct full_imaging_io io={native_movie_format_allocate,real_free_msg,real_set_source,
+                    native_movie_format_send,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_cp_movie_format_reserve_resources,
+                    full_vef_resources_unlock,functional_cp_movie_format_predecessors_ready};
+                const struct native_functional_camera_movie_format_context context={bank.model_instance,
+                    bank.bank_generation,crank.crank_generation};
+                __atomic_store_n(&functional_cp_movie_format_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(native_functional_camera_movie_format_dispatch(id,message,&io,&guard,&context,1,&result)) {
+                    if(functional_cp_movie_format_ticket_pid!=(unsigned int)getpid())return result;
+                    struct native_functional_camera_movie_format_snapshot movie={0};
+                    pthread_mutex_lock(functional_cp_movie_format_ticket_mutex);
+                    native_functional_camera_movie_format_snapshot(&movie);
+                    if(movie.owned && movie.transaction && movie.retained_request==message) {
+                        if(functional_cp_movie_format_ticket.transaction!=movie.transaction) {
+                            functional_cp_movie_format_ticket.request=0;functional_cp_movie_format_ticket.reply=0;
+                        }
+                        functional_cp_movie_format_ticket.transaction=movie.transaction;
+                        functional_cp_movie_format_ticket.request=message;
+                        functional_cp_movie_format_ticket.request_destination=id;
+                    }
+                    pthread_mutex_unlock(functional_cp_movie_format_ticket_mutex);
+                    return result;
+                }
+                return -ENOTSUP;
+            }
+        }
+    }
     if(cp_movie_format_enabled && id==NATIVE_CP_MOVIE_FORMAT_SID) {
         __atomic_store_n(&cp_movie_format_used,1,__ATOMIC_RELEASE);
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
@@ -9818,6 +10583,86 @@ int osal_snd_msg(unsigned int id, void *message) {
             full_vef_resources_unlock,cp_movie_format_predecessors_ready};
         int result;
         if(native_cp_movie_format_diagnostic_dispatch(id,message,&io,&guard,1,&result))return result;
+    }
+    if(functional_camera_enabled && id==NATIVE_CP_EE_CONTROLS_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==5 && wire[2]==0x9d && wire[3]==0x40) {
+            struct native_functional_camera_parameter_snapshot bank={0};
+            native_functional_camera_parameter_snapshot(&bank);
+            if(bank.model_called) {
+                if(bytes!=12)return -EMSGSIZE;
+                if(!real_get_source || real_get_source(message)!=FUNCTIONAL_CAMERA_CONTROL_AP)return -EPERM;
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                int init_rc=fcam_bridge_init(record);if(init_rc)return init_rc;
+                const struct full_imaging_io io={native_crank_allocate,real_free_msg,real_set_source,
+                    native_crank_send,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_cp_crank_control_reserve_resources,
+                    full_vef_resources_unlock,functional_cp_crank_control_predecessors_ready};
+                __atomic_store_n(&functional_cp_crank_control_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(native_functional_camera_crank_dispatch(id,message,&io,&guard,1,&result)) {
+                    if(functional_cp_crank_control_ticket_pid!=(unsigned int)getpid())return result;
+                    struct native_functional_camera_crank_snapshot crank={0};
+                    pthread_mutex_lock(functional_cp_crank_control_ticket_mutex);
+                    native_functional_camera_crank_snapshot(&crank);
+                    if(crank.owned && crank.transaction && crank.retained_request==message) {
+                        if(functional_cp_crank_control_ticket.transaction!=crank.transaction) {
+                            functional_cp_crank_control_ticket.request=0;functional_cp_crank_control_ticket.reply=0;
+                        }
+                        functional_cp_crank_control_ticket.transaction=crank.transaction;
+                        functional_cp_crank_control_ticket.request=message;
+                        functional_cp_crank_control_ticket.request_destination=id;
+                    }
+                    pthread_mutex_unlock(functional_cp_crank_control_ticket_mutex);
+                    return result;
+                }
+                return -ENOTSUP;
+            }
+        }
+    }
+    if(functional_camera_enabled && id==NATIVE_CP_EE_CONTROLS_SID && message && real_msg_size) {
+        const unsigned char *wire=message;unsigned int bytes=real_msg_size(message);
+        if(bytes>=4 && wire[0]==5 && wire[2]==0x72 && wire[3]==0x40) {
+            if(functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid())return -ESTALE;
+            struct native_functional_camera_parameter_snapshot bank={0};
+            struct native_functional_camera_crank_snapshot crank={0};
+            struct native_functional_camera_movie_format_snapshot movie={0};
+            native_functional_camera_parameter_snapshot(&bank);native_functional_camera_crank_snapshot(&crank);
+            native_functional_camera_movie_format_snapshot(&movie);
+            if(bank.model_called || crank.model_called || movie.model_called ||
+               __atomic_load_n(&functional_cp_parameter_bank_used,__ATOMIC_ACQUIRE) ||
+               __atomic_load_n(&functional_cp_crank_control_used,__ATOMIC_ACQUIRE) ||
+               __atomic_load_n(&functional_cp_movie_format_used,__ATOMIC_ACQUIRE) ||
+               __atomic_load_n(&functional_cp_ou_crank_control_used,__ATOMIC_ACQUIRE)) {
+                if(bytes!=12)return -EMSGSIZE;
+                if(!real_get_source || real_get_source(message)!=FUNCTIONAL_CAMERA_CONTROL_AP)return -EPERM;
+                if(functional_camera_setup_error)return functional_camera_setup_error;
+                const struct native_functional_camera_ou_crank_context context={bank.model_instance,
+                    bank.bank_generation,crank.crank_generation,movie.movie_generation};
+                int init_rc=fcam_bridge_init(record);if(init_rc)return init_rc;
+                const struct full_imaging_io io={real_allocate_msg,native_ou_crank_real_free,real_set_source,
+                    real_send_msg,real_msg_size,real_get_source,record};
+                const struct native_cp_state_publication_guard guard={functional_cp_ou_crank_control_reserve_resources,
+                    full_vef_resources_unlock,functional_cp_ou_crank_control_predecessors_ready};
+                __atomic_store_n(&functional_cp_ou_crank_control_used,1,__ATOMIC_RELEASE);
+                int result;
+                if(native_functional_camera_ou_crank_dispatch(id,message,&io,&guard,&context,1,&result)) {
+                    if(functional_cp_ou_crank_control_ticket_pid!=(unsigned int)getpid())return result;
+                    struct native_functional_camera_ou_crank_snapshot ou={0};
+                    int saved_errno=*__errno_location();
+                    if(pthread_mutex_lock(functional_cp_ou_crank_control_ticket_mutex))return result;
+                    native_functional_camera_ou_crank_snapshot(&ou);
+                    if(ou.owner_pid==getpid() && ou.verified && ou.owned && ou.transaction && ou.retained_request==message) {
+                        functional_cp_ou_crank_control_ticket.request=message;
+                        functional_cp_ou_crank_control_ticket.destination=id;
+                        functional_cp_ou_crank_control_ticket.transaction=ou.transaction;
+                    }
+                    pthread_mutex_unlock(functional_cp_ou_crank_control_ticket_mutex);
+                    *__errno_location()=saved_errno;return result;
+                }
+                return -ENOTSUP;
+            }
+        }
     }
     if(cp_ee_controls_enabled && id==NATIVE_CP_EE_CONTROLS_SID) {
         __atomic_store_n(&cp_ee_controls_used,1,__ATOMIC_RELEASE);
@@ -9956,6 +10801,31 @@ int osal_snd_msg(unsigned int id, void *message) {
     }
     trace_media_mount_completion("FULL_MEDIA_MOUNT_ASYNC_SEND ",id,message);
     if (!real_send_msg) __builtin_trap();
+    if(functional_camera_enabled && id==FULL_BB_TIMECODE_CONTROL_CP && message && real_msg_size) {
+        unsigned int bytes=real_msg_size(message);const unsigned char *wire=message;
+        unsigned int command=bytes>=4?wire[2]|(unsigned int)wire[3]<<8:0;
+        if(bytes>=4 && wire[0]==0x0d && wire[1]==0x20 &&
+           ((command>=0x0400 && command<=0x0402) || command==0x0409 || command==0x040a)) {
+            int saved_errno=*__errno_location();int preset=command==0x0409 || command==0x040a;
+            void *original_caller=__builtin_return_address(0);
+            int bound=preset?native_bb_timecode_preset_input_audit(id,message,original_caller):
+                native_bb_timecode_input_audit(id,message,original_caller);
+            *__errno_location()=saved_errno;
+            if(bound) {
+                record(preset?"FUNCTIONAL_BB_TIMECODE_PRESET_INTEGRATION_REFUSED ":"FUNCTIONAL_BB_TIMECODE_INTEGRATION_REFUSED ",
+                    "original-input-or-caller-unbound=1 caller_owned=1 capture_verified=0");
+                return bound;
+            }
+            __atomic_store_n(&functional_bb_timecode_control_used,1,__ATOMIC_RELEASE);
+            const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+                real_send_msg,real_msg_size,real_get_source,record};
+            const struct full_bb_timecode_guard guard={functional_bb_timecode_reserve_resources,
+                full_vef_resources_unlock,functional_bb_timecode_predecessors_ready};
+            int result=-ENOTSUP;
+            if(full_bb_timecode_control_dispatch(id,message,&io,&guard,1,&result))return result;
+            return -ENOTSUP;
+        }
+    }
     if(id==0x92840747u && full_bb_set_mode_enabled && message) {
         const struct full_imaging_io bb_io={real_allocate_msg,real_free_msg,real_set_source,
             real_send_msg,real_msg_size,real_get_source,record};
@@ -10214,6 +11084,18 @@ int osal_snd_msg(unsigned int id, void *message) {
         int result;
         if (full_audio_dispatch_capabilities(id, message, &io, FULL_AUDIO_BOOT,
                                             FULL_AUDIO_CAPS_INPUTLESS, &result)) return result;
+    }
+    if(functional_camera_enabled && id==FULL_HDMI_CP && message && real_msg_size && real_msg_size(message)>=4) {
+        const unsigned char *wire=message;
+        if(wire[0]==0 && wire[1]==0x25 && wire[2]==2 && wire[3]==1 &&
+           (!pinmem_hdmi_video_connection_enabled || cp302c_no_transition_predecessors_ready()==1)) {
+            __atomic_store_n(&hdmi_config_used,1,__ATOMIC_RELEASE);
+            const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
+                real_send_msg,real_msg_size,real_get_source,record};
+            int result;
+            if(full_hdmi_dispatch(id,message,&io,FULL_HDMI_SIGNAL_MODE_FUNCTIONAL,&result))return result;
+            return -ENOTSUP;
+        }
     }
     if(id==FULL_HDMI_CP && pinmem_hdmi_video_connection_enabled) {
         /* Preserve the pre-existing photo-request facts, without its old producer. */
@@ -11450,8 +12332,17 @@ void *dlsym(void *handle, const char *name) {
         real_send_msg = symbol;
         return osal_snd_msg;
     }
+    if (symbol && same_name(name, "osal_rcv_msg_tmo")) {
+        real_rcv_msg_tmo = symbol;
+        return osal_rcv_msg_tmo;
+    }
+    if (symbol && same_name(name, "u_osal_rcv_msg_tmo")) {
+        real_u_rcv_msg_tmo = symbol;
+        return u_osal_rcv_msg_tmo;
+    }
     if (symbol && same_name(name, "osal_valloc_msg_wait")) {
-        real_allocate_msg = symbol;
+        native_real_allocate_msg = symbol;
+        real_allocate_msg = native_tracked_allocate_msg;
         return osal_valloc_msg_wait;
     }
     if (symbol && same_name(name, "osal_free_msg")) {

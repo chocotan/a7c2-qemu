@@ -38,6 +38,13 @@ static const unsigned char peaking_ack[FUNCTIONAL_VDF_PATH_ACK_BYTES] = {
 static const unsigned char flag_ack[FUNCTIONAL_VDF_PATH_ACK_BYTES] = {
     0x0d, 0x20, 0x62, 0x11, 0x0c, 0, 1, 0x80, 0, 0, 0x59, 0
 };
+static const unsigned char zero6_ack[FUNCTIONAL_VDF_PATH_ACK_BYTES] = {
+    0x0d, 0x20, 0x63, 0x11, 0x0c, 0, 1, 0x80, 0, 0, 0x59, 0
+};
+/* Functional display-group reply policy; original CP0170 producer/status remains unverified. */
+static const unsigned char eframing_output_ack[FUNCTIONAL_VDF_PATH_ACK_BYTES] = {
+    0x0d, 0x20, 0x70, 0x11, 0x0c, 0, 1, 0x80, 0, 0, 0x59, 0
+};
 static const unsigned char refresh_ack[FUNCTIONAL_VDF_PATH_ACK_BYTES] = {
     0x0d, 0x20, 0x41, 0x11, 0x0c, 0, 1, 0x80, 0, 0, 0x59, 0
 };
@@ -66,6 +73,7 @@ static const unsigned char initial_layout32[FCAM_LAYOUT_INPUT_BYTES] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0
 };
 static const unsigned char *ack_wire_for(unsigned int command) {
+    if (command == 0x0170) return eframing_output_ack;
     switch (command) {
     case FCAM_BB_CMD_0111: return bb_ack[0];
     case FCAM_BB_CMD_0166: return bb_ack[1];
@@ -74,12 +82,17 @@ static const unsigned char *ack_wire_for(unsigned int command) {
     case FCAM_BB_CMD_0128: return bb_ack[4];
     default: break;
     }
-    return command == 0x015e ? bit_width_ack : command == 0x0141 ? refresh_ack : command == 0x0152 ? peaking_ack : command == 0x0162 ? flag_ack :
+    return command == 0x0163 ? zero6_ack : command == 0x015e ? bit_width_ack : command == 0x0141 ? refresh_ack : command == 0x0152 ? peaking_ack : command == 0x0162 ? flag_ack :
         command == 0x014c ? layout_ack : command == 0x0153 ? zebra_ack : path_ack;
 }
 static int display_body_valid(unsigned int command, const unsigned char *body) {
     if (command == 0x0141) return 1;
+    if (command == 0x0170) return body[0] <= 1 && body[1] <= 1 && body[2] <= 1 && !body[3];
     if (command == 0x0162) return !body[0] && !body[1];
+    if (command == 0x0163) {
+        for (unsigned i=0;i<6;++i) if (body[i]) return 0;
+        return 1;
+    }
     if (command != 0x0152 || body[0] != 3 || body[1] || body[2] > 2 ||
         (body[3] != 0 && body[3] != 10 && body[3] != 40) || body[4]) return 0;
     for (size_t i = 0; i < sizeof peaking_palettes / sizeof *peaking_palettes; i++)
@@ -87,7 +100,7 @@ static int display_body_valid(unsigned int command, const unsigned char *body) {
     return 0;
 }
 static void display_input(unsigned char *out, unsigned int command, const unsigned char *body) {
-    const unsigned int bytes = command == 0x0152 ? 8u : command == 0x0162 ? 2u : 0u;
+    const unsigned int bytes = command == 0x0152 ? 8u : command == 0x0162 ? 2u : command == 0x0163 ? 6u : command == 0x0170 ? 4u : 0u;
     memset(out, 0, FCAM_DISPLAY_INPUT_BYTES);
     out[0] = (unsigned char)command; out[1] = (unsigned char)(command >> 8);
     out[4] = (unsigned char)bytes; memcpy(out + 8, body, bytes);
@@ -360,7 +373,7 @@ static int validate_path(const unsigned char *p, const struct fcam_bridge_result
     unsigned char canonical[FCAM_VDF_INPUT_BYTES];
     const int zebra = before->origin.command == 0x0153;
     const int layout = before->origin.command == 0x014c;
-    const int display = before->origin.command == 0x0141 || before->origin.command == 0x0152 || before->origin.command == 0x0162;
+    const int display = before->origin.command == 0x0141 || before->origin.command == 0x0152 || before->origin.command == 0x0162 || before->origin.command == 0x0163 || before->origin.command == 0x0170;
     const int bit_width = before->origin.command == 0x015e;
     const int bb = bb_body_bytes(before->origin.command) != 0;
     const size_t result_bytes = bit_width ? FCAM_BIT_WIDTH_RESULT_BYTES : bb ? FCAM_BB_RESULT_BYTES : display ? FCAM_DISPLAY_RESULT_BYTES :
@@ -449,7 +462,7 @@ static int call_path(const struct fcam_native_origin *origin) {
     struct { unsigned char before[16], data[FCAM_VDF_RESULT_MAX_BYTES], after[16]; } out;
     const int zebra = origin->command == 0x0153;
     const int layout = origin->command == 0x014c;
-    const int display = origin->command == 0x0141 || origin->command == 0x0152 || origin->command == 0x0162;
+    const int display = origin->command == 0x0141 || origin->command == 0x0152 || origin->command == 0x0162 || origin->command == 0x0163 || origin->command == 0x0170;
     const int bit_width = origin->command == 0x015e;
     const int bb = bb_body_bytes(origin->command) != 0;
     const size_t bytes = bit_width ? FCAM_BIT_WIDTH_RESULT_BYTES : bb ? FCAM_BB_RESULT_BYTES : display ? FCAM_DISPLAY_RESULT_BYTES :
@@ -500,6 +513,8 @@ static int allocate_ack(const struct full_imaging_io *io) {
          overlap(p, bytes, zebra_ack, sizeof zebra_ack) || overlap(p, bytes, layout_ack, sizeof layout_ack) ||
          overlap(p, bytes, bit_width_ack, sizeof bit_width_ack) ||
          overlap(p, bytes, peaking_ack, sizeof peaking_ack) || overlap(p, bytes, flag_ack, sizeof flag_ack) ||
+         overlap(p, bytes, zero6_ack, sizeof zero6_ack) ||
+         overlap(p, bytes, eframing_output_ack, sizeof eframing_output_ack) ||
          overlap(p, bytes, refresh_ack, sizeof refresh_ack) || overlap(p, bytes, bb_ack, sizeof bb_ack) ||
          overlap(p, bytes, peaking_palettes, sizeof peaking_palettes) ||
          overlap(p, bytes, initial_layout32, sizeof initial_layout32));
@@ -554,16 +569,17 @@ static int dispatch(unsigned int destination, void *request, const struct full_i
     if (bytes < 4 || !span(request, bytes)) return 0;
     const unsigned char *p = request;
     if (p[0] != 0x0d || p[1] != 0x20 || p[3] != 1 ||
-        (p[2] != 0x38 && p[2] != 0x53 && p[2] != 0x4c && p[2] != 0x52 && p[2] != 0x62 && p[2] != 0x41 && p[2] != 0x5e &&
+        (p[2] != 0x38 && p[2] != 0x53 && p[2] != 0x4c && p[2] != 0x52 && p[2] != 0x62 && p[2] != 0x63 && p[2] != 0x70 && p[2] != 0x41 && p[2] != 0x5e &&
          !bb_body_bytes(0x0100u | p[2]))) return 0;
     const unsigned int command = 0x0100u | p[2];
     const int zebra = command == 0x0153, layout = command == 0x014c;
-    const int display = command == 0x0141 || command == 0x0152 || command == 0x0162;
+    const int display = command == 0x0141 || command == 0x0152 || command == 0x0162 || command == 0x0163 || command == 0x0170;
     const int bit_width = command == 0x015e;
     const unsigned int bb_bytes = bb_body_bytes(command);
     const unsigned int expected_bytes = bit_width ? FUNCTIONAL_VDF_BIT_WIDTH_REQUEST_BYTES : bb_bytes ? bb_bytes + 8u : command == 0x0141 ? FUNCTIONAL_VDF_REFRESH_REQUEST_BYTES :
         command == 0x0152 ? FUNCTIONAL_VDF_PEAKING_REQUEST_BYTES :
-        command == 0x0162 ? FUNCTIONAL_VDF_FLAG_REQUEST_BYTES : layout ? FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES :
+        command == 0x0162 ? FUNCTIONAL_VDF_FLAG_REQUEST_BYTES : command == 0x0163 ? FUNCTIONAL_VDF_ZERO6_REQUEST_BYTES :
+        command == 0x0170 ? FUNCTIONAL_VDF_EFRAMING_OUTPUT_REQUEST_BYTES : layout ? FUNCTIONAL_VDF_LAYOUT_REQUEST_BYTES :
         zebra ? FUNCTIONAL_VDF_ZEBRA_REQUEST_BYTES : FUNCTIONAL_VDF_PATH_REQUEST_BYTES;
     *result = bit_width ? -ENOTSUP : FUNCTIONAL_VDF_PATH_BLOCKED;
     if (bytes != expected_bytes || p[4] != expected_bytes || p[5] || p[6] != 1 || p[7] != 0x80 ||

@@ -185,14 +185,14 @@ def test_prepare_rejects_invalid_sixth_before_candidate_or_files(tmp_path,monkey
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_receipt_manifest_exports_and_typed_validator_preserve_five_profiles(tmp_path,enabled):
+def test_receipt_manifest_exports_and_typed_validator_preserve_five_profiles(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0];env=host_environment(tmp_path,build)
     if not enabled:env.pop(HOST)
     launcher=load_script('pinmem_input_receipt_menu','start-menu.py')
     host=launcher.profile_environment(env,natural_boot=True)
     with directory_lease(Path(env['A7C2_DIRECTORY_SD'])) as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     fields=backup.vef_pinmem_input_connection_profile_fields(PROFILE if enabled else '')
     receipt=json.loads(Path(host['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
     for expected in (fields,

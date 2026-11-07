@@ -54,7 +54,7 @@ int main(void){
 
 
 def test_generation_is_captured_before_original_mount_and_unmount():
-    with tempfile.TemporaryDirectory(prefix='fsys-generation-',dir=os.environ.get('TMPDIR') or '/var/tmp') as tmp:
+    with tempfile.TemporaryDirectory(prefix='fsys-generation-',dir='/var/tmp') as tmp:
         binary=Path(tmp)/'generation'
         env={**os.environ,'TMPDIR':tmp,'ASAN_OPTIONS':'detect_leaks=1:halt_on_error=1',
              'UBSAN_OPTIONS':'halt_on_error=1'}

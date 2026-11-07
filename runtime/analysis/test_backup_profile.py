@@ -51,7 +51,7 @@ def required(build):
                                         (True,False,False,False,False),(True,True,False,False,False),
                                         (True,True,True,False,False),(True,True,True,True,False),
                                         (True,True,True,True,True)])
-def test_composes_directory_usb_and_pci_without_replacing_original(tmp_path,dfs,vef,adf,adf_input,adf_output):
+def test_composes_directory_usb_and_pci_without_replacing_original(tmp_path,dfs,vef,adf,adf_input,adf_output, synthetic_backup_profile):
     build,_=build_fixture(tmp_path)
     before=backup.sha(HERE/'qemu-virt-board/virt-packed.dtb')
     with directory_lease(tmp_path/'card') as lease:
@@ -63,7 +63,7 @@ def test_composes_directory_usb_and_pci_without_replacing_original(tmp_path,dfs,
                           MENU_PIN_REGISTRY='1',MENU_PIN_CONTROL_MEMORY='1',MENU_PIN_CONNECTION='cold')
         if adf_input:env['MENU_ADF_SET_INPUT']=backup.INPUT_PROFILE
         if adf_output:env['MENU_ADF_SET_OUTPUT']=backup.OUTPUT_PROFILE
-        selected=backup.prepare_profile(HERE,env)
+        selected=synthetic_backup_profile(env)
     script=Path(selected['MENU_KERNEL_SCRIPT']).read_text()
     assert 'driver=vvfat' in script and 'total-sectors=500000000' in script
     assert '--setenv QEMU_SONY_USB_NET 1' in script

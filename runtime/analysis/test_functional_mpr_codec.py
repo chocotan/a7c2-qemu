@@ -27,6 +27,9 @@ MODES = (
     "retire-counter", "retire-model", "memory-release-error", "fixed-release-error",
     "shutdown-active", "deferred-close-event", "receipt-wire", "receipt-avcc",
     "receipt-wrap", "receipt-malformed-read", "receipt-stop",
+    "ipicture-done", "ipicture-ack", "ipicture-opaque", "ipicture-open", "ipicture-size",
+    "ipicture-waiter", "ipicture-pointer", "ipicture-pin", "ipicture-GOT",
+    "ipicture-no-idr", "ipicture-empty", "ipicture-drift",
 )
 SOURCES = (
     HERE / "test-functional-mpr-codec.c",

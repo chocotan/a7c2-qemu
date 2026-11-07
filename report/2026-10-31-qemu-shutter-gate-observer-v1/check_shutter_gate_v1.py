@@ -21,7 +21,7 @@ object_json = FORMAT.object_json
 PROFILE, SCHEMA = FORMAT.PROFILE, FORMAT.SCHEMA
 RejectedTrace = FORMAT.RejectedTrace
 COMPONENT = '2026-10-31-qemu-shutter-gate-observer-v1'
-SOURCE_SUFFIX = ('report', COMPONENT)
+SOURCE_SUFFIX = ('final', 'a7c2-re', 'report', '2026-10-17-qemu-native-camera', 'report', COMPONENT)
 BUILD_SOURCES = ('scope-observer.c', 'build-plugin.sh', 'build-runtime.py',
                  'log-schema-shutter-gate-v1.json', 'source-contract-shutter-gate-v1.json',
                  'check_shutter_gate_v1.py', 'integration/shutter_gate_trace_checks_v1.py')
@@ -286,7 +286,7 @@ def check_run(run, expected):
     """
     trace = b''
     try:
-        require(HERE.parts[-len(SOURCE_SUFFIX):] == SOURCE_SUFFIX, 'reader requires the fixed shutter component source root')
+        require(HERE.parts[-6:] == SOURCE_SUFFIX, 'reader requires the fixed shutter component source root')
         run = owned(Path(run), directory=True)
         require(type(expected) is dict and not ALIASES.intersection(expected), 'legacy pin alias or root override')
         FORMAT.validate_json_value(expected)

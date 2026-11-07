@@ -235,6 +235,36 @@ class Tests(unittest.TestCase):
         self.assertFalse((new/m.digest(self.package)).exists())
         self.assertFalse(list(new.glob('.*.staging-*')))
 
+    def test_full_boot_request_never_launches_native_diagnostic(self):
+        with patch.object(m, 'discover') as discover, patch.object(m.subprocess, 'run') as run:
+            self.assertEqual(m.main(['--require-full-boot']), 1)
+            discover.assert_not_called()
+            run.assert_not_called()
+
+    def test_complete_image_profile_dispatch_keeps_source_and_output_explicit(self):
+        source = self.root/'dump'
+        source.mkdir()
+        output = self.root/'new-session'
+        with patch.object(m, 'discover') as discover, patch.object(m.subprocess, 'run',
+                return_value=SimpleNamespace(returncode=2)) as run:
+            self.assertEqual(m.main(['--boot-profile', 'original-init-cold', '--system-dump', str(source),
+                                     '--boot-output', str(output), '--prepare-only']), 2)
+            command = run.call_args.args[0]
+            self.assertTrue(command[2].endswith('/2026-10-17-qemu-full-system/boot-session.py'))
+            self.assertIn('--dump', command)
+            self.assertIn(str(source), command)
+            self.assertIn('--prepare-only', command)
+            discover.assert_not_called()
+
+    def test_complete_image_source_never_falls_back_to_bodydata_import(self):
+        with patch.object(m, 'discover') as discover, patch.object(m.subprocess, 'run') as run:
+            self.assertEqual(m.main(['--boot-profile', 'wbi-resume']), 1)
+            self.assertEqual(m.main(['--system-dump', str(self.root)]), 1)
+            self.assertEqual(m.main(['--boot-profile', 'sd-update', '--system-dump', str(self.root),
+                                    '--boot-output', str(self.root/'out'), '--bodydata', str(self.package)]), 1)
+            discover.assert_not_called()
+            run.assert_not_called()
+
     def test_missing_full_sdk_is_explicit(self):
         with self.assertRaises(FileNotFoundError): m.sdk_modules(self.root)
 

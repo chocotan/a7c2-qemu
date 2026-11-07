@@ -182,8 +182,8 @@ def validate_artifact(base, qemu_binary, *, scope_build_receipt=None):
 
 def parse_mailbox(console):
     """Return only a complete actual bridge record; repeated mirrors must agree."""
-    # Keep the final newline available as the next adjacent record's boundary.
-    records = re.findall(rb'(?:^|\n)(?:OBS )?FUNCTIONAL_CAMERA_MAILBOX ([^\r\n]+)(?=\r?\n)', console)
+    # Async bridge output can follow the exact guest prompt; keep the newline for adjacent records.
+    records = re.findall(rb'(?:^|\n)(?:(?:/ # )?OBS )?FUNCTIONAL_CAMERA_MAILBOX ([^\r\n]+)(?=\r?\n)', console)
     binding = None
     for raw in records:
         tokens = raw.decode('ascii').split()
@@ -203,15 +203,88 @@ def parse_mailbox(console):
     return binding
 
 
+def require_natural_capture_closed(console, binding):
+    """Resource retirement after real native write/readback is distinct from capture acceptance."""
+    require(b'FUNCTIONAL_CAPTURE ' not in console, 'Natural still capture owner is active or unsaved; legacy receipt')
+    prefix = b'FUNCTIONAL_CAMERA_CAPTURE'
+    rows = list(re.finditer(rb'(?:^|\n)(?:OBS )?FUNCTIONAL_CAMERA_CAPTURE ([^\r\n]*)\r?(?=\n|$)', console))
+    require(console.count(prefix) == len(rows), 'Natural still capture owner is active or unsaved; incomplete framing')
+    expected = set(('operation rc pid job phase request_fnv cookie frame_token model_instance request_freed '
+                    'encoded frame_released notification_consumed write_verified resources_released write_token '
+                    'write_bytes write_fnv policy original_AP_saved capture_verified physical_ASIC_verified').split())
+    pending, last_job, frames = None, 0, set()
+    for row in rows:
+        require(row.end() < len(console), 'Natural still capture owner is active or unsaved; truncated receipt')
+        tokens = row[1].decode('ascii').split()
+        require(all(token.count('=') == 1 for token in tokens), 'Natural capture malformed field')
+        fields = dict(token.split('=', 1) for token in tokens)
+        require(len(fields) == len(tokens) and set(fields) == expected, 'Natural capture incomplete/duplicate fields')
+        def number(key):
+            text = fields[key]
+            require(re.fullmatch(r'(?:0x[0-9a-f]+|0|[1-9][0-9]*)', text), 'Natural capture invalid number: ' + key)
+            return int(text, 16 if text.startswith('0x') else 10)
+        require(binding is not None and number('pid') == binding['mailbox']['pid'] and fields['rc'] == '0' and
+                fields['policy'] == 'original-consumer-natural4038-software-jpeg-v1' and
+                fields['original_AP_saved'] == fields['capture_verified'] == fields['physical_ASIC_verified'] == '0' and
+                all(re.fullmatch('[0-9a-f]{16}', fields[key]) for key in ('request_fnv', 'write_fnv')),
+                'Natural still capture owner is active or unsaved; failed or promoted receipt')
+        identity = tuple(fields[key] for key in ('pid', 'job', 'request_fnv', 'cookie', 'policy'))
+        operation = fields['operation']
+        if operation == 'natural-request-owned':
+            require(pending is None and number('job') > last_job and fields['request_freed'] == '1' and
+                    not any(number(key) for key in ('frame_token', 'model_instance', 'encoded', 'frame_released',
+                        'write_verified', 'resources_released', 'write_token', 'write_bytes')),
+                    'Natural capture repeated/overlapping job')
+            pending = dict(identity=identity, frame=None, write=None, queued=False, consumed=False, matched=False)
+            last_job = number('job')
+            continue
+        require(pending is not None and pending['identity'] == identity and fields['request_freed'] == '1' and
+                fields['encoded'] == fields['frame_released'] == '1' and 0 <= number('notification_consumed') <= 3 and
+                number('model_instance') == binding['mailbox']['nonce'] and number('frame_token') > 0,
+                'Natural capture changed request/frame identity')
+        frame = (number('frame_token'), number('model_instance'))
+        require(pending['frame'] in (None, frame) and (pending['frame'] is not None or frame not in frames),
+                'Natural capture reused or changed frame')
+        pending['frame'] = frame
+        if operation == 'notifications-queued-unsaved':
+            require(not pending['queued'], 'Natural capture notifications queued twice')
+            pending['queued'] = True
+        elif operation == 'notifications-consumed-unsaved':
+            require(pending['queued'] and not pending['consumed'] and number('notification_consumed') == 3,
+                    'Natural capture notifications are not drained')
+            pending['consumed'] = True
+        elif operation == 'write-source-matched':
+            require(not pending['matched'] and number('write_token') > 0, 'Natural capture duplicate write source')
+            pending['matched'] = True
+        elif operation == 'write-lifecycle':
+            require(pending['matched'] and number('write_token') > 0 and number('write_bytes') > 0,
+                    'Natural capture write lacks matching source')
+            write = (number('write_token'), number('write_bytes'), fields['write_fnv'])
+            require(pending['write'] in (None, write), 'Natural capture native write identity changed')
+            pending['write'] = write
+        elif operation == 'write-retired':
+            require(pending['queued'] and pending['consumed'] and pending['matched'] and
+                    pending['write'] == (number('write_token'), number('write_bytes'), fields['write_fnv']) and
+                    fields['write_verified'] == fields['resources_released'] == '1' and number('notification_consumed') == 3,
+                    'Natural still capture owner is active or unsaved; native write/resources not retired')
+            frames.add(frame)
+            pending = None
+        else:
+            raise ValueError('Natural still capture owner is active or unsaved; unknown operation: ' + operation)
+    require(pending is None, 'Natural still capture owner is active or unsaved; retain VM, card and owner resources')
+
+
 def require_capture_closed(run):
     """A prior clip's Close cannot authorize tearing down the current native clip."""
     console = (Path(run) / 'console.log').read_bytes()
     binding = parse_mailbox(console)
+    require_natural_capture_closed(console, binding)
     requests, completed, received, freed = {}, set(), set(), set()
     current = None
     epochs, closed_epochs = set(), set()
     jpeg, jpeg_history = {}, {}
     jpeg_received, jpeg_freed, jpeg_callbacks = {}, set(), set()
+    jpeg_inputs, jpeg_configured, jpeg_outputs = {}, set(), {}
     last_jpeg = 0
     jpeg_common = set(('operation rc pid tid producer_tid sequence original_base exec_entry caller object manager control '
                        'context key source destination command native_bytes trigger_fnv response_tag model_instance bytes '
@@ -227,6 +300,12 @@ def require_capture_closed(run):
         'output-readback': ('lease_generation lease_token lease_address lease_offset lease_capacity model_token model_bytes '
                             'model_fnv model_offset readback_bytes readback_fnv'),
         'queued-ack': '', 'queued-done': '',
+        'original-input-binding': ('frame_token frame_lifetime input_cfg input_frame source_fnv source_bytes '
+                                   'metadata_unit pixel_unit metadata_token pixel_token'),
+        'original-input-descriptor': 'metadata_address metadata_bytes metadata_fnv pixel_address pixel_bytes input_readonly image72',
+        'original-output-retained': ('frame_token copied_bytes copied_fnv original_output_bytes original_output_fnv '
+                                     'model_token lease_token actual_native_terminal'),
+        'original-input-release': 'frame_token metadata_token pixel_token input_release_rc actual_native_terminal input_refs_released',
         'original-maincomp-exec': ('comp_caller comp_exec_entry previous_ack_hex previous_ack_address original_result '
                                    'native_config config_length_offset'),
         'original-maincomp-config': 'native_config config_length_offset actual_length expected_length original_result',
@@ -261,7 +340,7 @@ def require_capture_closed(run):
                 raise ValueError('Original still request retains an unreleased output lease')
             require(operation in jpeg_details, 'Unknown/failed native still operation: ' + operation)
         tokens = raw.decode('ascii').split()
-        require(all(re.fullmatch(r'[a-z_]+=[^\s=]+', token) for token in tokens), 'Malformed native capture shutdown field')
+        require(all(re.fullmatch(r'[a-z_][a-z_0-9]*=[^\s=]+', token) for token in tokens), 'Malformed native capture shutdown field')
         fields = dict(token.split('=', 1) for token in tokens)
         require(len(fields) == len(tokens), 'Duplicate native clip shutdown field')
         def number(key):
@@ -290,6 +369,52 @@ def require_capture_closed(run):
                         (number('model_instance') in (0, binding['mailbox']['nonce']) if operation == 'original-request-lease'
                          else number('model_instance') == binding['mailbox']['nonce']),
                         'Native still completion differs from current request')
+                if operation == 'output-readback':
+                    require(seq in jpeg and seq not in jpeg_outputs and
+                            (seq not in jpeg_inputs or jpeg_inputs[seq]['descriptor']),
+                            'Native JPEG readback preceded input descriptor or repeated')
+                    jpeg_outputs[seq] = fields
+                elif operation == 'original-input-binding':
+                    require(seq in jpeg and fields['kind'] == 'main' and seq not in jpeg_inputs and
+                            all(number(key) > 0 for key in ('frame_token', 'frame_lifetime', 'input_cfg', 'input_frame',
+                                'source_bytes', 'metadata_unit', 'pixel_unit', 'metadata_token', 'pixel_token')) and
+                            number('metadata_unit') != number('pixel_unit') and re.fullmatch('[0-9a-f]{16}', fields['source_fnv']),
+                            'Native attached JPEG input identity is incomplete')
+                    jpeg_inputs[seq] = dict(binding=fields, descriptor=False, retained=False, released=False)
+                elif operation == 'original-input-descriptor':
+                    attached = jpeg_inputs.get(seq)
+                    require(seq in jpeg and attached and not attached['descriptor'] and number('metadata_address') > 0 and
+                            number('metadata_bytes') == 1024 and number('pixel_address') > 0 and
+                            number('pixel_bytes') == int(attached['binding']['source_bytes'], 0) and fields['input_readonly'] == '1' and
+                            re.fullmatch('[0-9a-f]{16}', fields['metadata_fnv']) and re.fullmatch('[0-9a-f]{144}', fields['image72']),
+                            'Native attached JPEG descriptor is incomplete or repeated')
+                    attached['descriptor'] = True
+                elif operation == 'original-maincomp-config':
+                    require(seq in jpeg and number('actual_length') == number('expected_length') == number('bytes') and
+                            number('original_result') == 0 and seq not in jpeg_configured,
+                            'Native MainComp output length is incomplete')
+                    jpeg_configured.add(seq)
+                elif operation == 'original-output-retained':
+                    attached = jpeg_inputs.get(seq)
+                    require(seq in jpeg and attached and attached['descriptor'] and not attached['retained'] and
+                            seq in jpeg_configured and (seq, 'done') in jpeg_freed and
+                            number('frame_token') == int(attached['binding']['frame_token'], 0) and
+                            number('original_output_bytes') == number('bytes') and fields['original_output_fnv'] == fields['output_fnv'] and
+                            number('copied_bytes') == number('bytes') + (2 if number('selector') == 0 else 0) and
+                            re.fullmatch('[0-9a-f]{16}', fields['copied_fnv']) and seq in jpeg_outputs and
+                            number('model_token') == int(jpeg_outputs[seq]['model_token'], 0) and
+                            number('copied_bytes') == int(jpeg_outputs[seq]['model_bytes'], 0) and
+                            number('lease_token') == int(jpeg_received[(seq, 'done')][0][-1], 0) and
+                            fields['actual_native_terminal'] == '1',
+                            'Native retained JPEG output lacks actual MainComp/free completion')
+                    attached['retained'] = True
+                elif operation == 'original-input-release':
+                    attached = jpeg_inputs.get(seq)
+                    require(seq in jpeg and attached and attached['retained'] and not attached['released'] and
+                            all(number(key) == int(attached['binding'][key], 0) for key in ('frame_token', 'metadata_token', 'pixel_token')) and
+                            fields['input_release_rc'] == '0' and fields['actual_native_terminal'] == fields['input_refs_released'] == '1',
+                            'Native attached JPEG input was not retired after retained output')
+                    attached['released'] = True
                 if operation.startswith(('original-received-', 'original-freed-', 'original-rescmd-')):
                     require(re.fullmatch('[0-9a-f]{32}', fields['response_hex']) and
                             (operation.startswith('original-rescmd-') or re.fullmatch('[0-9a-f]{80}', fields['reply_hex'])),
@@ -324,6 +449,8 @@ def require_capture_closed(run):
                                     'Original still callback/output release is incomplete')
                             jpeg_callbacks.add(stage)
                             if done:
+                                require(seq not in jpeg_inputs or jpeg_inputs[seq]['released'],
+                                        'Native MainComp callback retains its captured input')
                                 require(number('original_result') == 0 and
                                         (fields['kind'] != 'main' or number('comp_object') > 0),
                                         'Original MainComp terminal callback is incomplete')

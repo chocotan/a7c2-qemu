@@ -206,11 +206,11 @@ def test_prepare_preserves_public_seed_strict_and_ready_guards(tmp_path,monkeypa
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_actual_receipt_manifest_and_validator_preserve_bounded_typed_intent(tmp_path,enabled):
+def test_actual_receipt_manifest_and_validator_preserve_bounded_typed_intent(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0];host=selected_host(tmp_path,build,enabled)
     with directory_lease(tmp_path/'card') as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     path=Path(host['MENU_BACKUP_PROFILE_RECEIPT']);receipt=json.loads(path.read_text())
     fields=backup.cp_capture_format_profile_fields(PROFILE if enabled else '')
     for key,value in fields.items():

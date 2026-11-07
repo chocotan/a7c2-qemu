@@ -447,6 +447,33 @@ PY
 elif [[ -n "${QEMU_SCOPE_OBSERVER_SHA256:-}" ]]; then
   echo 'Scope observer digest has no matched plugin' >&2; exit 2
 fi
+writer_bind=()
+writer_args=()
+if [[ -n "${QEMU_SHUTTER_WRITER_PLUGIN:-}" ]]; then
+  [[ "$cpu_count" == 1 && "$native_window" == 1 && "${MENU_FUNCTIONAL_CAMERA:-}" == virtual-functional-camera-v1 &&
+     -n "${QEMU_SCOPE_OBSERVER_PLUGIN:-}" && "${QEMU_SHUTTER_WRITER_SHA256:-}" =~ ^[0-9a-f]{64}$ ]] || {
+    echo 'Writer observer requires its bound strict primary and single-vCPU functional host profile' >&2; exit 2;
+  }
+  python3 - "$QEMU_SHUTTER_WRITER_PLUGIN" "$QEMU_SHUTTER_WRITER_SHA256" "$output_dir/readonly-shutter-writer.log" <<'PY'
+from pathlib import Path
+import hashlib,os,stat,sys
+plugin=Path(sys.argv[1])
+if not plugin.is_absolute() or plugin.resolve(strict=True)!=plugin or any(p.is_symlink() for p in (plugin,*plugin.parents)):
+    raise ValueError('Writer plugin path is not canonical')
+info=plugin.stat()
+if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid() or info.st_nlink!=1 or stat.S_IMODE(info.st_mode)!=0o400:
+    raise ValueError('Writer plugin must be an exclusive read-only owned regular file')
+with plugin.open('rb') as stream:
+    if hashlib.file_digest(stream,'sha256').hexdigest()!=sys.argv[2]:
+        raise ValueError('Writer plugin changed before sandbox bind')
+if os.path.lexists(sys.argv[3]):
+    raise ValueError('Writer plugin refuses a reused trace')
+PY
+  writer_bind=(--ro-bind "$QEMU_SHUTTER_WRITER_PLUGIN" /shutter-writer.so)
+  writer_args=(-plugin /shutter-writer.so,log=/out/readonly-shutter-writer.log)
+elif [[ -n "${QEMU_SHUTTER_WRITER_SHA256:-}" ]]; then
+  echo 'Writer observer digest has no matched plugin' >&2; exit 2
+fi
 observation_seconds="${QEMU_TIMEOUT_SECONDS:-15}"
 [[ "$observation_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid timeout' >&2; exit 2; }
 # Exit 124 means the observation window elapsed; zero allows an interactive session.
@@ -466,6 +493,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
     "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
     "${scope_bind[@]}" \
+    "${writer_bind[@]}" \
     "/tools/$binary_relative" \
       -machine virt,secure=off,gic-version=2 -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
       ${QEMU_ICOUNT_ARGS:-} \
@@ -473,6 +501,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
       "${debug_args[@]}" \
       "${scope_args[@]}" \
+      "${writer_args[@]}" \
       "${loader_args[@]}" -kernel /kernel.img -initrd /initrd.img \
       -append "$cmdline" \
       -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log

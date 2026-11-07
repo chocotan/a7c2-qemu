@@ -11,7 +11,7 @@ static const unsigned int pd_s[4]={6,2,0,FULL_PINMEM_CP},pd_p[4]={6,1,0,NATIVE_D
 static struct connect_message *pd_request,*pd_final;
 static unsigned int pd_caller=0x81cf61c4u,pd_allocs,pd_sends,pd_callbacks,pd_bad_alloc,pd_bad_source,pd_corrupt,pd_offset;
 static int pd_ready,pd_busy,pd_send_error,pd_request_error,pd_reply_error,pd_inline,pd_recursive,pd_fork_held;
-static int pd_mutate_request,pd_cleanup_error;
+static int pd_mutate_request,pd_cleanup_error,pd_recursive_free;
 static unsigned int pd_event_fault,pd_event_order,pd_consumed_order,pd_manager_order,pd_answer_free_order,pd_clock;
 static const struct full_imaging_io pd_io;
 static const struct full_adf_proc_guard pd_guard;
@@ -42,6 +42,18 @@ static void pd_preserved(void){
     assert(!memcmp(connect_memory,pd_memory_before,sizeof connect_memory));out_preserved_failure();out_check_shadow();
 }
 static void pd_callback(void){assert(host_pid==getpid());pd_callbacks++;(void)pd_snapshot();pd_preserved();if(held)guarded();}
+static struct pnc_delivery pd_delivery;
+static const struct pnc_generation_api pd_api={full_pinmem_drawinfo_connection_snapshot,full_pinmem_drawinfo_connection_observe_allocate,full_pinmem_drawinfo_connection_observe_receive,full_pinmem_drawinfo_connection_release_ticket};
+static void pd_receive_current(void){
+    if(!pd_delivery.pointer)return;
+    void *p=0;unsigned int destination=pd_delivery.destination;
+    assert(!pnc_receive_entry(&pd_delivery,destination,&p));
+    assert(full_pinmem_drawinfo_connection_observe_receive(destination,p));
+}
+static void *pd_foreign_free(void *unused){
+    (void)unused;pd_receive_current();int rc=77;
+    assert(pnc_release(pd_caller,pd_final->data,cm_free,0,&rc) && !rc);return 0;
+}
 /* Get uses the real registry owner and its independent release lease. */
 static void pd_get(unsigned int sid,const unsigned int *key,int leave){
     get_destination=0x8a0bc017u;
@@ -85,6 +97,8 @@ static int pd_free(unsigned int owner,void *p){
     pd_callback();struct connect_message *m=cm_meta(p);assert(owner==m->owner);m->attempts++;
     if(m==pd_request && pd_request_error)return -53;
     if(m==pd_final && pd_reply_error)return -59;
+    if(m==pd_final && pd_recursive_free){int rc=77;unsigned int attempts=m->attempts;
+        assert(full_pinmem_drawinfo_connection_release(owner,p,pd_free,0,&rc) && rc==-1021 && m->attempts==attempts);}
     if(m->allocation && m!=pd_final && pd_cleanup_error)return -47;
     if(m->allocation==2){struct scalar_connection_snapshot s=pd_snapshot();if(s.event6_consumed){assert(!s.pending_event6 && s.manager_calls==1);pd_answer_free_order=++pd_clock;}}
     cm_dispose(m);return 0;
@@ -129,11 +143,12 @@ static void pd_record(const char *tag,const char *text){
 }
 static int pd_send(unsigned int owner,void *p){
     pd_callback();pd_final=cm_meta(p);assert(owner==pd_caller && pd_final->allocation==3 && pd_final->bytes==56 && pd_final->source==FULL_PINMEM_CP);
+    assert(!pd_delivery.pointer);pd_delivery=(struct pnc_delivery){p,owner};
     unsigned char expected[56];ctframe(expected,56,0x8001,2);for(unsigned int i=0;i<4;i++)ctput32(expected+32+4*i,pd_s[i]);assert(!memcmp(expected,p,56));
     struct scalar_connection_snapshot s=pd_snapshot();assert(s.event6_consumed && !s.pending_event6 && !s.yc_callback_seen && !s.yc_format_published);
     assert(s.manager_calls==1 && !s.manager_return && s.live_reply==p);
     assert(pd_event_order<pd_consumed_order && pd_consumed_order<pd_manager_order && pd_manager_order<pd_answer_free_order);pd_sends++;
-    if(pd_inline){int rc=77;assert(full_pinmem_drawinfo_connection_release(owner,p,pd_free,pd_record,&rc) && !rc);}return pd_send_error;
+    if(pd_inline){pd_receive_current();int rc=77;assert(full_pinmem_drawinfo_connection_release(owner,p,pd_free,pd_record,&rc) && !rc);}return pd_send_error;
 }
 static const struct full_imaging_io pd_io={pd_allocate,pd_free,pd_set,pd_send,pd_size,pd_source,pd_record};
 static const struct full_adf_proc_guard pd_guard={pd_reserve,pd_release_guard};
@@ -143,6 +158,7 @@ static void pd_finish(void){pd_preserved();for(unsigned int i=0;i<cm_count;i++)i
 #endif
 int FULL_PINMEM_DRAWINFO_CONNECTION_TEST_MAIN(int argc,char **argv){
     assert(argc==3);host_pid=getpid();alarm(30);assert(!setvbuf(stdout,0,_IONBF,0));const char *name=argv[1];
+    pnc_draw_release=full_pinmem_drawinfo_connection_release;
     if(strcmp(name,"uninitialized"))assert(!full_pinmem_drawinfo_connection_owner_init());
     if(!strcmp(name,"dynamic-caller"))pd_caller=0x8fed1023u;
     pd_request=pd_new_request();int rc=77;
@@ -190,6 +206,7 @@ int FULL_PINMEM_DRAWINFO_CONNECTION_TEST_MAIN(int argc,char **argv){
     if(!strcmp(name,"request-free-fail"))pd_request_error=1;
     if(!strcmp(name,"inline-free"))pd_inline=1;
     if(!strcmp(name,"recursive"))pd_recursive=1;
+    if(!strcmp(name,"recursive-free"))pd_recursive_free=1;
     if(!strcmp(name,"fork-held"))pd_fork_held=1;
     if(!strcmp(name,"request-mutated"))pd_mutate_request=1;
     if(!strcmp(name,"cleanup-fail")){pd_bad_alloc=2;pd_cleanup_error=1;}
@@ -200,17 +217,32 @@ int FULL_PINMEM_DRAWINFO_CONNECTION_TEST_MAIN(int argc,char **argv){
     if(sscanf(name,"event-%u",&n)==1)pd_event_fault=n;
     assert(pd_dispatch(&rc));struct scalar_connection_snapshot s=pd_snapshot();assert(!held && !s.busy && s.owner_pid==getpid());
     if(pd_busy){assert(rc==-1021 && !s.started && !s.faults && !pd_allocs);pd_finish();return 0;}
-    int success=!strcmp(name,"normal") || !strcmp(name,"dynamic-caller") || pd_inline || pd_recursive || pd_fork_held || pd_request_error || !strcmp(name,"reply-free-fail") || !strcmp(name,"wrong-owner") || !strcmp(name,"repeat");
+    if(!strncmp(name,"reuse-",6)){
+        assert(!rc);pd_receive_current();pnc_generation_case(&pd_api,pd_caller,pd_final,name);pd_finish();return 0;
+    }
+    if(!strcmp(name,"missing-receive-ticket") || !strcmp(name,"forged-receive-ticket")){
+        assert(!rc);int forged=!strcmp(name,"forged-receive-ticket");if(forged)pd_receive_current();
+        pnc_bad_ticket(&pd_api,pd_caller,pd_final,forged);pd_receive_current();
+        assert(full_pinmem_drawinfo_connection_release(pd_caller,pd_final->data,pd_free,pd_record,&rc) && !rc);
+        s=pd_snapshot();assert(s.ap_consumed && s.faults && !s.clean_completion);pd_finish();return 0;
+    }
+    if(!strcmp(name,"foreign-thread-free")){
+        assert(!rc);pthread_t thread;assert(!pthread_create(&thread,0,pd_foreign_free,0));assert(!pthread_join(thread,0));s=pd_snapshot();
+        assert(s.clean_completion && !s.faults && s.reply_freed && s.native_reply_frees==1 && !s.live_reply && !s.ap_consumed && !s.waiter_frees);
+        puts("PINMEM_DRAWINFO_FOREIGN_REAL_RECEIVER ap_consumed=0 capture_verified=0");pd_finish();return 0;
+    }
+    int success=!strcmp(name,"normal") || !strcmp(name,"dynamic-caller") || pd_inline || pd_recursive || pd_recursive_free || pd_fork_held || pd_request_error || !strcmp(name,"reply-free-fail") || !strcmp(name,"wrong-owner") || !strcmp(name,"repeat");
     if(success){
         assert(!rc && s.connections==1 && s.queued==1 && pd_sends==1 && pd_allocs==3 && s.event6_consumed && !s.pending_event6 && !s.yc_callback_seen && !s.yc_format_published && s.manager_calls==1 && !s.manager_return);
         assert(pd_request_error?(!s.clean_completion && s.faults && s.retained_request==pd_request->data && !pd_request->released):(s.clean_completion && !s.faults && pd_request->released && s.request_freed));
         if(!pd_inline){
-            int freed=77;
+            pd_receive_current();int freed=77;
             if(!strcmp(name,"wrong-owner"))assert(full_pinmem_drawinfo_connection_release(pd_caller^1u,pd_final->data,pd_free,pd_record,&freed) && freed==-1021 && !pd_final->attempts);
             if(!strcmp(name,"reply-free-fail")){pd_reply_error=1;assert(full_pinmem_drawinfo_connection_release(pd_caller,pd_final->data,pd_free,pd_record,&freed) && freed==-59);pd_reply_error=0;}
             assert(full_pinmem_drawinfo_connection_release(pd_caller,pd_final->data,pd_free,pd_record,&freed) && !freed);
         }
         s=pd_snapshot();assert(s.ap_consumed==1 && s.reply_freed==1 && s.native_reply_frees==1 && s.waiter_frees==1 && !s.live_reply);
+        if(pd_recursive_free)assert(s.faults==1 && !s.clean_completion);
         struct full_vef_snapshot a,b;full_pinmem_snapshot(&a);native_drawinfo_snapshot(&b);
         assert(!a.pending && !a.pins[10].state && !b.pins[1].state && !memcmp(a.pins[10].peer,pd_p,sizeof pd_p) && !memcmp(b.pins[1].peer,pd_s,sizeof pd_s));
         if(!strcmp(name,"repeat")){pd_request=pd_new_request();assert(pd_dispatch(&rc) && rc==-1021 && pd_sends==1 && pd_allocs==3 && !pd_request->released);}

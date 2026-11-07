@@ -191,12 +191,12 @@ def test_prepare_rejects_invalid_admission_before_build_or_outputs(tmp_path,monk
 
 
 @pytest.mark.parametrize('enabled',[False,True])
-def test_actual_receipt_lifecycle_and_manifest_keep_typed_diagnostic_intent(tmp_path,enabled):
+def test_actual_receipt_lifecycle_and_manifest_keep_typed_diagnostic_intent(tmp_path,enabled, synthetic_backup_profile):
     build=build_fixture(tmp_path)[0]
     host=selected_host(tmp_path,build,enabled)
     with directory_lease(tmp_path/'card') as lease:
         host.update(directory_profile(HERE,lease,tmp_path/'directory-profile'))
-        host.update(backup.prepare_profile(HERE,host))
+        host.update(synthetic_backup_profile(host))
     path=Path(host['MENU_BACKUP_PROFILE_RECEIPT']);receipt=json.loads(path.read_text())
     fields=backup.cp302c_diagnostic_profile_fields(PROFILE if enabled else '')
     strict=backup.cp302c_no_transition_profile_fields('')

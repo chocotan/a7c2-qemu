@@ -397,6 +397,14 @@ class CameraUI:
         row.pack_start(self.sd_action, False, False, 0)
         self.sd_label = label('SD 未确认', 'hint')
         row.pack_start(self.sd_label, False, False, 0)
+        self.usb_connected = False
+        self.usb_run = None
+        self.usb_busy = False
+        self.usb_button = Gtk.Button(label='连接电脑')
+        self.usb_button.get_accessible().set_name('将虚拟相机通过 USB 连接本机电脑')
+        self.usb_button.connect('clicked', lambda _: self.connect_computer())
+        self.usb_button.set_tooltip_text('通过本机虚拟 USB 控制器连接；以宿主实际枚举和原相机响应为准')
+        row.pack_start(self.usb_button, False, False, 0)
         self.reset_button = Gtk.Button(label='销毁并重新初始化')
         self.reset_button.get_style_context().add_class('danger')
         self.reset_button.get_accessible().set_name('销毁当前相机配置并重新初始化，保留 SD')
@@ -520,6 +528,40 @@ class CameraUI:
             self.update(self.vm.status());return False
         self.feedback.set_text('正在等待原固件处理 SD 变化；完成后才更新介质状态。')
         self.update(self.vm.status());return True
+
+    def connect_computer(self):
+        state = self.vm.status()
+        if self.closing or self.usb_busy or state.get('state') != 'running' or not state.get('run'):
+            return False
+        self.usb_busy = True
+        self.update(state)
+        run = state['run']
+        operation = 'disconnect' if self.usb_connected else 'connect'
+        def worker():
+            import runpy
+            from pathlib import Path
+            tool = Path(__file__).resolve().parents[2]/'report/2026-10-17-qemu-full-system/usb_ui.py'
+            try:
+                result = runpy.run_path(str(tool))['action'](run, operation)
+            except Exception as error:
+                result = {'phase':'blocked','blocked_reason':{'detail':str(error)},'host_enumerated':False}
+            def completed():
+                self.usb_busy = False
+                if self.closed or self.vm.status().get('run') != run:
+                    return False
+                self.usb_connected = result.get('host_enumerated') is True
+                if result.get('phase') in ('blocked','error','recovery_required'):
+                    self.local_error = 'USB：' + str((result.get('blocked_reason') or {}).get('detail','连接未完成'))
+                else:
+                    self.local_error = ''
+                    self.feedback.set_text('USB 已断开' if operation == 'disconnect' else
+                                           'USB 宿主枚举已确认' if self.usb_connected else 'USB 正在等待宿主枚举')
+                if not self.closed:
+                    self.update(self.vm.status())
+                return False
+            GLib.idle_add(completed)
+        threading.Thread(target=worker, name='camera-usb-computer', daemon=True).start()
+        return True
 
     def power(self, on):
         if self.closing or self.reinitializing:
@@ -694,6 +736,11 @@ class CameraUI:
         self.sd_label.set_text({'present':'SD 已插入','absent':'SD 已拔出','ejecting':'SD 正在拔出',
                                 'inserting':'SD 正在插入','uncertain':'SD 状态未确认',
                                 'unavailable':'SD 未确认'}.get(card_state,'SD 未确认'))
+        if self.usb_run != state.get('run'):
+            self.usb_run = state.get('run')
+            self.usb_connected = False
+        self.usb_button.set_label('断开电脑' if self.usb_connected else '连接电脑')
+        self.usb_button.set_sensitive(not self.closing and not self.usb_busy and state.get('state') == 'running')
         self.sd_action.set_label('插入 SD' if card_state=='absent' else '安全拔出 SD')
         self.sd_action.set_sensitive(not self.closing and state.get('state')=='running' and
                                      not(state.get('busy') or state.get('pending')) and

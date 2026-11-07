@@ -3,9 +3,27 @@ import pytest
 from ee_entry_snapshot import collect_passive, collect_group0
 
 
-@pytest.mark.parametrize('common_only',[False,True])
-def test_actual_passive_collection_uses_only_proc_and_readmem(tmp_path,common_only):
+BOOT_CELLS = {
+    'DESCRIPTOR_D578': (0x7e5d578, 4, 1),
+    'RECORD_A24_PENDING': (0x7e43434, 4, 0x56b4),
+    'RECORD_A24_CURRENT': (0x7e43438, 4, 0xffffffff),
+    'RECORD_A24_FLAG13': (0x7e43443, 1, 1),
+    'BOOT_M_6A7C8': (0x7e6a7c8, 4, 2),
+    'BOOT_K_739A8': (0x7e739a8, 4, 0),
+    'BOOT_SHUTDOWN_DD88': (0x7e5dd88, 4, 3),
+    'BOOT_QR_STATE_DD38': (0x7e5dd38, 4, 3),
+    'BOOT_QR_GATE_CADD0': (0x7ecadd0, 4, 0x100),
+}
+
+
+@pytest.mark.parametrize('common_only,damaged_cell',
+    [(common, 'SHUTTER_D570') for common in (False, True)] +
+    [(True, name) for name in BOOT_CELLS])
+@pytest.mark.parametrize('cell_damage',[None,'wrong-address','short','read-error'])
+def test_actual_passive_collection_uses_only_proc_and_readmem(tmp_path,common_only,damaged_cell,cell_damage):
     base=0x7f00000000;sp=0x7ffff000;calls=[]
+    observed_cells = {'SHUTTER_D570': (0x7e5d570, 4, 1), **BOOT_CELLS}
+    damaged_address = observed_cells[damaged_cell][0]
     def serial(command):
         calls.append(command)
         assert not any(token in command for token in ('menu-regs','kill','ptrace','SIGSTOP','echo 1 >'))
@@ -28,8 +46,19 @@ def test_actual_passive_collection_uses_only_proc_and_readmem(tmp_path,common_on
             data=struct.pack('<Q',base+0x339fa8c)+bytes(4088)
             return (f'READMEM /proc/42/mem address={sp:x} bytes=4096\n'+
                 ''.join(f'{sp+i:016x}:'+''.join(f' {x:02x}' for x in data[i:i+16])+'\n' for i in range(0,4096,16))).encode()
-        if ' 1 appFw.so' in command:return b'0000007f08838af8: 01\n'
-        if '4 appFw.so' in command:return b'0000007f07e67700: 00 00 00 00\n'
+        if command.endswith(' appFw.so'):
+            offset=int(command.split()[-3],16);size=int(command.split()[-2]);address=base+offset
+            known = next((item for item in observed_cells.values() if item[0] == offset), None)
+            if known is not None:
+                assert size == known[1]
+            value = known[2] if known is not None else 1 if offset == 0x8838af8 else 0
+            data=value.to_bytes(size,'little')
+            if offset==damaged_address:
+                if cell_damage=='wrong-address':address+=4
+                elif cell_damage=='short':data=data[:-1]
+                elif cell_damage=='read-error':return b'menu-readmem: Bad address\n'
+            return (f'READMEM /proc/42/mem address={address:x} bytes={size}\n'+
+                    f'{address:016x}:'+''.join(f' {x:02x}' for x in data)+'\n').encode()
         raise AssertionError(command)
     proof=collect_passive(serial,tmp_path,common_only=common_only)
     assert proof['threads_not_stopped'] and proof['sampled_threads']==(1 if common_only else 16)
@@ -52,6 +81,17 @@ def test_actual_passive_collection_uses_only_proc_and_readmem(tmp_path,common_on
     values={cell['name']:cell['value'] for cell in proof['cells']}
     assert values['EE_START_ENABLE']==0 and values['EE_ENTRY_SOURCE']==0 and values['EE_STATUS']==0
     assert values['BACKUP_SYNC_PENDING']==1
+    for name, (address, size, expected) in observed_cells.items():
+        damaged = name == damaged_cell and cell_damage is not None
+        assert values[name] == (None if damaged else expected)
+        observed = next(cell for cell in proof['cells'] if cell['name'] == name)
+        assert observed['elf_va'] == hex(address) and observed['read_bytes'] == size
+        assert ('observation_error' in observed) == damaged
+        assert calls.count(f'/simulation/menu-readmem /proc/42/mem {address:#x} {size} appFw.so') == 1
+    assert values['SHUTTER_D498']==0 and values['SHUTTER_TRANSITION_7FC8']==0
+    assert values['SHUTTER_AGGREGATE_37E3']==0
+    assert len(proof['cells']) == 20
+    assert sum(' appFw.so' in command for command in calls)==20
 
 
 def test_missing_ap_is_evidence_not_run_failure_and_ambiguity_is_rejected(tmp_path):
