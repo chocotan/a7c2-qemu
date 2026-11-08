@@ -65,6 +65,17 @@ A7C2_VIRTUAL_HCI= ./start.sh --bodydata /path/to/BODYDATA.DAT
 
 本轮开发面板、内部盘和启动内存修复后，再次直接执行默认入口，原首设、HUD、菜单进入与返回、正常保存退出均通过，且原配置未变；见[最新默认入口收据](validation/default-after-integration-20261108.json)和[原窗口截图](docs/images/development-storage-default-hud-20261108.png)。
 
+## 原 init 冷启动实验
+
+现在还提供独立的原用户态冷启动入口：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，进入原相机首设、拍摄主界面与菜单。准备好上面的产品资产后执行：
+
+```bash
+python3 tools/run-original-cold.py --new-instance \
+  --output runtime/diagnostics/my-original-cold --seconds 180
+```
+
+它创建专属内部盘，输出目录必须不存在；不会改动默认用户实例。当前是显式命令行实验入口，默认 GTK 的 ON 仍沿用已验的 direct-bootin 路线。原 BootROM、loader、CP、WBI 和完整硬件上电仍未完成，详见[原冷启动复现与验收](docs/tech/2026-11-09-original-cold-boot.md)。
+
 ## 虚拟卡和设置
 
 关机时按 **OFF** 或关闭窗口，等待保存完成。默认虚拟卡保存为：
@@ -100,7 +111,7 @@ runtime/analysis/menu-runs/run-*/SD/card.img
 
 持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。内部卷的重启与关闭结果见[开发与存储验收](docs/tech/2026-11-08-development-and-storage.md)。全部设置持久化仍未验证。
 
-[官方启动流程复核](docs/tech/2026-11-08-boot-review.md)列出了原脚本与产品路径的差异。内部盘使用原 AP 的功能启动路线，完整原 init/pivot 冷链和热 WBI 恢复仍未完成。
+[官方启动流程复核](docs/tech/2026-11-08-boot-review.md)列出了原脚本与产品路径的差异。默认内部盘使用原 AP 的功能启动路线；原 init/pivot 用户态冷链已有下方显式 CLI，尚未接入默认 GTK。热 WBI 恢复仍未完成。
 
 ## 替换程序或库
 
@@ -140,7 +151,8 @@ overwrite/
 ## 研究文档
 
 - [开发面板与单盘集成](docs/tech/2026-11-08-development-and-storage.md)：文件测试和原 guest 读回、自包含驱动构建、单盘实际验收与剩余阻塞。
-- [官方启动流程复核](docs/tech/2026-11-08-boot-review.md)：逐阶段对照包内原 init/init2、挂载、原 AP 与当前产品差异。
+- [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：显式 CLI、原 RAM0→init→pivot/chroot→init2→原 HUD／菜单，以及保留的失败记录。
+- [官方启动流程复核](docs/tech/2026-11-08-boot-review.md)：逐阶段对照包内原 init/init2、挂载、原 AP 与默认产品路径差异。
 - [产品运行边界](docs/tech/2026-11-07-current-progress.md)：外部输入、已接入能力和仍未完成的功能。
 - [11月6日历史进展](docs/tech/2026-11-06-current-progress.md)：当时完整离线验收与4000／4057／4072失败；当次仅文档发布。
 - [11月4日研究进展](docs/tech/2026-11-04-current-progress.md)：原输入与13图的验收、403e／VDF剩余阻塞；上次文档发布。

@@ -87,6 +87,10 @@ if [[ "$sony_timers" == 1 ]]; then
 fi
 bootfs="$analysis_dir/unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked"
 test_initrd="${5:-$bootfs/initrd.img}"
+original_cold="${A7C2_ORIGINAL_COLD:-}"
+if [[ -n "$original_cold" ]]; then
+  [[ "$original_cold" == original-init-v1 && "${A7C2_STORAGE_PROFILE:-}" == product-single-disk-v1 && "$test_initrd" == *.ext2 ]] || { echo 'Original cold boot requires its exact profile, persistent disk and raw ext2 RAM0' >&2; exit 2; }
+fi
 ram_mb="${1:-1024}"
 case "$ram_mb" in 1024|4096) ;; *) echo 'Use 1024 or 4096 MiB' >&2; exit 2 ;; esac
 board_dtb="${2:-}"
@@ -113,10 +117,13 @@ if [[ "$boot_memory" == 1 ]]; then
 fi
 skip_hwtimer="${4:-0}"
 case "$skip_hwtimer" in 0|1) ;; *) echo 'Timer flag must be 0 or 1' >&2; exit 2 ;; esac
-if [[ "$native_window" == 1 ]] && { [[ "$skip_hwtimer" != 1 || "$boot_memory" != 1 ]] || [[ "$test_initrd" != *.cpio && "$test_initrd" != *.cpio.gz ]]; }; then
-  echo 'Native ramfb requires high-DDR boot memory and cpio initramfs' >&2; exit 2
+if [[ "$native_window" == 1 ]] && { [[ "$skip_hwtimer" != 1 || "$boot_memory" != 1 ]] || [[ "$test_initrd" != *.cpio && "$test_initrd" != *.cpio.gz && -z "$original_cold" ]]; }; then
+  echo 'Native ramfb requires high-DDR boot memory and a declared boot image' >&2; exit 2
 fi
 cmdline='console=ttyAMA0 earlycon=pl011,0x09000000 loglevel=8 root=/dev/ram0 init=/bin/sh'
+if [[ -n "$original_cold" ]]; then
+  cmdline='console=ttyAMA0 earlycon=pl011,0x09000000 loglevel=8 root=/dev/ram0 rootfstype=ext2 rw noatime init=/sbin/product-cold-bootstrap product.cold=original-init-v1'
+fi
 high_ddr=0
 if [[ "$test_initrd" != "$bootfs/initrd.img" ]]; then
   high_ddr=1
@@ -146,11 +153,11 @@ if [[ "$sa_reference_complete" == 1 ]]; then
   pcidma_environment+=(--setenv QEMU_SONY_SA_REFERENCE_COMPLETE 1)
 fi
 case "$sound_owner" in 0|1) ;; *) echo 'Invalid sound owner flag' >&2; exit 2;; esac
-if [[ "$sound_owner" == 1 ]] && { [[ "$high_ddr" != 1 || "$skip_hwtimer" != 1 ]] || [[ "$test_initrd" != *.cpio ]]; }; then
+if [[ "$sound_owner" == 1 ]] && { [[ "$high_ddr" != 1 || "$skip_hwtimer" != 1 ]] || [[ "$test_initrd" != *.cpio && -z "$original_cold" ]]; }; then
   echo 'Sound owner requires high-DDR raw cpio initramfs' >&2; exit 2
 fi
 case "$pin_control_memory" in 0|1) ;; *) echo 'Invalid pin-control memory flag' >&2; exit 2;; esac
-if [[ "$pin_control_memory" == 1 ]] && { [[ "$high_ddr" != 1 || "$skip_hwtimer" != 1 ]] || [[ "$test_initrd" != *.cpio && "$test_initrd" != *.cpio.gz ]]; }; then
+if [[ "$pin_control_memory" == 1 ]] && { [[ "$high_ddr" != 1 || "$skip_hwtimer" != 1 ]] || [[ "$test_initrd" != *.cpio && "$test_initrd" != *.cpio.gz && -z "$original_cold" ]]; }; then
   echo 'Pin-control RAM requires high-DDR cpio initramfs' >&2; exit 2
 fi
 if [[ "$skip_hwtimer" == 1 ]]; then
@@ -167,8 +174,8 @@ if [[ "$skip_hwtimer" == 1 ]]; then
     install -D -m 0644 "$original_output/virt.dtb" "$output_dir/virt.dtb"
     image_kib=$(( ($(stat -c %s "$test_initrd") + 1023) / 1024 ))
     cmdline+=" ramdisk_size=$image_kib"
-    if [[ "$test_initrd" == *.cpio || "$test_initrd" == *.cpio.gz ]]; then
-      cmdline+=' rdinit=/init'
+    if [[ "$test_initrd" == *.cpio || "$test_initrd" == *.cpio.gz || -n "$original_cold" ]]; then
+      if [[ -z "$original_cold" ]]; then cmdline+=' rdinit=/init'; fi
       workspace_parameters="$(python3 - "$analysis_dir/unpacked/firmware.tar_unpacked/0800_appli/setting/kemco.txt" <<'PY'
 from pathlib import Path
 import sys

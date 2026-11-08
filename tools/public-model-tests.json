@@ -247,5 +247,6 @@
   "report/functional-camera-evidence/test_bb_timecode_presets.py",
   "source/persistent-flash/test_freeze.py",
   "runtime/analysis/test_factory_images.py",
-  "runtime/analysis/test_observer_process_scope.py"
+  "runtime/analysis/test_observer_process_scope.py",
+  "runtime/analysis/test_original_cold_boot.py"
 ]

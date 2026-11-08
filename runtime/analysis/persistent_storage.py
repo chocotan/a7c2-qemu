@@ -184,6 +184,14 @@ def prepare_shutdown(serial,run):
         raise
 
 
+def runtime_reset_commands():
+    # Only before the AP starts in a new guest under the exclusive disk lease.
+    return [
+        'rm -f /tmp/rm-file.claim /tmp/headless-osd.claim /tmp/gui-model.claim',
+        'rm -f /tmp/sd-flush.request /tmp/sd-hotplug.state /tmp/date-clock.ready /tmp/system-sound.ready /tmp/headless-osd-frame.bin /tmp/headless-osd-frame.bin.part /tmp/gui-model-state.bin /tmp/hdmi-format-state.bin /tmp/hdmi-photo-state.bin',
+    ]
+
+
 def mount_commands(overwrite=None):
     # This is the existing product AP route using real persistent volumes.
     # Original init/pivot_root cold-chain verification remains a separate stage.
@@ -199,9 +207,7 @@ def mount_commands(overwrite=None):
         'mkdir -p /log/qemu',
         'mount --bind /tmp /etc || { echo PERSISTENT_STORAGE_FAILED=etc-alias; exit 1; }',
         'mount --bind /tmp /var || { echo PERSISTENT_STORAGE_FAILED=var-alias; exit 1; }',
-        # The disk lease is exclusive and no AP has started in this new guest.
-        'rm -f /tmp/rm-file.claim /tmp/headless-osd.claim /tmp/gui-model.claim',
-        'rm -f /tmp/sd-flush.request /tmp/sd-hotplug.state /tmp/date-clock.ready /tmp/system-sound.ready /tmp/headless-osd-frame.bin /tmp/headless-osd-frame.bin.part /tmp/gui-model-state.bin /tmp/hdmi-format-state.bin /tmp/hdmi-photo-state.bin',
+    ]+runtime_reset_commands()+[
         '/simulation/persistent-apply-test || { echo PERSISTENT_STORAGE_FAILED=file-test; exit 1; }',
         'for name in menu-load.log gpe-requests.bin im.log; do rm -f /tmp/$name; ln -s /log/qemu/$name /tmp/$name; done',
         "echo PERSISTENT_STORAGE_MOUNTED; /bin/busybox cat /proc/mounts; /bin/busybox grep -E '^(Uid|Gid):' /proc/$$/status",

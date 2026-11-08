@@ -1,5 +1,13 @@
 # 本包验证记录
 
+## 11月9日原RAM0/init/pivot冷链
+
+显式 `tools/run-original-cold.py --new-instance` 已只从本产品官方BODYDATA缓存创建独立盘，原RAM0→原init→p7挂载/pivot/chroot→旧根卸载/原freeramdisk零前缀→原init2→bootin/im/appFw→原中文首设/HUD/菜单往返实际通过。每次方向输入的原双边及稳定焦点、菜单控件真实像素、19卷freeze1/19、QMP0/无信号/owner后裔退出均核齐；最终8份源码无漂移。停止后只读检查10挂载卷结构均通过，原p7与派生时整片相同，原p15与官方factory整片相同；FATdirty原rc1保留，不冒称卸载fsck0。
+
+[原LCD菜单](../docs/images/original-cold-original-menu.png)、[HUD返回](../docs/images/original-cold-menu-return.png)、[完整报告](../docs/tech/2026-11-09-original-cold-boot.md)、[内容验收收据](original-cold-boot-20261109.json)。两线程集中host376通过/39跳过/95子测试，新cold公共subset48、真实DT准备subset12，源/依赖/旧脚本同步全rc0；未变旧模型/GTK不重复。旧mountinfo误判、缓存黑帧、假menu=true后独立否定审查、语言步数偏移、输入盘孤链及固定300ms采帧失败均保留，不回填。
+
+该路线目前为独立CLI，默认GTK仍direct-bootin；BootROM/loader/CP/WBI/RAM热恢复/watchdog与完整硬件启动仍未通过，USB枚举/认证与成片不因此提升。完整更新和拍摄写卡deferred；recovery/镜像清理按用户最新指令暂停，未删除镜像。
+
 ## 11月8日开发面板、内部单盘与启动内存
 
 本轮按两个工作线程集中验收，完整BODYDATA更新与拍摄写卡按用户要求暂缓。已实现的独立产品功能、原问题原因与修复见[技术报告](../docs/tech/2026-11-08-development-and-storage.md)，官方原init/init2与产品功能启动差异见[启动复核](../docs/tech/2026-11-08-boot-review.md)。

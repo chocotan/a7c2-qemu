@@ -1,5 +1,7 @@
 # 官方启动流程与产品路径复核
 
+2026-11-09补充：下表保留11月8日默认direct-bootin路径的原结论。新增的[显式原RAM0/init冷启动CLI](2026-11-09-original-cold-boot.md)已推进原init、p7挂载、pivot/chroot、原init2与原UI；它没有替换默认GTK入口，也不表示BootROM/CP/WBI/完整硬件上电已恢复。
+
 本次只读复核使用本产品从用户的 ILCE-7CM2 2.01 ALLLANG BODYDATA 导入的原脚本，以及产品自身的启动代码。输入包 SHA-256 为 `eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31`。不依赖系统 dump、另一仓库或历史虚拟机。
 
 结论：原 AP 的运行路径已有实际证据，产品启动与完整官方冷启动链仍存在下表差异，不能报告为完全一致。默认路线保留 `direct-bootin`；勾选内部持久盘只改变存储后端，不会自动变成原 bootloader/init/pivot 链。

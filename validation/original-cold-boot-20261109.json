@@ -1,0 +1,719 @@
+{
+  "external_content_inputs": [
+    "User 2.01 ALLLANG BODYDATA",
+    "QEMU11.1.2 source archive"
+  ],
+  "handoff_order": {
+    "ordered_log_offsets": [
+      95537,
+      99811,
+      100147,
+      100268,
+      100367,
+      100782,
+      112452
+    ],
+    "original_script_bytes_bound_by_build": true,
+    "original_script_handoff_order_verified": true
+  },
+  "host_groups": [
+    {
+      "name": "host",
+      "pytest_result_line": "376 passed, 39 skipped, 1 warning, 95 subtests passed in 6.56s",
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "6db121d9e5d62ff3361ed3dda16c67cc7fff0350ead279a02925b0d699696076"
+    },
+    {
+      "name": "source",
+      "pytest_result_line": null,
+      "returncode": 0,
+      "stderr_sha256": "9fd2ee14b1d88e5c4033503be817ac9ac5225a940a43682f314224d37925d297",
+      "stdout_sha256": "8b0ff5d7ca5aca415ab3292da482b4107a04a337e4b625a08c1bc54bd17ded40"
+    },
+    {
+      "name": "cold-public",
+      "pytest_result_line": "48 passed, 10 warnings in 0.37s",
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "42ca276b7a0307032372f3c35502ee22f2cadb7fa7c5f48c18dd074332ee793c"
+    },
+    {
+      "name": "cold-layout",
+      "pytest_result_line": "12 passed in 0.26s",
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "ccc03f184f820f021127453e09e83d55e026e6b17aee2b49425353b0adb000c2"
+    },
+    {
+      "name": "dependencies",
+      "pytest_result_line": null,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "293f5a072e52f522280bbf2bc45016109aff9f9ca58cc5fa4645beb51d12048b"
+    },
+    {
+      "name": "legacy-sync",
+      "pytest_result_line": null,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "4df707a940d6fde11b4675d18383ba135c02499e6c279db310d26955fca9a847"
+    }
+  ],
+  "internal_storage": {
+    "frozen_partitions": 19,
+    "frozen_verified": true,
+    "original_freeze_bdev_used": true,
+    "raw_sha256": "1c97aa25bc36526cbdcefbd717542dbcea6f09945547817fe123a6c8ae48556d"
+  },
+  "limitations": {
+    "capture_to_card": "deferred",
+    "capture_verified": false,
+    "cp_image_executed": false,
+    "default_gtk_original_init_route_integrated": false,
+    "full_bodydata_update": "deferred",
+    "full_boot_verified": false,
+    "original_watchdog_verified": false,
+    "original_wbi_resume_verified": false,
+    "physical_devices_used": false,
+    "ram_hot_restore_verified": false,
+    "recovery_work": "paused-by-user",
+    "sony_bootrom_loader_executed": false,
+    "usb_authentication_verified": false,
+    "usb_host_enumeration_verified": false
+  },
+  "main_menu": {
+    "capture_verified": false,
+    "firstsetup_steps": 12,
+    "language_navigation": {
+      "actual_highlight_verified": true,
+      "actual_simplified_chinese_glyphs_verified": true,
+      "direction_inputs": [
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN",
+        "DOWN"
+      ]
+    },
+    "normal_input_and_actual_lcd_required": true,
+    "original_menu_control_pixels_verified": true,
+    "original_menu_enter_return_verified": true,
+    "original_shooting_hud_verified": true,
+    "stable_original_hud_return_pixels_sha256": "8718e2251bd284e3c75c91bde990f55cbb417b881b7b254c14f7ae3095944242",
+    "stable_original_menu_pixels_sha256": "82f6bb6287879694af88714976daed70f8b3b7393d6190063f04f6496c05d37c"
+  },
+  "max_acceptance_workers": 2,
+  "normal_qmp_exit": {
+    "qmp_quit_confirmed": true,
+    "returncode": 0,
+    "signals_sent": []
+  },
+  "official_new_instance_cli_executed": true,
+  "original_ap_input": [
+    {
+      "changed": true,
+      "key": "DOWN",
+      "lcd_pixels_sha256": "47538251cbc7846887754524d47505ac495ea724c17e8f4c9b804768911a196d",
+      "original_received_edges": [
+        3,
+        4
+      ],
+      "stable_changed_focus_verified": true
+    },
+    {
+      "changed": true,
+      "key": "UP",
+      "lcd_pixels_sha256": "1ffb6fafc6fc619798fb154bae1c13da52693320c6b1488aecc5f58ad917a53d",
+      "original_received_edges": [
+        5,
+        6
+      ],
+      "stable_changed_focus_verified": true
+    }
+  ],
+  "original_boot_files": {
+    "kernel.original.img": {
+      "bytes": 6610952,
+      "sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2"
+    },
+    "ram0.original.ext2": {
+      "bytes": 5218304,
+      "sha256": "b249308ff1a42f8f441cedbd6244e8ffa0b4c88b984b2d5e71a436d09ab86529"
+    }
+  },
+  "original_guest_elf_readback_lines": [
+    "PRODUCT_COLD_GUEST_ELF_VERIFIED=/usr/bin/im.elf:5171f576d8b76cfbf15581389183b390c445bd6ff9dd97fd6668c5f64e77dc91",
+    "PRODUCT_COLD_GUEST_ELF_VERIFIED=/usr/lib/appFw.so:2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+    "PRODUCT_COLD_GUEST_ELF_VERIFIED=/usr/lib/libObj.so:c0897d72a40bf0a161fa7f89e9a34eef4d19e0506c7817a5c11a6f53897cdbbc"
+  ],
+  "original_png_sha256": {
+    "original-cold-menu-return.png": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b",
+    "original-cold-original-menu.png": "f5955b796fba9e170158501a3fc86adcfc86dd20e24fb39f7d29679b4bdda064",
+    "original-cold-shooting-hud.png": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b"
+  },
+  "original_scripts": {
+    "p7": {
+      "/sbin/init": "c83de1abeeb779f7473181b51face32ecfedfa3bd5c0fc346ae0c628f1b0ac5e",
+      "/sbin/init2": "45d3b907e6ef96c9a930cd3e6f919db700bffb5f18c386abfdb655f4d9954aeb",
+      "/sbin/initrc/fstab": "3936e6508ba89a025fc998c824434562c2d16234db96e179ec3f3a90a5a1d6f0",
+      "/sbin/initrc/fstab.ext": "a77bdfb7bf15d3a1240bdefc4edb4469672f3258d6d8dba7dd4164e3fd2d51c3",
+      "/sbin/initrc/fstab.root": "c77d93236b89349bcc24853756f960bb49411e922c9430ede70b5b2cb8b6a4b2",
+      "/sbin/initrc/insmod_drv1": "22f29d06d7776fe5e8362c17049beabfd3e3bebffd222e51276e3704d483a591",
+      "/sbin/initrc/insmod_drv2": "19757bdd450061f861e2da44a6a93be2525668e3f7edc64e5a99a25bde56564e",
+      "/sbin/initrc/setup_console": "9411360fdfe60c7b7a09fa9e931e4ae9ec9c062e480b620e4c313c31f9139dd0",
+      "/sbin/initrc/setup_cpuset_CPU3": "95c778bd94e446d1e92f3f978cba58b714ca328c9020d03b7969ff2f83dd5ead",
+      "/sbin/initrc/setup_nflash": "055cb3db7a40084aef8aaa89a7357921b514bf0af89690f920b608d9f3734cdc",
+      "/sbin/initrc/setup_rootfs": "ee84d317484d8cb4a0f1e39d665f1f04f18bf4d193a36a6e9bf63f8666a6a34d",
+      "/sbin/initrc/setup_shielding": "d54f7a0ebfa3db37fe329463bdbf60c8b6fd14c3cb95dc658c244e8bf61ead1f"
+    },
+    "ram0": {
+      "/sbin/init": "c83de1abeeb779f7473181b51face32ecfedfa3bd5c0fc346ae0c628f1b0ac5e",
+      "/sbin/init2": "45d3b907e6ef96c9a930cd3e6f919db700bffb5f18c386abfdb655f4d9954aeb",
+      "/sbin/initrc/fstab": "3936e6508ba89a025fc998c824434562c2d16234db96e179ec3f3a90a5a1d6f0",
+      "/sbin/initrc/fstab.ext": "a77bdfb7bf15d3a1240bdefc4edb4469672f3258d6d8dba7dd4164e3fd2d51c3",
+      "/sbin/initrc/fstab.root": "c77d93236b89349bcc24853756f960bb49411e922c9430ede70b5b2cb8b6a4b2",
+      "/sbin/initrc/insmod_drv1": "22f29d06d7776fe5e8362c17049beabfd3e3bebffd222e51276e3704d483a591",
+      "/sbin/initrc/insmod_drv2": "19757bdd450061f861e2da44a6a93be2525668e3f7edc64e5a99a25bde56564e",
+      "/sbin/initrc/setup_console": "9411360fdfe60c7b7a09fa9e931e4ae9ec9c062e480b620e4c313c31f9139dd0",
+      "/sbin/initrc/setup_cpuset_CPU3": "95c778bd94e446d1e92f3f978cba58b714ca328c9020d03b7969ff2f83dd5ead",
+      "/sbin/initrc/setup_nflash": "055cb3db7a40084aef8aaa89a7357921b514bf0af89690f920b608d9f3734cdc",
+      "/sbin/initrc/setup_rootfs": "ee84d317484d8cb4a0f1e39d665f1f04f18bf4d193a36a6e9bf63f8666a6a34d",
+      "/sbin/initrc/setup_shielding": "d54f7a0ebfa3db37fe329463bdbf60c8b6fd14c3cb95dc658c244e8bf61ead1f"
+    }
+  },
+  "original_untouched_tree_and_hardlinks_verified": true,
+  "owner_and_peer_exited": true,
+  "owner_group_exited": true,
+  "prior_results": [
+    {
+      "case": "product-original-cold-1794154790213841808",
+      "error": "ValueError: Original p7 root not actually observed",
+      "original_result_preserved": true,
+      "original_result_sha256": "e831afb20ffd85557bef9053782f9309f386c83daf114a10f96108b95532f218",
+      "original_verified": false
+    },
+    {
+      "case": "product-original-cold-v2-1794155053785212828",
+      "error": "ValueError: Original LCD has no meaningful color content",
+      "original_result_preserved": true,
+      "original_result_sha256": "e008a7ba6ff30166676ca13f9289c9019a3b297955e858fcea0aa3b9e91e5dd6",
+      "original_verified": false
+    },
+    {
+      "case": "product-original-cold-v3-1794155276980590800",
+      "error": "ValueError: Original LCD has no meaningful color content",
+      "original_result_preserved": true,
+      "original_result_sha256": "10eaf73bd21b87a2f6fbb21c7ee5a71e89b178f700f2e61de2d588e99df81a8b",
+      "original_verified": false
+    },
+    {
+      "case": "product-original-cold-v4-1794155513638106001",
+      "error": null,
+      "original_result_preserved": true,
+      "original_result_sha256": "ce2dfb512288881f9eea4930a4a4195fec13b9b14562e0153b1b8dde11c32ac2",
+      "original_verified": true
+    },
+    {
+      "case": "product-original-cold-v5-1794156008731020696",
+      "error": null,
+      "independent_menu_rejection_sha256": "24bbfde6c03d2a328899a05c0f5f59210aa15a2b6e13201d7afa09ba4147bbcd",
+      "menu_adopted": false,
+      "original_result_preserved": true,
+      "original_result_sha256": "7e4c417dc77d24c375919de2ffd3136c9acf579e058ee8f2d84cdedb2a4fa60d",
+      "original_verified": true
+    },
+    {
+      "case": "product-original-cold-v6-1794156224301612040",
+      "error": "TimeoutError: setup-0-page: waiting for stable original page content; waiting for reviewed original page content and current screen: screen=301, content=unknown",
+      "original_result_preserved": true,
+      "original_result_sha256": "615c5274971c75f31be7ec52d389025f63732875ca26239bd2cf6203d8c75063",
+      "original_verified": false
+    },
+    {
+      "case": "product-original-cold-v7-1794156453755518944",
+      "error": null,
+      "original_result_preserved": true,
+      "original_result_sha256": "9f5606883c60400bd4fb05d6988a8d4a2ca610224e81bc84e79ab3f55866b56b",
+      "original_verified": true
+    },
+    {
+      "case": "product-original-cold-final-1794156963443198840",
+      "error": null,
+      "original_result_preserved": true,
+      "original_result_sha256": "49effae89faa09af8fa2d9f469245517a8a4547069f1f6d179f7bb310fb3e6d8",
+      "original_verified": true,
+      "stopped_review_sha256": "b514f220298333904448d4036b89b94d20b995500c56e5038e11949b78ac391a",
+      "stopped_structure_verified": false
+    },
+    {
+      "case": "product-original-cold-clean-1794157167110038815",
+      "error": "ValueError: Original input edges consumed but no LCD focus change",
+      "original_result_preserved": true,
+      "original_result_sha256": "ed1ad8ebc035966fab663537a36410a83cc4f04052d310a670599166d05b57cb",
+      "original_verified": false
+    }
+  ],
+  "private_actual_result_sha256": "368fccb1352b08eb3acee8db846acd848ae88b3784191b05f90e104dcde3b89b",
+  "private_build_result_sha256": "0d3faef96db6e2d1692b36bae065af36a513e8700242366261ce5ba4907fd29a",
+  "ram0_bytes": 201326592,
+  "ram0_sha256": "e7069f21aa4fdbf355909ab98127dfdbdf39a819ed49a90f69ca328c7f731f0f",
+  "research_runtime_or_dump_dependency": false,
+  "root_observation": {
+    "internal_mounts": [
+      {
+        "device": "253:135",
+        "filesystem": "ext2",
+        "options": [
+          "ro",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha7",
+        "super_options": [
+          "ro",
+          "sync",
+          "errors=continue"
+        ],
+        "target": "/"
+      },
+      {
+        "device": "253:130",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha2",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/setting"
+      },
+      {
+        "device": "253:131",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha3",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/system"
+      },
+      {
+        "device": "253:136",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha8",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/cp"
+      },
+      {
+        "device": "253:139",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha11",
+        "super_options": [
+          "rw",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "batch_sync",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/log"
+      },
+      {
+        "device": "253:140",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha12",
+        "super_options": [
+          "rw",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "batch_sync",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/cert"
+      },
+      {
+        "device": "253:146",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha18",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/lens"
+      },
+      {
+        "device": "253:138",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha10",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/tmp"
+      },
+      {
+        "device": "253:143",
+        "filesystem": "ext2",
+        "options": [
+          "ro",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha15",
+        "super_options": [
+          "ro",
+          "sync",
+          "errors=continue"
+        ],
+        "target": "/usr"
+      },
+      {
+        "device": "253:138",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha10",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/etc"
+      },
+      {
+        "device": "253:138",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha10",
+        "super_options": [
+          "rw",
+          "sync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/var"
+      },
+      {
+        "device": "253:143",
+        "filesystem": "ext2",
+        "options": [
+          "ro",
+          "noatime",
+          "nodiratime"
+        ],
+        "root": "/bin/bootin.elf",
+        "source": "/dev/nflasha15",
+        "super_options": [
+          "ro",
+          "sync",
+          "errors=continue"
+        ],
+        "target": "/dev/qemu-simulation/bootin-original"
+      },
+      {
+        "device": "253:150",
+        "filesystem": "vfat",
+        "options": [
+          "rw",
+          "noatime"
+        ],
+        "root": "/",
+        "source": "/dev/nflasha22",
+        "super_options": [
+          "rw",
+          "dirsync",
+          "fmask=0022",
+          "dmask=0022",
+          "codepage=437",
+          "iocharset=ascii",
+          "shortname=mixed",
+          "posix_attr",
+          "avoid_dlink",
+          "errors=remount-ro"
+        ],
+        "target": "/usr/data/ai_dict/usr"
+      }
+    ],
+    "old_root_unmounted_verified": true,
+    "p7_root": {
+      "device": "253:135",
+      "filesystem": "ext2",
+      "options": [
+        "ro",
+        "noatime",
+        "nodiratime"
+      ],
+      "root": "/",
+      "source": "/dev/nflasha7",
+      "super_options": [
+        "ro",
+        "sync",
+        "errors=continue"
+      ],
+      "target": "/"
+    },
+    "root_uid_gid_four_zero_fields": true
+  },
+  "schema": "a7c2-product-original-user-cold-chain-validation-v1",
+  "scope": "explicit CLI original RAM0/init/pivot/chroot/init2/bootin/im/appFw with declared functional virtual hardware",
+  "source_commit_parent": "5c5237f8f7cb0600c877b98728a79ff1abd7a37f",
+  "source_drift": [],
+  "source_files": {
+    "runtime/analysis/cold/bootin.sh": "9ac2689718547f94307bdffd8a9f200776041c98ae919c0d763da12f4704c48b",
+    "runtime/analysis/cold/bootstrap.sh": "8dd343f3c320aa327779216b19e1890b6af28f1b4ab0a724065d269a9214995d",
+    "runtime/analysis/cold/cold-start-audit.c": "5c9eb727b1aa1da78490722b0c88f4870f5f467d803aa2c294d5652bbabccc40",
+    "runtime/analysis/cold/insmod.sh": "438ae1052dde3e87face5d67337ac1862835038a5c679a21af5f7de764e4d304",
+    "runtime/analysis/original_cold_boot.py": "f9e3e83688109d1de9ff53614715e3336e823c5f340a3fefd64bab0dc198be61",
+    "runtime/analysis/persistent_storage.py": "cee3becd4b625c1bbd2707cd7d0d2fdf83b2f2a86593dd3d61a24c54a0c216bc",
+    "runtime/analysis/qemu-kernel-probe.sh": "9b8c40176e76d54874a93715a88fd3292b4820c7915851acf9832f23b7c040d4",
+    "tools/run-original-cold.py": "bc453359bc6d658c8914e76b118c256fa963c0c5a3a90472c7893163dd2ccfca"
+  },
+  "stopped_internal_volume_review": {
+    "disk_opened_only_after_owner_exit": true,
+    "full_disk_sha256": "59502eecb3a407f407e71ecb45aaaa77478013c6dbe9ac711d975b1e06e978ce",
+    "p7_derived_original_root_unchanged_by_guest": true,
+    "schema": "a7c2-original-cold-stopped-internal-volume-review-v1",
+    "usr_whole_original_official_factory_image_unchanged": true,
+    "verified": true,
+    "volumes": [
+      {
+        "bytes": 20971520,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha2",
+        "sha256": "90b95d6efd42fae5ba4a0b21b5b1a0f3d9929422160fae11628356c2825901df",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "fc6d4f3fdf210e228a6993e238600a25d7782005c238eb226d12e9c575c15f58",
+        "structure_verified": true
+      },
+      {
+        "bytes": 78643200,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha3",
+        "sha256": "591123c53ea78001da9cf74830899943e158cb83be0bde141678e46735d4b297",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "ea4dcb21258294590658f3898355209cb4a47519a0154474b7e62bf221669f12",
+        "structure_verified": true
+      },
+      {
+        "bytes": 16777216,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 0,
+        "partition": "nflasha7",
+        "sha256": "f800b26bab9138ef313b7d962565393c7af70bd3031bd888b89a3017776751d4",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01",
+        "stdout_sha256": "8bd3c5230136f657baad51ef1f1c2aeec74443199cf9aef714a69865dfbb43e4",
+        "structure_verified": true
+      },
+      {
+        "bytes": 67108864,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha8",
+        "sha256": "cc27bb30f73552cf29e6d39db86626f2c57f6496ca94be89280048a23db43e3e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "99cce2738d5b6b8e7690a8fea431c65b2e289cdcc47bb619ce636ca4ab2b3a90",
+        "structure_verified": true
+      },
+      {
+        "bytes": 12582912,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha10",
+        "sha256": "c45cd73da6be6d11ba1bc5bedd2d962538bc7b58faf80ee0aa33d861186e63ba",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "cf438607d7423cf982f505c11ef03b6f59034365525b004837422d5705ce8871",
+        "structure_verified": true
+      },
+      {
+        "bytes": 314572800,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha11",
+        "sha256": "bd64bf8f1473e6a63cdf7d2c31bea9ae088bbbe0b16d9a76233516d5e219af2e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "3f702a28d25ab0ace8269f718b927b6b036108392222ad57070f1d7213d3f8da",
+        "structure_verified": true
+      },
+      {
+        "bytes": 41943040,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha12",
+        "sha256": "a33ca9e1760c34d3b0341c798533754e432a2b1cdd35b796d9d1e303f8f7e51a",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "f84378675550c4c77151c7bb3c68b2be6a2061a82f4af88a1cec2471f2c1c76f",
+        "structure_verified": true
+      },
+      {
+        "bytes": 807403520,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 0,
+        "partition": "nflasha15",
+        "sha256": "22132ffec3dff20b1b5243f0c0593dcdfc4cada598920fac0c1c585cdbaccd19",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01",
+        "stdout_sha256": "b59892eff2ca41ea8c91d665a088b9ff7b5e893a3fabbf185b3dcb121ff7a628",
+        "structure_verified": true
+      },
+      {
+        "bytes": 20971520,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha18",
+        "sha256": "7fbefded6e6068ddc1122a70f71a231e8305f8854383d3863cbe7ffb8abcd939",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "33425ee2f0e12bbc5ea8f13d11e1713d2b4b20db4d539c798db282444469ebad",
+        "structure_verified": true
+      },
+      {
+        "bytes": 68157440,
+        "dirty_snapshot_flag_not_cleared": true,
+        "fsck_returncode": 1,
+        "partition": "nflasha22",
+        "sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "14a07e92156bd3755dc25d43e9c84a344df2581b186c78da916fce43ac3b50b6",
+        "structure_verified": true
+      }
+    ]
+  },
+  "verified": true
+}

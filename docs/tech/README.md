@@ -21,6 +21,8 @@ QEMU 归档应放在 `source/vendor/qemu-11.1.2.tar.xz`。缺少归档或摘要�
 
 首次运行可能出现语言、日期或教程页面。窗口显示的是固件实际 LCD；取景黑色或某个拍摄操作未完成时，不表示产品已经支持相机成片。当前功能范围以 [根 README](../../README.md) 为准。
 
+需要验证原 RAM0/init/pivot/init2 路线时，使用[原冷启动独立入口](2026-11-09-original-cold-boot.md)。它创建专属内部盘，默认 GTK 的 ON 尚未切到该路线；原 BootROM/CP/WBI等硬件阶段继续独立未完成。
+
 运行数据写在 `runtime/`，不是输入固件。虚拟卡位于 `runtime/analysis/menu-runs/run-*/SD/`，设置位于 `runtime/analysis/camera-instances/`。关闭窗口会调用本实例的保存和退出流程；如果界面提示保存失败，应先处理错误并保留运行目录。
 
 如果用覆盖目录测试自制程序，先移开覆盖文件再启动原版本。不要用历史 ELF、旧运行截图或空白资源替代导入失败的固件文件。

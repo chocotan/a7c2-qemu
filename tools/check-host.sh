@@ -4,7 +4,7 @@ set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 missing=0
 for tool in python3 bwrap patch ninja meson cc c++ pkg-config flock make flex bison clang ld.lld \
-  cpio debugfs e2fsck resize2fs fsck.fat mkfs.fat sha256sum timeout aarch64-linux-gnu-gcc aarch64-linux-gnu-ld; do
+  cpio debugfs e2fsck resize2fs mke2fs fsck.fat mkfs.fat sha256sum timeout aarch64-linux-gnu-gcc aarch64-linux-gnu-ld; do
   if ! command -v "$tool" >/dev/null; then
     echo "MISSING command: $tool" >&2
     missing=1

@@ -17077,6 +17077,128 @@
     "source_root": "final/a7c2-re/report/2026-10-17-qemu-native-camera"
   },
   "origin": "a7c2-re/report/2026-10-17-qemu-native-camera",
+  "original_cold_product_20261109": {
+    "base_commit": "5c5237f8f7cb0600c877b98728a79ff1abd7a37f",
+    "external_content_inputs": [
+      "User ILCE-7CM2 2.01 ALLLANG BODYDATA",
+      "QEMU11.1.2 source archive"
+    ],
+    "files": {
+      "README.md": {
+        "bytes": 11815,
+        "origin": "direct product implementation",
+        "sha256": "951df499c835ccec5e3bc772a55647651b8a8973e79bc2d72c89030f934fd6c9"
+      },
+      "docs/images/original-cold-menu-return.png": {
+        "bytes": 8544,
+        "origin": "direct product implementation",
+        "sha256": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b"
+      },
+      "docs/images/original-cold-original-menu.png": {
+        "bytes": 20418,
+        "origin": "direct product implementation",
+        "sha256": "f5955b796fba9e170158501a3fc86adcfc86dd20e24fb39f7d29679b4bdda064"
+      },
+      "docs/images/original-cold-shooting-hud.png": {
+        "bytes": 8544,
+        "origin": "direct product implementation",
+        "sha256": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b"
+      },
+      "docs/tech/2026-11-08-boot-review.md": {
+        "bytes": 3916,
+        "origin": "direct product implementation",
+        "sha256": "c15a5c72460d179b7ecae4b475a844a887c760e806c5dff0ac5862c5a2e33bb7"
+      },
+      "docs/tech/2026-11-09-original-cold-boot.md": {
+        "bytes": 7396,
+        "origin": "direct product implementation",
+        "sha256": "1a0b7d95aec35f9dd0a72c08e5d65f288ba4b411f7d6be209256c6204db43418"
+      },
+      "docs/tech/README.md": {
+        "bytes": 1756,
+        "origin": "direct product implementation",
+        "sha256": "087fd1856489f66eadef838eb389ca57e3e61591311c04383b55e91910efc487"
+      },
+      "runtime/analysis/cold/bootin.sh": {
+        "bytes": 903,
+        "origin": "direct product implementation",
+        "sha256": "9ac2689718547f94307bdffd8a9f200776041c98ae919c0d763da12f4704c48b"
+      },
+      "runtime/analysis/cold/bootstrap.sh": {
+        "bytes": 1991,
+        "origin": "direct product implementation",
+        "sha256": "8dd343f3c320aa327779216b19e1890b6af28f1b4ab0a724065d269a9214995d"
+      },
+      "runtime/analysis/cold/cold-start-audit.c": {
+        "bytes": 7077,
+        "origin": "minimal necessary project helper selected from original cold-chain research; runtime now maintained here",
+        "sha256": "5c9eb727b1aa1da78490722b0c88f4870f5f467d803aa2c294d5652bbabccc40"
+      },
+      "runtime/analysis/cold/insmod.sh": {
+        "bytes": 2741,
+        "origin": "direct product implementation",
+        "sha256": "438ae1052dde3e87face5d67337ac1862835038a5c679a21af5f7de764e4d304"
+      },
+      "runtime/analysis/original_cold_boot.py": {
+        "bytes": 19555,
+        "origin": "direct product implementation",
+        "sha256": "f9e3e83688109d1de9ff53614715e3336e823c5f340a3fefd64bab0dc198be61"
+      },
+      "runtime/analysis/persistent_storage.py": {
+        "bytes": 13688,
+        "origin": "direct product implementation",
+        "sha256": "cee3becd4b625c1bbd2707cd7d0d2fdf83b2f2a86593dd3d61a24c54a0c216bc"
+      },
+      "runtime/analysis/qemu-kernel-probe.sh": {
+        "bytes": 28596,
+        "origin": "direct product implementation",
+        "sha256": "9b8c40176e76d54874a93715a88fd3292b4820c7915851acf9832f23b7c040d4"
+      },
+      "runtime/analysis/test_original_cold_boot.py": {
+        "bytes": 10419,
+        "origin": "direct product implementation",
+        "sha256": "d4df133bf9502bb395e4d2cfaa1a5923b9fee5037fd7754ab58bb71f28306fc5"
+      },
+      "runtime/analysis/test_original_cold_launcher.py": {
+        "bytes": 1984,
+        "origin": "direct product implementation",
+        "sha256": "4a683e9edebd2fef4313e6cf24676977888907fa5ee32439aeb85ad2669307b9"
+      },
+      "tools/check-host.sh": {
+        "bytes": 2175,
+        "origin": "direct product implementation",
+        "sha256": "f5753a719ef29c4ff1cd57504e6ebea4c542c0eff27a797558a17d2e853ea9fa"
+      },
+      "tools/public-model-tests.json": {
+        "bytes": 13543,
+        "origin": "direct product implementation",
+        "sha256": "f61137204f918643a61b2c351b56fdb8e2e6085d1f0363a66a70b135f1977ddc"
+      },
+      "tools/run-original-cold.py": {
+        "bytes": 18735,
+        "origin": "direct product implementation",
+        "sha256": "bc453359bc6d658c8914e76b118c256fa963c0c5a3a90472c7893163dd2ccfca"
+      },
+      "tools/test_public_models_runner.py": {
+        "bytes": 14995,
+        "origin": "direct product implementation",
+        "sha256": "6840b43423cce8d1ce8c5b2d1f39a0c0a50439beefd3cec8eb31e544c663236e"
+      },
+      "validation/README.md": {
+        "bytes": 49604,
+        "origin": "direct product implementation",
+        "sha256": "3f9639878b23696da3292f9c5a4e42af6964b358342b9dd763da3acccf7cfa2d"
+      },
+      "validation/original-cold-boot-20261109.json": {
+        "bytes": 25040,
+        "origin": "direct product implementation",
+        "sha256": "a531e4b5875e2c0e318e0efeb6b505ccafde2366593e891df72d86ae667147d6"
+      }
+    },
+    "original_scripts_unchanged": true,
+    "research_repository_runtime_dependency": false,
+    "scope": "Explicit original RAM0/init/pivot/chroot/init2 boot route and original UI validation; default GTK entry retained"
+  },
   "prior_inventory_identity_correction_20261107": {
     "base_commit": "29bff4591e5ea38dd201723f8ae5f78f1bd59524",
     "code_changed": false,
