@@ -58,6 +58,20 @@ class IsolatedNetdevSocket(unittest.TestCase):
                 alias2.unlink(missing_ok=True)
 
 
+class DefaultBluetoothController(unittest.TestCase):
+    def test_product_natural_boot_chooses_existing_rom_controller(self):
+        env = control.launcher.profile_environment({}, natural_boot=True)
+        self.assertEqual(env['A7C2_VIRTUAL_HCI'], 'virtual-rom-v1')
+        self.assertNotIn('A7C2_VIRTUAL_HCI', control.launcher.profile_environment({}))
+
+    def test_explicit_empty_disables_controller_and_unknown_profile_is_rejected(self):
+        env = control.launcher.profile_environment({'A7C2_VIRTUAL_HCI': ''}, natural_boot=True)
+        self.assertEqual(env['A7C2_VIRTUAL_HCI'], '')
+        for value in ('unknown', '1', 'off'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                control.launcher.profile_environment({'A7C2_VIRTUAL_HCI': value}, natural_boot=True)
+
+
 class BackupSaveForwarding(unittest.TestCase):
     """Backup_save is opt-in and must survive both launcher profiles.
 

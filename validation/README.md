@@ -1,5 +1,11 @@
 # 本包验证记录
 
+## 11月8日默认启动修复
+
+默认 `./start.sh` 的自然相机profile已接入已有 `virtual-rom-v1`，普通使用无需环境变量。实际 `run-1cnmhiiy` 从当前用户配置的独立副本启动，调用者环境明确没有 `A7C2_VIRTUAL_HCI`；九步原首设、拍摄HUD、原中文Home菜单 `0x2ca/44` 与MENU返回HUD通过。原错误页未改、未见 `0x30c`，未重置原配置，主会话看原图核对。
+
+核心八组和发布八组检查全rc0，受限host **325 passed / 34 skipped / 92 subtests passed**。首轮验收脚本只认旧菜单ID并在关闭时用错显示号，其失败/后续黑帧保留；修driver后仅补必要同代码实跑，不回填原失败。原QMP0/无信号、32块卡跨通道摘要和fsck0、用户原配置未变均已核。见[修复说明](../docs/tech/2026-11-08-default-startup.md)及[收据](default-startup-20261108.json)。长期电源/唤醒、完整硬件启动和成片仍独立未完成。
+
 ## 11月7日连续 LCD 与原 App32 输入
 
 直接在产品目录实现并验证了独立原 LCD 通道、事件唤醒、原 App32 常驻发送与正常 QMP 收尾。核心检查八并发全过；另一次发布前八并发中，七组通过，host 组旧 sender fixture 适配后的补验为 **323 passed / 34 skipped / 89 subtests passed**。失败原件、逐项 skip 理由与其余组结果分别留存，未重复未变的软件模型全量。

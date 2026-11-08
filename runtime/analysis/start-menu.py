@@ -212,6 +212,10 @@ def profile_environment(current, menu_key=False, natural_boot=False):
            if not key.startswith(('MENU_', 'QEMU_', 'SONY_'))
            and key not in ('SKIP_REBUILD', 'SEED_BACKUP', 'PRELOAD_ALL', 'CPIO_PAD_BYTES')}
     if natural_boot:
+        hci = current.get('A7C2_VIRTUAL_HCI', 'virtual-rom-v1')
+        if hci not in ('', 'virtual-rom-v1'):
+            raise ValueError('A7C2_VIRTUAL_HCI must be virtual-rom-v1 or empty to disable')
+        env['A7C2_VIRTUAL_HCI'] = hci
         if current.get('A7C2_JPEG_REQUEST_TRACE') not in (None, '', '1'):
             raise ValueError('A7C2_JPEG_REQUEST_TRACE must be 1 or unset')
         if current.get('A7C2_NATURAL_START_TRACE') not in (None, '', '1'):

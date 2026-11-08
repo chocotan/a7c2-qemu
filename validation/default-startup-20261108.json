@@ -1,0 +1,158 @@
+{
+  "schema": "a7c2-default-natural-boot-controller-fix-v1",
+  "product_default_start_sh": true,
+  "caller_hci_variable_present": false,
+  "actual_hci_profile": "virtual-rom-v1",
+  "original_bsa_and_controller_started": true,
+  "original_firstsetup_steps": 9,
+  "original_hud_verified": true,
+  "original_home_menu_screen": "0x2ca",
+  "original_home_menu_controls": 44,
+  "original_menu_verified": true,
+  "original_menu_return_hud_verified": true,
+  "original_screen_chain": [
+    {
+      "call": 1,
+      "screen": "0x308",
+      "controls": 28
+    },
+    {
+      "call": 2,
+      "screen": "0x12d",
+      "controls": 6
+    },
+    {
+      "call": 3,
+      "screen": "0x1c6",
+      "controls": 9
+    },
+    {
+      "call": 4,
+      "screen": "0x1dd",
+      "controls": 9
+    },
+    {
+      "call": 5,
+      "screen": "0x1c5",
+      "controls": 9
+    },
+    {
+      "call": 6,
+      "screen": "0xd1",
+      "controls": 15
+    },
+    {
+      "call": 7,
+      "screen": "0x11c",
+      "controls": 9
+    },
+    {
+      "call": 8,
+      "screen": "0x9d",
+      "controls": 47
+    },
+    {
+      "call": 9,
+      "screen": "0x1f4",
+      "controls": 8
+    },
+    {
+      "call": 10,
+      "screen": "0x347",
+      "controls": 28
+    },
+    {
+      "call": 11,
+      "screen": "0x343",
+      "controls": 0
+    },
+    {
+      "call": 12,
+      "screen": "0x0",
+      "controls": 565
+    },
+    {
+      "call": 13,
+      "screen": "0x29b",
+      "controls": 4
+    },
+    {
+      "call": 14,
+      "screen": "0x343",
+      "controls": 0
+    },
+    {
+      "call": 15,
+      "screen": "0x0",
+      "controls": 565
+    },
+    {
+      "call": 16,
+      "screen": "0x346",
+      "controls": 0
+    },
+    {
+      "call": 17,
+      "screen": "0x2ca",
+      "controls": 44
+    },
+    {
+      "call": 18,
+      "screen": "0x343",
+      "controls": 0
+    },
+    {
+      "call": 19,
+      "screen": "0x0",
+      "controls": 565
+    }
+  ],
+  "original_system_error_screen_seen": false,
+  "error_screen_modified": false,
+  "original_config_not_reset": true,
+  "original_user_config_bytes_unchanged": true,
+  "run": "run-1cnmhiiy",
+  "console_sha256": "dfbd122aff32a6a2387fcbca1b87a8376a9c9edfd19d3280f24b6c0fc828d9fe",
+  "source": {
+    "path": "runtime/analysis/start-menu.py",
+    "sha256": "4dcce461f1a4e69978335078e4ec95030b37f3cdc2a2b8a2934cf6da79750dc0"
+  },
+  "core_eight_way": {
+    "workers": 8,
+    "all_groups_returncode_zero": true,
+    "result_sha256": "939b69e51a16f9f27266de9fd7306c5770776ba6b007fcf8d97296bef0056c92",
+    "skips_remain_host_display_scope": true
+  },
+  "shutdown": {
+    "qmp_quit_confirmed": true,
+    "owner_returncode": 0,
+    "vm_signals": [],
+    "launcher_returncode": 0
+  },
+  "card": {
+    "bytes": 134217728,
+    "sha256": "96d4e10a108b13833f0458b230478331ea9768c2e6d5beb243b1da20be553a6b",
+    "cross_channel_chunks": 32,
+    "fsck_rc": 0
+  },
+  "screenshot": {
+    "path": "docs/images/default-startup-20261108.png",
+    "sha256": "8fbdd2656ec7928761cab23e2ec9efe9e266abf470b3403f5cfc8eb4a720e5d8",
+    "width": 1360,
+    "height": 930,
+    "original_lcd_pixels": true,
+    "private_serial_present": false
+  },
+  "first_driver_failure_preserved": true,
+  "first_driver_wrong_menu_id_and_close_display_corrected": true,
+  "long_term_power_or_wakeup_verified": false,
+  "full_hardware_boot_verified": false,
+  "capture_verified": false,
+  "release_eight_way": {
+    "workers": 8,
+    "all_groups_returncode_zero": true,
+    "result_sha256": "089237e5d9155eeafae73708bb70e35bfe6f063006315342a3b25cd0dcffb0c3",
+    "host_summary": "325 passed, 34 skipped, 1 warning, 92 subtests passed in 6.44s",
+    "legacy_scripts_sync_passed": true
+  }
+}

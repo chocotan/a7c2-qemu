@@ -1743,9 +1743,10 @@
       "source": "runtime/analysis/start-bt-virtual.sh"
     },
     "runtime/analysis/start-menu.py": {
-      "sha256": "749b92b1d6f53bcf235b3631c3ffcde37c5439c7dbb4f8fb5842a0a8faeec60f",
-      "source": "runtime/analysis/start-menu.py",
-      "prior_inventory_sha256": "83b6b4cfa6fbe58c5f1bae1a5318fbc515f8a8d3d6a8fc6e6fa8c7513ca8174b"
+      "sha256": "4dcce461f1a4e69978335078e4ec95030b37f3cdc2a2b8a2934cf6da79750dc0",
+      "source": "product-default-natural-boot-controller-fix-20261108",
+      "previous_sha256": "749b92b1d6f53bcf235b3631c3ffcde37c5439c7dbb4f8fb5842a0a8faeec60f",
+      "previous_source": "runtime/analysis/start-menu.py"
     },
     "runtime/analysis/stillca-state.c": {
       "sha256": "4a2c9460fc67db8db9c34bb4a6779282210bd708f78e0be7d04e99ea0d5cd72c",
@@ -2015,10 +2016,10 @@
       "source": "runtime/analysis/test_media_state_readback.py"
     },
     "runtime/analysis/test_menu_control.py": {
-      "sha256": "540ca39ec1e642c606232b0e436e17c2746bdb7bec9cb6f543493cee5af3091b",
-      "source": "product-native-continuous-lcd-original-app32-20261107",
-      "previous_sha256": "3e1045ff0003761749cc64889b2b37e4157167a1003459991a8b9c0de1d49801",
-      "previous_source": "runtime/analysis/test_menu_control.py"
+      "sha256": "468c0293c4edafae46826172d7cad0e91fcfa96892a9418dd5713fd15b5cb512",
+      "source": "product-default-natural-boot-controller-fix-20261108",
+      "previous_sha256": "540ca39ec1e642c606232b0e436e17c2746bdb7bec9cb6f543493cee5af3091b",
+      "previous_source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "runtime/analysis/test_mode_icon_consumer.py": {
       "sha256": "0618883dc527446674ec0f806cd65ad75fd44a03b4286b4efe95017757eeae3e",
@@ -3706,8 +3707,10 @@
       "source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "README.md": {
-      "sha256": "d1dfe8eaa35547a54afadb2ddcd4f3bdf669d9b83ab45cd42564706c1213377a",
-      "source": "product-native-continuous-lcd-original-app32-20261107"
+      "sha256": "c7c7faf767d079103010dc5e01480f7475048ab716e3d26cf9516ff03d9c5b39",
+      "source": "product-default-natural-boot-controller-fix-20261108",
+      "previous_sha256": "d1dfe8eaa35547a54afadb2ddcd4f3bdf669d9b83ab45cd42564706c1213377a",
+      "previous_source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "docs/tech/2026-11-07-current-progress.md": {
       "sha256": "1b052c69ebd002af2eae84fc1364ef8fcb7127a49fd07762cfa01bb6005f73ee",
@@ -3726,8 +3729,22 @@
       "source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "validation/README.md": {
-      "sha256": "d9e9b05cff2e227b022a816fded2868d513703ca40a78e592c3f179bf175e9a9",
-      "source": "product-native-continuous-lcd-original-app32-20261107"
+      "sha256": "8cd7e41c0f519399f02ad49388cbb5e9c620965ba65b1d7faac511f4e762681a",
+      "source": "product-default-natural-boot-controller-fix-20261108",
+      "previous_sha256": "d9e9b05cff2e227b022a816fded2868d513703ca40a78e592c3f179bf175e9a9",
+      "previous_source": "product-native-continuous-lcd-original-app32-20261107"
+    },
+    "docs/images/default-startup-20261108.png": {
+      "sha256": "8fbdd2656ec7928761cab23e2ec9efe9e266abf470b3403f5cfc8eb4a720e5d8",
+      "source": "product-default-natural-boot-controller-fix-20261108"
+    },
+    "docs/tech/2026-11-08-default-startup.md": {
+      "sha256": "a4b2098feb6ed5bc20a7016b2cc1df9e36e91908fbdc96176c8539e675533ab1",
+      "source": "product-default-natural-boot-controller-fix-20261108"
+    },
+    "validation/default-startup-20261108.json": {
+      "sha256": "42686c2829f341c4b7815c819a3e2933014b055736e737e2577051692c8dbbcd",
+      "source": "product-default-natural-boot-controller-fix-20261108"
     }
   },
   "functional_camera_port": {
@@ -14984,5 +15001,25 @@
       "runtime/analysis/test_source_snapshot.py",
       "start.sh"
     ]
+  },
+  "default_startup_20261108": {
+    "parent_publication": "d2372f2f1ae6856e515408fc3bb1aaa7dca8b8cf",
+    "source_files": {
+      "docs/images/default-startup-20261108.png": "8fbdd2656ec7928761cab23e2ec9efe9e266abf470b3403f5cfc8eb4a720e5d8",
+      "docs/tech/2026-11-08-default-startup.md": "a4b2098feb6ed5bc20a7016b2cc1df9e36e91908fbdc96176c8539e675533ab1",
+      "validation/default-startup-20261108.json": "42686c2829f341c4b7815c819a3e2933014b055736e737e2577051692c8dbbcd",
+      "README.md": "c7c7faf767d079103010dc5e01480f7475048ab716e3d26cf9516ff03d9c5b39",
+      "runtime/analysis/start-menu.py": "4dcce461f1a4e69978335078e4ec95030b37f3cdc2a2b8a2934cf6da79750dc0",
+      "runtime/analysis/test_menu_control.py": "468c0293c4edafae46826172d7cad0e91fcfa96892a9418dd5713fd15b5cb512",
+      "validation/README.md": "8cd7e41c0f519399f02ad49388cbb5e9c620965ba65b1d7faac511f4e762681a"
+    },
+    "default_start_sh_actual_verified": true,
+    "caller_hci_environment_present": false,
+    "actual_original_hud_menu_return_verified": true,
+    "original_configuration_reset": false,
+    "receipt": "validation/default-startup-20261108.json",
+    "receipt_sha256": "42686c2829f341c4b7815c819a3e2933014b055736e737e2577051692c8dbbcd",
+    "full_hardware_boot_verified": false,
+    "capture_verified": false
   }
 }

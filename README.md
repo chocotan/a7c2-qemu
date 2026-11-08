@@ -4,9 +4,9 @@
 
 **目前能操作菜单，还不能拍照或录像。取景区域仍是黑色，首次启动也可能停在设置、教程或错误页面。**
 
-![本产品实际运行窗口，原厂 LCD 显示拍摄 HUD，取景区域仍为黑色](docs/images/native-shooting-20261107.png)
+![直接执行默认 start.sh 后的原厂拍摄界面，已完成原中文菜单往返](docs/images/default-startup-20261108.png)
 
-上图为本仓库实际完成原首设后的拍摄 HUD，使用显式 `virtual-rom-v1` 蓝牙功能配置；取景和拍摄成片尚未恢复。该轮后续进入原 `pre_power_off` / `0x309` 黑帧，唤醒仍未解决；本轮未捕获电源因子，不能据短时画面宣称长期稳定。[此前的原语言选择页](docs/images/startup-window-20261107.png)保留。运行只用 2.01 ALLLANG BODYDATA 与固定 QEMU 源码构建，不依赖研究仓库或系统 dump。
+上图来自直接执行默认 `./start.sh` 的实际窗口，没有传入 HCI 环境变量。已完成原首设、拍摄主界面、中文菜单进入与返回，未出现“系统出错”，原配置没有重置；[验收收据](validation/default-startup-20261108.json)记录原帧、原事件及正常保存退出。取景和拍摄成片尚未恢复，长期电源/黑帧唤醒仍在完善。此前的[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用 2.01 ALLLANG BODYDATA 与固定 QEMU 源码构建，不依赖研究仓库或系统 dump。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
@@ -45,13 +45,15 @@ python3 tools/check-source.py
 
 窗口出现后按 **ON**，等待启动并完成相机的语言、日期等提示。启动失败、停在教程或显示“系统出错”时，可以先查看[启动排障文档](docs/tech/README.md)。
 
-本次首设验证显式使用已有的虚拟蓝牙控制器，让原 BSA 完成管理初始化：
+默认相机启动现在选择已有的 `virtual-rom-v1` 虚拟蓝牙控制器，让原 BSA 完成管理初始化，无需额外设置环境变量，见[默认启动修复记录](docs/tech/2026-11-08-default-startup.md)。它只模拟有限控制器行为，不提供真实无线或手机配对。原系统错误页没有被屏蔽；后续黑帧与完整唤醒仍待修复。
+
+仅在排查原蓝牙依赖时，可以显式禁用该模型作对照：
 
 ```bash
-A7C2_VIRTUAL_HCI=virtual-rom-v1 ./start.sh --bodydata /path/to/BODYDATA.DAT
+A7C2_VIRTUAL_HCI= ./start.sh --bodydata /path/to/BODYDATA.DAT
 ```
 
-该配置仍默认关闭，只模拟有限控制器行为，不提供真实无线或手机配对。原系统错误页没有被屏蔽；后续黑帧与完整唤醒仍待修复。
+禁用后原蓝牙初始化可能失败并显示“系统出错”；原配置不会因选择这个对照而重置。
 
 第一次导入和编译完成后，后续只需：
 
