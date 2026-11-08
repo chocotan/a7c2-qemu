@@ -278,7 +278,18 @@ def require(value, reason):
         raise ValueError('HDMI11: ' + str(reason))
 
 
+PRODUCT_DEVELOPMENT_20261108_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'd8a80b4e6bdc4eb89b85184a8a38284d485c2c7d86b619a65e4e4dd5d6f7cefe', 'menu-observe.c': 'e2744ae3cf3124e87ab0234309eec302806a515560bbd57bf6d02a96ef106411', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3', 'observer-process-scope.h': 'd4d96df4991d0518ddff58705cde989855c2717b7e7d2f1b11ea55188a1cf97b'}
+
+
 def _condition_source_set(sources):
+    current=PRODUCT_DEVELOPMENT_20261108_SOURCES
+    row=sources.get(str((BASE/'menu-observe.c').resolve()),{})
+    if row.get('sha256')==current['menu-observe.c']:
+        require(all(str((BASE/name).resolve()) in sources for name in current),
+                'missing YVO BB-timecode preset condition source member in product development tuple')
+        selected={name:sources[str((BASE/name).resolve())]['sha256'] for name in current}
+        require(selected==current,'unreviewed YVO BB-timecode preset condition source tuple in product development')
+        return selected
     selected = {name: sources[str(BASE / name)]['sha256'] for name in CONDITION_LEDGER_SOURCES}
     if selected['menu-observe.c'] == YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES['menu-observe.c']:
         require(all(str((BASE / name).resolve()) in sources for name in YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES),

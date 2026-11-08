@@ -1,5 +1,16 @@
 # 本包验证记录
 
+## 11月8日开发面板、内部单盘与启动内存
+
+本轮按两个工作线程集中验收，完整BODYDATA更新与拍摄写卡按用户要求暂缓。已实现的独立产品功能、原问题原因与修复见[技术报告](../docs/tech/2026-11-08-development-and-storage.md)，官方原init/init2与产品功能启动差异见[启动复核](../docs/tech/2026-11-08-boot-review.md)。
+
+- [文件持久化与原版恢复](persistent-file-cycle-20261108.json)：原AP写41B→同盘重启保留41B；首次恢复52B读回通过但关闭超时，失败原盘保留。从已验快照独立恢复后，52B原版、原LCD、真SD保存、全19卷原内核冻结、QMP0/无信号和租约释放补验通过。五个停止卷的独立结构均通过；FAT rc1仅dirty标志原样保存，不称fsck0或正常卸载。连续三轮无失败为false。
+- [产品集中验收](product-integration-20261108.json)：正式host376通过/39跳过/95子测试、相关补集201通过；公共模型JUnit对节点取最新结果17,841通过/287跳过/0未解决失败，原279失败、中断和修复后收据分别保留。新组件与清单严格回归另行记账，不重复累加。
+- [默认start.sh兼容](default-after-integration-20261108.json)：不传HCI/存储环境变量，9步原首设、HUD→原菜单→返回、正常保存退出，原配置不变；[原窗口](../docs/images/development-storage-default-hud-20261108.png)。
+- [短原内核块组件](persistent-flash-native-20261108.json)与[原RAM文件测试](firmware-file-native-20261108.json)保留各自原版本和范围，不回填成最终39符号模块的同版本证据。最终模块实际消费与全卷冻结见文件周期收据。
+
+完整原init/pivot冷链、RAM热恢复、USB宿主枚举/认证root和严格全部输入<100ms仍未通过；完整更新与成片为deferred。没有真机/真实SD或固件写入。
+
 ## 11月8日默认启动修复
 
 默认 `./start.sh` 的自然相机profile已接入已有 `virtual-rom-v1`，普通使用无需环境变量。实际 `run-1cnmhiiy` 从当前用户配置的独立副本启动，调用者环境明确没有 `A7C2_VIRTUAL_HCI`；九步原首设、拍摄HUD、原中文Home菜单 `0x2ca/44` 与MENU返回HUD通过。原错误页未改、未见 `0x30c`，未重置原配置，主会话看原图核对。

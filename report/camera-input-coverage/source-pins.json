@@ -51,10 +51,12 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
-      "previous_sha256": "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a",
+      "sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
+      "previous_sha256": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
+      "product_development_change": "2026-11-08: existing serial-owner gate also serves bounded guest file readback; shutdown may explicitly close the isolated internal volumes only after real SD export. Input mappings, actual contacts and consumption checks remain.",
       "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived. Sender real readiness is now required before reporting ready, after initial card status; no warmup key is sent.",
       "sha256_history": [
+        "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
         "0713216483f2a4cd35fa8acbff67a2392b8d7186b339d6759ab6c28297e9b630",
         "a5f27c6d6431c76e9b909829f4c5f7e82b36a2ce5dd14ec8f82c6ab183ea5438",
         "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a"
@@ -62,25 +64,31 @@
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
+      "sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
+      "product_development_change": "2026-11-08: stopped-only file selection and guest readback, opt-in persistent disk FD/lease lifecycle, explicit internal shutdown verification; old input/error ownership and QMP-only host exit are retained. Internal shutdown now requires original-kernel full-volume freeze readback; it is not called readonly or original power-off.",
       "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
       "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
-      "previous_sha256": "e11b8999a30a60fca637e2b8e5f15faab0e51b935880fbb8a280012b3a89c229",
+      "previous_sha256": "9ad481e8b6f7f9d6171b7088f150d7086ed22f1186799774fad4ada935f0c37f",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
+        "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
         "9dec3a0d430f74587cf0860c5341eaf9481f6c44af90f837af3e10642e883617",
         "cf54fb7afde53bd1070e9805274ba2c7166a8c8b5907f1e0c096f6e06454d46c",
-        "e11b8999a30a60fca637e2b8e5f15faab0e51b935880fbb8a280012b3a89c229"
+        "e11b8999a30a60fca637e2b8e5f15faab0e51b935880fbb8a280012b3a89c229",
+        "e8da63171aa9eb1025d71e1251887765187c32c75b006f776f88b3ca1ba45339",
+        "9ad481e8b6f7f9d6171b7088f150d7086ed22f1186799774fad4ada935f0c37f"
       ]
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
+      "sha256": "012259cada0d854dfb9d8db24d68c623271a3b30bead32439a2de6f344282905",
+      "product_development_change": "2026-11-08: three development groups with a busy gate shared by input/power/storage actions, staged file/original choice and actual guest readback. Hot RAM/update unsupported states remain explicit.",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
       "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",
-      "previous_sha256": "bf48881dc93dc4a6ec4e82dd03d0c2b50a7f7fc20db70c9bae16d6282a246f51",
+      "previous_sha256": "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
+        "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
         "bf48881dc93dc4a6ec4e82dd03d0c2b50a7f7fc20db70c9bae16d6282a246f51"
       ]
     }

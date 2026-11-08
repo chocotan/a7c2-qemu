@@ -63,6 +63,19 @@ class StubVM:
             self.value['stale'] = False
         self.event('HOST STUB command complete: ' + error)
 
+    def configure_storage(self,enabled):
+        if self.value['state']=='running':raise ValueError('stop first')
+        self.value['persistent_storage']=enabled;self.calls.append(('storage',enabled))
+
+    def select_firmware_test(self,source=None,destination='/usr/lib/appFw.so'):
+        self.calls.append(('firmware_select',source,destination))
+        value=dict(guest_path=destination,original=source is None,guest_readback_verified=False)
+        self.value['firmware_selection']=value
+        return value
+
+    def check_firmware_test(self):
+        self.enqueue(dict(action='firmware_readback'))
+
     def stop(self):
         self.calls.append('stop')
         self.value.update(state='exited', can_start=True, can_stop=False, stale=True, pending=0)
@@ -160,6 +173,41 @@ class GTKTests(unittest.TestCase):
         self.ui = CameraUI(self.vm, timer=False)
         self.ui.window.present()
         self.settle()
+
+    def test_development_storage_selection_is_stopped_only(self):
+        self.assertTrue(self.ui.development_storage.get_sensitive())
+        self.ui.development_storage.set_active(True);self.settle()
+        self.assertIn(('storage',True),self.vm.calls)
+        self.assertTrue(self.ui.state['persistent_storage'])
+        self.vm.start();self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.development_storage.get_sensitive())
+
+    def test_development_original_selection_and_guest_check_use_existing_controller(self):
+        self.assertTrue(self.ui.development_buttons['original'].get_sensitive())
+        self.assertFalse(self.ui.development_buttons['readback'].get_sensitive())
+        self.ui.development_buttons['original'].clicked();self.settle()
+        self.assertIn(('firmware_select',None,'/usr/lib/appFw.so'),self.vm.calls)
+        self.vm.start();self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.development_buttons['stage'].get_sensitive())
+        self.ui.development_buttons['readback'].clicked();self.settle()
+        self.assertIn(dict(action='firmware_readback'),self.vm.calls)
+
+    def test_development_restart_closes_before_starting_same_controller(self):
+        self.vm.start();self.ui.update(self.vm.status());self.vm.calls.clear()
+        self.ui.development_buttons['restart'].clicked();self.settle()
+        self.assertEqual(self.vm.calls[:2],['close','start'])
+        self.assertFalse(self.ui.development_busy)
+
+    def test_development_busy_keeps_owner_until_worker_finishes(self):
+        self.ui.development_busy=True;self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.on.get_sensitive())
+        self.assertTrue(self.ui._close());self.assertNotIn('close',self.vm.calls)
+        self.ui.development_busy=False
+
+    def test_failed_firmware_readback_is_not_displayed_as_passed(self):
+        self.vm.value['firmware_verification']=dict(path='/usr/lib/appFw.so',guest_readback_verified=False,error='mismatch')
+        self.ui.update(self.vm.status())
+        self.assertIn('未通过',self.ui.development_status.get_text())
 
     def tearDown(self):
         if not self.ui.closed:

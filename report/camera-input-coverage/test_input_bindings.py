@@ -445,7 +445,7 @@ def gtk_ui(monkeypatch, wire):
             return {'state': 'running', 'controls': control_catalog(), 'input_state': session.status()}
     ui = module.CameraUI.__new__(module.CameraUI)
     ui.vm, ui.buttons, ui.window, ui.ring = VM(), {}, Widget(), Widget()
-    ui.closing = ui.reinitializing = False
+    ui.closing = ui.reinitializing = ui.development_busy = False
     ui.mode_popover = None
     ui.feedback, ui.local_error = Widget(), ''
     ui.clock = lambda: 0

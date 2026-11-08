@@ -368,7 +368,7 @@ class LifecycleTests(unittest.TestCase):
                          'qemu_sha256': runner.QEMU_SHA256, 'build_receipt_sha256': '2' * 64,
                          'source_archive_sha256': '3' * 64}
         self.instance = runner.FunctionalCameraRunner(self.run, self.artifact)
-        self.proc = mock.Mock()
+        self.proc = mock.Mock(pid=456,returncode=None)
         self.proc.poll.return_value = None
 
     def broker(self, cleanup=None):
@@ -818,11 +818,12 @@ class LifecycleTests(unittest.TestCase):
         sock.makefile.return_value = stream
         sock.__exit__.side_effect = lambda *_: events.append('socket-close')
         def waited(*, timeout):
-            self.assertEqual(timeout, 5)
+            self.assertEqual(timeout, 30)
             self.assertFalse(stream.closed)
             sock.__exit__.assert_not_called()
             events.append('wait-exit')
             self.proc.poll.return_value = 0
+            self.proc.returncode = 0
             return 0
         self.proc.wait.side_effect = waited
         sockets = mock.Mock(AF_UNIX=1)
@@ -833,7 +834,7 @@ class LifecycleTests(unittest.TestCase):
         boot_receipt = begin(self.run, image, ['HOST_TEST lifecycle only'])
         scope = dict(boot_receipt=boot_receipt, finish_boot_receipt=finish,
                      functional_camera=self.instance, early_media_watch=None, proc=self.proc,
-                     out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess, os=os,
+                     out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess, os=os,time=__import__('time'),
                      manifest={'files': {}}, sha256_file=lambda path: runner.digest(path.read_bytes()),
                      nullcontext=nullcontext, ExitStack=ExitStack, socket=sockets, live_fd=True,
                      host_sd_fd=None, directory_sd_fd=40, host_sd_export_verified=[True],
@@ -865,7 +866,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(events, [('write', {'execute':'quit'}), 'flush', 'ack',
                                   'wait-exit', 'stream-close', 'socket-close'])
         broker.stop.assert_called_once_with()
-        self.proc.wait.assert_called_once_with(timeout=5)
+        self.proc.wait.assert_called_once_with(timeout=30)
         self.proc.terminate.assert_not_called()
         self.proc.kill.assert_not_called()
         self.assertFalse((self.run/'host-sd-quit-error.json').exists())
@@ -896,10 +897,11 @@ class LifecycleTests(unittest.TestCase):
                 scope['out'] = output
                 scope['scope_observer'] = {'profile': 'qemu-readonly-shutter-gate-v2', 'library_sha256': 'd' * 64}
                 def waited(*, timeout):
-                    self.assertEqual(timeout, 5)
+                    self.assertEqual(timeout, 30)
                     self.assertFalse(stream.closed)
                     events.append('wait-exit')
                     self.proc.poll.return_value = rc
+                    self.proc.returncode = rc
                     return rc
                 self.proc.wait.side_effect = waited
                 with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
@@ -972,10 +974,11 @@ class LifecycleTests(unittest.TestCase):
         metadata = {'profile': 'HOST_TEST auxiliary callback only'}
         scope['writer_observer'] = metadata
         def waited(*, timeout):
-            self.assertEqual(timeout, 5)
+            self.assertEqual(timeout, 30)
             self.assertFalse(stream.closed)
             events.append('wait-exit')
             self.proc.poll.return_value = 9
+            self.proc.returncode = 9
             return 9
         self.proc.wait.side_effect = waited
         def writer_exit(output, profile, process):
@@ -1551,7 +1554,8 @@ finally:instance.guard_shutdown(child,sys.exc_info()[1])
         block = next(node.finalbody for node in ast.walk(tree) if isinstance(node, ast.Try) and node.finalbody
             and any(isinstance(call, ast.Call) and ast.unparse(call.func) == 'functional_camera.guard_shutdown'
                     for call in ast.walk(node.finalbody[0]))
-            and any(isinstance(call, ast.Call) and ast.unparse(call.func) == 'proc.kill'
+            and any(isinstance(call, ast.Call) and ast.unparse(call.func) == 'qmp'
+                    and call.args and isinstance(call.args[0],ast.Constant) and call.args[0].value=='quit'
                     for item in node.finalbody for call in ast.walk(item)))
         self.broker({**SAFE, 'safe_to_close': False, 'errors': ['encoder owns memory']})
         early = mock.Mock()

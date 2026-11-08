@@ -509,6 +509,12 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 if (result.get('ok') is True and request.get('op') in ('press', 'tap')
                         and request.get('key') == 'SHUTTER'):
                     shutter_submitted = True
+            elif action=='firmware_readback':
+                from firmware_development import readback_command, parse_readback
+                data=live_serial(readback_command(request))
+                result=parse_readback(data,request)
+                (out/'firmware-readback.raw').write_bytes(data)
+                (out/'firmware-readback.json').write_text(json.dumps(result,indent=2)+'\n')
             elif (action=='sd_card' and set(request)=={'action','present'}
                     and type(request['present']) is bool):
                 if sd_card is None:raise ValueError('This run has no SD hotplug profile')
@@ -529,8 +535,10 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 except OSError:pass
                 with (out/'wifi-events.jsonl').open('a') as events:
                     events.write(json.dumps({'requested': request['enabled'], **result})+'\n')
-            elif action=='export_sd' and set(request)=={'action'}:
+            elif action=='export_sd' and (set(request)=={'action'} or set(request)=={'action','shutdown_storage'} and request['shutdown_storage'] is True):
                 if sd_export is None:raise ValueError('This session has no virtual SD export profile')
+                if request.get('shutdown_storage') and os.environ.get('A7C2_STORAGE_PROFILE')!='product-single-disk-v1':
+                    raise ValueError('Internal storage shutdown requires the active persistent profile')
                 if input_session is not None:
                     released = input_session.handle({'action': 'camera_input', 'op': 'cleanup'})
                     if not released['ok']:
@@ -552,7 +560,11 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                         late_passive={'ok':False,'phase':'after natural shutter, before export quiesce',
                                       'error':f'{type(error).__name__}: {error}','current_blocker_proven':False}
                     (out/'ee-post-shutter.json').write_text(json.dumps(late_passive,indent=2)+'\n')
-                try:result={'type':'sd_export',**sd_export()}
+                try:
+                    result={'type':'sd_export',**sd_export()}
+                    if result.get('ok') and request.get('shutdown_storage'):
+                        from persistent_storage import prepare_shutdown
+                        result['internal_storage']=prepare_shutdown(live_serial,out)
                 except Exception as error:result={'type':'sd_export','ok':False,'error':f'{type(error).__name__}: {error}'}
                 if input_session is not None:result['input_state']=input_session.status()
                 if late_passive is not None:result['post_shutter_observation']=late_passive

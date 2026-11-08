@@ -229,14 +229,16 @@ class StorageShutdownTests(unittest.TestCase):
             vm.mock=False
             try:
                 vm.start();wait_for(lambda:vm.state=='running')
-                with patch('menu_control.terminate_owned',side_effect=OSError('injected cleanup failure')):
+                with patch('menu_control.wait_functional_camera_owner',side_effect=OSError('injected cleanup failure')):
                     with self.assertRaisesRegex(RuntimeError,'清理失败'):vm.close()
                     self.assertEqual(vm.state,'error');self.assertIsNone(vm.owned_process.poll())
                     self.assertFalse(vm.status()['can_start'])
                     with self.assertRaisesRegex(ValueError,'上一VM'):vm.start()
                     with self.assertRaisesRegex(RuntimeError,'仍失败'):vm.close()
+                (run/'allow-owned-exit').write_text('1')
                 vm.close();self.assertEqual(vm.state,'exited');self.assertIsNone(vm.owned_process)
             finally:
+                (run/'allow-owned-exit').write_text('1')
                 vm.natural_boot=False;vm.close()
 
     def test_save_success_stops_and_failure_preserves_vm(self):

@@ -60,7 +60,7 @@ class SourceSnapshot(unittest.TestCase):
             Path(__file__).parent / 'scratch/verify_hdmi_edge.py')
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
-        reviewed = helper.YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES
+        reviewed = helper.PRODUCT_DEVELOPMENT_20261108_SOURCES
         original = {name: (helper.BASE / name).read_bytes() for name in reviewed}
         self.assertEqual({name: hashlib.sha256(data).hexdigest() for name, data in original.items()}, reviewed)
         with tempfile.TemporaryDirectory(prefix='native-snapshot-qr5-test-') as temp:

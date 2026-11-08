@@ -33,11 +33,11 @@ sys.addaudithook(guard)
 import pytest
 
 FILES = '''test-assets.py test_bodydata_launch.py test_display_snapshot.py
-test_firmware_overlay.py test_initramfs_identity.py test_source_snapshot.py
+test_firmware_overlay.py test_firmware_development.py test_persistent_storage.py test_persistent_disk.py test_initramfs_identity.py test_source_snapshot.py
 test_menu_control.py test_usb_network.py test_ethernet_peer.py test_wifi_toggle.py
 test_wifi_regressions.py test_camera_ui.py test_sd_export_lifecycle.py
 test_sd_flush_barrier.py test_sd_hotplug.py test_sd_retired_export.py test_setting_store.py test_capture_gate_readback.py
-test_handoff_lifecycle.py test_live_transport_retention.py test_media_initial_write.py
+test_handoff_lifecycle.py test_live_transport_retention.py test_exception_diagnostics.py test_media_initial_write.py
 test_media_predicate_watch.py test_sd_session_retry.py test_ee_entry_snapshot.py
 test_startup_caution_compare.py test_body_control_probe.py test_mode_wheel_probe.py
 test_focus_controls_probe.py test_settings_checkpoint.py test_settings_instance.py

@@ -174,6 +174,7 @@ class CameraUI:
         self.vm, self.clock = vm, clock
         self.closed = self.closing = False
         self.reinitializing = False
+        self.development_busy = False
         self.reset_dialog = None
         self.state = vm.status()
         self.wifi_syncing = False
@@ -431,6 +432,85 @@ class CameraUI:
         scroll.add(self.detail_text)
         self.details.add(scroll)
         self.root.pack_start(self.details, False, False, 0)
+        self._build_development()
+
+    def _build_development(self):
+        panel=Gtk.Expander(label='固件开发')
+        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=12)
+        box.set_border_width(12)
+        box.pack_start(label('文件测试 · 下次启动使用所选覆盖，原始固件保持只读','section'),False,False,0)
+        files=Gtk.Box(spacing=8)
+        self.development_source=Gtk.FileChooserButton(title='选择相机程序或测试文件',action=Gtk.FileChooserAction.OPEN)
+        self.development_source.get_accessible().set_name('本机测试文件')
+        files.pack_start(self.development_source,True,True,0)
+        files.pack_start(label('相机路径','hint'),False,False,0)
+        self.development_target=Gtk.Entry()
+        self.development_target.set_text('/usr/lib/appFw.so')
+        self.development_target.get_accessible().set_name('测试文件在相机内的绝对路径')
+        files.pack_start(self.development_target,True,True,0)
+        box.pack_start(files,False,False,0)
+        row=Gtk.Box(spacing=8)
+        self.development_buttons={}
+        for action,title in (('stage','暂存测试文件'),('original','下次使用原版'),('readback','核对 guest 文件')):
+            button=Gtk.Button(label=title);button.set_size_request(-1,44)
+            button.connect('clicked',lambda _,value=action:self.development_action(value))
+            button.get_accessible().set_name(title)
+            self.development_buttons[action]=button;row.pack_start(button,False,False,0)
+        box.pack_start(row,False,False,0)
+        box.pack_start(label('启动测试 · 保存并退出当前实例后重新启动','section'),False,False,0)
+        row=Gtk.Box(spacing=8)
+        self.development_storage_sync=False
+        self.development_storage=Gtk.CheckButton(label='使用内部持久磁盘')
+        self.development_storage.set_tooltip_text('显式单盘功能模式；停止后选择。原 init 完整冷链与保留 RAM 恢复分别验收')
+        self.development_storage.connect('toggled',self._development_storage_toggled)
+        row.pack_start(self.development_storage,False,False,0)
+        restart=Gtk.Button(label='关闭后重新启动');restart.set_size_request(-1,44)
+        restart.connect('clicked',lambda _:self.development_action('restart'))
+        self.development_buttons['restart']=restart;row.pack_start(restart,False,False,0)
+        hot=Gtk.Button(label='保留 RAM 热启动 · 未接入');hot.set_sensitive(False)
+        hot.set_tooltip_text('当前产品构建尚未验收保留 RAM 的恢复链；普通重启不会标成热启动')
+        row.pack_start(hot,False,False,0);box.pack_start(row,False,False,0)
+        box.pack_start(label('BODYDATA 系统更新 · 本轮暂缓，不执行完整更新验收','hint',wrap=True),False,False,0)
+        self.development_status=label('选择文件前先 OFF 并等待保存结束。','hint',wrap=True)
+        self.development_status.get_accessible().set_role(Atk.Role.STATUSBAR)
+        box.pack_start(self.development_status,False,False,0)
+        panel.add(box);self.root.pack_start(panel,False,False,0)
+
+    def _development_storage_toggled(self,widget):
+        if self.development_storage_sync:return
+        try:self.vm.configure_storage(widget.get_active());self.local_error=''
+        except (ValueError,RuntimeError,OSError,AttributeError) as error:self.local_error='内部存储：'+str(error)
+        self.update(self.vm.status())
+
+    def development_action(self,action):
+        if self.closing or self.reinitializing or self.development_busy:return False
+        source=self.development_source.get_filename();target=self.development_target.get_text()
+        if action=='stage' and not source:
+            self.local_error='请先选择本机测试文件';self.update(self.vm.status());return False
+        if action=='restart' and self.input_bindings is not None and not self.release_inputs():return False
+        self.development_busy=True;self.local_error='';self.update(self.vm.status())
+        def worker():
+            message='';error=''
+            try:
+                if action=='stage':
+                    result=self.vm.select_firmware_test(source,target)
+                    message='测试文件已暂存：'+result['guest_path']+'；启动后可核对 guest 文件'
+                elif action=='original':
+                    self.vm.select_firmware_test();message='下次启动已选择原版固件'
+                elif action=='readback':
+                    self.vm.check_firmware_test();message='实际 guest 读回已排队，等待权限、摘要与长度结果'
+                elif action=='restart':
+                    self.vm.close();self.vm.start();message='原实例已保存并退出，新启动请求已提交'
+                else:raise ValueError('未知开发动作')
+            except (OSError,ValueError,RuntimeError) as problem:error=str(problem)
+            def finished():
+                self.development_busy=False
+                if self.closed:return False
+                self.local_error=('固件开发：'+error) if error else ''
+                if message:self.development_status.set_text(message)
+                self.update(self.vm.status());return False
+            GLib.idle_add(finished)
+        threading.Thread(target=worker,name='camera-firmware-development',daemon=True).start();return True
 
     def reason(self, name):
         entry = self.state.get('controls', {}).get(name)
@@ -438,8 +518,8 @@ class CameraUI:
             return '后端 registry 未提供此控件'
         if not entry.get('available'):
             return entry.get('unavailable_reason') or '键码未知或当前通道不可用'
-        if self.closing or self.reinitializing:
-            return '正在关闭本窗口拥有的 VM'
+        if self.closing or self.reinitializing or self.development_busy:
+            return '正在关闭或切换本窗口拥有的 VM'
         if self.state.get('state') != 'running':
             return 'VM 尚未运行，请 ON 并等待启动完成'
         if name=='MODE' and (not isinstance(entry.get('positions'),dict) or not entry['positions']):
@@ -568,7 +648,7 @@ class CameraUI:
         return True
 
     def power(self, on):
-        if self.closing or self.reinitializing:
+        if self.closing or self.reinitializing or self.development_busy:
             return
         self._cancel_drag()
         try:
@@ -588,7 +668,7 @@ class CameraUI:
         self.update(self.vm.status())
 
     def capture(self, automatic=False):
-        if self.reinitializing:return False
+        if self.reinitializing or self.development_busy:return False
         try:
             state = self.vm.status()
             now = self.clock()
@@ -720,9 +800,9 @@ class CameraUI:
         self.status_label.set_text(prefix + name)
         activity = state.get('busy') or ('排队中' if state.get('pending') else '')
         self.spinner.start() if activity or state.get('state') in ('starting', 'stopping') else self.spinner.stop()
-        self.on.set_sensitive(not self.closing and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
-        self.off.set_sensitive(not self.closing and state.get('can_stop', state.get('state') in ('starting', 'running')))
-        self.reset_button.set_sensitive(not(self.closing or self.reinitializing)
+        self.on.set_sensitive(not(self.closing or self.development_busy) and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
+        self.off.set_sensitive(not(self.closing or self.development_busy) and state.get('can_stop', state.get('state') in ('starting', 'running')))
+        self.reset_button.set_sensitive(not(self.closing or self.reinitializing or self.development_busy)
             and state.get('settings_persistent') is True and bool(state.get('settings_generation'))
             and state.get('state') in ('disconnected','exited') and bool(state.get('can_start')))
         self.reset_button.set_tooltip_text('请先 OFF 并等待配置和 SD 保存完成；仅重置当前实例，默认保留 SD')
@@ -733,7 +813,7 @@ class CameraUI:
             self.wifi_confirmed = wifi.get('enabled') is True
         wifi_pending = bool(state.get('pending') or state.get('busy'))
         self.wifi_label.set_text('Wi-Fi …' if wifi_pending else ('Wi-Fi 开' if self.wifi_confirmed else 'Wi-Fi 关'))
-        self.wifi_switch.set_sensitive(not self.closing and state.get('state') == 'running'
+        self.wifi_switch.set_sensitive(not(self.closing or self.development_busy) and state.get('state') == 'running'
                                        and bool(state.get('usb_net')) and not wifi_pending)
         if not wifi_pending:
             self.wifi_syncing = True
@@ -755,11 +835,23 @@ class CameraUI:
             self.usb_run = state.get('run')
             self.usb_connected = False
         self.usb_button.set_label('断开电脑' if self.usb_connected else '连接电脑')
-        self.usb_button.set_sensitive(not self.closing and not self.usb_busy and state.get('state') == 'running')
+        self.usb_button.set_sensitive(not(self.closing or self.development_busy) and not self.usb_busy and state.get('state') == 'running')
         self.sd_action.set_label('插入 SD' if card_state=='absent' else '安全拔出 SD')
-        self.sd_action.set_sensitive(not self.closing and state.get('state')=='running' and
+        self.sd_action.set_sensitive(not(self.closing or self.development_busy) and state.get('state')=='running' and
                                      not(state.get('busy') or state.get('pending')) and
                                      card.get('ok') is True and card_state in ('present','absent'))
+        idle=not(self.closing or self.reinitializing or self.development_busy)
+        stopped=state.get('state') in ('disconnected','exited','error') and state.get('can_start') is True
+        self.development_storage_sync=True
+        try:self.development_storage.set_active(state.get('persistent_storage') is True)
+        finally:self.development_storage_sync=False
+        self.development_storage.set_sensitive(idle and stopped and hasattr(self.vm,'configure_storage'))
+        for action,button in self.development_buttons.items():
+            available=hasattr(self.vm,'select_firmware_test') if action in ('stage','original') else True
+            button.set_sensitive(idle and available and (stopped if action in ('stage','original') else state.get('state')=='running'))
+        verification=state.get('firmware_verification')
+        if verification:
+            self.development_status.set_text('原 guest 文件核对通过：'+verification['path'] if verification.get('guest_readback_verified') else '原 guest 文件核对未通过：'+str(verification.get('error','unknown')))
         input_error = (state.get('input_state') or {}).get('error', '')
         error = '\n'.join(filter(None, (state.get('error'), self.local_error, input_error)))
         self.error_label.set_text(error)
@@ -940,6 +1032,9 @@ class CameraUI:
         return False
 
     def _close(self, *_):
+        if self.development_busy:
+            self.local_error='固件开发动作正在完成；请等待后关闭'
+            return True
         if self.reinitializing:
             self.local_error='配置重初始化正在发布；请等待完成后关闭'
             return True
@@ -1006,7 +1101,8 @@ def main(autostart=True):
     # combine them after a single build models both devices together.
     vm = VM(native_display='none', natural_boot=True,
             usb_net=not bool(os.environ.get('A7C2_PREVIEW_PNG') or
-                             os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1'), instance=instance)
+                             os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1'), instance=instance,
+            persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE')=='1')
     ui = CameraUI(vm)
     def interrupted(*_):
         ui._close()

@@ -92,6 +92,7 @@ extern void *dlvsym(void *, const char *, const char *);
 extern int open(const char *, int, ...);
 extern long write(int, const void *, size_t);
 extern long read(int, void *, size_t);
+extern long readlink(const char *, char *, size_t);
 extern long pread(int, void *, size_t, long);
 extern int *__errno_location(void);
 extern long syscall(long, ...);
@@ -103,6 +104,7 @@ extern int getpid(void);
 extern char *getenv(const char *);
 extern char *strstr(const char *, const char *);
 extern int memcmp(const void *, const void *, size_t);
+#include "observer-process-scope.h"
 extern void *memcpy(void *, const void *, size_t);
 extern int snprintf(char *, size_t, const char *, ...);
 extern int sscanf(const char *, const char *, ...);
@@ -759,7 +761,7 @@ static void initialize(void) {
        in the host self-test build (check-menu-observe): there they have no library to open. */
     if (!getenv("MENU_OBSERVE_SELFTEST")) {
         honest_routing_init();
-    if (getenv("MENU_CRYPT_LIB")) load_crypt_library();
+    /* AP crypto dependencies are loaded at the actual appFw request below. */
     }
     real_attr_policy = real_dlsym((void *)-1, "pthread_attr_setschedpolicy");
     real_attr_param = real_dlsym((void *)-1, "pthread_attr_setschedparam");
@@ -1310,6 +1312,12 @@ static void record(const char *prefix, const char *name) {
 }
 void *dlopen(const char *name, int flags) {
     if (!real_dlopen) initialize();
+    if (getenv("MENU_CRYPT_LIB")) {
+        char executable[128];long length=readlink("/proc/self/exe",executable,sizeof executable);
+        static int crypt_attempted;
+        if (menu_crypto_load_request(executable,length,name) &&
+                !__atomic_exchange_n(&crypt_attempted,1,__ATOMIC_ACQ_REL)) load_crypt_library();
+    }
     record("BEGIN ", name);
     if (flags & 8) { /* RTLD_DEEPBIND hides a library's osal IPC calls from these hooks; strip it. */
         char text[100];

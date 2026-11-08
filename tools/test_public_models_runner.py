@@ -121,6 +121,9 @@ print('all execution attempts rejected before exec')
 
 def test_scope_skips_only_declared_asset_and_launcher_integrations():
     expected = {
+        ('report/functional-capture-input/test_capture_input.py','test_original_ssyc_writer_and_typed_reader'),
+        ('report/functional-capture-queue/test_capture_queue.py','test_original_router_ack_main_and_comp_consume_same_retained_frame'),
+        ('report/functional-capture-queue/test_capture_queue.py','test_original_sender_wait_ack_callback_and_real_P128_store'),
         ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'),
         ('runtime/analysis/test_vef_path_device.py', 'test_observer_resource_wiring_and_pre_vm_rejection'),
         ('runtime/analysis/test_natural_start_trace.py', 'test_gate_is_validated_and_does_not_enable_legacy_entry_bundle'),
@@ -168,7 +171,8 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
 
 def test_model_list_preserves_host_callers_and_explicit_external_stages():
     names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
-    assert isinstance(names, list) and len(names) == len(set(names)) == 246
+    assert isinstance(names, list) and len(names) == len(set(names)) == 249
+    assert {'source/persistent-flash/test_freeze.py','runtime/analysis/test_factory_images.py','runtime/analysis/test_observer_process_scope.py'} <= set(names)
     assert {
         'runtime/analysis/test-menu-control.py',
         'runtime/analysis/test_key_injection.py',

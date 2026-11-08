@@ -1,0 +1,267 @@
+{
+  "consecutive_uninterrupted_three_boots_verified": false,
+  "container_bytes": 1962934272,
+  "cycles": [
+    {
+      "actual_initrd": {
+        "actual_dtb_sha256": "51dc252edc6bba91126a8317848e74fe03e856519cc81ede5c210ab17c0dde7c",
+        "bytes": 553235016,
+        "end": "0x524f9b248",
+        "outside_sony_workspace": true,
+        "start": "0x504000000"
+      },
+      "file": {
+        "bytes": 41,
+        "guest_root_four_zero_fields": true,
+        "guest_sha_and_length_verified": true,
+        "path": "/usr/bin/us_remove_modes.sh",
+        "sha256": "c18b5889eb5e44637ee3dc2ed2033b2fa1353bd03560cf60aefc4ac5a1bbe560"
+      },
+      "guest_module": {
+        "bytes": 61752,
+        "sha256": "fa423dd0955bab65a9f58a74c54ce9bfb239acaf93a57fde08b30cd46319301a"
+      },
+      "internal_kernel_freeze": {
+        "frozen_partitions": 19,
+        "frozen_verified": true,
+        "original_freeze_bdev_used": true,
+        "raw_sha256": "1e16bc2b7714086645dc8041cdd61ce8c8d67e9af20fe396cb620fd37870a444"
+      },
+      "name": "write-test-file",
+      "original_lcd_png_sha256": "2ec7846dc572363ccf195dbf167482efdd08ad7cd78ffa43838859b104d2986f",
+      "qmp_exit": {
+        "qmp_quit_confirmed": true,
+        "returncode": 0,
+        "signals_sent": []
+      },
+      "snapshot_pixel_sha256": "1ffb6fafc6fc619798fb154bae1c13da52693320c6b1488aecc5f58ad917a53d",
+      "stopped_filesystem_checks": [
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "090b68b1172f1ac0aad00a4d1981baf139e75bf6b8635ecc4002dc8110f5e959",
+          "partition": "nflasha2",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "e0f042ebc07a7c1de6065a39bb7bf736648cc15e0f4bee6ffcdd531535b41f72",
+          "partition": "nflasha10",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "4d86191d62e1923dda6cd40c740f685dd0592362d4dc904677ae29cec9362fdd",
+          "partition": "nflasha11",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "4be687e1797942d150abd4616941db44b14615126f14660ab3fc87cb16bfd20a",
+          "partition": "nflasha15",
+          "returncode": 0,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+          "partition": "nflasha22",
+          "returncode": 1,
+          "structure_verified": true
+        }
+      ],
+      "storage_lease_released": true,
+      "verified": true,
+      "virtual_sd": {
+        "bytes": 134217728,
+        "card_sha256": "61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727",
+        "original_Fsys_FlushVolume_rc": 0,
+        "saved": true
+      }
+    },
+    {
+      "actual_initrd": {
+        "actual_dtb_sha256": "4559d1e219285d9ed661ce98f0e98464b44adeca76671c612ab9c4e7c141a910",
+        "bytes": 687452744,
+        "end": "0x52cf9b248",
+        "outside_sony_workspace": true,
+        "start": "0x504000000"
+      },
+      "file": {
+        "bytes": 41,
+        "guest_root_four_zero_fields": true,
+        "guest_sha_and_length_verified": true,
+        "path": "/usr/bin/us_remove_modes.sh",
+        "sha256": "c18b5889eb5e44637ee3dc2ed2033b2fa1353bd03560cf60aefc4ac5a1bbe560"
+      },
+      "guest_module": {
+        "bytes": 61752,
+        "sha256": "fa423dd0955bab65a9f58a74c54ce9bfb239acaf93a57fde08b30cd46319301a"
+      },
+      "internal_kernel_freeze": {
+        "frozen_partitions": 19,
+        "frozen_verified": true,
+        "original_freeze_bdev_used": true,
+        "raw_sha256": "9a1d52221bec578b0f0eb2eccbee7f83a7b7e49feefd4efc82f72ab1855294cb"
+      },
+      "name": "reboot-same-selection",
+      "original_lcd_png_sha256": "2ec7846dc572363ccf195dbf167482efdd08ad7cd78ffa43838859b104d2986f",
+      "qmp_exit": {
+        "qmp_quit_confirmed": true,
+        "returncode": 0,
+        "signals_sent": []
+      },
+      "snapshot_pixel_sha256": "1ffb6fafc6fc619798fb154bae1c13da52693320c6b1488aecc5f58ad917a53d",
+      "stopped_filesystem_checks": [
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "dcf74e2b9bb04fe9bd588e8584a9be0283c1261f25e0f8e41bc589990a446cf4",
+          "partition": "nflasha2",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "858c820c52d0c4eea717c7c7d25099feed37d41cdd116ce9e5a21dc6d24f68be",
+          "partition": "nflasha10",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "c5659086fa312f7f73f8c401010ec0b7879321933fab1ad95c29e3b6f852ed2a",
+          "partition": "nflasha11",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "4be687e1797942d150abd4616941db44b14615126f14660ab3fc87cb16bfd20a",
+          "partition": "nflasha15",
+          "returncode": 0,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+          "partition": "nflasha22",
+          "returncode": 1,
+          "structure_verified": true
+        }
+      ],
+      "storage_lease_released": true,
+      "verified": true,
+      "virtual_sd": {
+        "bytes": 134217728,
+        "card_sha256": "61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727",
+        "original_Fsys_FlushVolume_rc": 0,
+        "saved": true
+      }
+    },
+    {
+      "actual_initrd": {
+        "actual_dtb_sha256": "6b02436e09704f4252594d72afc8a200ab7affc23664534525e217cae0254772",
+        "bytes": 553235032,
+        "end": "0x524f9b258",
+        "outside_sony_workspace": true,
+        "start": "0x504000000"
+      },
+      "file": {
+        "bytes": 52,
+        "guest_root_four_zero_fields": true,
+        "guest_sha_and_length_verified": true,
+        "path": "/usr/bin/us_remove_modes.sh",
+        "sha256": "90a56f5b3d6e1a304055d7ccabdf058da8703a3e956781112022e7ee697bda4a"
+      },
+      "guest_module": {
+        "bytes": 61752,
+        "sha256": "fa423dd0955bab65a9f58a74c54ce9bfb239acaf93a57fde08b30cd46319301a"
+      },
+      "internal_kernel_freeze": {
+        "frozen_partitions": 19,
+        "frozen_verified": true,
+        "original_freeze_bdev_used": true,
+        "raw_sha256": "40734ac5109145e1642e3088c3f3e24d5487db56d547fc84a2b7bc26f1d22b38"
+      },
+      "name": "restore-original-file",
+      "original_lcd_png_sha256": "39684f2364d14965a755c9b1034ae6aa1386d96a5f09625a3eed232881df1fba",
+      "qmp_exit": {
+        "qmp_quit_confirmed": true,
+        "returncode": 0,
+        "signals_sent": []
+      },
+      "snapshot_pixel_sha256": "9d0add7c361db07d4dcf86bbcb557bbe5856337d2997a7c6a166df6a0c7b07a7",
+      "stopped_filesystem_checks": [
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "2f37b2a7e9e80bc8085fa4e4da5a52a14a58e150c0eb227b08ccf99be4c04ea2",
+          "partition": "nflasha2",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "fbbde51373730641e339730b0e64a415af4c0f426f27fcd3563dba4c6f5f131d",
+          "partition": "nflasha10",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "79f9707861fa6ce901cd81dc66c0d9433b602eba1ed8b2424b05e94117ef748c",
+          "partition": "nflasha11",
+          "returncode": 1,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "9d386329ebb19120e1cca021898d43720387d485ffd0731f9464d4d8af951a07",
+          "partition": "nflasha15",
+          "returncode": 0,
+          "structure_verified": true
+        },
+        {
+          "frozen_snapshot_not_unmounted": true,
+          "image_sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+          "partition": "nflasha22",
+          "returncode": 1,
+          "structure_verified": true
+        }
+      ],
+      "storage_lease_released": true,
+      "verified": true,
+      "virtual_sd": {
+        "bytes": 134217728,
+        "card_sha256": "61b905001a33941550e4675325db4e02bc6b4d3c813cb98ecfc673bbd0a32727",
+        "original_Fsys_FlushVolume_rc": 0,
+        "saved": true
+      }
+    }
+  ],
+  "fat_snapshot_dirty_flag_preserved": true,
+  "independent_restore_resume_result_sha256": "890a103913492e2528e8a44a9e29f2041eae81d298a827f05ea00b425aecd74a",
+  "independent_resume_preparation_sha256": "5c291e410dfab0450fe5c908839337e4e94d53552491c6e94f53aafca2fbae6f",
+  "initial_case_overall_verified": false,
+  "initial_third_restore_failure": "RuntimeError: SD\u4fdd\u5b58\u5931\u8d25\uff1bVM\u4fdd\u7559\u8fd0\u884c\uff1aSD\u4fdd\u5b58\u5931\u8d25\uff1bVM\u672a\u5173\u95ed\uff1aTimeoutError: \u4e32\u53e3\u547d\u4ee4\u7f3a\u5c11\u5b8c\u6210\u6807\u8bb0\uff1b\u505c\u6b62 VM \u4ee5\u907f\u514d\u540e\u7eed\u547d\u4ee4\u4ea4\u9519; flush owner recovery failed: RuntimeError: Serial transaction boundary lost; retain VM for explicit recovery, no further commands",
+  "initial_third_restore_file_readback_verified": true,
+  "initial_third_restore_final_close_verified": false,
+  "limitations": {
+    "all_input_samples_under_100ms_verified": false,
+    "capture_to_card": "deferred-by-user",
+    "full_bodydata_update": "deferred-by-user",
+    "hot_ram_restore_verified": false,
+    "original_cold_init_chain_verified": false,
+    "physical_devices_used": false,
+    "usb_authentication_verified": false,
+    "usb_host_enumeration_verified": false
+  },
+  "original_kernel_and_loader_not_patched": true,
+  "partition_count": 19,
+  "private_initial_case_result_sha256": "b81bdd51e52eedc7c5b02af8e23c53b21afdf951db807dc57848d8c2030efb3e",
+  "schema": "a7c2-product-persistent-file-original-ap-three-cycle-validation-v1",
+  "scope": "original AP language page/file replacement/reboot/original restore; functional direct boot with isolated virtual storage",
+  "user_area_bytes": 1954545664,
+  "verified": true
+}

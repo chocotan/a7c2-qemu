@@ -2,7 +2,9 @@
 
 产品构建和运行仅使用本仓库的代码、用户提供的 ILCE-7CM2 2.01 ALLLANG `BODYDATA.DAT` 与 QEMU 11.1.2 源码归档。研究仓库是代码来源，不是运行时依赖；系统 dump、历史实验目录和整份嵌套源码快照不随产品分发。实际相机窗口、控制器、资源导入和所需虚拟设备均在本仓库构建。
 
-最终产品文件身份由 `SOURCE-SHA256SUMS` 绑定，原始来源历史保留在 `SOURCE-ORIGINS.json`。产品运行结果与研究端的原 guest 结果分别记账，不因包含某个模型就宣称拍摄、完整启动或 USB 认证通过。
+最终产品文件身份由 `SOURCE-SHA256SUMS` 绑定，原始来源历史保留在 `SOURCE-ORIGINS.json`。
+
+2026-11-08 新增的 `source/persistent-flash/` 是产品构建所需的有限存储组件：普通文件/FD后端、自有 guest 块驱动、406个必要的 Sony 公开 Linux 4.9.337 依赖头及编译配置。该子树约2.5MiB，原头文件版权、GPL全文、逐文件身份与相对构建命令一并保存；不附完整内核树、研究运行包或生成二进制。`runtime/analysis/persistent_*`、`factory_images.py`、`firmware_development.py` 与开发面板直接在本产品中维护。外部运行输入仍只有用户官方 BODYDATA 和固定 QEMU 源码归档。产品运行结果与研究端的原 guest 结果分别记账，不因包含某个模型就宣称拍摄、完整启动或 USB 认证通过。
 
 以下为各次历史移交记录；相应的测试数与“本次”均指原日期。
 

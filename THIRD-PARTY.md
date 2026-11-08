@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | 项目启动器、辅助模型、GUI、测试 | 项目 MIT；文件内第三方声明优先 | `LICENSE` |
 | QEMU 完整基底（使用者自行下载）及 Git 内的 QEMU 源码修改补丁 | QEMU GPL-2.0 及各上游文件声明；修改 QEMU 的补丁按相同适用许可，不作为纯 MIT 原厂源码 | 用户下载的完整归档内 COPYING/LICENSE；`source/licenses/QEMU-GPL-2.0.txt`、`QEMU-LICENSE.txt` |
+| 持久闪存 guest 驱动与 `source/persistent-flash/abi/` 的必要 Linux 4.9.337 头文件/生成配置 | guest 驱动 GPL-2.0-only；公开内核依赖按各文件原声明，顶层 MIT 不覆盖。只含构建本模块所需源资产，不分发 Sony 内核镜像或整套内核树 | `source/persistent-flash/COPYING`、各文件原版权/许可与 `README.md` |
 | DTC | GPL，以文件 SPDX/上游说明为准 | `source/dtc/GPL`、`README.license` |
 | libfdt | GPL/BSD 双许可，可选 BSD-2-Clause | `source/dtc/BSD-2-Clause`、`source/licenses/libfdt-BSD-2-Clause.txt` |
 | fwtool SDK、FAT 子集 | ma1co MIT | 各 vendor 目录的 `LICENSE.txt`、`source/licenses/fwtool-MIT.txt` |

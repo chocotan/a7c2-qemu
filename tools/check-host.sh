@@ -4,7 +4,7 @@ set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 missing=0
 for tool in python3 bwrap patch ninja meson cc c++ pkg-config flock make flex bison clang ld.lld \
-  cpio debugfs fsck.fat sha256sum timeout; do
+  cpio debugfs e2fsck resize2fs fsck.fat mkfs.fat sha256sum timeout aarch64-linux-gnu-gcc aarch64-linux-gnu-ld; do
   if ! command -v "$tool" >/dev/null; then
     echo "MISSING command: $tool" >&2
     missing=1
@@ -44,7 +44,7 @@ try:
 except ImportError:
     import Crypto.Cipher.AES
 for name in ('bodydata-launch','prepare-assets','menu_control','camera_ui','usb_network','sd_transport',
-             'setting_store','instance_lifecycle','settings_checkpoint','settings_instance'):
+             'setting_store','instance_lifecycle','settings_checkpoint','settings_instance','firmware_development'):
     importlib.import_module(name)
 print('HOST_IMPORTS_PASS')
 PY

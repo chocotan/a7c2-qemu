@@ -1,0 +1,82 @@
+{
+  "default_startup_receipt_sha256": "822b63a2782b796589838b0dd8e779ef01598dff8db6ef50864b018d6b5a4f08",
+  "final_five_result": {
+    "failed": 0,
+    "passed": 2,
+    "result_xml_sha256": "6a6b650a2c18cd5b0b0bab77faba82547334c77cb938d36ed5743bee7facb117",
+    "skipped": 3
+  },
+  "final_host": {
+    "freeze-layout-input": {
+      "pytest_result_line": "201 passed in 2.42s",
+      "stdout_sha256": "a4f9a280f17b239a933bf2cf14186e38fbbe0e8ba0eac169632adc532d3bc74d"
+    },
+    "host": {
+      "pytest_result_line": "376 passed, 39 skipped, 1 warning, 95 subtests passed in 6.55s",
+      "stdout_sha256": "8f8b8c3ba0a20bb4d2db033f59f025432a159893ee30928d77799279faa97a36"
+    }
+  },
+  "first_eight_groups_result_sha256": "d1034d57b40a4a9f569422b1684e45342eb97ba17feb996a95a0e9fec2a31c84",
+  "first_public_executed_testcases": 14571,
+  "first_public_failed": 279,
+  "first_public_interrupted_junit_sha256": "8fd6e78d9f9e4f3cd7cdb8fa345ed7d081d2de9153c7dc2fb746bdd0282f2776",
+  "limitations": {
+    "all_input_samples_under_100ms_verified": false,
+    "capture_to_card": "deferred-by-user",
+    "full_bodydata_update": "deferred-by-user",
+    "hot_ram_restore_verified": false,
+    "original_cold_init_chain_verified": false,
+    "physical_devices_used": false,
+    "usb_authentication_verified": false,
+    "usb_host_enumeration_verified": false
+  },
+  "max_acceptance_workers": 2,
+  "native_cycles_receipt_sha256": "6eae6b5e361f77841c816436269510f690ad76162d24f74d9aa100d90df28d3b",
+  "new_registered_component_groups": {
+    "earlier_groups": 246,
+    "final_public_group_count": 249,
+    "final_runner_pytest_result": "28 passed in 0.05s",
+    "first_failed": 1,
+    "first_failed_reason": "strict test-list count still246 after registering249; exact assertion updated",
+    "first_passed": 31,
+    "first_result_xml_sha256": "7c8c395f74908ba349a2c560cfb5fea13336c583bae022d8630f05f327c9477d",
+    "groups": 3,
+    "runner_final_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "runner_final_stdout_sha256": "1146ae11f460190ee18d635f51b2646559f501ddc3aa51826ce99fac19ffc70b"
+  },
+  "original_failure_receipts_preserved": true,
+  "public_failed_and_unexecuted_resume": [
+    {
+      "outcomes": {
+        "failed": 5,
+        "passed": 2364,
+        "skipped": 238
+      },
+      "result_xml_sha256": "6f0336a9a0d33279aeb042d9f9197050951acadc353e6101ab2847325670dc08",
+      "selected_nodes": 2607,
+      "worker": 0
+    },
+    {
+      "outcomes": {
+        "failed": 0,
+        "passed": 1220,
+        "skipped": 9
+      },
+      "result_xml_sha256": "bb5bcf904b1432ff88a02a041a965a3670ae10492c072139344a802c0a706892",
+      "selected_nodes": 1229,
+      "worker": 1
+    }
+  ],
+  "public_model_latest_unique_outcomes": {
+    "passed": 17841,
+    "skipped": 287
+  },
+  "schema": "a7c2-product-final-consolidated-validation-v1",
+  "unchanged_groups_reused": [
+    "GTK37",
+    "offline-QEMU-three-patch-and-hardware-source",
+    "host-environment",
+    "legacy-script-sync"
+  ],
+  "verified": true
+}

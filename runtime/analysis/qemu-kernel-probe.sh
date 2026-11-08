@@ -270,11 +270,14 @@ if not ptr or length.value not in (4, 8):
     raise RuntimeError('Cannot read board initrd address')
 start = int.from_bytes(ctypes.string_at(ptr, length.value), 'big')
 if sys.argv[5] == '1':
-    start = 0x440000000
+    start = 0x504000000
     value = start.to_bytes(length.value, 'big')
     if fdt.fdt_setprop(buffer, chosen, b'linux,initrd-start', value, len(value)) != 0:
         raise RuntimeError('Cannot set high initrd address')
 end = start + Path(sys.argv[4]).stat().st_size
+# free_initrd_mem returns every initrd page to Linux; keep it outside Sony image RAM.
+if sys.argv[5] == '1' and (start < 0x500002000 or end > 0x580000000):
+    raise RuntimeError('Initrd must fit outside reserved Sony workspace in virtual RAM')
 value = end.to_bytes(length.value, 'big')
 if fdt.fdt_setprop(buffer, chosen, b'linux,initrd-end', value, len(value)) != 0:
     raise RuntimeError('Cannot set board initrd end')
@@ -336,7 +339,7 @@ if sys.argv[5] == '1':
         p = fdt.fdt_getprop(buffer, offset, b'device_type', ctypes.byref(n))
         if p and ctypes.string_at(p, n.value).rstrip(b'\0') == b'memory':
             # Extra test RAM beyond camera workspaces holds the in-memory /usr copy.
-            ddr_size = 0x140000000 if sys.argv[4].endswith(('.cpio', '.cpio.gz')) else 0x100000000
+            ddr_size = 0x180000000
             value = struct.pack('>QQ', 0x400000000, ddr_size)
             if fdt.fdt_setprop(buffer, offset, b'reg', value, len(value)) != 0:
                 raise RuntimeError('Cannot relocate guest DDR bank')
@@ -401,7 +404,7 @@ if [[ "$high_ddr" == 1 ]]; then
   memory_config=24576
   loader_args=(-device loader,file=/out/virt.dtb,addr=0x400002000
                -device loader,file=/kernel.img,addr=0x400080000,force-raw=on
-               -device loader,file=/initrd.img,addr=0x440000000,force-raw=on
+               -device loader,file=/initrd.img,addr=0x504000000,force-raw=on
                -device loader,addr=0x400080000,cpu-num=0)
 fi
 mkdir -p "$output_dir"
@@ -422,6 +425,23 @@ import runpy,sys
 runpy.run_path(str(Path(sys.argv[1])/'native_rc_board.py'))['require_binary'](
     Path(sys.argv[2]),reference=sys.argv[3]=='1',handoff=sys.argv[4]=='1',sa_data=sys.argv[5]=='1',sa_complete=sys.argv[6]=='1')
 PY
+fi
+persistent_bind=()
+persistent_environment=()
+persistent_fd_options=()
+if [[ -n "${A7C2_STORAGE_PROFILE:-}" ]]; then
+  [[ "$A7C2_STORAGE_PROFILE" == product-single-disk-v1 ]] || { echo 'Unknown internal storage profile' >&2; exit 2; }
+  python3 -B - "$analysis_dir" <<'PY'
+import sys,os
+sys.path.insert(0,sys.argv[1])
+from persistent_storage import inherited_fd
+inherited_fd(os.environ)
+PY
+  [[ -f "$A7C2_EMMC_INSTANCE/persistent-geometry.bin" && ! -L "$A7C2_EMMC_INSTANCE/persistent-geometry.bin" ]] || { echo 'Internal disk geometry missing' >&2; exit 2; }
+  persistent_bind=(--dir /instance --ro-bind "$A7C2_EMMC_INSTANCE/persistent-geometry.bin" /instance/persistent-geometry.bin)
+  persistent_environment=(--setenv QEMU_A7PF_PROFILE persistent-flash-cold-v1
+    --setenv QEMU_A7PF_FD "$A7C2_EMMC_FD" --setenv QEMU_A7PF_DEV "$A7C2_EMMC_DEV" --setenv QEMU_A7PF_INO "$A7C2_EMMC_INO")
+  if bwrap --help | grep -q -- --preserve-fds; then persistent_fd_options=(--preserve-fds "$((A7C2_EMMC_FD-2))"); fi
 fi
 scope_bind=()
 scope_args=()
@@ -490,6 +510,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
     --bind "$output_dir" /out \
     --chdir / --setenv LD_LIBRARY_PATH /tools/usr/lib --setenv LC_ALL C \
     "${timer_environment[@]}" \
+    "${persistent_fd_options[@]}" "${persistent_bind[@]}" "${persistent_environment[@]}" \
     "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
     "${scope_bind[@]}" \

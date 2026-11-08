@@ -1,0 +1,53 @@
+{
+  "actual_large_io": {
+    "block_bytes": 131072,
+    "bytes": 1048576,
+    "guest_full_sha256_equal": true,
+    "write_and_read": true
+  },
+  "actual_small_io": {
+    "block_bytes": 4096,
+    "bytes": 65536,
+    "guest_full_sha256_equal": true,
+    "write_and_read": true
+  },
+  "actual_virtual_disk_bytes": 4194304,
+  "capture_to_card_deferred": true,
+  "deadline_reached": false,
+  "external_content_inputs": [
+    "ILCE-7CM2 2.01 ALLLANG BODYDATA.DAT",
+    "QEMU 11.1.2 source archive"
+  ],
+  "full_bodydata_update_deferred": true,
+  "full_camera_geometry_verified": false,
+  "full_kernel_source_or_research_runtime_required": false,
+  "host_complete_virtual_disk_readback_equal": true,
+  "host_parser_check_passed": 14,
+  "kernel_release": "4.9.337-scel+",
+  "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+  "minimal_guest_driver_source_lines": 151,
+  "minimum_kernel_dependency_headers": 406,
+  "module_sha256": "b0861683c2703728eea8c4643d81b5564f3973a8247041126e679cfaf34054a0",
+  "observation_deadline_seconds": 90,
+  "old_native_failures_preserved": [
+    "4KiB256-block observation deadline and missing QMP reply",
+    "bulk actual IO passed but missing OpenSSL3 libs and transient descendant check"
+  ],
+  "only_product_source_assets_used": true,
+  "original_ap_cold_boot_verified": false,
+  "physical_emmc_compatibility_verified": false,
+  "private_original_component_result_sha256": "4dad6890bcc474b81bc264ce0dbedee52e80b2a3b100d89d5b96ea55d96bbca2",
+  "qemu_sha256": "3edcc14068902c3a8bd68555b3af1e03f1e8174faf84bae0f6b366a8c227be1b",
+  "raw_serial_sha256": "6d1f1666ed6e0233496f3a522dc32c53fc0366ed4c42c8f343ba9a123bfa3315",
+  "retained_hot_boot_verified": false,
+  "root_uid_gid_four_zero_fields": true,
+  "schema": "a7c2-product-self-contained-persistent-native-validation-v1",
+  "scope": "Original-kernel block component only; original AP cold/hot boot remain separate",
+  "shutdown": {
+    "all_pids_absent": true,
+    "exact_owner_and_qmp_peer_checked": true,
+    "owner_returncode": 0,
+    "qmp_quit_confirmed": true,
+    "signals_sent": []
+  }
+}

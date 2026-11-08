@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check all three offline QEMU patches and DMA/ATU/PCI source staging; never build or run QEMU."""
+"""Check offline QEMU patches and staged hardware sources; never build or run QEMU."""
 import hashlib
 import importlib.util
 import json
@@ -110,6 +110,18 @@ def check():
         if not (receipt['pcidma_verified'] is False and receipt['capture_verified'] is False):
             raise ValueError('Source integrity check failed')
         print('DMA_ATU_PCI_HARDWARE_SOURCE_PINS_PASS', len(hardware.ATU_FILES), len(hardware.MODEL_FILES))
+        helper=source/'persistent-flash/stage.py'
+        spec=importlib.util.spec_from_file_location('publication_persistent_flash',helper)
+        flash=importlib.util.module_from_spec(spec);spec.loader.exec_module(flash)
+        flash_receipt=flash.stage(tree)
+        if flash_receipt['board_before']!=receipt['virt_after'] or flash_receipt['board_after']!=digest(tree/'hw/arm/virt.c'):
+            raise ValueError('Persistent flash board source chain differs')
+        for name,sha in flash_receipt['source_files'].items():
+            if digest(tree/'hw/block/a7c2-persistent'/name)!=sha:
+                raise ValueError('Persistent flash staged source differs: '+name)
+        if flash_receipt['default_enabled'] is not False or flash_receipt['parent_regular_file_fd_required'] is not True:
+            raise ValueError('Persistent flash activation boundary differs')
+        print('PERSISTENT_FLASH_HARDWARE_SOURCE_PINS_PASS',len(flash.FILES))
     print('OFFLINE_SOURCE_AND_THREE_PATCH_IDENTITIES_PASS')
 if __name__ == '__main__':
     check()

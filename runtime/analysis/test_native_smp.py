@@ -14,7 +14,7 @@ HERE = Path(__file__).resolve().parent
 
 def board():
     fdt=ctypes.CDLL(str(HERE/'../sources/qemu-tools/usr/lib/libfdt.so.1'))
-    original=ctypes.create_string_buffer((HERE/'qemu-virt-board/virt-pcidma.dtb').read_bytes())
+    original=ctypes.create_string_buffer((HERE/'qemu-virt-board/virt-packed.dtb').read_bytes())
     buffer=ctypes.create_string_buffer(16384)
     assert fdt.fdt_open_into(original,buffer,len(buffer)) == 0
     fdt.fdt_getprop.restype=ctypes.c_void_p
@@ -64,22 +64,36 @@ def test_smp2_rejects_mismatched_board_before_changes(path,name,value):
     assert buffer.raw==original
 
 
-def test_launcher_prepares_matched_cpu_count_and_fixed_dtb(tmp_path):
+@pytest.mark.parametrize('initrd_size',[6,0x7c000000])
+def test_launcher_prepares_matched_cpu_count_and_fixed_dtb(tmp_path,initrd_size):
     initrd=tmp_path/'test.cpio';initrd.write_bytes(b'070701')
+    with initrd.open('r+b') as stream:stream.truncate(initrd_size)
     output=tmp_path/'prepared'
     env={**os.environ,'QEMU_PREPARE_ONLY':'1','QEMU_CPU_COUNT':'2','QEMU_OUTPUT_DIR':str(output)}
     command=['bash',str(HERE/'qemu-kernel-probe.sh'),'4096',
-             str(HERE/'qemu-virt-board/virt-pcidma.dtb'),'1','1',str(initrd)]
+             str(HERE/'qemu-virt-board/virt-packed.dtb'),'1','1',str(initrd)]
     subprocess.run(command,env=env,check=True,capture_output=True,timeout=20)
     fdt,_=board();buffer=ctypes.create_string_buffer((output/'virt.dtb').read_bytes())
     assert prop(fdt,buffer,b'/cpus/cpu@1',b'enable-method')==b'psci\0'
-    assert prop(fdt,buffer,b'/chosen',b'linux,initrd-start')==struct.pack('>Q',0x440000000)
+    start=struct.unpack('>Q',prop(fdt,buffer,b'/chosen',b'linux,initrd-start'))[0]
+    assert start==0x504000000
+    assert prop(fdt,buffer,b'/chosen',b'linux,initrd-end')==struct.pack('>Q',start+initrd_size)
+    assert prop(fdt,buffer,b'/memory@40000000',b'reg')==struct.pack('>QQ',0x400000000,0x180000000)
+    assert 'loader,file=/initrd.img,addr='+hex(start)+',force-raw=on' in (HERE/'qemu-kernel-probe.sh').read_text()
     assert prop(fdt,buffer,b'/sony-gicc-alias',b'phys')==struct.pack('>Q',0x08010000)
     assert prop(fdt,buffer,b'/sony-gicc-alias',b'virt')==struct.pack('>Q',0xfffffffff13a2000)
     assert prop(fdt,buffer,b'/sony-gicc-alias',b'size')==struct.pack('>Q',0x1000)
     env['QEMU_CPU_COUNT']='3'
     result=subprocess.run(command,env=env,capture_output=True,timeout=20)
     assert result.returncode==2 and b'must be 1 or 2' in result.stderr
+
+
+def test_launcher_refuses_initrd_extending_past_safe_virtual_ram(tmp_path):
+    initrd=tmp_path/'oversized.cpio'
+    with initrd.open('wb') as stream:stream.truncate(0x7c000001)
+    env={**os.environ,'QEMU_PREPARE_ONLY':'1','QEMU_OUTPUT_DIR':str(tmp_path/'prepared')}
+    result=subprocess.run(['bash',str(HERE/'qemu-kernel-probe.sh'),'4096',str(HERE/'qemu-virt-board/virt-packed.dtb'),'1','1',str(initrd)],env=env,capture_output=True,timeout=20)
+    assert result.returncode!=0 and b'outside reserved Sony workspace' in result.stderr
 
 
 def test_boot_and_target_proof_never_claims_irq_callback(tmp_path):

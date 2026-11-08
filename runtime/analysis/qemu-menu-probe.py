@@ -559,6 +559,9 @@ board_dtb = Path(os.environ.get('MENU_DTB', str(base / "qemu-virt-board/virt-pac
 command = ["bash", str(kernel_script), "4096",
            str(board_dtb), "1", "1",
            str(args.initramfs_file or base / ("menu-initramfs.cpio" if args.initramfs else "menu-root.ext2"))]
+from persistent_storage import inherited_fd as persistent_inherited_fd
+persistent_fd=persistent_inherited_fd(os.environ)
+persistent_manifest=None
 overwrite_manifest=None
 overwrite_directory=Path(os.environ.get('A7C2_OVERWRITE_DIR',str(base.parent.parent/'overwrite'))).absolute()
 if os.path.lexists(overwrite_directory):
@@ -582,6 +585,14 @@ if os.environ.get('A7C2_SETTINGS_RESTORE'):
         os.environ.get('A7C2_SETTINGS_RESTORE_SHA'),Path(command[-1]),out)
     command[-1]=str(selected)
     (out/'settings-restore-manifest.json').write_text(json.dumps(settings_restore_manifest,indent=2)+'\n')
+
+if persistent_fd is not None:
+    if not args.initramfs:raise ValueError('Internal disk requires raw initramfs startup')
+    from persistent_storage import augment_initramfs
+    selected=out/'persistent-runtime.cpio'
+    persistent_manifest=augment_initramfs(Path(command[-1]),selected,overwrite_manifest,os.environ.get('A7C2_STORAGE_RESTORE_FILE'),os.environ.get('A7C2_STORAGE_RESTORE_SELECTION'))
+    command[-1]=str(selected)
+    (out/'persistent-runtime.json').write_text(json.dumps(persistent_manifest,indent=2)+'\n')
 
 def sha256_file(path):
     with path.open('rb') as file:
@@ -1051,6 +1062,8 @@ if args.initramfs:
         expected_guest.update({entry['path']:entry['new_sha256'] for entry in overwrite_manifest['entries']})
     if settings_restore_manifest:
         expected_guest.update({entry['path']:entry['new_sha256'] for entry in settings_restore_manifest['entries']})
+    if persistent_manifest:
+        expected_guest.update({entry['path']:entry['new_sha256'] for entry in persistent_manifest['entries']})
     if udate_distribution and expected_guest['simulation/sony_udate_distribution.ko'] != json.loads(udate_kernel_receipt.read_text())['sha256']:
         raise RuntimeError('UDATE kernel module differs from its ABI receipt; overlay replacement is not admitted')
     manifest['selected_initramfs_verified_files'] = verify_image(
@@ -1088,7 +1101,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
         (out / 'qemu-stderr.log').open('xb') as qemu_stderr, ExitStack() as qmp_resources:
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=console,
                             stderr=qemu_stderr, env=env,
-                            pass_fds=tuple(fd for fd in (host_sd_fd,directory_sd_fd) if fd is not None))
+                            pass_fds=tuple(fd for fd in (host_sd_fd,directory_sd_fd,persistent_fd) if fd is not None))
     early_media_watch=None
     qmp_quit_attempted=[False]
     try:
@@ -1113,6 +1126,12 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     raise RuntimeError("Unexpected QMP greeting")
 
                 def qmp(name, arguments=None):
+                    if name=='quit' and (out/'console.log').is_file() and b'Exception> ' in (out/'console.log').read_bytes() and not (out/'exception-diagnostics.json').exists():
+                        try:
+                            from exception_diagnostics import collect_exception
+                            collect_exception(proc,out)
+                        except (OSError,RuntimeError,ValueError) as error:
+                            (out/'exception-diagnostics-error.txt').write_text(type(error).__name__+': '+str(error)+'\n')
                     # Centralize every quit, including startup-exception paths.
                     with (functional_camera.qmp_command(name) if functional_camera is not None else nullcontext()):
                         if name == 'quit' and early_media_watch is not None:
@@ -1185,6 +1204,11 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                          "mkdir -p /dev/cgroup", "mount -t cgroup -o cpuset nodev /dev/cgroup",
                          "for group in cpu0 cpu1 cpu2 cpu3rt cpu0_1 cpu0_1_2 cpu0_1_2_3rt; do mkdir -p /dev/cgroup/$group; echo 0 > /dev/cgroup/$group/cpuset.mems; echo 0 > /dev/cgroup/$group/cpuset.cpus; done",
                          "echo MENU_ROOT_READY", "ls -l /usr/bin/im.elf /usr/lib/appFw.so"]
+                if persistent_fd is not None:
+                    from persistent_storage import mount_commands
+                    setup=[line for line in setup if line not in ('mount -t tmpfs tmpfs /tmp','mount -t tmpfs tmpfs /setting')]
+                    point=setup.index('mount -t sysfs sysfs /sys')+1
+                    setup[point:point]=mount_commands(overwrite_manifest)
                 if manifest['qemu_cpu_count']==2:
                     setup += ['echo 1 > /dev/cgroup/cpu1/cpuset.cpus',
                               'for group in cpu0_1 cpu0_1_2 cpu0_1_2_3rt; do echo 0-1 > /dev/cgroup/$group/cpuset.cpus; done']
@@ -1256,7 +1280,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 if args.sony_timers:
                     setup += ["insmod /usr/kmod/utimer.ko"]
                 if args.seed_backup:
-                    setup += ["cp /seed-backup.bin /setting/Backup.bin",
+                    setup += ["test -f /setting/Backup.bin" if persistent_fd is not None else "cp /seed-backup.bin /setting/Backup.bin",
                               # Backup_save=1 lets the original driver commit a
                               # changed setting set back to /setting/Backup.bin;
                               # only an opt-in run may write the persisted state.
@@ -1265,7 +1289,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                               "ls -l /dev/mem /dev/backup", "insmod /usr/kmod/stream.ko",
                               "insmod /usr/kmod/stream2.ko"]
                 if args.load_dmm:
-                    setup += ["cp -a /seed-setting/. /setting/",
+                    setup += ["test -f /setting/DmmCfg.bin" if persistent_fd is not None else "cp -a /seed-setting/. /setting/",
                               "insmod /usr/kmod/osal_ulogio.ko ulogio_initfile=/setting/ulogio.bin",
                               "insmod /usr/kmod/dmm.ko DmmConfig=/setting/DmmCfg.bin",
                               "insmod /usr/kmod/grm_ma.ko"]
@@ -1296,7 +1320,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     if not 0 <= yc_survey_delay <= 600:
                         parser.error('MENU_YC_INJECT_DELAY must be within 0..600')
                     setup += ["(sleep %d; if [ ! -f /tmp/yc_survey.done ]; then touch /tmp/yc_survey.done; insmod /simulation/yc_survey.ko && echo YC_SURVEY_MOD_OK || echo YC_SURVEY_MOD_FAIL; fi) &" % yc_survey_delay]
-                if args.firmware_identity:
+                if args.firmware_identity and persistent_fd is None:
                     setup += ["mkdir -p /setting/updater /mnt",
                               "cp /simulation/firmware-version.dat4 /setting/updater/dat4",
                               "mknod /dev/ram1 b 1 1", "ln -s /dev/ram1 /dev/nflasha1",
@@ -1640,7 +1664,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     if not virtual_hci:setup += ['ln -s /dev/null /tmp/im.log']
                 preloads = []
                 if virtual_hci:
-                    setup += ['cp /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh',
+                    setup += [('mount --bind /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh' if persistent_fd is not None else
+                               'cp /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh'),
                               '/usr/bin/openssl dgst -sha256 /usr/bin/startBTCore.sh']
                 media_selftest = os.environ.get('MENU_MEDIA_SELFTEST') == '1'
                 if media_selftest:
@@ -1701,6 +1726,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 setup += ["echo IM_LAUNCH_PID=$!"]
                 proc.stdin.write(("\n".join(setup) + "\n").encode())
                 proc.stdin.flush()
+                from menu_live import serial_command
+                (out/'setup-consumed.log').write_bytes(serial_command(proc,out/'console.log',':',timeout=120))
                 if media_selftest:
                     from menu_live import serial_command
                     result = serial_command(proc, out / 'console.log',
@@ -1864,12 +1891,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     print("GUEST_CRASHED_DURING_SETTLE_DUMPS_CAPTURED", flush=True)
                     # Ask the Sony exception monitor for registers and a backtrace
                     # before quitting: the console capture keeps the answer.
-                    try:
-                        proc.stdin.write(b'help\nbt\nregs\n')
-                        proc.stdin.flush()
-                        time.sleep(6)
-                    except Exception:
-                        pass
+                    from exception_diagnostics import collect_exception
+                    collect_exception(proc,out)
                     qmp('quit')
                     raise RuntimeError("guest exception monitor during settle")
                 if os.environ.get('MENU_DATE_SERVICE') == '1' and not re.search(
@@ -2259,12 +2282,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                             qmp('pmemsave', {'val': 0x4102bb400, 'size': 0x8000,
                                              'filename': '/out/menu-monitor.bin'})
                             print("GUEST_CRASH_DUMPS_CAPTURED", flush=True)
-                            try:
-                                proc.stdin.write(b'help\nbt\nregs\n')
-                                proc.stdin.flush()
-                                time.sleep(6)
-                            except (OSError, BrokenPipeError):
-                                pass
+                            from exception_diagnostics import collect_exception
+                            collect_exception(proc,out)
                             qmp('quit')
                             raise RuntimeError("guest exception monitor before diagnostics")
                         if time.monotonic() > prompt_deadline:
@@ -2301,16 +2320,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                             'loader_window_covers_first_64KiB_only': True,
                             'visible_menu_verified': False,
                         }, indent=2) + '\n')
-                        before = len(captured)
-                        proc.stdin.write(b'exit\ncat /tmp/menu-load.log\necho FAILED_RUN_LOG_COLLECTED\n')
-                        proc.stdin.flush()
-                        recovery_deadline = time.monotonic() + 5
-                        while time.monotonic() < recovery_deadline:
-                            recovered = (out / 'console.log').read_bytes()[before:]
-                            if b'\nFAILED_RUN_LOG_COLLECTED' in recovered:
-                                (out / 'failure-loader-console.txt').write_bytes(recovered)
-                                break
-                            time.sleep(0.1)
+                        from exception_diagnostics import collect_exception
+                        collect_exception(proc,out)
                         qmp('quit')
                         raise RuntimeError('Guest entered Sony exception monitor; see console.log')
                     if time.monotonic() > deadline:

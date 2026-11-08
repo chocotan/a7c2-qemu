@@ -1,0 +1,35 @@
+{
+  "actual_original_ap_started": true,
+  "capture_to_card_deferred": true,
+  "complete_original_cold_chain_verified": false,
+  "file_stage_host_and_guest_scopes_separate": true,
+  "full_bodydata_update_deferred": true,
+  "guest_file": {
+    "actual_complete_sha_and_length_readback": true,
+    "actual_uid_gid_four_zero_fields": true,
+    "bytes": 41,
+    "path": "/usr/bin/qemu-file-test-v1",
+    "sha256": "c18b5889eb5e44637ee3dc2ed2033b2fa1353bd03560cf60aefc4ac5a1bbe560"
+  },
+  "new_observer_crypto_deferred_to_appfw_request": true,
+  "normal_save_close": {
+    "can_restart": true,
+    "owner_returncode": 0,
+    "qmp_quit_confirmed": true,
+    "recorded_owner_absent": true,
+    "sd_export_ok": true,
+    "settings_export_observed": true,
+    "signals_sent": []
+  },
+  "original_lcd_png_sha256": "2ec7846dc572363ccf195dbf167482efdd08ad7cd78ffa43838859b104d2986f",
+  "original_lcd_scene": "Original first-setup language page",
+  "original_product_startup_compatibility_observed": true,
+  "private_scenario_receipt_sha256": "0b76d6daad6199327a146f6746afa1d8038ff722220061d888a4c5a9c1991218",
+  "qmp_receipt_sha256": "36fe86c29680e38fc611d4a82dff5c503803d48e2a23d936dd6b44d5ce9f8245",
+  "raw_console_sha256": "7beff9cfcfb119373a6df3b949ac8ab0a64262662406fb89032e4c1f4bca52b3",
+  "retained_hot_boot_verified": false,
+  "schema": "a7c2-product-file-development-original-ram-ap-validation-v1",
+  "scope": "Actual original AP on the existing RAM startup route; single-disk and complete original cold init chain remain separate",
+  "single_disk_original_ap_verified": false,
+  "usb_authentication_verified": false
+}

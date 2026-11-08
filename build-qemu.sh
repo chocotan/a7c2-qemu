@@ -114,6 +114,7 @@ for name,record in manifest['source_files'].items():
 print('USB_PATCHED_SOURCE_IDENTITIES_PASS')
 PY
 python3 -B "$here/report/virtual-pcidma/stage_hardware.py" "$src" > "$stage/pci-hardware-source.json"
+python3 -B "$here/source/persistent-flash/stage.py" "$src" > "$stage/persistent-flash-source.json"
 mkdir -p "$stage/build" "$stage/tmp" "$stage/cache"
 bwrap --unshare-net --die-with-parent --clearenv --ro-bind / / \
   --bind "$stage" "$stage" --dev /dev --proc /proc --chdir "$stage/build" \
@@ -151,6 +152,15 @@ receipt['scope']='default-off PCI/ATU hardware in native GTK/USB/directory-SD bu
 receipt['build_directory']=str(Path(sys.argv[2]).resolve().parents[1].relative_to(Path(sys.argv[4]).resolve()))
 Path(sys.argv[3]).write_text(json.dumps(receipt,indent=2)+'\n')
 PY
+python3 - "$stage/persistent-flash-source.json" "$stage/build/qemu-system-aarch64" "$stage/persistent-flash-build.json" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+receipt=json.loads(Path(sys.argv[1]).read_text())
+with Path(sys.argv[2]).open('rb') as stream:
+    receipt['binary_sha256']=hashlib.file_digest(stream,'sha256').hexdigest()
+receipt['scope']='default-off persistent flash hardware; original guest validation separate'
+Path(sys.argv[3]).write_text(json.dumps(receipt,indent=2)+'\n')
+PY
 if [[ "$install_build" == 0 ]]; then
   printf 'STAGED_QEMU_BINARY=%s\n' "$stage/build/qemu-system-aarch64"
   exit 0
@@ -170,6 +180,7 @@ mv -f "$here/runtime/sources/qemu-tools/usr/bin/dtc.new" "$here/runtime/sources/
 mv -f "$here/runtime/analysis/qemu-virt-board/virt-packed.dtb.new" "$here/runtime/analysis/qemu-virt-board/virt-packed.dtb"
 "$base/build-sony-ui/qemu-system-aarch64" -display help
 install -m 0644 "$stage/pci-hardware-build.json" "$here/source/pci-hardware-build.json"
+install -m 0644 "$stage/persistent-flash-build.json" "$here/source/persistent-flash-build.json"
 (cd "$here" && sha256sum runtime/sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64 \
   runtime/sources/qemu-11.1.2/build-user/qemu-aarch64 \
   runtime/sources/qemu-tools/usr/lib/libfdt.so.1 runtime/sources/qemu-tools/usr/bin/dtc \

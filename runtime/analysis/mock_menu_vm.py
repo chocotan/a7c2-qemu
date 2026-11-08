@@ -51,7 +51,8 @@ def main():
                     (Path(run)/'recovery-done').write_text('1')
                 send_message(sock,{'type':'sd_export','ok':mode in ('sd-ok','sd-cleanup-hang'),
                                    'error':'injected flush failure' if mode in ('sd-fail','sd-fault') else None})
-                if mode=='sd-cleanup-hang':time.sleep(60)
+                if mode=='sd-cleanup-hang':
+                    while not (Path(run)/'allow-owned-exit').exists():time.sleep(.02)
             elif command['action']=='position':
                 send_message(sock,{'type':'position','key':command['key'],'position':command['position']})
             else:

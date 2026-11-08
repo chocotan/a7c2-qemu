@@ -244,5 +244,8 @@
   "report/functional-capture-output/test_capture_save.py",
   "report/functional-capture-queue/test_capture_queue.py",
   "report/functional-camera-evidence/test_bb_timecode.py",
-  "report/functional-camera-evidence/test_bb_timecode_presets.py"
+  "report/functional-camera-evidence/test_bb_timecode_presets.py",
+  "source/persistent-flash/test_freeze.py",
+  "runtime/analysis/test_factory_images.py",
+  "runtime/analysis/test_observer_process_scope.py"
 ]

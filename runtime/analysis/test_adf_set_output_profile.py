@@ -74,7 +74,7 @@ def guest_setup(host):
     scope={'argparse':argparse,'__doc__':'setup-only regression','os':os,'Path':Path,
            '__file__':str(HERE/'qemu-menu-probe.py'),
            'args':SimpleNamespace(),'manifest':{'qemu_cpu_count':1},'live_fd':False,
-           'host_sd_fd':None,'directory_sd_fd':40,'sd_seed':None,
+           'host_sd_fd':None,'directory_sd_fd':40,'persistent_fd':None,'sd_seed':None,
            'FONT_GUEST':FONT_GUEST,'FONT_SPECS':FONT_SPECS,
            'ADF_PROFILE':backup.ADF_PROFILE,'INPUT_PROFILE':backup.INPUT_PROFILE,
            'OUTPUT_PROFILE':backup.OUTPUT_PROFILE,'BB_SET_MODE_PROFILE':backup.BB_SET_MODE_PROFILE,

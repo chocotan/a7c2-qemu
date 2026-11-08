@@ -80,7 +80,7 @@ def wait_functional_camera_owner(process):
 
 
 class VM:
-    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None):
+    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
             raise ValueError('不支持的原生显示后端')
         self.command = command or ['bash', str(BASE / 'run-menu-probe.sh')]
@@ -94,6 +94,10 @@ class VM:
         # The isolated USB-Ethernet switch only exists when this run launched with
         # the candidate build and the derived launcher/DTB.
         self.usb_net = bool(usb_net)
+        self.persistent_storage=bool(persistent_storage)
+        self.storage_context=None
+        self.storage_lease=None
+        self.storage_instance=str(Path(storage_instance).absolute()) if storage_instance is not None else None
         self.wifi = None
         self.sd_card = None
         self.sd_pending = 0
@@ -101,6 +105,8 @@ class VM:
         self.lcd_changed = None
         self.run_dir = ''
         self.custom_firmware=False
+        self.firmware_selection=None
+        self.firmware_verification=None
         self.sd_export=None
         self.card_seed=None
         self.host_sd_lease=None
@@ -159,6 +165,18 @@ class VM:
         self.host_sd_context.__exit__(None,None,None)
         self.host_sd_context=self.host_sd_lease=None
 
+    def _release_storage_lease(self,process=None):
+        if self.storage_context is None:return
+        if process is not None:
+            if process.poll() is None:raise RuntimeError('内部磁盘VM仍运行；保留租约')
+            try:os.killpg(process.pid,0)
+            except ProcessLookupError:pass
+            else:raise RuntimeError('内部磁盘VM子进程未退出；保留租约')
+        inherited=self.storage_lease.pop('inherited_fd',None)
+        if inherited is not None:os.close(inherited)
+        self.storage_context.__exit__(None,None,None)
+        self.storage_context=self.storage_lease=None
+
     def reset_instance(self, expected_generation, *, confirmed):
         """Host-only logical reset; guest Backup export/restore is separate."""
         with self.lock:
@@ -187,6 +205,57 @@ class VM:
             self.event('当前相机配置已重新初始化；虚拟SD与历史运行资料保留',kind='storage')
             return self.settings_saved
 
+    def configure_storage(self,enabled):
+        with self.lock:
+            if type(enabled) is not bool or self.mock or not self.natural_boot:
+                raise ValueError('内部单盘需要真实原生启动与明确开关')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先保存退出 VM，再选择内部存储')
+            self.persistent_storage=enabled
+            self.event('下一次启动使用内部持久盘' if enabled else '下一次启动使用原启动镜像',kind='firmware')
+
+    def select_firmware_test(self, source=None, destination='/usr/lib/appFw.so'):
+        from firmware_development import stage_file, original_overlay
+        with self.lock:
+            if not self.natural_boot or self.mock:
+                raise ValueError('文件测试需要真实原生启动控制器')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先 OFF 并等待保存及全部 VM 进程退出，再选择测试文件')
+            base=BASE/'firmware-tests'
+            if source is None:
+                selected=dict(overlay=str(original_overlay(base)),original=True,guest_readback_verified=False,
+                              restore_path=(self.firmware_selection or {}).get('guest_path') or
+                                           (self.firmware_selection or {}).get('restore_path','/usr/lib/appFw.so'))
+            else:
+                if self.persistent_storage:
+                    from firmware_development import guest_path
+                    guest_path(destination)
+                    original=BASE/'menu-root'/destination.lstrip('/')
+                    if not destination.startswith('/usr/') or not original.is_file() or original.is_symlink():
+                        raise ValueError('内部盘文件测试需要替换包内已有的 /usr 普通文件，以便恢复原版')
+                selected=stage_file(base,source,destination)
+            self.firmware_selection=selected
+            self.firmware_verification=None
+            self.event('下一次启动使用原版固件' if source is None else '测试文件已暂存并核对完整摘要；等待原 guest 读回',kind='firmware')
+            return dict(selected)
+
+    def check_firmware_test(self):
+        with self.lock:
+            selected=self.firmware_selection or {}
+            if selected and not selected.get('original'):
+                path,size,digest=selected['guest_path'],selected['bytes'],selected['sha256']
+            else:
+                path=selected.get('restore_path','/usr/lib/appFw.so')
+                source=BASE/'menu-root'/path.lstrip('/')
+                size=source.stat().st_size
+                if path=='/usr/lib/appFw.so':digest=SETTINGS_FIRMWARE_SHA
+                else:
+                    import hashlib
+                    with source.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
+            request=dict(action='firmware_readback',path=path,bytes=size,sha256=digest)
+            self.enqueue(request)
+            return request
+
     def event(self, message, kind='status'):
         self.event_id += 1
         self.events.appendleft({'id': self.event_id, 'time': time.time(), 'message': message, 'kind': kind})
@@ -199,11 +268,13 @@ class VM:
                         input_lifecycle=self.input_lifecycle, input_state=self.input_state,
                         power_state='disconnected' if self.state == 'exited' else self.state,
                         can_start=not (self.thread and self.thread.is_alive()) and not (self.owned_process and self.owned_process.poll() is None)
-                            and not self.cleanup_error and self.host_sd_context is None and self.instance_lease is None,
+                            and not self.cleanup_error and self.host_sd_context is None and self.instance_lease is None and self.storage_context is None,
                         can_stop=self.state in ('starting','running','faulted'),
                         native_display=self.native_display, continuous_display=self.continuous_display,
                         lcd_stream_error=self.lcd_stream.error if self.lcd_stream else '',
                         mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
+                        firmware_selection=self.firmware_selection,firmware_verification=self.firmware_verification,
+                        persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,
                         wifi=self.wifi, usb_net=self.usb_net,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
@@ -214,7 +285,7 @@ class VM:
             if self.thread and self.thread.is_alive():
                 raise ValueError('已有 VM 正在启动、运行或停止')
             if self.owned_process and self.owned_process.poll() is None:raise ValueError('上一VM尚未清理，请先重试关闭')
-            if self.host_sd_context is not None or self.cleanup_error:
+            if self.host_sd_context is not None or self.storage_context is not None or self.cleanup_error:
                 raise ValueError('上一VM磁盘租约或清理尚未完成；请先重试关闭，不得重启')
             if self.instance_lease is not None:
                 raise ValueError('上次实例生命周期尚未结束；请先清理')
@@ -233,6 +304,7 @@ class VM:
             self.state, self.error, self.stale = 'starting', '', True
             self.run_dir = ''
             self.custom_firmware=False
+            self.firmware_verification=None
             self.sd_export=None
             self.shutdown_done.clear()
             self.lcd_stream = None
@@ -268,6 +340,10 @@ class VM:
                 if not self.input_lifecycle:
                     raise ValueError('当前输入通道不支持按下/释放生命周期')
                 camera_input_module().validate_request(command)
+            elif isinstance(command,dict) and command.get('action')=='firmware_readback':
+                if self.mock or not self.natural_boot:raise ValueError('固件读回需要真实原生 guest')
+                from firmware_development import validate_check
+                validate_check(command)
             elif command == {'action': 'snapshot'}:
                 pass
             elif command=={'action':'export_sd'} and self.natural_boot and not self.mock:
@@ -331,6 +407,7 @@ class VM:
                      terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(owned)
                 with self.lock:self._release_instance_lease(owned)
                 with self.lock:self._release_host_sd_lease(owned)
+                with self.lock:self._release_storage_lease(owned)
             except (OSError,subprocess.TimeoutExpired) as error:
                 raise RuntimeError('VM清理仍失败：'+str(error)) from error
             with self.lock:
@@ -374,6 +451,26 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            env.pop('A7C2_STORAGE_RESTORE_FILE',None)
+            env.pop('A7C2_STORAGE_RESTORE_SELECTION',None)
+            if self.firmware_selection is not None:
+                env['A7C2_OVERWRITE_DIR']=self.firmware_selection['overlay']
+                if self.persistent_storage and self.firmware_selection.get('original'):
+                    env['A7C2_STORAGE_RESTORE_FILE']=self.firmware_selection['restore_path']
+                    env['A7C2_STORAGE_RESTORE_SELECTION']=self.firmware_selection['overlay']
+            storage_fd=None
+            for name in ('A7C2_STORAGE_PROFILE','A7C2_EMMC_INSTANCE','A7C2_EMMC_FD','A7C2_EMMC_DEV','A7C2_EMMC_INO'):
+                env.pop(name,None)
+            if self.persistent_storage:
+                if self.mock or not self.natural_boot:raise ValueError('内部单盘只支持真实原生启动')
+                from persistent_storage import ensure_instance,instance_lease,inherited_environment
+                instance=Path(self.storage_instance) if self.storage_instance else ensure_instance()
+                self.storage_instance=str(instance)
+                context=instance_lease(instance);leased=context.__enter__()
+                self.storage_context=context;self.storage_lease=leased
+                storage_fd=fcntl.fcntl(leased['fd'],fcntl.F_DUPFD_CLOEXEC,50)
+                leased['inherited_fd']=storage_fd
+                env.update(inherited_environment(dict(leased,fd=storage_fd)))
             from backup_profile import FUNCTIONAL_CAMERA_PROFILE
             self.functional_camera = not self.mock and env.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
             if self.usb_net and env.get('A7C2_NATURAL_IMAGING_PROFILE') == '1':
@@ -428,7 +525,7 @@ class VM:
             env['MENU_CONTROL_OWNER_PID']=str(os.getpid())
             process = subprocess.Popen(self.command, env=env, cwd=BASE.parent,
                                        stdout=log, stderr=subprocess.STDOUT,
-                                       start_new_session=True, pass_fds=(child.fileno(),)+((disk_fd,) if host_sd or directory_sd else ()))
+                                       start_new_session=True, pass_fds=(child.fileno(),)+((disk_fd,) if host_sd or directory_sd else ())+((storage_fd,) if storage_fd is not None else ()))
             with self.lock:self.owned_process=process
             child.close()
             reply = receive_message(parent, timeout=300, cancelled=self.cancel.is_set)
@@ -504,8 +601,13 @@ class VM:
                 if close_error is not None:
                     reply = {'type':'sd_export','ok':False,'error':close_error}
                 else:
-                    send_message(parent, command)
+                    wire_command=dict(command,shutdown_storage=True) if shutdown and self.persistent_storage else command
+                    send_message(parent, wire_command)
                     reply=receive_message(parent,timeout=None if saving else 120,cancelled=None if saving else cancelled)
+                    if shutdown and self.persistent_storage and reply.get('ok'):
+                        frozen=reply.get('internal_storage') or {}
+                        if frozen.get('frozen_verified') is not True or frozen.get('frozen_partitions')!=19 or frozen.get('original_freeze_bdev_used') is not True:
+                            reply={**reply,'ok':False,'error':'内部存储尚未完成同步冻结；VM保留'}
                 with self.lock:
                     if reply.get('type') == 'error':
                         self.error = str(reply.get('error', 'VM 操作失败'))
@@ -537,6 +639,15 @@ class VM:
                             self.error = '机身输入未完成：' + str(self.input_state.get('error', 'unknown'))
                             self.stale = True
                             self.event(self.error, kind='input')
+                    elif command['action']=='firmware_readback' and reply.get('type')=='firmware_readback':
+                        if any(reply.get(key)!=command[key] for key in ('path','bytes','sha256')):
+                            raise ValueError('固件读回回复与当前请求不同')
+                        self.firmware_verification=reply
+                        if reply.get('ok') is True and reply.get('guest_readback_verified') is True and reply.get('root_four_zero_fields') is True:
+                            self.event('原 guest 文件完整摘要、长度和权限读回通过',kind='firmware')
+                        else:
+                            self.error=str(reply.get('error','固件读回未通过'))
+                            self.event(self.error,kind='firmware')
                     elif command['action'] == 'shutter_cycle' and reply == {'type': 'shutter_cycle'}:
                         self.event('自然快门序列已提交；消费者与拍照结果待独立证据', kind='input')
                     elif command['action'] == 'key' and reply == {'type': 'key', 'key': command['key']}:
@@ -611,6 +722,7 @@ class VM:
                      terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(process)
                     with self.lock:self._release_instance_lease(process)
                     with self.lock:self._release_host_sd_lease(process)
+                    with self.lock:self._release_storage_lease(process)
                 except (OSError, subprocess.TimeoutExpired) as error:
                     cleanup_error = str(error)
                 except RuntimeError as error:
@@ -618,6 +730,7 @@ class VM:
             else:
                 with self.lock:self._release_instance_lease()
                 with self.lock:self._release_host_sd_lease()
+                with self.lock:self._release_storage_lease()
             if log is not None:
                 log.close()
             with self.lock:

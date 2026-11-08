@@ -14,6 +14,12 @@ sys.path.insert(0, str(ROOT / 'runtime/analysis'))
 sys.path.insert(0, str(ROOT / 'tools'))
 
 OUTSIDE_HOST_SCOPE = {
+    ('report/functional-capture-input/test_capture_input.py','test_original_ssyc_writer_and_typed_reader'):
+        'original ALLLANG DSO/QEMU-user namespace integration; outside public software-model scope, capture acceptance deferred',
+    ('report/functional-capture-queue/test_capture_queue.py','test_original_router_ack_main_and_comp_consume_same_retained_frame'):
+        'original ALLLANG DSO/QEMU-user namespace integration; outside public software-model scope, capture acceptance deferred',
+    ('report/functional-capture-queue/test_capture_queue.py','test_original_sender_wait_ack_callback_and_real_P128_store'):
+        'original ALLLANG DSO/QEMU-user namespace integration; outside public software-model scope, capture acceptance deferred',
     ('runtime/analysis/test_shutter_route_trace.py', 'test_gate_is_fail_closed'):
         'launcher rejection integration; host byte/width/error-preservation tests run separately',
     ('runtime/analysis/test_vef_path_device.py',

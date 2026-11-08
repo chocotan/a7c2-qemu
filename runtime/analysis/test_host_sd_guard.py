@@ -49,7 +49,7 @@ def actual_log_harness(run, command, *, live_fd=False):
     harness = ast.fix_missing_locations(ast.Module(body=[copy.deepcopy(tree.body[start]),
         copy.deepcopy(tree.body[start + 1]), ast.With(items=copy.deepcopy(block.items), body=body)], type_ignores=[]))
     scope = dict(out=run, live_fd=live_fd, manifest={'files': {}}, command=command, subprocess=subprocess,
-                 env=dict(os.environ), host_sd_fd=None, directory_sd_fd=None, ExitStack=ExitStack,
+                 env=dict(os.environ), host_sd_fd=None, directory_sd_fd=None, persistent_fd=None, ExitStack=ExitStack,
                  json=json, os=os, sha256_file=lambda path: hashlib.sha256(path.read_bytes()).hexdigest())
     return harness, scope, source
 
@@ -160,7 +160,7 @@ def test_actual_central_quit_checks_host_disk_before_writing_wire(tmp_path, monk
     for backing in ('raw','directory'):
         for mode in ('unsaved','verified','exited-during-retention'):
             events=[]
-            proc=SimpleNamespace(code=None)
+            proc=SimpleNamespace(code=None,pid=12345)
             proc.poll=lambda:proc.code
             class Camera:
                 @contextmanager
@@ -179,7 +179,7 @@ def test_actual_central_quit_checks_host_disk_before_writing_wire(tmp_path, monk
                 raise RuntimeError('retained unsaved host disk')
             monkeypatch.setattr(host_sd_guard,'guard_shutdown',guard)
             scope=dict(functional_camera=Camera(),nullcontext=nullcontext,early_media_watch=None,
-                       proc=proc,out=tmp_path,stream=Stream(),json=json,
+                       proc=proc,out=tmp_path,stream=Stream(),json=json,time=__import__('time'),
                        host_sd_fd=40 if backing=='raw' else None,
                        directory_sd_fd=41 if backing=='directory' else None,
                        host_sd_export_verified=[mode=='verified'],qmp_quit_attempted=[False])

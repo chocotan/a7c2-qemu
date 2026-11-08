@@ -1,0 +1,33 @@
+{
+  "actual_virtual_hci_profile": "virtual-rom-v1",
+  "capture_verified": false,
+  "default_start_sh": true,
+  "earlier_asset_lock_prelaunch_failure_preserved": true,
+  "earlier_frame_read_verifier_failure_preserved": true,
+  "full_boot_verified": false,
+  "hci_environment_absent": true,
+  "normal_launcher_returncode": 0,
+  "original_configuration_unchanged": true,
+  "original_firstsetup_steps": 9,
+  "original_hud_verified": true,
+  "original_menu_enter_return_verified": true,
+  "original_png_sha256": {
+    "default-menu-return.png": "a9a4ba2d53c1674f71652e8387c3cab82d2e9049179025a5e5b4b7aed08c6ff6",
+    "default-original-hud.png": "3c092bb741c79e575c6abed7051241fd9df74a4664ddfa5e33b3bef4ea11933f",
+    "default-original-menu.png": "ca27abc6b6ae8808866e8615cc58657d2fd2eb4e0d83a67fd8cbbf774c558241"
+  },
+  "persistent_storage_default_enabled": false,
+  "private_exit_receipt_sha256": "eef246dfc78cea96f14367130b7d0616f3665867fda3959ec845f34a6610048d",
+  "private_ui_result_sha256": "a3ca9742294ee518efc8da420f54404ec6a8395f224153346742a5c1f2687193",
+  "public_image": "docs/images/development-storage-default-hud-20261108.png",
+  "qmp_exit": {
+    "qmp_quit_confirmed": true,
+    "returncode": 0,
+    "signals_sent": []
+  },
+  "schema": "a7c2-default-start-after-development-storage-integration-v1",
+  "system_error_page_modified": false,
+  "system_error_seen": false,
+  "usb_authentication_verified": false,
+  "verified": true
+}
