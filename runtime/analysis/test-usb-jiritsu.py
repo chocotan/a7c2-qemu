@@ -232,18 +232,57 @@ class GuardTests(unittest.TestCase):
         self.assertFalse(result['guest_root_verified'])
         self.control.disconnect.assert_not_called()
 
+    def test_authenticate_existing_service_keeps_mode_and_does_not_read_hasp(self):
+        from types import ModuleType
+        self.control.target['product_id']=0x0336
+        device=self.control.device()
+        class Backend:
+            def __init__(self,dev):self.dev=dev
+            def getId(self):return 0x054c,0x0336
+            def reset(self):pass
+            def getEndpoints(self):return []
+            def clearHalt(self,*args):pass
+            def read(self,*args):raise AssertionError('no raw fixture transport')
+            def write(self,*args):raise AssertionError('no raw fixture transport')
+            def classInterfaceRequestOut(self,*args):raise AssertionError('no mode change')
+            def vendorRequestOut(self,*args):raise AssertionError('no mode change')
+        starts=[]
+        class Auth:
+            def __init__(self,driver):self.driver=driver
+            def start(self):starts.append(True)
+            def stop(self):raise AssertionError('existing service mode must be retained')
+            def _sendAuthPacket(self,command,data=b''):
+                return ({1:8,3:4,5:6}[command],b'\x01'+bytes(511))
+            def authenticate(self):
+                for command in (1,3,1,3,1,3,5):self._sendAuthPacket(command)
+        sony=SimpleNamespace(SonySenserAuthDevice=Auth,SonySenserDevice=lambda driver:object(),
+                             SonySenserCamera=Mock(side_effect=AssertionError('authenticate does not read HASP')))
+        core=ModuleType('usb.core');core.find=Mock(return_value=[device])
+        util=ModuleType('usb.util');util.claim_interface=Mock();util.dispose_resources=Mock()
+        package=ModuleType('usb');package.core=core;package.util=util
+        sources=Mock();sources.load.return_value=(None,sony,SimpleNamespace(GenericUsbDriver=lambda backend:backend),SimpleNamespace(UsbBackend=Backend),None,None,None)
+        with patch.dict(sys.modules,{'usb':package,'usb.core':core,'usb.util':util}):
+            result=jiritsu.consume(self.control,sources,'authenticate',{})
+        self.assertEqual(result['phase'],'complete');self.assertEqual(starts,[True])
+        self.assertTrue(result['authentication_verified']);self.assertFalse(result['guest_root_verified'])
+        self.assertEqual([event['command'] for event in result['events'] if event['event']=='authentication_exchange'],[1,3,1,3,1,3,5])
+        self.assertTrue(any(event['event']=='existing_service_mode_retained' for event in result['events']))
+        self.assertFalse(any(event['event']=='stop_senser_requested' for event in result['events']))
+        sony.SonySenserCamera.assert_not_called();util.dispose_resources.assert_called_once_with(device)
+        self.control.disconnect.assert_not_called()
+
     @unittest.skipUnless(VERSION is not None, 'optional jiritsu protocol scripts not installed')
     def test_source_manifest_contains_original_worker_and_pmca(self):
         sources = jiritsu.Sources()
         if not (sources.pmca / 'pmca/usb/sony.py').exists():
             self.skipTest('local PMCA checkout unavailable')
-        manifest = sources.manifest('authenticate')
+        manifest = sources.manifest('version')
         for path in (sources.scripts / 'usb_service_probe.py', sources.scripts / 'jiritsu_run_command.py',
                      sources.scripts / 'jiritsu_preload_deploy.py', sources.pmca / 'pmca/usb/sony.py'):
             self.assertIn(str(path.resolve()), manifest)
         changed = dict(manifest)
         changed[str(sources.scripts / 'usb_service_probe.py')] = '0' * 64
-        self.assert_blocked('consumer_source_changed', lambda: sources.verify(changed, 'authenticate'))
+        self.assert_blocked('consumer_source_changed', lambda: sources.verify(changed, 'version'))
 
 
 class EvidenceTests(unittest.TestCase):

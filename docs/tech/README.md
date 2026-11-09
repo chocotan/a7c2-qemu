@@ -21,7 +21,9 @@ QEMU 归档应放在 `source/vendor/qemu-11.1.2.tar.xz`。缺少归档或摘要�
 
 首次运行可能出现语言、日期或教程页面。窗口显示的是固件实际 LCD；取景黑色或某个拍摄操作未完成时，不表示产品已经支持相机成片。当前功能范围以 [根 README](../../README.md) 为准。
 
-需要验证原 RAM0/init/pivot/init2 路线时，使用[原冷启动独立入口](2026-11-09-original-cold-boot.md)。它创建专属内部盘，默认 GTK 的 ON 尚未切到该路线；原 BootROM/CP/WBI等硬件阶段继续独立未完成。
+无参数默认 `./start.sh` 已实际完成原 RAM0/init/pivot/init2、中文首设、原 HUD／菜单往返与正常保存退出，见[默认入口实跑与首帧等待修复](2026-11-09-default-cold-entry.md)。[窗口接线、文件开发与保存](2026-11-09-original-cold-window.md)及[原冷启动独立 CLI](2026-11-09-original-cold-boot.md)保留各自验收；原 BootROM/CP/WBI 等硬件阶段继续独立未完成。
+
+显式 Sony USB 候选已在原 init2 Senser 服务模式通过本机 VHCI 枚举、配置1／4端点、原 jiritsu 七步认证与同轮正常保存退出。构建、隔离依赖及CLI用法见[USB报告](2026-11-09-usb-jiritsu.md)；普通AP菜单USB路径与同USB版本／root读取仍未完成。
 
 运行数据写在 `runtime/`，不是输入固件。虚拟卡位于 `runtime/analysis/menu-runs/run-*/SD/`，设置位于 `runtime/analysis/camera-instances/`。关闭窗口会调用本实例的保存和退出流程；如果界面提示保存失败，应先处理错误并保留运行目录。
 

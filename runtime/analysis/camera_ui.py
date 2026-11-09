@@ -461,7 +461,7 @@ class CameraUI:
         row=Gtk.Box(spacing=8)
         self.development_storage_sync=False
         self.development_storage=Gtk.CheckButton(label='使用内部持久磁盘')
-        self.development_storage.set_tooltip_text('显式单盘功能模式；停止后选择。原 init 完整冷链与保留 RAM 恢复分别验收')
+        self.development_storage.set_tooltip_text('原启动使用持久内部盘；兼容启动可在停止后选择内存镜像或内部盘')
         self.development_storage.connect('toggled',self._development_storage_toggled)
         row.pack_start(self.development_storage,False,False,0)
         restart=Gtk.Button(label='关闭后重新启动');restart.set_size_request(-1,44)
@@ -803,9 +803,10 @@ class CameraUI:
         self.on.set_sensitive(not(self.closing or self.development_busy) and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
         self.off.set_sensitive(not(self.closing or self.development_busy) and state.get('can_stop', state.get('state') in ('starting', 'running')))
         self.reset_button.set_sensitive(not(self.closing or self.reinitializing or self.development_busy)
+            and state.get('boot_profile')!='original-init-cold'
             and state.get('settings_persistent') is True and bool(state.get('settings_generation'))
             and state.get('state') in ('disconnected','exited') and bool(state.get('can_start')))
-        self.reset_button.set_tooltip_text('请先 OFF 并等待配置和 SD 保存完成；仅重置当前实例，默认保留 SD')
+        self.reset_button.set_tooltip_text('原冷启动配置复位尚未接通；盘内配置保留' if state.get('boot_profile')=='original-init-cold' else '请先 OFF 并等待配置和 SD 保存完成；仅重置当前实例，默认保留 SD')
         wifi = state.get('wifi') or {}
         if state.get('state') != 'running':
             self.wifi_confirmed = False
@@ -824,7 +825,7 @@ class CameraUI:
         self.wifi_switch.set_tooltip_text(
             '切换失败：' + str(wifi.get('error')) if wifi.get('ok') is False else
             '隔离网络：开启后校验宿主 ping，关闭后校验接口状态和不可达')
-        self.on.set_tooltip_text('启动本窗口拥有的 VM；真实机身电源事件未模拟')
+        self.on.set_tooltip_text('启动原 kernel → init → init2 → 相机界面' if state.get('boot_profile')=='original-init-cold' else '启动本窗口拥有的 VM；真实机身电源事件未模拟')
         self.off.set_tooltip_text('关闭本窗口拥有的 VM；保留最近 LCD 并标明旧画面')
         card=state.get('sd_card') or {}
         card_state=card.get('state','unavailable')
@@ -845,7 +846,7 @@ class CameraUI:
         self.development_storage_sync=True
         try:self.development_storage.set_active(state.get('persistent_storage') is True)
         finally:self.development_storage_sync=False
-        self.development_storage.set_sensitive(idle and stopped and hasattr(self.vm,'configure_storage'))
+        self.development_storage.set_sensitive(idle and stopped and state.get('boot_profile')!='original-init-cold' and hasattr(self.vm,'configure_storage'))
         for action,button in self.development_buttons.items():
             available=hasattr(self.vm,'select_firmware_test') if action in ('stage','original') else True
             button.set_sensitive(idle and available and (stopped if action in ('stage','original') else state.get('state')=='running'))
@@ -1099,8 +1100,9 @@ def main(autostart=True):
         str(Path(__file__).resolve().parent/'camera-instances'))))
     # shortcut: both imaging profiles use the PCI DMA QEMU build without USB networking;
     # combine them after a single build models both devices together.
-    vm = VM(native_display='none', natural_boot=True,
-            usb_net=not bool(os.environ.get('A7C2_PREVIEW_PNG') or
+    boot_profile=os.environ.get('A7C2_BOOT_PROFILE','original-init-cold')
+    vm = VM(native_display='none', natural_boot=True,boot_profile=boot_profile,
+            usb_net=boot_profile=='direct-bootin' and not bool(os.environ.get('A7C2_PREVIEW_PNG') or
                              os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1'), instance=instance,
             persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE')=='1')
     ui = CameraUI(vm)

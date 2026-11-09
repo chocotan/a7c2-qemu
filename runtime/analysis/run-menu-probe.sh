@@ -39,6 +39,11 @@ if [ "${SKIP_REBUILD:-0}" != "1" ]; then
     echo "rebuilt observer + initramfs"
 fi
 
+if [[ "${A7C2_BOOT_PROFILE:-direct-bootin}" == original-init-cold ]]; then
+    [[ -z "${MENU_YC_INPUT_PNG:-}" ]] || { echo 'Image preview input requires the direct-bootin route' >&2; exit 2; }
+    exec python3 "$analysis_dir/original_cold_live.py"
+fi
+
 probe=(python3 "$analysis_dir/qemu-menu-probe.py" \
     --initramfs --sony-timers --load-ipc --seed-backup --load-dmm --load-power --load-kikilog \
     --no-cp-updater --capid-service --sa-address-service --hdmi-format-service --hdmi-photo-service \

@@ -1,0 +1,220 @@
+{
+  "schema": "a7c2-product-original-usb-jiritsu-v1",
+  "recorded_at_ns": 1794210533238127587,
+  "status": "ORIGINAL_USB_HOST_CONFIGURED_AUTHENTICATION7_NORMAL_SAVE_EXIT_PASS_ROOT_UNVERIFIED",
+  "verified": true,
+  "scope": "Explicit Sony USB candidate and original-init2 UU Senser profile; real host VHCI enumeration/configuration, original PMCA authentication7, same-run normal USB/settings/SD/QMP lifecycle",
+  "run_id": "run-x8ejj3k4",
+  "host_enumerated": true,
+  "host_configured": true,
+  "authentication_verified": true,
+  "guest_root_verified": false,
+  "version_read_verified": false,
+  "capture_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "full_hardware_boot_verified": false,
+  "physical_devices_used": false,
+  "research_launch_or_dump_used": false,
+  "ordinary_ap_usb_menu_route_verified": false,
+  "bodydata_update": "deferred-by-user",
+  "qemu_candidate_sha256": "0f327c0811fed6b6c6cbb85e68a093b2322a3a376aee35adfd15de70173285bb",
+  "default_qemu_sha256": "b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad",
+  "default_qemu_replaced": false,
+  "host_device": {
+    "vid": "054c",
+    "pid": "0336",
+    "configuration": 1,
+    "interface_class": "ff",
+    "endpoint_addresses": [
+      "02",
+      "04",
+      "81",
+      "83"
+    ],
+    "descriptor_bytes": 64,
+    "descriptor_sha256": "ef1ffcc7e475ab63cdbd2e2722f7be6ac8fbe37c1ec48d15b194e83ee9a822c8",
+    "source": "Original guest EP0 SETUP/DATA/STATUS DMA consumed by USB/IP then actual host VHCI/libusb",
+    "set_address_actual_status": 0,
+    "set_address_actual_bytes": 0
+  },
+  "authentication": {
+    "original_pmca_commit": "3824c398c0fad97da1c4d4cc219a9646f9c4583f",
+    "isolated_python": true,
+    "original_start_requested": true,
+    "stop_on_authenticate_close": false,
+    "hasp_not_requested": true,
+    "cli_returncode": 0,
+    "exchanges": [
+      {
+        "command": 1,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 8,
+        "success_byte": null
+      },
+      {
+        "command": 3,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 4,
+        "success_byte": null
+      },
+      {
+        "command": 1,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 8,
+        "success_byte": null
+      },
+      {
+        "command": 3,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 4,
+        "success_byte": null
+      },
+      {
+        "command": 1,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 8,
+        "success_byte": null
+      },
+      {
+        "command": 3,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 4,
+        "success_byte": null
+      },
+      {
+        "command": 5,
+        "event": "authentication_exchange",
+        "pid": 822,
+        "reply_size": 512,
+        "result": 6,
+        "success_byte": 1
+      }
+    ],
+    "successful_final_byte": 1,
+    "source_bound_files": 317,
+    "consumer_handle_closed": true
+  },
+  "normal_shutdown": {
+    "usb_detached": true,
+    "senser_smode_restored": true,
+    "settings_saved": true,
+    "sd_saved": true,
+    "sd_flush_lifecycle": "resumed",
+    "frozen_partitions": 19,
+    "original_freeze_bdev_used": true,
+    "qmp_returncode": 0,
+    "owner_and_peer_exited": true,
+    "lease_released": true,
+    "vm_signals_sent": []
+  },
+  "host_restoration": {
+    "restored": true,
+    "original_attribute_inodes": [
+      823187,
+      823186
+    ],
+    "attribute_uid_gid_mode_restored": true,
+    "modules_after": {
+      "vhci_hcd": false,
+      "usbip_core": false
+    },
+    "owned_ports_remaining": 0
+  },
+  "host_tests": {
+    "final_auth_scope": {
+      "passed": 27,
+      "skipped": 8,
+      "subtests": 10,
+      "skip_reason": "optional external research version/root protocol scripts absent"
+    },
+    "dwc3_core": "11 paired scenarios each strict C11 and ASan/UBSan after no-response UPDATE_TRANSFER fix",
+    "candidate_full_build_returncode": 0,
+    "counts_are_not_summed": true
+  },
+  "source_before": {
+    "runtime/analysis/original_cold_boot.py": "41fd7d96293c104199555f88d0520a29f314c621fbb71f919e97c862f004594e",
+    "runtime/analysis/original_cold_live.py": "cdfdc033c1898d1c6d80aa1e440b20248840f752d74df1e7cd0b3c741ef92214",
+    "runtime/analysis/bodydata-launch.py": "143c4c5f8f2c036133a451dcf7e35e6d9e8e1f8c70b3b8b9cd447f365db52f24",
+    "runtime/analysis/menu_control.py": "5b9cad9aee890e56e89f02be0f654b3e970bc4812bf0c17b1f19fc4fcdae8bcd",
+    "runtime/analysis/menu_live.py": "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19",
+    "runtime/analysis/camera_ui.py": "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0",
+    "runtime/analysis/persistent_storage.py": "e5beb5c8662693c063c9d52a9e6078f88989eaf70ca851261573797fb51ef7c3",
+    "runtime/analysis/run-menu-probe.sh": "ce57b44da9c4c954f7ae514dbc9688a94f2cb82282c75fabfcf4372556c8c4ec",
+    "runtime/analysis/cold/bootstrap.sh": "7c26060a75dc870ecac5c5fad32c03c10b861d481f4a2fa2d9203431569cb770",
+    "runtime/analysis/cold/insmod.sh": "7768518f5e9638ff2c7991363fecdc8c9d340655b70ebb21f2a03f369b774b0d",
+    "runtime/analysis/settings_checkpoint.py": "abfeffb59847874c61827baaebf475391fe9eecdcfc5d887f65a77c1cda9a6ab",
+    "runtime/analysis/user-settings-checkpoint.c": "7858980cf00b37a037e01286ec246b10bad6fa8584d7f3cfddd410eacde92afb",
+    "runtime/analysis/sony_usb_device.py": "42e3dc29ebeb55177e2612e43350c034e1276fc34ad647506d5b57ba417f27d1",
+    "runtime/analysis/sony_usb_board.py": "a120c2c298397daba3262f8fc919b0f23fd0ceb4d00b8beb60a4c84dfd53aa8b",
+    "runtime/analysis/qemu-kernel-probe.sh": "6f3ea7baf36cc1fc6ea95fd22514c5b46dd5fa4c6b50f2eda79402b7c367ca4a",
+    "runtime/analysis/usb_jiritsu.py": "047de46cc6ae07ec7d764daa1613d875da47d24ff9a390fbbe46d57c3c32fc3d",
+    "runtime/analysis/usb_control.py": "f08c1bd9e5666ff8dc0f571543a2b80b58a988be381f8f6e96a86dcca02e1100",
+    "runtime/analysis/usb_ui.py": "d7fcb73faae89e4436767f635978af947959f35cf06b074c3c7e839ff5252b82",
+    "tools/run-original-cold.py": "0c72ad52ddb28ec8e9bf6245e4529fed90a1ad5fa19b4086e1f987fd7f1ab5c5",
+    "tools/jiritsu-authenticate.py": "d6402a74254dfddb7f0ef62dcad800c368f0e759fe19f0bba78d0b02ecb7d9ae",
+    "runtime/analysis/usb-gadget/usbip_server.py": "55d2d72e8f4b3d2f0eb35619860f93479e703e4dda4d7966678890b7ae3096fc",
+    "source/usb-device/sony-dwc3.c": "f161f615541cf4c502ab764785660e5bdc2ea66b35a1822be4f1a1370282b17b",
+    "source/usb-device/sony-dwc3.h": "447b91cdddc091d283a8db8de19de619ffaaa2bcaabca4c9a8a210b91119166f",
+    "source/usb-device/sony-usb-platform.inc": "e082145e57eb482b02a32db5388620d1622919e89193f3b0e82c4696b281d8a4",
+    "source/usb-device/board-fragment.inc": "5fc7e5f99afe31f3a4e77aea5bb2097689be0fcbc4ad838b3493bcde80f7b527",
+    "source/usb-device/sony-dwc3-bridge.c": "5e0f147aaae375274f77d864139e5221eb6bef189a911d2a266516f77a472b34",
+    "source/usb-device/sony-dwc3-bridge.h": "8b95cfced490746d67f0b8e81cb72cc9bd870e757f399f9c9876770f376c8e1c",
+    "source/usb-device/usb-start-observe.c": "ae396b14d2271265c6a5229e8b70c1bb70df1d71a43238a1c7f67ab0bfe0ef5f",
+    "source/usb-device/usb-start-observe.map": "7220151c358a0bb2074918631e8eefa80abaf241830b808b19cb48c9f97b4e04",
+    "source/usb-device/usb-msc-sender.inc": "02e3c9311f621c5497b73118fb7fd0259241ed8019ed16c22d40b6a41fe280a5"
+  },
+  "source_drift": {},
+  "preserved_failures": [
+    {
+      "stage": "v3 PHY",
+      "run_id": "run-x76mmtwd",
+      "ram_bytes": 25769317539,
+      "ram_sha256": "548af9026be1c09caf894d426113f0e212ce393e964e573ad4466f2302d6a011",
+      "authentication_verified": false
+    },
+    {
+      "stage": "v7 no-response UPDATE_TRANSFER rejected",
+      "run_id": "run-ngkbhthy",
+      "ram_bytes": 25769317539,
+      "ram_sha256": "e7a27085ea3f92d6815be1544d4c606d3624c1cdc79608327dd2cf3f655ad325",
+      "authentication_verified": false
+    },
+    {
+      "stage": "v8 authentication7 passed, following HASP/Stop service fault",
+      "run_id": "run-9wyoq0mn",
+      "whole_run_verified": false,
+      "authentication_verified": true,
+      "trigger_uniquely_proven": false,
+      "ram_bytes": 25769317539,
+      "ram_sha256": "85f35bd452ab0484c3bff17696ae24da753d22ae23f79ad68fc50eea9465c5b7"
+    },
+    {
+      "stage": "v9 omitted original Start initialization",
+      "run_id": "run-k4rx383x",
+      "authentication_verified": false,
+      "whole_run_verified": false,
+      "normal_shutdown_verified": true
+    }
+  ],
+  "private_evidence_sha256": {
+    "actual-usb-senser-v10/result.json": "ef7d58201e9435785ff6556150bd94429f05e407276162da97b575333aae7480",
+    "actual-usb-senser-v10/actual-host-config.json": "530263651217c71725a8c5bd279b59b6952f9886803ee1adc48d2d12b62838c6",
+    "host-before-permission.json": "7d9be73ee29ea831d72047bdc0a64cb2859a8a0432c7f2d0eee5ea098deffd43",
+    "host-restored.json": "beaacb6d1484e046aac81a5b05a520add63bd51ab190d091adf45949bd47935c",
+    "auth-only-before/authentication-seven-observed.json": "fae7f18f0959ab7cc0e620f3a3e6fb532854605d95072af4dd4324902a57adc5",
+    "candidate-update-v3.json": "5e61f9da21adae3b589eb512aeab41443fce9490d90eca9323d18ee07f6ed9f6"
+  },
+  "private_firmware_ram_disks_logs_and_dependencies_distributed": false
+}

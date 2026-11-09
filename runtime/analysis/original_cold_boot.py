@@ -1,5 +1,6 @@
 """Prepare the original RAM0/init/pivot route in one isolated product disk."""
 from pathlib import Path
+from contextlib import ExitStack
 import ast
 import hashlib
 import io
@@ -84,6 +85,11 @@ def guest_environment(host):
         if name in allowed and name.startswith('MENU_'):
             need(isinstance(value,str) and re.fullmatch(r'[A-Za-z0-9_./,:=+@-]*',value) is not None,'Unsafe cold guest option: '+name)
             selected[name]=value
+    from sony_usb_device import selected as usb_selected
+    if usb_selected(host):selected['PRODUCT_SONY_USB_DEVICE']='1'
+    if host.get('A7C2_USB_SENSER') is not None:
+        need(usb_selected(host) and host['A7C2_USB_SENSER']=='original-init2-v1','Senser startup requires the explicit USB device profile')
+        selected['PRODUCT_USB_SENSER']='original-init2-v1'
     return selected
 
 
@@ -209,6 +215,60 @@ def _patch(image,work,files,links=()):
     return dict(original_tree_sha256=hashlib.sha256(json.dumps(before,sort_keys=True).encode()).hexdigest(),adapted_tree_sha256=hashlib.sha256(json.dumps(after,sort_keys=True).encode()).hexdigest(),original_untouched_entries_verified=True,changed_or_added=sorted(touched|directories),original_scripts={p:n['sha256'] for p,n in original.items() if p.startswith('/sbin/init') and n.get('kind')=='file' and p not in touched})
 
 
+def stage_file_selection(payload,host):
+    """Snapshot an explicit overwrite through the existing no-symlink scanner."""
+    from firmware_overlay import _parent,_fd,_scan,_signature,_check_anchors
+    from firmware_development import guest_path,MAX_FILE_BYTES
+    directory=Path(host.get('A7C2_OVERWRITE_DIR',str(ANALYSIS.parents[1]/'overwrite')))
+    entries=[]
+    if host.get('A7C2_OVERWRITE_DIR'):need(os.path.lexists(directory),'Explicit cold overwrite directory is missing')
+    if os.path.lexists(directory):
+        with ExitStack() as stack:
+            path,parent,name,anchors=_parent(stack,directory)
+            descriptor=_fd(stack,name,os.O_RDONLY|os.O_DIRECTORY,parent)
+            anchors.append((parent,name,os.fstat(descriptor)))
+            files,directories=_scan(stack,descriptor)
+            for relative,(parent,name,info) in sorted(files.items()):
+                guest_path('/'+relative);original=ANALYSIS/'menu-root'/relative
+                need(relative.startswith('usr/') and original.is_file() and not original.is_symlink(),'Cold file tests require an existing restorable /usr file: '+relative)
+                need(info.st_size<=MAX_FILE_BYTES,'Cold file test exceeds file budget')
+                source=_fd(stack,name,os.O_RDONLY|os.O_NONBLOCK,parent)
+                need(_signature(os.fstat(source))==_signature(info),'Cold file selection changed before copy')
+                target=payload/('cold-file-'+str(len(entries)))
+                with os.fdopen(os.dup(source),'rb') as stream,target.open('xb') as output:
+                    shutil.copyfileobj(stream,output,1024**2)
+                need(_signature(os.fstat(source))==_signature(info) and target.stat().st_size==info.st_size,'Cold file selection changed while copying')
+                entries.append(dict(path=relative,source=str(target),selection_source=str(path/relative),new_sha256=sha(target),size=info.st_size,mode=info.st_mode))
+            for fd,info,names in directories:
+                need(_signature(os.fstat(fd))==_signature(info) and sorted(os.listdir(fd))==names,'Cold file selection directory changed')
+            _check_anchors(anchors)
+    return dict(entries=entries,source_class='user_overwrite',overwrite_dir=str(directory.absolute()))
+
+
+def settings_import(payload,host):
+    """Migrate the old RAM-route snapshot once; later boots keep the actual internal volume."""
+    marker='/log/qemu/original-cold-settings-imported'
+    lines=['#!/bin/busybox sh','set -e','if [ ! -f '+marker+' ]; then','  /bin/busybox mkdir -p /log/qemu']
+    source=host.get('A7C2_SETTINGS_RESTORE')
+    if source:
+        from settings_checkpoint import inspect_backup
+        fd=disk.secure_open(str(Path(source).absolute()))
+        try:
+            need(os.fstat(fd).st_size==2390264,'Cold settings snapshot size differs')
+            data=os.pread(fd,2390265,0);proof=inspect_backup(data)
+        finally:os.close(fd)
+        need(proof['sha256']==host.get('A7C2_SETTINGS_RESTORE_SHA'),'Cold settings snapshot digest differs')
+        target=payload/'settings-restore.bin';target.write_bytes(data);target.chmod(0o600)
+        digest=proof['sha256']
+        lines+=['  if [ -f /setting/Backup.bin ]; then /bin/busybox cp /setting/Backup.bin /log/qemu/original-cold-settings-before; /bin/busybox cmp /setting/Backup.bin /log/qemu/original-cold-settings-before; fi',
+                '  /bin/busybox cp /simulation/settings-restore.bin /setting/Backup.bin',
+                '  digest=$(/usr/bin/openssl dgst -sha256 /setting/Backup.bin)',
+                '  case "$digest" in "SHA256(/setting/Backup.bin)= '+digest+'"|"SHA2-256(/setting/Backup.bin)= '+digest+'") ;; *) exit 1;; esac','  /bin/busybox sync']
+    lines+=['  echo '+(host.get('A7C2_SETTINGS_RESTORE_SHA') if source else 'no-legacy-snapshot')+' > '+marker,'  /bin/busybox sync','fi']
+    script=payload/'install-settings.sh';script.write_text('\n'.join(lines)+'\n',encoding='ascii');script.chmod(0o755)
+    return {name:payload/name for name in ('install-settings.sh','settings-restore.bin') if (payload/name).exists()}
+
+
 def prepare(instance,output,host_environment):
     input_bindings=product_input_bindings()
     output=Path(output).absolute();need(not output.exists(),'Fresh cold output required');output.mkdir(mode=0o700)
@@ -228,8 +288,6 @@ def prepare(instance,output,host_environment):
                 name='ram0.original.ext2' if entry.path=='/initrd.img' else 'kernel.original.img';path=output/name;path.write_bytes(data);need(sha(path)==expected,'Extracted original boot file readback differs');found[name]=dict(bytes=len(data),sha256=expected)
         need(len(found)==2,'Original p3 kernel/RAM0 missing')
         ram=output/'ram0.ext2';shutil.copyfile(output/'ram0.original.ext2',ram)
-        with ram.open('r+b') as stream:stream.truncate(192*1024**2)
-        _checked(['resize2fs',str(ram)],output/'ram0-resize.log')
         audit=payload/'audit';_checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(SOURCE/'cold-start-audit.c'),str(ANALYSIS/'menu-root/lib/libc-2.25.so'),'-o',str(audit)],output/'audit-build.log');audit.chmod(0o755)
         helpers={}
         for path in (ANALYSIS/'menu-root/simulation').rglob('*'):
@@ -240,24 +298,48 @@ def prepare(instance,output,host_environment):
             if source!=payload/name:shutil.copyfile(source,payload/name)
             (payload/name).chmod(0o755);helpers[name]=payload/name
         (payload/'bootin-original').write_bytes(b'');(payload/'bootin-original').chmod(0o755);helpers['bootin-original']=payload/'bootin-original'
+        overwrite=stage_file_selection(payload,host_environment)
+        entries=storage.stage_file_tests(payload,overwrite,host_environment.get('A7C2_STORAGE_RESTORE_FILE'),host_environment.get('A7C2_STORAGE_RESTORE_SELECTION'))
+        for path in payload.glob('persistent-*'):helpers[path.name]=path
+        helpers.update(settings_import(payload,host_environment))
+        from sony_usb_device import prepare_observer
+        helpers.update(prepare_observer(host_environment,payload))
+        expected_bindings={**input_bindings,'guest_inputs':dict(input_bindings['guest_inputs'])}
+        for entry in entries:expected_bindings['guest_inputs'][entry['path']]=entry['new_sha256']
+        if host_environment.get('A7C2_SD_IMAGE'):
+            from sd_transport import card_source
+            with card_source(host_environment['A7C2_SD_IMAGE']) as card:
+                size=os.fstat(card).st_size
+                need(size==helpers['media-camera.fat'].stat().st_size,'Cold virtual SD capacity differs from the supported RM2 card')
+                with (payload/'media-camera.fat').open('wb') as target:
+                    for offset in range(0,size,1024**2):
+                        raw=os.pread(card,min(1024**2,size-offset),offset)
+                        need(len(raw)==min(1024**2,size-offset) and target.write(raw)==len(raw),'Short cold SD seed copy')
+                need(sha(payload/'media-camera.fat')==disk.hashed(card),'Cold virtual SD seed readback differs')
         environment=guest_environment(host_environment);envfile=payload/'environment.sh';envfile.write_text('\n'.join('export '+k+'='+shlex.quote(v) for k,v in sorted(environment.items()))+'\n');envfile.chmod(0o600);helpers['environment.sh']=envfile
         reset=payload/'reset-runtime.sh';reset.write_text('#!/bin/busybox sh\nset -e\n'+'\n'.join(storage.runtime_reset_commands())+'\n');reset.chmod(0o755);helpers['reset-runtime.sh']=reset
         fonts={name[len('language-fonts/'):]:path for name,path in helpers.items() if name.startswith('language-fonts/')}
         need(len(fonts)==3,'Exact three product language fonts required')
         fontinstaller=payload/'install-fonts.sh';fontinstaller.write_text(font_install_script(fonts));fontinstaller.chmod(0o755);helpers['install-fonts.sh']=fontinstaller
-        originalcheck=payload/'verify-originals.sh';originalcheck.write_text(guest_identity_script(input_bindings));originalcheck.chmod(0o755);helpers['verify-originals.sh']=originalcheck
-        need(sum(p.stat().st_size for p in helpers.values())<160*1024**2,'Cold RAM helper budget exceeded')
+        originalcheck=payload/'verify-originals.sh';originalcheck.write_text(guest_identity_script(expected_bindings));originalcheck.chmod(0o755);helpers['verify-originals.sh']=originalcheck
+        helper_bytes=sum(p.stat().st_size for p in helpers.values())
+        need(helper_bytes<480*1024**2,'Cold RAM helper budget exceeded')
+        ram_bytes=max(192*1024**2,((helper_bytes+64*1024**2+64*1024**2-1)//(64*1024**2))*(64*1024**2))
+        need(ram_bytes<=544*1024**2,'Cold RAM0 exceeds the bounded high-DDR image')
+        with ram.open('r+b') as stream:stream.truncate(ram_bytes)
+        _checked(['resize2fs',str(ram)],output/'ram0-resize.log')
+        helperbudget=payload/'helper-bytes';helperbudget.write_text(str(helper_bytes+1024**2)+'\n')
         helperlist=payload/'helpers';helperlist.write_text(''.join(n+' '+str(p.stat().st_size)+' '+sha(p)+' '+format(p.stat().st_mode&0o777,'o')+'\n' for n,p in sorted(helpers.items())))
         capacities=payload/'capacities';capacities.write_text(''.join(('nflashaB'+n[-1] if n.startswith('nflashaB') else 'cnflasha'+n[len('nflasha'):])+' '+str(row['bytes']//512)+'\n' for n,row in slices.items()))
         freeram=payload/'freeramdisk';freeram.write_text('#!/bin/busybox sh\nexec /simulation/audit release "$@"\n');freeram.chmod(0o755)
         for name in ('bootstrap.sh','insmod.sh'):subprocess.run(['sh','-n',str(SOURCE/name)],check=True)
-        newfiles={'/sbin/product-cold-bootstrap':SOURCE/'bootstrap.sh','/sbin/insmod':SOURCE/'insmod.sh','/qemu/audit':audit,'/qemu/helpers':helperlist,'/qemu/capacities':capacities,'/qemu/sony_persistent_flash.ko':storage.module_file()}
+        newfiles={'/sbin/product-cold-bootstrap':SOURCE/'bootstrap.sh','/sbin/insmod':SOURCE/'insmod.sh','/qemu/audit':audit,'/qemu/helpers':helperlist,'/qemu/helper-bytes':helperbudget,'/qemu/capacities':capacities,'/qemu/sony_persistent_flash.ko':storage.module_file()}
         newfiles.update(('/qemu/simulation/'+n,p) for n,p in helpers.items())
         ramproof=_patch(ram,work,newfiles)
         p7=slices['nflasha7'];before=output/'p7.original.ext2';before.write_bytes(os.pread(leased['fd'],p7['bytes'],p7['offset']));adapted=output/'p7.ext2';shutil.copyfile(before,adapted)
         empty=payload/'image_mmca';empty.write_bytes(b'');empty.chmod(0o600)
         p7proof=_patch(adapted,work,{'/sbin/insmod':SOURCE/'insmod.sh','/sbin/freeramdisk':freeram,'/image_mmca':empty},[('/simulation','/dev/qemu-simulation')])
         raw=adapted.read_bytes();need(len(raw)==p7['bytes'],'Derived p7 capacity changed');need(os.pwrite(leased['fd'],raw,p7['offset'])==len(raw),'Short p7 write');os.fsync(leased['fd']);need(disk.hashed(leased['fd'],p7['offset'],p7['bytes'])==sha(adapted),'Derived p7 disk readback differs')
-        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,original_guest_executed=False,full_boot_verified=False)
+        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
         storage._save(output/'result.json',result)
     return result

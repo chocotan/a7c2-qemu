@@ -23,3 +23,31 @@ def test_explicit_cold_launcher_requires_bound_raw_ram0(tmp_path,profile,storage
     assert b'init=/sbin/product-cold-bootstrap' in args and b'rootfstype=ext2' in args
     assert b'product.cold=original-init-v1' in args and b'rdinit=' not in args and b'init=/bin/sh' not in args
     assert b'memrsv=0xCFC00000@0x430400000:uc' in args and b'memrsv=0x00020000@0x41d000000:uc' in args
+
+
+@pytest.mark.parametrize('composed_after,deadline,accepted',[(20,40,True),(None,25,False)])
+def test_first_composed_lcd_uses_remaining_cold_budget(tmp_path,composed_after,deadline,accepted):
+    import ast
+    from types import SimpleNamespace
+    from PIL import Image
+    source=cold.ANALYSIS.parents[1]/'tools/run-original-cold.py'
+    tree=ast.parse(source.read_text())
+    setup=next(node for node in ast.walk(tree) if isinstance(node,ast.Assign) and
+               any(isinstance(target,ast.Name) and target.id=='display_deadline' for target in node.targets))
+    loop=next(node for node in ast.walk(tree) if isinstance(node,ast.While) and node.lineno==setup.lineno+1)
+    code=compile(ast.fix_missing_locations(ast.Module(body=[setup,loop],type_ignores=[])),str(source),'exec')
+    clock=[0];observed=[]
+    def capture(command,arguments):
+        assert command=='screendump' and arguments==dict(filename='/out/original-lcd.ppm')
+        image=Image.new('RGB',(640,480))
+        if composed_after is not None and clock[0]>=composed_after:
+            for x in range(6):image.putpixel((x,0),(20+x,40,60))
+        image.save(tmp_path/'original-lcd.ppm');observed.append(clock[0])
+    scope=dict(time=SimpleNamespace(monotonic=lambda:clock[0],sleep=lambda _:clock.__setitem__(0,clock[0]+5)),
+               deadline=deadline,qmp=capture,Image=Image,runtime=tmp_path,need=cold.need)
+    if accepted:
+        exec(code,scope)
+        assert observed[-1]>=20 and len(scope['rgb'].getcolors(640*480))>5
+    else:
+        with pytest.raises(ValueError,match='no meaningful color content'):exec(code,scope)
+        assert clock[0]>=deadline

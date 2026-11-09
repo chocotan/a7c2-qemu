@@ -1,0 +1,3 @@
+GLIBC_2.17 {
+    global: dlopen; dlsym;
+};

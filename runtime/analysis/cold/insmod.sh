@@ -9,6 +9,9 @@ case "$module" in
             /bin/busybox touch /dev/qemu-simulation/init2-attempted || exit 1
             echo "PRODUCT_COLD_INIT2 parent=$PPID"
             /bin/busybox cat /proc/$PPID/cmdline /proc/$PPID/status /proc/1/mountinfo
+            /bin/busybox mkdir -p /tmp/images /log/qemu || exit 1
+            /simulation/persistent-apply-test || exit 78
+            /simulation/install-settings.sh || exit 79
             /usr/bin/openssl dgst -sha256 /sbin/init2 /sbin/initrc/setup_rootfs /usr/bin/bootin.elf /usr/bin/im.elf /usr/lib/appFw.so || exit 1
             /bin/busybox sh /simulation/verify-originals.sh || exit 78
             digest=$(/usr/bin/openssl dgst -sha256 /usr/bin/bootin.elf) || exit 1
@@ -21,6 +24,15 @@ case "$module" in
             /simulation/audit space /tmp 2097152 || exit 1
             /bin/busybox mount --bind /simulation/libIMDB.so /usr/lib/libIMDB.so || exit 1
             /bin/busybox mount --bind /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh || exit 1
+            . /simulation/environment.sh || exit 1
+            if [ "${PRODUCT_USB_SENSER:-}" = original-init2-v1 ]; then
+                read -r expected < /simulation/sen-sha256 || exit 78
+                digest=$(/usr/bin/openssl dgst -sha256 /usr/bin/sen.elf) || exit 78
+                case "$digest" in "SHA256(/usr/bin/sen.elf)= $expected"|"SHA2-256(/usr/bin/sen.elf)= $expected") ;; *) exit 78;; esac
+                /bin/busybox mount --bind /usr/bin/sen.elf /simulation/sen-original || exit 78
+                /bin/busybox mount --bind /simulation/sen-wrapper /usr/bin/sen.elf || exit 78
+                /simulation/usb-senser-mode prepare || exit 78
+            fi
             /bin/busybox mkdir -p /tmp/images /log/qemu || exit 1
             /bin/busybox sh /simulation/install-fonts.sh || exit 1
             /bin/busybox mount --bind /simulation/media-camera.fat /image_mmca || exit 1
@@ -34,6 +46,18 @@ case "$module" in
 esac
 case "$name" in
     devno|dma330|osal_utm|osal_uipc|utimer|osal_ulogio|ioexp|indctr|udate|stream|stream2|dmm|kikilog|upm|grm_ma)
+        /bin/busybox insmod "$module" "$@"; rc=$?;;
+    usb_portMonitor|usbg_sen)
+        [ -r /simulation/environment.sh ] || exit 78
+        . /simulation/environment.sh
+        [ "${PRODUCT_SONY_USB_DEVICE:-}" = 1 ] || { echo "PRODUCT_COLD_MODULE_REFUSED name=$name reason=usb-device-disabled result=78"; exit 78; }
+        case "$name" in
+            usb_portMonitor) expected=792cbc38576efba8e33faf730514f9ac694883b2668019ced0581abeb4b6f73d;;
+            usbg_sen) expected=cd85574e2cfa8dce40d61fde0f46c892df1c39203677cea51770d1963d6fa148;;
+        esac
+        [ "$module" = "/usr/kmod/$name.ko" ] || exit 78
+        digest=$(/usr/bin/openssl dgst -sha256 "$module") || exit 78
+        case "$digest" in "SHA256($module)= $expected"|"SHA2-256($module)= $expected") ;; *) echo PRODUCT_COLD_USB_MODULE_IDENTITY_FAILED; exit 78;; esac
         /bin/busybox insmod "$module" "$@"; rc=$?;;
     backup)
         /bin/busybox insmod "$module" Backup_load=1 Backup_save=0; rc=$?

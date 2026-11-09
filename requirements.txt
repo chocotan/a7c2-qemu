@@ -1,6 +1,8 @@
 # Explicit prerequisites only; no launcher invokes pip or downloads packages.
 Pillow>=10,<13
 pycryptodomex>=3.10
+# Optional Sony device profile: real libusb/VHCI consumer, no synthetic backend.
+pyusb>=1.2,<2
 # Required during public software-model collection, including asset-free runs.
 capstone>=5,<6
 pyelftools

@@ -80,7 +80,7 @@ def wait_functional_camera_owner(process):
 
 
 class VM:
-    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None):
+    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None,boot_profile='direct-bootin'):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
             raise ValueError('不支持的原生显示后端')
         self.command = command or ['bash', str(BASE / 'run-menu-probe.sh')]
@@ -94,7 +94,10 @@ class VM:
         # The isolated USB-Ethernet switch only exists when this run launched with
         # the candidate build and the derived launcher/DTB.
         self.usb_net = bool(usb_net)
-        self.persistent_storage=bool(persistent_storage)
+        if boot_profile not in ('direct-bootin','original-init-cold') or (boot_profile=='original-init-cold' and (command is not None or not natural_boot or usb_net)):
+            raise ValueError('原冷启动需要真实原生窗口与隔离内部盘；其它设备使用兼容启动')
+        self.boot_profile=boot_profile
+        self.persistent_storage=bool(persistent_storage or boot_profile=='original-init-cold')
         self.storage_context=None
         self.storage_lease=None
         self.storage_instance=str(Path(storage_instance).absolute()) if storage_instance is not None else None
@@ -190,6 +193,7 @@ class VM:
     def reset_configuration(self, *, confirmed):
         """Stopped-instance logical reinitialization; preserve virtual SD/history."""
         with self.lock:
+            if self.boot_profile=='original-init-cold':raise ValueError('原冷启动配置保存在内部盘；当前配置复位尚未接通')
             if self.instance is None:raise ValueError('本控制器未绑定持久实例')
             if (self.instance_lease is not None or self.cleanup_error or self.owned_process is not None
                     or (self.thread and self.thread.is_alive())):
@@ -211,6 +215,8 @@ class VM:
                 raise ValueError('内部单盘需要真实原生启动与明确开关')
             if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
                 raise ValueError('先保存退出 VM，再选择内部存储')
+            if not enabled and self.boot_profile=='original-init-cold':
+                raise ValueError('原冷启动需要保留内部持久磁盘')
             self.persistent_storage=enabled
             self.event('下一次启动使用内部持久盘' if enabled else '下一次启动使用原启动镜像',kind='firmware')
 
@@ -274,7 +280,7 @@ class VM:
                         lcd_stream_error=self.lcd_stream.error if self.lcd_stream else '',
                         mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         firmware_selection=self.firmware_selection,firmware_verification=self.firmware_verification,
-                        persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,
+                        persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,boot_profile=self.boot_profile,
                         wifi=self.wifi, usb_net=self.usb_net,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
@@ -451,6 +457,9 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            env['A7C2_BOOT_PROFILE']=self.boot_profile
+            for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD'):
+                env.pop(name,None)
             env.pop('A7C2_STORAGE_RESTORE_FILE',None)
             env.pop('A7C2_STORAGE_RESTORE_SELECTION',None)
             if self.firmware_selection is not None:
@@ -466,11 +475,16 @@ class VM:
                 from persistent_storage import ensure_instance,instance_lease,inherited_environment
                 instance=Path(self.storage_instance) if self.storage_instance else ensure_instance()
                 self.storage_instance=str(instance)
-                context=instance_lease(instance);leased=context.__enter__()
-                self.storage_context=context;self.storage_lease=leased
-                storage_fd=fcntl.fcntl(leased['fd'],fcntl.F_DUPFD_CLOEXEC,50)
-                leased['inherited_fd']=storage_fd
-                env.update(inherited_environment(dict(leased,fd=storage_fd)))
+                if self.boot_profile=='original-init-cold':
+                    # The cold launcher owns the sole lease through preparation, QMP exit and descendants.
+                    env['A7C2_USE_PERSISTENT_STORAGE']='1'
+                    env['A7C2_COLD_STORAGE_INSTANCE']=str(instance.absolute())
+                else:
+                    context=instance_lease(instance);leased=context.__enter__()
+                    self.storage_context=context;self.storage_lease=leased
+                    storage_fd=fcntl.fcntl(leased['fd'],fcntl.F_DUPFD_CLOEXEC,50)
+                    leased['inherited_fd']=storage_fd
+                    env.update(inherited_environment(dict(leased,fd=storage_fd)))
             from backup_profile import FUNCTIONAL_CAMERA_PROFILE
             self.functional_camera = not self.mock and env.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
             if self.usb_net and env.get('A7C2_NATURAL_IMAGING_PROFILE') == '1':
@@ -489,6 +503,8 @@ class VM:
             host_sd=env.get('A7C2_HOST_SD')=='256gb'
             directory_sd=bool(env.get('A7C2_DIRECTORY_SD'))
             if host_sd and directory_sd:raise ValueError('两种SD后端不能同时使用')
+            if self.boot_profile=='original-init-cold' and (host_sd or directory_sd or self.functional_camera):
+                raise ValueError('此设备组合仍需兼容启动；原冷启动不会静默换用其它SD或成像后端')
             if directory_sd:
                 if self.mock or not self.natural_boot:raise ValueError('目录SD仅真实自然启动可用')
                 from directory_sd import directory_lease

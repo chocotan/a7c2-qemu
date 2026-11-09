@@ -1,0 +1,649 @@
+{
+  "schema": "a7c2-product-default-original-cold-entry-v1",
+  "verified": true,
+  "recorded_at_ns": 1794210324976090285,
+  "scope": "Actual unparameterized start.sh in an independent product copy using an existing pinned QEMU build and official BODYDATA cache; same-disk second boot after failed navigation",
+  "default_entry": {
+    "argv": [
+      "bash",
+      "./start.sh"
+    ],
+    "boot_profile": "original-init-cold",
+    "boot_profile_environment_absent": true,
+    "hci_environment_absent": true,
+    "runtime_environment_overrides": [],
+    "package_sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31",
+    "qemu_binary_sha256": "b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad",
+    "fresh_qemu_build_verified": false,
+    "existing_user_instance_modified": false,
+    "existing_user_window_controlled": false,
+    "default_route_actual_verified": true
+  },
+  "first_frame_fix": {
+    "file": "tools/run-original-cold.py",
+    "sha256": "0c72ad52ddb28ec8e9bf6245e4529fed90a1ad5fa19b4086e1f987fd7f1ab5c5",
+    "old_extra_deadline_seconds": 15,
+    "new_deadline": "remaining original cold-start observation budget",
+    "actual_candidate_matches_current_product": true,
+    "color_content_guard_unchanged": true,
+    "regression_delayed_composed_frame_over_15_seconds_verified": true,
+    "regression_continuously_black_frame_rejected_at_total_deadline": true
+  },
+  "original_boot": {
+    "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+    "original_ram0": {
+      "bytes": 5218304,
+      "sha256": "b249308ff1a42f8f441cedbd6244e8ffa0b4c88b984b2d5e71a436d09ab86529"
+    },
+    "handoff": {
+      "original_script_handoff_order_verified": true,
+      "ordered_log_offsets": [
+        104140,
+        108414,
+        108750,
+        108871,
+        108970,
+        110187,
+        121792
+      ],
+      "original_script_bytes_bound_by_build": true
+    },
+    "root": {
+      "device": "253:135",
+      "root": "/",
+      "target": "/",
+      "options": [
+        "ro",
+        "noatime",
+        "nodiratime"
+      ],
+      "filesystem": "ext2",
+      "source": "/dev/nflasha7",
+      "super_options": [
+        "ro",
+        "sync",
+        "errors=continue"
+      ]
+    },
+    "old_ram0_root_unmounted": true,
+    "original_freeramdisk_readback_verified": true,
+    "root_credentials_four_zero_columns": true,
+    "original_scripts_independently_read_back": [
+      {
+        "path": "/sbin/init",
+        "sha256": "c83de1abeeb779f7473181b51face32ecfedfa3bd5c0fc346ae0c628f1b0ac5e",
+        "bytes": 735
+      },
+      {
+        "path": "/sbin/init2",
+        "sha256": "45d3b907e6ef96c9a930cd3e6f919db700bffb5f18c386abfdb655f4d9954aeb",
+        "bytes": 1658
+      },
+      {
+        "path": "/sbin/initrc/setup_rootfs",
+        "sha256": "ee84d317484d8cb4a0f1e39d665f1f04f18bf4d193a36a6e9bf63f8666a6a34d",
+        "bytes": 593
+      },
+      {
+        "path": "/sbin/initrc/fstab.root",
+        "sha256": "c77d93236b89349bcc24853756f960bb49411e922c9430ede70b5b2cb8b6a4b2",
+        "bytes": 58
+      },
+      {
+        "path": "/sbin/initrc/fstab",
+        "sha256": "3936e6508ba89a025fc998c824434562c2d16234db96e179ec3f3a90a5a1d6f0",
+        "bytes": 1085
+      },
+      {
+        "path": "/sbin/initrc/insmod_drv1",
+        "sha256": "22f29d06d7776fe5e8362c17049beabfd3e3bebffd222e51276e3704d483a591",
+        "bytes": 152
+      },
+      {
+        "path": "/sbin/initrc/insmod_drv2",
+        "sha256": "19757bdd450061f861e2da44a6a93be2525668e3f7edc64e5a99a25bde56564e",
+        "bytes": 1298
+      }
+    ],
+    "original_scripts_not_modified": true,
+    "virtual_adapters_required": true
+  },
+  "actual_ui": {
+    "chinese_language_glyphs_and_focus_verified": true,
+    "firstsetup_steps": 12,
+    "shooting_hud_verified": true,
+    "original_menu_control_pixels_verified": true,
+    "menu_return_verified": true,
+    "input_requests": 28,
+    "original_app_received_edges": 56,
+    "inputs": [
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          3,
+          4
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          5,
+          6
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          7,
+          8
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          9,
+          10
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          11,
+          12
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          13,
+          14
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          15,
+          16
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          17,
+          18
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          19,
+          20
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          21,
+          22
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          23,
+          24
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          25,
+          26
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          27,
+          28
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          29,
+          30
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          31,
+          32
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          33,
+          34
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          35,
+          36
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DELETE",
+        "original_received_edges": [
+          37,
+          38
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          39,
+          40
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          41,
+          42
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          43,
+          44
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          45,
+          46
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "DOWN",
+        "original_received_edges": [
+          47,
+          48
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          49,
+          50
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          51,
+          52
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "ENTER",
+        "original_received_edges": [
+          53,
+          54
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "MENU",
+        "original_received_edges": [
+          55,
+          56
+        ],
+        "press_release_ms": 50
+      },
+      {
+        "key": "MENU",
+        "original_received_edges": [
+          57,
+          58
+        ],
+        "press_release_ms": 50
+      }
+    ],
+    "strict_all_input_under_100ms_verified": false,
+    "artifacts": [
+      {
+        "file": "docs/images/default-cold-entry-shooting-hud.png",
+        "bytes": 8289,
+        "sha256": "f14c8d555f14a5fcbefa4be184b964cda51ccb09e12c947b64a057e8c7ee6d1f"
+      },
+      {
+        "file": "docs/images/default-cold-entry-original-menu.png",
+        "bytes": 20418,
+        "sha256": "f5955b796fba9e170158501a3fc86adcfc86dd20e24fb39f7d29679b4bdda064"
+      },
+      {
+        "file": "docs/images/default-cold-entry-menu-return.png",
+        "bytes": 8544,
+        "sha256": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b"
+      }
+    ]
+  },
+  "save_and_exit": {
+    "normal_window_close": "WM_DELETE_WINDOW",
+    "settings_sha256": "b6b109c53ca5ce4a89d16304a12d0591dcc581f3f5e247824539e51d1e5fffa1",
+    "stopped_setting_matches_guest_snapshot": true,
+    "sd_sha256": "acbd2154e2a3bd76a3888165850ec00b953e6327934d2380c5d1b6b1306d4d94",
+    "original_fsys_flush_and_cancel_resume_verified": true,
+    "nineteen_internal_volumes_frozen": true,
+    "freeze_bdev_original_kernel": true,
+    "qmp_quit_confirmed": true,
+    "returncode": 0,
+    "vm_signals_sent": [],
+    "owner_and_peer_exited": true,
+    "lease_available_after_exit": true
+  },
+  "stopped_disk": {
+    "sha256": "91d260d768b1660f41a530c3fd3730333144827a0fd411dbb54eede9adaebca7",
+    "disk_unchanged_by_host_review": true,
+    "mounted_volume_checks": [
+      {
+        "partition": "nflasha7",
+        "filesystem": "ext2",
+        "returncode": 0,
+        "structure_verified": true,
+        "sha256": "d9dd89c5f11b286b9b806448c4daf730eec0ec7d9a4c1f8166dd9295e1e0bf80",
+        "bytes": 16777216,
+        "stdout_sha256": "3476ecb57b7b8a3cd7ab18d54babb9a1f6f342e086da80f4d4eaf854d9e0559c",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01"
+      },
+      {
+        "partition": "nflasha2",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "cdd1aa18dc077135a133e55ad1ad6fa10eef5c604c5963627c4ac80fb5737680",
+        "bytes": 20971520,
+        "stdout_sha256": "54573d1dd54cd86d8955fa650acdd6fae9875836a6cbc2b5281aa4328c687770",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha3",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "591123c53ea78001da9cf74830899943e158cb83be0bde141678e46735d4b297",
+        "bytes": 78643200,
+        "stdout_sha256": "720aba8ff288e99eccfaf52c1dcf788893af8208d78ed1a322ab2346231350a7",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha8",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "cc27bb30f73552cf29e6d39db86626f2c57f6496ca94be89280048a23db43e3e",
+        "bytes": 67108864,
+        "stdout_sha256": "c18708dad33f03ba41847a386b70abf84684ff54fc12e54628de2c0468a7165e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha11",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "3313873524824ef00d165a86156f91de22c11393f75cf69219e8fcfa95f6802e",
+        "bytes": 314572800,
+        "stdout_sha256": "5aa38cbfd4212e3927be148014a5645d133083007125c1faec90f0e11e55d6d6",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha12",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "a33ca9e1760c34d3b0341c798533754e432a2b1cdd35b796d9d1e303f8f7e51a",
+        "bytes": 41943040,
+        "stdout_sha256": "5c1a12fcc06ead218d4708041bb1b7e9b50757a25966a0ae54d43a34d300ae87",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha18",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "7fbefded6e6068ddc1122a70f71a231e8305f8854383d3863cbe7ffb8abcd939",
+        "bytes": 20971520,
+        "stdout_sha256": "1bb1b65b4f51a088a1b0c8e7b0fa6448de435a4df26cd13fbf33824f098137be",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha10",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "190b8275cc75cd8082d4bf6abdc0ae870f4c9a6144c9261528a84f754ac6d50c",
+        "bytes": 12582912,
+        "stdout_sha256": "bdded07b0952738c4dc640e1458ef694f95c45c77df4076c12656e7fa83653ad",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha15",
+        "filesystem": "ext2",
+        "returncode": 0,
+        "structure_verified": true,
+        "sha256": "1f6ad356b23a12edd8978a0f02a58d7225834fe4540dc5399543510ce04154ce",
+        "bytes": 807403520,
+        "stdout_sha256": "ccb2be49b44e2cb410fcea0c73671dcb62d08abd7c62d95a2466ce7c8933e5be",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01"
+      },
+      {
+        "partition": "nflasha22",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+        "bytes": 68157440,
+        "stdout_sha256": "b9d18118c01b5c92bf37d2cec91c2dcd89e3b3dba64f31254e347e21d5cf44b7",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "fat_dirty_flag_modified": false
+  },
+  "acceptance": {
+    "workers": 2,
+    "groups": 2,
+    "host": {
+      "verified": true,
+      "checks": [
+        {
+          "name": "cold-and-default",
+          "command": [
+            "/usr/bin/python3",
+            "-B",
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "/home/choco/Downloads/20261009sony7c2/analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/test_original_cold_boot.py",
+            "/home/choco/Downloads/20261009sony7c2/analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/test_original_cold_launcher.py",
+            "/home/choco/Downloads/20261009sony7c2/analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/test_bodydata_launch.py"
+          ],
+          "returncode": 0,
+          "stdout_sha256": "ef1fe19a5f4256030d10253ebee525a9c1aeb7a632ef454a121e7efd6f014402",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "first-frame-regression",
+          "command": [
+            "/usr/bin/python3",
+            "-B",
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "/home/choco/Downloads/20261009sony7c2/final/a7c2-qemu/runtime/analysis/test_original_cold_launcher.py",
+            "-k",
+            "composed"
+          ],
+          "returncode": 0,
+          "stdout_sha256": "01f69ed1a16ce21e7ce15765f7f40d282a4d1bef2ebddc08145c5822e5ca8e09",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "gtk",
+          "command": [
+            "xvfb-run",
+            "-a",
+            "-s",
+            "-screen 0 1600x1200x24",
+            "/usr/bin/python3",
+            "-B",
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "/home/choco/Downloads/20261009sony7c2/analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/test_camera_ui.py"
+          ],
+          "returncode": 0,
+          "stdout_sha256": "141a4a191674ce5b2cf9670d2aeaf2f38a7581a74a6aca7e6fae81ebb9b3967c",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ]
+    },
+    "source_drift_within_actual_snapshot": {},
+    "current_product_runner_matches_snapshot": true
+  },
+  "preserved_failures": {
+    "prelaunch_copier_duplicate_manifest_rejected": true,
+    "prelaunch_missing_copied_binary_receipt": true,
+    "prelaunch_missing_copied_board_dtb": true,
+    "original_first_frame_timeout": true,
+    "first_frame_failure_receipt": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209063231678037/a7c2-qemu/runtime/analysis/menu-runs/run-vhxvlhyp/default-first-frame-preservation-v2/preservation-complete.json",
+      "bytes": 1786,
+      "sha256": "26e1f163790df3edff6a203859a9fd5cee4928afa4bf498a77d21789c093901f"
+    },
+    "first_frame_failure_ram_sha256": "b247b1377cf0b1229d7b149207282fe5c326d0522c0c7626bc7fa1a3393cad46",
+    "first_frame_failure_ram_bytes": 25769510363,
+    "first_frame_failure_full_actual_ram_ranges_verified": true,
+    "first_frame_failure_normal_qmp_exit": true,
+    "first_frame_failure_save_verified": false,
+    "first_frame_failure_reclassified_success": false,
+    "first_candidate_navigation_timeout_preserved": true,
+    "successful_run_is_same_disk_second_boot": true,
+    "old_receipts_modified": false
+  },
+  "evidence": {
+    "actual": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/second-boot-1794210154041897492/actual-result.json",
+      "bytes": 23944,
+      "sha256": "3b9e67a3e125297668ef30405d1be498a2f78a6170ef97da3d0a53f7f69531b2"
+    },
+    "preparation": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/second-boot-1794210154041897492/preparation.json",
+      "bytes": 385356,
+      "sha256": "ff8aa9ce78601af9e533417fc67b93bf75060edf96fd1a7e098e766224797fe6"
+    },
+    "final_checks": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/second-boot-1794210154041897492/final-checks/result.json",
+      "bytes": 8595,
+      "sha256": "9c3426e4bb19662959c86d59849c726a063ddc87689f1ee9cf5c3539e9048503"
+    },
+    "cold_result": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/result.json",
+      "bytes": 9224,
+      "sha256": "ac0e14761d2d58465d5a3dd098b8dc965e6cb01d05117322ab2e700ed85b34f5"
+    },
+    "cold_build": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/build/result.json",
+      "bytes": 16906,
+      "sha256": "cc39e8f692cf90bd9b9bbb1f6671d220be8dfc879e98c0bd51925b25637818f0"
+    },
+    "original_console": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/console.log",
+      "bytes": 463680,
+      "sha256": "0c26a829af172102e3f755c282eb2538e65e7a176b1498d273a33b495983adc0"
+    },
+    "root_observation": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/guest-root.raw",
+      "bytes": 4719,
+      "sha256": "e63612c8b97dc1da17f665cf85768817829e77a681d5990bed093e237c184469"
+    },
+    "sd_export": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/SD/export.json",
+      "bytes": 6101,
+      "sha256": "08d4b778f84ddde1e85fa6bf51c82b1cebbee5872631c1f71a5e249cfcc99278"
+    },
+    "internal_freeze": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/persistent-shutdown.json",
+      "bytes": 178,
+      "sha256": "52b753fd60f4f767d25fe6bce6f175d6a5327e6463e22d69db8c287f760259fc"
+    },
+    "internal_freeze_raw": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/persistent-shutdown.raw",
+      "bytes": 430,
+      "sha256": "96ab737712c9f44184ec42582965ba1672afbe2c85a1ebf7f4fe2d5efed160ff"
+    },
+    "settings": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/SETTING/checkpoint.json",
+      "bytes": 759,
+      "sha256": "2df5d8ee76924bf0b9e590c3ac2fa641888a345d825b62b31a1a1717411242c6"
+    },
+    "lcd": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/case-1794209550153041207/a7c2-qemu/runtime/analysis/menu-runs/run-42c2nrod/lcd-continuous-result.json",
+      "bytes": 185,
+      "sha256": "1469d8d00b621de0135f433519649bd602723b9ba3c09c34b64248f858325f3d"
+    }
+  },
+  "remaining": {
+    "full_boot_verified": false,
+    "bootrom_loader_verified": false,
+    "original_cp_verified": false,
+    "physical_asic_verified": false,
+    "sony_wbi_hot_restore_verified": false,
+    "capture_verified": false,
+    "usb_function_selection_this_run_verified": false,
+    "usb_host_enumeration_this_run_verified": false,
+    "jiritsu_authentication_verified": false,
+    "guest_root_via_usb_verified": false,
+    "complete_bodydata_update": "deferred_by_user",
+    "capture_to_card": "deferred_by_user",
+    "recovery": "paused_by_user"
+  }
+}

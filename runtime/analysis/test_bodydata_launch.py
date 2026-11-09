@@ -167,6 +167,10 @@ class Tests(unittest.TestCase):
         with patch.object(m, 'discover', return_value=self.package) as discover, patch.object(m, 'cache_package', return_value=self.root/'entry'), patch.object(m, 'prepare'), patch.object(m.subprocess, 'run', return_value=SimpleNamespace(returncode=7)) as run:
             self.assertEqual(m.main(['--runtime', str(runtime), '--runtime-analysis', str(analysis)]), 7)
             self.assertIn(str(analysis/'camera_ui.py'),run.call_args.args[0])
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_BOOT_PROFILE'],'original-init-cold')
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_USE_PERSISTENT_STORAGE'],'1')
+            self.assertEqual(m.main(['--runtime',str(runtime),'--runtime-analysis',str(analysis),'--boot-profile','direct-bootin']),7)
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_BOOT_PROFILE'],'direct-bootin')
             discover.reset_mock()
             self.assertEqual(m.main(['--runtime', str(runtime), '--runtime-analysis', str(self.root)]), 1)
             discover.assert_not_called()
@@ -236,7 +240,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(list(new.glob('.*.staging-*')))
 
     def test_research_inputs_are_not_product_startup_dependencies(self):
-        for arguments in (['--require-full-boot'], ['--boot-profile', 'original-init-cold'],
+        for arguments in (['--require-full-boot'], ['--boot-profile', 'undeclared-full-system-profile'],
                           ['--system-dump', str(self.root)], ['--system-runtime', str(self.root)],
                           ['--boot-output', str(self.root/'out')]):
             with self.subTest(arguments=arguments), patch.object(m, 'discover') as discover, patch.object(m.subprocess, 'run') as run:

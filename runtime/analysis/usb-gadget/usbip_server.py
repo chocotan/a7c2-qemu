@@ -261,6 +261,24 @@ class Bridge:
             pending[0].cancel()
             self.retired.append(request_id)
 
+    async def assign_address(self, device):
+        # VHCI consumes SET_ADDRESS locally; the reset remote gadget still needs its own address.
+        address = integer(device.metadata['devnum'], 1, 127, 'remote USB address')
+        request, future = await self.begin('submit', seqnum=0, devid=device.devid,
+            direction=0, endpoint=0, transfer_flags=0, transfer_length=0,
+            start_frame=0, num_packets=0, interval=0,
+            setup=struct.pack('<BBHHH', 0, 5, address, 0, 0).hex())
+        try:
+            response, data = await asyncio.wait_for(asyncio.shield(future), 5)
+        except BaseException:
+            await self.cancel(request)
+            raise
+        status = integer(response.get('status'), -4095, 0, 'guest address status')
+        actual = integer(response.get('actual_length'), 0, 0, 'guest address length')
+        print('USBIP_GUEST_SET_ADDRESS', address, 'status='+str(status), 'actual='+str(actual), 'source=guest-ep0', flush=True)
+        if status or data or response.get('num_packets', 0) != 0 or response.get('error_count', 0) != 0:
+            raise Blocked('Original guest EP0 rejected SET_ADDRESS: status='+str(status))
+
     async def describe(self):
         response, payload = await self.ask('describe')
         if response.get('ready') is False:
@@ -540,6 +558,7 @@ class UsbIpServer:
             response, payload = await bridge.ask('reset')
             if payload:
                 raise ProtocolError('unexpected reset payload')
+            await bridge.assign_address(device)
             writer.write(COMMON.pack(VERSION, op & 0x7fff, 0) + device.wire(self.context.run_id))
             await writer.drain()
             await ImportSession(reader, writer, bridge, device, self.urb_timeout).run()

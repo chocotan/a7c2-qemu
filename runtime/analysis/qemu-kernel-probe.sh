@@ -85,6 +85,16 @@ timer_environment=()
 if [[ "$sony_timers" == 1 ]]; then
   timer_environment=(--setenv QEMU_SONY_TIMERS 1)
 fi
+sony_usb_device="${QEMU_SONY_USB_DEVICE:-0}"
+usb_device_qmp=()
+if [[ "$sony_usb_device" != 0 ]]; then
+  [[ "$sony_usb_device" == 1 && "${A7C2_ORIGINAL_COLD:-}" == original-init-v1 ]] || { echo 'Sony USB device requires its explicit original cold profile' >&2; exit 2; }
+  for name in QEMU_SONY_USB_DEVICE QEMU_SONY_USB_RUN_ID QEMU_SONY_USB_LEASE QEMU_SONY_USB_QMP_HOST_PATH QEMU_SONY_USB_BACKEND_SOCKET; do
+    [[ -n "${!name:-}" ]] || { echo "Missing USB binding $name" >&2; exit 2; }
+    timer_environment+=(--setenv "$name" "${!name}")
+  done
+  usb_device_qmp=(-qmp unix:/out/usb-qmp.sock,server=on,wait=off)
+fi
 bootfs="$analysis_dir/unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked"
 test_initrd="${5:-$bootfs/initrd.img}"
 original_cold="${A7C2_ORIGINAL_COLD:-}"
@@ -222,6 +232,9 @@ PY
   fi
   if [[ "$sony_timers" == 1 ]]; then
     cmdline="${cmdline/__boottime___udif_init_udif_hwtimer,/}"
+  fi
+  if [[ "$sony_usb_device" == 1 ]]; then
+    cmdline="${cmdline/,__boottime_sony_usb_init/}"
   fi
   # With the PCI DMA engine modeled (QEMU_SONY_PCIDMA=1), let the original pcidma
   # UDIF driver initialize so pcidma_transfer_async can drive the engine. Also
@@ -401,6 +414,8 @@ if os.environ.get('QEMU_SONY_RC') == '1':
     runpy.run_path(str(Path(sys.argv[6]) / 'native_rc_board.py'))['configure'](fdt, buffer)
 if os.environ.get('QEMU_SONY_SA_REFERENCE_COMPLETE')=='1':
     runpy.run_path(str(Path(sys.argv[6])/'native_rc_board.py'))['reserve_sa_irq'](fdt,buffer)
+if os.environ.get('QEMU_SONY_USB_DEVICE') == '1':
+    runpy.run_path(str(Path(sys.argv[6])/'sony_usb_board.py'))['add_nodes'](fdt,buffer)
 if fdt.fdt_pack(buffer) != 0:
     raise RuntimeError('Cannot pack board DTB')
 size = struct.unpack_from('>I', buffer.raw, 4)[0]
@@ -528,6 +543,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
       -qmp unix:/out/lcd-qmp.sock,server=on,wait=off \
+      "${usb_device_qmp[@]}" \
       "${debug_args[@]}" \
       "${scope_args[@]}" \
       "${writer_args[@]}" \

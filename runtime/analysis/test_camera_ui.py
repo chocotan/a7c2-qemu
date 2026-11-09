@@ -269,6 +269,15 @@ class GTKTests(unittest.TestCase):
         subprocess.run(['xdotool','key','Down'],check=True);self.settle()
         self.assertEqual(self.vm.calls[-1],{'action':'key','key':'DOWN'})
 
+    def test_cold_boot_keeps_actual_internal_disk_and_disables_unimplemented_reset(self):
+        self.vm.value.update(boot_profile='original-init-cold',persistent_storage=True,state='exited',can_start=True,settings_persistent=True,settings_generation='saved')
+        self.ui.update(self.vm.status())
+        self.assertTrue(self.ui.development_storage.get_active())
+        self.assertFalse(self.ui.development_storage.get_sensitive())
+        self.assertFalse(self.ui.reset_button.get_sensitive())
+        self.assertIn('尚未接通',self.ui.reset_button.get_tooltip_text())
+        self.assertIn('init2',self.ui.on.get_tooltip_text())
+
     def test_stopped_reset_confirmation_cancel_success_and_retained_sd(self):
         self.vm.value.update(state='exited',settings_persistent=True,settings_generation='old')
         self.ui.update(self.vm.status())

@@ -51,7 +51,9 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
+      "sha256": "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19",
+      "cold_gui_previous_sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
+      "cold_gui_change_scope": "2026-11-09: optional storage shutdown callback after actual SD export, for a current cold-GUI full-freeze receipt; input mappings and serial sender unchanged. No USB, full hardware boot or capture verification.",
       "previous_sha256": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
       "product_development_change": "2026-11-08: existing serial-owner gate also serves bounded guest file readback; shutdown may explicitly close the isolated internal volumes only after real SD export. Input mappings, actual contacts and consumption checks remain.",
       "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived. Sender real readiness is now required before reporting ready, after initial card status; no warmup key is sent.",
@@ -64,7 +66,9 @@
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
+      "sha256": "5b9cad9aee890e56e89f02be0f654b3e970bc4812bf0c17b1f19fc4fcdae8bcd",
+      "cold_gui_previous_sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
+      "cold_gui_change_scope": "2026-11-09: explicit original-init-cold route gives the launcher the sole persistent lease; direct-bootin remains available; unsupported device combinations and legacy reset refused. Input ownership and QMP-only exit unchanged.",
       "product_development_change": "2026-11-08: stopped-only file selection and guest readback, opt-in persistent disk FD/lease lifecycle, explicit internal shutdown verification; old input/error ownership and QMP-only host exit are retained. Internal shutdown now requires original-kernel full-volume freeze readback; it is not called readonly or original power-off.",
       "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
       "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
@@ -81,7 +85,9 @@
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "012259cada0d854dfb9d8db24d68c623271a3b30bead32439a2de6f344282905",
+      "sha256": "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0",
+      "cold_gui_previous_sha256": "012259cada0d854dfb9d8db24d68c623271a3b30bead32439a2de6f344282905",
+      "cold_gui_change_scope": "2026-11-09: default ON chooses original-init-cold; required internal disk stays selected; legacy configuration reset disabled with a reason; direct-bootin keeps its network route. USB functionality is not certified.",
       "product_development_change": "2026-11-08: three development groups with a busy gate shared by input/power/storage actions, staged file/original choice and actual guest readback. Hot RAM/update unsupported states remain explicit.",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
       "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",

@@ -262,7 +262,8 @@ def main(argv=None):
     parser.add_argument('--prepare-only', action='store_true', help='import/check assets and fonts without starting a VM')
     parser.add_argument('--overwrite-dir',type=Path,help='relative guest paths to replace in a derived initramfs; default product overwrite/')
     parser.add_argument('--sd-image',type=Path,help='regular virtual FAT image to copy into this guest; physical devices are not accepted')
-    parser.add_argument('--persistent-storage',action='store_true',help='explicit single internal virtual-disk profile; default off')
+    parser.add_argument('--boot-profile',choices=('original-init-cold','direct-bootin'),default='original-init-cold',help='original kernel/init/init2 by default; direct-bootin keeps the compatibility route')
+    parser.add_argument('--persistent-storage',action='store_true',help='enable a persistent internal disk on the direct-bootin route; required by original-init-cold')
     args = parser.parse_args(argv)
     try:
         if not args.prepare_only and safe_path(args.runtime_analysis).parent != safe_path(args.runtime):
@@ -274,8 +275,8 @@ def main(argv=None):
         print('BODYDATA_PREPARED ILCE-7CM2 2.01 ALLLANG', flush=True)
         if not args.prepare_only:
             launch_env=dict(os.environ)
-            launch_env['A7C2_BOOT_PROFILE']='direct-bootin'
-            if args.persistent_storage:launch_env['A7C2_USE_PERSISTENT_STORAGE']='1'
+            launch_env['A7C2_BOOT_PROFILE']=args.boot_profile
+            if args.persistent_storage or args.boot_profile=='original-init-cold':launch_env['A7C2_USE_PERSISTENT_STORAGE']='1'
             if args.overwrite_dir is not None:
                 launch_env['A7C2_OVERWRITE_DIR']=str(safe_path(args.overwrite_dir))
             if args.sd_image is not None:

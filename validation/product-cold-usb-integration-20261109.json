@@ -1,0 +1,110 @@
+{
+  "schema": "a7c2-product-cold-usb-concentrated-release-check-v1",
+  "verified": true,
+  "recorded_at_ns": 1794210769714634717,
+  "acceptance_workers": 2,
+  "groups": 4,
+  "source_before_files": 3090,
+  "host": {
+    "passed": 383,
+    "skipped": 40,
+    "subtests_passed": 95,
+    "returncode": 0,
+    "full_unmodified_host_not_repeated": true
+  },
+  "cold_usb_boundaries": {
+    "initial_passed": 97,
+    "initial_failed": 18,
+    "skipped": 8,
+    "subtests_passed": 10,
+    "initial_returncode": 1,
+    "failed_scope": "All eighteen USB control fixtures failed to bind AF_UNIX under the long inherited TMPDIR before executing their scenarios",
+    "repair": "Shared test fixture creates its private socket directory under /tmp; production socket validation unchanged",
+    "followup_passed": 18,
+    "followup_returncode": 0,
+    "long_original_tmpdir_retained_in_followup": true,
+    "unique_passed": 115,
+    "repeated_passes_not_added": true
+  },
+  "source": {
+    "returncode": 0,
+    "three_patch_identities_verified": true,
+    "dma_atu_pci_source_pins_verified": true,
+    "persistent_flash_source_pins_verified": true,
+    "qemu_guest_not_started": true
+  },
+  "old_script_sync": {
+    "returncode": 0
+  },
+  "initial_source_drift": {
+    "validation/README.md": {
+      "before": "654524320363e818315d092fb5cdfcaeaa7da7b560b43df6bee0432a636218e9",
+      "after": "fb30368f60462fd43c3c80c48eee48040b26b13f0901188b124a04fefa89cded"
+    }
+  },
+  "postcheck_changes": {
+    "SOURCE-ORIGINS.json": {
+      "before": "5ae9b6048406a274f7267a8584e1c8beaa8de0394737c8d2c44db401d61fd73f",
+      "after": "c35c081e9aacf769a603c8d077a0e720bc211180fa7a488c4c014b63d0ab5b70"
+    },
+    "runtime/analysis/test-usb-control.py": {
+      "before": "fd5117bf93caa1f084bfb237aa5036adfd294e7bde5683b83c95ed05582b19b0",
+      "after": "53be8be4e1f24195165dade3e0a03e658b1a58db29715e1ee70c436d9c94c227"
+    },
+    "validation/README.md": {
+      "before": "654524320363e818315d092fb5cdfcaeaa7da7b560b43df6bee0432a636218e9",
+      "after": "fb30368f60462fd43c3c80c48eee48040b26b13f0901188b124a04fefa89cded"
+    }
+  },
+  "postcheck_runtime_source_changes": [],
+  "postcheck_test_fix_verified": true,
+  "postcheck_documentation_only_changes_transparently_recorded": true,
+  "actual_receipts": {
+    "validation/default-original-cold-entry-20261109.json": "055b873fbb89dbd225328f0ccdd2eb6a491e7eb98225ffbd3382d94d3c05b476",
+    "validation/original-cold-window-20261109.json": "e9d7112c035ce689ec9371fbd534e0e4eb23349a25e46d96317f308bd9a036b2",
+    "validation/usb-jiritsu-20261109.json": "4a0de2ab14096468ce67723557c5f5324ed45f47af6c05717a9ee9cccbdfb7ff"
+  },
+  "evidence": {
+    "original": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/product-release-check-1794210622575587718/result.json",
+      "bytes": 2523,
+      "sha256": "3d67764e45d6945a47702d390eb02c24b8433c07101a5324e2501b8fb47f27fd"
+    },
+    "followup": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/release-followup-1794210694735647862/result.json",
+      "bytes": 466,
+      "sha256": "43f013f456a6bc1dc47933d63f2e502d00b0ddabcb4f1575eb4fbf28d79b1a72"
+    },
+    "source_freeze": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/product-release-check-1794210622575587718/source-before.json",
+      "bytes": 378264,
+      "sha256": "ceab15bc58c6f2840f71225fcd19bb093cef3a355e7a7e22b24c27b98256b409"
+    },
+    "original_host_stdout": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/product-release-check-1794210622575587718/host.stdout",
+      "bytes": 1069,
+      "sha256": "eea4d0ee47ab84a779276083d48827795613919e48163247d3257d189e6e609d"
+    },
+    "original_source_stdout": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/product-release-check-1794210622575587718/source.stdout",
+      "bytes": 820,
+      "sha256": "8b0ff5d7ca5aca415ab3292da482b4107a04a337e4b625a08c1bc54bd17ded40"
+    },
+    "initial_boundary_failures": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/product-release-check-1794210622575587718/cold-usb-boundaries.stdout",
+      "bytes": 138708,
+      "sha256": "0453f547af8cf1e72f6bd985ea701b432899b47a62d57b7aa110bfdaa14c5e9f"
+    },
+    "repaired_fixture_stdout": {
+      "path": "analysis/scratch/product-default-cold-entry-20261109/release-followup-1794210694735647862/usb.stdout",
+      "bytes": 301,
+      "sha256": "e38d45705a7d8bd5ccb8d88c7e2a721f611861e71c45ed8d0a45fd47ba2ca1f5"
+    }
+  },
+  "old_failures_reclassified_success": false,
+  "full_bodydata_update": "deferred",
+  "capture_to_card": "deferred",
+  "full_hardware_boot_verified": false,
+  "jiritsu_root_verified": false,
+  "physical_devices_used": false
+}

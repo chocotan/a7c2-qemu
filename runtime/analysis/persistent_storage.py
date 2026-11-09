@@ -125,15 +125,9 @@ def inherited_fd(environment):
     return fd
 
 
-def augment_initramfs(base,output,overwrite=None,restore_path=None,restore_selection=None):
-    folder=Path(tempfile.mkdtemp(prefix='persistent-adapter-',dir=Path(output).parent));root=folder/'overlay';simulation=root/'simulation';simulation.mkdir(parents=True)
-    for name,source in (('sony_persistent_flash.ko',module_file()),('persistent-libIMDB.so',ANALYSIS/'menu-root/usr/lib/libIMDB.so')):
-        destination=simulation/name
-        with source.open('rb') as stream,destination.open('xb') as target:
-            import shutil
-            shutil.copyfileobj(stream,target,1024*1024)
-        destination.chmod(0o600)
-        if sha(source)!=sha(destination):raise ValueError('Persistent runtime helper readback differs')
+def stage_file_tests(simulation,overwrite=None,restore_path=None,restore_selection=None):
+    """Use the same before-copy, readback and once-per-selection rules on both boot routes."""
+    simulation=Path(simulation)
     entries=list((overwrite or {}).get('entries',[]))
     if restore_path:
         from firmware_development import guest_path
@@ -147,7 +141,7 @@ def augment_initramfs(base,output,overwrite=None,restore_path=None,restore_selec
         if not relative.startswith('usr/') or '..' in Path(relative).parts:raise ValueError('Persistent file tests currently require a target under /usr')
         source=Path(entry['source']);target=simulation/('persistent-test-'+str(index));target.write_bytes(source.read_bytes());target.chmod(0o600)
         if sha(target)!=entry['new_sha256'] or target.stat().st_size!=entry['size']:raise ValueError('Persistent file test source changed')
-        identity=hashlib.sha256((relative+entry['new_sha256']+str(restore_selection or source)).encode()).hexdigest();marker='/log/qemu/filetest-'+identity+'.applied'
+        identity=hashlib.sha256((relative+entry['new_sha256']+str(restore_selection or entry.get('selection_source',source))).encode()).hexdigest();marker='/log/qemu/filetest-'+identity+'.applied'
         apply += ['if [ ! -f '+marker+' ]; then','  /bin/busybox mkdir -p /log/qemu/filetest-'+identity,
                   '  if [ -f /'+relative+' ]; then /bin/busybox cp /'+relative+' /log/qemu/filetest-'+identity+'/before; /bin/busybox cmp /'+relative+' /log/qemu/filetest-'+identity+'/before; fi',
                   '  /bin/busybox mount -o remount,rw /usr',
@@ -158,7 +152,21 @@ def augment_initramfs(base,output,overwrite=None,restore_path=None,restore_selec
                   '  case "$digest" in "SHA256(/'+relative+')= '+entry['new_sha256']+'"|"SHA2-256(/'+relative+')= '+entry['new_sha256']+'") ;; *) exit 1;; esac',
                   '  /bin/busybox sync','  /bin/busybox mount -o remount,ro /usr',
                   '  echo '+entry['new_sha256']+' > '+marker,'  /bin/busybox sync','fi']
-    (simulation/'persistent-apply-test').write_text('\n'.join(apply)+'\n',encoding='ascii');(simulation/'persistent-apply-test').chmod(0o755)
+    script=simulation/'persistent-apply-test'
+    script.write_text('\n'.join(apply)+'\n',encoding='ascii');script.chmod(0o755)
+    return entries
+
+
+def augment_initramfs(base,output,overwrite=None,restore_path=None,restore_selection=None):
+    folder=Path(tempfile.mkdtemp(prefix='persistent-adapter-',dir=Path(output).parent));root=folder/'overlay';simulation=root/'simulation';simulation.mkdir(parents=True)
+    for name,source in (('sony_persistent_flash.ko',module_file()),('persistent-libIMDB.so',ANALYSIS/'menu-root/usr/lib/libIMDB.so')):
+        destination=simulation/name
+        with source.open('rb') as stream,destination.open('xb') as target:
+            import shutil
+            shutil.copyfileobj(stream,target,1024*1024)
+        destination.chmod(0o600)
+        if sha(source)!=sha(destination):raise ValueError('Persistent runtime helper readback differs')
+    stage_file_tests(simulation,overwrite,restore_path,restore_selection)
     manifest=build_overlay_initramfs(base,root,output)
     _save(folder/'overlay.json',manifest)
     return manifest

@@ -91,11 +91,12 @@ def navigate_main_menu(process,runtime,qmp):
     return dict(original_shooting_hud_verified=True,original_menu_enter_return_verified=True,original_menu_control_pixels_verified=True,stable_original_menu_pixels_sha256=menu_pixels,stable_original_hud_return_pixels_sha256=observed['image']['pixel_sha256'],language_navigation=language,firstsetup_steps=len(steps),normal_input_and_actual_lcd_required=True,capture_verified=False)
 
 
-def run(instance,output,seconds):
-    environment=runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
-    environment.update(SONY_TIMER_MODEL='1',SONY_DMM_SERVICE='1',QEMU_SYSTEM_SOUND_OWNER='1',QEMU_PIN_CONTROL_MEMORY='1',MENU_RM_FILE='1',MENU_NATIVE_WINDOW='1',QEMU_NATIVE_DISPLAY='none',QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0',QEMU_TRACE_FLAGS='guest_errors,unimp',A7C2_ORIGINAL_COLD='original-init-v1',QEMU_OUTPUT_DIR=str(output/'run'))
+def run(instance,output,seconds,*,live=False):
+    runtime=output if live else output/'run'
+    environment=dict(os.environ) if live else runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
+    environment.update(SONY_TIMER_MODEL='1',SONY_DMM_SERVICE='1',QEMU_SYSTEM_SOUND_OWNER='1',QEMU_PIN_CONTROL_MEMORY='1',MENU_RM_FILE='1',MENU_NATIVE_WINDOW='1',QEMU_NATIVE_DISPLAY='none',QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0',QEMU_TRACE_FLAGS='guest_errors,unimp',A7C2_ORIGINAL_COLD='original-init-v1',QEMU_OUTPUT_DIR=str(runtime))
     built=prepare(instance,output/'build',environment)
-    runtime=output/'run';runtime.mkdir(mode=0o700)
+    if not live:runtime.mkdir(mode=0o700)
     process=None;stream=None;connection=None;quit_attempted=False
     result=dict(schema='a7c2-product-original-init-cold-actual-v1',verified=False,guest_started=False,full_boot_verified=False,physical_devices_used=False,capture_verified=False,build_result_sha256=sha(output/'build/result.json'))
     def save():
@@ -116,6 +117,8 @@ def run(instance,output,seconds):
         need(sha(Path(built['ram0']))==built['ram0_sha256'],'Prepared original RAM0 changed before launch')
         need(sha(ANALYSIS/'unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked/vmlinux.bin')==built['kernel_sha256'],'Actual launcher kernel differs from the current disk p3 kernel')
         environment.update(storage.inherited_environment(leased))
+        from sony_usb_device import environment as usb_environment,publish_context
+        environment.update(usb_environment(environment,runtime))
         command=['bash',str(ANALYSIS/'qemu-kernel-probe.sh'),'4096',str(ANALYSIS/'qemu-virt-board/virt-packed.dtb'),'1','1',built['ram0']]
         with (runtime/'console.log').open('xb') as console,(runtime/'stderr.log').open('xb') as stderr:
             try:
@@ -131,6 +134,7 @@ def run(instance,output,seconds):
                 from continuous_lcd import ContinuousLCD
                 need(uid==os.geteuid() and ContinuousLCD._descendant(peer,process.pid),'Original-cold QMP peer is not the owned QEMU descendant')
                 result['qmp_peer_pid']=peer
+                publish_context(environment,runtime,peer)
                 stream=connection.makefile('rwb');need('QMP' in json.loads(stream.readline()),'Missing QMP greeting');qmp('qmp_capabilities')
                 deadline=time.monotonic()+seconds;observed=b''
                 while time.monotonic()<deadline:
@@ -149,7 +153,7 @@ def run(instance,output,seconds):
                 result['root_observation']=verify_root_observation(data)
                 need(b'COLD_RAM0_RELEASE original_rc=0 zero_prefix=1 bytes=512' in observed,'Original freeramdisk readback missing')
                 from PIL import Image
-                display_deadline=time.monotonic()+15
+                display_deadline=deadline
                 while True:
                     qmp('screendump',dict(filename='/out/original-lcd.ppm'))
                     with Image.open(runtime/'original-lcd.ppm') as image:
@@ -157,6 +161,12 @@ def run(instance,output,seconds):
                     if len(rgb.getcolors(640*480) or [])>5:break
                     need(time.monotonic()<display_deadline,'Original LCD has no meaningful color content');time.sleep(.2)
                 rgb.save(runtime/'original-lcd.png');result['lcd_pixels_sha256']=hashlib.sha256(rgb.tobytes()).hexdigest()
+                if live:
+                    from original_cold_live import live_session
+                    os.environ.update(environment)
+                    result['live_session']=live_session(process,runtime,qmp,built)
+                    result.update(original_ram_init_observed=True,original_init2_observed=True,p7_root_observed=True,original_ram0_release_verified=True,original_ap_draw_observed=True,internal_storage=result['live_session']['internal_storage'],verified=True)
+                    return result
                 result['original_input']=[]
                 previous_pixels=result['lcd_pixels_sha256']
                 for name,code in (('DOWN',0x30),('UP',0x3)):
@@ -189,7 +199,8 @@ def run(instance,output,seconds):
             except BaseException as error:
                 result.update(verified=False,error=type(error).__name__+': '+str(error));print('ORIGINAL_COLD_ERROR',result['error'],flush=True)
             finally:
-                if process is not None and process.poll() is None and stream is not None:
+                from original_cold_live import saved_for_close
+                if process is not None and process.poll() is None and stream is not None and (not live or saved_for_close(runtime)):
                     try:
                         reply=qmp('quit');process.wait(timeout=30);result['qmp_exit']=dict(qmp_quit_confirmed=True,reply=reply,returncode=process.returncode,signals_sent=[])
                     except BaseException as error:result['close_error']=type(error).__name__+': '+str(error)

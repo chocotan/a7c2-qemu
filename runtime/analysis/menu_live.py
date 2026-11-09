@@ -418,7 +418,7 @@ def display_snapshot_message(path,number):
                     'source':'QMP ramfb display','mode':'AP software display; not a captured photograph'}}
 
 
-def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None):
+def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None, storage_shutdown=None):
     monitor = FirmwareMonitor(out / 'console.log')
     input_stack_captured = False
     shutter_submitted = False
@@ -564,7 +564,7 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                     result={'type':'sd_export',**sd_export()}
                     if result.get('ok') and request.get('shutdown_storage'):
                         from persistent_storage import prepare_shutdown
-                        result['internal_storage']=prepare_shutdown(live_serial,out)
+                        result['internal_storage']=(storage_shutdown or prepare_shutdown)(live_serial,out)
                 except Exception as error:result={'type':'sd_export','ok':False,'error':f'{type(error).__name__}: {error}'}
                 if input_session is not None:result['input_state']=input_session.status()
                 if late_passive is not None:result['post_shutter_observation']=late_passive

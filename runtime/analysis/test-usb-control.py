@@ -72,7 +72,8 @@ class LocalPeers:
 
 class ControlTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='usb-control-synthetic-')
+        # AF_UNIX paths must fit even when the runner's TMPDIR is a long checkout path.
+        self.tmp = tempfile.TemporaryDirectory(prefix='usb-control-synthetic-', dir='/tmp')
         self.root = Path(self.tmp.name)
         self.run = self.root / 'run-test'
         self.run.mkdir(mode=0o700)
@@ -202,6 +203,40 @@ class ControlTests(unittest.TestCase):
         (self.run / 'alias.sock').symlink_to(self.run / 'qmp.sock')
         with self.assertRaises(control.usbip.Blocked):
             control.UsbControl(self.run, qmp_path=self.run / 'alias.sock', lease='k' * 48, vm_pid=os.getpid())
+
+    def test_attach_waits_for_actual_kernel_identity_without_second_attach(self):
+        self.modules()
+        original=self.control._rows
+        transient=[False]
+        def write(controller,attribute,value):
+            self.write_fake_sysfs(controller,attribute,value)
+            if attribute=='attach':transient[0]=True
+        def rows(controller):
+            values=original(controller)
+            if transient[0]:
+                transient[0]=False
+                values[0]={**values[0],'status':5,'speed':0,'devid':0,'local_busid':'0-0'}
+            return values
+        with patch.object(self.control,'_write_sysfs',write),patch.object(self.control,'_rows',rows):
+            result=self.control.connect()
+            self.assertTrue(result['host_enumerated'])
+            self.assertEqual(len([row for row in self.writes if row[1]=='attach']),1)
+            self.assertEqual(self.control.disconnect()['phase'],'disconnected')
+            self.assertEqual(self.control.disconnect()['phase'],'disconnected')
+            self.assertNotIn('attachment_id',self.control._load())
+            self.assertTrue(self.control._load()['previous_import']['attachment_id'])
+
+    def test_fresh_control_reaps_exact_exited_child_server(self):
+        import subprocess
+        process=subprocess.Popen([sys.executable,'-c','pass'])
+        self.addCleanup(process.wait)
+        start=control.process_start(process.pid)
+        os.waitid(os.P_PID,process.pid,os.WEXITED|os.WNOWAIT)
+        record={'server_pid':process.pid,'server_start':start,'preload_recovery_required':False}
+        fresh=control.UsbControl(self.run,qmp_path=self.run/'qmp.sock',lease='k'*48,vm_pid=os.getpid(),sysfs_root=self.sysfs)
+        fresh._stop_server(record)
+        self.assertNotIn('server_pid',record)
+        self.assertFalse(Path('/proc',str(process.pid)).exists())
 
     def test_connect_real_protocol_server_with_fake_vhci_then_only_own_detach(self):
         self.modules()

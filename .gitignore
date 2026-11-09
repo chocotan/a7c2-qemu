@@ -33,8 +33,9 @@
 /runtime/analysis/.menu-probe.lock
 /runtime/analysis/latest-menu-run.txt
 /runtime/analysis/qemu-virt-board/*.dtb
-# Optional local crypto prerequisite, not part of the public source inventory.
+# Optional local USB/crypto prerequisites, not part of the public source inventory.
 /runtime/analysis/vendor/host-python/
+/runtime/analysis/vendor/pmca-adamwuqwq/
 /source/build/
 /source/vendor/*.tar.*
 /source/build-programs.sha256

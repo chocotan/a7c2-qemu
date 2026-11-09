@@ -614,10 +614,15 @@ class UsbControl:
             self._save(record)
             self._log('attach_requested', owned_port=owned)
             self._write_sysfs(controller, 'attach', f"{owned['port']} {peer.fileno()} {device.devid} {device.metadata['speed']}\n")
-            actual = next((r for r in self._rows(controller) if r['port'] == owned['port']), None)
-            if (not actual or actual['status'] not in (5, 6) or
-                    actual['devid'] != device.devid or actual['speed'] != device.metadata['speed']):
-                raise ControlBlocked('attach_readback_failed', 'VHCI did not retain the requested virtual device')
+            deadline = time.monotonic() + 3
+            while True:
+                actual = next((r for r in self._rows(controller) if r['port'] == owned['port']), None)
+                if (actual and actual['status'] in (5, 6) and
+                        actual['devid'] == device.devid and actual['speed'] == device.metadata['speed']):
+                    break
+                if not actual or actual['status'] not in (4, 5, 6) or time.monotonic() >= deadline:
+                    raise ControlBlocked('attach_readback_failed', 'VHCI did not retain the requested virtual device')
+                time.sleep(0.02)
             owned['sockfd'] = actual['sockfd']
             if actual['local_busid'] != '0-0':
                 owned['local_busid'] = actual['local_busid']
@@ -681,6 +686,21 @@ class UsbControl:
                 pass
             return self._failure(result, error)
 
+    def _server_exited(self, record):
+        try:
+            fields = Path('/proc', str(record['server_pid']), 'stat').read_text().rpartition(')')[2].split()
+        except FileNotFoundError:
+            return True
+        if fields[19] != record.get('server_start'):
+            raise ControlBlocked('server_owner_mismatch', 'server PID was reused; ownership retained')
+        if fields[0] != 'Z':
+            return False
+        try:
+            os.waitpid(record['server_pid'], os.WNOHANG)
+        except ChildProcessError:
+            pass  # A terminal zombie holds no sockets; its own parent must reap it.
+        return True
+
     def _stop_server(self, record):
         if record.get('preload_recovery_required'):
             raise ControlBlocked('preload_recovery_required', 'preload recovery must finish before stopping the server')
@@ -698,7 +718,7 @@ class UsbControl:
                 time.sleep(0.02)
         if self._server_alive(record):
             os.kill(record['server_pid'], signal.SIGTERM)
-        elif process_start(record['server_pid']) is not None:
+        elif process_start(record['server_pid']) is not None and not self._server_exited(record):
             raise ControlBlocked('server_owner_mismatch', 'server PID now belongs to another process; no signal sent')
         if self.server_process and self.server_process.pid == record['server_pid']:
             try:
@@ -707,11 +727,17 @@ class UsbControl:
                 raise ControlBlocked('server_stop_timeout', 'owned server did not exit; ownership record retained') from error
             self.server_process = None
         deadline = time.monotonic() + 3
-        while process_start(record['server_pid']) is not None:
-            # A child owned by this instance is reaped above; never signal a reused PID.
+        while not self._server_exited(record):
             if time.monotonic() >= deadline:
                 raise ControlBlocked('server_stop_timeout', 'owned server exit not confirmed; record retained')
             time.sleep(0.02)
+        ready = self.context.run_dir / 'usb-server.json'
+        if ready.exists():
+            bound = read_json(ready)
+            if any(bound.get(key) != expected for key, expected in
+                   (('pid', record['server_pid']), ('run_id', self.context.run_id), ('lease_id', self.context.lease_id))):
+                raise ControlBlocked('server_owner_mismatch', 'server readiness identity changed; record retained')
+            ready.unlink()
         record.pop('server_pid', None)
         record.pop('server_start', None)
         record.pop('server_port', None)
@@ -752,6 +778,12 @@ class UsbControl:
                         self._log('detach_written', owned_port=owned)
                     # Keep the exact import/socket fields until server release is proven.
                     self._stop_server(record)
+                    if record.get('attachment_id'):
+                        record['previous_import'] = {key: record.get(key) for key in
+                                                     ('attachment_id', 'device_key', 'owned_port')}
+                    for key in ('attachment_id', 'device_key', 'import_request', 'detach_requested'):
+                        record.pop(key, None)
+                    record['attach_pending'] = False
                     record['owned_port'] = None
                     self._save(record)
                 else:

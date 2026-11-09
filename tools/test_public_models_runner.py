@@ -171,7 +171,7 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
 
 def test_model_list_preserves_host_callers_and_explicit_external_stages():
     names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
-    assert isinstance(names, list) and len(names) == len(set(names)) == 250
+    assert isinstance(names, list) and len(names) == len(set(names)) == 251
     assert {'source/persistent-flash/test_freeze.py','runtime/analysis/test_factory_images.py','runtime/analysis/test_observer_process_scope.py','runtime/analysis/test_original_cold_boot.py'} <= set(names)
     assert {
         'runtime/analysis/test-menu-control.py',

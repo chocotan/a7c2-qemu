@@ -4,17 +4,21 @@
 set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 install_build=1
-if [[ "${1:-}" == --stage-only ]]; then
-  install_build=0
+sony_device=0
+while [[ "${1:-}" == --stage-only || "${1:-}" == --sony-device ]]; do
+  if [[ "$1" == --stage-only ]]; then install_build=0; else sony_device=1; fi
   shift
-fi
+done
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: ./build-qemu.sh [--stage-only] [source/vendor/qemu-11.1.2.tar.xz]'
+  echo 'Usage: ./build-qemu.sh [--stage-only] [--sony-device] [source/vendor/qemu-11.1.2.tar.xz]'
   echo 'Offline build, including executable QEMU smoke tests; --stage-only skips installation.'
   echo 'Supply the pinned archive locally; no source or dependencies are downloaded. See README.md.'
   exit 0
 fi
 [[ $# -le 1 ]] || { echo 'Usage: ./build-qemu.sh [--stage-only] [SOURCE_ARCHIVE]' >&2; exit 2; }
+if [[ "$sony_device" == 1 && "$install_build" == 1 ]]; then
+  echo '--sony-device requires --stage-only; the tested default binary is kept.' >&2; exit 2
+fi
 archive_input="${1:-$here/source/vendor/qemu-11.1.2.tar.xz}"
 [[ -f "$archive_input" ]] || {
   echo 'Missing QEMU source. Download https://download.qemu.org/qemu-11.1.2.tar.xz into source/vendor/; see source/vendor/README.md for SHA-256.' >&2
@@ -115,6 +119,9 @@ print('USB_PATCHED_SOURCE_IDENTITIES_PASS')
 PY
 python3 -B "$here/report/virtual-pcidma/stage_hardware.py" "$src" > "$stage/pci-hardware-source.json"
 python3 -B "$here/source/persistent-flash/stage.py" "$src" > "$stage/persistent-flash-source.json"
+if [[ "$sony_device" == 1 ]]; then
+  python3 -B "$here/source/usb-device/stage.py" "$src" > "$stage/usb-device-source.json"
+fi
 mkdir -p "$stage/build" "$stage/tmp" "$stage/cache"
 bwrap --unshare-net --die-with-parent --clearenv --ro-bind / / \
   --bind "$stage" "$stage" --dev /dev --proc /proc --chdir "$stage/build" \
@@ -161,6 +168,17 @@ with Path(sys.argv[2]).open('rb') as stream:
 receipt['scope']='default-off persistent flash hardware; original guest validation separate'
 Path(sys.argv[3]).write_text(json.dumps(receipt,indent=2)+'\n')
 PY
+if [[ "$sony_device" == 1 ]]; then
+  python3 - "$stage" <<'PY'
+import hashlib,json,sys
+from pathlib import Path
+stage=Path(sys.argv[1]);receipt=json.loads((stage/'usb-device-source.json').read_text())
+binary=stage/'build/qemu-system-aarch64'
+with binary.open('rb') as source:receipt['binary_sha256']=hashlib.file_digest(source,'sha256').hexdigest()
+receipt['binary']=str(binary);receipt['build_completed']=True
+(stage/'usb-device-build.json').write_text(json.dumps(receipt,indent=2)+'\n')
+PY
+fi
 if [[ "$install_build" == 0 ]]; then
   printf 'STAGED_QEMU_BINARY=%s\n' "$stage/build/qemu-system-aarch64"
   exit 0

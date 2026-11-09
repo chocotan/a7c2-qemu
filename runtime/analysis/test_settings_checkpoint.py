@@ -24,8 +24,9 @@ def saved():
     return bytes(data)
 
 
+@pytest.mark.parametrize('persistent',[False,True])
 @pytest.mark.parametrize('fault',['none','ram-corrupt','guest-sha','wrong-api','missing-done','ambiguous','helper-fail'])
-def test_original_snapshot_transaction_accepts_only_consistent_evidence(tmp_path,saved,fault):
+def test_original_snapshot_transaction_accepts_only_consistent_evidence(tmp_path,saved,fault,persistent):
     scope='scope=sid02cf_language_date_bank0_only'
     marker=(f'USER_SETTINGS_SNAPSHOT_MATCH lang={26 if fault=="wrong-api" else 25} date=2 {scope}\n'
             f'USER_SETTINGS_EXPORTED physical=0x41e600000 bytes=2390264 fnv1a64={fnv(saved)} {scope}\n'
@@ -33,7 +34,9 @@ def test_original_snapshot_transaction_accepts_only_consistent_evidence(tmp_path
     if fault=='missing-done':marker=marker.replace(f'USER_SETTINGS_DONE rc=0 {scope}\n'.encode(),b'')
     if fault=='ambiguous':marker+=b'SETTINGS_SNAPSHOT_RC=0\n'
     def serial(command,timeout):
-        if ' snapshot;' in command:return marker
+        if command.startswith('/simulation/user-settings-checkpoint '):
+            assert command.startswith('/simulation/user-settings-checkpoint '+('snapshot-persistent-v1' if persistent else 'snapshot')+';')
+            return marker
         return ('SHA2-256(/setting/Backup.bin)= '+('0'*64 if fault=='guest-sha' else hashlib.sha256(saved).hexdigest())+'\n').encode()
     def qmp(command,args):
         assert command=='pmemsave' and args=={'val':0x41e600000,'size':2390264,'filename':'/out/SETTING/Backup.bin'}
@@ -41,12 +44,12 @@ def test_original_snapshot_transaction_accepts_only_consistent_evidence(tmp_path
         if fault=='ram-corrupt':data[100]^=1
         (tmp_path/'SETTING/Backup.bin').write_bytes(data)
     if fault=='none':
-        result=snapshot(serial,qmp,tmp_path)
+        result=snapshot(serial,qmp,tmp_path,persistent=persistent)
         assert result['ok'] and result['language']==25 and result['date_format']==2
         assert result['guest_sha256']==hashlib.sha256(saved).hexdigest()
         assert result['all_settings_verified'] is False
     else:
-        with pytest.raises((ValueError,RuntimeError)):snapshot(serial,qmp,tmp_path)
+        with pytest.raises((ValueError,RuntimeError)):snapshot(serial,qmp,tmp_path,persistent=persistent)
         result=json.loads((tmp_path/'SETTING/checkpoint.json').read_text())
         assert result['ok'] is False and 'error' in result
 

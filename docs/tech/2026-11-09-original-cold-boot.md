@@ -4,7 +4,7 @@
 
 最终直接执行 `--new-instance` 从本产品官方缓存创建新盘，原首设、拍摄HUD、严格中文菜单及返回、逐键原App32双边和稳定焦点、19卷原内核冻结与QMP0/无信号退出均通过；8份运行源码前后无漂移。停止盘10个实际挂载卷结构均通过，p7与派生时整片相同，p15与官方factory整片相同。[机器可读收据](../../validation/original-cold-boot-20261109.json)绑定原图、源、阶段与保留的失败。
 
-这是显式本机虚拟硬件下的原用户态启动，不是完整 Sony 硬件上电。BootROM/loader、真实 CP 执行、WBI/RAM 热恢复、原 watchdog、USB枚举/认证和成片没有因这一条链通过而升级。默认 `./start.sh` 仍使用此前已验的 direct-bootin 路线；本轮原链通过独立 CLI 运行，尚未接入 GTK 的 ON 按钮。
+这是显式本机虚拟硬件下的原用户态启动，不是完整 Sony 硬件上电。BootROM/loader、真实 CP 执行、WBI/RAM 热恢复、原 watchdog、USB枚举/认证和成片没有因这一条链通过而升级。本页收据记录独立 CLI 的原链验收。后续源码已把默认 `./start.sh` 与 GTK ON 接入该路线，独立窗口、文件测试及保存的实际结果见[窗口集成记录](2026-11-09-original-cold-window.md)，不借用本页 CLI 结果认证窗口。
 
 ## 复现
 
@@ -40,7 +40,7 @@ python3 tools/run-original-cold.py --new-instance \
 
 | 部分 | 行为与证据 |
 |---|---|
-| `original_cold_boot.py` | 从当前租约盘 p3 提取 kernel/RAM0；固定原 SHA，原 2.01 导入/原 ELF/观察器构建身份核齐；新 RAM0 约192MiB，服务逐文件按大小/SHA搬移到 devtmpfs，释放 RAM0 前结束搬移进程 |
+| `original_cold_boot.py` | 从当前租约盘 p3 提取 kernel/RAM0；固定原 SHA，原 2.01 导入/原 ELF/观察器构建身份核齐；RAM0 按辅助文件预算生成，最小192MiB；服务逐文件按大小/SHA搬移到 devtmpfs，释放 RAM0 前结束搬移进程 |
 | `cold/bootstrap.sh` | 准备虚拟块设备和19个实际容量；最后真正 exec 原 `/sbin/init`，不在适配器中手动替代原 pivot/chroot |
 | 原 RAM0 与 p7 | 原 init/init2/setup_rootfs/fstab/驱动列表按固定摘要保留；完整树和未触及硬链接关系核对；派生 p7 写盘后完整摘要读回 |
 | `cold/insmod.sh` | 原 init 仍执行原驱动列表；已有有限硬件合同的资源模块走原 insmod/原返回码，其余明确78拒绝，不空成功；Backup 使用从实际文件加载的已验参数 |

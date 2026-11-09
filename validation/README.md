@@ -1,12 +1,34 @@
 # 本包验证记录
 
+## 11月9日原USB宿主配置与jiritsu七步认证
+
+[USB收据](usb-jiritsu-20261109.json)与[技术报告](../docs/tech/2026-11-09-usb-jiritsu.md)记录显式独立候选 `0f327c08…` 的最终原Senser运行 `run-x8ejj3k4`：真实本机VHCI识别 `054c:0336`，原EP0完成地址请求后实际配置1、classff／4个Bulk端点；产品认证CLI rc0、原Start后七步返回8/4/8/4/8/4/6且成功字节1。
+
+同轮实际USB detach、原smode恢复、设置／SD保存、flush生命周期、19卷冻结、单次QMP0／无VM信号／owner和peer退出／租约释放均核齐，30份运行源码无漂移。宿主按原inode恢复attach/detach权限并卸载本轮模块。默认QEMU未替换。最终必要host27通过／8外部脚本缺失跳过／10子测试；DWC3 strict与ASan/UBSan各11组，原失败与重复节点不合并计数。
+
+v1-v9失败与修复分别保留，v8认证真而后继HASP/Stop服务失败仍为整轮FAIL，v9省略Start认证失败而正常退出也仍FAIL；没有跨轮拼成功。普通AP菜单USB路径、同USB version/root读取、完整硬件启动／物理兼容仍未通过；拍摄与完整更新deferred。下方原日期／独立范围的USB未验结论保持历史含义。
+
+## 11月9日无参数默认入口与首个合成LCD
+
+[默认 start.sh 实际收据](default-original-cold-entry-20261109.json)与[修复报告](../docs/tech/2026-11-09-default-cold-entry.md)补齐早前未实际执行 start.sh 的验收缺口。独立产品副本中无参数启动、无HCI／boot profile覆盖，实际原 init／pivot／init2→中文首设→HUD→原MENU进入与返回→正常保存退出。每键原App双边、实际19卷冻结、单次QMP0／VM无信号／owner与peer退出／租约重获均核齐。
+
+首帧原额外15秒截止过早拒绝已在产品修复为使用原冷启动预算剩余时间；多色内容守卫保持，新增超过15秒才合成的有效图正例与持续黑图截止拒绝均通过。旧首帧失败的全部5段实际RAM与内部盘已保全，再正常QMP退出；旧失败保存仍false。首轮候选导航超时保留，第二轮从同一停止盘重启后完整通过，不称连续两轮无失败。
+
+集中验收2工作线程／2组：cold与默认分派59通过／19子测试，新增首帧回归2通过，GTK38通过；停止后10挂载卷结构通过（ext2 rc0，VFAT rc1仅dirty标志且不修盘），p2设置由host独立提取与guest完整摘要相同，7原启动脚本独立抽取SHA核同。本轮使用固定QEMU的既有构建，不宣称重新完成QEMU源码干净构建。完整硬件启动、WBI、USB认证/root与严格全部输入<100ms未提升；完整更新／拍摄写卡deferred，recovery暂停。
+
+## 11月9日默认ON接线与原窗口综合验收
+
+[原冷启动窗口收据](original-cold-window-20261109.json)及[问题报告](../docs/tech/2026-11-09-original-cold-window.md)记录最终三次真实 GTK ON：原 init/pivot/init2、中文首设/HUD/菜单往返、测试文件 guest 摘要与 root 读回、同盘重启保留、显式恢复原文件；每轮真实设置导出与 SD 保存、19卷冻结、QMP0/无VM信号/owner退出。停止后10卷结构、p15独立提取原文件、p2独立提取Backup均核齐，13份运行源码无漂移。默认start.sh profile分派由host测试覆盖，本轮驱动直接调用GTK ON，不额外声称执行过start.sh。
+
+两工作线程host376通过/40跳过/95子测试；1280px显示环境9项GTK失败保留，改1600px后38项全过；设置模式14种正常/故障组合、当前保存/owner两项边界和严格C11+ASan/UBSan检查分别通过，不合并重复节点计数。首次VFAT设置拒绝已完整RAM保全后正常QMP退出，第二次原glibc符号构建拒绝无guest；两个C夹具失败均保留。全部设置、USB枚举/jiritsu、热恢复和完整硬件启动仍未完成；更新/成片deferred。
+
 ## 11月9日原RAM0/init/pivot冷链
 
 显式 `tools/run-original-cold.py --new-instance` 已只从本产品官方BODYDATA缓存创建独立盘，原RAM0→原init→p7挂载/pivot/chroot→旧根卸载/原freeramdisk零前缀→原init2→bootin/im/appFw→原中文首设/HUD/菜单往返实际通过。每次方向输入的原双边及稳定焦点、菜单控件真实像素、19卷freeze1/19、QMP0/无信号/owner后裔退出均核齐；最终8份源码无漂移。停止后只读检查10挂载卷结构均通过，原p7与派生时整片相同，原p15与官方factory整片相同；FATdirty原rc1保留，不冒称卸载fsck0。
 
 [原LCD菜单](../docs/images/original-cold-original-menu.png)、[HUD返回](../docs/images/original-cold-menu-return.png)、[完整报告](../docs/tech/2026-11-09-original-cold-boot.md)、[内容验收收据](original-cold-boot-20261109.json)。两线程集中host376通过/39跳过/95子测试，新cold公共subset48、真实DT准备subset12，源/依赖/旧脚本同步全rc0；未变旧模型/GTK不重复。旧mountinfo误判、缓存黑帧、假menu=true后独立否定审查、语言步数偏移、输入盘孤链及固定300ms采帧失败均保留，不回填。
 
-该路线目前为独立CLI，默认GTK仍direct-bootin；BootROM/loader/CP/WBI/RAM热恢复/watchdog与完整硬件启动仍未通过，USB枚举/认证与成片不因此提升。完整更新和拍摄写卡deferred；recovery/镜像清理按用户最新指令暂停，未删除镜像。
+本节收据对应独立CLI；默认GTK随后已接线，实际结果见上方独立窗口验收。BootROM/loader/CP/WBI/RAM热恢复/watchdog与完整硬件启动仍未通过，USB枚举/认证与成片不因此提升。完整更新和拍摄写卡deferred；recovery/镜像清理按用户最新指令暂停，未删除镜像。
 
 ## 11月8日开发面板、内部单盘与启动内存
 

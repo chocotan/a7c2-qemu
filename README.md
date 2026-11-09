@@ -6,7 +6,7 @@
 
 ![直接执行默认 start.sh 后的原厂拍摄界面，已完成原中文菜单往返](docs/images/default-startup-20261108.png)
 
-上图来自直接执行默认 `./start.sh` 的实际窗口，没有传入 HCI 环境变量。已完成原首设、拍摄主界面、中文菜单进入与返回，未出现“系统出错”，原配置没有重置；[验收收据](validation/default-startup-20261108.json)记录原帧、原事件及正常保存退出。取景和拍摄成片尚未恢复，长期电源/黑帧唤醒仍在完善。此前的[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用 2.01 ALLLANG BODYDATA 与固定 QEMU 源码构建，不依赖研究仓库或系统 dump。
+上图记录 2026-11-08 直接执行当时默认 `./start.sh` 的 direct-bootin 实际窗口，没有传入 HCI 环境变量。已完成原首设、拍摄主界面、中文菜单进入与返回，未出现“系统出错”，原配置没有重置；[验收收据](validation/default-startup-20261108.json)记录原帧、原事件及正常保存退出。取景和拍摄成片尚未恢复，长期电源/黑帧唤醒仍在完善。此前的[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用 2.01 ALLLANG BODYDATA 与固定 QEMU 源码构建，不依赖研究仓库或系统 dump。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
@@ -63,18 +63,24 @@ A7C2_VIRTUAL_HCI= ./start.sh --bodydata /path/to/BODYDATA.DAT
 
 也可以把固件放到 `incoming/bodydata/BODYDATA.DAT`，以后直接执行 `./start.sh`。
 
-本轮开发面板、内部盘和启动内存修复后，再次直接执行默认入口，原首设、HUD、菜单进入与返回、正常保存退出均通过，且原配置未变；见[最新默认入口收据](validation/default-after-integration-20261108.json)和[原窗口截图](docs/images/development-storage-default-hud-20261108.png)。
+当前无参数 `./start.sh` 已在独立产品副本实际完成原 init 冷启动、中文首设、HUD、原菜单往返和保存退出；首个合成 LCD 改用原启动预算的剩余时间，避免固定 15 秒过早失败。见[默认入口实跑与修复](docs/tech/2026-11-09-default-cold-entry.md)及[收据](validation/default-original-cold-entry-20261109.json)。此前 direct-bootin 默认入口的记录保留在[2026-11-08 收据](validation/default-after-integration-20261108.json)，文件测试和同盘恢复见[窗口集成记录](docs/tech/2026-11-09-original-cold-window.md)。
 
-## 原 init 冷启动实验
+## 原 init 冷启动
 
-现在还提供独立的原用户态冷启动入口：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，进入原相机首设、拍摄主界面与菜单。准备好上面的产品资产后执行：
+默认 `./start.sh` 和窗口 ON 使用原用户态冷启动：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，再启动原相机程序。原有兼容路线仍可显式选择：
+
+```bash
+./start.sh --boot-profile direct-bootin
+```
+
+独立 CLI 实验入口保留。准备好上面的产品资产后执行：
 
 ```bash
 python3 tools/run-original-cold.py --new-instance \
   --output runtime/diagnostics/my-original-cold --seconds 180
 ```
 
-它创建专属内部盘，输出目录必须不存在；不会改动默认用户实例。当前是显式命令行实验入口，默认 GTK 的 ON 仍沿用已验的 direct-bootin 路线。原 BootROM、loader、CP、WBI 和完整硬件上电仍未完成，详见[原冷启动复现与验收](docs/tech/2026-11-09-original-cold-boot.md)。
+CLI 创建专属内部盘，输出目录必须不存在。窗口默认使用自己的持久内部盘；CLI 与窗口分别验收。原 BootROM、loader、CP、WBI 和完整硬件上电仍未完成，详见[原冷启动复现](docs/tech/2026-11-09-original-cold-boot.md)与[窗口集成记录](docs/tech/2026-11-09-original-cold-window.md)。
 
 ## 虚拟卡和设置
 
@@ -91,7 +97,7 @@ runtime/analysis/menu-runs/run-*/SD/card.img
   --sd-image /path/to/previous-run/SD/card.img
 ```
 
-相机设置默认保存在 `runtime/analysis/camera-instances/default/`，下次自动恢复。虚拟卡需要通过 `--sd-image` 手动选择。
+原冷启动的相机设置保存在同一内部盘的 `/setting`，保存时另有 `runtime/analysis/camera-instances/default/` 的已校验快照。旧内存路线的快照只迁入内部盘一次；以后保留盘上实际值。完整设置持久化尚未验证。虚拟卡需要通过 `--sd-image` 手动选择；同一窗口内的重启自动沿用刚保存的卡。
 
 运行中可以点击 **安全拔出 SD**，等窗口确认卡已拔出，再点击 **插入 SD**。目前只能重插同一张虚拟卡，还不能在运行中换选另一张镜像。
 
@@ -101,17 +107,17 @@ runtime/analysis/menu-runs/run-*/SD/card.img
 
 窗口的“固件开发”面板提供文件测试、启动测试和更新三个区域。完整 BODYDATA 更新按本轮范围暂缓；保留 RAM 的热恢复尚未接入。
 
-停止 VM 后可以勾选“使用内部持久磁盘”，或者执行：
+原冷启动默认使用并保留内部持久磁盘。兼容路线可以在停止 VM 后勾选“使用内部持久磁盘”，或者执行：
 
 ```bash
-./start.sh --persistent-storage
+./start.sh --boot-profile direct-bootin --persistent-storage
 ```
 
-第一次会从自己的官方 BODYDATA 缓存创建单个内部磁盘文件，容量和19个卷的布局由官方分区表决定；用户区与两个 boot 区总计 1,962,934,272 字节。生成物保存在 `runtime/analysis/persistent-storage/`。它只使用普通虚拟磁盘文件；实验开关默认关闭。
+第一次会从自己的官方 BODYDATA 缓存创建单个内部磁盘文件，容量和19个卷的布局由官方分区表决定；用户区与两个 boot 区总计 1,962,934,272 字节。生成物保存在 `runtime/analysis/persistent-storage/`，已有实例不会在重启时重铺。只使用普通虚拟磁盘文件。
 
 持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。内部卷的重启与关闭结果见[开发与存储验收](docs/tech/2026-11-08-development-and-storage.md)。全部设置持久化仍未验证。
 
-[官方启动流程复核](docs/tech/2026-11-08-boot-review.md)列出了原脚本与产品路径的差异。默认内部盘使用原 AP 的功能启动路线；原 init/pivot 用户态冷链已有下方显式 CLI，尚未接入默认 GTK。热 WBI 恢复仍未完成。
+[官方启动流程复核](docs/tech/2026-11-08-boot-review.md)保留此前路线的差异。原 init/pivot 用户态冷链现已接到窗口 ON；原冷启动下的旧逻辑配置复位暂禁用，盘上设置保持。热 WBI 恢复仍未完成。显式 Sony USB 候选已通过本机宿主 `054c:0336` 枚举、配置1／4个端点、原 jiritsu 七步认证及同轮保存退出；复现与边界见[USB报告](docs/tech/2026-11-09-usb-jiritsu.md)和[收据](validation/usb-jiritsu-20261109.json)。普通 AP 菜单 USB 启动、同 USB 的版本／root 读取仍未完成。
 
 ## 替换程序或库
 
@@ -131,7 +137,7 @@ overwrite/
   --overwrite-dir /path/to/my-overwrite
 ```
 
-覆盖目录只接受普通文件和目录，不支持符号链接。修改只影响本次生成的启动镜像，原始固件文件保持不变。恢复原版时，移走覆盖文件，并在下次启动时不再指定自定义目录；默认 `overwrite/` 也应保持为空或不存在。
+覆盖目录只接受普通文件和目录，不支持符号链接。原冷启动只接受包内已有、可恢复的 `/usr` 文件；修改写入当前虚拟内部盘，原始固件文件保持只读。恢复原版时，在停止后使用开发面板的“原版”再启动并读回；仅移走覆盖文件不会撤销已持久化的改动。兼容路线的非持久模式仍仅修改派生启动镜像。
 
 替换不兼容的程序或库可能导致启动失败。
 
@@ -151,7 +157,7 @@ overwrite/
 ## 研究文档
 
 - [开发面板与单盘集成](docs/tech/2026-11-08-development-and-storage.md)：文件测试和原 guest 读回、自包含驱动构建、单盘实际验收与剩余阻塞。
-- [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：显式 CLI、原 RAM0→init→pivot/chroot→init2→原 HUD／菜单，以及保留的失败记录。
+- [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：CLI、原 RAM0→init→pivot/chroot→init2→原 HUD／菜单；[窗口接线](docs/tech/2026-11-09-original-cold-window.md)记录默认 ON、同盘文件开发和保存边界。
 - [官方启动流程复核](docs/tech/2026-11-08-boot-review.md)：逐阶段对照包内原 init/init2、挂载、原 AP 与默认产品路径差异。
 - [产品运行边界](docs/tech/2026-11-07-current-progress.md)：外部输入、已接入能力和仍未完成的功能。
 - [11月6日历史进展](docs/tech/2026-11-06-current-progress.md)：当时完整离线验收与4000／4057／4072失败；当次仅文档发布。

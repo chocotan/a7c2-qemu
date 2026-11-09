@@ -1,4 +1,5 @@
 /* Finite public ALLLANG helper; menu changes and cross-VM proof belong to host. */
+#define _GNU_SOURCE
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,8 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/vfs.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
 #define CONFIG_BYTES 2390264U
 #define WINDOW_BYTES 0x400000U
 #define EXPORT_PHYS UINT64_C(0x41e600000)
@@ -36,6 +39,9 @@ static int reserved(const char *s){
 }
 static int space_ok(uint64_t blocks,uint64_t size){
     return size && blocks<=UINT64_MAX/size && blocks*size>=CONFIG_BYTES+UINT64_C(1048576);
+}
+static int storage_type_ok(unsigned long type,int persistent){
+    return persistent==0?type==0x01021994UL:persistent==1&&type==0x4d44UL;
 }
 static int changed(const unsigned char *v){return v[0]!=1 && v[1]!=3 && v[1]<=3;}
 static int parse(const unsigned char *p,unsigned n,unsigned char values[2]){
@@ -107,12 +113,20 @@ static int api(unsigned char out[2],const char *stage){
     }
     errno=0;return out[1]>3?fail("api_date_range",out[1]):0;
 }
-static int guard(void){
+static int virtual_setting(void){
+    struct stat volume,node,module;
+    return !syscall(SYS_newfstatat,AT_FDCWD,"/setting",&volume,0)&&
+        !syscall(SYS_newfstatat,AT_FDCWD,"/dev/cnflasha2",&node,AT_SYMLINK_NOFOLLOW)&&
+        S_ISBLK(node.st_mode)&&node.st_rdev==volume.st_dev&&
+        !syscall(SYS_newfstatat,AT_FDCWD,"/sys/module/sony_persistent_flash",&module,AT_SYMLINK_NOFOLLOW)&&S_ISDIR(module.st_mode);
+}
+static int guard(int persistent){
     struct statfs st;errno=0;int rc=statfs("/setting",&st);
     if(rc)return fail("setting_statfs",rc);
     printf("USER_SETTINGS_SPACE type=%lx available_blocks=%llu block_size=%lu\n",
            (unsigned long)st.f_type,(unsigned long long)st.f_bavail,(unsigned long)st.f_bsize);fflush(0);
-    errno=0;if(st.f_type!=0x01021994 || st.f_bsize<=0 || !space_ok(st.f_bavail,st.f_bsize))return fail("tmpfs_space_guard",-1);
+    errno=0;if(!storage_type_ok((unsigned long)st.f_type,persistent) || st.f_bsize<=0 || !space_ok(st.f_bavail,st.f_bsize))return fail(persistent?"virtual_vfat_space_guard":"tmpfs_space_guard",-1);
+    if(persistent&&!virtual_setting()){errno=0;return fail("virtual_setting_device_guard",-1);}
     return 0;
 }
 static int export_ram(const unsigned char *p,const char *tag){
@@ -140,11 +154,13 @@ static int export_ram(const unsigned char *p,const char *tag){
 }
 static int run(int argc,char **argv){
     int save=argc==2&&!strcmp(argv[1],"save");
-    int snapshot=argc==2&&!strcmp(argv[1],"snapshot");
+    int persistent=argc==2&&!strcmp(argv[1],"snapshot-persistent-v1");
+    int snapshot=persistent||(argc==2&&!strcmp(argv[1],"snapshot"));
     int restore=argc==4&&!strcmp(argv[1],"restore");unsigned char expected[2]={0},v[2]={0},file[2]={0};
     if(!save&&!restore&&!snapshot){errno=0;return fail("usage_save_snapshot_or_restore_expectedlang_expecteddate",argc);}
     if(restore&&(!number(argv[2],255,expected)||!number(argv[3],3,expected+1))){errno=0;return fail("expected_ascii_range",-1);}
     int result=1;unsigned char *p=0;
+    if(persistent&&guard(1))goto done;
     if(api(v,"before"))goto done;
     p=readfile();if(!p)goto done;
     errno=0;if(!parse(p,CONFIG_BYTES,file)){fail("before_layout_checksum",-1);goto done;}
@@ -160,7 +176,7 @@ static int run(int argc,char **argv){
         errno=0;if(save&&!pending){fail("before_file_no_pending_change",-1);goto done;}
         printf("USER_SETTINGS_COMMIT_NEEDED value=%d\n",pending);fflush(0);
         if(pending){
-            if(guard())goto done;
+            if(!persistent&&guard(0))goto done;
             errno=0;int rc=Backup_sync_subsystem(0x02cf);int e=errno;
             printf("USER_SETTINGS_SYNC sid=02cf rc=%d errno=%d\n",rc,e);fflush(0);
             if(rc){errno=e;fail("sync",rc);goto done;}

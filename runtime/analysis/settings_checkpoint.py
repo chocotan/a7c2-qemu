@@ -59,12 +59,13 @@ def _one(pattern,raw):
     return values[0]
 
 
-def snapshot(serial,qmp,run):
+def snapshot(serial,qmp,run,*,persistent=False):
     """One serialized helper/RAM/readback transaction before the SD exporter.
 
     Caller retains VM ownership on failure; this function never stops a process,
     changes a host generation or claims all subsystems have been committed.
     """
+    if type(persistent) is not bool:raise ValueError('Settings storage mode must be an explicit boolean')
     run=Path(run)
     target=run/'SETTING'
     target.mkdir(mode=0o700,exist_ok=True)
@@ -74,7 +75,7 @@ def snapshot(serial,qmp,run):
             'all_settings_verified':False,'configuration_persistence_verified':False}
     raw=b''
     try:
-        command='/simulation/user-settings-checkpoint snapshot; rc=$?; echo SETTINGS_SNAPSHOT_RC=$rc; true'
+        command='/simulation/user-settings-checkpoint '+('snapshot-persistent-v1' if persistent else 'snapshot')+'; rc=$?; echo SETTINGS_SNAPSHOT_RC=$rc; true'
         raw=serial(command,timeout=90)
         (target/'serial.txt').write_bytes(raw)
         if _one(rb'^SETTINGS_SNAPSHOT_RC=([0-9]+)\r?$',raw)!=b'0':

@@ -1,0 +1,514 @@
+{
+  "schema": "a7c2-product-original-cold-window-v1",
+  "recorded_at_ns": 1794200561529187813,
+  "verified": true,
+  "scope": "Existing product GTK ON and development file/restart/original flow using an explicitly selected independent product internal disk. Default start.sh profile selection covered by host dispatch tests; this integration driver does not itself execute start.sh.",
+  "default_profile": "original-init-cold",
+  "default_start_sh_executed_in_this_acceptance": false,
+  "compatibility_profile": "direct-bootin",
+  "original_window_menu_enter_return_verified": true,
+  "actual_chinese_firstsetup_and_hud_verified": true,
+  "normal_gtk_close_verified": true,
+  "same_internal_disk_reboot_file_preserved": true,
+  "original_file_restored_after_explicit_selection": true,
+  "first_file_sha256": "873efea631e3d2814e7a890511e007ebedadd8cb34e479de7f54e1dbbdec7daf",
+  "reboot_file_sha256": "873efea631e3d2814e7a890511e007ebedadd8cb34e479de7f54e1dbbdec7daf",
+  "restored_file_sha256": "4f7ecedbc4682ee7ce2deacf62506acf2909639516c5c941dcfd15416050b653",
+  "runtime_source_files": {
+    "runtime/analysis/original_cold_boot.py": "0051d3384fc6464f3bd8afbb6dc42a3b7053a4f9cb89cd2de2eadf3578e8856c",
+    "runtime/analysis/original_cold_live.py": "ba5d56ace70d22a979d605c0d24555e61227ce64ec0d29eb6829af47e8c4b469",
+    "runtime/analysis/bodydata-launch.py": "143c4c5f8f2c036133a451dcf7e35e6d9e8e1f8c70b3b8b9cd447f365db52f24",
+    "runtime/analysis/menu_control.py": "5b9cad9aee890e56e89f02be0f654b3e970bc4812bf0c17b1f19fc4fcdae8bcd",
+    "runtime/analysis/menu_live.py": "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19",
+    "runtime/analysis/camera_ui.py": "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0",
+    "runtime/analysis/persistent_storage.py": "e5beb5c8662693c063c9d52a9e6078f88989eaf70ca851261573797fb51ef7c3",
+    "runtime/analysis/run-menu-probe.sh": "ce57b44da9c4c954f7ae514dbc9688a94f2cb82282c75fabfcf4372556c8c4ec",
+    "runtime/analysis/cold/bootstrap.sh": "7c26060a75dc870ecac5c5fad32c03c10b861d481f4a2fa2d9203431569cb770",
+    "runtime/analysis/cold/insmod.sh": "1f474f31348910909a31debc3740854a62d3e45fac5c833544e9a447a8c66d80",
+    "runtime/analysis/settings_checkpoint.py": "abfeffb59847874c61827baaebf475391fe9eecdcfc5d887f65a77c1cda9a6ab",
+    "runtime/analysis/user-settings-checkpoint.c": "7858980cf00b37a037e01286ec246b10bad6fa8584d7f3cfddd410eacde92afb",
+    "tools/run-original-cold.py": "f59f86333f1706acef88598d6908c0dbabbc9213b0e8da7c852017ebd41d5744"
+  },
+  "runtime_source_count": 13,
+  "runtime_source_drift": {},
+  "runs": [
+    {
+      "run": "run-pzaf4kas",
+      "original_script_handoff_order_verified": true,
+      "root_uid_gid_four_zero_fields": true,
+      "old_root_unmounted_verified": true,
+      "file_guest_readback_verified": true,
+      "file_sha256": "873efea631e3d2814e7a890511e007ebedadd8cb34e479de7f54e1dbbdec7daf",
+      "settings_snapshot_verified": true,
+      "language": 25,
+      "date_format": 3,
+      "all_settings_verified": false,
+      "internal_frozen_partitions": 19,
+      "sd_export_verified": true,
+      "sd_sha256": "c60d6e85c6d34ee019d95c48c5bfcd031be50248d5db62f57e93f9262bfcaba4",
+      "normal_qmp_quit_confirmed": true,
+      "owner_returncode": 0,
+      "vm_signals_sent": [],
+      "owner_and_peer_absent": true,
+      "lcd_samples": 4053,
+      "lcd_error": "",
+      "ram0_sha256": "299ebca233a2d3623ad56caa5b5ee6ed228dbea2cff993f7f85244d9772b05c6",
+      "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+      "receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-pzaf4kas/result.json",
+        "bytes": 9006,
+        "sha256": "f67dbe4490eda6be8e06233255b854ffada845a538a96d87f1523e385afd2f69",
+        "distributed": false
+      },
+      "build_receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-pzaf4kas/build/result.json",
+        "bytes": 17341,
+        "sha256": "56441ecaff475f701cb4d4c835711f98ebc3a854b639e5d926438c75c97d84f0",
+        "distributed": false
+      }
+    },
+    {
+      "run": "run-5rkbfds6",
+      "original_script_handoff_order_verified": true,
+      "root_uid_gid_four_zero_fields": true,
+      "old_root_unmounted_verified": true,
+      "file_guest_readback_verified": true,
+      "file_sha256": "873efea631e3d2814e7a890511e007ebedadd8cb34e479de7f54e1dbbdec7daf",
+      "settings_snapshot_verified": true,
+      "language": 25,
+      "date_format": 3,
+      "all_settings_verified": false,
+      "internal_frozen_partitions": 19,
+      "sd_export_verified": true,
+      "sd_sha256": "c60d6e85c6d34ee019d95c48c5bfcd031be50248d5db62f57e93f9262bfcaba4",
+      "normal_qmp_quit_confirmed": true,
+      "owner_returncode": 0,
+      "vm_signals_sent": [],
+      "owner_and_peer_absent": true,
+      "lcd_samples": 1152,
+      "lcd_error": "",
+      "ram0_sha256": "3f25955a337351234b15bad6b2caa756ebe43ad7350ebc496e29d0d00ebd5d46",
+      "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+      "receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-5rkbfds6/result.json",
+        "bytes": 9006,
+        "sha256": "65b037cdeb16b8a9107290fc3b885f7a827141cb5777343418cdc9a9f652f79c",
+        "distributed": false
+      },
+      "build_receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-5rkbfds6/build/result.json",
+        "bytes": 17532,
+        "sha256": "5409e43e9481c47270ce6fc80a771088fb74d4b9f47ee6f1d99e59152ab7e72e",
+        "distributed": false
+      }
+    },
+    {
+      "run": "run-4_w4jaal",
+      "original_script_handoff_order_verified": true,
+      "root_uid_gid_four_zero_fields": true,
+      "old_root_unmounted_verified": true,
+      "file_guest_readback_verified": true,
+      "file_sha256": "4f7ecedbc4682ee7ce2deacf62506acf2909639516c5c941dcfd15416050b653",
+      "settings_snapshot_verified": true,
+      "language": 25,
+      "date_format": 3,
+      "all_settings_verified": false,
+      "internal_frozen_partitions": 19,
+      "sd_export_verified": true,
+      "sd_sha256": "c60d6e85c6d34ee019d95c48c5bfcd031be50248d5db62f57e93f9262bfcaba4",
+      "normal_qmp_quit_confirmed": true,
+      "owner_returncode": 0,
+      "vm_signals_sent": [],
+      "owner_and_peer_absent": true,
+      "lcd_samples": 1163,
+      "lcd_error": "",
+      "ram0_sha256": "939fe27a4c3a6793d2880f22411fdeb4b806bb7ad698d55dc54c7455985a2b98",
+      "kernel_sha256": "620a6a3c2b4f09a3696f2fbf06bab98b49be5eaad6bdb366a1f33319fcb6e9d2",
+      "receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-4_w4jaal/result.json",
+        "bytes": 9006,
+        "sha256": "e26f346ff214ecbb134843a1fe2a90be1aa98278a5c1d46121b8752f21037306",
+        "distributed": false
+      },
+      "build_receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-4_w4jaal/build/result.json",
+        "bytes": 17356,
+        "sha256": "1647bbbc5144c79b5b41bc4e6fe4062a6ee8b5b937f68ab79aafc7e9438e9480",
+        "distributed": false
+      }
+    }
+  ],
+  "stopped_disk": {
+    "sha256": "1229d9d6e7d510edf49cfdb62ddc574688eccb97abcc9289ebd9a0ff51974060",
+    "lease_acquired_only_after_owner_exit": true,
+    "host_readonly_review": true,
+    "disk_unchanged_by_review": true,
+    "usr_file_independently_extracted_and_original_sha_verified": true,
+    "settings_independently_extracted_from_vfat_matches_guest": true,
+    "usr_whole_image_identical_to_factory": false,
+    "official_factory_usr_sha256": "ee318ab80ed34ee1e39a8742a1160a1a931b580f7771b8d13f91cb550e5cdf6a",
+    "stopped_usr_sha256": "6fc0fa48f8a9939ff12225c362f10d4000d63c1a6fa5fc73d3ea4ccb625526a4",
+    "usr_whole_image_identity_reason": "Reversible file tests changed ext2 metadata; only the restored file identity is asserted.",
+    "volumes": [
+      {
+        "partition": "nflasha7",
+        "filesystem": "ext2",
+        "command": [
+          "e2fsck",
+          "-f",
+          "-n",
+          "nflasha7.img"
+        ],
+        "fsck_returncode": 0,
+        "sha256": "4f94f15bc1f79cfabc17496476804a19db426a63f0170954349e32fa2a3142c3",
+        "bytes": 16777216,
+        "stdout_sha256": "3af57dd6cb4bb519d0812a36a206cf968cda0b15a060770494eeea6a6d5ea60a",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01",
+        "structure_verified": true
+      },
+      {
+        "partition": "nflasha2",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha2.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "f28205d9db5476d23d26e53133b045a3ea9620598ff83c5f7deb0fc8ee628822",
+        "bytes": 20971520,
+        "stdout_sha256": "5c2ad320a82fb97579415b298d42c4efe42323cbeb355255ba3b3c3fde8991d4",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha3",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha3.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "591123c53ea78001da9cf74830899943e158cb83be0bde141678e46735d4b297",
+        "bytes": 78643200,
+        "stdout_sha256": "d1b907585758871081684158b78878b6e5ea1927b0be093f71358e2484673823",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha8",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha8.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "cc27bb30f73552cf29e6d39db86626f2c57f6496ca94be89280048a23db43e3e",
+        "bytes": 67108864,
+        "stdout_sha256": "8fde582d263fe9f4ded6e3217c0c6aaff0e69f6c6569ff857f67ce76b0e18f82",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha11",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha11.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "427893dfedf442f83334132f1c92efe05729b2d663267195cdfa1c0098954cfe",
+        "bytes": 314572800,
+        "stdout_sha256": "0c2ff48680674c2c4b90bb47a5ba6bf58057143e47cf617a537bcd5ba4e83c68",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha12",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha12.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "a33ca9e1760c34d3b0341c798533754e432a2b1cdd35b796d9d1e303f8f7e51a",
+        "bytes": 41943040,
+        "stdout_sha256": "4429614a484fdc74b6fce899a0d61520285f26690f74d331560c6bc6683d0da8",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha18",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha18.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "7fbefded6e6068ddc1122a70f71a231e8305f8854383d3863cbe7ffb8abcd939",
+        "bytes": 20971520,
+        "stdout_sha256": "685872f78e327e77751ca74eba0144d6042a6422ebf409d29d4022acb69e2277",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha10",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha10.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "84a48c9be115d272f11e5c055c28e54dbcef6aab2698904d41c5d400e4b5f443",
+        "bytes": 12582912,
+        "stdout_sha256": "deacfbf769cbdeb026e67639d31de2d4181bdf065be59eb0753ddbc9c9d5e900",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      },
+      {
+        "partition": "nflasha15",
+        "filesystem": "ext2",
+        "command": [
+          "e2fsck",
+          "-f",
+          "-n",
+          "nflasha15.img"
+        ],
+        "fsck_returncode": 0,
+        "sha256": "6fc0fa48f8a9939ff12225c362f10d4000d63c1a6fa5fc73d3ea4ccb625526a4",
+        "bytes": 807403520,
+        "stdout_sha256": "fd08aabc7ca7e5dfc4420ea813ca4cb49f81215effa02ff9b8b96a43794fb996",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01",
+        "structure_verified": true
+      },
+      {
+        "partition": "nflasha22",
+        "filesystem": "vfat",
+        "command": [
+          "fsck.fat",
+          "-n",
+          "nflasha22.img"
+        ],
+        "fsck_returncode": 1,
+        "sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+        "bytes": 68157440,
+        "stdout_sha256": "c5e19b11a7f8a4f05ac7ad666f7d4de5977881ed758c4bb9e91a33360a915c8d",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "structure_verified": true,
+        "dirty_flag_not_modified": true
+      }
+    ]
+  },
+  "host_validation": {
+    "max_workers": 2,
+    "checks": [
+      {
+        "name": "host",
+        "tests": 511,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 40,
+        "scope": "Existing host suite; 40 skipped include GTK without display and prior explicit scope skips",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round1/host.xml",
+          "bytes": 70011,
+          "sha256": "5356c071e3fb93a801de55943a25013f7812ccceb8684c125f221c22b83a3d01",
+          "distributed": false
+        }
+      },
+      {
+        "name": "gtk-first-failure",
+        "tests": 235,
+        "failures": 9,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "9 actual mouse/pixel checks failed under 1280px Xvfb; other cold/input checks passed",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round1/cold-gtk-input.xml",
+          "bytes": 62685,
+          "sha256": "092d72367ceb23f91e617e71d53b3bca732ef0c6cc4b549b80e0134f2c350556",
+          "distributed": false
+        }
+      },
+      {
+        "name": "gtk-1600-fix",
+        "tests": 38,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "38 actual GTK tests under 1600x1200; unchanged successful source not rebuilt here",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round2/gtk.xml",
+          "bytes": 5528,
+          "sha256": "7cc13df65e6fd960eee15cef31ccbb61828a7cc6a2fb2214f85f3e6ab8e23adf",
+          "distributed": false
+        }
+      },
+      {
+        "name": "save-owner-boundaries",
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "Current failed save rejects prior successful freeze; real control socket owner and lock inode",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round2/cold-new-boundaries.xml",
+          "bytes": 543,
+          "sha256": "8af93ec404398f46a2d93735cc7443c5d25fa7d4f0c032a8ae55228cd5ef5944",
+          "distributed": false
+        }
+      },
+      {
+        "name": "settings-mode-faults",
+        "tests": 17,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "16 passed, one new C fixture failed before execution due literal newlines",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round3/cold-new-boundaries.xml",
+          "bytes": 15128,
+          "sha256": "daf8bfb75514254248d7f2c5030513ea46a545b61dbe2bfc1b4b59311fc82ce0",
+          "distributed": false
+        }
+      },
+      {
+        "name": "c-fixture-space-failure",
+        "tests": 1,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "Correct newline compiled; fixture used the wrong block threshold; original assertion retained",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round4/junit.xml",
+          "bytes": 12061,
+          "sha256": "5870eb189a748952353fecaac9f5bbe302daa42ec9139d0ecd21e2ff0fd582a4",
+          "distributed": false
+        }
+      },
+      {
+        "name": "c-storage-guards",
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "scope": "Strict C11 -Wall -Wextra -Werror -pedantic and ASan/UBSan, explicit tmpfs/VFAT domain and overflow/space boundaries",
+        "evidence": {
+          "path": "analysis/scratch/product-original-cold-gui-20261109/host-round5/junit.xml",
+          "bytes": 381,
+          "sha256": "efc5cae1593a19cc166e6983548b052a05b8abf7f37816429d278debc7463789",
+          "distributed": false
+        }
+      }
+    ],
+    "overlapping_groups_not_added_to_one_total": true
+  },
+  "failures_preserved": [
+    {
+      "run": "run-g6jou9mt",
+      "save_verified": false,
+      "reason": "Real VFAT /setting rejected by old tmpfs-only helper; no original SD flush admission",
+      "normal_qmp_quit_after_full_ram_preservation": true,
+      "vm_signals_sent": [],
+      "ram_bytes": 25769510363,
+      "ram_sha256": "5d23b41ab0021bbd06451c6c98bc9be7667bfda72efc0ce5895920bc4ae64506",
+      "ram_ranges_match_qemu": true,
+      "first_memory_readback_refusal_preserved": true,
+      "receipt": {
+        "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-g6jou9mt/failed-save-preservation/preservation-complete.json",
+        "bytes": 2106,
+        "sha256": "e9bb0ad7b597919e73cce15929b63b33217c5e7922d43cb089d1f482f3947e5e",
+        "distributed": false
+      }
+    },
+    {
+      "attempt": "actual-window-v2",
+      "guest_started": false,
+      "verified": false,
+      "reason": "Original glibc2.25 lacks stat/lstat exports; build refused before guest launch. Replaced by existing newfstatat syscall convention.",
+      "receipt": {
+        "path": "analysis/scratch/product-original-cold-gui-20261109/actual-window-v2/result.json",
+        "bytes": 17447,
+        "sha256": "75434518e9d79485212f178ced493eb1e1c5cdb1d204c951bf65654de4541739",
+        "distributed": false
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/actual-window-v3/result.json",
+      "bytes": 39500,
+      "sha256": "efe5a825d407af59f4b4c129a06098d847c5677464a0d841f2732b743b25a581",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/actual-readback-v3/result.json",
+      "bytes": 44615,
+      "sha256": "ff003eb91c87029ebe8cba0e75f2626ac6f9e1ec38b10896bc3c7b414cb97608",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/host-round1/terminal.json",
+      "bytes": 1636,
+      "sha256": "5b599b31a8b89f3101cc213ed5d1970e6cc2fc8784e42b27518b64338bf85fe5",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/host-round2/terminal.json",
+      "bytes": 1696,
+      "sha256": "6087c82e1dd556e46d146db8dbd01a26b0ead097ebd8d151255dc4aa51b2505a",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/host-round3/terminal.json",
+      "bytes": 1867,
+      "sha256": "19889609d2de58cb7cff3af347814e7da1bf4a8a874c4d72398d384df74bca0c",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/host-round4/terminal.json",
+      "bytes": 587,
+      "sha256": "a472439648f8180eff4f867bdc2c8a3a280642bf2bdc116bc80abdd5986acbb9",
+      "distributed": false
+    },
+    {
+      "path": "analysis/scratch/product-original-cold-gui-20261109/host-round5/terminal.json",
+      "bytes": 587,
+      "sha256": "57514d4dbb3f4922b36f609a9738183422f8511dc3f7c4e9cb25456ab0ff264a",
+      "distributed": false
+    }
+  ],
+  "limitations": {
+    "capture_to_card": "deferred-by-user",
+    "complete_bodydata_update": "deferred-by-user",
+    "capture_verified": false,
+    "physical_asic_compatibility_verified": false,
+    "full_boot_verified": false,
+    "bootrom_loader_verified": false,
+    "original_cp_execution_verified": false,
+    "hot_wbi_restore_verified": false,
+    "usb_host_enumeration_verified": false,
+    "jiritsu_authentication_verified": false,
+    "full_configuration_persistence_verified": false,
+    "original_camera_poweroff_verified": false,
+    "cold_configuration_reset_implemented": false,
+    "directory_or_256gb_host_sd_on_cold_profile": false,
+    "usb_network_on_cold_profile": false
+  },
+  "public_runtime_depends_on_research_repo": false,
+  "physical_devices_used": false,
+  "private_firmware_disks_ram_runs_distributed": false
+}

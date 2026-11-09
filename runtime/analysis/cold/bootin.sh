@@ -16,4 +16,7 @@ echo "PRODUCT_COLD_VIEWER pid=$!"
 echo "PRODUCT_COLD_BOOTIN pid=$$"
 /bin/busybox cat /proc/$$/cmdline /proc/$$/status /proc/1/mountinfo /proc/cmdline
 export LD_PRELOAD=/simulation/file-media-config.so:/simulation/menu-observe.so
+if [ "${PRODUCT_SONY_USB_DEVICE:-}" = 1 ]; then
+    export LD_PRELOAD=$LD_PRELOAD:/simulation/usb-start-observe.so
+fi
 exec /simulation/bootin-original 'target=qemu ' dmode=3

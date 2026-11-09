@@ -59,6 +59,10 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 from usb_control import ControlBlocked, UsbControl, usbip
 
+HOST_PYTHON = HERE / 'vendor/host-python'
+if HOST_PYTHON.is_dir() and not HOST_PYTHON.is_symlink():
+    sys.path.insert(0, str(HOST_PYTHON))
+
 SCRIPTS = Path(os.environ.get('A7C2_VIRTUAL_JIRITSU_SCRIPTS', str(HERE.parents[1] / 'external/sony-pmca-tools')))
 ROOT_COMMAND = "busybox grep -E '^(Uid|Gid):' /proc/$$/status"
 PAYLOAD_NAME = 'a7c2_shell.arm64.so'
@@ -267,21 +271,27 @@ def neutralize_preload(transport, control, guard, version, log):
 
 class Sources:
     def __init__(self, scripts=SCRIPTS, pmca=None):
-        self.scripts = Path(scripts).resolve(strict=True)
-        candidates = [self.scripts / 'vendor/pmca-adamwuqwq',
-                      HERE.parents[1] / 'analysis/vendor/pmca-adamwuqwq']
+        self.scripts = Path(scripts).resolve()
+        candidates = [HERE / 'vendor/pmca-adamwuqwq',
+                      self.scripts / 'vendor/pmca-adamwuqwq']
         self.pmca = Path(pmca).resolve(strict=True) if pmca else next(
             (path.resolve() for path in candidates if (path / 'pmca/usb/sony.py').is_file()), candidates[0])
 
     def manifest(self, action):
         required = [HERE / 'usb_jiritsu.py', HERE / 'usb_control.py',
                     HERE / 'usb-gadget/usbip_server.py']
-        required += [self.scripts / name for name in ('usb_service_probe.py', 'jiritsu_version_read.py',
-                     'jiritsu_preload_deploy.py', 'jiritsu_run_command.py', 'jiritsu_preload_clear.py')]
+        if action != 'authenticate':
+            required += [self.scripts / name for name in ('usb_service_probe.py', 'jiritsu_version_read.py',
+                         'jiritsu_preload_deploy.py', 'jiritsu_run_command.py', 'jiritsu_preload_clear.py')]
         required += [self.pmca / name for name in ('pmca/usb/sony.py', 'pmca/usb/crypto.py',
                      'pmca/usb/constants.py', 'pmca/usb/driver/generic/__init__.py',
                      'pmca/usb/driver/generic/libusb.py')]
-        required += sorted(self.scripts.glob('*.py')) + sorted((self.pmca / 'pmca').rglob('*.py'))
+        if action != 'authenticate':required += sorted(self.scripts.glob('*.py'))
+        required += sorted((self.pmca / 'pmca').rglob('*.py'))
+        if HOST_PYTHON.is_dir():
+            for package in ('Cryptodome','Crypto','usb'):
+                required += sorted(path for path in (HOST_PYTHON/package).rglob('*')
+                                   if path.is_file() and path.suffix in ('.py','.so'))
         if action == 'root':
             payload = next((path for path in (self.scripts / PAYLOAD_NAME,
                            self.scripts / 'payload' / PAYLOAD_NAME,
@@ -302,13 +312,13 @@ class Sources:
         self.verify(manifest, action)
         sys.path.insert(0, str(self.scripts))
         sys.path.insert(0, str(self.pmca))
-        probe = importlib.import_module('usb_service_probe')
+        probe = None if action == 'authenticate' else importlib.import_module('usb_service_probe')
         sony = importlib.import_module('pmca.usb.sony')
         generic = importlib.import_module('pmca.usb.driver.generic')
         libusb = importlib.import_module('pmca.usb.driver.generic.libusb')
-        version = importlib.import_module('jiritsu_version_read')
-        deploy = importlib.import_module('jiritsu_preload_deploy')
-        runner = importlib.import_module('jiritsu_run_command')
+        version = None if action == 'authenticate' else importlib.import_module('jiritsu_version_read')
+        deploy = None if action == 'authenticate' else importlib.import_module('jiritsu_preload_deploy')
+        runner = None if action == 'authenticate' else importlib.import_module('jiritsu_run_command')
         for name, module in tuple(sys.modules.items()):
             if name == 'usb_service_probe' or name.startswith(('pmca', 'jiritsu_')):
                 filename = getattr(module, '__file__', None)
@@ -385,7 +395,7 @@ def _consume(control, sources, action, manifest):
     result = result_base(control, action)
     result['sources'] = manifest
     current = backend = auth = None
-    started = False
+    stop_required = False
     usb_core = usb_util = None
     guard = None
     old_alarm = None
@@ -447,10 +457,13 @@ def _consume(control, sources, action, manifest):
             return instance, generic.GenericUsbDriver(instance)
 
         def authenticate(driver):
-            nonlocal auth, started
+            nonlocal auth, stop_required
             auth = ObservedAuth(driver)
-            started = True
+            stop_required = not (action == 'authenticate' and driver.getId()[1] == 0x0336)
             auth.start()
+            if not stop_required:
+                log('existing_service_mode_retained', pid=0x0336,
+                    original_start_requested=True, stop_on_close=False)
             auth.authenticate()
             if not authentication_proven(auth.exchanges):
                 raise blocked('authentication_result_missing', 'real final Senser result 6/success byte 1 was not observed')
@@ -473,15 +486,16 @@ def _consume(control, sources, action, manifest):
             current = None
             backend = None
             auth = None
-            started = False
+            stop_required = False
             guard, current = guard.follow_generation(usb_core.find, 0x0336)
             backend, driver = open_driver(current)
         authenticate(driver)
         result['authentication_verified'] = True
         result['target'] = guard.check_device(current)
         transport = sony.SonySenserDevice(driver)
-        info = sony.SonySenserCamera(transport).readHasp()
-        result['product_info'] = {'bytes': len(info), 'sha256': hashlib.sha256(info).hexdigest()}
+        if action != 'authenticate':
+            info = sony.SonySenserCamera(transport).readHasp()
+            result['product_info'] = {'bytes': len(info), 'sha256': hashlib.sha256(info).hexdigest()}
         if action == 'version':
             content = version.read_version(transport, log)
             result['version'] = {'bytes': len(content), 'sha256': hashlib.sha256(content).hexdigest(),
@@ -548,7 +562,7 @@ def _consume(control, sources, action, manifest):
         if old_alarm is not None:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, old_alarm)
-        pending = end_session(control, guard, auth if started else None, current,
+        pending = end_session(control, guard, auth if stop_required else None, current,
                               usb_util.dispose_resources if usb_util else None, log,
                               recovery_required=result['preload_recovery_required'])
         result['preload_recovery_required'] |= pending

@@ -11,8 +11,9 @@ esac
 /bin/busybox mount -t sysfs sysfs /sys || fail sysfs
 /bin/busybox grep -q ' /dev .* - devtmpfs ' /proc/self/mountinfo || /bin/busybox mount -t devtmpfs devtmpfs /dev || fail devtmpfs
 [ ! -e /dev/qemu-simulation ] || fail simulation-exists
-/bin/busybox mount -o remount,size=268435456 devtmpfs /dev || fail ram-capacity
-/qemu/audit space /dev 167772160 || fail ram-space
+/bin/busybox mount -o remount,size=536870912 devtmpfs /dev || fail ram-capacity
+read -r helper_bytes < /qemu/helper-bytes || fail ram-budget
+/qemu/audit space /dev "$helper_bytes" || fail ram-space
 /bin/busybox mkdir -m 700 /dev/qemu-simulation || fail simulation-directory
 while read -r relative bytes digest mode; do
     parent=${relative%/*}
