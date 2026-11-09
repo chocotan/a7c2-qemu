@@ -2,6 +2,7 @@
 import fcntl
 import os
 from pathlib import Path
+from contextlib import nullcontext
 
 import setting_store as store
 
@@ -109,6 +110,14 @@ class _Lease:
     def load(self, firmware_sha):
         self.check()
         return store.load(self._instance.path, firmware_sha)
+
+    def reset(self, expected_generation, *, confirmed):
+        self.check()
+        def offline(path):
+            if path!=self._instance.path:raise LeaseError('offline lease path mismatch')
+            self.check()
+            return nullcontext(self)
+        return store.reset(self._instance.path, expected_generation, confirmed, offline_lease=offline)
 
     def commit(self, inputfd_or_bytes, firmware_sha, expected_current_generation,
                *, guest_sha256):

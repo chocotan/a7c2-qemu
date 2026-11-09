@@ -58,6 +58,18 @@ def test_same_process_and_cross_process_exclusion(instance):
     assert child_attempt(instance) == 'acquired'
 
 
+def test_reset_with_existing_lease_keeps_exclusion_until_transaction_exit(instance):
+    first=save(instance)
+    with instance.run_lease() as token:
+        with pytest.raises(store.StoreError,match='confirmation'):token.reset(first['generation'],confirmed=False)
+        result=token.reset(first['generation'],confirmed=True)
+        assert result['generation']!=first['generation'] and token.load(FIRMWARE)['state']=='reset'
+        assert child_attempt(instance)=='busy'
+        assert (Path(instance.path)/('generation-'+first['generation'])/'backup.bin').read_bytes()==DATA
+    assert child_attempt(instance)=='acquired'
+    with pytest.raises(lifecycle.LeaseError):token.reset(result['generation'],confirmed=True)
+
+
 def test_exception_closes_fd_and_releases(instance):
     with pytest.raises(RuntimeError, match='controller failure'):
         with instance.run_lease() as lease:

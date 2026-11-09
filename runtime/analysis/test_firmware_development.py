@@ -84,6 +84,9 @@ def test_vm_selection_reuses_owner_gate_and_does_not_mutate_global_environment(t
     with pytest.raises(ValueError,match='OFF'):vm.select_firmware_test()
     vm.state='disconnected';vm.select_firmware_test()
     assert vm.firmware_selection['original'] and not vm.firmware_verification
+    assert vm.firmware_selection['restore_path']=='/usr/lib/a'
+    vm.select_firmware_test(destination='/usr/bin/another')
+    assert vm.firmware_selection['restore_path']=='/usr/bin/another'
 
 
 def test_vm_guest_readback_queues_only_real_native_session(tmp_path,monkeypatch):

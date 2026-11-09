@@ -157,14 +157,39 @@ static uintptr_t u_trace(uintptr_t a,uintptr_t b,uintptr_t c,uintptr_t d,uintptr
     if(a==0x21||a==0x22||a==0x23||a==0x27)emit(0,"TRACE","token=%#lx a1=%#lx a2=%#lx a3=%#lx a4=%#lx lr=%p",a,b,c,d,e,__builtin_return_address(0));
     errno=saved;return real_trace(a,b,c,d,e);
 }
+#define INIT_WRAPPER(name,event) \
+    static uint32_t (*real_##name)(uintptr_t); \
+    static uint32_t u_##name(uintptr_t arg) { \
+        int saved=errno;emit(0,event,"arg=%#lx",arg);errno=saved; \
+        uint32_t r=real_##name(arg);int e=errno; \
+        emit(r!=0,event "_RETURN","rc=%u errno=%d",r,e);errno=e;return r; \
+    }
+INIT_WRAPPER(control_init,"CONTROL_INIT_ENTER")
+INIT_WRAPPER(control_thread_init,"CONTROL_THREAD_INIT_ENTER")
+INIT_WRAPPER(control_do_initialize,"CONTROL_DO_INITIALIZE_ENTER")
+static uint32_t (*real_usbif_initialize)(uintptr_t,uintptr_t);
+static uint32_t u_usbif_initialize(uintptr_t handle,uintptr_t callbacks) {
+    int saved=errno;
+    emit(0,"USBIF_INITIALIZE_ENTER","handle=%#lx callbacks=%#lx",handle,callbacks);
+    if(callbacks)blob("USBIF_CALLBACK_INPUT",callbacks,120);
+    errno=saved;uint32_t r=real_usbif_initialize(handle,callbacks);int e=errno;
+    emit(r!=0,"USBIF_INITIALIZE_ENTER_RETURN","rc=%u errno=%d",r,e);errno=e;return r;
+}
 static uint32_t (*real_openSvc)(uintptr_t);
 static uintptr_t (*real_infra)(uintptr_t,uint32_t,uintptr_t),(*real_create)(uintptr_t);
 static uint32_t (*real_start)(uintptr_t,uint32_t,uintptr_t,uint32_t,uintptr_t);
 static uintptr_t (*real_process)(uintptr_t,uint32_t,uintptr_t),(*real_complete)(uint32_t,uintptr_t,int32_t);
 static uint32_t (*real_mid)(uintptr_t),(*real_category)(uintptr_t);
+static void service_callbacks(uintptr_t svc,const char *phase) {
+    uintptr_t root=pointer(svc+0xd0),ops=root?pointer(root+0x90):0;
+    emit(0,"CALLBACK_TREE","phase=%s svc=%#lx root=%#lx ops=%#lx event9=%#lx",phase,svc,root,ops,ops?pointer(ops+0x48):0);
+    if(root)blob("CALLBACK_ROOT",root,160);
+    if(ops)blob("CALLBACK_OPS",ops,96);
+}
 static uint32_t u_openSvc(uintptr_t svc) {
     int saved=errno;emit(0,"OPEN_SVC_ENTER","svc=%#lx state=%u",svc,word(svc+0xe4));errno=saved;
-    uint32_t r=real_openSvc(svc);int e=errno;emit(r!=0,"OPEN_SVC_RETURN","svc=%#lx state=%u rc=%u errno=%d",svc,word(svc+0xe4),r,e);errno=e;return r;
+    service_callbacks(svc,"before-open");errno=saved;
+    uint32_t r=real_openSvc(svc);int e=errno;emit(r!=0,"OPEN_SVC_RETURN","svc=%#lx state=%u rc=%u errno=%d",svc,word(svc+0xe4),r,e);service_callbacks(svc,"after-open");errno=e;return r;
 }
 static uintptr_t u_infra(uintptr_t ops,uint32_t did,uintptr_t cb) {
     int saved=errno;emit(0,"INFRA_ENTER","ops=%#lx did=%u callback=%#lx",ops,did,cb);errno=saved;
@@ -172,6 +197,7 @@ static uintptr_t u_infra(uintptr_t ops,uint32_t did,uintptr_t cb) {
 }
 static uint32_t u_start(uintptr_t svc,uint32_t did,uintptr_t arg,uint32_t len,uintptr_t cb) {
     int saved=errno;emit(0,"SVC_START_ENTER","svc=%#lx state=%u did=%u cbarg=%#lx length=%u callback=%#lx",svc,word(svc+0xe4),did,arg,len,cb);errno=saved;
+    service_callbacks(svc,"before-start");errno=saved;
     uint32_t r=real_start(svc,did,arg,len,cb);int e=errno;emit(r!=0,"SVC_START_RETURN","svc=%#lx state=%u rc=%u errno=%d",svc,word(svc+0xe4),r,e);errno=e;return r;
 }
 static uintptr_t u_create(uintptr_t msg) {
@@ -375,6 +401,7 @@ static int find_dso(struct dl_phdr_info *info,size_t size,void *arg) {
             {0x18cb4,{0xa9b57bfd,0x52800041,0x910003fd,0xa90153f3},u_sen_create,(void **)&real_sen_create},
             {0x19cbc,{0xa9b47bfd,0x910003fd,0xa90153f3,0xaa0003f3},u_storage_create,(void **)&real_storage_create},
 #endif
+            {0x17da4,{0xa9bd7bfd,0x910003fd,0xa9025bf5,0xaa0003f6},u_usbif_initialize,(void **)&real_usbif_initialize},
             {0x134c8,{0xa9b47bfd,0x910003fd,0xa9025bf5,0xb940e415},u_openSvc,(void **)&real_openSvc},
             {0x139b8,{0xa9bc7bfd,0x910003fd,0xa9025bf5,0x53001c75},u_start,(void **)&real_start},
             {0x155fc,{0xa9b37bfd,0x90000041,0x91067021,0x910003fd},u_create,(void **)&real_create},
@@ -394,6 +421,9 @@ static int find_dso(struct dl_phdr_info *info,size_t size,void *arg) {
             {0x18a64,{0xa9bb7bfd,0x7100dc3f,0x910003fd,0xa90363f7},u_do_start,(void **)&real_do_start},
             {0x18bb0,{0xa9bb7bfd,0x910003fd,0xa90153f3,0x900000d4},u_sync_startstop,(void **)&real_sync_startstop},
 #endif
+            {0x13d3c,{0xa9bc7bfd,0x52800003,0x52800002,0x52800021},u_control_init,(void **)&real_control_init},
+            {0x15654,{0xa9be7bfd,0x52800001,0x910003fd,0xf9000bf3},u_control_thread_init,(void **)&real_control_thread_init},
+            {0x18e5c,{0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},u_control_do_initialize,(void **)&real_control_do_initialize},
             {0x14a90,{0xa9b87bfd,0x910003fd,0xa90153f3,0xaa0003f3},u_process,(void **)&real_process},
             {0x188a4,{0xa9bd7bfd,0x7140401f,0x910003fd,0xa90153f3},u_complete,(void **)&real_complete}};
         for(unsigned i=0;i<sizeof entries/sizeof *entries;i++)entry_install(base,entries+i);

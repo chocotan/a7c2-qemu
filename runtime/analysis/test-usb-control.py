@@ -72,8 +72,8 @@ class LocalPeers:
 
 class ControlTests(unittest.TestCase):
     def setUp(self):
-        # AF_UNIX paths must fit even when the runner's TMPDIR is a long checkout path.
-        self.tmp = tempfile.TemporaryDirectory(prefix='usb-control-synthetic-', dir='/tmp')
+        # Keep AF_UNIX paths short; firmware and test artifacts remain in the project TMPDIR.
+        self.tmp = tempfile.TemporaryDirectory(prefix='a7c2-usb-', dir=Path('/run/user') / str(os.geteuid()))
         self.root = Path(self.tmp.name)
         self.run = self.root / 'run-test'
         self.run.mkdir(mode=0o700)

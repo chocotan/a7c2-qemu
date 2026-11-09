@@ -74,15 +74,28 @@ def module_file():
     return path
 
 
-def binary_environment():
-    proof_path=PRODUCT/'source/persistent-flash-build.json'
+def binary_environment(binary=None,ram_state=False):
+    default=binary is None
+    binary=ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64' if default else Path(binary).absolute()
+    proof_path=PRODUCT/'source/persistent-flash-build.json' if default else binary.parent.parent/'persistent-flash-build.json'
+    if not default and (binary.is_symlink() or not binary.is_file()):raise ValueError('Persistent candidate must be a regular file')
     proof=json.loads(proof_path.read_bytes())
-    binary=ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64'
     if proof.get('binary_sha256')!=sha(binary) or proof.get('profile')!='persistent-flash-cold-v1' or proof.get('mmio_base')!='0x0b010000':
         raise ValueError('Rebuild product QEMU with persistent flash support')
     for name,digest in proof['source_files'].items():
         if sha(MODULE_SOURCE/name)!=digest:raise ValueError('Persistent QEMU model source changed')
-    if sha(MODULE_SOURCE/'stage.py')!=proof['stage_source_sha256']:raise ValueError('Persistent QEMU staging source changed')
+    # The pinned default predates opt-in RAM migration; a candidate must match the current stage.
+    default_stage='02e8b028972af302239ca1ecbbbc09747a88aabc26129c2face23f12ba15b276'
+    if proof['stage_source_sha256'] not in ({default_stage} if default else {sha(MODULE_SOURCE/'stage.py')}):
+        raise ValueError('Persistent QEMU staging source changed')
+    if ram_state:
+        ram_proof_path=binary.parent.parent/'ram-state-source.json'
+        ram_proof=json.loads(ram_proof_path.read_bytes())
+        if ram_proof.get('stage_source_sha256')!=sha(PRODUCT/'source/ram-state/stage.py'):
+            raise ValueError('RAM device-state staging source changed')
+        for name,digest in ram_proof['outputs'].items():
+            if sha(binary.parent.parent/'qemu-11.1.2'/name)!=digest:
+                raise ValueError('RAM device-state output changed: '+name)
     return dict(QEMU_SYSTEM_DIR=str(binary.parent),QEMU_SYSTEM_BINARY=binary.name)
 
 
@@ -99,11 +112,11 @@ def instance_lease(instance):
         yield leased
 
 
-def inherited_environment(leased):
+def inherited_environment(leased,binary=None,ram_state=False):
     info=os.fstat(leased['fd'])
     if not stat.S_ISREG(info.st_mode) or info.st_size!=leased['geometry']['backing_bytes']:
         raise ValueError('Persistent inherited descriptor is not the instance disk')
-    return dict(binary_environment(),A7C2_STORAGE_PROFILE=PROFILE,A7C2_EMMC_INSTANCE=str(leased['path']),
+    return dict(binary_environment(binary,ram_state),A7C2_STORAGE_PROFILE=PROFILE,A7C2_EMMC_INSTANCE=str(leased['path']),
                 A7C2_EMMC_FD=str(leased['fd']),A7C2_EMMC_DEV=str(info.st_dev),A7C2_EMMC_INO=str(info.st_ino))
 
 

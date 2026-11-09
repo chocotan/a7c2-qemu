@@ -129,6 +129,92 @@ def test_usbip_requires_actual_ep0_address_completion(status,data,actual,accepte
     assert fields['endpoint']==0 and fields['direction']==0 and fields['transfer_length']==0
 
 
+@pytest.mark.parametrize('before', ['absent', 'directory', 'symlink', 'foreign_mount'])
+def test_senser_mountpoint_is_real_and_restores_only_its_empty_directory(tmp_path,before):
+    import ast,subprocess
+    tree=ast.parse(Path(device.__file__).read_text())
+    text=next(node.value for node in ast.walk(tree) if isinstance(node,ast.Constant) and
+              isinstance(node.value,str) and node.value.startswith('#!/bin/busybox sh\nset -e\nstate='))
+    state=tmp_path/'state';setting=tmp_path/'setting';setting.mkdir();(setting/'sen').mkdir()
+    mode=setting/'sen/smode';mode.write_bytes(b'ORIGINAL\n')
+    target=tmp_path/'jiritsu';mounts=tmp_path/'mounts';mounts.write_text('')
+    if before=='directory':target.mkdir();(target/'kept').write_bytes(b'original file')
+    if before=='symlink':target.symlink_to(setting,target_is_directory=True)
+    text=text.replace('/log/qemu/usb-senser-mode',str(state)).replace('/setting',str(setting)).replace('/tmp/jiritsu',str(target)).replace('/proc/mounts',str(mounts)).replace('/simulation/audit','true')
+    text=text.replace('/bin/busybox sync','true').replace('/bin/busybox ','')
+    script=tmp_path/'mode.sh';script.write_text(text)
+    result=subprocess.run(['bash',str(script),'prepare'],capture_output=True)
+    if before=='symlink':
+        assert result.returncode==78 and mode.read_bytes()==b'ORIGINAL\n' and target.is_symlink()
+        return
+    assert result.returncode==0 and target.is_dir() and mode.read_bytes()==b'UU\n'
+    if before=='foreign_mount':
+        mounts.write_text('/dev/foreign '+str(target)+' vfat rw 0 0\n')
+        result=subprocess.run(['bash',str(script),'restore'],capture_output=True)
+        assert result.returncode==78 and target.is_dir() and mode.read_bytes()==b'UU\n'
+        return
+    for _ in range(2):
+        result=subprocess.run(['bash',str(script),'restore'],capture_output=True)
+        assert result.returncode==0 and mode.read_bytes()==b'ORIGINAL\n'
+    if before=='absent':assert not target.exists()
+    else:assert (target/'kept').read_bytes()==b'original file'
+
+
+def test_usbif_initialize_wrapper_forwards_both_original_machine_arguments(tmp_path):
+    import subprocess
+    from elftools.elf.elffile import ELFFile
+    import struct
+    original=Path(__file__).parent/'menu-root/usr/lib/libInfraUsbCmn.so'
+    if original.exists():
+        with original.open('rb') as stream:
+            elf=ELFFile(stream)
+            for address,word in ((0x17db0,0xaa0003f6),(0x17dbc,0xaa0103f5),(0x17ea8,0xb4000435),(0x17eb8,0xaa1503e1),(0x17ebc,0xd2800f02),(0x17ec8,0x97ffd856)):
+                segment=next(s for s in elf.iter_segments() if s['p_type']=='PT_LOAD' and s['p_vaddr']<=address<s['p_vaddr']+s['p_filesz'])
+                stream.seek(segment['p_offset']+address-segment['p_vaddr'])
+                assert struct.unpack('<I',stream.read(4))[0]==word
+    source=Path(__file__).resolve().parents[2]/'source/usb-device/usb-start-observe.c'
+    text=source.read_text();start=text.index('static uint32_t (*real_usbif_initialize)');end=text.index('\nstatic uint32_t (*real_openSvc)',start)
+    test=tmp_path/'usbif-abi.c'
+    test.write_text('''#include <stdint.h>
+#include <stddef.h>
+#include <errno.h>
+#include <assert.h>
+static unsigned logs,blobs,calls; static uintptr_t expected_handle,expected_callbacks; static uint32_t reply;
+static void emit(int error,const char *kind,const char *format,...){(void)error;assert(kind&&format);errno=999;logs++;}
+static void blob(const char *kind,uintptr_t p,size_t n){assert(kind&&p==expected_callbacks&&n==120);errno=888;blobs++;}
+static uint32_t original_call(uintptr_t handle,uintptr_t callbacks){assert(handle==expected_handle&&callbacks==expected_callbacks&&errno==27);calls++;errno=41;return reply;}
+'''+text[start:end]+'''
+int main(void){unsigned char table[120]={1,2,3};expected_handle=0x1234;expected_callbacks=(uintptr_t)table;real_usbif_initialize=original_call;errno=27;reply=0xabcdef01;assert(u_usbif_initialize(expected_handle,expected_callbacks)==reply);assert(errno==41&&table[0]==1&&table[1]==2&&table[2]==3&&calls==1&&blobs==1&&logs==2);expected_callbacks=0;errno=27;reply=0;assert(u_usbif_initialize(expected_handle,0)==0&&errno==41);assert(calls==2&&blobs==1&&logs==4);return 0;}
+''')
+    for flags,name in ((['-O2'],'strict'),(['-O1','-fsanitize=address,undefined'],'sanitized')):
+        binary=tmp_path/name
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',*flags,str(test),'-o',str(binary)],check=True,capture_output=True)
+        subprocess.run([str(binary)],check=True,capture_output=True)
+
+
+def test_callback_tree_observer_is_bounded_and_never_corrects_original_pointer(tmp_path):
+    import subprocess
+    source=Path(__file__).resolve().parents[2]/'source/usb-device/usb-start-observe.c'
+    text=source.read_text();start=text.index('static void service_callbacks(');end=text.index('\n}',start)+2;function=text[start:end]
+    test=tmp_path/'callback-observe.c'
+    test.write_text('''#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <assert.h>
+static uintptr_t root_value,ops_value,event_value;
+static unsigned reads,root_blobs,ops_blobs,emitted;
+static uintptr_t pointer(uintptr_t p){reads++; if(p==0x10d0)return root_value; if(p==0x2090)return ops_value; assert(p==0x3048); return event_value;}
+static void emit(int error,const char *kind,const char *format,...){assert(!error&&strcmp(kind,"CALLBACK_TREE")==0&&format);emitted++;}
+static void blob(const char *kind,uintptr_t p,size_t n){if(!strcmp(kind,"CALLBACK_ROOT")){assert(p==0x2000&&n==160);root_blobs++;}else{assert(!strcmp(kind,"CALLBACK_OPS")&&p==0x3000&&n==96);ops_blobs++;}}
+'''+function+'''
+int main(void){service_callbacks(0x1000,"empty");assert(reads==1&&emitted==1&&!root_blobs&&!ops_blobs);root_value=0x2000;service_callbacks(0x1000,"root-only");assert(reads==3&&root_blobs==1&&!ops_blobs);ops_value=0x3000;event_value=0x4001;service_callbacks(0x1000,"unaligned");assert(event_value==0x4001&&reads==6&&root_blobs==2&&ops_blobs==1);event_value=0x4000;service_callbacks(0x1000,"valid");assert(event_value==0x4000&&reads==9&&emitted==4&&root_blobs==3&&ops_blobs==2);return 0;}
+''')
+    for flags,name in ((['-O2'],'strict'),(['-O1','-fsanitize=address,undefined'],'sanitized')):
+        binary=tmp_path/name
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',*flags,str(test),'-o',str(binary)],check=True,capture_output=True)
+        subprocess.run([str(binary)],check=True,capture_output=True)
+
+
 def test_default_cold_environment_does_not_enable_usb():
     import original_cold_boot as cold
     assert 'PRODUCT_SONY_USB_DEVICE' not in cold.guest_environment({})

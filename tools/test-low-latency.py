@@ -32,7 +32,7 @@ def main():
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1', PYTEST_DISABLE_PLUGIN_AUTOLOAD='1', DISPLAY='',
                    PYTHONPATH=str(A), LC_ALL='C')
         if argv[:len(common)] == common:
-            argv = argv + ['--junitxml=' + str(OUT / (name + '.xml')), '--basetemp', '/var/tmp/a7-low-' + str(os.getpid()) + '-' + name]
+            argv = argv + ['--junitxml=' + str(OUT / (name + '.xml')), '--basetemp', str(OUT / (name + '-pytest'))]
         temporary = OUT / (name + '-tmp'); temporary.mkdir(mode=0o700)
         env['TMPDIR'] = str(temporary)
         start = time.monotonic()
@@ -44,9 +44,9 @@ def main():
         (OUT/(name+'.json')).write_text(json.dumps(row, indent=2)+'\n')
         print(name, result.returncode, flush=True)
         return row
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         rows = list(pool.map(one, commands.items()))
-    result = dict(schema='a7c2-product-low-latency-host-v1', workers=8, passed=all(r['returncode']==0 for r in rows),
+    result = dict(schema='a7c2-product-low-latency-host-v1', workers=2, passed=all(r['returncode']==0 for r in rows),
                   results=rows, vm_executed=False, capture_verified=False)
     (OUT/'result.json').write_text(json.dumps(result, indent=2)+'\n')
     print('RESULT', OUT, flush=True)

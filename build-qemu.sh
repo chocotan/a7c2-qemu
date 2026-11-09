@@ -5,12 +5,15 @@ set -euo pipefail
 here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 install_build=1
 sony_device=0
-while [[ "${1:-}" == --stage-only || "${1:-}" == --sony-device ]]; do
-  if [[ "$1" == --stage-only ]]; then install_build=0; else sony_device=1; fi
+ram_state=0
+while [[ "${1:-}" == --stage-only || "${1:-}" == --sony-device || "${1:-}" == --ram-state ]]; do
+  if [[ "$1" == --stage-only ]]; then install_build=0
+  elif [[ "$1" == --sony-device ]]; then sony_device=1
+  else ram_state=1; fi
   shift
 done
 if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
-  echo 'Usage: ./build-qemu.sh [--stage-only] [--sony-device] [source/vendor/qemu-11.1.2.tar.xz]'
+  echo 'Usage: ./build-qemu.sh [--stage-only] [--sony-device] [--ram-state] [source/vendor/qemu-11.1.2.tar.xz]'
   echo 'Offline build, including executable QEMU smoke tests; --stage-only skips installation.'
   echo 'Supply the pinned archive locally; no source or dependencies are downloaded. See README.md.'
   exit 0
@@ -18,6 +21,9 @@ fi
 [[ $# -le 1 ]] || { echo 'Usage: ./build-qemu.sh [--stage-only] [SOURCE_ARCHIVE]' >&2; exit 2; }
 if [[ "$sony_device" == 1 && "$install_build" == 1 ]]; then
   echo '--sony-device requires --stage-only; the tested default binary is kept.' >&2; exit 2
+fi
+if [[ "$ram_state" == 1 && ( "$install_build" != 0 || "$sony_device" != 1 ) ]]; then
+  echo '--ram-state requires --stage-only --sony-device; the default binary is kept.' >&2; exit 2
 fi
 archive_input="${1:-$here/source/vendor/qemu-11.1.2.tar.xz}"
 [[ -f "$archive_input" ]] || {
@@ -119,6 +125,9 @@ print('USB_PATCHED_SOURCE_IDENTITIES_PASS')
 PY
 python3 -B "$here/report/virtual-pcidma/stage_hardware.py" "$src" > "$stage/pci-hardware-source.json"
 python3 -B "$here/source/persistent-flash/stage.py" "$src" > "$stage/persistent-flash-source.json"
+if [[ "$ram_state" == 1 ]]; then
+  python3 -B "$here/source/ram-state/stage.py" "$src" > "$stage/ram-state-source.json"
+fi
 if [[ "$sony_device" == 1 ]]; then
   python3 -B "$here/source/usb-device/stage.py" "$src" > "$stage/usb-device-source.json"
 fi
@@ -179,6 +188,18 @@ receipt['binary']=str(binary);receipt['build_completed']=True
 (stage/'usb-device-build.json').write_text(json.dumps(receipt,indent=2)+'\n')
 PY
 fi
+if [[ "$ram_state" == 1 ]]; then
+  python3 -B - "$here" "$stage" <<'PY'
+import hashlib,json,os,sys
+from pathlib import Path
+root,stage=map(Path,sys.argv[1:]);binary=stage/'build/qemu-system-aarch64'
+with binary.open('rb') as source:digest=hashlib.file_digest(source,'sha256').hexdigest()
+record=dict(schema='a7c2-product-ram-window-build-v1',binary=str(binary.relative_to(root)),binary_sha256=digest)
+path=root/'source/ram-state-build.json';temporary=path.with_suffix('.new')
+with temporary.open('x') as output:output.write(json.dumps(record,indent=2)+'\n');output.flush();os.fsync(output.fileno())
+os.replace(temporary,path)
+PY
+fi
 if [[ "$install_build" == 0 ]]; then
   printf 'STAGED_QEMU_BINARY=%s\n' "$stage/build/qemu-system-aarch64"
   exit 0
@@ -203,4 +224,7 @@ install -m 0644 "$stage/persistent-flash-build.json" "$here/source/persistent-fl
   runtime/sources/qemu-11.1.2/build-user/qemu-aarch64 \
   runtime/sources/qemu-tools/usr/lib/libfdt.so.1 runtime/sources/qemu-tools/usr/bin/dtc \
   runtime/analysis/qemu-virt-board/virt-packed.dtb) > "$here/source/build-programs.sha256"
+# The documented build must also create guest helpers/media; cached menu-root is not a product input.
+mkdir -p "$here/runtime/tmp"
+MENU_RM_FILE=1 TMPDIR="$here/runtime/tmp" bash "$here/runtime/analysis/build-observers.sh"
 printf 'Built and installed. Source/build logs remain in %s\n' "$stage"

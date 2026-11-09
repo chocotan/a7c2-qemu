@@ -27,6 +27,8 @@ SETTINGS = '0800_appli/setting/'
 HEADER_SHA = 'ee176eb36cadf11d0f9d02f0829121352fa9d5804932a33831764618c23e8c5e'
 IMDB_SHA = '14f3cd439bf27a6878b97d155c3cd97cc534a57395f922aed56e59a5b8b32f31'
 PATCH_SHA = '0ebba8dd2fefad4684419d1111a56c659c7fd04473c04da39e6f2e7d8ac0facf'
+MSC_IMDB_SHA = '5af281a4605cfd8e4b01bc1eb0d770438c4212cd7e193a6f5849e8697e5b8777'
+USB_MSC_INIT = {'libInfraUsbCmn.so', 'libUsbControl.so'}
 FAT_SHA = '535d8f0570a4e56e04e71c400863ed39bbd735c85a9aa8e32748a136968d495c'
 DAT4_SHA = 'a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222'
 INPUTS = {
@@ -161,6 +163,28 @@ def patch_imdb(data):
             changed.append(name)
     if len(changed) != 10 or set(changed) != SKIP or sha(out) != PATCH_SHA:
         raise ValueError('IMDB exact transformation mismatch')
+    return bytes(out)
+
+
+def usb_msc_imdb(data):
+    if sha(data) != PATCH_SHA:
+        raise ValueError('MSC IMDB requires the verified patched input')
+    elf, out, original, seen = ELF(data), bytearray(data), bytearray(data), set()
+    for va in range(0x1db20, 0x21d80, 0x48):
+        if elf.number(va, '<I') == 40:
+            break
+        ptr = elf.number(va+16, '<Q')
+        name = elf.cstr(ptr) if ptr else ''
+        if name in SKIP:
+            mask = elf.number(va+8, '<I')
+            if mask & 7 or name in seen:
+                raise ValueError('Unexpected patched IMDB entry')
+            struct.pack_into('<I', original, elf.offset(va+8, 4), mask | 7)
+            if name in USB_MSC_INIT:
+                struct.pack_into('<I', out, elf.offset(va+8, 4), mask | 7)
+            seen.add(name)
+    if seen != SKIP or sha(original) != IMDB_SHA or sha(out) != MSC_IMDB_SHA:
+        raise ValueError('MSC IMDB exact transformation mismatch')
     return bytes(out)
 
 

@@ -41,6 +41,7 @@
 /source/build-programs.sha256
 /source/pci-hardware-build.json
 /source/persistent-flash-build.json
+/source/ram-state-build.json
 /runtime/analysis/firmware-tests/
 /runtime/analysis/persistent-flash-module/
 /source/*.log
@@ -69,4 +70,5 @@ runtime/analysis/camera-instances/
 *.cpio.gz
 *.raw
 *.so
+!tools/jiritsu/payload/a7c2_shell.arm64.so
 *.pem

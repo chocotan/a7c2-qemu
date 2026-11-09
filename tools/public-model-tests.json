@@ -249,5 +249,7 @@
   "runtime/analysis/test_factory_images.py",
   "runtime/analysis/test_observer_process_scope.py",
   "runtime/analysis/test_original_cold_boot.py",
-  "runtime/analysis/test_sony_usb_device.py"
+  "runtime/analysis/test_sony_usb_device.py",
+  "runtime/analysis/test_original_ram_restore.py",
+  "runtime/analysis/test_usb_msc.py"
 ]

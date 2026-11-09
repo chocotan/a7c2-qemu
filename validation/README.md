@@ -1,12 +1,18 @@
 # 本包验证记录
 
-## 11月9日原USB宿主配置与jiritsu七步认证
+## 11月9日原AP同盘RAM保存与恢复
 
-[USB收据](usb-jiritsu-20261109.json)与[技术报告](../docs/tech/2026-11-09-usb-jiritsu.md)记录显式独立候选 `0f327c08…` 的最终原Senser运行 `run-x8ejj3k4`：真实本机VHCI识别 `054c:0336`，原EP0完成地址请求后实际配置1、classff／4个Bulk端点；产品认证CLI rc0、原Start后七步返回8/4/8/4/8/4/6且成功字节1。
+[RAM恢复收据](ram-restore-20261109.json)与[技术报告](../docs/tech/2026-11-09-ram-restore.md)记录 v5 实际源 AP→QEMU RAM保存→源正常退出→同持久盘新进程 incoming/cont→解冻19卷→原MENU新帧与拍摄页返回。492,145,379B流、相同boot_id、两组原App输入边、双QMP0/无信号/owner退出及两线程独立读回均通过。恢复后的真实盘写入与保存点分账，默认QEMU未替换。
 
-同轮实际USB detach、原smode恢复、设置／SD保存、flush生命周期、19卷冻结、单次QMP0／无VM信号／owner和peer退出／租约释放均核齐，30份运行源码无漂移。宿主按原inode恢复attach/detach权限并卸载本轮模块。默认QEMU未替换。最终必要host27通过／8外部脚本缺失跳过／10子测试；DWC3 strict与ASan/UBSan各11组，原失败与重复节点不合并计数。
+v1 pre-save拒绝、v2 guest前proof拒绝、v3/v4无新帧均保留；只有v5标为通过。该结果是限定的QEMU RAM/三设备状态恢复，不是Sony WBI、物理热启动、完整机器审计或拍摄；这些字段仍false。
 
-v1-v9失败与修复分别保留，v8认证真而后继HASP/Stop服务失败仍为整轮FAIL，v9省略Start认证失败而正常退出也仍FAIL；没有跨轮拼成功。普通AP菜单USB路径、同USB version/root读取、完整硬件启动／物理兼容仍未通过；拍摄与完整更新deferred。下方原日期／独立范围的USB未验结论保持历史含义。
+## 11月9日原USB宿主配置、jiritsu认证与guest root
+
+[USB收据](usb-jiritsu-20261109.json)与[技术报告](../docs/tech/2026-11-09-usb-jiritsu.md)的最新原Senser运行为 `run-s3tz4z6p`，使用独立候选 `2e1e562a…`：真实本机VHCI识别 `054c:0336`，原EP0完成地址请求后实际配置1、classff／4个Bulk端点；产品root CLI rc0，原Start后七步返回8/4/8/4/8/4/6且成功字节1，19B版本为 `32014_05.2025101101`。
+
+同一消费者上传并读回10,328B小页worker（SHA `06324844…`），worker实际返回退出码0及Uid/Gid各四列全零；上传文件删除、worker停止、512换行解除与最终512空格中和读回均通过，恢复锁存解除。随后USB detach、原smode恢复、设置／SD保存、flush生命周期、19卷冻结、单次QMP0／无VM信号／owner和peer退出／租约释放均核齐，37份运行源码无漂移。默认QEMU未替换；第二轮宿主权限和模块已恢复，旧VHCI端口均释放。
+
+v1-v18失败分别保留，不跨轮拼成功。70,912B旧载荷的上传失败由小worker避开，不宣称通用大OUT或bounce TRB已修复。v17无正常QMP退出，v18完整RAM未抓到；旧run中和仍未证实，两个无VM／无端口的旧server残留继续记录，未用SIGKILL或伪造锁存清理。普通AP菜单USB路径、完整硬件启动／物理兼容仍未通过；拍摄与完整更新deferred。下方原日期／独立范围的USB未验结论保持历史含义。
 
 ## 11月9日无参数默认入口与首个合成LCD
 
@@ -380,3 +386,9 @@ main 已完成独立构建、相机 helper/cpio 启动、单 GTK 窗/LCD、中�
 按用户最终要求，QEMU 完整归档由使用者自行下载；Git 只提供 [下载链接/固定 SHA](../source/vendor/README.md)，不提交大归档或分卷。`SOURCE-ORIGINS.json::external_inputs` 保留本地归档身份，`SOURCE-SHA256SUMS` 更新为实际 Git 源码清单。项目模型、完整 DTC、两阶段补丁和许可证均纳入 Git；没有隐式下载或 LFS 依赖。
 
 发布前复跑受限 host suite，结果写入被忽略的 `publish-host-tests.log`；固定本地归档和双阶段补丁由 `tools/check-source.py` 再核验。官方直链 HEAD 得到 HTTP 200、content-length 141815216（`qemu-download-head.log`），未重新下载归档、执行构建或启动 VM。
+
+## 2026-11-10：默认 1GiB 虚拟 SD
+
+- [原 AP 跨冷启动回载](sd-1g-cold-reload-20261110.json)，SHA-256 `cab8e839d0fa9cabd9a0c70c93619ebc887650437d1cb0ca0be0a651318802f8`：`run-jb2vepxp` 原写 DB/XML 并导出；`run-9ezql8_u` 从该 1GiB 卡再次启动，原 Open/MENU/保存通过，独立 FAT 文件全文与整卡 SHA `1ad32d2436255a575be83f754e85cd5665fe34327e764bacdd9c4e9e4bab9cbe` 一致。原驱动 false、首轮 Backup layout checksum 拒绝及第二次快照成功都保留；不隐去保存重试。
+- [无缓存干净构建与 host](sd-1g-clean-build-host-20261110.json)，SHA-256 `c6d4f9d6acb10711ef772c9bb63b9f9eb3625d631e4aff6bec7d66e4b5a19c01`：只带源码、自有 BODYDATA 和固定 QEMU 归档；QEMU/guest/1GiB 卡及新实例 192MiB RAM0 实际生成。默认 host 413 passed/41 skipped/99 subtests；集中 120+100 项及两线程低延迟八组通过。跳过不记通过，干净副本的构建成功不冒充另行 AP 执行。
+- 早期 `dd conv=notrunc`、空挂载点、观察预算、observer 安装、fixture/pin/StoreError 失败均留在私有原始输出；没有改写旧 128MiB 收据。`capture_verified=false`，容量/DB/XML 持久化不证明照片或录像成片。实现见[专题](../docs/tech/2026-11-10-1g-sd.md)。

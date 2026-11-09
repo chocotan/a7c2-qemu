@@ -41,7 +41,8 @@ test_handoff_lifecycle.py test_live_transport_retention.py test_exception_diagno
 test_media_predicate_watch.py test_sd_session_retry.py test_ee_entry_snapshot.py
 test_startup_caution_compare.py test_body_control_probe.py test_mode_wheel_probe.py
 test_focus_controls_probe.py test_settings_checkpoint.py test_settings_instance.py
-test_instance_lifecycle.py test_vm_instance_lifecycle.py test_settings_environment.py'''.split()
+test_instance_lifecycle.py test_vm_instance_lifecycle.py test_settings_environment.py test_original_ram_restore.py test_usb_msc.py
+test_persistent_settings.py test_sparse_seed.py'''.split()
 
 
 class HostScope:

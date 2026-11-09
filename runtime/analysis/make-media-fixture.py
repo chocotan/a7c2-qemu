@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a small isolated FAT fixture; never format or open a physical device."""
+"""Create isolated FAT fixtures; never format or open a physical device."""
 import io
 import os
 from pathlib import Path
@@ -35,19 +35,20 @@ print('MEDIA_FIXTURE_PASS', target, len(image.getvalue()))
 
 # The original application allocates a 0x939000-byte image database; 4 MiB is only a unit-test card.
 camera=target.with_name('media-camera.fat')
-camera_bytes=128*1024*1024
+camera_bytes=1024*1024*1024
 if shutil.disk_usage(target.parent).free<camera_bytes*3+1024*1024*1024:
     raise RuntimeError('Insufficient host space for camera SD image and initramfs')
 descriptor,name=tempfile.mkstemp(prefix='.media-camera-',dir=target.parent)
 try:
     os.ftruncate(descriptor,camera_bytes)
     os.close(descriptor);descriptor=-1
-    subprocess.run(['mkfs.fat','-F','16','-s','4','-S','512','-i','7C220201',name],check=True,capture_output=True)
+    subprocess.run(['mkfs.fat','-a','-F','16','-s','64','-S','512','-i','7C220201',name],check=True,capture_output=True)
     subprocess.run(['fsck.fat','-n',name],check=True,capture_output=True)
     with open(name,'rb') as stream:
         boot=stream.read(512)
     sectors=int.from_bytes(boot[19:21],'little') or int.from_bytes(boot[32:36],'little')
-    assert sectors*512==camera_bytes and boot[510:512]==b'\x55\xaa'
+    assert (sectors*512==camera_bytes and boot[13]==64 and
+            boot[54:62]==b'FAT16   ' and boot[510:512]==b'\x55\xaa')
     Path(name).replace(camera)
 finally:
     if descriptor>=0:os.close(descriptor)

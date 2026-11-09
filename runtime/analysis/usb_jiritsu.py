@@ -63,16 +63,61 @@ HOST_PYTHON = HERE / 'vendor/host-python'
 if HOST_PYTHON.is_dir() and not HOST_PYTHON.is_symlink():
     sys.path.insert(0, str(HOST_PYTHON))
 
-SCRIPTS = Path(os.environ.get('A7C2_VIRTUAL_JIRITSU_SCRIPTS', str(HERE.parents[1] / 'external/sony-pmca-tools')))
+SCRIPTS = Path(os.environ.get('A7C2_VIRTUAL_JIRITSU_SCRIPTS', str(HERE.parents[1] / 'tools/jiritsu')))
 ROOT_COMMAND = "busybox grep -E '^(Uid|Gid):' /proc/$$/status"
+ROOT_CLEANUP_COMMAND = 'rm -f /tmp/jiritsu/a7c2-payload.so'
 PAYLOAD_NAME = 'a7c2_shell.arm64.so'
-PAYLOAD_SHA256 = 'd261855eb1ea461a77c7847fefef7e6960d4495433d245a9eeb458eef0b35e6e'
+PAYLOAD_SHA256 = '063248441ad61ecf55c495f986831560e2383b8d3feb52da631d77571781d10c'
 NEUTRAL = b' ' * 512
+LARGE_OUT_BYTES = 70912
+LARGE_OUT_CONTENT = bytes(range(256)) * 277
+LARGE_OUT_SHA256 = hashlib.sha256(LARGE_OUT_CONTENT).hexdigest()
 ACTIONS = ('authenticate', 'version', 'root', 'recover')
 
 
 def blocked(code, detail):
     return ControlBlocked(code, detail)
+
+
+def session_budget_seconds(command_count):
+    if type(command_count) is not int or not 0 <= command_count <= 16:
+        raise ValueError('Invalid bounded root command count')
+    return 180 + 30 * command_count  # Keep the original setup/cleanup reserve per command.
+
+
+def check_large_out(transport, version, deploy, log):
+    select = deploy._select(deploy.OUT_PATH)
+    write = deploy._write(deploy.OUT_PATH, LARGE_OUT_CONTENT)
+    version.authorize(transport, (select, write, deploy._READ),
+                      max_bytes=version.ARTIFACT_MAX_BYTES, max_requests=3)
+    version.exchange(transport, select, 4, log)
+    version.exchange(transport, write, 4, log)
+    stored = deploy._read_path(transport, select, log)
+    if stored != LARGE_OUT_CONTENT:
+        raise blocked('large_out_readback_failed', '70,912-byte USB write did not read back intact')
+    log('large_out_verified', bytes=len(stored), sha256=LARGE_OUT_SHA256)
+    return {'bytes': len(stored), 'sha256': LARGE_OUT_SHA256, 'cleanup': 'original worker output removal'}
+
+
+def validate_commands(action, commands):
+    commands=[] if commands is None else commands
+    if (not isinstance(commands,list) or len(commands)>16 or commands and action!='root'
+            or any(not isinstance(value,str) or not value.strip() or len(value.encode('utf-8'))>7800
+                   or any(ord(c)>126 or ord(c)<32 and c not in '\n\t' for c in value) for value in commands)
+            or sum(len(value) for value in commands)>65536):
+        raise blocked('invalid_worker_commands','Root commands require at most sixteen nonempty ASCII commands within the worker mailbox bounds')
+    return list(commands)
+
+
+def command_results_verified(raw, commands):
+    try:
+        rows=json.loads(raw,object_pairs_hook=usbip._object)
+        expected=[ROOT_COMMAND,*commands,ROOT_CLEANUP_COMMAND]
+        return (isinstance(rows,list) and len(rows)==len(expected)
+                and all(isinstance(row,dict) and row.get('command')==command
+                        and type(row.get('exit_status')) is int and row['exit_status']==0
+                        and not row.get('error') for row,command in zip(rows,expected)))
+    except (ValueError,TypeError):return False
 
 
 def result_base(control, action):
@@ -277,30 +322,35 @@ class Sources:
         self.pmca = Path(pmca).resolve(strict=True) if pmca else next(
             (path.resolve() for path in candidates if (path / 'pmca/usb/sony.py').is_file()), candidates[0])
 
+    def payload(self):
+        for path in (self.scripts / PAYLOAD_NAME, self.scripts / 'payload' / PAYLOAD_NAME,
+                     self.scripts.parent / 'payload' / PAYLOAD_NAME):
+            if path.is_file():
+                data = path.read_bytes()
+                if hashlib.sha256(data).hexdigest() != PAYLOAD_SHA256:
+                    raise blocked('root_payload_mismatch', 'shell payload differs from the reviewed artifact')
+                return data
+        raise blocked('root_payload_missing', 'reviewed a7c2_shell.arm64.so is not installed')
+
     def manifest(self, action):
         required = [HERE / 'usb_jiritsu.py', HERE / 'usb_control.py',
                     HERE / 'usb-gadget/usbip_server.py']
         if action != 'authenticate':
-            required += [self.scripts / name for name in ('usb_service_probe.py', 'jiritsu_version_read.py',
+            required += [self.scripts / name for name in ('jiritsu_version_read.py',
                          'jiritsu_preload_deploy.py', 'jiritsu_run_command.py', 'jiritsu_preload_clear.py')]
         required += [self.pmca / name for name in ('pmca/usb/sony.py', 'pmca/usb/crypto.py',
                      'pmca/usb/constants.py', 'pmca/usb/driver/generic/__init__.py',
                      'pmca/usb/driver/generic/libusb.py')]
-        if action != 'authenticate':required += sorted(self.scripts.glob('*.py'))
         required += sorted((self.pmca / 'pmca').rglob('*.py'))
         if HOST_PYTHON.is_dir():
             for package in ('Cryptodome','Crypto','usb'):
                 required += sorted(path for path in (HOST_PYTHON/package).rglob('*')
                                    if path.is_file() and path.suffix in ('.py','.so'))
         if action == 'root':
-            payload = next((path for path in (self.scripts / PAYLOAD_NAME,
-                           self.scripts / 'payload' / PAYLOAD_NAME,
-                           self.scripts.parent / 'payload' / PAYLOAD_NAME) if path.is_file()), None)
-            if payload is None:
-                raise blocked('root_payload_missing', 'reviewed a7c2_shell.arm64.so is not installed')
-            if hashlib.sha256(payload.read_bytes()).hexdigest() != PAYLOAD_SHA256:
-                raise blocked('root_payload_mismatch', 'shell payload differs from the reviewed artifact')
-            required.append(payload)
+            self.payload()
+            required.append(next(path for path in (self.scripts / PAYLOAD_NAME,
+                                  self.scripts / 'payload' / PAYLOAD_NAME,
+                                  self.scripts.parent / 'payload' / PAYLOAD_NAME) if path.is_file()))
         return {str(path.resolve(strict=True)): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in required}
 
@@ -312,7 +362,7 @@ class Sources:
         self.verify(manifest, action)
         sys.path.insert(0, str(self.scripts))
         sys.path.insert(0, str(self.pmca))
-        probe = None if action == 'authenticate' else importlib.import_module('usb_service_probe')
+        probe = None
         sony = importlib.import_module('pmca.usb.sony')
         generic = importlib.import_module('pmca.usb.driver.generic')
         libusb = importlib.import_module('pmca.usb.driver.generic.libusb')
@@ -373,11 +423,11 @@ def consumer_lock(control):
         os.close(fd)
 
 
-def consume(control, sources, action, manifest):
+def consume(control, sources, action, manifest, commands=None, large_out_check=False):
     """Child entry. Tests inject bounded fixtures, production always uses PyUSB."""
     try:
         with consumer_lock(control):
-            return _consume(control, sources, action, manifest)
+            return _consume(control, sources, action, manifest, commands, large_out_check)
     except Exception as error:
         result = result_base(control, action)
         result['sources'] = manifest
@@ -391,7 +441,7 @@ def consume(control, sources, action, manifest):
         return result
 
 
-def _consume(control, sources, action, manifest):
+def _consume(control, sources, action, manifest, commands=None, large_out_check=False):
     result = result_base(control, action)
     result['sources'] = manifest
     current = backend = auth = None
@@ -407,6 +457,9 @@ def _consume(control, sources, action, manifest):
         raise TimeoutError('real jiritsu consumer deadline exceeded')
 
     try:
+        commands=validate_commands(action,commands)
+        if type(large_out_check) is not bool or large_out_check and action != 'root':
+            raise blocked('invalid_large_out_check', 'The explicit 70,912-byte check is root-only and boolean')
         if action not in ACTIONS:
             raise blocked('unsupported_action', str(action))
         if action in ('root', 'recover') and not recovery_target_supported(control):
@@ -459,9 +512,10 @@ def _consume(control, sources, action, manifest):
         def authenticate(driver):
             nonlocal auth, stop_required
             auth = ObservedAuth(driver)
-            stop_required = not (action == 'authenticate' and driver.getId()[1] == 0x0336)
+            # Direct Senser is restored by the owning controller, not a second mode change.
+            stop_required |= action in ('version', 'root') and driver.getId()[1] == 0x0e8a
             auth.start()
-            if not stop_required:
+            if driver.getId()[1] == 0x0336 and not stop_required:
                 log('existing_service_mode_retained', pid=0x0336,
                     original_start_requested=True, stop_on_close=False)
             auth.authenticate()
@@ -477,7 +531,7 @@ def _consume(control, sources, action, manifest):
             if product != 'ILCE-7CM2':
                 raise blocked('unsupported_camera_product', repr(product))
         old_alarm = signal.signal(signal.SIGALRM, deadline)
-        signal.alarm(180)
+        signal.alarm(session_budget_seconds(len(commands)))
         backend, driver = open_driver(current)
         if current.idProduct == 0x0e8a:
             authenticate(driver)
@@ -493,26 +547,26 @@ def _consume(control, sources, action, manifest):
         result['authentication_verified'] = True
         result['target'] = guard.check_device(current)
         transport = sony.SonySenserDevice(driver)
-        if action != 'authenticate':
-            info = sony.SonySenserCamera(transport).readHasp()
-            result['product_info'] = {'bytes': len(info), 'sha256': hashlib.sha256(info).hexdigest()}
-        if action == 'version':
+        if action in ('version', 'root'):
             content = version.read_version(transport, log)
             result['version'] = {'bytes': len(content), 'sha256': hashlib.sha256(content).hexdigest(),
                                  'content_hex': content.hex()}
         if action == 'root':
             sources.verify(manifest, action)
-            payload = probe.read_payload(PAYLOAD_NAME)
+            if large_out_check:
+                result['large_out'] = check_large_out(transport, version, deploy, log)
+                result['large_out_verified'] = True
+            payload = sources.payload()
             if hashlib.sha256(payload).hexdigest() != PAYLOAD_SHA256:
                 raise blocked('root_payload_mismatch', 'payload changed after preflight')
             control.mark_recovery_required('virtual jiritsu worker deployment starting')
             guard._arm_recovery()
             guard.check_device(current)
-            commands = [probe.MOUNT_CARD_COMMAND, ROOT_COMMAND, probe.CLEANUP_COMMAND]
+            worker_commands = [ROOT_COMMAND, *commands, ROOT_CLEANUP_COMMAND]
             value, record = deploy.deploy_and_run(
                 transport, payload, log, approval=deploy.APPROVAL_TOKEN,
                 payload_kind='shell', expected_sha256=PAYLOAD_SHA256,
-                driver=runner.command_runner_driver(commands, interactive=False))
+                driver=runner.command_runner_driver(worker_commands, interactive=False))
             result['deployment'] = record
             # Keep the original failure and latch; a record saying disarmed is insufficient.
             neutralize_preload(transport, control, guard, version, log)
@@ -522,6 +576,10 @@ def _consume(control, sources, action, manifest):
             result['guest_root_verified'] = result['root_status'] is not None
             if not result['guest_root_verified']:
                 raise blocked('guest_root_unverified', 'same-USB worker did not return four zero Uid and Gid columns')
+            if commands:
+                result['requested_commands_verified']=command_results_verified(value,commands)
+                if not result['requested_commands_verified']:
+                    raise blocked('worker_command_failed','Original worker command sequence, cleanup or exit status did not match the request')
         elif action == 'recover':
             neutralize_preload(transport, control, guard, version, log)
             guard.recovery = False
@@ -577,9 +635,12 @@ class JiritsuConsumer:
         self.scripts = scripts
         self.pmca = pmca
 
-    def run(self, action='authenticate'):
+    def run(self, action='authenticate', *, commands=None, large_out_check=False):
         result = result_base(self.control, action)
         try:
+            commands=validate_commands(action,commands)
+            if type(large_out_check) is not bool or large_out_check and action != 'root':
+                raise blocked('invalid_large_out_check', 'The explicit 70,912-byte check is root-only and boolean')
             if action not in ACTIONS:
                 raise blocked('unsupported_action', str(action))
             if action in ('root', 'recover') and not recovery_target_supported(self.control):
@@ -592,7 +653,8 @@ class JiritsuConsumer:
             request = {'action': action, 'sources': manifest, 'scripts': str(sources.scripts),
                        'pmca': str(sources.pmca), 'run_dir': str(context.run_dir),
                        'qmp_path': str(context.qmp_path), 'backend_path': str(context.backend_path),
-                       'lease': context.lease, 'vm_pid': context.vm_pid, 'run_id': context.run_id}
+                       'lease': context.lease, 'vm_pid': context.vm_pid, 'run_id': context.run_id, 'commands': commands,
+                       'large_out_check': large_out_check}
             # -I ignores user PYTHONPATH/site customizations; secret lease travels on stdin.
             completed = subprocess.run([sys.executable, '-I', '-B', str(HERE / 'usb_jiritsu.py'), '--consumer'],
                                        input=json.dumps(request), capture_output=True, text=True,
@@ -620,6 +682,13 @@ class JiritsuConsumer:
             if received['guest_root_verified'] and (action != 'root' or not received['authentication_verified'] or
                     root_from_commands(received.get('commands_json')) is None):
                 raise blocked('guest_root_unverified', 'no matching worker JSON /proc credentials')
+            if commands and (received.get('phase')=='complete' or received.get('requested_commands_verified')):
+                if received.get('requested_commands_verified') is not True or not command_results_verified(received.get('commands_json'),commands):
+                    raise blocked('worker_command_failed','No matching original command and cleanup receipts')
+            if large_out_check and (received.get('large_out_verified') is not True or
+                    received.get('large_out') != {'bytes': LARGE_OUT_BYTES, 'sha256': LARGE_OUT_SHA256,
+                                                  'cleanup': 'original worker output removal'}):
+                raise blocked('large_out_readback_failed', 'Consumer did not bind the exact 70,912-byte content readback')
             return received
         except Exception as error:
             result['blocked_reason'] = {'code': getattr(error, 'code', 'consumer_unavailable'),
@@ -648,7 +717,8 @@ def main(argv=None):
                              vm_pid=request['vm_pid'], backend_path=request['backend_path'],
                              run_id=request['run_id'])
         result = consume(control, Sources(request['scripts'], request['pmca']),
-                         request['action'], request['sources'])
+                         request['action'], request['sources'], request.get('commands'),
+                         request.get('large_out_check', False))
     else:
         if not all((args.run_dir, args.qmp, args.lease, args.vm_pid)):
             parser.error('--run-dir, --qmp, --lease and --vm-pid are required')

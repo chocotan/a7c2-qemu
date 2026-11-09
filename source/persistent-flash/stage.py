@@ -12,15 +12,20 @@ INCLUDE='#include "../block/a7c2-persistent/flash-qemu.c"\n'
 FRAGMENT='''
     /* This profile consumes one parent-owned regular-file descriptor. */
     const char *pf_profile = g_getenv("QEMU_A7PF_PROFILE");
+    const char *pf_retained = g_getenv("QEMU_A7PF_RETAINED_STATE");
     const char *pf_keys[] = {"QEMU_A7PF_FD", "QEMU_A7PF_DEV", "QEMU_A7PF_INO"};
     uint64_t pf_values[3] = {0};
-    bool pf_any = pf_profile != NULL;
+    bool pf_any = pf_profile != NULL || pf_retained != NULL;
     for (unsigned int i = 0; i < 3; i++) {
         pf_any |= g_getenv(pf_keys[i]) != NULL;
     }
     if (pf_any) {
         if (!pf_profile || strcmp(pf_profile, "persistent-flash-cold-v1")) {
             error_report("missing or invalid persistent flash profile");
+            exit(1);
+        }
+        if (pf_retained && strcmp(pf_retained, "1")) {
+            error_report("invalid retained-state flag/profile");
             exit(1);
         }
         for (unsigned int i = 0; i < 3; i++) {
@@ -41,6 +46,7 @@ FRAGMENT='''
             exit(1);
         }
         DeviceState *pf = qdev_new("sony-persistent-flash");
+        qdev_prop_set_bit(pf, "retained-state", pf_retained != NULL);
         qdev_prop_set_int32(pf, "backend-fd", pf_values[0]);
         qdev_prop_set_string(pf, "geometry", "/instance/persistent-geometry.bin");
         qdev_prop_set_uint64(pf, "expected-dev", pf_values[1]);

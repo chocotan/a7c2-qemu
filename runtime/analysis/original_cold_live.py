@@ -45,7 +45,7 @@ def saved_for_close(run):
     except (OSError,ValueError,KeyError,TypeError):return False
 
 
-def live_session(process,run,qmp,built):
+def live_session(process,run,qmp,built,*,leased=None,ram_enabled=False,build_result=None,restored=None):
     from menu_live import serial_command,run_live,display_snapshot_message
     from sd_transport import export_card,directory,report
     from sd_export_lifecycle import export_with_flush_lifecycle
@@ -95,7 +95,7 @@ def live_session(process,run,qmp,built):
             if row.get('card_published'):last_export=row['sha256']
             if row.get('flush_lifecycle',{}).get('ok'):pending=None
             with directory(run/'SD') as parent:report(parent,row)
-        row=export_with_flush_lifecycle(lambda quiesce:export_card(run,built['helper_sources']['media-camera.fat']['bytes'],serial_command=lambda command:serial(command,timeout=90,cleanup=True),qmp=download,expected_old_sha256=last_export,quiesce=quiesce),serial,pending,publish)
+        row=export_with_flush_lifecycle(lambda quiesce:export_card(run,built['sd_card']['bytes'],serial_command=lambda command:serial(command,timeout=90,cleanup=True),qmp=download,expected_old_sha256=last_export,quiesce=quiesce,sparse=True),serial,pending,publish)
         if settings is not None:row['settings']=settings
         save()
         return row
@@ -104,9 +104,26 @@ def live_session(process,run,qmp,built):
         state.update(save_verified=True,sd_export_sha256=sha(run/'SD/export.json'))
         save()
         return result
-    storage._save(run/'runtime-manifest.json',dict(boot_profile='original-init-cold',original_cold_profile='original-init-v1',natural_boot=True,persistent_storage=True,internal_storage_profile=storage.PROFILE,rm_file_image_bytes=built['helper_sources']['media-camera.fat']['bytes'],ram0_sha256=built['ram0_sha256'],kernel_sha256=built['kernel_sha256'],cold_build_result_sha256=sha(run/'build/result.json'),files=built['helper_sources'],original_libraries_unchanged=not built['overwrite']['entries'],capture_verified=False,full_boot_verified=False))
+    build_result=Path(build_result) if build_result is not None else run/'build/result.json'
+    def capture_ram():
+        from original_ram_restore import capture,receipt_path
+        need(ram_enabled and leased is not None,'No owned RAM capture lease')
+        need(saved_for_close(run),'RAM capture requires the current verified SD save and nineteen frozen volumes')
+        state['save_verified']=False;save()
+        stream=run/'ram.qevm'
+        free=os.statvfs(run)
+        need(free.f_bavail*free.f_frsize>=5*1024**3+64*1024**3,'RAM capture needs a 5GiB stream budget plus 64GiB free reserve')
+        binary=Path(os.environ['QEMU_SYSTEM_DIR'])/os.environ['QEMU_SYSTEM_BINARY']
+        captured=capture(qmp,stream,run,leased,serial,built,sha(binary))
+        captured.update(build_result=str(build_result),build_result_sha256=sha(build_result))
+        storage._save(receipt_path(stream),captured)
+        value={name:captured[name] for name in ('stream','stream_bytes','stream_sha256','source_identity')}
+        value.update(completed=True,receipt_sha256=sha(receipt_path(stream)),sony_wbi_resume_executed=False)
+        state.update(ram_capture=value,save_verified=True);save()
+        return value
+    storage._save(run/'runtime-manifest.json',dict(boot_profile='original-init-cold',original_cold_profile='original-init-v1',natural_boot=True,persistent_storage=True,internal_storage_profile=storage.PROFILE,rm_file_image_bytes=built['sd_card']['bytes'],sd_card=built['sd_card'],ram0_sha256=built['ram0_sha256'],kernel_sha256=built['kernel_sha256'],cold_build_result_sha256=sha(build_result),files=built['helper_sources'],original_libraries_unchanged=not built['overwrite']['entries'],ram_session=ram_enabled,ram_restore_verified=bool(restored and restored.get('same_boot_id') and restored.get('new_original_menu_and_shooting_pixels_verified')),capture_verified=False,full_boot_verified=False))
     try:
-        run_live(process,run,int(os.environ['MENU_CONTROL_FD']),display_capture=display,sd_export=export,sd_card=SDHotplug(serial,run),storage_shutdown=shutdown)
+        run_live(process,run,int(os.environ['MENU_CONTROL_FD']),display_capture=display,sd_export=export,sd_card=SDHotplug(serial,run),storage_shutdown=shutdown,ram_capture=capture_ram if ram_enabled else None)
     except RuntimeError as error:
         if str(error)!='VM 控制通道已关闭':raise
     need(saved_for_close(run),'Cold GUI controller ended without a current SD save, recovered flush owner and nineteen frozen internal volumes; retain owner')
@@ -119,7 +136,16 @@ def main():
     runs=ANALYSIS/'menu-runs';runs.mkdir(exist_ok=True)
     output=Path(tempfile.mkdtemp(prefix='run-',dir=runs))
     runner=runpy.run_path(str(ANALYSIS.parents[1]/'tools/run-original-cold.py'))
-    result=runner['run'](instance,output,180,live=True)
+    mode=os.environ.get('A7C2_RAM_WINDOW','')
+    need(mode in ('','1'),'Unknown window RAM mode')
+    restored=os.environ.get('A7C2_RAM_RESTORE_STREAM')
+    built=None
+    if restored:
+        from original_ram_restore import live_build
+        need(mode=='1','RAM restore requires the explicit window mode')
+        built=live_build(restored)
+    # A populated 1GiB card is fully hashed in guest before original AP admission.
+    result=runner['run'](instance,output,300,live=True,ram_session=mode=='1',ram_restore=restored,built=built)
     return 0 if result['verified'] else 1
 
 

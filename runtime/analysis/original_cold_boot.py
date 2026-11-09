@@ -3,6 +3,7 @@ from pathlib import Path
 from contextlib import ExitStack
 import ast
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -90,6 +91,9 @@ def guest_environment(host):
     if host.get('A7C2_USB_SENSER') is not None:
         need(usb_selected(host) and host['A7C2_USB_SENSER']=='original-init2-v1','Senser startup requires the explicit USB device profile')
         selected['PRODUCT_USB_SENSER']='original-init2-v1'
+    if host.get('A7C2_USB_MSC') is not None:
+        need(usb_selected(host) and host['A7C2_USB_MSC']=='1' and not host.get('A7C2_USB_SENSER'),'MSC startup requires its exclusive USB device profile')
+        selected['PRODUCT_USB_MSC']='1'
     return selected
 
 
@@ -269,6 +273,18 @@ def settings_import(payload,host):
     return {name:payload/name for name in ('install-settings.sh','settings-restore.bin') if (payload/name).exists()}
 
 
+def usb_imdb(host,payload):
+    if host.get('A7C2_USB_MSC')!='1':return {}
+    source=ANALYSIS/'prepare-assets.py'
+    spec=importlib.util.spec_from_file_location('a7c2_prepare_assets',source)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    original=ANALYSIS/'menu-root/usr/lib/libIMDB.so'
+    data=module.usb_msc_imdb(original.read_bytes())
+    target=payload/'libIMDB-msc.so';target.write_bytes(data);target.chmod(0o555)
+    need(sha(target)==module.MSC_IMDB_SHA,'MSC IMDB payload readback differs')
+    return {'libIMDB-msc.so':target}
+
+
 def prepare(instance,output,host_environment):
     input_bindings=product_input_bindings()
     output=Path(output).absolute();need(not output.exists(),'Fresh cold output required');output.mkdir(mode=0o700)
@@ -291,7 +307,7 @@ def prepare(instance,output,host_environment):
         audit=payload/'audit';_checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(SOURCE/'cold-start-audit.c'),str(ANALYSIS/'menu-root/lib/libc-2.25.so'),'-o',str(audit)],output/'audit-build.log');audit.chmod(0o755)
         helpers={}
         for path in (ANALYSIS/'menu-root/simulation').rglob('*'):
-            if path.is_file():
+            if path.is_file() and path.name!='media-camera.fat':
                 need(not path.is_symlink(),'Cold helper symlink refused')
                 relative=str(path.relative_to(ANALYSIS/'menu-root/simulation'));target=payload/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target);target.chmod(stat.S_IMODE(path.stat().st_mode)&0o777);need(sha(path)==sha(target),'Cold helper copy differs');helpers[relative]=target
         for name,source in (('audit',audit),('bootin-wrapper',SOURCE/'bootin.sh')):
@@ -304,18 +320,19 @@ def prepare(instance,output,host_environment):
         helpers.update(settings_import(payload,host_environment))
         from sony_usb_device import prepare_observer
         helpers.update(prepare_observer(host_environment,payload))
+        helpers.update(usb_imdb(host_environment,payload))
         expected_bindings={**input_bindings,'guest_inputs':dict(input_bindings['guest_inputs'])}
+        if host_environment.get('A7C2_USB_MSC')=='1':
+            expected_bindings['guest_inputs']['usr/lib/libIMDB.so']=sha(helpers['libIMDB-msc.so'])
         for entry in entries:expected_bindings['guest_inputs'][entry['path']]=entry['new_sha256']
-        if host_environment.get('A7C2_SD_IMAGE'):
-            from sd_transport import card_source
-            with card_source(host_environment['A7C2_SD_IMAGE']) as card:
-                size=os.fstat(card).st_size
-                need(size==helpers['media-camera.fat'].stat().st_size,'Cold virtual SD capacity differs from the supported RM2 card')
-                with (payload/'media-camera.fat').open('wb') as target:
-                    for offset in range(0,size,1024**2):
-                        raw=os.pread(card,min(1024**2,size-offset),offset)
-                        need(len(raw)==min(1024**2,size-offset) and target.write(raw)==len(raw),'Short cold SD seed copy')
-                need(sha(payload/'media-camera.fat')==disk.hashed(card),'Cold virtual SD seed readback differs')
+        from sparse_seed import build as build_sd_seed
+        sd_source=host_environment.get('A7C2_SD_IMAGE',str(ANALYSIS/'menu-root/simulation/media-camera.fat'))
+        sd_card=build_sd_seed(sd_source,payload/'sd-seed')
+        for path in (payload/'sd-seed').rglob('*'):
+            if path.is_file():
+                name=str(path.relative_to(payload));helpers[name]=path
+        shutil.copyfile(SOURCE/'install-sd.sh',payload/'install-sd.sh');(payload/'install-sd.sh').chmod(0o755)
+        helpers['install-sd.sh']=payload/'install-sd.sh'
         environment=guest_environment(host_environment);envfile=payload/'environment.sh';envfile.write_text('\n'.join('export '+k+'='+shlex.quote(v) for k,v in sorted(environment.items()))+'\n');envfile.chmod(0o600);helpers['environment.sh']=envfile
         reset=payload/'reset-runtime.sh';reset.write_text('#!/bin/busybox sh\nset -e\n'+'\n'.join(storage.runtime_reset_commands())+'\n');reset.chmod(0o755);helpers['reset-runtime.sh']=reset
         fonts={name[len('language-fonts/'):]:path for name,path in helpers.items() if name.startswith('language-fonts/')}
@@ -340,6 +357,6 @@ def prepare(instance,output,host_environment):
         empty=payload/'image_mmca';empty.write_bytes(b'');empty.chmod(0o600)
         p7proof=_patch(adapted,work,{'/sbin/insmod':SOURCE/'insmod.sh','/sbin/freeramdisk':freeram,'/image_mmca':empty},[('/simulation','/dev/qemu-simulation')])
         raw=adapted.read_bytes();need(len(raw)==p7['bytes'],'Derived p7 capacity changed');need(os.pwrite(leased['fd'],raw,p7['offset'])==len(raw),'Short p7 write');os.fsync(leased['fd']);need(disk.hashed(leased['fd'],p7['offset'],p7['bytes'])==sha(adapted),'Derived p7 disk readback differs')
-        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
+        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},sd_card=sd_card,kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
         storage._save(output/'result.json',result)
     return result

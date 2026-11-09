@@ -67,6 +67,18 @@ class StubVM:
         if self.value['state']=='running':raise ValueError('stop first')
         self.value['persistent_storage']=enabled;self.calls.append(('storage',enabled))
 
+    def configure_ram(self,enabled):
+        if self.value['state']=='running':raise ValueError('stop first')
+        self.value['ram_enabled']=enabled;self.calls.append(('ram_mode',enabled))
+
+    def save_ram(self):
+        self.calls.append('ram_save')
+        self.value.update(state='exited',can_start=True,can_stop=False,ram_snapshot={'stream':'host-fixture-only'})
+        return self.value['ram_snapshot']
+
+    def restore_ram(self):
+        self.calls.append('ram_restore');self.start();self.value['ram_restored']=True
+
     def select_firmware_test(self,source=None,destination='/usr/lib/appFw.so'):
         self.calls.append(('firmware_select',source,destination))
         value=dict(guest_path=destination,original=source is None,guest_readback_verified=False)
@@ -187,6 +199,9 @@ class GTKTests(unittest.TestCase):
         self.assertFalse(self.ui.development_buttons['readback'].get_sensitive())
         self.ui.development_buttons['original'].clicked();self.settle()
         self.assertIn(('firmware_select',None,'/usr/lib/appFw.so'),self.vm.calls)
+        self.ui.development_target.set_text('/usr/bin/us_remove_modes.sh')
+        self.ui.development_buttons['original'].clicked();self.settle()
+        self.assertIn(('firmware_select',None,'/usr/bin/us_remove_modes.sh'),self.vm.calls)
         self.vm.start();self.ui.update(self.vm.status())
         self.assertFalse(self.ui.development_buttons['stage'].get_sensitive())
         self.ui.development_buttons['readback'].clicked();self.settle()
@@ -197,6 +212,23 @@ class GTKTests(unittest.TestCase):
         self.ui.development_buttons['restart'].clicked();self.settle()
         self.assertEqual(self.vm.calls[:2],['close','start'])
         self.assertFalse(self.ui.development_busy)
+
+    def test_development_ram_mode_save_and_restore_use_controller_state(self):
+        self.vm.value['boot_profile']='original-init-cold';self.ui.update(self.vm.status())
+        self.assertTrue(self.ui.development_ram.get_sensitive())
+        self.assertFalse(self.ui.development_buttons['ram_restore'].get_sensitive())
+        self.ui.development_ram.set_active(True);self.settle()
+        self.assertIn(('ram_mode',True),self.vm.calls)
+        self.vm.start();self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.development_ram.get_sensitive())
+        self.assertTrue(self.ui.development_buttons['ram_save'].get_sensitive())
+        self.ui.development_buttons['ram_save'].clicked();self.settle()
+        self.assertIn('ram_save',self.vm.calls)
+        self.assertFalse(self.ui.development_buttons['ram_save'].get_sensitive())
+        self.assertTrue(self.ui.development_buttons['ram_restore'].get_sensitive())
+        self.ui.development_buttons['ram_restore'].clicked();self.settle()
+        self.assertIn('ram_restore',self.vm.calls)
+        self.assertIn('RAM 恢复通过',self.ui.development_status.get_text())
 
     def test_development_busy_keeps_owner_until_worker_finishes(self):
         self.ui.development_busy=True;self.ui.update(self.vm.status())
@@ -269,14 +301,16 @@ class GTKTests(unittest.TestCase):
         subprocess.run(['xdotool','key','Down'],check=True);self.settle()
         self.assertEqual(self.vm.calls[-1],{'action':'key','key':'DOWN'})
 
-    def test_cold_boot_keeps_actual_internal_disk_and_disables_unimplemented_reset(self):
+    def test_cold_boot_keeps_internal_disk_and_reset_requires_saved_configuration(self):
         self.vm.value.update(boot_profile='original-init-cold',persistent_storage=True,state='exited',can_start=True,settings_persistent=True,settings_generation='saved')
         self.ui.update(self.vm.status())
         self.assertTrue(self.ui.development_storage.get_active())
         self.assertFalse(self.ui.development_storage.get_sensitive())
-        self.assertFalse(self.ui.reset_button.get_sensitive())
-        self.assertIn('尚未接通',self.ui.reset_button.get_tooltip_text())
+        self.assertTrue(self.ui.reset_button.get_sensitive())
+        self.assertIn('固件修改和 SD',self.ui.reset_button.get_tooltip_text())
         self.assertIn('init2',self.ui.on.get_tooltip_text())
+        self.vm.value['settings_generation']=None;self.ui.update(self.vm.status())
+        self.assertFalse(self.ui.reset_button.get_sensitive())
 
     def test_stopped_reset_confirmation_cancel_success_and_retained_sd(self):
         self.vm.value.update(state='exited',settings_persistent=True,settings_generation='old')

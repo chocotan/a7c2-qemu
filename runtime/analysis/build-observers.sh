@@ -108,6 +108,7 @@ clang "${common[@]}" -shared -fPIC -Wl,--gc-sections -Wl,-soname,menu-observe.so
   "$source_dir/menu-observe.c" "$source_dir/capid-service.c" "$source_dir/sa-address-service.c" \
   "$source_dir/hdmi-format-service.c" "$source_dir/dmm-service.c" "$source_dir/gpe-raster.c" "$source_dir/gpe-sprite.c" "$source_dir/sony-lz77.c" "$source_dir/headless-osd.c" \
   "$device_build/"*.o "${libraries[@]}" -o "$analysis_dir/menu-observe.so"
+install -m 0755 "$analysis_dir/menu-observe.so" "$analysis_dir/menu-root/simulation/menu-observe.so"
 clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$source_dir/headless-osd-export.c" "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/headless-osd-export"
 clang "${common[@]}" -DGUI_MODEL_EXPORT -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \

@@ -1,15 +1,15 @@
 {
   "schema": "a7c2-product-original-usb-jiritsu-v1",
-  "recorded_at_ns": 1794210533238127587,
-  "status": "ORIGINAL_USB_HOST_CONFIGURED_AUTHENTICATION7_NORMAL_SAVE_EXIT_PASS_ROOT_UNVERIFIED",
+  "recorded_at_ns": 1794218405049688140,
+  "status": "ORIGINAL_USB_HOST_CONFIGURED_AUTHENTICATION7_VERSION_ROOT_NEUTRAL_SAVE_EXIT_PASS",
   "verified": true,
-  "scope": "Explicit Sony USB candidate and original-init2 UU Senser profile; real host VHCI enumeration/configuration, original PMCA authentication7, same-run normal USB/settings/SD/QMP lifecycle",
-  "run_id": "run-x8ejj3k4",
+  "scope": "Explicit Sony USB candidate and original-init2 UU Senser; actual VHCI enumeration/configuration, original PMCA authentication7, GET_FILE2 version, reviewed small worker Uid/Gid, content-verified preload neutralization, same-run USB/settings/SD/QMP lifecycle",
+  "run_id": "run-s3tz4z6p",
   "host_enumerated": true,
   "host_configured": true,
   "authentication_verified": true,
-  "guest_root_verified": false,
-  "version_read_verified": false,
+  "guest_root_verified": true,
+  "version_read_verified": true,
   "capture_verified": false,
   "physical_asic_compatibility_verified": false,
   "full_hardware_boot_verified": false,
@@ -17,7 +17,7 @@
   "research_launch_or_dump_used": false,
   "ordinary_ap_usb_menu_route_verified": false,
   "bodydata_update": "deferred-by-user",
-  "qemu_candidate_sha256": "0f327c0811fed6b6c6cbb85e68a093b2322a3a376aee35adfd15de70173285bb",
+  "qemu_candidate_sha256": "2e1e562ae77c9930478acd8697cc3a0df5798425f2359b52a6a35af573ea12f3",
   "default_qemu_sha256": "b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad",
   "default_qemu_replaced": false,
   "host_device": {
@@ -122,15 +122,22 @@
   "host_restoration": {
     "restored": true,
     "original_attribute_inodes": [
-      823187,
-      823186
+      839108,
+      839107
     ],
     "attribute_uid_gid_mode_restored": true,
     "modules_after": {
       "vhci_hcd": false,
       "usbip_core": false
     },
-    "owned_ports_remaining": 0
+    "owned_ports_remaining": 0,
+    "residual_server_processes": [
+      704033,
+      973090
+    ],
+    "residual_servers_have_vm_or_vhci_port": false,
+    "old_run_neutralization_remains_unverified": true,
+    "no_SIGKILL": true
   },
   "host_tests": {
     "final_auth_scope": {
@@ -139,9 +146,15 @@
       "subtests": 10,
       "skip_reason": "optional external research version/root protocol scripts absent"
     },
-    "dwc3_core": "11 paired scenarios each strict C11 and ASan/UBSan after no-response UPDATE_TRANSFER fix",
+    "dwc3_core": "11 paired scenarios each strict C11 and ASan/UBSan; large-OUT general fix not claimed",
     "candidate_full_build_returncode": 0,
-    "counts_are_not_summed": true
+    "counts_are_not_summed": true,
+    "final_root_scope": {
+      "consumer_tests": 26,
+      "small_worker_host_behavior": 6,
+      "small_worker_arm64_bytes": 10328,
+      "guest_root_verified": true
+    }
   },
   "source_before": {
     "runtime/analysis/original_cold_boot.py": "41fd7d96293c104199555f88d0520a29f314c621fbb71f919e97c862f004594e",
@@ -156,16 +169,16 @@
     "runtime/analysis/cold/insmod.sh": "7768518f5e9638ff2c7991363fecdc8c9d340655b70ebb21f2a03f369b774b0d",
     "runtime/analysis/settings_checkpoint.py": "abfeffb59847874c61827baaebf475391fe9eecdcfc5d887f65a77c1cda9a6ab",
     "runtime/analysis/user-settings-checkpoint.c": "7858980cf00b37a037e01286ec246b10bad6fa8584d7f3cfddd410eacde92afb",
-    "runtime/analysis/sony_usb_device.py": "42e3dc29ebeb55177e2612e43350c034e1276fc34ad647506d5b57ba417f27d1",
+    "runtime/analysis/sony_usb_device.py": "300dc353120ec4e6001cda990910834df942dac0683f2921ab2a1ab263925b5d",
     "runtime/analysis/sony_usb_board.py": "a120c2c298397daba3262f8fc919b0f23fd0ceb4d00b8beb60a4c84dfd53aa8b",
     "runtime/analysis/qemu-kernel-probe.sh": "6f3ea7baf36cc1fc6ea95fd22514c5b46dd5fa4c6b50f2eda79402b7c367ca4a",
-    "runtime/analysis/usb_jiritsu.py": "047de46cc6ae07ec7d764daa1613d875da47d24ff9a390fbbe46d57c3c32fc3d",
+    "runtime/analysis/usb_jiritsu.py": "0172634706ea9f10e0475307fb404b6398126ef9d7e49c537931768460cfe1cf",
     "runtime/analysis/usb_control.py": "f08c1bd9e5666ff8dc0f571543a2b80b58a988be381f8f6e96a86dcca02e1100",
     "runtime/analysis/usb_ui.py": "d7fcb73faae89e4436767f635978af947959f35cf06b074c3c7e839ff5252b82",
     "tools/run-original-cold.py": "0c72ad52ddb28ec8e9bf6245e4529fed90a1ad5fa19b4086e1f987fd7f1ab5c5",
-    "tools/jiritsu-authenticate.py": "d6402a74254dfddb7f0ef62dcad800c368f0e759fe19f0bba78d0b02ecb7d9ae",
+    "tools/jiritsu-authenticate.py": "12cbb5d9d0e3225207e606fdd41dd4c6e78be83d3a1a35275338d02832df8776",
     "runtime/analysis/usb-gadget/usbip_server.py": "55d2d72e8f4b3d2f0eb35619860f93479e703e4dda4d7966678890b7ae3096fc",
-    "source/usb-device/sony-dwc3.c": "f161f615541cf4c502ab764785660e5bdc2ea66b35a1822be4f1a1370282b17b",
+    "source/usb-device/sony-dwc3.c": "4cd8ba379f70c0155453af2aeebd49d87e0f80d5519a92ffb3a5c968a7bb63f6",
     "source/usb-device/sony-dwc3.h": "447b91cdddc091d283a8db8de19de619ffaaa2bcaabca4c9a8a210b91119166f",
     "source/usb-device/sony-usb-platform.inc": "e082145e57eb482b02a32db5388620d1622919e89193f3b0e82c4696b281d8a4",
     "source/usb-device/board-fragment.inc": "5fc7e5f99afe31f3a4e77aea5bb2097689be0fcbc4ad838b3493bcde80f7b527",
@@ -173,7 +186,14 @@
     "source/usb-device/sony-dwc3-bridge.h": "8b95cfced490746d67f0b8e81cb72cc9bd870e757f399f9c9876770f376c8e1c",
     "source/usb-device/usb-start-observe.c": "ae396b14d2271265c6a5229e8b70c1bb70df1d71a43238a1c7f67ab0bfe0ef5f",
     "source/usb-device/usb-start-observe.map": "7220151c358a0bb2074918631e8eefa80abaf241830b808b19cb48c9f97b4e04",
-    "source/usb-device/usb-msc-sender.inc": "02e3c9311f621c5497b73118fb7fd0259241ed8019ed16c22d40b6a41fe280a5"
+    "source/usb-device/usb-msc-sender.inc": "02e3c9311f621c5497b73118fb7fd0259241ed8019ed16c22d40b6a41fe280a5",
+    "tools/jiritsu/jiritsu_version_read.py": "8faf3e0785f072e0eccb11e0a93d722c0e9f3be4335f414e6a2fc14a360ce001",
+    "tools/jiritsu/jiritsu_preload_deploy.py": "3fea540fb7a65a9b30c727774293b8220a6ca62e763d2e86db125518ebfd19a3",
+    "tools/jiritsu/jiritsu_run_command.py": "e3e8f4c0c4f90ad89121f7d3b8382cb3f581afa6617c9928863bf69d52f1c792",
+    "tools/jiritsu/jiritsu_preload_clear.py": "f18879aeaf3821ba4dc82599aa366e1966734f35639af57683ebf94392dda0b7",
+    "tools/jiritsu/README.md": "ef13ed5bb0fb1d7f0f2057aabfaac3ac798e987589af38b04def9f7bc6322529",
+    "tools/jiritsu/payload/a7c2_shell.c": "35a8a9dc8b68465151a15bc8781771a4933474fd3bfd3f9a19dbd1cabdbb4375",
+    "tools/jiritsu/payload/a7c2_shell.arm64.so": "063248441ad61ecf55c495f986831560e2383b8d3feb52da631d77571781d10c"
   },
   "source_drift": {},
   "preserved_failures": [
@@ -206,6 +226,62 @@
       "authentication_verified": false,
       "whole_run_verified": false,
       "normal_shutdown_verified": true
+    },
+    {
+      "stage": "v11 bounded receipt reader rejected 63132B authentication receipt",
+      "run_id": "run-pzpi4fc_",
+      "authentication_verified": true,
+      "guest_root_verified": false
+    },
+    {
+      "stage": "v12 original GET_FILE2 mountpoint absent",
+      "run_id": "run-fluadbq3",
+      "original_result": "0x10000004",
+      "version_read_verified": false
+    },
+    {
+      "stage": "v13 version passed; terminal EP4 write timeout",
+      "run_id": "run-xpr2pz_x",
+      "version_read_verified": true,
+      "guest_root_verified": false
+    },
+    {
+      "stage": "v14 unbound research pmca import rejected before deployment",
+      "run_id": "run-zgob8j6c",
+      "deployment_started": false
+    },
+    {
+      "stage": "v15 second USB consumer failed; original Senser abort",
+      "run_id": "run-odn9tvxk",
+      "ram_bytes": 25769317539,
+      "ram_sha256": "745202267f449f8681e0241690b394fb71c17ebf9a22b9f7d73c935099930372",
+      "deployment_started": false
+    },
+    {
+      "stage": "v16 direct root with extra HASP timed out before deployment",
+      "run_id": "run-5t2_ab_k",
+      "deployment_started": false
+    },
+    {
+      "stage": "v17 70912B upload and recovery timed out; later launcher137 source not uniquely proven",
+      "run_id": "run-fiffdvzr",
+      "authentication_verified": true,
+      "version_read_verified": true,
+      "guest_root_verified": false,
+      "neutralization_verified": false,
+      "normal_qmp_exit": false,
+      "disk_sha256": "ad1a6dfb272f417134f25b75a24f2ae86acec9d90161d5f7797b2abed7985717"
+    },
+    {
+      "stage": "v18 repeated large-upload failure; GTK wait fixed; bounded recovery failed",
+      "run_id": "run-n6myt_bm",
+      "authentication_verified": true,
+      "version_read_verified": true,
+      "guest_root_verified": false,
+      "neutralization_verified": false,
+      "normal_qmp_exit": true,
+      "ram_dump_captured": false,
+      "disk_sha256": "25760740b5391d5a96b0e225c82695a06c7ab18c306f53f9803a9e843865854b"
     }
   ],
   "private_evidence_sha256": {
@@ -214,7 +290,72 @@
     "host-before-permission.json": "7d9be73ee29ea831d72047bdc0a64cb2859a8a0432c7f2d0eee5ea098deffd43",
     "host-restored.json": "beaacb6d1484e046aac81a5b05a520add63bd51ab190d091adf45949bd47935c",
     "auth-only-before/authentication-seven-observed.json": "fae7f18f0959ab7cc0e620f3a3e6fb532854605d95072af4dd4324902a57adc5",
-    "candidate-update-v3.json": "5e61f9da21adae3b589eb512aeab41443fce9490d90eca9323d18ee07f6ed9f6"
+    "candidate-update-v3.json": "5e61f9da21adae3b589eb512aeab41443fce9490d90eca9323d18ee07f6ed9f6",
+    "actual-usb-senser-v19/result.json": "49d9181f132b43d89b6da3690f1d863a3c10fbfd539710662893c1c3b2d44a2c",
+    "worker-small-v1/build-result.json": "889a8b3fcad8a6388e10213de30f009cb4a8ea935ee8552e44633d7768473e38",
+    "worker-small-v1/host-test-result.json": "ff2256adb90c7c9f9ee012e140e0cbe00ca3f9dcfa7ed578ab46bda6115adbe2",
+    "v18-failure-close.json": "cfa37475638128dab0d2a5eb153344c9e114e4fb52603b0911777dbb76326ae6",
+    "failed-import-release-final.json": "aea4ab8fd8a65dd441c96337b2e6e526a3732d7c16af343190d7fedf1614d5ac",
+    "post-auth-readonly-stage/host-restored.json": "0421201b830d3c5682941afb20193609a3077a9e0dc03cae3f35c0fd7ed8be08",
+    "candidate-update-v4.json": "16825f5e1b8b8863a067ba9d601e82cc5d641ce79d24131d2e99d1c2297e3f69",
+    "runtime/analysis/menu-runs/run-s3tz4z6p/jiritsu-root.json": "e970251bbe0c1cafebe8f0bb2d6e2db72a33afc0594f1fc4440968c6452e9ef1",
+    "runtime/analysis/menu-runs/run-s3tz4z6p/result.json": "ba076829527f37eb4f56b7bfee8f9f88e3ee974c136b839dc83451012fcf53df"
   },
-  "private_firmware_ram_disks_logs_and_dependencies_distributed": false
+  "private_firmware_ram_disks_logs_and_dependencies_distributed": false,
+  "authentication_only_acceptance": {
+    "run_id": "run-x8ejj3k4",
+    "previous_receipt_sha256": "4a0de2ab14096468ce67723557c5f5324ed45f47af6c05717a9ee9cccbdfb7ff",
+    "authentication_verified": true,
+    "guest_root_verified": false
+  },
+  "version": {
+    "bytes": 19,
+    "text": "32014_05.2025101101",
+    "sha256": "78f5c0e07e722e356a744b12f439fb492daa286409f49d471a5ebf7fdbb196c7",
+    "original_get_file2": true,
+    "mountpoint_created_and_restored": true
+  },
+  "root": {
+    "phase": "complete",
+    "cli_returncode": 0,
+    "payload_bytes": 10328,
+    "payload_sha256": "063248441ad61ecf55c495f986831560e2383b8d3feb52da631d77571781d10c",
+    "payload_readback_verified": true,
+    "payload_ran": true,
+    "identity_command": "busybox grep -E '^(Uid|Gid):' /proc/$$/status",
+    "identity_exit_status": 0,
+    "uid": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "gid": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "payload_cleanup_exit_status": 0,
+    "worker_stopped": true,
+    "mailbox_removed": true
+  },
+  "preload_neutralization": {
+    "worker_disarm_bytes": 512,
+    "worker_disarm_content": "newline",
+    "worker_disarm_readback_verified": true,
+    "final_recovery_bytes": 512,
+    "final_recovery_content": "space",
+    "final_recovery_sha256": "e449eaf70850b3535de8c39146533eec81cab7ce154bdae59affa8b14963e1ae",
+    "final_recovery_readback_verified": true,
+    "preload_recovery_required": false
+  },
+  "large_out_boundary": {
+    "old_payload_bytes": 70912,
+    "old_payload_sha256": "d261855eb1ea461a77c7847fefef7e6960d4495433d245a9eeb458eef0b35e6e",
+    "old_upload_verified": false,
+    "small_worker_path_verified": true,
+    "large_out_model_fixed": false,
+    "note": "Small worker avoids the observed large-upload failure; no physical ASIC or general large-OUT compatibility claim."
+  }
 }

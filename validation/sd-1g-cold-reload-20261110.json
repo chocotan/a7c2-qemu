@@ -1,0 +1,102 @@
+{
+  "schema": "a7c2-product-1g-sd-cold-reload-v1",
+  "verified": true,
+  "capture_verified": false,
+  "full_boot_verified": false,
+  "physical_devices_used": false,
+  "default_card": {
+    "bytes": 1073741824,
+    "filesystem": "FAT16",
+    "sectors_per_cluster": 64,
+    "initial_sha256": "71362dfd3446d9de01fc59f1614d1dd7944a88cae19f2d70261f16e41e7e7888",
+    "initial_nonzero_seed_bytes": 8192,
+    "whole_card_in_initrd": false
+  },
+  "headless_original_boot": {
+    "verified": true,
+    "original_init_init2_ap_menu": true,
+    "sd_export_claimed": false,
+    "qmp_returncode": 0,
+    "owner_group_exited": true
+  },
+  "first_gui_firstsetup_timeout_preserved": true,
+  "resumed_same_disk_and_card": true,
+  "first": {
+    "card": {
+      "bytes": 1073741824,
+      "allocated_bytes": 9998336,
+      "sha256": "1ad32d2436255a575be83f754e85cd5665fe34327e764bacdd9c4e9e4bab9cbe",
+      "fsck_rc": 0,
+      "files": {
+        "/PRIVATE/DATABASE/DATABASE.BIN": {
+          "bytes": 9670656,
+          "sha256": "4d39ee80eb8fd0dd22d27e6f8cfb55bfa18391998d1c80a51ba996551a307aa8"
+        },
+        "/PRIVATE/M4ROOT/MEDIAPRO.XML": {
+          "bytes": 406,
+          "sha256": "c9af9ab224e9561b06d5938898ae79ddb61abb0df42dfa61d371c907fe2faaa8"
+        }
+      },
+      "sparse_ranges": 9,
+      "export_sha256": "87c2f1c2876ff75cbde5ed6446d4c2ff60220185d725a3f742f91ec9c206b26f"
+    },
+    "stop": {
+      "run_id": "run-jb2vepxp",
+      "result_sha256": "3443e317c8c6e19507b6730bb0d7c75a08d033c830e5296a7f72d0c5eb4c5abf",
+      "lease_available_after_exit": true,
+      "qmp_quit_confirmed": true,
+      "qmp_returncode": 0,
+      "signals_sent": [],
+      "owner_group_exited": true,
+      "frozen_partitions": 19
+    },
+    "original_menu_enter_return_verified": true
+  },
+  "second": {
+    "card": {
+      "bytes": 1073741824,
+      "allocated_bytes": 86016,
+      "sha256": "1ad32d2436255a575be83f754e85cd5665fe34327e764bacdd9c4e9e4bab9cbe",
+      "fsck_rc": 0,
+      "files": {
+        "/PRIVATE/DATABASE/DATABASE.BIN": {
+          "bytes": 9670656,
+          "sha256": "4d39ee80eb8fd0dd22d27e6f8cfb55bfa18391998d1c80a51ba996551a307aa8"
+        },
+        "/PRIVATE/M4ROOT/MEDIAPRO.XML": {
+          "bytes": 406,
+          "sha256": "c9af9ab224e9561b06d5938898ae79ddb61abb0df42dfa61d371c907fe2faaa8"
+        }
+      },
+      "sparse_ranges": 19,
+      "export_sha256": "7fd72edb18e52646857a3b2dcb4b93ddd0916e96630203cdfa09b7d1fc31fead"
+    },
+    "stop": {
+      "run_id": "run-9ezql8_u",
+      "result_sha256": "905f12b225222b5546a31112424fd48cd15c83d6dc25b4a83777590a96a46c13",
+      "lease_available_after_exit": true,
+      "qmp_quit_confirmed": true,
+      "qmp_returncode": 0,
+      "signals_sent": [],
+      "owner_group_exited": true,
+      "frozen_partitions": 19
+    },
+    "original_menu_enter_return_verified": true
+  },
+  "original_existing_db_xml_consumed": true,
+  "original_db_xml_full_content_preserved": true,
+  "original_driver_verified": false,
+  "initial_settings_snapshot_refused_invalid_layout": true,
+  "successful_settings_snapshot_after_refusal": true,
+  "source_drift": {},
+  "source_sha256": {
+    "runtime/analysis/sparse_seed.py": "b22fa54bd32aa7e929b673334806a27e1167fb87ce628813811807634460eb13",
+    "runtime/analysis/sd-sparse.c": "d9fca04de9933ac6235b5a1c36d3e8804152ae48e742aee78681762afe106b63",
+    "runtime/analysis/sd_sparse.py": "7705ecc6eee9e73a6ca209abbe23e92620aa324671f8677cb6b888f4103bba2e",
+    "runtime/analysis/make-media-fixture.py": "294dd768b33875e29224254bf86808505660208647f472ebb10d9bdf0751b8cb",
+    "runtime/analysis/cold/install-sd.sh": "2ce2b7458752fc55cb5421e804d8a0af5987223e6838d8a694e8b5a7e0134425",
+    "runtime/analysis/cold/insmod.sh": "8f6667ed5a586d263e7b7e3b6c50e3d62c49716a3b7772d58c77208fea23bf39",
+    "runtime/analysis/original_cold_boot.py": "8183b8720c183e4df67f735e0a0022a2b50f61beecfe4572192fb2f752314a6c",
+    "runtime/analysis/original_cold_live.py": "75d2410fcd0e49f4df81f1d8f533dbec82fce153f49262eff89ef600854bace4"
+  }
+}

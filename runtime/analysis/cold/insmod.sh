@@ -22,9 +22,14 @@ case "$module" in
             /bin/busybox mount --bind /usr/bin/bootin.elf /simulation/bootin-original || exit 1
             /bin/busybox mount --bind /simulation/bootin-wrapper /usr/bin/bootin.elf || exit 1
             /simulation/audit space /tmp 2097152 || exit 1
-            /bin/busybox mount --bind /simulation/libIMDB.so /usr/lib/libIMDB.so || exit 1
-            /bin/busybox mount --bind /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh || exit 1
             . /simulation/environment.sh || exit 1
+            if [ "${PRODUCT_USB_MSC:-}" = 1 ]; then
+                /bin/busybox mount --bind /simulation/libIMDB-msc.so /usr/lib/libIMDB.so || exit 1
+                echo "[cold] MSC libIMDB restores only UsbCmn/UsbControl init" >&2
+            else
+                /bin/busybox mount --bind /simulation/libIMDB.so /usr/lib/libIMDB.so || exit 1
+            fi
+            /bin/busybox mount --bind /simulation/start-bt-virtual.sh /usr/bin/startBTCore.sh || exit 1
             if [ "${PRODUCT_USB_SENSER:-}" = original-init2-v1 ]; then
                 read -r expected < /simulation/sen-sha256 || exit 78
                 digest=$(/usr/bin/openssl dgst -sha256 /usr/bin/sen.elf) || exit 78
@@ -35,7 +40,7 @@ case "$module" in
             fi
             /bin/busybox mkdir -p /tmp/images /log/qemu || exit 1
             /bin/busybox sh /simulation/install-fonts.sh || exit 1
-            /bin/busybox mount --bind /simulation/media-camera.fat /image_mmca || exit 1
+            /bin/busybox sh /simulation/install-sd.sh || exit 1
             for group in cpu0 cpu1 cpu2 cpu3rt cpu0_1 cpu0_1_2 cpu0_1_2_3rt; do
                 /bin/busybox mkdir -p /dev/cgroup/$group || exit 1
                 echo 0 > /dev/cgroup/$group/cpuset.mems || exit 1

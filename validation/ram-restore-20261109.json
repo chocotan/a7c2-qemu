@@ -1,0 +1,103 @@
+{
+  "schema": "a7c2-product-original-ram-restore-validation-v1",
+  "status": "PASS_ORIGINAL_AP_QEMU_RAM_ROUNDTRIP_WBI_NOT_EXECUTED",
+  "actual_ram_roundtrip_verified": true,
+  "original_ap_retained_verified": true,
+  "new_original_menu_and_shooting_pixels_verified": true,
+  "same_persistent_disk_lease": true,
+  "source_normal_qmp_exit_verified": true,
+  "target_normal_qmp_exit_verified": true,
+  "source_and_target_signals_sent": [],
+  "source_and_target_owner_groups_exited": true,
+  "source_frozen_partitions": 19,
+  "restored_storage_thaw_state": 0,
+  "restored_storage_thaw_count": 0,
+  "target_refrozen_partitions_before_quit": 19,
+  "same_boot_id_verified": true,
+  "guest_uptime_did_not_regress": true,
+  "cold_boot_repeated": false,
+  "ram_stream_bytes": 492145379,
+  "ram_stream_sha256": "bb962405a2009918cbcd4f1ff1b1730d5cbf78ee793ee9e1b119c287e8deea76",
+  "capture_disk_sha256": "764bd4f9e04016c6b09c7e4f64cf7194601ed2c3bc95694a553c03a8fbf746d4",
+  "resumed_disk_sha256": "ea33acb1248335fe249027f3047535ce1ac9ba618d00f18d67a405d002f32e0e",
+  "resumed_disk_content_changed": true,
+  "resumed_disk_identity_unchanged": true,
+  "restored_menu_rgb_sha256": "4a12abe52fd1b40979fa5292cc2425fa10c49e4e2dcf2b6536c12d73a860ff61",
+  "restored_shooting_rgb_sha256": "8718e2251bd284e3c75c91bde990f55cbb417b881b7b254c14f7ae3095944242",
+  "original_menu_press_release_edges_verified": true,
+  "original_return_press_release_edges_verified": true,
+  "candidate_sha256": "0478f4254b7ed164c1666c2e8129210f46fab9cff2f6a50a251b832df11b2208",
+  "default_qemu_sha256_unchanged": "b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad",
+  "candidate_build": "full build-qemu.sh --stage-only --sony-device --ram-state; separate stage qemu-IKR4XF",
+  "ram_device_state_outputs": {
+    "hw/timer/sony_hwtimer.c": "13d7b074440bb053d7afd7e95b5b4e01e33ae4ac4ee4bd5fe57a39a7c510f884",
+    "hw/misc/sony_spacc_stub.c": "762b266c55b33a80e397cacd139828db79db9dfad03c26e78321186fac3f5306",
+    "hw/input/sony-ui-input.c": "7ac40bd8684109c86281ff05330fcb10200ce3264c8e2ead464cb54249b0030c"
+  },
+  "source_sha256": {
+    "tools/run-original-cold.py": "036ff374e48001b23765daeca45854cd733df447e93581f42453ae34cc1fe882",
+    "runtime/analysis/original_ram_restore.py": "34baaeeae5bf6d59e38a14ac94431c0702ea0b18508db543b92cfa6304965244",
+    "runtime/analysis/qemu-kernel-probe.sh": "100db11383f1bdd429a64161764ebd0b15a9f775028274a8f91059507e5cf325",
+    "runtime/analysis/persistent_storage.py": "2e7e642e2967bb23df301059b81f08a26b7d8d1f978847727c97c889868134e6",
+    "source/persistent-flash/stage.py": "f1cffea6a861ebd6a8c49edac25bc0c68c4932f52ef38552ad303bac4d96405e",
+    "source/ram-state/stage.py": "be48e18d921210952e3f4467a5927184de6d5145122939e3fa2103e929e0310a"
+  },
+  "input_source_zero_drift": true,
+  "independent_readback_workers": 2,
+  "independent_readback_verified": true,
+  "host_checks_not_actual_acceptance": [
+    "Initial two fixture failures preserved; corrected RAM/cold group 46 passed",
+    "Retained-stage group 47 passed; public model runner 28 passed",
+    "Device-state/proof groups 20 and 42 passed",
+    "Restore-thaw/persistent group 21 passed; original-cold caller group 42 passed",
+    "Final package/adapter/public-list group 81 passed",
+    "Final asset-free product host suite 390 passed, 40 skipped, 95 subtests passed",
+    "Legacy script sync check rc0"
+  ],
+  "preserved_failures": [
+    {
+      "version": "v1",
+      "result": "pre-save failed: sony-persistent-flash; retained-state disabled",
+      "target_started": false,
+      "incomplete_stream_bytes": 492168892,
+      "incomplete_stream_sha256": "8e0684426a4a5f7060050a6497a6d2d60822b894443c461d587ad192354341d6",
+      "source_normal_qmp_exit": true
+    },
+    {
+      "version": "v2",
+      "result": "old global persistent proof rejected candidate before guest",
+      "vm_started": false
+    },
+    {
+      "version": "v3",
+      "result": "source and incoming migration completed; original MENU produced no new frame",
+      "roundtrip_verified": false,
+      "source_and_target_normal_qmp_exit": true
+    },
+    {
+      "version": "v4",
+      "result": "three device VMState candidate still produced no new MENU frame before storage thaw fix",
+      "roundtrip_verified": false,
+      "source_and_target_normal_qmp_exit": true
+    }
+  ],
+  "private_evidence": {
+    "actual_root": "/tmp/a7c2-original-ram-roundtrip-20261109-v5",
+    "source_result_sha256": "0580e63fea7542b22af775be8ad0f17d723bbf628ec6eed606ec88d650c9493a",
+    "target_result_sha256": "9333773fadf4bf4e85dacdeb57e581e626ee835eed2d66a6a75c4510d109b6f5",
+    "capture_receipt_sha256": "9324f9ee3287a7a3f59942e9d54b28c2475d18438614441acb5321368220e7dc",
+    "independent_readback": "analysis/scratch/product-wbi-ram-20261109/final-readback-v5.json",
+    "independent_readback_sha256": "996b5d6956efb86ee0c97e25690be76369e94b5fdc589e19a43d9a373640e843",
+    "independent_readback_driver_sha256": "06aba31be3ebea8d4d00182626ece74ad6ba1dd87394e5636c6718a9bad3cc6a",
+    "input_receipt_sha256": "94c7ac0844cc5d28110cba5f5bbdee024e2ffe1743a94801c5de75b8d619c391",
+    "candidate_build_log_sha256": "9eccef1d825a82a068e1ca1ee0c660941dbae8179f55cd5e1ff0869d89bd54d8"
+  },
+  "private_ram_disks_logs_or_firmware_distributed": false,
+  "full_machine_migration_audited": false,
+  "sony_wbi_resume_executed": false,
+  "physical_hotboot_verified": false,
+  "full_boot_verified": false,
+  "physical_asic_compatibility_verified": false,
+  "capture_verified": false,
+  "report": "docs/tech/2026-11-09-ram-restore.md"
+}

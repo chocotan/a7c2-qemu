@@ -467,9 +467,17 @@ class CameraUI:
         restart=Gtk.Button(label='关闭后重新启动');restart.set_size_request(-1,44)
         restart.connect('clicked',lambda _:self.development_action('restart'))
         self.development_buttons['restart']=restart;row.pack_start(restart,False,False,0)
-        hot=Gtk.Button(label='保留 RAM 热启动 · 未接入');hot.set_sensitive(False)
-        hot.set_tooltip_text('当前产品构建尚未验收保留 RAM 的恢复链；普通重启不会标成热启动')
-        row.pack_start(hot,False,False,0);box.pack_start(row,False,False,0)
+        self.development_ram_sync=False
+        self.development_ram=Gtk.CheckButton(label='QEMU RAM 会话（下次启动）')
+        self.development_ram.set_tooltip_text('先构建 RAM 候选；保存后从同一内部盘继续原程序。Sony WBI 独立未完成。')
+        self.development_ram.connect('toggled',self._development_ram_toggled)
+        row.pack_start(self.development_ram,False,False,0)
+        for action,title in (('ram_save','保存 RAM 并退出'),('ram_restore','从 RAM 恢复')):
+            button=Gtk.Button(label=title);button.set_size_request(-1,44)
+            button.connect('clicked',lambda _,value=action:self.development_action(value))
+            button.get_accessible().set_name(title)
+            self.development_buttons[action]=button;row.pack_start(button,False,False,0)
+        box.pack_start(row,False,False,0)
         box.pack_start(label('BODYDATA 系统更新 · 本轮暂缓，不执行完整更新验收','hint',wrap=True),False,False,0)
         self.development_status=label('选择文件前先 OFF 并等待保存结束。','hint',wrap=True)
         self.development_status.get_accessible().set_role(Atk.Role.STATUSBAR)
@@ -482,12 +490,16 @@ class CameraUI:
         except (ValueError,RuntimeError,OSError,AttributeError) as error:self.local_error='内部存储：'+str(error)
         self.update(self.vm.status())
 
+    def _development_ram_toggled(self,widget):
+        if not self.development_ram_sync:self.development_action('ram_mode')
+
     def development_action(self,action):
         if self.closing or self.reinitializing or self.development_busy:return False
         source=self.development_source.get_filename();target=self.development_target.get_text()
+        ram_mode=self.development_ram.get_active()
         if action=='stage' and not source:
             self.local_error='请先选择本机测试文件';self.update(self.vm.status());return False
-        if action=='restart' and self.input_bindings is not None and not self.release_inputs():return False
+        if action in ('restart','ram_save') and self.input_bindings is not None and not self.release_inputs():return False
         self.development_busy=True;self.local_error='';self.update(self.vm.status())
         def worker():
             message='';error=''
@@ -496,11 +508,17 @@ class CameraUI:
                     result=self.vm.select_firmware_test(source,target)
                     message='测试文件已暂存：'+result['guest_path']+'；启动后可核对 guest 文件'
                 elif action=='original':
-                    self.vm.select_firmware_test();message='下次启动已选择原版固件'
+                    self.vm.select_firmware_test(destination=target);message='下次启动已选择原版固件'
                 elif action=='readback':
                     self.vm.check_firmware_test();message='实际 guest 读回已排队，等待权限、摘要与长度结果'
                 elif action=='restart':
                     self.vm.close();self.vm.start();message='原实例已保存并退出，新启动请求已提交'
+                elif action=='ram_mode':
+                    self.vm.configure_ram(ram_mode);message='下次启动启用 RAM 保存/恢复' if ram_mode else '下次启动使用普通冷启动'
+                elif action=='ram_save':
+                    self.vm.save_ram();message='RAM、设置与 SD 已保存，原 VM 已正常退出'
+                elif action=='ram_restore':
+                    self.vm.restore_ram();message='RAM 恢复已请求，等待原 AP 续行校验'
                 else:raise ValueError('未知开发动作')
             except (OSError,ValueError,RuntimeError) as problem:error=str(problem)
             def finished():
@@ -803,10 +821,9 @@ class CameraUI:
         self.on.set_sensitive(not(self.closing or self.development_busy) and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
         self.off.set_sensitive(not(self.closing or self.development_busy) and state.get('can_stop', state.get('state') in ('starting', 'running')))
         self.reset_button.set_sensitive(not(self.closing or self.reinitializing or self.development_busy)
-            and state.get('boot_profile')!='original-init-cold'
             and state.get('settings_persistent') is True and bool(state.get('settings_generation'))
             and state.get('state') in ('disconnected','exited') and bool(state.get('can_start')))
-        self.reset_button.set_tooltip_text('原冷启动配置复位尚未接通；盘内配置保留' if state.get('boot_profile')=='original-init-cold' else '请先 OFF 并等待配置和 SD 保存完成；仅重置当前实例，默认保留 SD')
+        self.reset_button.set_tooltip_text('请先 OFF 并等待配置和 SD 保存完成；仅复位当前设置，保留原前像、固件修改和 SD')
         wifi = state.get('wifi') or {}
         if state.get('state') != 'running':
             self.wifi_confirmed = False
@@ -847,11 +864,22 @@ class CameraUI:
         try:self.development_storage.set_active(state.get('persistent_storage') is True)
         finally:self.development_storage_sync=False
         self.development_storage.set_sensitive(idle and stopped and state.get('boot_profile')!='original-init-cold' and hasattr(self.vm,'configure_storage'))
+        self.development_ram_sync=True
+        try:self.development_ram.set_active(state.get('ram_enabled') is True)
+        finally:self.development_ram_sync=False
+        self.development_ram.set_sensitive(idle and stopped and state.get('boot_profile')=='original-init-cold' and hasattr(self.vm,'configure_ram'))
         for action,button in self.development_buttons.items():
             available=hasattr(self.vm,'select_firmware_test') if action in ('stage','original') else True
-            button.set_sensitive(idle and available and (stopped if action in ('stage','original') else state.get('state')=='running'))
+            ready=stopped if action in ('stage','original') else state.get('state')=='running'
+            if action=='ram_save':ready=state.get('state')=='running' and state.get('ram_enabled') is True and hasattr(self.vm,'save_ram')
+            elif action=='ram_restore':ready=stopped and state.get('ram_enabled') is True and bool(state.get('ram_snapshot')) and hasattr(self.vm,'restore_ram')
+            button.set_sensitive(idle and available and ready)
         verification=state.get('firmware_verification')
-        if verification:
+        if state.get('ram_restored') is True:
+            self.development_status.set_text('RAM 恢复通过：同一原程序、内部盘和新菜单画面已核对')
+        elif stopped and state.get('ram_snapshot'):
+            self.development_status.set_text('RAM 已保存且原 VM 已退出；可从同一内部盘恢复')
+        elif verification:
             self.development_status.set_text('原 guest 文件核对通过：'+verification['path'] if verification.get('guest_readback_verified') else '原 guest 文件核对未通过：'+str(verification.get('error','unknown')))
         input_error = (state.get('input_state') or {}).get('error', '')
         error = '\n'.join(filter(None, (state.get('error'), self.local_error, input_error)))

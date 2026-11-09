@@ -271,21 +271,159 @@ class GuardTests(unittest.TestCase):
         sony.SonySenserCamera.assert_not_called();util.dispose_resources.assert_called_once_with(device)
         self.control.disconnect.assert_not_called()
 
+    def test_extra_root_commands_bound_across_isolated_consumer(self):
+        commands=['echo virtual-file-readback']
+        raw=json.dumps([{'command':command,'exit_status':0,'output':'Uid: 0 0 0 0\nGid: 0 0 0 0\n' if command==jiritsu.ROOT_COMMAND else 'readback'}
+                        for command in [jiritsu.ROOT_COMMAND,*commands,jiritsu.ROOT_CLEANUP_COMMAND]])
+        manifest={'fixture':'a'*64};result=jiritsu.result_base(self.control,'root')
+        result.update(sources=manifest,phase='complete',authentication_verified=True,guest_root_verified=True,
+                      requested_commands_verified=True,commands_json=raw,
+                      events=[{'event':'authentication_exchange','pid':0x0336,'command':5,'result':6,'success_byte':1,'reply_size':512}])
+        source=Mock(pmca=self.root,scripts=self.root);source.manifest.return_value=manifest
+        completed=SimpleNamespace(returncode=0,stdout=json.dumps(result),stderr='')
+        with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed) as launch:
+            actual=jiritsu.JiritsuConsumer(self.control).run('root',commands=commands)
+        self.assertTrue(actual['requested_commands_verified'])
+        self.assertEqual(json.loads(launch.call_args.kwargs['input'])['commands'],commands)
+        result['commands_json']=raw.replace('echo virtual-file-readback','echo another-command');completed.stdout=json.dumps(result)
+        with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed):
+            refused=jiritsu.JiritsuConsumer(self.control).run('root',commands=commands)
+        self.assertEqual(refused['blocked_reason']['code'],'worker_command_failed')
+        with patch.object(jiritsu.subprocess,'run') as launch:
+            refused=jiritsu.JiritsuConsumer(self.control).run('version',commands=commands)
+        launch.assert_not_called();self.assertEqual(refused['blocked_reason']['code'],'invalid_worker_commands')
+
+    def test_large_out_check_is_bounded_and_bound_across_consumer(self):
+        self.assertEqual(len(jiritsu.LARGE_OUT_CONTENT),70912)
+        self.assertEqual(jiritsu.LARGE_OUT_CONTENT,bytes(range(256))*277)
+        transport=object();version=Mock();deploy=Mock()
+        deploy.OUT_PATH='/tmp/jiritsu/a7c2-out.txt';deploy._select.return_value=b'select';deploy._READ=b'read'
+        deploy._write.return_value=b'write';deploy._read_path.return_value=jiritsu.LARGE_OUT_CONTENT
+        row=jiritsu.check_large_out(transport,version,deploy,Mock())
+        self.assertEqual(row['bytes'],70912);self.assertEqual(row['sha256'],jiritsu.LARGE_OUT_SHA256)
+        deploy._write.assert_called_once_with(deploy.OUT_PATH,jiritsu.LARGE_OUT_CONTENT)
+        deploy._read_path.return_value=jiritsu.LARGE_OUT_CONTENT+b'x'
+        with self.assertRaises(jiritsu.ControlBlocked):jiritsu.check_large_out(transport,version,deploy,Mock())
+        manifest={'fixture':'a'*64};result=jiritsu.result_base(self.control,'root')
+        raw=json.dumps([{'command':command,'exit_status':0,'output':'Uid: 0 0 0 0\nGid: 0 0 0 0\n' if command==jiritsu.ROOT_COMMAND else ''}
+                        for command in (jiritsu.ROOT_COMMAND,jiritsu.ROOT_CLEANUP_COMMAND)])
+        result.update(sources=manifest,phase='complete',authentication_verified=True,guest_root_verified=True,commands_json=raw,
+                      large_out_verified=True,large_out=row,
+                      events=[{'event':'authentication_exchange','pid':0x0336,'command':5,'result':6,'success_byte':1,'reply_size':512}])
+        source=Mock(pmca=self.root,scripts=self.root);source.manifest.return_value=manifest
+        completed=SimpleNamespace(returncode=0,stdout=json.dumps(result),stderr='')
+        with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed) as launch:
+            actual=jiritsu.JiritsuConsumer(self.control).run('root',large_out_check=True)
+        self.assertTrue(actual['large_out_verified']);self.assertTrue(json.loads(launch.call_args.kwargs['input'])['large_out_check'])
+        result['large_out']['sha256']='0'*64;completed.stdout=json.dumps(result)
+        with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed):
+            refused=jiritsu.JiritsuConsumer(self.control).run('root',large_out_check=True)
+        self.assertEqual(refused['blocked_reason']['code'],'large_out_readback_failed')
+        with patch.object(jiritsu.subprocess,'run') as launch:
+            refused=jiritsu.JiritsuConsumer(self.control).run('version',large_out_check=True)
+        launch.assert_not_called();self.assertEqual(refused['blocked_reason']['code'],'invalid_large_out_check')
+
+    def test_root_uses_version_not_hasp_and_keeps_direct_service(self):
+        from types import ModuleType
+        import hashlib
+        self.control.target['product_id']=0x0336
+        device=self.control.device();guard=Mock();guard.recovery=False;guard.capability=None
+        guard.find.return_value=device;guard.check_device.return_value=self.control.target
+        class Backend:
+            def __init__(self,dev):self.dev=dev
+            def getId(self):return 0x054c,0x0336
+            def reset(self):pass
+            def getEndpoints(self):return []
+            def clearHalt(self,*args):pass
+            def read(self,*args):raise AssertionError('no raw fixture transport')
+            def write(self,*args):raise AssertionError('no raw fixture transport')
+            def classInterfaceRequestOut(self,*args):raise AssertionError('no mode change')
+            def vendorRequestOut(self,*args):raise AssertionError('no mode change')
+        starts=[]
+        class Auth:
+            def __init__(self,driver):self.driver=driver
+            def start(self):starts.append(True)
+            def stop(self):raise AssertionError('direct Senser must not be stopped')
+            def _sendAuthPacket(self,command,data=b''):
+                return ({1:8,3:4,5:6}[command],b'\x01'+bytes(511))
+            def authenticate(self):
+                for command in (1,3,1,3,1,3,5):self._sendAuthPacket(command)
+        sony=SimpleNamespace(SonySenserAuthDevice=Auth,SonySenserDevice=lambda driver:object(),
+                             SonySenserCamera=Mock(side_effect=AssertionError('root must not read HASP')))
+        version=SimpleNamespace(read_version=Mock(return_value=b'32014_05.2025101101'))
+        raw=json.dumps([{'command':jiritsu.ROOT_COMMAND,'exit_status':0,
+                         'output':'Uid:\t0\t0\t0\t0\nGid:\t0\t0\t0\t0\n'}]).encode()
+        deploy=SimpleNamespace(APPROVAL_TOKEN='arm-preload-once',
+                               deploy_and_run=Mock(return_value=(raw,{'payload_ran':True,'mailbox_ok':True})))
+        runner=SimpleNamespace(command_runner_driver=Mock(return_value='driver'))
+        sources=Mock();sources.load.return_value=(None,sony,SimpleNamespace(GenericUsbDriver=lambda backend:backend),
+                                                   SimpleNamespace(UsbBackend=Backend),version,deploy,runner)
+        payload=b'\x7fELFworker'
+        sources.payload.return_value=payload
+        core=ModuleType('usb.core');core.find=Mock(return_value=[device])
+        util=ModuleType('usb.util');util.claim_interface=Mock();util.dispose_resources=Mock()
+        package=ModuleType('usb');package.core=core;package.util=util
+        def neutralize(_transport,_control,_guard,_version,_log):
+            self.control.record_preload_recovery(jiritsu.NEUTRAL)
+        with patch.dict(sys.modules,{'usb':package,'usb.core':core,'usb.util':util}), \
+                patch.object(jiritsu,'TargetGuard',return_value=guard), \
+                patch.object(jiritsu,'PAYLOAD_SHA256',hashlib.sha256(payload).hexdigest()), \
+                patch.object(jiritsu,'neutralize_preload',side_effect=neutralize):
+            result=jiritsu.consume(self.control,sources,'root',{})
+        self.assertEqual(result['phase'],'complete');self.assertTrue(result['guest_root_verified'])
+        self.assertEqual(result['version']['content_hex'],b'32014_05.2025101101'.hex())
+        self.assertEqual(starts,[True]);sony.SonySenserCamera.assert_not_called()
+        runner.command_runner_driver.assert_called_once_with([jiritsu.ROOT_COMMAND,jiritsu.ROOT_CLEANUP_COMMAND],interactive=False)
+        self.assertFalse(any(event['event']=='stop_senser_requested' for event in result['events']))
+        self.assertFalse(result['preload_recovery_required']);util.dispose_resources.assert_called_once_with(device)
+
     @unittest.skipUnless(VERSION is not None, 'optional jiritsu protocol scripts not installed')
     def test_source_manifest_contains_original_worker_and_pmca(self):
         sources = jiritsu.Sources()
         if not (sources.pmca / 'pmca/usb/sony.py').exists():
             self.skipTest('local PMCA checkout unavailable')
         manifest = sources.manifest('version')
-        for path in (sources.scripts / 'usb_service_probe.py', sources.scripts / 'jiritsu_run_command.py',
+        for path in (sources.scripts / 'jiritsu_run_command.py',
                      sources.scripts / 'jiritsu_preload_deploy.py', sources.pmca / 'pmca/usb/sony.py'):
             self.assertIn(str(path.resolve()), manifest)
+        self.assertNotIn(str((sources.scripts / 'usb_service_probe.py').resolve()), manifest)
         changed = dict(manifest)
-        changed[str(sources.scripts / 'usb_service_probe.py')] = '0' * 64
+        changed[str(sources.scripts / 'jiritsu_version_read.py')] = '0' * 64
         self.assert_blocked('consumer_source_changed', lambda: sources.verify(changed, 'version'))
+
+    @unittest.skipUnless(VERSION is not None, 'optional jiritsu protocol scripts not installed')
+    def test_version_import_keeps_bound_pmca_without_research_probe(self):
+        import subprocess
+        code = '''import sys
+from pathlib import Path
+sys.path.insert(0, %r)
+import usb_jiritsu as j
+s=j.Sources();m=s.manifest("version");probe,*_=s.load(m,"version")
+assert probe is None and "usb_service_probe" not in sys.modules
+assert Path(sys.modules["pmca"].__file__).resolve().is_relative_to(s.pmca)
+''' % str(Path(jiritsu.__file__).resolve().parent)
+        subprocess.run([sys.executable, '-I', '-B', '-c', code], check=True, capture_output=True)
 
 
 class EvidenceTests(unittest.TestCase):
+    def test_root_session_budget_preserves_cleanup_reserve(self):
+        self.assertEqual(jiritsu.session_budget_seconds(0),180)
+        self.assertEqual(jiritsu.session_budget_seconds(4),300)
+        self.assertEqual(jiritsu.session_budget_seconds(16),660)
+        for invalid in (-1,17,True,1.5,'4'):
+            with self.subTest(invalid=invalid),self.assertRaises(ValueError):jiritsu.session_budget_seconds(invalid)
+
+    def test_worker_command_bounds_and_actual_cleanup_receipts(self):
+        commands=['echo virtual-only']
+        self.assertEqual(jiritsu.validate_commands('root',commands),commands)
+        for invalid in ('command',[''],['x'*7801],['echo x']*17,['echo 中文'],['echo\x00bad']):
+            with self.subTest(commands=invalid),self.assertRaises(jiritsu.ControlBlocked):jiritsu.validate_commands('root',invalid)
+        rows=[{'command':command,'exit_status':0} for command in [jiritsu.ROOT_COMMAND,*commands,jiritsu.ROOT_CLEANUP_COMMAND]]
+        self.assertTrue(jiritsu.command_results_verified(json.dumps(rows),commands))
+        for bad in (rows[:-1],list(reversed(rows)),[dict(row,exit_status=True) for row in rows],
+                    [dict(row,exit_status=1) if index==1 else row for index,row in enumerate(rows)]):
+            self.assertFalse(jiritsu.command_results_verified(json.dumps(bad),commands))
+
     def test_authentication_requires_real_final_result_and_success_byte(self):
         valid = [(1, 2, b'challenge'), (3, 4, b'')] * 3 + [(5, 6, b'\x01')]
         self.assertTrue(jiritsu.authentication_proven(valid))

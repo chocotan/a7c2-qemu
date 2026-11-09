@@ -10,8 +10,9 @@
 | DTC | GPL，以文件 SPDX/上游说明为准 | `source/dtc/GPL`、`README.license` |
 | libfdt | GPL/BSD 双许可，可选 BSD-2-Clause | `source/dtc/BSD-2-Clause`、`source/licenses/libfdt-BSD-2-Clause.txt` |
 | fwtool SDK、FAT 子集 | ma1co MIT | 各 vendor 目录的 `LICENSE.txt`、`source/licenses/fwtool-MIT.txt` |
+| 原USB认证的Sony-PMCA-RE固定提交与PyUSB/libusb | 使用者本地取得，按各上游许可；本包不随附仓库或依赖二进制，顶层MIT不覆盖 | [USB复现报告](docs/tech/2026-11-09-usb-jiritsu.md)的来源／提交及本地原license metadata |
 | 宿主 Pillow、PyCryptodome、GTK、libjpeg及FFmpeg/libavcodec/libavformat/libavutil/libswscale | 由使用者安装，按各自构建配置及上游许可；本包不随附其二进制，也不由顶层MIT重新授权 | 宿主发行包/可选本地依赖原始license metadata |
 | Sony BODYDATA、原内核/库/字体/设置、完整派生镜像与完整反编译语料 | Sony/相应权利人的原许可；不在本源码分发内，也不按MIT授权 | 使用者自行取得官方输入 |
 | 报告中的有限原字节锚点与逆向片段 | 只用于绑定公开固件版本和说明协议研究；相关原内容不由项目MIT重新授权 | 各报告来源、SHA与范围说明 |
 
-`runtime/analysis/vendor/host-python/` 是被忽略的本地验证加密依赖，含预编译扩展；不属于本源码清单。`incoming/`、`runtime/bodydata-cache/`、`menu-root/`、`unpacked/`、运行日志、虚拟卡和用户自己的截图不属于公开包。README中的`docs/images/startup-window.png`是本项目程序实际启动窗口的示例截图，不含其它桌面内容或个人资料；其中Sony界面元素仍归原权利人，不由项目MIT许可证重新授权。不要用 `tar runtime/` 或直接压缩整个工作目录分发；仅分发源码清单内文件及对应 SHA 清单。原始固件与用户修改的原库也不能因被本脚本读取就视为项目开源源码。
+`runtime/analysis/vendor/host-python/` 是被忽略的本地USB／加密依赖，含预编译扩展；`runtime/analysis/vendor/pmca-adamwuqwq/` 是本地原认证源码依赖；两者都不属于本源码清单。`incoming/`、`runtime/bodydata-cache/`、`menu-root/`、`unpacked/`、运行日志、虚拟卡和用户自己的截图不属于公开包。README中的`docs/images/startup-window.png`是本项目程序实际启动窗口的示例截图，不含其它桌面内容或个人资料；其中Sony界面元素仍归原权利人，不由项目MIT许可证重新授权。不要用 `tar runtime/` 或直接压缩整个工作目录分发；仅分发源码清单内文件及对应 SHA 清单。原始固件与用户修改的原库也不能因被本脚本读取就视为项目开源源码。

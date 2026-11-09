@@ -9,6 +9,8 @@ binary_relative="${QEMU_SYSTEM_BINARY:-qemu-system-aarch64}"
 sony_timers="${SONY_TIMER_MODEL:-0}"
 native_window="${MENU_NATIVE_WINDOW:-0}"
 native_display="${QEMU_NATIVE_DISPLAY:-none}"
+ram_session="${QEMU_RAM_SESSION:-0}"
+case "$ram_session" in 0|1) ;; *) echo 'QEMU_RAM_SESSION must be 0 or 1' >&2; exit 2 ;; esac
 cpu_count="${QEMU_CPU_COUNT:-1}"
 case "$cpu_count" in 1|2) ;; *) echo 'QEMU_CPU_COUNT must be 1 or 2' >&2; exit 2 ;; esac
 gic_handoff="${QEMU_SONY_GIC_HANDOFF:-0}"
@@ -463,6 +465,9 @@ PY
   persistent_bind=(--dir /instance --ro-bind "$A7C2_EMMC_INSTANCE/persistent-geometry.bin" /instance/persistent-geometry.bin)
   persistent_environment=(--setenv QEMU_A7PF_PROFILE persistent-flash-cold-v1
     --setenv QEMU_A7PF_FD "$A7C2_EMMC_FD" --setenv QEMU_A7PF_DEV "$A7C2_EMMC_DEV" --setenv QEMU_A7PF_INO "$A7C2_EMMC_INO")
+  if [[ "$ram_session" == 1 ]]; then
+    persistent_environment+=(--setenv QEMU_A7PF_RETAINED_STATE 1)
+  fi
   if bwrap --help | grep -q -- --preserve-fds; then persistent_fd_options=(--preserve-fds "$((A7C2_EMMC_FD-2))"); fi
 fi
 scope_bind=()
@@ -518,6 +523,18 @@ elif [[ -n "${QEMU_SHUTTER_WRITER_SHA256:-}" ]]; then
 fi
 observation_seconds="${QEMU_TIMEOUT_SECONDS:-15}"
 [[ "$observation_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid timeout' >&2; exit 2; }
+incoming_args=()
+if [[ "$ram_session" == 1 || "${QEMU_RAM_INCOMING:-0}" != 0 ]]; then
+  [[ "$ram_session" == 1 && "${A7C2_ORIGINAL_COLD:-}" == original-init-v1 &&
+     "${QEMU_UI_LIVE:-0}" == 1 && "$observation_seconds" == 0 &&
+     "${QEMU_SONY_USB_DEVICE:-0}" == 0 && -z "${A7C2_HOST_SD:-}" &&
+     -z "${A7C2_DIRECTORY_SD:-}" ]] || {
+    echo 'RAM session requires original cold GTK without USB device or host SD' >&2; exit 2; }
+fi
+if [[ "${QEMU_RAM_INCOMING:-0}" != 0 ]]; then
+  [[ "${QEMU_RAM_INCOMING}" == defer ]] || { echo 'QEMU_RAM_INCOMING must be defer' >&2; exit 2; }
+  incoming_args=(-S -incoming defer)
+fi
 # Exit 124 means the observation window elapsed; zero allows an interactive session.
 runner=(timeout --signal=TERM --kill-after=2s "${observation_seconds}s")
 # The UI owns this process tree; exec preserves ownership for stop and parent death.
@@ -547,6 +564,7 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       "${debug_args[@]}" \
       "${scope_args[@]}" \
       "${writer_args[@]}" \
+      "${incoming_args[@]}" \
       "${loader_args[@]}" -kernel /kernel.img -initrd /initrd.img \
       -append "$cmdline" \
       -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log

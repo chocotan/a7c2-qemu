@@ -189,7 +189,7 @@ def test_cold_live_current_failed_shutdown_invalidates_previous_success(tmp_path
     import json,menu_live,sd_export_lifecycle
     import original_cold_live as live
     (tmp_path/'build').mkdir();(tmp_path/'build/result.json').write_text('{}')
-    built=dict(helper_sources={'media-camera.fat':{'bytes':4096}},ram0_sha256='a'*64,kernel_sha256='b'*64,overwrite={'entries':[]})
+    built=dict(helper_sources={'media-camera.fat':{'bytes':4096}},sd_card={'bytes':4096},ram0_sha256='a'*64,kernel_sha256='b'*64,overwrite={'entries':[]})
     def exported(export_once,serial,sequence,publish):
         row=dict(ok=True,card_published=True,sha256='c'*64,flush_lifecycle=dict(ok=True));(tmp_path/'SD').mkdir(exist_ok=True);publish(row);return row
     monkeypatch.setattr(sd_export_lifecycle,'export_with_flush_lifecycle',exported)
@@ -226,12 +226,12 @@ def test_cold_control_requires_real_owner_socket_and_current_lock(tmp_path,monke
     finally:os.close(fd)
 
 
-def test_cold_controller_cannot_drop_disk_or_claim_legacy_reset():
+def test_cold_controller_cannot_drop_disk_or_reset_unbound_instance():
     from menu_control import VM
     vm=VM(natural_boot=True,boot_profile='original-init-cold')
     assert vm.status()['boot_profile']=='original-init-cold' and vm.persistent_storage
     with pytest.raises(ValueError,match='持久'):vm.configure_storage(False)
-    with pytest.raises(ValueError,match='尚未接通'):vm.reset_configuration(confirmed=True)
+    with pytest.raises(ValueError,match='未绑定'):vm.reset_configuration(confirmed=True)
     for args in (dict(natural_boot=False),dict(natural_boot=True,usb_net=True),dict(natural_boot=True,command=['unused'])):
         with pytest.raises(ValueError):VM(boot_profile='original-init-cold',**args)
 

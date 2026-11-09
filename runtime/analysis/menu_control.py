@@ -97,6 +97,11 @@ class VM:
         if boot_profile not in ('direct-bootin','original-init-cold') or (boot_profile=='original-init-cold' and (command is not None or not natural_boot or usb_net)):
             raise ValueError('原冷启动需要真实原生窗口与隔离内部盘；其它设备使用兼容启动')
         self.boot_profile=boot_profile
+        self.ram_enabled=False
+        self.ram_qemu=None
+        self.ram_snapshot=None
+        self.ram_restored=False
+        self._ram_restore=None
         self.persistent_storage=bool(persistent_storage or boot_profile=='original-init-cold')
         self.storage_context=None
         self.storage_lease=None
@@ -193,7 +198,6 @@ class VM:
     def reset_configuration(self, *, confirmed):
         """Stopped-instance logical reinitialization; preserve virtual SD/history."""
         with self.lock:
-            if self.boot_profile=='original-init-cold':raise ValueError('原冷启动配置保存在内部盘；当前配置复位尚未接通')
             if self.instance is None:raise ValueError('本控制器未绑定持久实例')
             if (self.instance_lease is not None or self.cleanup_error or self.owned_process is not None
                     or (self.thread and self.thread.is_alive())):
@@ -201,8 +205,17 @@ class VM:
             from settings_instance import load_for_boot
             with self.instance.run_lease() as token:
                 current=load_for_boot(token,SETTINGS_FIRMWARE_SHA)
-            if current['generation'] is None:raise ValueError('当前相机尚无保存的配置')
-            result=self.instance.reset(current['generation'],confirmed=confirmed)
+                if confirmed is not True:
+                    from setting_store import StoreError
+                    raise StoreError('explicit reset confirmation required')
+                if current['generation'] is None:raise ValueError('当前相机尚无保存的配置')
+                if self.boot_profile=='original-init-cold':
+                    from persistent_settings import reset
+                    if self.storage_instance is None:raise ValueError('当前相机尚无已选内部盘')
+                    transaction=reset(self.storage_instance,lambda:token.reset(current['generation'],confirmed=confirmed))
+                    result=transaction['configuration']
+                    self.ram_snapshot=None
+                else:result=token.reset(current['generation'],confirmed=confirmed)
             self.settings_generation=result['generation']
             self.settings_saved={k:v for k,v in result.items() if k!='data'}
             self.stale=True
@@ -220,28 +233,77 @@ class VM:
             self.persistent_storage=enabled
             self.event('下一次启动使用内部持久盘' if enabled else '下一次启动使用原启动镜像',kind='firmware')
 
-    def select_firmware_test(self, source=None, destination='/usr/lib/appFw.so'):
-        from firmware_development import stage_file, original_overlay
+    def configure_ram(self,enabled):
+        with self.lock:
+            if type(enabled) is not bool or self.mock or self.boot_profile!='original-init-cold':
+                raise ValueError('RAM 模式需要原冷启动与真实内部盘')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先保存退出当前 VM，再选择 RAM 模式')
+            if enabled:
+                from sony_usb_device import selected
+                if selected(os.environ):raise ValueError('Sony USB 设备状态迁移尚未审计；RAM 模式使用独立会话')
+                from original_ram_restore import window_binary
+                binary=window_binary()
+                self.ram_qemu=str(binary)
+            self.ram_enabled=enabled
+            if not enabled:self.ram_snapshot=None
+            self.event('下一次启动启用 RAM 保存/恢复' if enabled else '下一次启动使用普通冷启动',kind='firmware')
+
+    def save_ram(self):
+        with self.lock:
+            if self.state!='running' or not self.ram_enabled or not self.ram_qemu:
+                raise ValueError('当前运行没有启用已验证的 RAM 模式')
+            free=os.statvfs(self.run_dir)
+            if free.f_bavail*free.f_frsize<69*1024**3:
+                raise ValueError('RAM 保存需要 5GiB 流预算和 64GiB 可用余量')
+            try:self.commands.put_nowait({'action':'export_sd','_shutdown':True,'_ram_capture':True})
+            except queue.Full:raise ValueError('命令队列已满；RAM 保存尚未请求') from None
+            self.shutdown_done.clear();self.state='stopping'
+            self.event('正在保存设置、SD 和 RAM；正常退出后可恢复',kind='storage')
+        if not self.shutdown_done.wait(1800):raise RuntimeError('RAM 保存/退出尚未完成；原 VM 与租约保留')
+        if self.thread:self.thread.join(timeout=15)
+        with self.lock:
+            if not self.status()['can_start'] or self.state!='exited' or not self.ram_snapshot:
+                raise RuntimeError('RAM 保存未完成：'+self.error)
+            result=json.loads((Path(self.run_dir)/'result.json').read_bytes())
+            if not (result.get('verified') is True and result.get('ram_capture_verified') is True
+                    and result.get('owner_group_exited') is True and result.get('qmp_exit',{}).get('returncode')==0):
+                self.ram_snapshot=None
+                raise RuntimeError('原 RAM 源尚未完成正常 QMP/owner 退出')
+            return dict(self.ram_snapshot)
+
+    def restore_ram(self):
+        with self.lock:
+            if not self.ram_enabled or not self.ram_snapshot or not self.status()['can_start']:
+                raise ValueError('先保存 RAM 并等待原 VM 正常退出')
+            self._ram_restore=self.ram_snapshot['stream']
+            try:self.start()
+            except BaseException:
+                self._ram_restore=None
+                raise
+            self.event('RAM 恢复已请求；等待同盘身份及原 AP 续行读回',kind='firmware')
+
+    def select_firmware_test(self, source=None, destination=None):
+        from firmware_development import stage_file, original_overlay,guest_path
         with self.lock:
             if not self.natural_boot or self.mock:
                 raise ValueError('文件测试需要真实原生启动控制器')
             if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
                 raise ValueError('先 OFF 并等待保存及全部 VM 进程退出，再选择测试文件')
             base=BASE/'firmware-tests'
+            if destination is None:
+                destination=((self.firmware_selection or {}).get('guest_path') or (self.firmware_selection or {}).get('restore_path','/usr/lib/appFw.so')) if source is None else '/usr/lib/appFw.so'
+            guest_path(destination)
+            if self.persistent_storage:
+                original=BASE/'menu-root'/destination.lstrip('/')
+                if not destination.startswith('/usr/') or not original.is_file() or original.is_symlink():
+                    raise ValueError('内部盘文件测试需要替换包内已有的 /usr 普通文件，以便恢复原版')
             if source is None:
-                selected=dict(overlay=str(original_overlay(base)),original=True,guest_readback_verified=False,
-                              restore_path=(self.firmware_selection or {}).get('guest_path') or
-                                           (self.firmware_selection or {}).get('restore_path','/usr/lib/appFw.so'))
-            else:
-                if self.persistent_storage:
-                    from firmware_development import guest_path
-                    guest_path(destination)
-                    original=BASE/'menu-root'/destination.lstrip('/')
-                    if not destination.startswith('/usr/') or not original.is_file() or original.is_symlink():
-                        raise ValueError('内部盘文件测试需要替换包内已有的 /usr 普通文件，以便恢复原版')
-                selected=stage_file(base,source,destination)
+                selected=dict(overlay=str(original_overlay(base)),original=True,guest_readback_verified=False,restore_path=destination)
+            else:selected=stage_file(base,source,destination)
             self.firmware_selection=selected
             self.firmware_verification=None
+            self.ram_snapshot=None
             self.event('下一次启动使用原版固件' if source is None else '测试文件已暂存并核对完整摘要；等待原 guest 读回',kind='firmware')
             return dict(selected)
 
@@ -281,6 +343,7 @@ class VM:
                         mock=self.mock, custom_firmware=self.custom_firmware,sd_export=self.sd_export,
                         firmware_selection=self.firmware_selection,firmware_verification=self.firmware_verification,
                         persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,boot_profile=self.boot_profile,
+                        ram_enabled=self.ram_enabled,ram_snapshot=self.ram_snapshot,ram_restored=self.ram_restored,
                         wifi=self.wifi, usb_net=self.usb_net,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
@@ -300,6 +363,8 @@ class VM:
                 token.__enter__()
                 self.instance_lease = token
             self.firmware_fault=self.cleanup_error=''
+            self.ram_restored=False
+            if self._ram_restore is None:self.ram_snapshot=None
             from backup_profile import FUNCTIONAL_CAMERA_PROFILE
             self.functional_camera = not self.mock and os.environ.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
             self.input_lifecycle = False
@@ -458,8 +523,12 @@ class VM:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
             env['A7C2_BOOT_PROFILE']=self.boot_profile
-            for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD'):
+            for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD',
+                         'A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM','A7C2_RAM_QEMU'):
                 env.pop(name,None)
+            if self.ram_enabled:
+                env.update(A7C2_RAM_WINDOW='1',A7C2_RAM_QEMU=self.ram_qemu)
+                if self._ram_restore:env['A7C2_RAM_RESTORE_STREAM']=self._ram_restore
             env.pop('A7C2_STORAGE_RESTORE_FILE',None)
             env.pop('A7C2_STORAGE_RESTORE_SELECTION',None)
             if self.firmware_selection is not None:
@@ -557,6 +626,8 @@ class VM:
                     raise RuntimeError('VM 返回的运行目录不合法')
                 runtime_identity=json.loads((run/'runtime-manifest.json').read_text())
                 self.custom_firmware=bool((runtime_identity.get('overwrite') or {}).get('entries'))
+                self.ram_restored=runtime_identity.get('ram_restore_verified') is True
+                if self.ram_restored:self.ram_snapshot=None
                 monitor = FirmwareMonitor(run / 'console.log')
 
             def cancelled():
@@ -608,6 +679,8 @@ class VM:
                         continue
                     self.busy = command['action']
                 shutdown=bool(command.pop('_shutdown',False))
+                capture_ram=bool(command.pop('_ram_capture',False))
+                if capture_ram and not (shutdown and self.ram_enabled):raise ValueError('RAM capture requires this owned RAM shutdown')
                 saving=command['action']=='export_sd'
                 close_error = None
                 if shutdown and self.functional_camera:
@@ -618,6 +691,7 @@ class VM:
                     reply = {'type':'sd_export','ok':False,'error':close_error}
                 else:
                     wire_command=dict(command,shutdown_storage=True) if shutdown and self.persistent_storage else command
+                    if capture_ram:wire_command=dict(wire_command,capture_ram=True)
                     send_message(parent, wire_command)
                     reply=receive_message(parent,timeout=None if saving else 120,cancelled=None if saving else cancelled)
                     if shutdown and self.persistent_storage and reply.get('ok'):
@@ -694,6 +768,11 @@ class VM:
                             except (OSError,ValueError,RuntimeError) as error:
                                 reply={**reply,'ok':False,'error':'配置发布失败；VM保留：'+str(error)}
                         self.sd_export=reply
+                        if capture_ram and reply.get('ok'):
+                            captured=reply.get('ram_capture') or {}
+                            if captured.get('completed') is not True or captured.get('stream')!=str(Path(self.run_dir)/'ram.qevm'):
+                                raise RuntimeError('RAM capture reply does not match this run')
+                            self.ram_snapshot=captured
                         if reply.get('ok') and self.host_sd_context is None:self.card_seed=Path(self.run_dir)/'SD/card.img'
                         self.event('虚拟SD已保存' if reply.get('ok') else '虚拟SD导出失败：'+str(reply.get('error','unknown')),
                                    kind='storage')
@@ -751,6 +830,7 @@ class VM:
                 log.close()
             with self.lock:
                 self.busy, self.stale = '', True
+                self._ram_restore=None
                 while not self.commands.empty():
                     self.commands.get_nowait()
                 if cleanup_error:

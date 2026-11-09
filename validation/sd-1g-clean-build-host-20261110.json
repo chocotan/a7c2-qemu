@@ -1,0 +1,42 @@
+{
+  "schema": "a7c2-product-1g-clean-build-host-v1",
+  "verified": true,
+  "scope": "clean source/BODYDATA/QEMU archive build and host tests; not original AP execution in the clean copy",
+  "original_ap_executed_in_clean_copy": false,
+  "original_ap_cold_reload_receipt": "sd-1g-cold-reload-20261110.json",
+  "capture_verified": false,
+  "full_boot_verified": false,
+  "physical_devices_used": false,
+  "source_count": 3118,
+  "bodydata_sha256": "eb4943e6099754d64deaef5047942e9bfe258f232d0b7bc39fa23b3cd10e1e31",
+  "qemu_archive_sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+  "qemu_binary_sha256": "0b7e2b8eead748218d1d60e608a970731221b7fab47f7115e1ca24eb15c30b79",
+  "guest_built_by_default_build": true,
+  "observer_sha256": "c3ff2fe7a5e72e642a18bb28e80ca1dfe80c4adf2ba45b4c572ca2abb373351f",
+  "card_bytes": 1073741824,
+  "card_sha256": "71362dfd3446d9de01fc59f1614d1dd7944a88cae19f2d70261f16e41e7e7888",
+  "ram0_bytes": 201326592,
+  "ram0_sha256": "b6291a79dd64e8c39b6a8dcbc84e5af179aa796bf6d8b2eb80ee5dcb7a9a696c",
+  "sd_seed_bytes": 8192,
+  "whole_card_in_initrd": false,
+  "initial_missing_observer_and_factory_timeout_preserved": true,
+  "host": {
+    "default": {
+      "passed": 413,
+      "skipped": 41,
+      "subtests_passed": 99
+    },
+    "cold_sd_build": {
+      "passed": 120,
+      "subtests_passed": 23
+    },
+    "ui_ram_settings": {
+      "passed": 100,
+      "subtests_passed": 6
+    },
+    "low_latency_workers": 2,
+    "low_latency_groups_passed": 8,
+    "low_latency_result_sha256": "5395890957ee960996f05c67a381e2f7133339ba9f613803e02f68e8c18a566a"
+  },
+  "early_focus_fixture_pin_and_storeerror_failures_preserved": true
+}

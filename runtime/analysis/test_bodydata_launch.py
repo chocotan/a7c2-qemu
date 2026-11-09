@@ -15,12 +15,34 @@ spec.loader.exec_module(m)
 
 
 class Tests(unittest.TestCase):
+    def test_documented_build_includes_original_cold_guest_and_media(self):
+        script=Path(__file__).resolve().parents[2].joinpath('build-qemu.sh').read_text()
+        self.assertIn('MENU_RM_FILE=1',script)
+        self.assertIn('runtime/analysis/build-observers.sh',script)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.package = self.root/'BODYDATA.DAT'
         self.package.write_bytes(b'official test fixture')
+
+    def test_start_keeps_helper_temporaries_out_of_host_tmp(self):
+        startup=self.root/'start.sh'
+        startup.write_bytes(Path(__file__).resolve().parents[2].joinpath('start.sh').read_bytes())
+        entry=self.root/'runtime/analysis/bodydata-launch.py'
+        entry.parent.mkdir(parents=True);entry.write_text('')
+        commands=self.root/'commands';commands.mkdir()
+        python=commands/'python3';python.write_text('#!/bin/sh\n/bin/echo "$TMPDIR"\n');python.chmod(0o755)
+        for inherited in (None,'/tmp','/tmp/legacy-work',str(self.root/'custom-tmp')):
+            with self.subTest(TMPDIR=inherited):
+                env={**m.os.environ,'PATH':str(commands)+m.os.pathsep+m.os.environ['PATH']}
+                if inherited is None:env.pop('TMPDIR',None)
+                else:env['TMPDIR']=inherited
+                run=subprocess.run(['/bin/bash',str(startup)],env=env,capture_output=True,text=True)
+                self.assertEqual(run.returncode,0,run.stderr)
+                expected=inherited if inherited and not inherited.startswith('/tmp') else str(self.root/'runtime/tmp')
+                self.assertEqual(run.stdout.strip(),expected)
 
     def test_discovery_ambiguity_missing_and_nonregular(self):
         self.assertEqual(m.discover(self.root), self.package)

@@ -82,6 +82,24 @@ v9 `run-k4rx383x` 是省略Start的否定对照：已枚举0336不等于已完�
 
 全部自有VHCI端口空闲后，按原inode823187／823186恢复attach/detach的root:root与0200权限，再卸载本轮装载的vhci_hcd／usbip_core，状态与开始前一致。没有物理USB操作或给VM发送信号；历史失败盘、RAM及日志全部保留。公开收据为 [usb-jiritsu-20261109.json](../../validation/usb-jiritsu-20261109.json)。
 
+## v11–v18 version/root 失败与收窄
+
+后续每轮失败均保留，不用v10认证成功回填：v11的私有助手误用小型owner JSON上限读取63,132B认证收据，未发post-auth请求；改用独立0600／O_NOFOLLOW／1MiB有界读取。v12的原`GET_FILE2`返回`0x10000004`，原`libJiritsu.so`反汇编证明其先挂载`/dev/nflasha6`到`/tmp/jiritsu`；显式服务模式现在只在目录缺失时创建真实空目录，并在USB释放、来源及vfat类型核实后恢复前像。v13 `run-xpr2pz_x` 由此读回19B版本`32014_05.2025101101`，但原终端第二组Bulk端点写入超时，root仍为false。
+
+v14暴露了研究`usb_service_probe`路径劫持，未部署；version/root现只绑定产品本地四份协议文件与固定worker，不扫描研究目录。v15证明同一USB会话不能先authenticate再启动第二个root消费者；第二次认证失败并伴随原Sen异常，25,769,317,539B RAM已保全。v16去掉额外HASP前仍因该请求超时，现version/root直接读取版本。v17/v18的70,912B上传均在写后超时，恢复认证也失败；v17后来出现来源未唯一证明的launcher137，v18则因驱动只保留owner而未退出GTK，造成约半小时无进展等待。v18恢复后出现原异常，磁盘和日志保留，但完整RAM未抓到，这是明确证据缺口。
+
+这些结果只证明旧路径失败，不证明通用大OUT或bounce TRB模型已经修复。新增的有界TRB诊断候选完整构建SHA为`2e1e562ae77c9930478acd8697cc3a0df5798425f2359b52a6a35af573ea12f3`，默认QEMU仍未替换。
+
+## v19 小worker、Uid/Gid与中和实际通过
+
+为避开70,912B上传边界，worker以同一审计C源码、原严格C11参数以及`-Wl,-z,max-page-size=4096 -Wl,--strip-all`重新构建为10,328B，独立SHA256为`063248441ad61ecf55c495f986831560e2383b8d3feb52da631d77571781d10c`；六项host行为测试通过。旧70,912B产物、摘要和失败记录保留，新产物不冒充旧文件，也不借host测试宣称guest成功。
+
+全新实例`run-s3tz4z6p`直接执行产品`tools/jiritsu-authenticate.py --action root --run <run>`，同一消费者完成原Start、七步认证和19B版本读取。10,328B载荷经原`GET_FILE2`读回且SHA一致，单次DEBUG后worker实际执行；身份命令退出码0，实际输出为`Uid: 0 0 0 0`与`Gid: 0 0 0 0`四列全零。随后清理命令退出码0，删除本次上传文件并停止worker。
+
+中和分两步均有内容证据：worker解除preload后读回512个换行；最终恢复通道再读回512个空格，SHA256 `e449eaf70850b3535de8c39146533eec81cab7ce154bdae59affa8b14963e1ae`，`preload_recovery_required=false`。随后USB断开、原smode恢复、设置与虚拟SD保存、flush恢复、19卷冻结、QMP rc0、owner/peer退出和租约释放全部通过；37份运行源码无漂移。公开收据已更新为`ORIGINAL_USB_HOST_CONFIGURED_AUTHENTICATION7_VERSION_ROOT_NEUTRAL_SAVE_EXIT_PASS`。
+
+旧失败run的恢复锁存没有清除或跨轮回填。其VHCI端口已在各自VM退出后释放，第二轮attach/detach权限按inode839108／839107恢复root:root/0200，vhci_hcd／usbip_core恢复为开始前未加载。两个旧USB server仍因未证实的import/中和状态保持为无VM、无端口的休眠残留PID704033／973090；未用SIGKILL或伪造锁存清理它们。
+
 ## 产品复现入口
 
 先按主README完成官方包导入和默认QEMU构建。认证的隔离子进程需要产品本地依赖，用户显式准备；launcher不下载或安装软件：
@@ -110,12 +128,12 @@ A7C2_USB_SENSER=original-init2-v1 \
 只在持有专属虚拟内部盘、宿主虚拟VHCI端口可用时使用原服务模式。窗口“连接电脑”负责本轮真实VBUS、原描述符探测、host attach；正常OFF先释放USB、恢复原smode，再保存设置与SD。原设备被宿主识别且配置完成后，独立认证入口从私有context读取lease，无需把secret放进命令行：
 
 ```bash
-python3 tools/jiritsu-authenticate.py \
+python3 tools/jiritsu-authenticate.py --action authenticate \
   --run /absolute/product/runtime/analysis/menu-runs/run-XXXXXXXX
 ```
 
-PMCA依赖为读者本地clone的 `runtime/analysis/vendor/pmca-adamwuqwq`，固定提交见上文；不将第三方仓库或生成Crypto/PyUSB副本放入本次公开源码。`python -I`子进程直接使用已准备的产品host-python依赖，并在执行前重新核对实际源码／扩展摘要。该认证入口不接受物理USB路径，不执行root载荷或写固件。
+PMCA依赖为读者本地clone的 `runtime/analysis/vendor/pmca-adamwuqwq`，固定提交见上文；不将第三方仓库或生成Crypto/PyUSB副本放入本次公开源码。`python -I`子进程直接使用已准备的产品host-python依赖，并在执行前重新核对实际源码／扩展摘要。该认证入口不接受物理USB路径，不执行root载荷或写固件。`--action version`只读版本；`--action root`在同一消费者中继续执行上述已审worker与身份读取。不要在同一连接上串联两个消费者。root只用于本机虚拟相机，必须使用产品固定的10,328B载荷并满足中和读回；恢复未确认时CLI返回非零。worker源码、构建参数和摘要见`tools/jiritsu/README.md`。
 
 ## 剩余边界
 
-原host枚举、配置1／4端点、七步认证及同轮正常保存退出已通过。普通AP菜单USB功能启动未打通，当前明确使用原init2 UU→sen.elf服务路径。同USB权限／version读取及其后继服务命令未验，`guest_root_verified=false`；冷启动console的Uid/Gid证据不能代替同USB权限读回。完整更新与拍摄写卡继续deferred，`capture_verified=false`，完整Sony硬件启动与物理兼容仍未认证。
+原host枚举、配置1／4端点、七步认证、19B版本读取、worker Uid/Gid四列全零、preload中和读回及同轮正常保存退出已通过。普通AP菜单USB功能启动未打通，当前明确使用原init2 UU→sen.elf服务路径。70,912B旧载荷的大OUT传输失败只由10,328B worker避开，通用大OUT／bounce TRB和物理ASIC兼容性仍未验证。旧失败run不借v19回填中和或root；两个无端口旧server残留如上保留。完整更新与拍摄写卡继续deferred，`capture_verified=false`，完整Sony硬件启动仍未认证。

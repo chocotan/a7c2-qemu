@@ -1,0 +1,214 @@
+{
+  "schema": "a7c2-original-window-ram-save-restore-v1",
+  "verified": true,
+  "status": "PASS_SAME_WINDOW_RAM_SAVE_NORMAL_EXIT_SAME_DISK_RESTORE_ORIGINAL_AP_CONTINUED",
+  "recorded_at_ns": 1794234836466293619,
+  "actual": {
+    "verified": true,
+    "source_pid": 3954399,
+    "source_qmp_peer": 3954417,
+    "target_pid": 3959201,
+    "target_qmp_peer": 3959219,
+    "both_owners_normally_exited": true,
+    "ram_stream_sha256": "002bce6bc05e0bf3d32c2b7ed74702dbe8e196d2bc4eccf4191f40f6c98b623e",
+    "ram_stream_bytes": 498620574,
+    "same_boot_id": true,
+    "source_uptime": 104.17,
+    "target_uptime": 104.31,
+    "source_menu_pixels_restored_exactly": true,
+    "actual_ui_input_requests": 38,
+    "original_app_received_edges": 76,
+    "source_menu_open": true,
+    "restored_menu_then_hud_verified": true,
+    "source_and_target_save_verified": true,
+    "all_nineteen_volumes_frozen_each_close": true
+  },
+  "stopped_disk": {
+    "verified": true,
+    "whole_sha256": "c838b075216034d7ced4db59bf369d9744a1801f8cf59900dbbeda344f9b780f",
+    "volumes": [
+      {
+        "partition": "nflasha7",
+        "filesystem": "ext2",
+        "returncode": 0,
+        "structure_verified": true,
+        "bytes": 16777216,
+        "sha256": "5b5470e80aa8ea8642692ae3144ad64052b3abcf32c1ab6fd558bbc4b9db8ae5",
+        "stdout_sha256": "31cb7781e1830f36a4ba59a30cdd07a680f0dbdc8350287e274608f54174df46",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01"
+      },
+      {
+        "partition": "nflasha2",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 20971520,
+        "sha256": "c6384ceac71ebef3cabda00f5a9449620870a0705f5c00c66ea792cd7fc29e0a",
+        "stdout_sha256": "9d770a39da72e313263c54aa0297911f015a1a9c0a0e703de7f4eefb92b3a58c",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha3",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 78643200,
+        "sha256": "591123c53ea78001da9cf74830899943e158cb83be0bde141678e46735d4b297",
+        "stdout_sha256": "358897997845b285051f3f2fce01474db44f03db10bb51268884d7305862c051",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha8",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 67108864,
+        "sha256": "cc27bb30f73552cf29e6d39db86626f2c57f6496ca94be89280048a23db43e3e",
+        "stdout_sha256": "4b5ee8cb7ff1b2ce85b6b8d7b4fe68bafeb10a03b1cc7110635a60fc7e74b7ff",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha11",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 314572800,
+        "sha256": "5216a86a620341c604576611e987101ac90601392781f6dfe68d4be3035368e6",
+        "stdout_sha256": "d2dbe1421fa327bfe53bf78550d4fcf09b08ffb3c3317833e2c92bfde19c7455",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha12",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 41943040,
+        "sha256": "a33ca9e1760c34d3b0341c798533754e432a2b1cdd35b796d9d1e303f8f7e51a",
+        "stdout_sha256": "6057112097bf0bcf0161e525d3099a26f9e07720a8fc86fba6c5aeec501b96e4",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha18",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 20971520,
+        "sha256": "7fbefded6e6068ddc1122a70f71a231e8305f8854383d3863cbe7ffb8abcd939",
+        "stdout_sha256": "f5488b3f85b2fdfc28e0b8f98269fd7cba00c6172d3743bb44343498fa637a84",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha10",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 12582912,
+        "sha256": "d9810eff69a90dd0e31b0f7310a11e99a5f2409e276e1c92fde469fc541df3ba",
+        "stdout_sha256": "923ebdbd99b7665345ba10155058eaac0a9f9ffc3896cc2402acb3ce5573d28c",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "partition": "nflasha15",
+        "filesystem": "ext2",
+        "returncode": 0,
+        "structure_verified": true,
+        "bytes": 807403520,
+        "sha256": "b38d7d6107b7da59655efa41c677307ebcb5294feb8aa94e85a65fab1f16cfb2",
+        "stdout_sha256": "d4486a35a2d651e0e058082790258ad432fb9ffa052b7605fb5a99e050946649",
+        "stderr_sha256": "0d30ef8b61adccd6edcab489d389083f63e22e590d9dbe95de3d301009896a01"
+      },
+      {
+        "partition": "nflasha22",
+        "filesystem": "vfat",
+        "returncode": 1,
+        "structure_verified": true,
+        "bytes": 68157440,
+        "sha256": "f8990277b50ee86034a2cf79d287ae45a5bf4eb102776ad3d0063314874d51a8",
+        "stdout_sha256": "ac87163e73630d795e7e8a86c3dfbaa2927cfa445c788e6a35049794155e741e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "settings_matches_actual_guest": true,
+    "disk_unchanged_by_review": true,
+    "lease_available_after_both_owner_exits": true
+  },
+  "same_gtk_window_xid": "0x200008",
+  "window_ram_mode_selected_by_actual_mouse": true,
+  "registered_candidate_used_without_ram_environment": true,
+  "ram_source_snapshot_consumed_on_restore": true,
+  "ram_device_candidate_sha256": "0478f4254b7ed164c1666c2e8129210f46fab9cff2f6a50a251b832df11b2208",
+  "source_inputs_zero_drift": true,
+  "source_sha256": {
+    "runtime/analysis/camera_ui.py": "cffb8aa9d39d39bcdde40d8035562f51bc10e25156fb8a8de1e0cffdfaa618a8",
+    "runtime/analysis/menu_control.py": "44fec8b76f177505a10905c244699dd96a0a8a7e20bb228e83f1fc2290de27cb",
+    "runtime/analysis/menu_live.py": "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b",
+    "runtime/analysis/original_cold_boot.py": "d9d902ed228a8be617212627555b18b9db0e5e5173a76787e23b50393de1c193",
+    "runtime/analysis/original_cold_live.py": "a428e32f935b19c7064c5895b3a7b5ac589bccd7e80b45c6748df2f0a76b269a",
+    "runtime/analysis/original_ram_restore.py": "807b7bc122ad866c8bdc082ff36f933403362762550904ca31f836a8ae826c65",
+    "runtime/analysis/persistent_storage.py": "2e7e642e2967bb23df301059b81f08a26b7d8d1f978847727c97c889868134e6",
+    "runtime/analysis/qemu-kernel-probe.sh": "100db11383f1bdd429a64161764ebd0b15a9f775028274a8f91059507e5cf325",
+    "runtime/analysis/run-menu-probe.sh": "ce57b44da9c4c954f7ae514dbc9688a94f2cb82282c75fabfcf4372556c8c4ec",
+    "tools/run-original-cold.py": "893872d1090dc642472128a5ca3369b70a5ea0de6148e966041b6ff8026d8518"
+  },
+  "acceptance_workers": 2,
+  "host": {
+    "control_passed": 86,
+    "subtests_passed": 6,
+    "gtk_passed": 39
+  },
+  "evidence": {
+    "actual": {
+      "path": "analysis/scratch/product-window-ram-20261109/actual-v3/result.json",
+      "bytes": 23485,
+      "sha256": "d08a659922c33f77faa7c7231764189d5cab99a3c8b3d50644c97b9a7577a07f"
+    },
+    "independent_readback": {
+      "path": "analysis/scratch/product-window-ram-20261109/readback-v3/result.json",
+      "bytes": 5499,
+      "sha256": "c05340a906129bc489c623e37e17477935871953a60ab71b09368f1fe3712863"
+    },
+    "capture": {
+      "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-i_chw_ki/ram.qevm.json",
+      "bytes": 3299,
+      "sha256": "75a50a1e77007900cf9ed3d951c570b1a4b06c35c1b348127f6905bc940f0ce9"
+    },
+    "source": {
+      "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-i_chw_ki/result.json",
+      "bytes": 9669,
+      "sha256": "6948f5790d13d1482ba6b4d0efad5d183ffa652e45504a5d89e4e02e5e954377"
+    },
+    "target": {
+      "path": "final/a7c2-qemu/runtime/analysis/menu-runs/run-7atne8eh/result.json",
+      "bytes": 5287,
+      "sha256": "322392d4c298c828eb5213db704d21d80207d894e3a88f9e83027c99f9e87e39"
+    }
+  },
+  "images": [
+    {
+      "file": "docs/images/window-ram-source-menu-20261109.png",
+      "sha256": "97cb79454328f2c11553746e77d6bb03c3404902d3a4c4cd2efdd32256932dd1",
+      "bytes": 19875
+    },
+    {
+      "file": "docs/images/window-ram-restored-menu-20261109.png",
+      "sha256": "5f2ff08179b95e8a8e2955f5f3c05a56370dd512aae4c0ce4155299b7ee9a823",
+      "bytes": 19642
+    },
+    {
+      "file": "docs/images/window-ram-restored-hud-20261109.png",
+      "sha256": "b6002b1f066745d6f4c9734e20f4effd35ff34ed554a8311e3d747d458a8c55b",
+      "bytes": 8544
+    }
+  ],
+  "preserved_failures": {
+    "v1_prelaunch_offviewport_click_no_guest": true,
+    "v2_prelaunch_offviewport_click_no_guest": true,
+    "driver_scroll_fix_does_not_change_guest": true
+  },
+  "sony_wbi_resume_executed": false,
+  "full_boot_verified": false,
+  "physical_hotboot_verified": false,
+  "sony_usb_device_migration_verified": false,
+  "capture_verified": false,
+  "private_ram_disks_and_settings_distributed": false
+}

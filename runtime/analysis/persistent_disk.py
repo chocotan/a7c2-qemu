@@ -206,6 +206,8 @@ def lease(instance):
     metadata=[]
     try:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        if os.path.lexists(instance/'settings-reset-pending.json'):
+            raise ValueError('内部盘有未完成的配置复位；先核恢复事务')
         disk=SECURE_OPEN(instance/'camera.emmc',os.O_RDWR)
         for name in ('geometry.json','instance.json'):
             fd=SECURE_OPEN(instance/name);metadata.append(fd)

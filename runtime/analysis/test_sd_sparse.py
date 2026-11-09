@@ -26,6 +26,7 @@ static int reject(void *unused,uint64_t offset,uint64_t length) {
     (void)unused;(void)offset;(void)length;return -1;
 }
 int main(int argc,char **argv) {
+    (void)sparse_write;
     assert(argc==2);
     int fd=open(argv[1],O_RDWR|O_CREAT|O_EXCL,0600);assert(fd>=0);
     assert(!ftruncate(fd,SD_SPARSE_TOTAL));
@@ -57,6 +58,36 @@ int main(int argc,char **argv) {
     subprocess.run([str(binary),str(tmp_path/'sparse.img')],check=True,timeout=20)
 
 
+def test_one_gib_pwrite_chunks_do_not_truncate_or_fill_holes(tmp_path):
+    source=tmp_path/'write-test.c'
+    source.write_text(r'''
+#define SD_SPARSE_TEST
+#include "sd-sparse.c"
+int main(int argc,char **argv) {
+    (void)sparse_ranges;
+    if(argc!=4)return 90;char *end=0;unsigned long long offset=strtoull(argv[3],&end,10);
+    if(!*argv[3] || !end || *end)return 91;return sparse_write(argv[1],argv[2],offset);
+}
+''')
+    binary=tmp_path/'write-test'
+    subprocess.run(['clang','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+                    '-I',str(BASE),str(source),'-o',str(binary)],check=True)
+    card=tmp_path/'card.img'
+    with card.open('xb') as stream:stream.truncate(1024**3)
+    first=tmp_path/'first.bin';second=tmp_path/'second.bin';zero=tmp_path/'zero.bin'
+    first.write_bytes(bytes(range(256))*16);second.write_bytes(b'\xa5'*4096);zero.write_bytes(bytes(4096))
+    def write(chunk,offset):return subprocess.run([str(binary),str(card),str(chunk),str(offset)],check=True,capture_output=True,timeout=10)
+    write(first,0);write(second,65536);write(zero,1024**3-4096)
+    assert card.stat().st_size==1024**3 and card.stat().st_blocks*512<=4*65536
+    with card.open('rb') as stream:
+        assert stream.read(4096)==first.read_bytes()
+        stream.seek(65536);assert stream.read(4096)==second.read_bytes()
+        stream.seek(1024**3-4096);assert stream.read(4096)==bytes(4096)
+    bad=tmp_path/'bad.bin';bad.write_bytes(bytes(4097))
+    assert subprocess.run([str(binary),str(card),str(bad),'0'],capture_output=True).returncode!=0
+    assert subprocess.run([str(binary),str(card),str(zero),str(1024**3)],capture_output=True).returncode!=0
+
+
 def map_bytes(ranges=((0,4096),(4*1024**3,4096)), **changes):
     total=changes.get('total',TOTAL)
     rows=[f'SD_SPARSE_BEGIN total={total} dev=1 inode=2 mtime=3.000000000 ctime=4.000000000']
@@ -70,6 +101,8 @@ def test_map_identity_and_empty_card():
     assert parsed['ranges']==[(0,4096),(4*1024**3,4096)] and parsed['data_bytes']==8192
     assert parsed['identity']==[str(TOTAL),'1','2','3.000000000','4.000000000']
     assert parse_map(map_bytes(()),TOTAL)['ranges']==[]
+    one_gib=1024**3
+    assert parse_map(map_bytes(((65536,4096),),total=one_gib),one_gib)['ranges']==[(65536,4096)]
 
 
 @pytest.mark.parametrize('raw',[

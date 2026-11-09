@@ -78,6 +78,15 @@ case "$1" in
   [ ! -e "$state" ] || exit 78
   /simulation/audit space /setting 1048576
   /bin/busybox mkdir -p "$state"
+  /simulation/audit space /tmp 4096
+  [ ! -L /tmp/jiritsu ] || exit 78
+  if /bin/busybox grep -q ' /tmp/jiritsu ' /proc/mounts; then exit 78; fi
+  if [ -e /tmp/jiritsu ]; then
+   [ -d /tmp/jiritsu ] || exit 78
+  else
+   /bin/busybox mkdir /tmp/jiritsu
+   /bin/busybox touch "$state/jiritsu-created"
+  fi
   if [ -e /setting/sen/smode ]; then
    /bin/busybox cp /setting/sen/smode "$state/before"
    /bin/busybox cmp /setting/sen/smode "$state/before"
@@ -92,6 +101,15 @@ case "$1" in
   ;;
  restore)
   [ -d "$state" ] || exit 0
+  [ ! -L /tmp/jiritsu ] || exit 78
+  if /bin/busybox grep -q ' /tmp/jiritsu ' /proc/mounts; then
+   /bin/busybox grep -q '^/dev/nflasha6 /tmp/jiritsu vfat ' /proc/mounts || exit 78
+   /bin/busybox umount /tmp/jiritsu
+  fi
+  if [ -f "$state/jiritsu-created" ] && [ -e /tmp/jiritsu ]; then
+   /bin/busybox rmdir /tmp/jiritsu
+   [ ! -e /tmp/jiritsu ]
+  fi
   if [ -f "$state/absent" ]; then
    /bin/busybox rm -f /setting/sen/smode
    [ ! -e /setting/sen/smode ]

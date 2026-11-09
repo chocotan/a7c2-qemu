@@ -63,6 +63,15 @@ class CameraDiskTests(unittest.TestCase):
             self.assertEqual(os.pread(second['fd'],19,position),b'changed appFw block')
         self.assertEqual((self.source/'a7c2-usr.img').read_bytes(),bytes([15])*4096)
 
+    def test_pending_settings_recovery_blocks_all_disk_leases(self):
+        self.create();image=self.output/'camera.emmc';before=hashlib.sha256(image.read_bytes()).hexdigest()
+        marker=self.output/'settings-reset-pending.json';marker.symlink_to(self.root/'missing')
+        with self.assertRaisesRegex(ValueError,'未完成'):
+            with api['lease'](self.output):self.fail('pending disk admitted')
+        self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),before)
+        marker.unlink()
+        with api['lease'](self.output) as leased:self.assertEqual(api['hashed'](leased['fd']),before)
+
     def test_fixed_model_capacity_retains_unallocated_tail_and_boot_boundaries(self):
         rows,extent=api['parse_layout'](self.config.read_bytes())
         self.create()

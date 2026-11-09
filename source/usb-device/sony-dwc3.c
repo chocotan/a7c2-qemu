@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #ifdef SONY_DWC3_QEMU
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #endif
 #include "sony-dwc3.h"
 #include <errno.h>
@@ -366,6 +367,14 @@ static int transfer(SonyDWC3 *s, SonyDWC3Pending *p, unsigned ep,
         }
         unsigned trbtype = (w[3] >> 4) & 0x3f;
         uint64_t addr = w[0] | (uint64_t)w[1] << 32;
+#ifdef SONY_DWC3_QEMU
+        if (!in && length > 1024) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                "SONY_DWC3_LARGE_TRB ep=%u trb=0x%" PRIx64
+                " buffer=0x%" PRIx64 " size=0x%x ctrl=0x%x actual=%u\n",
+                ep, e->trb, addr, w[2], w[3], p->actual);
+        }
+#endif
         if (trbtype == SDWC_TRB_LINK) {
             if (addr == e->trb || (addr & 15) || probe(s, addr, 16, false)) {
                 return fail(s, "invalid/cyclic LINK TRB", -EFAULT, addr);
@@ -486,6 +495,13 @@ static int pump_one(SonyDWC3 *s, SonyDWC3Pending *p)
         if (!p->zlp_pending) {
             rc = transfer(s, p, ep, SDWC_TRB_NORMAL, u->data, u->length,
                           u->direction, &done);
+#ifdef SONY_DWC3_QEMU
+            if (!u->direction && u->length > 1024) {
+                qemu_log_mask(LOG_GUEST_ERROR,
+                    "SONY_DWC3_LARGE_RESULT ep=%u length=%u actual=%u rc=%d done=%u\n",
+                    ep, u->length, p->actual, rc, done);
+            }
+#endif
             if (rc == -EAGAIN) { notify(s, p, ep, 0); }
             if (rc || !done) { return rc ? rc : -EAGAIN; }
             unsigned mps = (s->ep[ep].cfg0 >> 3) & 0x7ff;

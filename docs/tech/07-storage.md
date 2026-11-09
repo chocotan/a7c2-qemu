@@ -4,7 +4,9 @@
 运行中的安全拔出/重插、以及第 9 步的关机保存导出。
 对象只是实验目录里的普通虚拟文件，不接物理 SD。
 
-变量见[索引](README.md)。第1–8节保留已验的 FAT 文件后端与默认关机协议；**其成功不能借给最新功能 profile 的失败运行**。本次仅整理报告，没有重跑。
+变量见[索引](README.md)。第1–8节保留已验的 FAT 文件后端与默认关机协议；**其成功不能借给最新功能 profile 的失败运行**。
+
+2026-11-10 起新原 cold 实例的默认卡是 **1GiB FAT16**（32KiB 簇，卷 ID `7C220201`）。旧 128MiB 收据、运行及失败证据保持原值。`sparse_seed.py` 只把非零 4KiB 块送入 RAM0；`cold/install-sd.sh` 在 guest 专属 tmpfs 重建普通卡，逐块读回并以 OpenSSL 核完整 1GiB SHA，再绑定 `/image_mmca`。因此容量提升不增加整卡 initrd RAM，原 Fsys 仍消费普通 FAT 文件，且任何读回差异会阻断启动。
 
 ## 0. 2026-10-29 当前结果与目录卡范围
 
@@ -25,7 +27,7 @@ guest 侧种子由 `prepare-menu-initramfs.sh` 装配：复制前查空间、
 追加进 cpio，输出其 SHA-256。`qemu-menu-probe.py` 再把种子的摘要写进
 运行清单，并核对实际 cpio 里的成员字节——只验来源路径不证明 guest 装了它。
 
-默认相机 profile 用 128 MiB 的 `media-camera.fat`（FAT16，卷 ID `7C220201`）；
+当前原 cold 默认相机 profile 用 1 GiB 的 `media-camera.fat`；旧相机 profile 的 128 MiB 验收见历史收据；
 独立 Fsys 单测用 4 MiB 的 `media-template.fat`。4 MiB 只够单测——
 相机应用的数据库分配是 `0x939000` 字节，不能拿单测卡当正常应用卡。
 
@@ -113,7 +115,7 @@ sticky lost，禁止退休导出。
 随后 owner 进程自发 SIGSTOP，host 核过进程状态和 maps 才复制。
 数据经 `sd-window-export.c` 以 4 MiB 窗口（基址 `0x41e600000`）逐块导出：
 guest 算 FNV → QMP `pmemsave` → host 核长度和 FNV → guest 重读确认没变。
-128 MiB 卡分 32 块，拼好后整卡 SHA-256、独立 fsck、原子发布 `SD/card.img`。
+旧 128 MiB 卡分 32 块；当前 1GiB 原 cold 卡由 `sd-sparse map` 只导出实际非空范围，宿主补零后仍计算完整 1GiB SHA-256，再做独立 fsck、原子发布 `SD/card.img`。
 
 原程序有没有真读文件内容另验：重插后原 AP 读回 `DATABASE.BIN`
 9670656B、`MEDIAPRO.XML` 406B，与独立 FAT 解析的完整文件摘要匹配。
