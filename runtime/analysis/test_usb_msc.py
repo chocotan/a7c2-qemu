@@ -76,7 +76,7 @@ def test_function_read_error_is_not_binding():
     assert (errors, values) == ([], ['MassStorage'])
 
 
-def test_msc_imdb_restores_only_two_services():
+def test_msc_imdb_restores_only_two_services(tmp_path):
     source = Path(__file__).with_name('prepare-assets.py')
     spec = importlib.util.spec_from_file_location('test_msc_assets', source)
     assets = importlib.util.module_from_spec(spec)
@@ -86,3 +86,8 @@ def test_msc_imdb_restores_only_two_services():
     assert assets.sha(variant) == assets.MSC_IMDB_SHA
     with pytest.raises(ValueError):
         assets.usb_msc_imdb(b'wrong')
+    import original_cold_boot as cold
+    helpers=cold.usb_imdb({'A7C2_USB_MSC':'1'},tmp_path)
+    assert set(helpers)=={'libIMDB.so','libIMDB-msc.so'}
+    assert helpers['libIMDB.so']==helpers['libIMDB-msc.so'] and helpers['libIMDB.so'].read_bytes()==variant
+    assert cold.usb_imdb({},tmp_path)=={}

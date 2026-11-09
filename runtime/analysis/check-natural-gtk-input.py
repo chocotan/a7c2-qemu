@@ -180,6 +180,8 @@ def input_submission(state, previous, name, mouse, position=None):
 # shortcut: current Chinese/default-HUD glyph crops; add reviewed controls for other languages/HUD settings.
 FIRSTBOOT_CONTROLS = {
     'language': ((0x12d,), (0,0,200,52), '2ee481d6d8c7ff2409bf3364fc31200f9303cf31555eab179ca3a1a5180903a0'),
+    # Original Arabic page has an RTL title at the opposite edge; normalize only this reviewed crop.
+    'language-rtl': ((0x12d,), (440,0,640,52), '244e8ecdbc00d2386beecc989d3be511ffb479f063c210bf4e1cc6847b75e432'),
     'reader': ((0x1c6,0x1e0), (60,145,580,195), '1e42f1b10248af217c47e267d9ccd67a6f5ba7f8b551d52b81820053ff9d60ff'),
     'privacy': ((0x1e0,0x1dd), (0,0,150,52), 'a9c20aad9a20b14c01234670aead4d96e4cac8dc1aa1cb2a81be63f0842a5581'),
     'setup-on-camera': ((0x1dd,0x21e), (150,428,536,479), 'e3b33a20c03542553b2bbae785e817792ec11fdec921bcaf94b0ad5da8683946'),
@@ -217,8 +219,9 @@ def firstboot_frame(image, console):
         actual_digest=hashlib.sha256(glyphs.tobytes()).hexdigest()
         if actual_digest not in ((digest,) if isinstance(digest,str) else digest):
             continue
-        result['content_page']=page
-        if page=='system-error':
+        content_page='language' if page=='language-rtl' else page
+        result['content_page']=content_page
+        if content_page=='system-error':
             result.update(page='failed',reason='original LCD displays 系统出错')
         elif screen in candidates:
             if page=='still-scene-choice' and count!=98:
@@ -227,7 +230,7 @@ def firstboot_frame(image, console):
                     not any(item[1]==0x347 for item in screens) or
                     not any(item[1]==0x1e6 for item in screens)):
                 continue
-            result.update(page=page,reason='reviewed original content matches current screen',
+            result.update(page=content_page,reason='reviewed original content matches current screen',
                           control_crop_sha256=actual_digest)
         break
     if result['page']=='pending':

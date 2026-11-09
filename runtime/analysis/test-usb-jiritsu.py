@@ -303,7 +303,11 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(row['bytes'],70912);self.assertEqual(row['sha256'],jiritsu.LARGE_OUT_SHA256)
         deploy._write.assert_called_once_with(deploy.OUT_PATH,jiritsu.LARGE_OUT_CONTENT)
         deploy._read_path.return_value=jiritsu.LARGE_OUT_CONTENT+b'x'
-        with self.assertRaises(jiritsu.ControlBlocked):jiritsu.check_large_out(transport,version,deploy,Mock())
+        with self.assertRaises(jiritsu.ControlBlocked) as mismatch:
+            jiritsu.check_large_out(transport,version,deploy,Mock())
+        detail=str(mismatch.exception)
+        self.assertIn('actual_bytes=70913',detail);self.assertIn('first_difference=70912',detail)
+        self.assertIn(jiritsu.LARGE_OUT_SHA256,detail)
         manifest={'fixture':'a'*64};result=jiritsu.result_base(self.control,'root')
         raw=json.dumps([{'command':command,'exit_status':0,'output':'Uid: 0 0 0 0\nGid: 0 0 0 0\n' if command==jiritsu.ROOT_COMMAND else ''}
                         for command in (jiritsu.ROOT_COMMAND,jiritsu.ROOT_CLEANUP_COMMAND)])
@@ -319,9 +323,24 @@ class GuardTests(unittest.TestCase):
         with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed):
             refused=jiritsu.JiritsuConsumer(self.control).run('root',large_out_check=True)
         self.assertEqual(refused['blocked_reason']['code'],'large_out_readback_failed')
+        result['large_out']=None;result['large_out_verified']=False
+        result['blocked_reason']={'code':'large_out_readback_failed','detail':'actual_bytes=1 first_difference=0'}
+        completed.stdout=json.dumps(result)
+        with patch.object(jiritsu,'Sources',return_value=source),patch.object(jiritsu.subprocess,'run',return_value=completed):
+            refused=jiritsu.JiritsuConsumer(self.control).run('root',large_out_check=True)
+        self.assertIn('actual_bytes=1 first_difference=0',refused['blocked_reason']['detail'])
         with patch.object(jiritsu.subprocess,'run') as launch:
             refused=jiritsu.JiritsuConsumer(self.control).run('version',large_out_check=True)
         launch.assert_not_called();self.assertEqual(refused['blocked_reason']['code'],'invalid_large_out_check')
+
+    def test_large_out_transport_error_names_actual_stage(self):
+        transport=object();version=Mock();deploy=Mock()
+        deploy.OUT_PATH='/tmp/jiritsu/a7c2-out.txt';deploy._select.return_value=b'select';deploy._READ=b'read'
+        deploy._write.return_value=b'write';version.exchange.side_effect=[None,RuntimeError('boom')]
+        with self.assertRaises(jiritsu.ControlBlocked) as failure:
+            jiritsu.check_large_out(transport,version,deploy,Mock())
+        self.assertIn('write_exchange: RuntimeError: boom',str(failure.exception))
+        deploy._read_path.assert_not_called()
 
     def test_root_uses_version_not_hasp_and_keeps_direct_service(self):
         from types import ModuleType

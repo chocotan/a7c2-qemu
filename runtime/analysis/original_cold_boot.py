@@ -282,7 +282,8 @@ def usb_imdb(host,payload):
     data=module.usb_msc_imdb(original.read_bytes())
     target=payload/'libIMDB-msc.so';target.write_bytes(data);target.chmod(0o555)
     need(sha(target)==module.MSC_IMDB_SHA,'MSC IMDB payload readback differs')
-    return {'libIMDB-msc.so':target}
+    # bootin searches /simulation first; binding only /usr/lib would leave the default IMDB consumed.
+    return {'libIMDB-msc.so':target,'libIMDB.so':target}
 
 
 def prepare(instance,output,host_environment):

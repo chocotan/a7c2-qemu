@@ -56,9 +56,9 @@ def environment(current,run):
 def prepare_observer(current,payload):
     if not selected(current):return {}
     source=PRODUCT/'source/usb-device';payload=Path(payload);target=payload/'usb-start-observe.so'
-    inputs={name:sha(source/name) for name in ('usb-start-observe.c','usb-msc-sender.inc','usb-start-observe.map')}
+    inputs={name:sha(source/name) for name in ('usb-start-observe.c','usb-msc-sender.inc','usb-resources-observe.inc','usb-start-observe.map')}
     libraries=[ANALYSIS/'menu-root/lib'/name for name in ('libc-2.25.so','libdl-2.25.so','libpthread-2.25.so','ld-2.25.so')]
-    command=['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-mno-outline-atomics','-shared','-fPIC','-Wl,--no-undefined','-Wl,-z,now','-Wl,--version-script='+str(source/'usb-start-observe.map'),str(source/'usb-start-observe.c'),*map(str,libraries),'-o',str(target)]
+    command=['clang','--target=aarch64-linux-gnu','-DUSB_RESOURCE_OBSERVE=1','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-mno-outline-atomics','-shared','-fPIC','-Wl,--no-undefined','-Wl,-z,now','-Wl,--version-script='+str(source/'usb-start-observe.map'),str(source/'usb-start-observe.c'),*map(str,libraries),'-o',str(target)]
     result=subprocess.run(command,capture_output=True)
     (payload/'usb-observer-build.log').write_bytes(result.stdout+result.stderr)
     if result.returncode:raise RuntimeError('USB passive observer original-ABI build failed')

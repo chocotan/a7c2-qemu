@@ -504,6 +504,12 @@ static void describe(BridgeClient *c, uint32_t id)
     memcpy(raw, b->device, 18); memcpy(raw + 18, b->configuration, b->config_length);
     send_frame(c, d, raw, 18 + b->config_length); g_free(raw);
 }
+static int bridge_semantic_flags(uint32_t flags, uint32_t *semantic)
+{
+    /* 0x00ff0000: Linux HCD DMA/setup mapping metadata, not gadget or wire semantics. */
+    *semantic = flags & ~(0x4u | 0x20u | 0x80u | 0x100u | 0x200u | 0x00ff0000u);
+    return (*semantic & ~(1u | 0x40u)) ? -EOPNOTSUPP : 0;
+}
 static void dispatch(BridgeClient *c)
 {
     SonyDWC3Bridge *b = c->bridge;
@@ -535,8 +541,8 @@ static void dispatch(BridgeClient *c)
         number(d, "transfer_length", SDWC_MAX_URB, &length);
         number(d, "transfer_flags", UINT32_MAX, &flags);
         /* DMA mapping, buffer ownership, direction and interrupt hint are host bookkeeping. */
-        uint32_t semantic = flags & ~(0x4u | 0x20u | 0x80u | 0x100u | 0x200u);
-        if (semantic & ~(1u | 0x40u)) {
+        uint32_t semantic;
+        if (bridge_semantic_flags((uint32_t)flags, &semantic)) {
             QDict *reply = response("complete", id, true);
             qdict_put_int(reply, "status", -EOPNOTSUPP); qdict_put_int(reply, "actual_length", 0);
             qdict_put_int(reply, "start_frame", 0); qdict_put_int(reply, "num_packets", 0);

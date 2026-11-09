@@ -1,0 +1,100 @@
+{
+  "schema": "a7c2-product-usb-large-out-file-cycle-v1",
+  "verified": true,
+  "completed_at_ns": 1794254634530337939,
+  "scope": "Explicit virtual USB profile, real VHCI/libusb, original jiritsu consumer and AP; not physical USB",
+  "physical_devices_used": false,
+  "large_out": {
+    "wire_request_bytes": 70931,
+    "wire_flags": "0x40000 URB_DMA_MAP_SG",
+    "wire_status": 0,
+    "wire_actual_bytes": 70931,
+    "guest_file_bytes": 70912,
+    "guest_file_sha256": "7b26726960a3dea5751a3805b392ad623bfdba26c606c6d3c94da1a74c0bcf47",
+    "guest_full_readback_verified": true,
+    "root_four_zero_verified": true,
+    "preload_recovery_required": false
+  },
+  "file_cycle": {
+    "same_usb_write_readback_verified": true,
+    "bytes": 93,
+    "sha256": "f9ad5f3c27d1d44dd3d354eb9902b43e609c8e6169cf18772cf13b0ea764e366",
+    "same_disk_new_cold_readback_verified": true,
+    "original_restore_verified": true,
+    "original_bytes": 52,
+    "original_sha256": "90a56f5b3d6e1a304055d7ccabdf058da8703a3e956781112022e7ee697bda4a",
+    "usb_detached": true
+  },
+  "settings_reset": {
+    "actual_ui_confirmed": true,
+    "transaction_state": "committed",
+    "settings_partition": "nflasha2",
+    "settings_partition_readback_verified": true,
+    "other_disk_bytes_unchanged": true,
+    "original_before_image_retained": true,
+    "firmware_and_sd_reset": false,
+    "original_firmware_file_readback_verified": true,
+    "all_settings_verified": false
+  },
+  "snapshot_restart_fix": {
+    "observed_failure": "fixed .part open returned EEXIST (17) in persistent /tmp",
+    "fix": "per-process PID plus atomic ticket, O_EXCL collision skip; stale evidence not unlinked",
+    "actual_old_stale_part_boot_verified": true
+  },
+  "bridge_fix": {
+    "host_only_mapping_mask": "0x00ff0000",
+    "short_not_ok_and_zero_packet_preserved": true,
+    "unknown_semantics_still_rejected": true,
+    "guest_dwc3_flag_validation_changed": false
+  },
+  "qemu_candidate": {
+    "receipt_sha256": "e158630517b5fd8ae24aacfcfbc5ba27fcb2eaa4060411dad42d2cf385954fa0",
+    "binary_sha256": "fe276984e8b0a5379547450a57cefcd02fad7aadd4a9aa7d6e7a640d2ea9b6f3",
+    "bridge_source_sha256": "963639db5d88d2b4fd3fbc42f0941600f8e1a68b5bff151ba5c641599fc368c1"
+  },
+  "runs": [
+    {
+      "run_id": "run-18y0m9d9",
+      "qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "owner_group_exited": true,
+      "result_sha256": "2dfc031f2069098d61d6c2e536358c36e6716d77b1c5ec505e2fb72379e14db4"
+    },
+    {
+      "run_id": "run-zjqn0hg2",
+      "qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "owner_group_exited": true,
+      "result_sha256": "078f1a5f9c9e4c1fda2db47c02551712ea18054b7e5213844837617dfaf3d822"
+    },
+    {
+      "run_id": "run-481a_0_7",
+      "qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "owner_group_exited": true,
+      "result_sha256": "1c7f6887c8ba7a8c88f913e9d0fa167301dac5aff87c0f1fe1154bba6e3093f9"
+    },
+    {
+      "run_id": "run-1vvmk9pb",
+      "qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "owner_group_exited": true,
+      "result_sha256": "67149939296bb57eb674e15adeb2e16500fd7ededebb6bd3ba4bf10a145f379f"
+    }
+  ],
+  "normal_qmp_exit_all": true,
+  "internal_partitions_frozen_each_stop": 19,
+  "source_drift": {},
+  "private_result_sha256": {
+    "large_out_single": "d92262f42308862cb299fcc82017d485808ea6fa851fa18be67d85bd502d85d5",
+    "full_cycle": "fb8e0a8d4a476b152d2cc61b72271a0b8b54fedcbcc40d64cf87ed4724355b47"
+  },
+  "capture_verified": false,
+  "full_boot_verified": false,
+  "ordinary_ap_usb_menu_route_verified": false,
+  "installation_verified": false
+}

@@ -12,6 +12,7 @@ extern long read(int, void *, size_t);
 extern int *__errno_location(void);
 extern int snprintf(char *, size_t, const char *, ...);
 extern char *getenv(const char *);
+extern int getpid(void);
 extern void *mmap(void *, size_t, int, int, int, unsigned long);
 extern int munmap(void *, size_t);
 /* Linux O_NOFOLLOW differs between the firmware AArch64 ABI and the x86 host tests. */
@@ -34,24 +35,43 @@ unsigned long hosd_hash(const unsigned char *p, unsigned long n) {
     while (n--) { h ^= *p++; h *= 1099511628211UL; }
     return h;
 }
+static void hosd_persist_log(const char *stage, unsigned long offset, long detail) {
+    int saved = *__errno_location(); char text[256];
+    int n = snprintf(text, sizeof text, "HOSD_PERSIST_FAILED stage=%s offset=%lu detail=%ld errno=%d\n",
+                     stage, offset, detail, saved);
+    if (n > 0) {
+        if ((size_t)n > sizeof text) n = sizeof text;
+        (void)write(2, text, (size_t)n);
+    }
+    *__errno_location() = saved;
+}
+static unsigned int hosd_persist_ticket;
 int hosd_persist(const char *path, const unsigned char *bytes, unsigned long length) {
-    char temp[256];
-    int n = snprintf(temp, sizeof temp, "%s.part", path);
-    if (n < 0 || n >= (int)sizeof temp) return -1;
-    /* O_CREAT|O_EXCL creates a new regular inode; never truncate/follow an existing path. */
-    int fd = open(temp, HOSD_NOFOLLOW | 0xc2, 0600);
-    if (fd < 0) return -1;
+    char temp[256]; int fd = -1;
+    /* A crash can leave .part in persistent /tmp. Never unlink it: skip collisions with a new inode. */
+    for (unsigned int attempt = 0; attempt < 128; ++attempt) {
+        unsigned int ticket = __atomic_fetch_add(&hosd_persist_ticket, 1, __ATOMIC_RELAXED);
+        int n = snprintf(temp, sizeof temp, "%s.part.%d.%u", path, getpid(), ticket);
+        if (n < 0 || n >= (int)sizeof temp) { hosd_persist_log("path", 0, n); return -1; }
+        /* O_CREAT|O_EXCL creates a new regular inode; never truncate/follow an existing path. */
+        fd = open(temp, HOSD_NOFOLLOW | 0xc2, 0600);
+        if (fd >= 0 || *__errno_location() != 17) break;
+    }
+    if (fd < 0) { hosd_persist_log("open", 0, 0); return -1; }
     int ok = 1;
     for (size_t offset = 0; offset < length;) {
         long nwrite = write(fd, bytes + offset, length - offset);
         if (nwrite < 0 && *__errno_location() == 4) continue; /* EINTR */
-        if (nwrite <= 0 || (size_t)nwrite > length - offset) { ok = 0; break; }
+        if (nwrite <= 0 || (size_t)nwrite > length - offset) {
+            hosd_persist_log("write", offset, nwrite); ok = 0; break;
+        }
         offset += nwrite;
     }
     if (ok) {
         int result;
         do { result = fsync(fd); } while (result && *__errno_location() == 4);
         ok = result == 0;
+        if (!ok) hosd_persist_log("fsync", 0, result);
     }
     unsigned char verify[65536];
     for (unsigned long offset = 0; ok && offset < length;) {
@@ -60,10 +80,12 @@ int hosd_persist(const char *path, const unsigned char *bytes, unsigned long len
         long nread = pread(fd, verify, count, offset);
         if (nread < 0 && *__errno_location() == 4) continue;
         ok = nread > 0 && (size_t)nread <= count && !memcmp(verify, bytes + offset, nread);
+        if (!ok) hosd_persist_log("readback", offset, nread);
         if (ok) offset += nread;
     }
-    if (close(fd)) ok = 0;
+    if (close(fd)) { ok = 0; hosd_persist_log("close", 0, 0); }
     if (ok && rename(temp, path) == 0) return 0;
+    if (ok) hosd_persist_log("rename", 0, 0);
     unlink(temp);
     return -1;
 }

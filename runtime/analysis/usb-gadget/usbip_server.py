@@ -421,6 +421,9 @@ class ImportSession:
                 raise ProtocolError('invalid completion payload/segments')
             frame = integer(response.get('start_frame', 0), -1, 0x7fffffff, 'completion frame')
             entry.completed = True
+            if not entry.basic[3] and entry.length > 1024:
+                print('USBIP_LARGE_RESULT', 'seq='+str(seq), 'bytes='+str(entry.length),
+                      'status='+str(status), 'actual='+str(actual), flush=True)
             await self.send((RET_SUBMIT, *entry.basic[1:]), RETURN_BODY.pack(status, actual, frame, 0, 0), data)
         except asyncio.CancelledError:
             raise
@@ -481,6 +484,9 @@ class ImportSession:
                 entry = Pending(basic, length, request_id, future)
                 self.pending[seq] = entry
                 self.reserved += length
+                if direction == 0 and length > 1024:
+                    print('USBIP_LARGE_SUBMIT', 'seq='+str(seq), 'bytes='+str(length),
+                          'endpoint='+str(endpoint), 'flags='+hex(flags), flush=True)
                 entry.task = asyncio.create_task(self.complete(entry))
                 self.tasks.add(entry.task)
                 entry.task.add_done_callback(self.tasks.discard)

@@ -1,0 +1,76 @@
+{
+  "schema": "a7c2-product-original-ap-msc-frontier-v1",
+  "verified": false,
+  "ordinary_ap_usb_menu_route_verified": false,
+  "original_usb_service_initialization_verified": true,
+  "original_usb_selection_screen_observed": true,
+  "original_msc_row_selected_with_original_edges": true,
+  "original_msc_connecting_lcd_observed": true,
+  "connecting_lcd_pixels_sha256": "def5586574091e2b426fcdd06a1c8a7896b050bf51bf0d7d487092574c48801e",
+  "original_msc_dso_loaded": false,
+  "original_module_or_storage_create_observed": false,
+  "original_function_bound": false,
+  "host_enumerated": false,
+  "msc_storage_readback_verified": false,
+  "host_error": "guest controller cable generation changed / no original function descriptors",
+  "actual_fixes": [
+    "Load original usb_extcmd only in the explicit USB profile with exact SHA",
+    "Bind MSC IMDB as simulation/libIMDB.so because bootin searches /simulation before /usr/lib",
+    "Select MSC row 1 instead of default streaming row 0; require original input edges and changed/stable LCD",
+    "Capture post-ENTER display/diagnostic instead of retaining the old selection frame"
+  ],
+  "actual_evidence": {
+    "openSvc": "state 1 -> 5, rc=0 in v13 after actual IMDB consumption",
+    "post_enter_lcd": "正在连接至海量存储器… in v18",
+    "v20_resource_boundary": "one original SVC_NOTIFY event=1; no original module/storage create or MSC DSO"
+  },
+  "remaining_investigation": "Original MSC request producer/service activation remains incomplete. Historical group0 20a3 EE-capability wait is a candidate investigation route; current causal equivalence is not proven.",
+  "runs": [
+    {
+      "stage": "v13-service-open",
+      "run_id": "run-pcwp0fli",
+      "verified": false,
+      "normal_qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "result_sha256": "2557fe4fb07a44c875ab21b3db9ab5046e82522c3523ff51b51755183085e6f1"
+    },
+    {
+      "stage": "v17-correct-row",
+      "run_id": "run-fszhfdlz",
+      "verified": false,
+      "normal_qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "result_sha256": "373cab9121cbcbb19c1ba5ebb60efcd7289340e3faf8f10688425df03e70f7f1"
+    },
+    {
+      "stage": "v18-actual-connecting-frame",
+      "run_id": "run-6h81ytei",
+      "verified": false,
+      "normal_qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "result_sha256": "8d8df0c97e0842ec8c0fd735f8815a8945889376caedf3ffa337cf2ec2a270b7"
+    },
+    {
+      "stage": "v20-resource-observe",
+      "run_id": "run-nn2qb_h8",
+      "verified": false,
+      "normal_qmp_quit_confirmed": true,
+      "qemu_returncode": 0,
+      "vm_signals": [],
+      "result_sha256": "f7b8a3ade5f599cf87bf5de99f48d104f5a8f95155e6629a47846b7460d4eff3"
+    }
+  ],
+  "normal_qmp_exit_all": true,
+  "physical_devices_used": false,
+  "capture_verified": false,
+  "full_boot_verified": false,
+  "source_sha256": {
+    "runtime/analysis/original_cold_boot.py": "d647fce542b970546be3f439e17c1a834495d5e7ebfdf08d528e9f2fdb04bd34",
+    "runtime/analysis/cold/insmod.sh": "6cae464428ae492d6021e4fb5fe1e547f37fb47a9ca13f391682c6648a4d9688",
+    "runtime/analysis/sony_usb_device.py": "6d7c9840c833b8124ae9e78854d0b17c2f28f03cb1b4f78dc68fff9531d7a863",
+    "source/usb-device/usb-resources-observe.inc": "dae48da931a1b3829def032d8a2d23cac6bfd6272322f72a6e78c474d9b0c638"
+  }
+}

@@ -52,13 +52,14 @@ esac
 case "$name" in
     devno|dma330|osal_utm|osal_uipc|utimer|osal_ulogio|ioexp|indctr|udate|stream|stream2|dmm|kikilog|upm|grm_ma)
         /bin/busybox insmod "$module" "$@"; rc=$?;;
-    usb_portMonitor|usbg_sen)
+    usb_portMonitor|usbg_sen|usb_extcmd)
         [ -r /simulation/environment.sh ] || exit 78
         . /simulation/environment.sh
         [ "${PRODUCT_SONY_USB_DEVICE:-}" = 1 ] || { echo "PRODUCT_COLD_MODULE_REFUSED name=$name reason=usb-device-disabled result=78"; exit 78; }
         case "$name" in
             usb_portMonitor) expected=792cbc38576efba8e33faf730514f9ac694883b2668019ced0581abeb4b6f73d;;
             usbg_sen) expected=cd85574e2cfa8dce40d61fde0f46c892df1c39203677cea51770d1963d6fa148;;
+            usb_extcmd) expected=63554be9f7bf7cbba3d9de16ce3d8675e3b60a323be1fa92839fa9eec0caa8c2;;
         esac
         [ "$module" = "/usr/kmod/$name.ko" ] || exit 78
         digest=$(/usr/bin/openssl dgst -sha256 "$module") || exit 78

@@ -508,6 +508,9 @@ def test_actual_chinese_firstboot_branch_keeps_public_down_and_final_capture(lan
 # Original glyph-only crops, independent of saved runs, VM output directories or private assets.
 # qzcokwhi: DELETE footer and shooting HUD; qqu0q5oe: visible system-error text.
 GLYPH_FIXTURES = {
+    # Original Arabic language title, right-aligned crop; compressed reviewed 1-bit pixels.
+    'language-rtl': ((440,0,640,52),
+        'eNrd0jEKwjAUBuAXHjSbuAsWvIG4uHmVFi9QcXAptCVQR69U6eDoIXoAuxlB+nyl20uKIA7iv4WPnxDyA/xlAgy+AosBMiIHpn44DBABOo31GHCj9ACMA/TQ+kBjqawDfNaKGxMJITx7iOYSNtj5IUNCxXc4sDcDzCQ0xqA6QrSSUBcjcC4uPSRLI+Ce3xiU3UmgvNPIEEvI8pQBokxCWFN40gy1AEUcrSy5cCV+oq0kAJlHh5BUjYRUtRYhrrb+0cW5Hzw/+Ab8K/kyuGv/GH45L7P/Vzc='),
     'temperature-cancel': ((170,100,460,235),
         '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'),
     'setup-on-camera': ((150,428,536,479),
@@ -539,6 +542,13 @@ def screen_log(*screens):
 
 
 SHOOTING_CHAIN=((0x347,28),(0x343,0),(0x1e6,5),(0x343,0),(0,565))
+
+
+def test_rtl_language_crop_is_normalized_without_relaxing_current_screen():
+    image=glyph_frame('language-rtl')
+    result=checker.firstboot_frame(image,screen_log((0x12d,6)))
+    assert result['page']=='language' and result['content_page']=='language'
+    assert checker.firstboot_frame(image,screen_log((0x999,6)))['page']=='pending'
 
 
 @pytest.mark.parametrize('fixture', ['shooting', 'shooting-33m-afs'])

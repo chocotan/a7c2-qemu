@@ -86,15 +86,33 @@ def session_budget_seconds(command_count):
 
 
 def check_large_out(transport, version, deploy, log):
-    select = deploy._select(deploy.OUT_PATH)
-    write = deploy._write(deploy.OUT_PATH, LARGE_OUT_CONTENT)
-    version.authorize(transport, (select, write, deploy._READ),
-                      max_bytes=version.ARTIFACT_MAX_BYTES, max_requests=3)
-    version.exchange(transport, select, 4, log)
-    version.exchange(transport, write, 4, log)
-    stored = deploy._read_path(transport, select, log)
+    stage = 'authorize'
+    try:
+        select = deploy._select(deploy.OUT_PATH)
+        write = deploy._write(deploy.OUT_PATH, LARGE_OUT_CONTENT)
+        version.authorize(transport, (select, write, deploy._READ),
+                          max_bytes=version.ARTIFACT_MAX_BYTES, max_requests=3)
+        stage = 'select_exchange'
+        version.exchange(transport, select, 4, log)
+        stage = 'write_exchange'
+        version.exchange(transport, write, 4, log)
+        stage = 'read_path'
+        stored = deploy._read_path(transport, select, log)
+    except ControlBlocked:
+        raise
+    except Exception as error:
+        raise blocked('large_out_transport_failed',
+                      f'{stage}: {type(error).__name__}: {error}') from error
+    difference = next((index for index, pair in enumerate(zip(stored, LARGE_OUT_CONTENT))
+                       if pair[0] != pair[1]), min(len(stored), len(LARGE_OUT_CONTENT)))
+    actual_sha256 = hashlib.sha256(stored).hexdigest()
+    log('large_out_readback', bytes=len(stored), sha256=actual_sha256,
+        first_difference=difference, matches=stored == LARGE_OUT_CONTENT)
     if stored != LARGE_OUT_CONTENT:
-        raise blocked('large_out_readback_failed', '70,912-byte USB write did not read back intact')
+        raise blocked('large_out_readback_failed',
+                      f'70,912-byte USB readback differs: actual_bytes={len(stored)} '
+                      f'actual_sha256={actual_sha256} expected_sha256={LARGE_OUT_SHA256} '
+                      f'first_difference={difference}')
     log('large_out_verified', bytes=len(stored), sha256=LARGE_OUT_SHA256)
     return {'bytes': len(stored), 'sha256': LARGE_OUT_SHA256, 'cleanup': 'original worker output removal'}
 
@@ -688,7 +706,9 @@ class JiritsuConsumer:
             if large_out_check and (received.get('large_out_verified') is not True or
                     received.get('large_out') != {'bytes': LARGE_OUT_BYTES, 'sha256': LARGE_OUT_SHA256,
                                                   'cleanup': 'original worker output removal'}):
-                raise blocked('large_out_readback_failed', 'Consumer did not bind the exact 70,912-byte content readback')
+                detail = (received.get('blocked_reason') or {}).get('detail')
+                raise blocked('large_out_readback_failed', detail or
+                              'Consumer did not bind the exact 70,912-byte content readback')
             return received
         except Exception as error:
             result['blocked_reason'] = {'code': getattr(error, 'code', 'consumer_unavailable'),

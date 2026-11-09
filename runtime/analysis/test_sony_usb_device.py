@@ -221,7 +221,31 @@ def test_default_cold_environment_does_not_enable_usb():
     assert cold.guest_environment({'A7C2_SONY_USB_DEVICE':device.PROFILE})['PRODUCT_SONY_USB_DEVICE']=='1'
     text=(cold.SOURCE/'insmod.sh').read_text()
     assert text.index('PRODUCT_SONY_USB_DEVICE')<text.index('PRODUCT_COLD_USB_MODULE_IDENTITY_FAILED')
-    assert 'usb_portMonitor|usbg_sen)' in text and 'usb_extcmd)' not in text
+    assert 'usb_portMonitor|usbg_sen|usb_extcmd)' in text
+    assert 'usb_extcmd) expected=63554be9f7bf7cbba3d9de16ce3d8675e3b60a323be1fa92839fa9eec0caa8c2;;' in text
+    assert 'PRODUCT_COLD_USB_MODULE_IDENTITY_FAILED' in text
     with pytest.raises(ValueError):cold.guest_environment({'A7C2_USB_SENSER':'original-init2-v1'})
     assert cold.guest_environment({'A7C2_SONY_USB_DEVICE':device.PROFILE,'A7C2_USB_SENSER':'original-init2-v1'})['PRODUCT_USB_SENSER']=='original-init2-v1'
     assert text.index('/simulation/usb-senser-mode prepare')<text.index('init2-observed ||')
+
+
+def test_bridge_strips_host_sg_mapping_without_accepting_unknown_semantics(tmp_path):
+    import subprocess
+    text=(device.PRODUCT/'source/usb-device/sony-dwc3-bridge.c').read_text()
+    start=text.index('static int bridge_semantic_flags(')
+    function=text[start:text.index('\n}\n',start)+3]
+    source=tmp_path/'flags.c'
+    source.write_text('#include <assert.h>\n#include <errno.h>\n#include <stdint.h>\n'+function+'''
+int main(void) {
+ uint32_t semantic=99;
+ assert(!bridge_semantic_flags(0x40000,&semantic)&&semantic==0);
+ assert(!bridge_semantic_flags(0x40001,&semantic)&&semantic==1);
+ assert(!bridge_semantic_flags(0x40040,&semantic)&&semantic==0x40);
+ assert(bridge_semantic_flags(0x40002,&semantic)==-EOPNOTSUPP&&semantic==2);
+ assert(bridge_semantic_flags(0x1000000,&semantic)==-EOPNOTSUPP&&semantic==0x1000000);
+ return 0;
+}
+''')
+    binary=tmp_path/'flags'
+    subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',str(source),'-o',str(binary)],check=True,capture_output=True)
+    subprocess.run([str(binary)],check=True,capture_output=True)

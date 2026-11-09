@@ -1,5 +1,15 @@
 # 本包验证记录
 
+## 11月10日通用USB大OUT与完整持久文件周期
+
+[公开收据](usb-large-out-file-cycle-20261110.json)（SHA-256 `71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433`）与[USB技术报告](../docs/tech/2026-11-09-usb-jiritsu.md)记录修复后的真实VHCI/libusb验收。70,931B OUT线请求的实际 `flags=0x40000` 是host `URB_DMA_MAP_SG`；bridge仅剥离HCD映射元数据后，结果为 `status=0 actual=70931`，guest 70,912B文件全文SHA为 `7b26726960a3dea5751a3805b392ad623bfdba26c606c6d3c94da1a74c0bcf47`。
+
+完整v14周期实际通过同USB 93B写入/读回、同盘新冷启动读回、52B原文件恢复、显式UI确认的p2-only复位与原前像/区外字节/固件恢复读回。四次原AP run均QMP0、无VM信号、owner group退出，每次19卷冻结，源码无漂移。持久`/tmp`固定`.part`的EEXIST启动故障也已用唯一临时inode修复，并在含旧stale文件的盘上实际恢复启动；没有删除旧证据。
+
+本结果仍限于显式虚拟USB profile和原Senser文件周期；普通AP菜单MSC、完整BODYDATA安装、拍摄成片、完整硬件启动与物理ASIC兼容性另列，未由本收据提升。v5–v12大OUT失败、v10/v11启动故障及其保全记录不回填。
+
+普通AP MSC另有[失败边界收据](usb-msc-frontier-20261110.json)（SHA `a09408482e8c0dd34ab6fc4b61d7530955a59befb48560a71ecd5f14cf55ae5b`）和[专题](../docs/tech/2026-11-10-usb-msc.md)：原openSvc、MSC行选择和“正在连接至海量存储器…”已实际出现，但原MSC DSO/function/host枚举/宿主块读回未通过。多轮局部进展不拼成成功。
+
 ## 11月9日原AP同盘RAM保存与恢复
 
 [RAM恢复收据](ram-restore-20261109.json)与[技术报告](../docs/tech/2026-11-09-ram-restore.md)记录 v5 实际源 AP→QEMU RAM保存→源正常退出→同持久盘新进程 incoming/cont→解冻19卷→原MENU新帧与拍摄页返回。492,145,379B流、相同boot_id、两组原App输入边、双QMP0/无信号/owner退出及两线程独立读回均通过。恢复后的真实盘写入与保存点分账，默认QEMU未替换。

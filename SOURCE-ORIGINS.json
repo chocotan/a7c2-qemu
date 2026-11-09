@@ -12,7 +12,12 @@
     "candidate_sha256": "0478f4254b7ed164c1666c2e8129210f46fab9cff2f6a50a251b832df11b2208",
     "default_qemu_sha256_unchanged": "b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad",
     "device_state_lineage": "Exact current-input adaptation of the reviewed hwtimer/SPACC/UI-input VMState from the existing retained QEMU study; timer/SPACC/input only, not full machine coverage",
-    "preserved_failed_actual_versions": ["v1", "v2", "v3", "v4"],
+    "preserved_failed_actual_versions": [
+      "v1",
+      "v2",
+      "v3",
+      "v4"
+    ],
     "full_machine_migration_audited": false,
     "sony_wbi_resume_executed": false,
     "physical_hotboot_verified": false,
@@ -3425,8 +3430,10 @@
     },
     "runtime/analysis/check-natural-gtk-input.py": {
       "prior_inventory_sha256": "72002be58194101882d11431044b2b6af4194c77c193a866204ed8bf82fd4aa5",
-      "sha256": "fd7eb61fe962e00c5f0e2498624fd17d717c7bc23b1a2550613bdf3db1e524f2",
-      "source": "runtime/analysis/check-natural-gtk-input.py"
+      "sha256": "f5d3314acc7fd818a9d2c298f1582b2862accecf5c3aacbcfbdcbd77eb091c49",
+      "source": "product-usb-large-out-msc-20261110",
+      "previous_sha256": "fd7eb61fe962e00c5f0e2498624fd17d717c7bc23b1a2550613bdf3db1e524f2",
+      "previous_source": "runtime/analysis/check-natural-gtk-input.py"
     },
     "runtime/analysis/check-queue-control-channel.py": {
       "sha256": "4402100d39c1bdd8e5b088db93824d9d8782e7dcdecdb537e84b568ba0d5ed01",
@@ -4075,10 +4082,10 @@
       "source": "runtime/analysis/headless-osd-export.c"
     },
     "runtime/analysis/headless-osd.c": {
-      "previous_sha256": "55c695ba7c85c719a0d0789d19c54cf45d411c54508c81e9df9c8ed020c7d582",
-      "previous_source": "runtime/analysis/headless-osd.c",
-      "sha256": "0f3e3040bc75c3ab31cd333c79fdf6be9a46f1c7a4c2fd351e001a7285b063d1",
-      "source": "product-native-continuous-lcd-original-app32-20261107"
+      "previous_sha256": "0f3e3040bc75c3ab31cd333c79fdf6be9a46f1c7a4c2fd351e001a7285b063d1",
+      "previous_source": "product-native-continuous-lcd-original-app32-20261107",
+      "sha256": "5a6a5bc6fea02b10f8a8794c7ba68ba1cffdeaaeff0b60eefbe8e48197bb049d",
+      "source": "product-usb-large-out-msc-20261110"
     },
     "runtime/analysis/headless-osd.h": {
       "sha256": "b408c13cfe820d72a91c98858a0ea86efbffbd5681c8ec4be04774a4c62db4a7",
@@ -4386,8 +4393,10 @@
       "source": "runtime/analysis/test-headless-osd.py"
     },
     "runtime/analysis/test-headless-persist.c": {
-      "sha256": "dc11cb9d2d2141fa6300d4d71c31922a45394860529622c887074bc42bd28dc3",
-      "source": "product-native-continuous-lcd-original-app32-20261107"
+      "sha256": "bb624f38e2082108df69291973cee4233146fe53c78a2d7013623b9e98ca93e3",
+      "source": "product-usb-large-out-msc-20261110",
+      "previous_sha256": "dc11cb9d2d2141fa6300d4d71c31922a45394860529622c887074bc42bd28dc3",
+      "previous_source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "runtime/analysis/test-infrabb-registry.c": {
       "sha256": "8389128b443acfc87928760e68d56669943bdb4880b6a22b2f39c4a772947ba0",
@@ -6276,10 +6285,10 @@
       "source": "product-native-continuous-lcd-original-app32-20261107"
     },
     "validation/README.md": {
-      "previous_sha256": "d9e9b05cff2e227b022a816fded2868d513703ca40a78e592c3f179bf175e9a9",
-      "previous_source": "product-native-continuous-lcd-original-app32-20261107",
-      "sha256": "8cd7e41c0f519399f02ad49388cbb5e9c620965ba65b1d7faac511f4e762681a",
-      "source": "product-default-natural-boot-controller-fix-20261108"
+      "previous_sha256": "8cd7e41c0f519399f02ad49388cbb5e9c620965ba65b1d7faac511f4e762681a",
+      "previous_source": "product-default-natural-boot-controller-fix-20261108",
+      "sha256": "1afc6512ea3df64378ede8081df1db8249fd97ae164118d293433542b631e9fe",
+      "source": "product-usb-large-out-msc-20261110"
     },
     "validation/default-startup-20261108.json": {
       "sha256": "42686c2829f341c4b7815c819a3e2933014b055736e737e2577051692c8dbbcd",
@@ -6288,6 +6297,74 @@
     "validation/product-low-latency-20261107.json": {
       "sha256": "4355421633e04977bca56c89c49dde6ef3ecb9d58d0f0215d411c3a044d1d929",
       "source": "product-native-continuous-lcd-original-app32-20261107"
+    },
+    "docs/tech/2026-11-09-completion-matrix.md": {
+      "sha256": "cef1acb467162c4425ace5e31b3902ff679d15ef7e40a9e43862402a9ae86713",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "docs/tech/2026-11-09-usb-jiritsu.md": {
+      "sha256": "b0727bbaa0f62b1802376b5e35a4877b8d417c5d0a1a1f32c06e0a95eaf65dc4",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "docs/tech/2026-11-10-usb-msc.md": {
+      "sha256": "cf29dce14023e68bd371edd7ffce21dd8ecfff5016bc5718d7b2ca3f3d5dd7a4",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "docs/tech/README.md": {
+      "sha256": "ac67cb63e2512122a03840950532fe4533cdb6ddf4d1de3dfe5f80b030e6913c",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/cold/insmod.sh": {
+      "sha256": "6cae464428ae492d6021e4fb5fe1e547f37fb47a9ca13f391682c6648a4d9688",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/original_cold_boot.py": {
+      "sha256": "d647fce542b970546be3f439e17c1a834495d5e7ebfdf08d528e9f2fdb04bd34",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/sony_usb_device.py": {
+      "sha256": "6d7c9840c833b8124ae9e78854d0b17c2f28f03cb1b4f78dc68fff9531d7a863",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/test-usb-jiritsu.py": {
+      "sha256": "1c2f9812511398f10505c5cb6eb2cfb939f13d96538fa32e51645e3663efb22b",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/test_natural_gtk_input_receipts.py": {
+      "sha256": "a063c977a30defd98a167b9bedd9973abf69fb6b11dac977436916ccf5e9e20e",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/test_sony_usb_device.py": {
+      "sha256": "549a7bf7921ff9bfdbafd503b4188f4ae409390d0ed6b3f54404ad688a096c82",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/test_usb_msc.py": {
+      "sha256": "a1e718e79720c61f4e46891dff43a05360dec7f9581b7af8acda4f96e1b030d8",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/usb-gadget/usbip_server.py": {
+      "sha256": "92a196e415e23c74f378209ebcb23a479096c6c40dd69001e9f0534b52ea23de",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "runtime/analysis/usb_jiritsu.py": {
+      "sha256": "07a9b4c7830076a09137961acac641cda4247ad483e6aca1197bfb1f3a1e9ba5",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "source/usb-device/sony-dwc3-bridge.c": {
+      "sha256": "963639db5d88d2b4fd3fbc42f0941600f8e1a68b5bff151ba5c641599fc368c1",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "source/usb-device/usb-resources-observe.inc": {
+      "sha256": "dae48da931a1b3829def032d8a2d23cac6bfd6272322f72a6e78c474d9b0c638",
+      "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/usb-resources-observe.inc (provenance only; product copy is authoritative)"
+    },
+    "validation/usb-large-out-file-cycle-20261110.json": {
+      "sha256": "71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433",
+      "source": "product-usb-large-out-msc-20261110"
+    },
+    "validation/usb-msc-frontier-20261110.json": {
+      "sha256": "a09408482e8c0dd34ab6fc4b61d7530955a59befb48560a71ecd5f14cf55ae5b",
+      "source": "product-usb-large-out-msc-20261110"
     }
   },
   "functional_camera_port": {
@@ -17643,5 +17720,29 @@
     "scope": "Accepted frozen source and host-package validation only; two new publication documents and four metadata exceptions receive separate static checks; external execution and capture remain unverified",
     "source_inventory_sha256": "14b98f8993dee8fa07b49712ac018552d9ab6f85eb3b494b638935aa6a6e94ee",
     "validation": "validation/2026-10-31-shutter-gate-host-package.json"
+  },
+  "usb_large_out_file_cycle_20261110": {
+    "maintenance": "directly in standalone product USB bridge, original-cold payload and jiritsu tools",
+    "receipt": "validation/usb-large-out-file-cycle-20261110.json",
+    "receipt_sha256": "71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433",
+    "actual_large_out_and_file_cycle_verified": true,
+    "ordinary_ap_msc_verified": false,
+    "physical_devices_used": false,
+    "capture_verified": false,
+    "full_boot_verified": false
+  },
+  "usb_msc_frontier_20261110": {
+    "maintenance": "directly in standalone product original-cold USB profile and passive observer",
+    "receipt": "validation/usb-msc-frontier-20261110.json",
+    "receipt_sha256": "a09408482e8c0dd34ab6fc4b61d7530955a59befb48560a71ecd5f14cf55ae5b",
+    "report": "docs/tech/2026-11-10-usb-msc.md",
+    "original_usb_service_and_msc_ui_observed": true,
+    "ordinary_ap_usb_menu_route_verified": false,
+    "original_msc_dso_loaded": false,
+    "host_enumerated": false,
+    "msc_storage_readback_verified": false,
+    "physical_devices_used": false,
+    "capture_verified": false,
+    "full_boot_verified": false
   }
 }

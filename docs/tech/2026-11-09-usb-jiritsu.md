@@ -134,6 +134,14 @@ python3 tools/jiritsu-authenticate.py --action authenticate \
 
 PMCA依赖为读者本地clone的 `runtime/analysis/vendor/pmca-adamwuqwq`，固定提交见上文；不将第三方仓库或生成Crypto/PyUSB副本放入本次公开源码。`python -I`子进程直接使用已准备的产品host-python依赖，并在执行前重新核对实际源码／扩展摘要。该认证入口不接受物理USB路径，不执行root载荷或写固件。`--action version`只读版本；`--action root`在同一消费者中继续执行上述已审worker与身份读取。不要在同一连接上串联两个消费者。root只用于本机虚拟相机，必须使用产品固定的10,328B载荷并满足中和读回；恢复未确认时CLI返回非零。worker源码、构建参数和摘要见`tools/jiritsu/README.md`。
 
+## 2026-11-10 大 OUT 与持久文件周期
+
+真实 VHCI/libusb 已消费 70,931B 线请求（70,912B 内容加 19B 命令头）。此前 bridge 返回 `-95` 的直接原因是 host URB `flags=0x40000`，即 Linux `URB_DMA_MAP_SG`。bridge 现在只剥离 `0x00ff0000` 这组 HCD DMA/setup 映射元数据；`SHORT_NOT_OK`、`ZERO_PACKET` 保留，ISO/未知高位仍拒绝，guest DWC3 校验未放宽。修复后实际结果为 `status=0 actual=70931`，guest 写后读回 70,912B，全文 SHA-256 为 `7b26726960a3dea5751a3805b392ad623bfdba26c606c6d3c94da1a74c0bcf47`。
+
+同一完整实际周期还完成：93B 文件经同一 USB root worker 写入并读回；同盘新冷启动再次读回相同摘要；恢复 52B 原文件并读回；显式 UI 确认后只复位 nflasha2，事务保留原分区前像、验证其它盘字节不变，并再次确认恢复原固件文件。四次原 AP run 均正常 QMP quit、返回码 0、无 VM signal，每次停止均冻结 19 个内部卷。公开收据为 `validation/usb-large-out-file-cycle-20261110.json`。
+
+此轮还定位并修复了持久 `/tmp` 的固定 `.part` 跨冷启动冲突：旧故障为 `open errno=17`。快照写入改用 PID 加原子 ticket 的唯一临时 inode，撞名只跳过，不删除旧证据；全文读回与原子 rename 保持。该修复已直接复用含旧 `.part` 的故障盘通过原 AP 启动。
+
 ## 剩余边界
 
-原host枚举、配置1／4端点、七步认证、19B版本读取、worker Uid/Gid四列全零、preload中和读回及同轮正常保存退出已通过。普通AP菜单USB功能启动未打通，当前明确使用原init2 UU→sen.elf服务路径。70,912B旧载荷的大OUT传输失败只由10,328B worker避开，通用大OUT／bounce TRB和物理ASIC兼容性仍未验证。旧失败run不借v19回填中和或root；两个无端口旧server残留如上保留。完整更新与拍摄写卡继续deferred，`capture_verified=false`，完整Sony硬件启动仍未认证。
+原 host 枚举、配置1／4端点、七步认证、19B版本、worker Uid/Gid 四列全零、preload 中和、通用 70,912B OUT、持久文件与 p2 复位周期已通过。普通 AP 菜单 MSC 是另一条验收路线；本条 Senser 结果不提升普通菜单路由。bounce TRB 的其它边界、完整 BODYDATA 安装、拍摄写卡和物理 ASIC 兼容性仍未完成；`capture_verified=false`、`full_boot_verified=false`。旧 v5–v12 失败 run、外层诊断截断、`-95` 与 EEXIST 原始记录均保留，未回填为成功。
