@@ -3,13 +3,17 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import stat
+import struct
 import subprocess
 
 ANALYSIS=Path(__file__).resolve().parent
 PRODUCT=ANALYSIS.parents[1]
 PROFILE='virtual-functional-sony-usb-device-v1'
+EE_COLD_MODE='ee-normal-wake-cold-functional-v1'
+EE_COLD_SOURCES=('ee-normal-wake-cold.c','ee-capability-input.c','ee-capability-input.h','ee-normal-wake-cold.h','imaging-device.h','usb-ee-normal-cold.inc','usb-ee-zero-observe.inc','usb-ee-native-got.h')
 
 
 def sha(path):
@@ -53,18 +57,74 @@ def environment(current,run):
     return dict(QEMU_SYSTEM_DIR=str(binary.parent),QEMU_SYSTEM_BINARY=binary.name,QEMU_SONY_USB_DEVICE='1',QEMU_SONY_USB_RUN_ID=run.name,QEMU_SONY_USB_LEASE=secrets.token_hex(32),QEMU_SONY_USB_QMP_HOST_PATH=str(run/'usb-qmp.sock'),QEMU_SONY_USB_BACKEND_SOCKET='/out/usb-endpoint.sock')
 
 
+def ee_native_pins(payload):
+    """Bind the exact reviewed product native osal_free_msg forwarder for EE slots."""
+    path=ANALYSIS/'menu-observe.so';image=path.read_bytes()
+    if image[:6]!=b'\x7fELF\x02\x01' or image[18:20]!=b'\xb7\x00':
+        raise ValueError('EE native forwarder requires AArch64 ELF64 LE')
+    phoff=struct.unpack_from('<Q',image,32)[0];phsize,phnum=struct.unpack_from('<HH',image,54)
+    segments=[struct.unpack_from('<IIQQQQQQ',image,phoff+i*phsize) for i in range(phnum)]
+    symbols=subprocess.run(['readelf','-Ws',str(path)],capture_output=True,text=True,check=True,timeout=10).stdout
+    rows=re.findall(r'^\s*\d+:\s+([0-9a-f]+)\s+(\d+)\s+(FUNC|OBJECT)\s+(GLOBAL|LOCAL)\s+DEFAULT\s+\d+\s+(\w+)\s*$',symbols,re.M)
+    found={(int(va,16),int(size)) for va,size,kind,bind,name in rows if name=='osal_free_msg' and kind=='FUNC' and bind=='GLOBAL'}
+    if len(found)!=1:raise ValueError('EE native osal_free_msg export is ambiguous or missing')
+    va,size=found.pop()
+    caches={int(value,16) for value,count,kind,bind,name in rows if name=='real_free_msg' and kind=='OBJECT' and bind=='LOCAL' and int(count)==8}
+    windows=[offset+va-start for kind,flags,offset,start,_,count,_,_ in segments if kind==1 and flags&1 and start<=va and va+16<=start+count]
+    if len(caches)!=1 or len(windows)!=1 or size<16:raise ValueError('EE native export/cache/window missing')
+    cached=caches.pop()
+    if not any(kind==1 and flags&2 and start<=cached and cached+8<=start+memory for kind,flags,_,start,_,_,memory,_ in segments):
+        raise ValueError('EE native cached original is outside writable PT_LOAD')
+    code=image[windows[0]:windows[0]+16].hex()
+    row='{"osal_free_msg",'+hex(va)+','+hex(cached)+',{'+','.join('0x'+code[i:i+2] for i in range(0,32,2))+'}}'
+    header=Path(payload)/'usb-ee-native-pins.h'
+    header.write_text('static const struct ee_native_export ee_native_exports[]={\n'+row+'\n};\n'
+        'static const struct ee_native_contract ee_native_pins={"/simulation/menu-observe.so",'
+        +str(path.stat().st_size)+',"'+sha(path)+'",1,ee_native_exports};\n',encoding='ascii')
+    header.chmod(0o600)
+    return header
+
+
+def ee_normal_cold(current,payload):
+    """Explicit opt-in EE NormalWake cold adapter inputs; default off, external private header only."""
+    enabled=current.get('A7C2_USB_EE_NORMAL_COLD');declared=current.get('A7C2_USB_EE_NORMAL_COLD_INPUT')
+    if enabled is None:
+        if declared is not None:raise ValueError('EE cold private input supplied without the explicit profile')
+        return None
+    if enabled!='1':raise ValueError('Unknown explicit EE cold observer profile')
+    if not declared:raise ValueError('EE cold profile requires an external private input header path')
+    path=Path(declared).absolute()
+    if path.is_symlink() or not path.is_file():raise ValueError('EE cold private input must be a regular non-symlink file')
+    if path.is_relative_to(PRODUCT):raise ValueError('EE cold private input must stay outside the public product tree')
+    data=path.read_bytes()
+    if (b'#define EE_COLD_ALLOCATION_LOG_COMMIT_VERSION 1\n' not in data or b'ee_nwc_prepared_assets' not in data
+            or b'ee_cold_adc' not in data or b'#define EE_COLD_ADMISSION_SOURCE ' not in data):
+        raise ValueError('EE cold private input lacks the hash-bound adapter contract')
+    pins=ee_native_pins(payload)
+    return dict(defines=['-DUSB_EE_NORMAL_COLD=1','-D_REENTRANT','-DUSB_EE_NORMAL_COLD_INPUT="'+str(path)+'"',
+                         '-DUSB_EE_NATIVE_INPUT="'+str(pins)+'"','-I',str(PRODUCT/'source/usb-device')],
+                 compiled=('ee-normal-wake-cold.c','ee-capability-input.c'),sources=EE_COLD_SOURCES,
+                 helpers={'usb-ee-native-pins.h':pins})
+
+
 def prepare_observer(current,payload):
     if not selected(current):return {}
     source=PRODUCT/'source/usb-device';payload=Path(payload);target=payload/'usb-start-observe.so'
-    inputs={name:sha(source/name) for name in ('usb-start-observe.c','usb-msc-sender.inc','usb-resources-observe.inc','usb-start-observe.map')}
+    cold=ee_normal_cold(current,payload)
+    inputs={name:sha(source/name) for name in ('usb-start-observe.c','usb-msc-sender.inc','usb-resources-observe.inc','usb-start-observe.map',*(cold['sources'] if cold else ()))}
     libraries=[ANALYSIS/'menu-root/lib'/name for name in ('libc-2.25.so','libdl-2.25.so','libpthread-2.25.so','ld-2.25.so')]
-    command=['clang','--target=aarch64-linux-gnu','-DUSB_RESOURCE_OBSERVE=1','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-mno-outline-atomics','-shared','-fPIC','-Wl,--no-undefined','-Wl,-z,now','-Wl,--version-script='+str(source/'usb-start-observe.map'),str(source/'usb-start-observe.c'),*map(str,libraries),'-o',str(target)]
+    command=['clang','--target=aarch64-linux-gnu','-DUSB_RESOURCE_OBSERVE=1',*(cold['defines'] if cold else ()),
+             '--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-mno-outline-atomics','-shared','-fPIC',
+             '-Wl,--no-undefined','-Wl,-z,now','-Wl,--version-script='+str(source/'usb-start-observe.map'),
+             str(source/'usb-start-observe.c'),*([str(source/name) for name in cold['compiled']] if cold else []),
+             *map(str,libraries),'-o',str(target)]
     result=subprocess.run(command,capture_output=True)
     (payload/'usb-observer-build.log').write_bytes(result.stdout+result.stderr)
     if result.returncode:raise RuntimeError('USB passive observer original-ABI build failed')
     if any(sha(source/name)!=digest for name,digest in inputs.items()):raise ValueError('USB observer source changed while building')
     target.chmod(0o600)
     helpers={'usb-start-observe.so':target}
+    if cold:helpers.update(cold['helpers'])
     mode=current.get('A7C2_USB_SENSER')
     if mode is not None:
         if mode!='original-init2-v1':raise ValueError('Unknown explicit original Senser startup mode')

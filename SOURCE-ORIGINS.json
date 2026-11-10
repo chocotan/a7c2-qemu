@@ -1,4 +1,59 @@
 {
+  "ee_normal_cold_observer_wiring_20261110": {
+    "maintenance": "explicit opt-in build branch in runtime/analysis/sony_usb_device.py; default observer build command stays byte-identical when the profile is off",
+    "report": "docs/tech/2026-11-10-usb-msc.md",
+    "profile": "ee-normal-wake-cold-functional-v1",
+    "source_root": "final/a7c2-re/report/2026-10-17-qemu-full-system",
+    "files": {
+      "ee-capability-input.c": {
+        "sha256": "753b8764cfab9a81154ccf70e6ff7ee9ef2bad37f55fb22f15ca06bd0aa1f398",
+        "original_sha256": "753b8764cfab9a81154ccf70e6ff7ee9ef2bad37f55fb22f15ca06bd0aa1f398",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/ee-capability-input.c"
+      },
+      "ee-capability-input.h": {
+        "sha256": "f0203f16d83e2cb5ecd17e5a55588a26c3ea8c36d15e45632d50256050b4f6f0",
+        "original_sha256": "f0203f16d83e2cb5ecd17e5a55588a26c3ea8c36d15e45632d50256050b4f6f0",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/ee-capability-input.h"
+      },
+      "ee-normal-wake-cold.c": {
+        "sha256": "8b0e7d3fa21f56a1bc71f605c578c8229986826d998f4a4c4d7f55ec6c6ca95f",
+        "original_sha256": "8b0e7d3fa21f56a1bc71f605c578c8229986826d998f4a4c4d7f55ec6c6ca95f",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/ee-normal-wake-cold.c"
+      },
+      "ee-normal-wake-cold.h": {
+        "sha256": "e53da72a2b9e61b5faa887185edc1b86d145ecac59127050b9fa0d3a37ee73c8",
+        "original_sha256": "dbdf140b9adaf1b32321f3cda2574538105c5f740b7378327ade98df465c006b",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/ee-normal-wake-cold.h",
+        "adapted": true,
+        "adaptation": "only the imaging-device.h include is redirected from the research relative path to the copied same-directory header"
+      },
+      "imaging-device.h": {
+        "sha256": "761f4ab03eb89e57ac2aea2e46beb41d80e269f44fe1c17e30e9a3c98d5e013a",
+        "original_sha256": "761f4ab03eb89e57ac2aea2e46beb41d80e269f44fe1c17e30e9a3c98d5e013a",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-native-camera/runtime/analysis/device-models/imaging-device.h"
+      },
+      "usb-ee-native-got.h": {
+        "sha256": "ca77e7fc8dc16064374d2110f382526d5bac2eb43cdf3c3a1f351b47460851b7",
+        "original_sha256": "ca77e7fc8dc16064374d2110f382526d5bac2eb43cdf3c3a1f351b47460851b7",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/usb-ee-native-got.h"
+      },
+      "usb-ee-normal-cold.inc": {
+        "sha256": "e95d8e28d2cc651327ed571fa03701d2697810b4b5779316e2e014989cefc166",
+        "original_sha256": "e95d8e28d2cc651327ed571fa03701d2697810b4b5779316e2e014989cefc166",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/usb-ee-normal-cold.inc"
+      },
+      "usb-ee-zero-observe.inc": {
+        "sha256": "9821b5bfba8970fdca98c324a2ff07fbe940431bdfcd289c6f90510374a3148d",
+        "original_sha256": "9821b5bfba8970fdca98c324a2ff07fbe940431bdfcd289c6f90510374a3148d",
+        "source": "final/a7c2-re/report/2026-10-17-qemu-full-system/usb-ee-zero-observe.inc"
+      }
+    },
+    "default_off": true,
+    "private_inputs_in_public_tree": false,
+    "host_fixture_link_only": true,
+    "original_ap_consumption_verified": false,
+    "contract": "final/a7c2-re/report/2026-10-17-qemu-full-system/EE-NORMAL-WAKE-COLD.md"
+  },
   "original_ram_restore_20261109": {
     "maintenance": "directly in the standalone product original-cold runner, persistent flash stage and exact RAM device-state stage",
     "report": "docs/tech/2026-11-09-ram-restore.md",

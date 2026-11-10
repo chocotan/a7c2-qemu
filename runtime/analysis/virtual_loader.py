@@ -134,6 +134,123 @@ def boot_plan(instance, *, kernel_sha256, ram0_sha256, retained_ram=False):
         return plan
 
 
+WBI_HEADER_BYTES = 0x58
+WBI_SECTION_BYTES = 0x40
+
+
+def parse_wbi_fd(fd, geometry):
+    """Parse the documented WBI2 image (0x58B header, 0x40B sections, data after 512B).
+
+    Structure and field offsets follow the boot-loading-chain research; the
+    holes between represented regions are unknown on real hardware and are
+    reported, never assumed zero.
+    """
+    import struct
+    partition = _slices(fd, geometry)['nflasha5']
+    head = os.pread(fd, WBI_HEADER_BYTES, partition['offset'])
+    if head[:4] != WBI2_MAGIC:
+        raise ValueError('p5 does not start with the WBI2 magic')
+    sections, = struct.unpack_from('<Q', head, 8)
+    flag, = struct.unpack_from('<Q', head, 0x10)
+    resume_vector, = struct.unpack_from('<Q', head, 0x18)
+    r_data_size, = struct.unpack_from('<Q', head, 0x30)
+    o_data_size, = struct.unpack_from('<Q', head, 0x50)
+    if not 0 < sections < 0x10000 or resume_vector == 0:
+        raise ValueError('WBI header fields out of documented bounds')
+    table_offset = 512 + r_data_size
+    rows = []
+    data_cursor = 512
+    for index in range(sections):
+        raw = os.pread(fd, WBI_SECTION_BYTES, partition['offset'] + table_offset + index * WBI_SECTION_BYTES)
+        if len(raw) != WBI_SECTION_BYTES:
+            raise ValueError('WBI section table truncated at ' + str(index))
+        target, rlen, cksum, sflag, olen = struct.unpack_from('<QQQQQ', raw, 0)
+        if sflag & 1 and rlen == 0:
+            kind, source_offset = 'zero', None
+        else:
+            if rlen == 0 or rlen % 512:
+                raise ValueError('WBI data section length invalid at ' + str(index))
+            kind, source_offset = 'data', data_cursor
+            data_cursor += rlen
+        rows.append(dict(index=index, target=target, rlen=rlen, olen=olen,
+                         flag=sflag, cksum=cksum, kind=kind, source_offset=source_offset))
+    if data_cursor - 512 != r_data_size:
+        raise ValueError('WBI section data does not sum to the header r_data_size')
+    return dict(magic=WBI2_MAGIC.decode(), sections=sections, flag=flag,
+                resume_vector=resume_vector, r_data_size=r_data_size,
+                o_data_size=o_data_size, rows=rows,
+                unknown_holes='regions of p5 outside header/data/section-table are unknown on real hardware')
+
+
+def wbi_resume_plan(instance):
+    # Load BI for mode 11: section data back to target PAs, zero fills, resume entry.
+    with _lease(instance) as leased:
+        parsed = parse_wbi_fd(leased['fd'], leased['geometry'])
+        runs = []
+        for row in parsed['rows']:
+            if row['kind'] == 'data':
+                runs.append(dict(kind='data', target=row['target'], length=row['rlen'],
+                                 source_offset=row['source_offset']))
+            else:
+                runs.append(dict(kind='zero', target=row['target'], length=row['olen']))
+        runs.sort(key=lambda item: item['target'])
+        return dict(schema=SCHEMA, profile=PROFILE,
+                    wbi=dict(parsed, rows=runs),
+                    entry=parsed['resume_vector'],
+                    backend='wbi-load-bi-sections',
+                    physical_wbi_resume_compatible=False)
+
+
+DDR_BASE = 0x400000000
+DDR_SIZE = 24576 * 1024 * 1024
+
+
+def wbi_resume_assets(instance, out_dir, *, ram_bytes=DDR_SIZE):
+    'Build the sparse DDR image with every WBI data section at its target PA.'
+    with _lease(instance) as leased:
+        return _write_wbi_assets(leased, out_dir, ram_bytes)
+
+
+def _write_wbi_assets(leased, out_dir, ram_bytes):
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ram = out_dir / 'wbi-ram.bin'
+    if ram.exists():
+        raise ValueError('WBI resume output must be fresh')
+    parsed = parse_wbi_fd(leased['fd'], leased['geometry'])
+    fd = os.open(ram, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
+    try:
+        os.ftruncate(fd, ram_bytes)
+        written = 0
+        partition_offset = _slices(leased['fd'], leased['geometry'])['nflasha5']['offset']
+        for row in parsed['rows']:
+            if row['kind'] != 'data':
+                continue
+            offset = row['target'] - DDR_BASE
+            if offset < 0 or offset + row['rlen'] > ram_bytes:
+                raise ValueError('WBI section target escapes the DDR window')
+            remaining = row['rlen']
+            cursor = row['source_offset']
+            while remaining:
+                count = min(remaining, 1024 * 1024)
+                data = os.pread(leased['fd'], count, partition_offset + cursor)
+                if len(data) != count:
+                    raise ValueError('Short WBI section read')
+                if os.pwrite(fd, data, offset) != count:
+                    raise OSError('Short WBI DDR write')
+                offset += count
+                cursor += count
+                remaining -= count
+                written += count
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return dict(ram=str(ram), ram_bytes=ram_bytes, entry=parsed['resume_vector'],
+                sections=parsed['sections'], data_bytes=parsed['r_data_size'],
+                written=written, schema=SCHEMA, profile=PROFILE,
+                physical_wbi_resume_compatible=False)
+
+
 def save_receipt(run_dir, plan):
     run_dir = Path(run_dir)
     payload = json.dumps(plan, indent=2, sort_keys=True) + '\n'

@@ -431,11 +431,32 @@ if [[ "$high_ddr" == 1 ]]; then
                -device loader,file=/initrd.img,addr=0x504000000,force-raw=on
                -device loader,addr=0x400080000,cpu-num=0)
 fi
+wbi_resume="${QEMU_WBI_RESUME:-0}"
+case "$wbi_resume" in 0|1) ;; *) echo 'QEMU_WBI_RESUME must be 0 or 1' >&2; exit 2 ;; esac
+wbi_bind=()
+wbi_args=()
+if [[ "$wbi_resume" == 1 ]]; then
+  [[ "${A7C2_STORAGE_PROFILE:-}" == product-single-disk-v1 ]] || { echo 'WBI resume requires the persistent single-disk profile' >&2; exit 2; }
+  [[ -f "${QEMU_WBI_RAM:-}" && ! -L "${QEMU_WBI_RAM:-}" ]] || { echo 'QEMU_WBI_RAM must be a prepared sparse DDR image' >&2; exit 2; }
+  [[ "${QEMU_WBI_ENTRY:-}" =~ ^0x[0-9a-fA-F]+$ ]] || { echo 'QEMU_WBI_ENTRY must be a hex address' >&2; exit 2; }
+  memory_config=24576
+  wbi_bind=(--bind "$QEMU_WBI_RAM" /out/wbi-ram.bin)
+  wbi_args=(-object memory-backend-file,size=${memory_config}M,mem-path=/out/wbi-ram.bin,id=wbiRam
+            -machine virt,secure=off,gic-version=2,memory-backend=wbiRam
+            -device loader,addr="$QEMU_WBI_ENTRY",cpu-num=0)
+fi
+machine_args=(-machine virt,secure=off,gic-version=2)
+if [[ "$wbi_resume" == 1 ]]; then machine_args=(-machine 'virt,secure=off,gic-version=2,memory-backend=wbiRam'); fi
+boot_args=(-kernel /kernel.img -initrd /initrd.img -append "$cmdline")
+if [[ "$wbi_resume" == 1 ]]; then
+  boot_args=("${wbi_args[@]}")
+  loader_args=()
+fi
 mkdir -p "$output_dir"
 if [[ -n "${QEMU_OUTPUT_DIR:-}" ]]; then
   selected_output="$QEMU_OUTPUT_DIR"
   mkdir -p "$selected_output"
-  install -m 0644 "$output_dir/virt.dtb" "$selected_output/virt.dtb"
+  [[ -f "$output_dir/virt.dtb" ]] && install -m 0644 "$output_dir/virt.dtb" "$selected_output/virt.dtb"
   output_dir="$selected_output"
 fi
 if [[ "${QEMU_PREPARE_ONLY:-0}" == 1 ]]; then
@@ -550,12 +571,13 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
     --chdir / --setenv LD_LIBRARY_PATH /tools/usr/lib --setenv LC_ALL C \
     "${timer_environment[@]}" \
     "${persistent_fd_options[@]}" "${persistent_bind[@]}" "${persistent_environment[@]}" \
+    "${wbi_bind[@]}" \
     "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
     "${scope_bind[@]}" \
     "${writer_bind[@]}" \
     "/tools/$binary_relative" \
-      -machine virt,secure=off,gic-version=2 -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
+      "${machine_args[@]}" -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
       ${QEMU_ICOUNT_ARGS:-} \
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
       -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
@@ -565,6 +587,5 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       "${scope_args[@]}" \
       "${writer_args[@]}" \
       "${incoming_args[@]}" \
-      "${loader_args[@]}" -kernel /kernel.img -initrd /initrd.img \
-      -append "$cmdline" \
+      "${boot_args[@]}" \
       -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log
