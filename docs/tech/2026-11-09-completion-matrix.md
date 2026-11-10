@@ -15,7 +15,7 @@
 | 全部设置／首设完成跨重启 | 完整Backup文件双bank、语言/日期API／原文件读回已有 | 仅语言/日期及完整文件一致性通过 | 需额外设置项／首设完成、原同步和重启读回；不能仅核全文件SHA就称全语义通过 |
 | 电源／稳定性 | 正常owner保存/退出，失败保全已实现 | 原MENU短事务和普通保存通过；历史APO/黑帧失败保留 | 反复开关／长运行／黑帧唤醒与原电源状态恢复待验 |
 | 输入性能／全部控制 | 连续LCD、常驻原App32、按压释放与registry已有 | 已测中位97.3ms/max121.1ms | 严格全部<100ms未过；真实变化>15fps和所有按键/拨盘/触摸矩阵待验，读取次数不当FPS |
-| 完整原启动／WBI | 原cold与限定QEMU RAM roundtrip已有 | BootROM／loader／原CP／SonyWBI／watchdog未完整执行 | 最终官方一致性独立审查要按最终代码和实际内容，不能称“全部一致” |
+| 完整原启动／WBI | 原cold与限定QEMU RAM roundtrip已有；新增virtual-b0-loader-functional-v1：每次启动前按原2.01 25项事件表（0xfe064538/选择器0xfe051230）从盘状态评估路由：p2/updater/mode→mode3、p5 WBI2魔数→ssboot、默认冷启，并从p3实际读内核/RAM0；非冷启路由显式拒绝并留收据 | loader模型合成盘5测试+冷启动集成97过/838子测；BootROM本体（掩模ROM）、原CP执行、SonyWBI恢复、watchdog仍功能模型/未执行 | 每次冷启在run目录留virtual-loader-receipt.json；updater/WBI后端接入产品前按“backend not-integrated”拒绝启动，不伪装选路成功 |
 | 完整BODYDATA系统更新 | 研究原SDK/存储/crypto部分通过，必要模块还需接产品 | v25仍在约99.7MB后段失败；只读新证卡内BODYDATA全文SHA=2c08…且坏块与独立参考相同，排除卡构建/包内容，定位到guest读取或buffer交接 | 原路径A:\\BODYDATA.DAT未被旧斜杠观察器识别；候选只读诊断已过GNU11/ASan，实际读回与完整安装仍未过，不启动盲等整包 |
 | 取景／照片／录像写卡 | CMOS／optics／AF／JPEG/H264／MPR/Fsys适配组件已有 | 原AP触发→实际帧→编码消费→原Fsys成片全链尚未过 | 用户已恢复推进；capture_verified保持false，主机独立生成文件不算 |
 | recovery／清理／主机tmp | 根AGENTS §10、旧配置归档、活引用／loop／netns守卫已落盘 | 6份RAM稀疏／680重复缓存删／183配置读回／82项tmp迁移通过 | 实际回收158.58GiB；/tmp/cpfw在用loop11保留；其它机型/未知归属不动；完整报告本机scratch |

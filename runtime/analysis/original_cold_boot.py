@@ -16,6 +16,7 @@ import sys
 
 import persistent_disk as disk
 import persistent_storage as storage
+import virtual_loader
 from ext2_inventory import Ext2, quote
 
 ANALYSIS=Path(__file__).resolve().parent
@@ -295,6 +296,10 @@ def prepare(instance,output,host_environment):
     from fwtool.archive.fat import readFat
     with disk.lease(Path(instance).absolute()) as leased:
         slices={row['id']:row for row in leased['geometry']['slices']};p3=slices['nflasha3']
+        loader=virtual_loader.evaluate_fd(leased['fd'],leased['geometry'])
+        need(loader['route'].get('status')=='selected' and loader['route'].get('mode')==1 and loader['resolve'].get('path')=='cold',
+             'Virtual loader selected a non-cold route; this build only boots cold: '+json.dumps(loader,sort_keys=True))
+        virtual_loader.save_receipt(output,loader)
         original_disk_before=disk.hashed(leased['fd'])
         source=io.BytesIO(os.pread(leased['fd'],p3['bytes'],p3['offset']));found={}
         for entry in readFat(source):
@@ -358,6 +363,6 @@ def prepare(instance,output,host_environment):
         empty=payload/'image_mmca';empty.write_bytes(b'');empty.chmod(0o600)
         p7proof=_patch(adapted,work,{'/sbin/insmod':SOURCE/'insmod.sh','/sbin/freeramdisk':freeram,'/image_mmca':empty},[('/simulation','/dev/qemu-simulation')])
         raw=adapted.read_bytes();need(len(raw)==p7['bytes'],'Derived p7 capacity changed');need(os.pwrite(leased['fd'],raw,p7['offset'])==len(raw),'Short p7 write');os.fsync(leased['fd']);need(disk.hashed(leased['fd'],p7['offset'],p7['bytes'])==sha(adapted),'Derived p7 disk readback differs')
-        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},sd_card=sd_card,kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
+        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),virtual_loader=loader,ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},sd_card=sd_card,kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
         storage._save(output/'result.json',result)
     return result
