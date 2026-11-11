@@ -17846,7 +17846,8 @@
     "files": {
       "docs/tech/2026-11-09-completion-matrix.md": {
         "before": "ea4bdcf85955e48a6821bed59626868ddba6fa5061905b26a14bde45c846c585",
-        "after": "8c8df910c9a90b999700253e58687cf37c0d07d5c2f7e4634c062308bb156b5d"
+        "after": "a4e70a13821c8e2d3f4b5b29c24ddcf988ccb485b2dee11a8d21096dfaeac77e",
+        "previous_after": "8c8df910c9a90b999700253e58687cf37c0d07d5c2f7e4634c062308bb156b5d"
       }
     },
     "evidence": [
@@ -17854,6 +17855,9 @@
       "analysis/scratch/wbi-resume-boot-20261110/WBI-RESUME-VECTOR.md"
     ],
     "cp_receiver_reached": false,
-    "wbi_resume_verified": false
+    "wbi_resume_verified": false,
+    "receiver_executed": false,
+    "receiver_trace_evidence": "analysis/scratch/cp-progress-20261111/trace-300s/result.json",
+    "gdbstub_disconnect_not_qemu_exit": true
   }
 }
