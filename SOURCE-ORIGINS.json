@@ -1,4 +1,21 @@
 {
+  "cp_gpio17_static_20261111": {
+    "maintenance": "offline verifier and evidence in existing CP boot report; runtime unchanged",
+    "report": "report/2026-11-11-cp-boot-progress/README.md",
+    "receipt": "report/2026-11-11-cp-boot-progress/gpio17-static.json",
+    "static_consumer_verified": true,
+    "host_tests": 5,
+    "host_workers": 2,
+    "runtime_model_implemented": false,
+    "original_reg_script_executed": false,
+    "peer_input_value": null,
+    "vm_replayed_this_round": false,
+    "full_boot_verified": false,
+    "source_sha256": {
+      "report/2026-11-11-cp-boot-progress/verify-gpio17.py": "31942a9df5b3b749149cb51a6b8df48d6c926c4a433ad273b546de6c2900c7bb",
+      "report/2026-11-11-cp-boot-progress/test_gpio17_verify.py": "9b37deafe1ecce9d6cdf28a4783ad21042220def9e1e6e33d4134beac538a74d"
+    }
+  },
   "cp_gpio18_first_fault_20261111": {
     "maintenance": "directly in standalone product source/cp-boot; diagnostic CP build only, default off",
     "report": "report/2026-11-11-cp-boot-progress/README.md",

@@ -49,7 +49,8 @@ profile 为 `virtual-gpio18-loader-state-v1`，默认关闭。它定义虚拟寄
 | 观察器预算、分核快照、QMP退出 | 32项host/25子测试及三轮原CP正常退出通过 |
 | GPIO18核心/适配/构建 | 4项host通过（含132个C检查和ASan/UBSan），私有QEMU增量构建通过 |
 | 原 CP 消费 GPIO18 并推进 | 通过：原SET写8，latch由2变a且完整读回 |
-| 下一首异常 | GPIO17 DIR：地址f102e000、pin2、原Thumb PCbf7376 |
+| 下一首异常 | GPIO17 DIR：地址f102e000、pin2、原Thumb PCbf7376；原PCIEIF_INIT直接读取17/2，官方REG明确配置为输入 |
+| GPIO17 peer电平与双端接线 | 未实现；RDATA未知，原AP输出调查进行中 |
 | receiver 创建/执行和合法回包 | 未验收 |
 | SPI/PCIe更新、完整硬件启动链 | 未完成 |
 
@@ -80,3 +81,24 @@ ninja -j2 qemu-system-aarch64
 三轮原CP的18,090,880B guest加载全文摘要一致，断点均正确移除；每轮QMP quit确认、owner返回0、未发送VM信号。task153仍是原记录、state0，接收器/原合法回包、AP↔CP传输、SPI/PCIe更新和完整硬件启动保持未完成。
 
 观察器集中host为32项/25子测试，GPIO核心与接线为4项，两个worker并行；它们不代替原CP消费。不以空ACK或手工激活任务冒充原业务完成。
+
+## GPIO17：输入消费者与配置依据已闭合
+
+停止于轮次上限的调查代理已留下 `analysis/scratch/cp-wait-20261111/gpio17-review/HANDOFF.md`；该代理没有最终输出。主会话重新核了原CP全文SHA、关键Thumb分支、两份官方PP属性全文SHA和逐项脚本数据，以下是已核收事实，未将代理状态改记为成功。
+
+- `PCIEIF_INIT` 的 `56a960/56a962/56a964` 直接传 `(17,2)` 调用 `bf7838`，不来自不明表项。该函数先读DIR，方向位值为0时尾调 `bf73c4` 读取 **RDATA `f102e010` bit2**。
+- `56a968` 比较返回值是否为1；等于1才调用 `56c6c4`，置一次性标志并唤醒两组本地事件。原IRQ handler `bee790` 也调用该路径。因而0和1不是等价的占位输入。
+- 同一个 `f9014a` 属性在CP候选 record ed000 的行171–177配置port17；DIR_SET=8、DIR_CLR=fff357、INEN_SET=fff357、INEN_CLR=8。对任意原复位字，**pin2方向为输入且输入使能**。AP候选 record0的行91–98也对pin2给出同样方向/使能结论，PORTSEL不同。
+- 脚本表语义不证明原NOR已执行或记录绑定已由真实loader完成；这些写入不提供RDATA电平，原栈残留的 `bee819` 也不能当成本轮直接caller。
+
+[`verify-gpio17.py`](verify-gpio17.py) 使用标准库复算已固定SHA的原CP/PP和上述REG投影，无需IDA或Capstone。原件只读、输出必须新建；样本路径由读者显式提供：
+
+```sh
+python3 report/2026-11-11-cp-boot-progress/verify-gpio17.py \
+  --cp /path/to/cpapp-b.bin --pp /path/to/CX89701_ALLLANG.bin \
+  --out /path/to/new-gpio17-static.json
+```
+
+[`gpio17-static.json`](gpio17-static.json) 为本轮静态复算收据，输入值保持null。新5项host测试和原资产复算按两个worker集中执行；不与此前36项相加，也未重跑未变的旧CP窗口。本轮没有修改运行模型或提供peer电平，receiver及完整启动保持未通过。
+
+下一步沿原AP的GPIO18通知输出及其实际MMIO消费者，建立双端状态与IRQ连接。公开AP内核 `IRQ_GPIO_BASE` 有机型条件（88或238），不能直接据此给CP注册的逻辑IRQ `0x121/0x122` 接线。

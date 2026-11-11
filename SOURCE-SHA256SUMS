@@ -2,7 +2,7 @@
 44b810ad806833aec8dcefb3579015ff8926c6403749fe76def260a198c357fd  LICENSE
 8fde9e63721155ff2b863125c88d7aab6cea9c44600d4df6b555ea28909ea622  PORTING-WIN-MAC.md
 667b3f1487ff37d9b1a5830c346e910ea76773cc459f6bf04394327057d93506  README.md
-b3b84fd02335c5dc51ba27fb92918093391111253d2c177aa414ffa0397fecc5  SOURCE-ORIGINS.json
+946bde708aaa5eaff62a1e6aea5975a5234a7cf93df28fe6f0d8a904af3b2451  SOURCE-ORIGINS.json
 54107c1e17bd90e17fa9c53da23c55a328fdb2f0af36681912ad7a3736125ea8  SOURCES.md
 89302ed82a904092cb3202b2700cab135f08015eb311cf24b9dd5c0cbbbd2456  THIRD-PARTY.md
 24f90962ccc7df83ed49f02927ee35907f30e522d1aa21dcaeab56d69c21be1b  analysis/qemu-control/app.js
@@ -44,7 +44,7 @@ edfadc00cb767207880a9de6ac6c986676068a5b4f31b45a894d733acfc5fa2d  docs/tech/12-d
 c15a5c72460d179b7ecae4b475a844a887c760e806c5dff0ac5862c5a2e33bb7  docs/tech/2026-11-08-boot-review.md
 a4b2098feb6ed5bc20a7016b2cc1df9e36e91908fbdc96176c8539e675533ab1  docs/tech/2026-11-08-default-startup.md
 a99101ca6771aaca13cb1f426a4810ea1b65dad1a4fc1222bc8b2b8fb25da231  docs/tech/2026-11-08-development-and-storage.md
-b67a94b6aa40dc11a62f87a397869ca058d44d8d0766beaf007f02f69f99e1d5  docs/tech/2026-11-09-completion-matrix.md
+7a805eaa48694edb91401735364463807887f1b57e6b24703b1a4eee4415e57d  docs/tech/2026-11-09-completion-matrix.md
 049251d7cd84c38e3fc6d0386dae6fd03a8f08a1259a4c7fa78e71ffcc161147  docs/tech/2026-11-09-default-cold-entry.md
 8f6c4849b246a5da36bb4a41f22bbd2533b3892d1f2ce7aa90612f65ab61f870  docs/tech/2026-11-09-original-cold-boot.md
 78805b9c4544c833c32538becba08e1b1c80f7675c77fa5038cbaf5c7d618e2b  docs/tech/2026-11-09-original-cold-window.md
@@ -3138,7 +3138,7 @@ cab8e839d0fa9cabd9a0c70c93619ebc887650437d1cb0ca0be0a651318802f8  validation/sd-
 71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433  validation/usb-large-out-file-cycle-20261110.json
 a09408482e8c0dd34ab6fc4b61d7530955a59befb48560a71ecd5f14cf55ae5b  validation/usb-msc-frontier-20261110.json
 38194075bec923860e9d70e6a360be557692b94ba0990d25301cc97f8dec4ab6  validation/window-ram-20261109.json
-4dffeb0f82ad07e79603ef3e8e96810be8c8190f54b2f22eb7993c28b08d87a6  report/2026-11-11-cp-boot-progress/README.md
+16c4b435d9a252d30903d385bd977d6431d3c646901fabee2519fd208ddaa0ef  report/2026-11-11-cp-boot-progress/README.md
 a11581624b27d093ca70b6ce881cad5f6df30193e8d563c54a4f77264de99002  report/2026-11-11-cp-boot-progress/validation.json
 430571369f15a6aa4e676e56774019042a461492d882f91f8ba7bf467e8cb241  source/cp-boot/README.md
 de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873  source/cp-boot/gpio18-qemu.c
@@ -3148,3 +3148,6 @@ de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873  source/cp-boot
 0df28a10d3c829f46226be7604a51696ec2372c610d57e0c69fd3f0ef5ba924e  source/cp-boot/test-gpio18.c
 22b9b3e2a3a8b8a1094a936eb5d1c87e5a163e001a093bb893c7aa06dd566689  source/cp-boot/test_gpio18.py
 ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183  source/cp-boot/test_stage.py
+aadc57325b3b41a45f773a5004775259abfaa1d23d4c5dcf9d4dcc752cf38e43  report/2026-11-11-cp-boot-progress/gpio17-static.json
+31942a9df5b3b749149cb51a6b8df48d6c926c4a433ad273b546de6c2900c7bb  report/2026-11-11-cp-boot-progress/verify-gpio17.py
+9b37deafe1ecce9d6cdf28a4783ad21042220def9e1e6e33d4134beac538a74d  report/2026-11-11-cp-boot-progress/test_gpio17_verify.py
