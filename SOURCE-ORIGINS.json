@@ -1,4 +1,35 @@
 {
+  "ap_cp_gpio_lines_20261111": {
+    "maintenance": "direct product source/cp-boot implementation; private diagnostic boards only, default off",
+    "report": "report/2026-11-11-cp-boot-progress/README.md",
+    "receipt": "report/2026-11-11-cp-boot-progress/notify-validation.json",
+    "profile": "virtual-ap-cp-gpio-lines-v1",
+    "default_off": true,
+    "host_tests": 41,
+    "host_subtests": 29,
+    "host_workers": 2,
+    "c_sanitizer_checks": 197,
+    "actual_paired_qemu_gpio_verified": true,
+    "actual_ap_gic_pending_verified": true,
+    "actual_original_cp_gpio17_consumption_verified": true,
+    "original_ap_consumption_verified": false,
+    "cp_irq_supported": false,
+    "physical_compatible": false,
+    "full_boot_verified": false,
+    "source_sha256": {
+      "source/cp-boot/NOTIFY.md": "98c3da7ddcd80c55a3b05dd38a259c4314f5d1fc3f9f563c73e2e15f98fb86be",
+      "source/cp-boot/check-notify-qemu.py": "6525e6ac5686244b38848f72b816947e5e99c54021a7af213d7b0720e17f920c",
+      "source/cp-boot/gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+      "source/cp-boot/gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+      "source/cp-boot/notify-qemu.c": "a7f4031567c724700420259ac5bcc3170349ed5a15f5e55fcbca0dada03ecda4",
+      "source/cp-boot/notify.c": "6ec69708a31b84191f9b7c54c87566c69e16ae9fd8500e78de5fbf2244887db1",
+      "source/cp-boot/notify.h": "ae0ac8d7857a4c5c8939a58bb0049bc2502c4ed3f75a3e5ecddb9476e61e5a94",
+      "source/cp-boot/stage-notify.py": "508a3e84d699f656612fdaacf4df734bdf56048e88eb36c13edffc4a37aa580a",
+      "source/cp-boot/test-notify.c": "42ad7854edcedd79b1c733cedf27ef17d6de35049ec5a75f320b59b67af3bcd9",
+      "source/cp-boot/test_notify.py": "402c033b01b140a330222a87ab09fcb501ace626ee726bea25f33a1bb747e4ac",
+      "source/cp-boot/test_notify_stage.py": "d51c50c489c22c3f6bc58e4b6460f4cc28a1f8e79dfb0adb4de983f714c314d1"
+    }
+  },
   "cp_gpio17_static_20261111": {
     "maintenance": "offline verifier and evidence in existing CP boot report; runtime unchanged",
     "report": "report/2026-11-11-cp-boot-progress/README.md",

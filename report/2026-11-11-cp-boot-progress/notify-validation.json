@@ -1,0 +1,88 @@
+{
+  "ap_peer_scope": "QEMU output-latch device from declared original REG-derived virtual initial state; no original AP software or UIPC/PCIe ACK",
+  "binary_sha256": "f35211d4a4b8baaa91ba77ab5d93dd41c3a9ff783cb68774cd8834dd735c22cf",
+  "capture_verified": false,
+  "cp_bank16_supported": false,
+  "cp_irq_supported": false,
+  "default_off": true,
+  "first_build": {
+    "corrected_build_passed": true,
+    "reason": "QOM type macro mismatch; original failed sources/logs retained",
+    "returncode": 1
+  },
+  "full_boot_verified": false,
+  "host": {
+    "c_sanitizer_checks": 197,
+    "pytest_tests": 41,
+    "raw_result_sha256": "9ab8636930486252b840bf9a381362b9e60c24de21f7b27ff27c264582137dcc",
+    "subtests": 29,
+    "workers": 2
+  },
+  "installation_verified": false,
+  "original_ap_consumption_verified": false,
+  "original_ap_cp_link_verified": false,
+  "original_cp": {
+    "gpio17_rdata_consumed": true,
+    "gpio18_set_consumed_by_peer_model": true,
+    "next_first_fault": {
+      "access_address": "0x0400000c",
+      "buffer_base": "0x04000000",
+      "evidence": "Original55dfa4 add lr,r0,#c then ldrb[lr,r3], r3=0; ABT LR is not original-mode LR",
+      "init_index": 7,
+      "instruction_pc": "0x55dfb6",
+      "stage": "BACKUP_INIT"
+    },
+    "normal_cp_exit": true,
+    "normal_functional_peer_exit": true,
+    "original_image_full_readback": true,
+    "peer_model_rdata": "0x10",
+    "raw_result_sha256": "5941ff48e29f14cb8b9be868ef065755587e0ddd1d1c749e8a7b55de014e5403",
+    "run": "cp-progress-u_gpjgdl",
+    "watchdog_resets_before_first_fault": 0
+  },
+  "original_cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "physical_compatible": false,
+  "physical_cross_chip_wiring_verified": false,
+  "profile": "virtual-ap-cp-gpio-lines-v1",
+  "qemu_device": {
+    "ap_gic_intids": [
+      92,
+      91
+    ],
+    "ap_gic_pending_verified": true,
+    "ap_gic_spis": [
+      60,
+      59
+    ],
+    "disconnect_rejected": true,
+    "frame_guards": {
+      "fragmented_frame_consumed": true,
+      "rejected": [
+        "sequence-gap",
+        "wrong-side",
+        "unknown-mask",
+        "undriven-level"
+      ],
+      "stale_input_rejected": true
+    },
+    "normal_owner_exits": 3,
+    "paired_state_consumed": true,
+    "raw_result_sha256": "8573ebde0d5ecfd210818765657b6c140232934068f337e19189f0cfb2b6f45a",
+    "reset_keeps_external_input": true
+  },
+  "receiver_verified": false,
+  "schema": "a7c2-ap-cp-gpio-lines-validation-v1",
+  "source_sha256": {
+    "source/cp-boot/NOTIFY.md": "98c3da7ddcd80c55a3b05dd38a259c4314f5d1fc3f9f563c73e2e15f98fb86be",
+    "source/cp-boot/check-notify-qemu.py": "6525e6ac5686244b38848f72b816947e5e99c54021a7af213d7b0720e17f920c",
+    "source/cp-boot/gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+    "source/cp-boot/gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+    "source/cp-boot/notify-qemu.c": "a7f4031567c724700420259ac5bcc3170349ed5a15f5e55fcbca0dada03ecda4",
+    "source/cp-boot/notify.c": "6ec69708a31b84191f9b7c54c87566c69e16ae9fd8500e78de5fbf2244887db1",
+    "source/cp-boot/notify.h": "ae0ac8d7857a4c5c8939a58bb0049bc2502c4ed3f75a3e5ecddb9476e61e5a94",
+    "source/cp-boot/stage-notify.py": "508a3e84d699f656612fdaacf4df734bdf56048e88eb36c13edffc4a37aa580a",
+    "source/cp-boot/test-notify.c": "42ad7854edcedd79b1c733cedf27ef17d6de35049ec5a75f320b59b67af3bcd9",
+    "source/cp-boot/test_notify.py": "402c033b01b140a330222a87ab09fcb501ace626ee726bea25f33a1bb747e4ac",
+    "source/cp-boot/test_notify_stage.py": "d51c50c489c22c3f6bc58e4b6460f4cc28a1f8e79dfb0adb4de983f714c314d1"
+  }
+}

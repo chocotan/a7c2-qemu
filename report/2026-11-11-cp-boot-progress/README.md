@@ -49,8 +49,9 @@ profile 为 `virtual-gpio18-loader-state-v1`，默认关闭。它定义虚拟寄
 | 观察器预算、分核快照、QMP退出 | 32项host/25子测试及三轮原CP正常退出通过 |
 | GPIO18核心/适配/构建 | 4项host通过（含132个C检查和ASan/UBSan），私有QEMU增量构建通过 |
 | 原 CP 消费 GPIO18 并推进 | 通过：原SET写8，latch由2变a且完整读回 |
-| 下一首异常 | GPIO17 DIR：地址f102e000、pin2、原Thumb PCbf7376；原PCIEIF_INIT直接读取17/2，官方REG明确配置为输入 |
-| GPIO17 peer电平与双端接线 | 未实现；RDATA未知，原AP输出调查进行中 |
+| 原 CP GPIO17输入 | 双端功能模型中实际读取RDATA，已越过PCIEIF_INIT |
+| 当前首异常 | BACKUP_INIT（索引7）：原PC55dfb6访问备份缓冲0x04000000+0xc |
+| 双端GPIO与AP IRQ | 两个QEMU实例及实际AP GIC通过；原AP软件未运行，CP IRQ/CP16仍未接线 |
 | receiver 创建/执行和合法回包 | 未验收 |
 | SPI/PCIe更新、完整硬件启动链 | 未完成 |
 
@@ -101,4 +102,22 @@ python3 report/2026-11-11-cp-boot-progress/verify-gpio17.py \
 
 [`gpio17-static.json`](gpio17-static.json) 为本轮静态复算收据，输入值保持null。新5项host测试和原资产复算按两个worker集中执行；不与此前36项相加，也未重跑未变的旧CP窗口。本轮没有修改运行模型或提供peer电平，receiver及完整启动保持未通过。
 
-下一步沿原AP的GPIO18通知输出及其实际MMIO消费者，建立双端状态与IRQ连接。公开AP内核 `IRQ_GPIO_BASE` 有机型条件（88或238），不能直接据此给CP注册的逻辑IRQ `0x121/0x122` 接线。
+下一步沿原AP的GPIO18通知输出及其实际MMIO消费者，建立双端状态与IRQ连接。公开AP内核 `IRQ_GPIO_BASE` 有机型条件（88或238），不能直接据此给CP注册的逻辑IRQ `0x121/0x122` 接线。该静态阶段之后的新增功能与实际消费见下一节，旧静态收据不回填。
+
+## 新增：双端GPIO功能切片已实际消费
+
+[`source/cp-boot/NOTIFY.md`](../../source/cp-boot/NOTIFY.md) 给出 `virtual-ap-cp-gpio-lines-v1` 的定义、协议、构建和复现入口；[`notify-validation.json`](notify-validation.json) 为本轮独立内容核收。原GP18单端与GPIO17静态结果保留。
+
+本功能保存双方GPIO17/18寄存器，以对端GPIO18实际输出latch生成有序快照；连接无效、输入未使能、输出未驱动或坏帧时拒绝读取。AP侧GPIO17/4、17/3接到真实GIC的SPI60/59（INTID92/91）。跨芯片配对是显式功能模型约定，物理布线未验证；CP中断与CP16未建模，不生成PCIe ready、UIPC回复或其它ACK。
+
+AP IRQ依据由主会话复核原Image `620a6a3c…` 的函数文件偏移 `31ae28` 和原通道表：GPIO17/18物理字段位于Image `6407b0/640848`。代理原写的 `640970/640a08` 属于重建ELF偏移，不能当原Image偏移；VA基址猜测未作为映射判据。原AP驱动路径为 `MENU_PCIE_IF=1`、`--load-ipc` 和PCI DMA前置；默认冷启动仍不加载这个远端sender，且它与现有虚拟sender互斥。本轮不把原模块历史加载成功提升为新模型上的原AP消费。
+
+验收分三层：
+
+- 两worker集中host：**41项测试、29子测试**，其中新C状态机在ASan/UBSan下197项检查通过。首次QEMU构建因QOM类型常量命名不符失败，原失败源码/日志保留；修正后增量构建通过。
+- 实际QEMU配对：AP SET/CLR改变CP RDATA；CP两路输出改变AP输入并设置GIC pending；本端reset保留外部输入，断连拒绝。分片帧、错误角色、序号跳跃、未知掩码和未驱动电平负例通过。三个测试owner均QMP quit确认、rc0、无信号。
+- 原CP `cp-progress-u_gpjgdl`：18,090,880B加载全文摘要仍为原值；原CP读GPIO17 DIR后实际读取RDATA（来自对端输出设备的有效快照），不再在GPIO17异常。原CP的SET8输出同时传到对端并读回GPIO17值10h。初始化从索引5 `PCIEIF_INIT` 推进至索引7 **BACKUP_INIT**；首异常为原Thumb `55dfb6` 的字节读取。原 `55dfa4` 先计算 `lr=r0+0xc`，现场r0=04000000、r3=0，故有效访问为 **0x0400000c**，不是用banked ABT LR推导。此前无RESET/WATCHDOG事件；CP与功能peer均正常QMP0退出。
+
+新的阻塞是尚未承载的原备份缓冲，正核对其真实loader来源、地址、格式与记录选择。没有给它填零、造BK4头或改原参数。
+
+原CP这一轮的对端是**寄存器模型，无原AP软件**。双端设备、AP GIC及原CP GPIO消费通过；原AP↔原CP、CP IRQ、receiver、完整启动、P1安装完成、拍摄成片仍未通过。默认产品窗口与旧失败没有改动。

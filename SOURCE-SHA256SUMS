@@ -2,7 +2,7 @@
 44b810ad806833aec8dcefb3579015ff8926c6403749fe76def260a198c357fd  LICENSE
 8fde9e63721155ff2b863125c88d7aab6cea9c44600d4df6b555ea28909ea622  PORTING-WIN-MAC.md
 667b3f1487ff37d9b1a5830c346e910ea76773cc459f6bf04394327057d93506  README.md
-946bde708aaa5eaff62a1e6aea5975a5234a7cf93df28fe6f0d8a904af3b2451  SOURCE-ORIGINS.json
+c3a54a2d34e5ac57733b67de5eb5da1672916e47e798dd306d0dfec24b5dce31  SOURCE-ORIGINS.json
 54107c1e17bd90e17fa9c53da23c55a328fdb2f0af36681912ad7a3736125ea8  SOURCES.md
 89302ed82a904092cb3202b2700cab135f08015eb311cf24b9dd5c0cbbbd2456  THIRD-PARTY.md
 24f90962ccc7df83ed49f02927ee35907f30e522d1aa21dcaeab56d69c21be1b  analysis/qemu-control/app.js
@@ -44,7 +44,7 @@ edfadc00cb767207880a9de6ac6c986676068a5b4f31b45a894d733acfc5fa2d  docs/tech/12-d
 c15a5c72460d179b7ecae4b475a844a887c760e806c5dff0ac5862c5a2e33bb7  docs/tech/2026-11-08-boot-review.md
 a4b2098feb6ed5bc20a7016b2cc1df9e36e91908fbdc96176c8539e675533ab1  docs/tech/2026-11-08-default-startup.md
 a99101ca6771aaca13cb1f426a4810ea1b65dad1a4fc1222bc8b2b8fb25da231  docs/tech/2026-11-08-development-and-storage.md
-7a805eaa48694edb91401735364463807887f1b57e6b24703b1a4eee4415e57d  docs/tech/2026-11-09-completion-matrix.md
+43404325a81345f5d5b55b34dc06824e3888987b3141df84dd53dca3b2c9a6e6  docs/tech/2026-11-09-completion-matrix.md
 049251d7cd84c38e3fc6d0386dae6fd03a8f08a1259a4c7fa78e71ffcc161147  docs/tech/2026-11-09-default-cold-entry.md
 8f6c4849b246a5da36bb4a41f22bbd2533b3892d1f2ce7aa90612f65ab61f870  docs/tech/2026-11-09-original-cold-boot.md
 78805b9c4544c833c32538becba08e1b1c80f7675c77fa5038cbaf5c7d618e2b  docs/tech/2026-11-09-original-cold-window.md
@@ -54,7 +54,7 @@ b0727bbaa0f62b1802376b5e35a4877b8d417c5d0a1a1f32c06e0a95eaf65dc4  docs/tech/2026
 2a025f585014841c0dd5cf840fc7736d5cfafc7844a5ff14d662540cff0abdc5  docs/tech/2026-11-09-window-ram.md
 b7498c07e9368f978143d2a7c7a7bac1b00bd77b607cdeb0ea3925a3cd3d9fc6  docs/tech/2026-11-10-1g-sd.md
 d18478a97cdc370d8be56e011563cca85c31743ac353955e7e3ad8f90ee5061c  docs/tech/2026-11-10-usb-msc.md
-7e6d954ea9debdd505f85729940930fcf0f35c6193fd0ea823334a17da147669  docs/tech/README.md
+18e003965c5529dff783274843d50276831c54ed15815a33e4ef2fd81cbec144  docs/tech/README.md
 ae353424c6269da9c3c94fbeb69379a562bb71b03d9d8189446611b873687770  docs/tech/functional-source-and-display.md
 2ec7e4e9ba873377c75f51eff795f75f6b79fa7622d1257a37a5d6ecd77f8450  export-qemu-source.py
 8b8d2c05669b35bd13ac2078edd6abe38fe75b73492a3fd54b912288d1d442b9  import-assets.sh
@@ -3138,7 +3138,7 @@ cab8e839d0fa9cabd9a0c70c93619ebc887650437d1cb0ca0be0a651318802f8  validation/sd-
 71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433  validation/usb-large-out-file-cycle-20261110.json
 a09408482e8c0dd34ab6fc4b61d7530955a59befb48560a71ecd5f14cf55ae5b  validation/usb-msc-frontier-20261110.json
 38194075bec923860e9d70e6a360be557692b94ba0990d25301cc97f8dec4ab6  validation/window-ram-20261109.json
-16c4b435d9a252d30903d385bd977d6431d3c646901fabee2519fd208ddaa0ef  report/2026-11-11-cp-boot-progress/README.md
+48d6ac33981d7b9ccc77b9c044ef9ae9763de3d8b12092dd7e3bfdf4315c6e90  report/2026-11-11-cp-boot-progress/README.md
 a11581624b27d093ca70b6ce881cad5f6df30193e8d563c54a4f77264de99002  report/2026-11-11-cp-boot-progress/validation.json
 430571369f15a6aa4e676e56774019042a461492d882f91f8ba7bf467e8cb241  source/cp-boot/README.md
 de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873  source/cp-boot/gpio18-qemu.c
@@ -3151,3 +3151,13 @@ ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183  source/cp-boot
 aadc57325b3b41a45f773a5004775259abfaa1d23d4c5dcf9d4dcc752cf38e43  report/2026-11-11-cp-boot-progress/gpio17-static.json
 31942a9df5b3b749149cb51a6b8df48d6c926c4a433ad273b546de6c2900c7bb  report/2026-11-11-cp-boot-progress/verify-gpio17.py
 9b37deafe1ecce9d6cdf28a4783ad21042220def9e1e6e33d4134beac538a74d  report/2026-11-11-cp-boot-progress/test_gpio17_verify.py
+782f86c0884b50e41a1f51e18da04dba29b098056bb6576eb34a8732b111ebbb  report/2026-11-11-cp-boot-progress/notify-validation.json
+98c3da7ddcd80c55a3b05dd38a259c4314f5d1fc3f9f563c73e2e15f98fb86be  source/cp-boot/NOTIFY.md
+ae0ac8d7857a4c5c8939a58bb0049bc2502c4ed3f75a3e5ecddb9476e61e5a94  source/cp-boot/notify.h
+6ec69708a31b84191f9b7c54c87566c69e16ae9fd8500e78de5fbf2244887db1  source/cp-boot/notify.c
+a7f4031567c724700420259ac5bcc3170349ed5a15f5e55fcbca0dada03ecda4  source/cp-boot/notify-qemu.c
+508a3e84d699f656612fdaacf4df734bdf56048e88eb36c13edffc4a37aa580a  source/cp-boot/stage-notify.py
+42ad7854edcedd79b1c733cedf27ef17d6de35049ec5a75f320b59b67af3bcd9  source/cp-boot/test-notify.c
+402c033b01b140a330222a87ab09fcb501ace626ee726bea25f33a1bb747e4ac  source/cp-boot/test_notify.py
+d51c50c489c22c3f6bc58e4b6460f4cc28a1f8e79dfb0adb4de983f714c314d1  source/cp-boot/test_notify_stage.py
+6525e6ac5686244b38848f72b816947e5e99c54021a7af213d7b0720e17f920c  source/cp-boot/check-notify-qemu.py
