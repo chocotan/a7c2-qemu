@@ -17840,5 +17840,20 @@
       "published_source_sha256": "8f1f78b9f0eccbf79c34cfe12a62836ac159c531533fde5d50098ab24239cf0e",
       "cold_branch_identical_to_actual": true
     }
+  },
+  "cp_wbi_progress_20261111": {
+    "maintenance": "Documentation-only update of the product completion matrix; no runtime code change",
+    "files": {
+      "docs/tech/2026-11-09-completion-matrix.md": {
+        "before": "ea4bdcf85955e48a6821bed59626868ddba6fa5061905b26a14bde45c846c585",
+        "after": "8c8df910c9a90b999700253e58687cf37c0d07d5c2f7e4634c062308bb156b5d"
+      }
+    },
+    "evidence": [
+      "analysis/scratch/cp-progress-20261111/CP-PROGRESS.md",
+      "analysis/scratch/wbi-resume-boot-20261110/WBI-RESUME-VECTOR.md"
+    ],
+    "cp_receiver_reached": false,
+    "wbi_resume_verified": false
   }
 }
