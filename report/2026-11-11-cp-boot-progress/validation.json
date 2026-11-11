@@ -1,0 +1,68 @@
+{
+  "c_asan_ubsan": true,
+  "capture_verified": false,
+  "default_off": true,
+  "full_boot_verified": false,
+  "host_subtests": 25,
+  "host_tests": 36,
+  "host_workers": 2,
+  "observations": {
+    "first-fault": {
+      "effective_address": "0xf102e000",
+      "fault_instruction": "ldr r0,[r2,r0]",
+      "fault_pc": "0xbf7376",
+      "normal_qmp_exit": true,
+      "owner_returncode": 0,
+      "pin": 2,
+      "port": 17,
+      "raw_result_sha256": "4582ad9878e64d4ef27c9f5b3acd6b1ef23a133651d78c0130a167114c00bf8c",
+      "raw_stderr_sha256": "2be5698255239f90749f0d05cdfc2d2d2b4ac1690a7ace7e78ddc6e4d684dc56",
+      "run": "cp-progress-270movni",
+      "signals_sent": [],
+      "watchdog_resets_before_fault": 0
+    },
+    "gpio18": {
+      "final_wdata": "0xa",
+      "gpio18_consumed": true,
+      "guest_write": {
+        "offset": "0x44",
+        "value": "0x8"
+      },
+      "initial_wdata": "0x2",
+      "normal_qmp_exit": true,
+      "owner_returncode": 0,
+      "raw_result_sha256": "3b36f55bcf2e6aa964fceee1293c00d126b66d7d40e3767310f3bb1db71a7d62",
+      "raw_stderr_sha256": "3d2bff8be3feb5bdd5f0bd9ec98101f2d742cabfed41a923be1e7cc59788896b",
+      "receiver_entry_hit": false,
+      "run": "cp-progress-1wy2sgmh",
+      "signals_sent": []
+    },
+    "mapped-baseline": {
+      "normal_qmp_exit": true,
+      "owner_returncode": 0,
+      "raw_result_sha256": "84e85a5f2120ba7cccc539737017c07c596062937888794ad04179761a35a79a",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "run": "cp-progress-hyhsb_sw",
+      "signals_sent": []
+    }
+  },
+  "original_cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "original_nor_executed": false,
+  "peer_input_supplied": false,
+  "physical_compatible": false,
+  "profile": "virtual-gpio18-loader-state-v1",
+  "qemu_binary_sha256": "9113a04a50f1a4da616c5522b3e551a5fa765a3eeb174ec538a5983ff8c0bf75",
+  "receiver_verified": false,
+  "schema": "a7c2-cp-gpio18-first-fault-validation-v1",
+  "source_files": {
+    "source/cp-boot/README.md": "430571369f15a6aa4e676e56774019042a461492d882f91f8ba7bf467e8cb241",
+    "source/cp-boot/gpio18-qemu.c": "de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873",
+    "source/cp-boot/gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+    "source/cp-boot/gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+    "source/cp-boot/stage.py": "652462c9aaa327f9bd46d141b7f6464de109eb4f7e7993d9e56168cd0b6257e6",
+    "source/cp-boot/test-gpio18.c": "0df28a10d3c829f46226be7604a51696ec2372c610d57e0c69fd3f0ef5ba924e",
+    "source/cp-boot/test_gpio18.py": "22b9b3e2a3a8b8a1094a936eb5d1c87e5a163e001a093bb893c7aa06dd566689",
+    "source/cp-boot/test_stage.py": "ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183"
+  },
+  "spi_pcie_update_verified": false
+}

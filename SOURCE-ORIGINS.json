@@ -1,4 +1,28 @@
 {
+  "cp_gpio18_first_fault_20261111": {
+    "maintenance": "directly in standalone product source/cp-boot; diagnostic CP build only, default off",
+    "report": "report/2026-11-11-cp-boot-progress/README.md",
+    "receipt": "report/2026-11-11-cp-boot-progress/validation.json",
+    "profile": "virtual-gpio18-loader-state-v1",
+    "default_off": true,
+    "source_basis": "Sony same-SoC OSS regs-gpio.h offsets; six original BK4 f9014a register-script writes; explicit virtual all-zero reset with full 32-bit latches",
+    "original_cp_gpio18_consumption_verified": true,
+    "physical_compatible": false,
+    "original_nor_executed": false,
+    "peer_input_supplied": false,
+    "receiver_verified": false,
+    "full_boot_verified": false,
+    "source_sha256": {
+      "source/cp-boot/README.md": "430571369f15a6aa4e676e56774019042a461492d882f91f8ba7bf467e8cb241",
+      "source/cp-boot/gpio18-qemu.c": "de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873",
+      "source/cp-boot/gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+      "source/cp-boot/gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+      "source/cp-boot/stage.py": "652462c9aaa327f9bd46d141b7f6464de109eb4f7e7993d9e56168cd0b6257e6",
+      "source/cp-boot/test-gpio18.c": "0df28a10d3c829f46226be7604a51696ec2372c610d57e0c69fd3f0ef5ba924e",
+      "source/cp-boot/test_gpio18.py": "22b9b3e2a3a8b8a1094a936eb5d1c87e5a163e001a093bb893c7aa06dd566689",
+      "source/cp-boot/test_stage.py": "ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183"
+    }
+  },
   "ee_normal_cold_observer_wiring_20261110": {
     "maintenance": "explicit opt-in build branch in runtime/analysis/sony_usb_device.py; default observer build command stays byte-identical when the profile is off",
     "report": "docs/tech/2026-11-10-usb-msc.md",
