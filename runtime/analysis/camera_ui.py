@@ -955,6 +955,26 @@ class CameraUI:
             self.detail_text.get_buffer().set_text(detail)
             self.last_details = detail
 
+    def lcd_point(self, x, y, clamp=False):
+        """Widget coordinates -> firmware 640x480 touch pixel via the _draw_lcd mapping.
+
+        Returns None outside the drawn image unless clamp holds the point inside;
+        begin must reject black bars, held move/end may clamp.
+        """
+        width, height = self.lcd.get_allocated_width(), self.lcd.get_allocated_height()
+        if not (math.isfinite(x) and math.isfinite(y)):  # NaN/inf have no pixel; never clamp them
+            return None
+        scale = min(width / 640, height / 480)
+        if scale <= 0:
+            return None
+        px = (x - (width - 640 * scale) / 2) / scale
+        py = (y - (height - 480 * scale) / 2) / scale
+        if not 0 <= px < 640 or not 0 <= py < 480:
+            if not clamp:
+                return None
+            px, py = min(639.0, max(0.0, px)), min(479.0, max(0.0, py))
+        return int(px), int(py)
+
     def _draw_lcd(self, widget, cr):
         width, height = widget.get_allocated_width(), widget.get_allocated_height()
         cr.set_source_rgb(8 / 255, 11 / 255, 12 / 255)

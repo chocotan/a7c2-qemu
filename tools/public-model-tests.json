@@ -157,6 +157,7 @@
   "report/native-video-length-format/test_lengths.py",
   "report/native-video-producer-contract/test_producer.py",
   "report/camera-input-coverage/test_input_bindings.py",
+  "report/camera-input-coverage/test_touch_input.py",
   "report/native-card-write/test_writeback.py",
   "report/rc-pixel-layout-contract/test_source.py",
   "report/rc-destination-layout/test_source.py",

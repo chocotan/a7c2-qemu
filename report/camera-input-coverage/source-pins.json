@@ -51,11 +51,11 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b",
+      "sha256": "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
       "ram_window_change_scope": "2026-11-09: optional RAM capture runs only after current SD save and nineteen-volume freeze; input mappings, 50ms release and serial sender unchanged.",
       "cold_gui_previous_sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
       "cold_gui_change_scope": "2026-11-09: optional storage shutdown callback after actual SD export, for a current cold-GUI full-freeze receipt; input mappings and serial sender unchanged. No USB, full hardware boot or capture verification.",
-      "previous_sha256": "27eb83a3d20bc0a465a967b971c6b499653dbbc6968b1d5092f1b3ccc20a4b01",
+      "previous_sha256": "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b",
       "product_development_change": "2026-11-08: existing serial-owner gate also serves bounded guest file readback; shutdown may explicitly close the isolated internal volumes only after real SD export. Input mappings, actual contacts and consumption checks remain.",
       "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived. Sender real readiness is now required before reporting ready, after initial card status; no warmup key is sent.",
       "sha256_history": [
@@ -63,19 +63,21 @@
         "0713216483f2a4cd35fa8acbff67a2392b8d7186b339d6759ab6c28297e9b630",
         "a5f27c6d6431c76e9b909829f4c5f7e82b36a2ce5dd14ec8f82c6ab183ea5438",
         "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a",
-        "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19"
-      ]
+        "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19",
+        "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b"
+      ],
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "0e403da8ff9f1a0af71932014424c335bf09cc8220528390c80b2e964b782862",
+      "sha256": "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377",
       "ram_window_change_scope": "2026-11-09/10: verified same-disk RAM save/restore, p2-only reset transaction and selected original-file restoration; non-confirmation keeps StoreError before any write; input ownership and QMP-only exit unchanged.",
       "cold_gui_previous_sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
       "cold_gui_change_scope": "2026-11-09: explicit original-init-cold route gives the launcher the sole persistent lease; direct-bootin remains available; unsupported device combinations and legacy reset refused. Input ownership and QMP-only exit unchanged.",
       "product_development_change": "2026-11-08: stopped-only file selection and guest readback, opt-in persistent disk FD/lease lifecycle, explicit internal shutdown verification; old input/error ownership and QMP-only host exit are retained. Internal shutdown now requires original-kernel full-volume freeze readback; it is not called readonly or original power-off.",
       "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
       "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
-      "previous_sha256": "9ad481e8b6f7f9d6171b7088f150d7086ed22f1186799774fad4ada935f0c37f",
+      "previous_sha256": "0e403da8ff9f1a0af71932014424c335bf09cc8220528390c80b2e964b782862",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
         "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
@@ -85,25 +87,39 @@
         "e8da63171aa9eb1025d71e1251887765187c32c75b006f776f88b3ca1ba45339",
         "9ad481e8b6f7f9d6171b7088f150d7086ed22f1186799774fad4ada935f0c37f",
         "5b9cad9aee890e56e89f02be0f654b3e970bc4812bf0c17b1f19fc4fcdae8bcd",
-        "bd0e61156db1377f26f6f4d689cd6e9fa90172fea64de968296a4ce11babed03"
-      ]
+        "bd0e61156db1377f26f6f4d689cd6e9fa90172fea64de968296a4ce11babed03",
+        "0e403da8ff9f1a0af71932014424c335bf09cc8220528390c80b2e964b782862"
+      ],
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "0599bf19f16923e1c0d78ce36b697a879fc5fa99c94a0d1442509d47b1485488",
+      "sha256": "a76c1ae0f375f2240c8c52e74b29dbec43686a8e41d7c43986913c368e72c2f6",
       "ram_window_change_scope": "2026-11-09/10: actual RAM controls and stopped p2-only reset confirmation; original input release gates and actual LCD consumption unchanged.",
       "cold_gui_previous_sha256": "012259cada0d854dfb9d8db24d68c623271a3b30bead32439a2de6f344282905",
       "cold_gui_change_scope": "2026-11-09: default ON chooses original-init-cold; required internal disk stays selected; legacy configuration reset disabled with a reason; direct-bootin keeps its network route. USB functionality is not certified.",
       "product_development_change": "2026-11-08: three development groups with a busy gate shared by input/power/storage actions, staged file/original choice and actual guest readback. Hot RAM/update unsupported states remain explicit.",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
       "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",
-      "previous_sha256": "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
+      "previous_sha256": "0599bf19f16923e1c0d78ce36b697a879fc5fa99c94a0d1442509d47b1485488",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
         "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
         "bf48881dc93dc4a6ec4e82dd03d0c2b50a7f7fc20db70c9bae16d6282a246f51",
-        "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0"
-      ]
+        "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0",
+        "0599bf19f16923e1c0d78ce36b697a879fc5fa99c94a0d1442509d47b1485488"
+      ],
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
+    },
+    {
+      "path": "runtime/analysis/menu_live.py",
+      "symbol": "touch_command",
+      "sha256": "1302dd7251eaca45333c517e5d6c97e514f7640481902dbb9b88f0310f8151ae"
+    },
+    {
+      "path": "report/camera-input-coverage/input_bindings.py",
+      "sha256": "4516f1d01b4e9695df8fc823f86939d3e141f5159fe3441d7e115e6ac1137c0c",
+      "change_scope": "Single touch ownership, GTK mouse/touch mapping and original input cleanup"
     }
   ],
   "raw_to_canonical": {
@@ -271,5 +287,19 @@
     "serial_owner": "runtime/analysis/qemu-menu-probe.py -> menu_live.run_live -> InputSession(live_serial, explicit app_input) -> key_status_command/key_command -> serial_command",
     "shutdown": "CameraUI.power/_close -> release_inputs; menu_live.run_live export_sd -> InputSession.cleanup before export",
     "receipt": "runtime/analysis/qemu-menu-probe.py source list includes report/camera-input-coverage/input_bindings.py"
+  },
+  "touchscreen_abi": {
+    "code": "0x270",
+    "coordinates": "word1=(x<<16)|y",
+    "width": 640,
+    "height": 480,
+    "finger": 0,
+    "phases": {
+      "begin": 1,
+      "move": 2,
+      "end": 0
+    },
+    "original_dispatch": "0x179a0d0/0x179a1dc",
+    "scope": "App32 functional input, not physical touchscreen controller emulation"
   }
 }

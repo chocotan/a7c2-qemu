@@ -587,5 +587,5 @@ if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
       "${scope_args[@]}" \
       "${writer_args[@]}" \
       "${incoming_args[@]}" \
-      "${boot_args[@]}" \
+      "${boot_args[@]}" "${loader_args[@]}" \
       -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log

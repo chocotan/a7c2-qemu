@@ -5,6 +5,8 @@ import subprocess
 import threading
 import time
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 from camera_ui import CameraUI, Gdk, GLib, Gtk, KEY_NAMES, SnapshotPoller
 
@@ -762,6 +764,334 @@ class GTKTests(unittest.TestCase):
         self.assertFalse(self.ui.refresh.get_sensitive())
         self.click(self.ui.off)
         self.assertEqual(self.vm.calls[-1], 'stop')
+
+class TouchStubVM(StubVM):
+    """StubVM plus the input lifecycle surface attach_gtk needs for LCD touch."""
+    supports_input_lifecycle = True
+
+    def __init__(self):
+        super().__init__()
+        self.touch_input = False
+        self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
+
+    def status(self):
+        state = super().status()
+        state['touch_input'] = self.touch_input
+        state['input_state'] = copy.deepcopy(self.input_state)
+        return state
+
+    def enqueue(self, command):
+        if isinstance(command, dict) and command.get('action') == 'camera_input':
+            self.calls.append(command)
+            return
+        super().enqueue(command)
+
+
+@unittest.skipUnless(Gtk.init_check()[0], 'GTK display required: use xvfb-run')
+class LCDTouchTests(unittest.TestCase):
+    """LCD touch frontend: real GTK signals into the delivered InputBindings."""
+
+    def setUp(self):
+        self.vm = TouchStubVM()
+        self.now = 100.0
+        original_connect = Gtk.DrawingArea.connect
+        def connect(widget, name, callback, *args):
+            if name == 'touch-event':
+                self.touch_handler = callback
+            return original_connect(widget, name, callback, *args)
+        with patch.object(Gtk.DrawingArea, 'connect', connect):
+            self.ui = CameraUI(self.vm, timer=False, clock=lambda: self.now)
+        self.touch_sequences = {1: object(), 2: object()}
+        self.ui.window.present()
+        self.settle()
+
+    def tearDown(self):
+        if not self.ui.closed:
+            self.ui._close()
+            deadline = time.monotonic() + 2
+            while not self.ui.closed and time.monotonic() < deadline:
+                self.settle()
+        self.assertTrue(self.ui.closed)
+        self.assertIn('close', self.vm.calls)
+
+    def settle(self):
+        deadline = time.monotonic() + .08
+        while time.monotonic() < deadline:
+            while Gtk.events_pending():
+                Gtk.main_iteration_do(False)
+
+    def input_calls(self):
+        return [call for call in self.vm.calls
+                if isinstance(call, dict) and call.get('action') == 'camera_input']
+
+    def new_session(self):
+        from menu_live import camera_input_module
+        return camera_input_module().InputSession(lambda command: b'host-stub', app_input=True)
+
+    def drain(self, session):
+        for request in self.input_calls():
+            self.assertTrue(session.handle(request)['ok'], request)
+        self.vm.calls[:] = [call for call in self.vm.calls
+                            if not (isinstance(call, dict) and call.get('action') == 'camera_input')]
+
+    def frame_png(self):
+        from gi.repository import GdkPixbuf
+        fixture = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, False, 8, 640, 480)
+        fixture.fill(0x415c4eff)
+        ok, data = fixture.save_to_bufferv('png', [], [])
+        self.assertTrue(ok)
+        return bytes(data)
+
+    def ready(self, *, png=True):
+        self.vm.start()
+        self.vm.touch_input = True
+        if png:
+            self.vm.complete(png=self.frame_png())
+        self.ui.update(self.vm.status())
+        self.settle()
+
+    def lcd_abs(self, x, y):
+        origin = self.ui.window.get_window().get_origin()
+        wx, wy = self.ui.lcd.translate_coordinates(self.ui.window, 0, 0)
+        return origin[-2] + wx + x, origin[-1] + wy + y
+
+    def lcd_center(self):
+        return self.ui.lcd.get_allocated_width() // 2, self.ui.lcd.get_allocated_height() // 2
+
+    def pointer(self, *arguments):
+        subprocess.run(['xdotool'] + [str(argument) for argument in arguments], check=True)
+
+    def press_lcd(self, x, y):
+        ax, ay = self.lcd_abs(x, y)
+        self.pointer('mousemove', '--sync', ax, ay, 'mousedown', '1')
+        self.settle()
+
+    def emit_touch(self, kind, x, y, sequence=1):
+        # GdkEventSequence is opaque; invoke the callback connected to the real LCD
+        # with distinct synthetic sequences. Mouse tests use actual X11 events.
+        event = SimpleNamespace(type=kind, x=float(x), y=float(y),
+                                get_event_sequence=lambda: self.touch_sequences[sequence])
+        self.assertTrue(self.touch_handler(self.ui.lcd, event))
+
+    def test_lcd_point_scale_black_bars_and_resize(self):
+        self.ready()
+        width, height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
+        # The mapping is the exact centered aspect-fit of _draw_lcd.
+        scale = min(width / 640, height / 480)
+        ex = (width / 2 - (width - 640 * scale) / 2) / scale
+        ey = (height / 2 - (height - 480 * scale) / 2) / scale
+        self.assertEqual(self.ui.lcd_point(width / 2, height / 2), (int(ex), int(ey)))
+        self.assertAlmostEqual(ex, 320, delta=1.01)
+        self.assertAlmostEqual(ey, 240, delta=1.01)
+        self.assertEqual(self.ui.lcd_point(0, 0), (0, 0))
+        self.assertIsNone(self.ui.lcd_point(-1, 0))
+        self.assertIsNone(self.ui.lcd_point(width, height))
+        self.assertEqual(self.ui.lcd_point(-4, -4, clamp=True), (0, 0))
+        self.assertEqual(self.ui.lcd_point(width + 9, height + 9, clamp=True), (639, 479))
+        for bad in (float('nan'), float('inf'), float('-inf')):
+            self.assertIsNone(self.ui.lcd_point(bad, 0, clamp=True))
+            self.assertIsNone(self.ui.lcd_point(0, bad))
+        self.ui.window.resize(1920, 1080)
+        self.settle()
+        width, height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
+        px, py = self.ui.lcd_point(width / 2, height / 2)
+        self.assertAlmostEqual(px, 320, delta=1)
+        self.assertAlmostEqual(py, 240, delta=1)
+        frame = self.ui.lcd.get_parent()
+        frame.set_property('ratio', 16 / 9)  # real GTK allocation: the 4:3 image now letterboxes
+        self.settle()
+        width, height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
+        bar = (width - height * 4 / 3) / 2
+        self.assertGreater(bar, 2)
+        self.assertIsNone(self.ui.lcd_point(bar / 2, height / 2))
+        self.assertAlmostEqual(self.ui.lcd_point(width / 2, height / 2)[1], 240, delta=1)
+        self.assertEqual(self.ui.lcd_point(bar / 2, height / 2, clamp=True)[0], 0)
+        frame.set_property('ratio', 4 / 3)
+        self.settle()
+
+    def test_mouse_pointer_touch_roundtrip(self):
+        session = self.new_session()
+        self.ready()
+        cx, cy = self.lcd_center()
+        self.press_lcd(cx, cy)
+        [begin] = self.input_calls()
+        self.assertEqual((begin['op'], begin['phase']), ('touch', 'begin'))
+        self.assertEqual((begin['x'], begin['y']), self.ui.lcd_point(cx, cy))
+        self.assertEqual(begin['source'], 'lcd-touch:1')
+        self.assertEqual(self.ui.input_bindings.touch_source, 'lcd-touch:1')
+        self.drain(session)
+        self.assertEqual(session.status()['touch']['source'], 'lcd-touch:1')
+        self.now += 1
+        self.pointer('mousemove', '--sync', *self.lcd_abs(cx - 80, cy - 60))
+        self.settle()
+        moves = [call for call in self.input_calls() if call['op'] == 'touch' and call['phase'] == 'move']
+        self.assertEqual(len(moves), 1)
+        self.assertEqual((moves[0]['x'], moves[0]['y']), self.ui.lcd_point(cx - 80, cy - 60, clamp=True))
+        self.pointer('mousemove', '--sync', *self.lcd_abs(cx - 80, cy - 60))
+        self.settle()
+        self.assertEqual(len([c for c in self.input_calls() if c['op'] == 'touch' and c['phase'] == 'move']), 1)
+        self.drain(session)
+        self.pointer('mouseup', '1')
+        self.settle()
+        [end] = self.input_calls()
+        self.assertEqual((end['op'], end['phase']), ('touch', 'end'))
+        self.assertEqual((end['x'], end['y']), self.ui.lcd_point(cx - 80, cy - 60, clamp=True))
+        self.drain(session)
+        self.assertNotIn('touch', session.status())
+        self.assertIsNone(self.ui.input_bindings.touch_source)
+        # A new gesture claims a fresh source after the release.
+        self.press_lcd(cx, cy)
+        self.assertEqual(self.input_calls()[0]['source'], 'lcd-touch:2')
+        self.pointer('mouseup', '1')
+        self.settle()
+
+    def test_drag_outside_lcd_clamps_and_releases(self):
+        session = self.new_session()
+        self.ready()
+        cx, cy = self.lcd_center()
+        self.press_lcd(cx, cy)
+        self.drain(session)
+        self.now += 1
+        outside = self.ui.lcd.get_allocated_width() + 30
+        self.pointer('mousemove', '--sync', *self.lcd_abs(outside, cy), 'mouseup', '1')
+        self.settle()
+        calls = self.input_calls()
+        self.assertTrue(calls)
+        self.assertEqual(calls[-1]['phase'], 'end')
+        self.assertEqual(calls[-1]['x'], 639)
+        self.drain(session)
+        self.assertNotIn('touch', session.status())
+        self.assertIsNone(self.ui.input_bindings.touch_source)
+
+    def test_begin_gates(self):
+        cx, cy = self.lcd_center()
+        for prepare in (lambda: None,
+                        lambda: (self.vm.start(), self.ui.update(self.vm.status())),
+                        lambda: (self.ready(png=False),),
+                        lambda: (self.ready(), setattr(self.vm, 'input_state',
+                                {'held': [], 'uncertain_codes': ['0x2a'], 'error': ''}))):
+            prepare()
+            self.press_lcd(cx, cy)
+            self.pointer('mouseup', '1')
+            self.settle()
+            self.assertEqual(self.input_calls(), [])
+        self.vm.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
+        self.ready()
+        self.ui.input_bindings.touch_source = 'other-host-tool'  # foreign owner blocks a new begin
+        self.press_lcd(cx, cy)
+        self.pointer('mouseup', '1')
+        self.settle()
+        self.assertEqual(self.input_calls(), [])
+        self.ui.input_bindings.touch_source = None
+        frame = self.ui.lcd.get_parent()
+        frame.set_property('ratio', 16 / 9)
+        self.settle()
+        width, height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
+        self.press_lcd((width - height * 4 / 3) / 4, height / 2)
+        self.pointer('mouseup', '1')
+        self.settle()
+        self.assertEqual(self.input_calls(), [])
+        frame.set_property('ratio', 4 / 3)
+        self.settle()
+        self.assertIn('触控未发送', self.ui.feedback.get_text())
+
+    def test_touch_events_single_point_merge_and_cancel(self):
+        session = self.new_session()
+        self.ready()
+        cx, cy = self.lcd_center()
+        self.emit_touch(Gdk.EventType.TOUCH_BEGIN, cx, cy)
+        self.assertEqual([(c['op'], c['phase']) for c in self.input_calls()], [('touch', 'begin')])
+        self.assertEqual(self.ui.input_bindings.touch_source, 'lcd-touch:1')
+        self.drain(session)
+        self.now += 1
+        self.emit_touch(Gdk.EventType.TOUCH_UPDATE, cx - 60, cy - 40)
+        self.emit_touch(Gdk.EventType.TOUCH_UPDATE, cx - 60, cy - 40)  # unchanged point: no traffic
+        self.assertEqual(len(self.input_calls()), 1)
+        self.drain(session)
+        # Touchscreen emulated mouse duplicates must not open a second point.
+        self.press_lcd(cx, cy)
+        self.pointer('mouseup', '1')
+        self.settle()
+        self.assertEqual(len(self.input_calls()), 0)
+        self.emit_touch(Gdk.EventType.TOUCH_BEGIN, cx + 40, cy + 30, sequence=2)
+        self.emit_touch(Gdk.EventType.TOUCH_UPDATE, cx + 90, cy + 50, sequence=2)
+        self.emit_touch(Gdk.EventType.TOUCH_END, cx + 90, cy + 50, sequence=2)
+        self.assertEqual(self.input_calls(), [])
+        self.assertEqual(self.ui.input_bindings.touch_source, 'lcd-touch:1')
+        self.now += 1
+        self.emit_touch(Gdk.EventType.TOUCH_UPDATE, cx + 20, cy + 10)
+        moves = [c for c in self.input_calls() if c['phase'] == 'move']
+        self.assertEqual(len(moves), 1)
+        self.drain(session)
+        self.emit_touch(Gdk.EventType.TOUCH_CANCEL, cx + 20, cy + 10)
+        self.assertEqual([(c['op'], c.get('phase')) for c in self.input_calls()], [('touch', 'end')])
+        self.drain(session)
+        self.assertNotIn('touch', session.status())
+        self.assertIsNone(self.ui.input_bindings.touch_source)
+
+    def test_touch_end_does_not_release_independent_shutter(self):
+        session = self.new_session()
+        self.ready()
+        self.ui.input_bindings.press('SHUTTER_HALF', 'keyboard:half')
+        self.drain(session)
+        cx, cy = self.lcd_center()
+        self.emit_touch(Gdk.EventType.TOUCH_BEGIN, cx, cy)
+        self.drain(session)
+        self.emit_touch(Gdk.EventType.TOUCH_END, cx, cy)
+        self.assertEqual([c['op'] for c in self.input_calls()], ['touch'])
+        self.drain(session)
+        self.assertEqual(session.status()['held'][0]['key'], 'SHUTTER_HALF')
+        self.assertNotIn('touch', session.status())
+        self.ui.input_bindings.release('keyboard:half')
+        self.drain(session)
+
+    def test_move_merge_rate_limit_and_end_flush(self):
+        session = self.new_session()
+        self.ready()
+        cx, cy = self.lcd_center()
+        self.press_lcd(cx, cy)
+        self.drain(session)
+        self.now += .005  # inside the 33ms window: both moves coalesce to the latest point
+        self.pointer('mousemove', '--sync', *self.lcd_abs(cx - 120, cy - 90))
+        self.pointer('mousemove', '--sync', *self.lcd_abs(cx + 100, cy + 70))
+        self.settle()
+        moves = [c for c in self.input_calls() if c['op'] == 'touch' and c['phase'] == 'move']
+        self.assertEqual(len(moves), 1)
+        self.assertEqual((moves[0]['x'], moves[0]['y']), self.ui.lcd_point(cx + 100, cy + 70, clamp=True))
+        self.drain(session)
+        self.now += .005
+        self.pointer('mousemove', '--sync', *self.lcd_abs(cx - 40, cy - 30))  # flushed by the release
+        self.pointer('mouseup', '1')
+        self.settle()
+        self.assertEqual([(c['op'], c.get('phase')) for c in self.input_calls()],
+                         [('touch', 'move'), ('touch', 'end')])
+        self.drain(session)
+        self.assertNotIn('touch', session.status())
+
+    def test_grab_broken_focus_out_release_and_backend_touch_cleanup(self):
+        session = self.new_session()
+        self.ready()
+        cx, cy = self.lcd_center()
+        self.emit_touch(Gdk.EventType.TOUCH_BEGIN, cx, cy)
+        self.drain(session)
+        self.assertIn('touch', session.status())
+        self.ui.lcd.emit('grab-broken-event', Gdk.Event.new(Gdk.EventType.GRAB_BROKEN))
+        self.settle()
+        self.assertEqual([c['op'] for c in self.input_calls()], ['cleanup'])
+        self.drain(session)
+        self.assertNotIn('touch', session.status())
+        self.emit_touch(Gdk.EventType.TOUCH_BEGIN, cx - 30, cy - 20)
+        self.drain(session)
+        self.ui.window.emit('focus-out-event', Gdk.Event.new(Gdk.EventType.FOCUS_CHANGE))
+        self.settle()
+        self.assertEqual([c['op'] for c in self.input_calls()], ['cleanup'])
+        self.drain(session)
+        # A backend-retained touch (e.g. another host tool) still forces the cleanup post.
+        self.vm.input_state = {'held': [], 'uncertain_codes': [], 'error': '',
+                               'touch': dict(source='other-host', x=1, y=2, uncertain=False)}
+        self.ui.window.emit('focus-out-event', Gdk.Event.new(Gdk.EventType.FOCUS_CHANGE))
+        self.settle()
+        self.assertEqual([c['op'] for c in self.input_calls()], ['cleanup'])
 
 
 if __name__ == '__main__':

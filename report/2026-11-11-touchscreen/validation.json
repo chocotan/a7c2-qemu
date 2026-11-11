@@ -1,0 +1,74 @@
+{
+  "after_pixels_sha256": "7e48153dc0acdb3978527e34c914a140f196768e9be32023556967ef3dda1b49",
+  "before_pixels_sha256": "f195387210e4f588158ff110c5c3206278d27d743911106d1288c507fad62180",
+  "capture_verified": false,
+  "code": "0x270",
+  "coordinate_format": "word1=(x<<16)|y",
+  "disk_lease_released": true,
+  "finger": 0,
+  "full_boot_verified": false,
+  "host_distinct_tests_passed": 273,
+  "host_subtests_passed": 11,
+  "host_workers": 2,
+  "lcd_height": 480,
+  "lcd_width": 640,
+  "multitouch_gestures_verified": false,
+  "no_held_touch_after_actions": true,
+  "normal_qmp_exit": true,
+  "original_ap_sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+  "original_cancel_release_received": true,
+  "original_drag_moves_received": 8,
+  "original_drag_press_move_release_received": true,
+  "original_menu_pixels_changed": true,
+  "original_received_events": 14,
+  "original_tap_coordinates_verified": true,
+  "original_tap_received": true,
+  "owner_group_exited": true,
+  "owner_returncode": 0,
+  "performance_optimization_paused": true,
+  "physical_touch_controller_emulated": false,
+  "physical_touch_device_tested": false,
+  "private_actual_run": "run-0lq8gtyq",
+  "profile": "existing-original-app32-input",
+  "publication_launcher_scope": {
+    "cold_branch_identical_to_actual": true,
+    "comparison": "All launcher text outside the WBI branch is exactly equal to the actual tested source",
+    "excluded": "Independent uncommitted WBI branch only; retained in the working tree"
+  },
+  "publication_source_files": {
+    "report/camera-input-coverage/input_bindings.py": "4516f1d01b4e9695df8fc823f86939d3e141f5159fe3441d7e115e6ac1137c0c",
+    "runtime/analysis/camera_ui.py": "a76c1ae0f375f2240c8c52e74b29dbec43686a8e41d7c43986913c368e72c2f6",
+    "runtime/analysis/inject-key.c": "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7",
+    "runtime/analysis/menu_control.py": "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377",
+    "runtime/analysis/menu_live.py": "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
+    "runtime/analysis/persistent_app_input.py": "254157d1352c0f662ce61dc7fab522272cab3a3f6e53ffe9c53a1e7715d92ab9",
+    "runtime/analysis/qemu-kernel-probe.sh": "8f1f78b9f0eccbf79c34cfe12a62836ac159c531533fde5d50098ab24239cf0e"
+  },
+  "schema": "a7c2-product-touchscreen-validation-v1",
+  "screenshots": {
+    "after-drag.png": {
+      "bytes": 20040,
+      "sha256": "e3122e1dc69bf2b14391ddf01cfbb1f8664dbf5cbe8d10dc3e1f2689f9cb46a6"
+    },
+    "menu-after-touch.png": {
+      "bytes": 19988,
+      "sha256": "f50b1addab69fa7abed087d1ee359c79098e7c1a8b32f048e5cfeee1095f9995"
+    },
+    "menu-before-touch.png": {
+      "bytes": 20564,
+      "sha256": "bcc55a997c2309bad7d5c1f1bfc60bac54331ebde0c70de80417b122d0cb4951"
+    }
+  },
+  "sd_export_verified": true,
+  "signals_sent": [],
+  "source_drift": false,
+  "source_files": {
+    "report/camera-input-coverage/input_bindings.py": "4516f1d01b4e9695df8fc823f86939d3e141f5159fe3441d7e115e6ac1137c0c",
+    "runtime/analysis/camera_ui.py": "a76c1ae0f375f2240c8c52e74b29dbec43686a8e41d7c43986913c368e72c2f6",
+    "runtime/analysis/inject-key.c": "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7",
+    "runtime/analysis/menu_control.py": "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377",
+    "runtime/analysis/menu_live.py": "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
+    "runtime/analysis/persistent_app_input.py": "254157d1352c0f662ce61dc7fab522272cab3a3f6e53ffe9c53a1e7715d92ab9",
+    "runtime/analysis/qemu-kernel-probe.sh": "21b783f6ae47e214eb3a0a0f30b5c7126eb749947c82a209ea9c2a0b8c6f120f"
+  }
+}

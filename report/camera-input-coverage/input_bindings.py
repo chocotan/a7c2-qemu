@@ -57,6 +57,7 @@ def validate_request(request):
     fields = {
         'press': {'key', 'source'}, 'release': {'source'}, 'tap': {'key', 'source'},
         'rotate': {'dial', 'ticks'}, 'position': {'key', 'position'}, 'cleanup': set(),
+        'touch': {'phase', 'x', 'y', 'source'},
     }
     if not isinstance(op, str) or op not in fields or set(request) != {'action', 'op'} | fields[op]:
         raise ValueError('Invalid camera input fields')
@@ -65,7 +66,12 @@ def validate_request(request):
         if (not isinstance(source, str) or not 1 <= len(source) <= 96
                 or not source.isascii() or not source.isprintable()):
             raise ValueError('Invalid input source')
-    if op in ('press', 'tap'):
+    if op == 'touch':
+        if (request['phase'] not in ('begin', 'move', 'end')
+                or type(request['x']) is not int or not 0 <= request['x'] < 640
+                or type(request['y']) is not int or not 0 <= request['y'] < 480):
+            raise ValueError('Touch requires begin/move/end and integer LCD coordinates within 640x480')
+    elif op in ('press', 'tap'):
         entry = _entry(request['key'])
         if op == 'press':
             _contact(request['key'])
@@ -80,6 +86,12 @@ def validate_request(request):
         if not isinstance(request['position'], str) or request['position'] not in entry['positions']:
             raise ValueError('Unknown source-backed selector position')
     return request
+
+
+def is_release(request):
+    return (isinstance(request, dict) and request.get('action') == 'camera_input'
+            and (request.get('op') in ('release', 'cleanup')
+                 or request.get('op') == 'touch' and request.get('phase') == 'end'))
 
 
 class InputSession:
@@ -97,12 +109,16 @@ class InputSession:
         self.uncertain = set()
         self.error = ''
         self.completed_ticks = 0
+        self.touch_contact = None
 
     def status(self):
-        return {'held': [{'source': source, 'key': item['key'],
+        state = {'held': [{'source': source, 'key': item['key'],
                           'contacts': list(item['contacts'])} for source, item in self.held.items()],
-                'uncertain_codes': [f'0x{code:x}' for code in sorted(self.uncertain)],
-                'error': self.error}
+                 'uncertain_codes': [f'0x{code:x}' for code in sorted(self.uncertain)],
+                 'error': self.error}
+        if self.touch_contact is not None:
+            state['touch'] = dict(self.touch_contact)
+        return state
 
     def _send(self, command):
         # Reject accidentally wiring this to an asynchronous enqueue/empty ACK.
@@ -120,7 +136,7 @@ class InputSession:
 
     def press(self, name, source):
         _contact(name)
-        if self.uncertain:
+        if self.uncertain or self.touch_contact and self.touch_contact['uncertain']:
             raise RuntimeError('A contact send is uncertain; release or cleanup before new input')
         if source in self.held:
             if self.held[source]['key'] != name:
@@ -149,8 +165,35 @@ class InputSession:
         del self.held[source]
         return True
 
+    def touch(self, phase, x, y, source):
+        if not self.app_input:
+            raise ValueError('Touch requires the original App32 input route')
+        from menu_live import touch_command
+        contact = self.touch_contact
+        if phase == 'begin':
+            if self.uncertain:
+                raise RuntimeError('Release uncertain camera contacts before beginning a touch')
+            if contact is not None:
+                raise ValueError('Release the active touch before beginning another')
+            contact = self.touch_contact = dict(source=source, x=x, y=y, uncertain=True)
+        elif contact is None or contact['source'] != source:
+            raise ValueError('Touch source does not own the active contact')
+        elif contact['uncertain'] and phase != 'end':
+            raise RuntimeError('Touch send is uncertain; release before moving')
+        contact.update(x=x, y=y, uncertain=True)
+        self._send(touch_command(phase, x, y))
+        contact['uncertain'] = False
+        if phase == 'end':
+            self.touch_contact = None
+
     def cleanup(self):
         errors = []
+        if self.touch_contact is not None:
+            try:
+                contact = self.touch_contact
+                self.touch('end', contact['x'], contact['y'], contact['source'])
+            except (OSError, RuntimeError, ValueError) as error:
+                errors.append('touch: ' + str(error))
         # Full contacts leave before half contacts, including independent sources.
         sources = sorted(self.held, key=lambda source: 'SHUTTER' not in self.held[source]['contacts'])
         for source in sources:
@@ -166,12 +209,14 @@ class InputSession:
         op = request['op']
         self.completed_ticks = 0
         try:
-            if op == 'release':
+            if op == 'touch':
+                self.touch(request['phase'], request['x'], request['y'], request['source'])
+            elif op == 'release':
                 self.release(request['source'])
             elif op == 'cleanup':
                 self.cleanup()
             else:
-                if self.uncertain:
+                if self.uncertain or self.touch_contact and self.touch_contact['uncertain']:
                     raise RuntimeError('A contact send is uncertain; release or cleanup before new input')
                 if op == 'press':
                     self.press(request['key'], request['source'])
@@ -207,7 +252,7 @@ class InputSession:
             self.error = str(error)
             return {'type': 'camera_input', 'ok': False, 'request': request,
                     'completed_ticks': self.completed_ticks, 'input_state': self.status()}
-        if not self.uncertain:
+        if not self.uncertain and not (self.touch_contact and self.touch_contact['uncertain']):
             self.error = ''
         return {'type': 'camera_input', 'ok': True, 'request': request,
                 'completed_ticks': self.completed_ticks, 'input_state': self.status()}
@@ -220,6 +265,8 @@ class InputBindings:
         self.sources = {}
         self.scroll_remainder = {}
         self.drag = None
+        self.touch_source = None
+        self.touch_position = None
 
     def post(self, op, **fields):
         request = validate_request({'action': 'camera_input', 'op': op, **fields})
@@ -247,6 +294,19 @@ class InputBindings:
         if position is not None:
             return self.post('position', key=name, position=position)
         return self.post('tap', key=name, source=source)
+
+    def touch(self, phase, x, y, source):
+        if phase == 'begin':
+            if self.touch_source is not None:
+                return False
+        elif self.touch_source != source:
+            return False
+        if phase == 'move' and self.touch_position == (x, y):
+            return False
+        self.post('touch', phase=phase, x=x, y=y, source=source)
+        self.touch_source = None if phase == 'end' else source
+        self.touch_position = None if phase == 'end' else (x, y)
+        return True
 
     def key_press(self, shortcut, hardware_code):
         action = HOST_KEYS.get(shortcut)
@@ -309,6 +369,7 @@ class InputBindings:
         self.sources.clear()  # Local physical sources only; backend held state remains authoritative.
         self.scroll_remainder.clear()
         self.drag = None
+        self.touch_source = self.touch_position = None
         return True
 
 
@@ -319,11 +380,16 @@ def attach_gtk(ui):
     calling this. Keep its input_state in status(); shutdown must call cleanup on
     the serial owner and refuse to claim success if any contact remains held.
     """
-    from gi.repository import Gdk, Gtk
+    from gi.repository import Gdk, GLib, Gtk
     bindings = InputBindings(ui.vm.enqueue)
     mouse_grabs = set()
     pointer_sources = {}
     pointer_number = 0
+    lcd = getattr(ui, 'lcd', None)  # the offline CameraUI test fixture has no LCD widget
+    # Single-point LCD touch. identity is the GDK touch sequence, or 'mouse' for
+    # pointer drags; only one of them may hold the point at a time.
+    touch = {'identity': None, 'source': None, 'sent': None, 'pending': None, 'at': 0.0, 'timer': None}
+    touch_number = 0
 
     def report(action):
         try:
@@ -400,11 +466,112 @@ def attach_gtk(ui):
                 button.grab_remove()
         return True
 
+    def stop_touch_timer():
+        if touch['timer'] is not None:
+            GLib.source_remove(touch['timer'])
+            touch['timer'] = None
+
+    def touch_ready(state):
+        # No new touch without a current firmware frame, a running VM and the
+        # backend-confirmed original App32 touch route.
+        input_state = state.get('input_state') or {}
+        return (not ui.closing and not ui.reinitializing and not ui.development_busy
+                and state.get('state') == 'running' and getattr(ui, 'pixbuf', None) is not None
+                and state.get('touch_input') is True and isinstance(state.get('input_state'), dict)
+                and not input_state.get('uncertain_codes'))
+
+    def touch_begin(x, y, identity):
+        nonlocal touch_number
+        if touch['identity'] is not None or bindings.touch_source is not None:
+            return False
+        if not touch_ready(ui.vm.status()):
+            ui.feedback.set_text('触控未发送：等待相机画面与触屏就绪')
+            return False
+        point = ui.lcd_point(x, y)
+        if point is None:
+            ui.feedback.set_text('触控未发送：请在画面内按下')
+            return False
+        touch_number += 1
+        source = f'lcd-touch:{touch_number}'
+        if not report(lambda: bindings.touch('begin', point[0], point[1], source)):
+            return False
+        touch.update(identity=identity, source=source, sent=point, pending=None, at=ui.clock(), timer=None)
+        return True
+
+    def touch_send_move(point):
+        source = touch['source']
+        if not report(lambda: bindings.touch('move', point[0], point[1], source)):
+            return False  # keep the held touch releasable; the next event retries
+        touch['sent'], touch['at'] = point, ui.clock()
+        return True
+
+    def touch_flush():
+        # Merge moves to the latest point; a 33ms GLib timeout paces one send at
+        # a time, so bursts never queue a backlog.
+        point = touch['pending']
+        if point is None or point == touch['sent']:
+            touch['pending'] = None
+            stop_touch_timer()
+            return
+        if touch['timer'] is None and ui.clock() - touch['at'] < .033:
+            touch['timer'] = GLib.timeout_add(33, touch_tick)
+            return
+        touch['pending'] = None
+        stop_touch_timer()
+        touch_send_move(point)
+
+    def touch_tick():
+        touch['timer'] = None
+        point = touch['pending']
+        if touch['source'] is not None and point is not None and point != touch['sent']:
+            touch['pending'] = None
+            touch_send_move(point)
+        return False
+
+    def touch_move(x, y, identity):
+        if touch['identity'] != identity or touch['source'] is None:
+            return False
+        point = ui.lcd_point(x, y, clamp=True)  # a held drag may enter the bars
+        if point is None or (point == touch['sent'] and touch['pending'] is None):
+            return True
+        touch['pending'] = point
+        touch_flush()
+        return True
+
+    def touch_end(x, y, identity, cancelled=False):
+        if touch['identity'] != identity or touch['source'] is None:
+            return False
+        stop_touch_timer()
+        point = None
+        if not cancelled:
+            touch_move(x, y, identity)  # the release position is the true end point
+            point = touch['pending']
+            if point is not None and point != touch['sent']:
+                if touch_send_move(point):  # forced flush; a failure still ends below
+                    touch['pending'] = None
+                    stop_touch_timer()
+        source = touch['source']
+        if point is None:
+            point = touch['pending'] if touch['pending'] is not None else touch['sent']
+        if not report(lambda: bindings.touch('end', point[0], point[1], source)):
+            # Keep identity/source so the next end event or a full cleanup retries.
+            if bindings.touch_source is not None:
+                return False
+        elif bindings.touch_source == source:
+            return False  # defensive: the backend owner must not survive its own end
+        touch.update(identity=None, source=None, sent=None, pending=None, at=0.0)
+        return True
+
     def cleanup(*_):
+        # Full release for focus-out, grab-broken and close; the local touch state
+        # is only dropped after the cleanup request is enqueued (or nothing is held).
+        stop_touch_timer()
         state = ui.vm.status().get('input_state') or {}
-        if bindings.sources or state.get('held') or bindings.drag is not None:
+        if (bindings.sources or bindings.drag is not None or bindings.touch_source is not None
+                or state.get('held') or state.get('touch')):
             if not report(bindings.cleanup):
                 return False
+        touch.update(identity=None, source=None, sent=None, pending=None)
         pointer_sources.clear()
         for button in tuple(mouse_grabs):
             mouse_grabs.discard(button)
@@ -472,4 +639,53 @@ def attach_gtk(ui):
         ui.ring.disconnect_by_func(old_handler)
         ui.ring.connect(signal, drag)
     ui.ring.connect('grab-broken-event', lambda *_: (cleanup(), False)[1])
+    if lcd is not None:
+        def pointer_emulated(event):
+            probe = getattr(event, 'get_pointer_emulated', None)
+            return bool(probe()) if probe is not None else False
+
+        press_types = {Gdk.EventType.BUTTON_PRESS} | {
+            kind for kind in (getattr(Gdk.EventType, 'BUTTON2_PRESS', None),
+                              getattr(Gdk.EventType, 'BUTTON3_PRESS', None)) if kind is not None}
+
+        def lcd_button(widget, event):
+            if event.type not in press_types | {Gdk.EventType.BUTTON_RELEASE}:
+                return False
+            if pointer_emulated(event):  # the touch-event handler already owns this contact
+                return True
+            if event.button != 1:
+                return False
+            if event.type in press_types:
+                touch_begin(event.x, event.y, 'mouse')
+            else:
+                touch_end(event.x, event.y, 'mouse')
+            return True
+
+        def lcd_motion(widget, event):
+            if not pointer_emulated(event):
+                touch_move(event.x, event.y, 'mouse')
+            return True
+
+        def lcd_touch(widget, event):
+            identity = event.get_event_sequence()
+            if identity is None:
+                return True
+            if event.type == Gdk.EventType.TOUCH_BEGIN:
+                if touch['identity'] is None:  # one touch point; extra contacts are consumed
+                    touch_begin(event.x, event.y, identity)
+            elif event.type == Gdk.EventType.TOUCH_UPDATE:
+                touch_move(event.x, event.y, identity)
+            elif event.type in (Gdk.EventType.TOUCH_END, Gdk.EventType.TOUCH_CANCEL):
+                touch_end(event.x, event.y, identity,
+                          cancelled=event.type == Gdk.EventType.TOUCH_CANCEL)
+            return True
+
+        lcd.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK
+                       | Gdk.EventMask.POINTER_MOTION_MASK | Gdk.EventMask.TOUCH_MASK)
+        lcd.connect('button-press-event', lcd_button)
+        lcd.connect('button-release-event', lcd_button)
+        lcd.connect('motion-notify-event', lcd_motion)
+        lcd.connect('touch-event', lcd_touch)
+        lcd.connect('grab-broken-event', lambda *_: (cleanup(), False)[1])
+        lcd.set_tooltip_text('LCD 触控：在画面内按住鼠标左键点击或拖动（或触屏）；黑边不响应，实际效果以相机画面为准')
     return bindings

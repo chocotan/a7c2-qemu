@@ -27,6 +27,8 @@ QEMU 归档应放在 `source/vendor/qemu-11.1.2.tar.xz`。缺少归档或摘要�
 
 窗口内 RAM 会话、保存并退出、同盘恢复原 MENU 和继续操作已实际通过，构建及操作见[窗口 RAM 使用与验收](2026-11-09-window-ram.md)。独立 CLI 的 QMP fd 迁移和 WBI 分账保留在[RAM 恢复说明](2026-11-09-ram-restore.md)；Sony WBI、物理热启动和拍摄不由此提升。
 
+LCD 现支持鼠标左键触屏模拟和 GDK 单指触摸输入，已通过原 AP 坐标事件、菜单像素响应及正常保存退出验收；物理触屏设备和多指手势未验证，见[触屏支持](../../report/2026-11-11-touchscreen/README.md)。
+
 运行数据写在 `runtime/`，不是输入固件。新原 cold 默认虚拟卡为 1GiB FAT16；非零种子、全卡读回和跨冷启动验收见[1GiB虚拟SD](2026-11-10-1g-sd.md)。虚拟卡位于 `runtime/analysis/menu-runs/run-*/SD/`，设置位于 `runtime/analysis/camera-instances/`。关闭窗口会调用本实例的保存和退出流程；如果界面提示保存失败，应先处理错误并保留运行目录。
 
 如果用覆盖目录测试自制程序，先移开覆盖文件再启动原版本。不要用历史 ELF、旧运行截图或空白资源替代导入失败的固件文件。

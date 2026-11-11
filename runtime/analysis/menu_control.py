@@ -87,6 +87,7 @@ class VM:
         self.mock = command is not None
         self.supports_input_lifecycle = not self.mock
         self.input_lifecycle = False
+        self.touch_input = False
         self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
         self.native_display = native_display
         self.continuous_display = native_display is not None and not self.mock
@@ -333,7 +334,7 @@ class VM:
             return dict(state=self.state, error=self.error, snapshot=self.snapshot, stale=self.stale,
                         busy=self.busy, pending=self.commands.qsize(), events=list(self.events),
                         keys=list(KEYS), controls=control_catalog(),
-                        input_lifecycle=self.input_lifecycle, input_state=self.input_state,
+                        input_lifecycle=self.input_lifecycle, touch_input=self.touch_input, input_state=self.input_state,
                         power_state='disconnected' if self.state == 'exited' else self.state,
                         can_start=not (self.thread and self.thread.is_alive()) and not (self.owned_process and self.owned_process.poll() is None)
                             and not self.cleanup_error and self.host_sd_context is None and self.instance_lease is None and self.storage_context is None,
@@ -368,6 +369,7 @@ class VM:
             from backup_profile import FUNCTIONAL_CAMERA_PROFILE
             self.functional_camera = not self.mock and os.environ.get('A7C2_FUNCTIONAL_CAMERA') == FUNCTIONAL_CAMERA_PROFILE
             self.input_lifecycle = False
+            self.touch_input = False
             self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
             self.wifi = None
             self.sd_card = None
@@ -391,7 +393,7 @@ class VM:
                 raise
 
     def _admit_queued(self, command):
-        releasing = command.get('action') == 'camera_input' and command.get('op') in ('release', 'cleanup')
+        releasing = camera_input_module().is_release(command)
         if (self.sd_pending or (self.sd_card or {}).get('state') in ('ejecting','inserting','uncertain')) and (
                 command.get('action') not in ('snapshot','export_sd','sd_card')) and not releasing:
             self.event('SD 介质变化未收敛；已拒绝排队的 '+str(command.get('action')),kind='storage')
@@ -400,7 +402,7 @@ class VM:
 
     def enqueue(self, command):
         with self.lock:
-            releasing = isinstance(command, dict) and command.get('action') == 'camera_input' and command.get('op') in ('release', 'cleanup')
+            releasing = camera_input_module().is_release(command)
             if self.state != 'running' and not (self.state=='faulted' and (command=={'action':'export_sd'} or releasing)):
                 raise ValueError('VM 尚未运行')
             card_state=(self.sd_card or {}).get('state')
@@ -411,6 +413,8 @@ class VM:
                 if not self.input_lifecycle:
                     raise ValueError('当前输入通道不支持按下/释放生命周期')
                 camera_input_module().validate_request(command)
+                if command['op'] == 'touch' and not self.touch_input:
+                    raise ValueError('当前输入通道不支持触屏')
             elif isinstance(command,dict) and command.get('action')=='firmware_readback':
                 if self.mock or not self.natural_boot:raise ValueError('固件读回需要真实原生 guest')
                 from firmware_development import validate_check
@@ -618,6 +622,7 @@ class VM:
                 raise RuntimeError('VM 初始化确认无效')
             self.sd_card = reply.get('sd_card')
             self.input_lifecycle = not self.mock and reply.get('input_lifecycle') is True
+            self.touch_input = self.input_lifecycle and reply.get('touch_input') is True
             if self.input_lifecycle:
                 self.input_state = reply['input_state']
             if not self.mock:

@@ -149,6 +149,16 @@ def test_pinned_source_contracts_and_complete_host_inventory():
             assert HOST_KEYS[shortcut] == (name, None)
 
 
+def test_touch_uses_actual_guest_c_encoder_and_keeps_coordinates(wire):
+    session = InputSession(wire, app_input=True)
+    for phase, status in (('begin', 1), ('move', 2), ('end', 0)):
+        reply = session.handle(dict(action='camera_input', op='touch', phase=phase, x=123, y=234, source='lcd'))
+        assert reply['ok']
+        assert wire.events[-1] == {'queue': 0x5503e0, 'source': 0x5503e0, 'bytes': 32,
+                                   'words': [0x270, (123 << 16) | 234, status, 0, 0, 0, 0, 0]}
+    assert 'touch' not in session.status()
+
+
 @pytest.mark.parametrize('app', [False, True])
 @pytest.mark.parametrize('name', CONTACTS)
 def test_all_contacts_use_actual_encoder_and_original_queue(wire, app, name):

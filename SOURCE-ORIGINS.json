@@ -17799,5 +17799,46 @@
     "physical_devices_used": false,
     "capture_verified": false,
     "full_boot_verified": false
+  },
+  "touchscreen_20261111": {
+    "maintenance": "Directly in the standalone product; no research tree runtime dependency",
+    "report": "report/2026-11-11-touchscreen/README.md",
+    "receipt": "report/2026-11-11-touchscreen/validation.json",
+    "receipt_sha256": "ccf6f7ea94345bc90bf4298aa22d57d5efebb4656b9e1fe37448fccc32115637",
+    "source_files": {
+      "README.md": "667b3f1487ff37d9b1a5830c346e910ea76773cc459f6bf04394327057d93506",
+      "docs/tech/README.md": "7e6d954ea9debdd505f85729940930fcf0f35c6193fd0ea823334a17da147669",
+      "report/2026-11-11-touchscreen/README.md": "129ffd094f0c8cb0f4ddff5b129ca05c7fd02f9f505d9cb5e3cce5d408ecf31f",
+      "report/2026-11-11-touchscreen/after-drag.png": "e3122e1dc69bf2b14391ddf01cfbb1f8664dbf5cbe8d10dc3e1f2689f9cb46a6",
+      "report/2026-11-11-touchscreen/menu-after-touch.png": "f50b1addab69fa7abed087d1ee359c79098e7c1a8b32f048e5cfeee1095f9995",
+      "report/2026-11-11-touchscreen/menu-before-touch.png": "bcc55a997c2309bad7d5c1f1bfc60bac54331ebde0c70de80417b122d0cb4951",
+      "report/2026-11-11-touchscreen/validation.json": "ccf6f7ea94345bc90bf4298aa22d57d5efebb4656b9e1fe37448fccc32115637",
+      "report/camera-input-coverage/input_bindings.py": "4516f1d01b4e9695df8fc823f86939d3e141f5159fe3441d7e115e6ac1137c0c",
+      "report/camera-input-coverage/source-pins.json": "c3fefcf74706deb46353aef2b96154968808d66345f34098b15c7c3b8224b744",
+      "report/camera-input-coverage/test_input_bindings.py": "a0d90c448ff4df67b208459f72b39183f6efb9117e266e98410a99fc453609a7",
+      "report/camera-input-coverage/test_touch_input.py": "2c794c63d79f3381a3be259b7691d87bbab1fd2620474589b270e7ec0333179a",
+      "runtime/analysis/camera_ui.py": "a76c1ae0f375f2240c8c52e74b29dbec43686a8e41d7c43986913c368e72c2f6",
+      "runtime/analysis/menu_control.py": "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377",
+      "runtime/analysis/menu_live.py": "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
+      "runtime/analysis/qemu-kernel-probe.sh": "8f1f78b9f0eccbf79c34cfe12a62836ac159c531533fde5d50098ab24239cf0e",
+      "runtime/analysis/test_camera_ui.py": "56e4f68e6fb291a9b94010693d83e2e07f0cffcc5a6475a81a276c1c8977253e",
+      "tools/public-model-tests.json": "5439afbbcb09028ae915709c62cbbf64a0b2d6a0faabfb4606e4d274c811ddd9"
+    },
+    "original_ap_touch_events_consumed": true,
+    "original_lcd_menu_response_verified": true,
+    "physical_touch_device_tested": false,
+    "multitouch_gestures_verified": false,
+    "transport_unchanged": [
+      "runtime/analysis/inject-key.c",
+      "runtime/analysis/persistent_app_input.py"
+    ],
+    "launcher_change": {
+      "scope": "Only restore high-DDR loader_args in final QEMU argv; independent WBI-only working changes are not included",
+      "pre_touch_fix_sha256": "db243d3b226fa9f4968a97a2665ae599de6dc17a78e141eeef2e3cd74e71930f",
+      "post_touch_fix_sha256": "21b783f6ae47e214eb3a0a0f30b5c7126eb749947c82a209ea9c2a0b8c6f120f",
+      "tested_working_sha256": "21b783f6ae47e214eb3a0a0f30b5c7126eb749947c82a209ea9c2a0b8c6f120f",
+      "published_source_sha256": "8f1f78b9f0eccbf79c34cfe12a62836ac159c531533fde5d50098ab24239cf0e",
+      "cold_branch_identical_to_actual": true
+    }
   }
 }

@@ -189,6 +189,15 @@ def key_status_command(key, status, app_input=False):
     return f'/simulation/inject-key {route} {KEYS[key]} 0 {status} 0 {source_type}'
 
 
+def touch_command(phase, x, y):
+    """Original App::main 0x179a0d0/0x179a1dc: x high16, y low16, finger 0."""
+    if (phase not in ('begin', 'move', 'end') or type(x) is not int or not 0 <= x < 640
+            or type(y) is not int or not 0 <= y < 480):
+        raise ValueError('Invalid original LCD touch event')
+    status = {'begin': 1, 'move': 2, 'end': 0}[phase]
+    return f'/simulation/inject-key --app 0x005503e0 0x005503e0 0x270 {(x << 16) | y} {status} 0 0'
+
+
 def shutter_cycle_command():
     """Original app32 input only; a response does not prove consumer or capture."""
     hold_ms = os.environ.get('A7C2_SHUTTER_HOLD_MS', '50')
@@ -457,6 +466,7 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             input_session.input_fn.start()
         send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state,
                                'input_lifecycle': input_session is not None,
+                               'touch_input': input_session is not None and input_session.app_input,
                                'input_transport': ('original-app32-persistent-serial' if input_session is not None and input_session.app_input
                                                    else 'original-infra20-or-menu-mailbox'),
                                'input_state': input_session.status() if input_session else None})
@@ -493,13 +503,13 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 continue
             request = receive_message(control, timeout=5)
             action = request.get('action')
-            releasing = action == 'camera_input' and request.get('op') in ('release', 'cleanup')
+            releasing = camera_input_module().is_release(request)
             if fault and action!='export_sd' and not releasing:
                 send_message(control,{'type':'error','error':fault});continue
             if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd') and not releasing:
                 raise ValueError('SD transition has no terminal observation; camera input is paused')
             if (action in ('key', 'position', 'shutter_cycle') and input_session is not None
-                    and (input_session.held or input_session.uncertain)):
+                    and (input_session.held or input_session.uncertain or input_session.touch_contact is not None)):
                 send_message(control, {'type': 'error', 'error': 'Release held camera inputs before using the legacy tap route'})
                 continue
             if action == 'camera_input':
