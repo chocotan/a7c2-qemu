@@ -362,4 +362,12 @@ header/Aux接入原op20，只接受已观测的`0x80d61/0x27f`与原40字节/opt
 
 第101轮保留目录盘点实占3,127,357,440字节、原run证据18,882,560字节，另立`storage-retained.json`；下一消费者为离线核收与owner批准的正常恢复，未执行回收。盘点时文件系统可用1,181,826,252,800字节；第102轮运行中，尚不宣称收尾完成。
 
+## 启动加速第1项：事件驱动 settle（103/104轮实测）
+
+基线（102轮f1fc）：`initial_readback_and_settle` 92.2s，由固定30s控制台静默窗口加fast_gate重试构成。候选改为“guest完成标记+5s静默尾窗”。
+
+第103轮首选用`SHOOTING_ENTER/MODE_TRANSITION mode=0x2`作标记，失败关闭（标记300s未现，VM正常退出rc0零信号，收据保留）——这两个标记属于进入拍摄页阶段，首设前的语言页等不到，选错阶段。离线核102轮日志确认正确标记：`RUN_I_RET n=1`（sequence_boot返回，全日志恰好一次、位于首设之前）。
+
+第104轮改用`RUN_I_RET n=1`+5s静默尾窗：**`initial_readback_and_settle` 92.2s→5.7s（省86.6s）**，首设与菜单全链正常完成，`ui-68/70` 与102轮人工核对帧逐字节一致（73拍摄页含时钟像素轮间必然不同）。本轮拍摄端到端未取得：EE就绪门未观察到（`EE=1 and capture_inhibit=0`，c104/c119同族运行方差），快门未发，QMP确认退出rc0零信号，失败收据保留；boot_to_broker总数待下一次成功拍摄轮补充。其余候选（稀疏SD、派生缓存、检查点）已落盘自测过，集成验收待后续。启动基线固化于`scratch/a7c2-writeback-flush-v1/boot-baseline-102.json`。
+
 
