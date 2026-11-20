@@ -87,6 +87,7 @@ KEY_NAMES = dict(MENU='MENU', C1='C1', AF_ON='AF-ON', FN='Fn',
                  REC='REC', SHUTTER_HALF='半按', SHUTTER='全按', MODE='MODE',
                  FRONT_LEFT='前拨轮左转', FRONT_RIGHT='前拨轮右转',
                  REAR_LEFT='后拨轮左转', REAR_RIGHT='后拨轮右转',
+                 TOP_LEFT='右上拨轮左转', TOP_RIGHT='右上拨轮右转',
                  CONTROL_LEFT='控制轮左转', CONTROL_RIGHT='控制轮右转',
                  MODE_STILL='照片', MODE_MOVIE='录像', MODE_SQ='S&Q')
 
@@ -318,17 +319,18 @@ class CameraUI:
             button.get_style_context().add_class(style)
         button.connect('clicked', lambda _: self.send(name))
         prefix = name.rsplit('_', 1)[0]
-        if prefix in ('FRONT', 'REAR', 'CONTROL'):
+        if prefix in ('FRONT', 'REAR', 'TOP', 'CONTROL'):
             button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
             button.connect('scroll-event', self._scroll, prefix)
         self.buttons[name] = button
         return button
 
     def _dial(self, title, prefix, horizontal=False):
-        group = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL if horizontal else Gtk.Orientation.VERTICAL, spacing=5)
-        group.set_valign(Gtk.Align.CENTER)
+        group = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL if horizontal else Gtk.Orientation.VERTICAL, spacing=3)
+        group.set_valign(Gtk.Align.CENTER if horizontal else Gtk.Align.END)
         if title:
             lbl = label(title, 'hint')
+            lbl.set_halign(Gtk.Align.CENTER)
             lbl.set_valign(Gtk.Align.CENTER)
             group.pack_start(lbl, False, False, 0)
         row = Gtk.Box(spacing=4)
@@ -359,13 +361,18 @@ class CameraUI:
 
         controls = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         controls.get_style_context().add_class('controls-panel')
-        controls.set_size_request(316, -1)
+        controls.set_size_request(336, -1)
 
-        # 第一行：MENU / C1 / 后拨轮（右上拨轮）
+        # 第一行：MENU / C1 / 后拨轮 / 右上拨轮
         row1 = Gtk.Box(spacing=6)
-        row1.pack_start(self._button('MENU', 'MENU'), True, True, 0)
-        row1.pack_start(self._button('C1', 'C1'), True, True, 0)
-        row1.pack_end(self._dial('后拨轮', 'REAR', horizontal=True), False, False, 0)
+        menu_btn = self._button('MENU', 'MENU')
+        menu_btn.set_valign(Gtk.Align.END)
+        c1_btn = self._button('C1', 'C1')
+        c1_btn.set_valign(Gtk.Align.END)
+        row1.pack_start(menu_btn, True, True, 0)
+        row1.pack_start(c1_btn, False, False, 0)
+        row1.pack_start(self._dial('后拨轮', 'REAR'), False, False, 0)
+        row1.pack_start(self._dial('右上拨轮', 'TOP'), False, False, 0)
         controls.pack_start(row1, False, False, 0)
 
         # 第二行：AF-ON

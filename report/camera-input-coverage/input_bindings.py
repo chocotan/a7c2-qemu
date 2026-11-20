@@ -16,6 +16,7 @@ HOST_KEYS.update({
     'h': ('SHUTTER_HALF', None), 's': ('SHUTTER', None),
     'q': ('FRONT_LEFT', None), 'e': ('FRONT_RIGHT', None),
     '[': ('REAR_LEFT', None), ']': ('REAR_RIGHT', None),
+    '-': ('TOP_LEFT', None), '=': ('TOP_RIGHT', None),
     ',': ('CONTROL_LEFT', None), '.': ('CONTROL_RIGHT', None),
     '1': ('MODE_STILL', None), '2': ('MODE_MOVIE', None), '3': ('MODE_SQ', None),
 })
@@ -24,7 +25,8 @@ HOST_KEYS.update({f'F{number}': ('MODE', position)
 PHYSICAL_CONTROLS = ('MENU', 'C1', 'C2', 'SHUTTER_HALF', 'SHUTTER', 'REC',
                      'AF_ON', 'FN', 'ENTER', 'UP', 'DOWN', 'LEFT', 'RIGHT',
                      'CONTROL_LEFT', 'CONTROL_RIGHT', 'FRONT_LEFT', 'FRONT_RIGHT',
-                     'REAR_LEFT', 'REAR_RIGHT', 'MODE_STILL', 'MODE_MOVIE', 'MODE_SQ',
+                     'REAR_LEFT', 'REAR_RIGHT', 'TOP_LEFT', 'TOP_RIGHT',
+                     'MODE_STILL', 'MODE_MOVIE', 'MODE_SQ',
                      'MODE', 'PLAYBACK', 'DELETE')
 UNSUPPORTED = {
     'EXPOSURE_COMP': 'No source-closed independent contact; do not substitute DOWN or a rear-dial event.',
@@ -78,7 +80,7 @@ def validate_request(request):
         elif entry['positions']:
             raise ValueError('Mode dial requires a position')
     elif op == 'rotate':
-        if (request['dial'] not in ('FRONT', 'REAR', 'CONTROL')
+        if (request['dial'] not in ('FRONT', 'REAR', 'TOP', 'CONTROL')
                 or type(request['ticks']) is not int or not 1 <= abs(request['ticks']) <= MAX_TICKS):
             raise ValueError('Rotation must contain 1..32 signed ticks of a known dial')
     elif op == 'position':
@@ -332,7 +334,7 @@ class InputBindings:
         return self.release(source)
 
     def scroll(self, dial, delta):
-        if dial not in ('FRONT', 'REAR', 'CONTROL') or not math.isfinite(delta):
+        if dial not in ('FRONT', 'REAR', 'TOP', 'CONTROL') or not math.isfinite(delta):
             raise ValueError('Invalid dial scroll')
         total = self.scroll_remainder.get(dial, 0.0) + delta
         ticks = max(-MAX_TICKS, min(MAX_TICKS, math.trunc(total)))
@@ -430,7 +432,8 @@ def attach_gtk(ui):
             return False
         shortcut = {'Up': 'ArrowUp', 'Down': 'ArrowDown', 'Left': 'ArrowLeft', 'Right': 'ArrowRight',
                     'Return': 'Enter', 'KP_Enter': 'Enter', 'Page_Up': 'PageUp', 'Page_Down': 'PageDown',
-                    'bracketleft': '[', 'bracketright': ']', 'comma': ',', 'period': '.'}.get(key, key)
+                    'bracketleft': '[', 'bracketright': ']', 'minus': '-', 'equal': '=',
+                    'comma': ',', 'period': '.'}.get(key, key)
         if len(shortcut) == 1:
             shortcut = shortcut.lower()
         return report(lambda: bindings.key_press(shortcut, event.hardware_keycode))
@@ -628,7 +631,7 @@ def attach_gtk(ui):
     scroll_widgets = dict(ui.wheel_widgets)
     for name, button in ui.buttons.items():
         dial = name.rsplit('_', 1)[0]
-        if dial in ('FRONT', 'REAR', 'CONTROL'):
+        if dial in ('FRONT', 'REAR', 'TOP', 'CONTROL'):
             scroll_widgets[button] = dial
     for widget, dial in scroll_widgets.items():
         widget.disconnect_by_func(ui._scroll)

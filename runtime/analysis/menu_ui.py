@@ -69,7 +69,7 @@ class NativeControls:
         for name in ('MODE_STILL','MODE_MOVIE','MODE_SQ'):modes.pack_start(self._button(name),True,True,0)
         body.pack_start(modes,False,False,0)
         wheels = Gtk.Box(spacing=18)
-        for title, left, right in [('前拨轮', 'FRONT_LEFT', 'FRONT_RIGHT'), ('后拨轮', 'REAR_LEFT', 'REAR_RIGHT')]:
+        for title, left, right in [('前拨轮', 'FRONT_LEFT', 'FRONT_RIGHT'), ('后拨轮', 'REAR_LEFT', 'REAR_RIGHT'), ('右上拨轮', 'TOP_LEFT', 'TOP_RIGHT')]:
             group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
             text = Gtk.Label(label=title + ' · 未验证'); text.get_style_context().add_class('warning')
             group.pack_start(text, False, False, 0)

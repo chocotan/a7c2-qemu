@@ -18,7 +18,7 @@
     {
       "path": "runtime/analysis/menu_live.py",
       "symbol": "KEY_DEFINITIONS",
-      "sha256": "aad21de2641531a7c76d9b881a8c2443a4e58da8fe16432b15f9d1fb9eb57a03"
+      "sha256": "e2c19cd36de9103cdd568f30837805fa675096dc8d324196c8b19daccfb628a2"
     },
     {
       "path": "runtime/analysis/menu_live.py",
@@ -51,7 +51,7 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "89b6ec5b7842269c30ca3d7033725c97bb4bb750b67916818fcf8c1c07040253",
+      "sha256": "f01cbbaac16241ec79fccca85a186bc8e9d80277886020b4eb22e382be7be6b4",
       "ram_window_change_scope": "2026-11-09: optional RAM capture runs only after current SD save and nineteen-volume freeze; input mappings, 50ms release and serial sender unchanged.",
       "cold_gui_previous_sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
       "cold_gui_change_scope": "2026-11-09: optional storage shutdown callback after actual SD export, for a current cold-GUI full-freeze receipt; input mappings and serial sender unchanged. No USB, full hardware boot or capture verification.",
@@ -96,7 +96,7 @@
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "d3c9c43151c360a59f72e58f06225ba73f2522cb93375775e7e25cf0f742b0e0",
+      "sha256": "f5b805ccb949d591fe3aa27aadf77b0856a54d9b6d88f0fdd45221af1ab6346c",
       "ui_refactor_change_scope": "2026-11-20: concise and ergonomic single-window UI refactoring; integrated top plate, aligned rear thumb panel, viewfinder bezel, and unified bottom peripheral/drawer dock; all input bindings, touch coordinates, and lifecycle gates preserved.",
       "ram_window_change_scope": "2026-11-09/10: actual RAM controls and stopped p2-only reset confirmation; original input release gates and actual LCD consumption unchanged.",
       "cold_gui_previous_sha256": "012259cada0d854dfb9d8db24d68c623271a3b30bead32439a2de6f344282905",
@@ -122,7 +122,7 @@
     },
     {
       "path": "report/camera-input-coverage/input_bindings.py",
-      "sha256": "4516f1d01b4e9695df8fc823f86939d3e141f5159fe3441d7e115e6ac1137c0c",
+      "sha256": "b2296e4e44126b36034af9de34cfff533b5b573eeb273bf659d4fe82e95f35b9",
       "change_scope": "Single touch ownership, GTK mouse/touch mapping and original input cleanup"
     }
   ],
@@ -210,6 +210,14 @@
     "REAR_RIGHT": {
       "raw": "0x10000013",
       "canonical": "0x2ef"
+    },
+    "TOP_LEFT": {
+      "raw": "0x10000016",
+      "canonical": "0x2ea"
+    },
+    "TOP_RIGHT": {
+      "raw": "0x10000016",
+      "canonical": "0x2ea"
     },
     "CONTROL_LEFT": {
       "raw": "0x1000001d",

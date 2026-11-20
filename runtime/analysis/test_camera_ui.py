@@ -355,7 +355,7 @@ class GTKTests(unittest.TestCase):
 
     def test_three_independent_wheel_symbols(self):
         self.running()
-        for prefix in ('FRONT', 'REAR', 'CONTROL'):
+        for prefix in ('FRONT', 'REAR', 'TOP', 'CONTROL'):
             for direction in ('LEFT', 'RIGHT'):
                 name = prefix + '_' + direction
                 self.vm.value['controls'][name]['available'] = True
@@ -444,7 +444,7 @@ class GTKTests(unittest.TestCase):
 
     def test_real_scroll_routes_front_and_rear_separately(self):
         self.running()
-        for prefix in ('FRONT', 'REAR'):
+        for prefix in ('FRONT', 'REAR', 'TOP'):
             self.vm.value['controls'][prefix + '_RIGHT']['available'] = True
             self.ui.update(self.vm.status())
             button = self.ui.buttons[prefix + '_RIGHT']
