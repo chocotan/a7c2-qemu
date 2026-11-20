@@ -1,4 +1,157 @@
 {
+  "default_cmos_20261120": {
+    "scope": "default CMOS source and all directly affected consumers",
+    "changes": {
+      "README.md": {
+        "previous_inventory_sha256": "667b3f1487ff37d9b1a5830c346e910ea76773cc459f6bf04394327057d93506",
+        "after": "cd18b4e2c4a6935e635e073f0b6ce219d2fa8f7d663599c6ee3934404b2d585d"
+      },
+      "docs/images/captured-cmos-dsc00001-20261120.jpg": {
+        "previous_inventory_sha256": null,
+        "after": "59f6752e4aea0bceebb76245001963b32ea660f69e7738483d11ee8318d22f12"
+      },
+      "report/functional-camera-core/test_functional_core.py": {
+        "previous_inventory_sha256": "94558689a051a52a47c0591e8b7a303bfcd272a66ca35f285a4d1a14933fce52",
+        "after": "b36c9e0426efcde85d0dee8ccf5844aa9564c7923e8cb428c24e956d6766daec"
+      },
+      "report/functional-camera-evidence/p1-candidate184.md": {
+        "previous_inventory_sha256": null,
+        "after": "5ea46d2fcb8bf9fa0d0a2f54d32dff02a4263a7d966940bdba502fe4e74dcbf9"
+      },
+      "report/virtual-camera-pipeline/test_pipeline.py": {
+        "previous_inventory_sha256": "5739db2ab9ebab0cf6747655194d0a1cd985c1aabb03dd94f7c060daac600ffa",
+        "after": "40228f1c2b8bcd516cd90c6992e664178a648a968dcd02cd9be183182fb03cf5"
+      },
+      "report/virtual-imaging-jpeg/test_integration.py": {
+        "previous_inventory_sha256": "ce5d1446263a180bf857ca2e8cc963bf80a96e5d2d849ac80031e6e3c0e2ecf2",
+        "after": "b640717329e6148e31f13744fac107bee937ca733579ef17fd1783a2007e1528"
+      },
+      "report/virtual-optical-frame-owner/test_owner.py": {
+        "previous_inventory_sha256": "22cb08a7f93c17a013a826d8021ef684a4ccaa4d7c8bbbe5d346624f5b4c4bce",
+        "after": "73b7fc470b57537c16c11bcca5426cc5ea5d7e93bb9e84ab02ee26acdba1e6ba"
+      },
+      "report/virtual-optics/README.md": {
+        "previous_inventory_sha256": "e624c9ce708ab6c80cfc885e0a057c3ed5e3fcbe6bec6613a02a394049ab0264",
+        "after": "aed49b3d2dbfa97d5c60486ecdea5697eb6fae02bacbad9572ce2ca3e9759220"
+      },
+      "report/virtual-optics/optics.c": {
+        "previous_inventory_sha256": "eb64c7fcd2ff7bca5567dd71fd34ccb018fcfd2ff61175b2dbffb8d4d54db926",
+        "after": "9e4d3cedf7feeabcbab007f021d3f7420ef28d3b95567d4680bde5f78d9eef8e"
+      },
+      "report/virtual-optics/optics.h": {
+        "previous_inventory_sha256": "3082049f90dea7352ea514a3fb1fbed242229001d1c6ac79b63c460c21c0fd64",
+        "after": "1395774f7114802a0501729f05ab602bf6ea75d10871343a837e5ebd24feefc8"
+      },
+      "report/virtual-optics/test_default_sensor.c": {
+        "previous_inventory_sha256": null,
+        "after": "78194dbb1201ebd76f9b5224ac706160a34329fa3d4492d69e6b0d64ed3c4c86"
+      },
+      "report/virtual-optics/verify.sh": {
+        "previous_inventory_sha256": "e766874023811c8c9c713b60609798d8c953fae24ae371d44cd4cfba6df33042",
+        "after": "490a58974d79112d57655ce719525120aa518387daa31e234d5711764b6ff427"
+      },
+      "report/virtual-optics/verify_guest_abi.sh": {
+        "previous_inventory_sha256": "48d29ac214212a6a84a2e5ff826a2fa14c9b6702ec0019811f537bde6853554a",
+        "after": "70bda82732ad67edbcbae600a2f5d514df6e978473dfd4774f2c0424b1e6039e"
+      },
+      "report/virtual-sensor/README.md": {
+        "previous_inventory_sha256": null,
+        "after": "7632f5e4703e9ed74c1a78f48bb52fdb2161cb35b5d47216ade97bd0c5e816bb"
+      },
+      "report/virtual-sensor/sensor-core.c": {
+        "previous_inventory_sha256": null,
+        "after": "aca80922f24e307686689cbf3685e12a54d354ebf70b6311302573941eb972d0"
+      },
+      "report/virtual-sensor/sensor-core.h": {
+        "previous_inventory_sha256": null,
+        "after": "60b68fd2f6cc37304e1f8f234151948020d5c7007fcf1398da824af2976e0477"
+      },
+      "report/virtual-sensor/test_sensor_core.py": {
+        "previous_inventory_sha256": null,
+        "after": "2b0d6b23e1aa4d8398a840b3a6860e5f81f04e1d840fa82da9a5ba730da34dbb"
+      },
+      "report/virtual-video-engine/test_video_engine.py": {
+        "previous_inventory_sha256": "20a6c58806e14231394f324675ebbe73b30d9f5a1df11858fb560b01e6645a45",
+        "after": "b27dfd6b4523c323435c1f018f3637741dceb8d7115461bd1af27462ba204c01"
+      },
+      "runtime/analysis/build-functional-camera-model.py": {
+        "previous_inventory_sha256": "66e5cae848f32558d28af55cbd41807e5f0f7a6a32c10c1a4befa159cc1f4129",
+        "after": "464fd3ab4a9a2ae8035082fb1d6344b9a204f83401c91f311ce93ff7300c2d48"
+      },
+      "runtime/analysis/test_functional_background_integration.py": {
+        "previous_inventory_sha256": "4c814011f205359138bec551a57e54cdd931929f1d1cd34b634ba81c0709f206",
+        "after": "deb6e9811feb6d3330a2119aeadb54b53dd959a73288f15a9e20d924d5673809"
+      },
+      "runtime/analysis/test_functional_background_start.py": {
+        "previous_inventory_sha256": "5a9ef686b770c5f950f12b9c3166d4e53326832a366729cc94c8cd85c5761859",
+        "after": "16169f2ec10e6731add9d3076c5a4beb93e6849b05960f9b74e79278dc4a478f"
+      },
+      "runtime/analysis/test_functional_bit_width_core.py": {
+        "previous_inventory_sha256": "945dbf2da711371adfeb6b413bcbad57e3b918b719850072080dd1e3253eaa88",
+        "after": "66b616f7200cbe1fd51069c7ca7464e4dc1ac716f0d6faffd14938436cb3fbd7"
+      },
+      "runtime/analysis/test_functional_camera_bridge.py": {
+        "previous_inventory_sha256": "51c43042d687b38e1204af93f2a76919808812c99d371d5fb4c7829c2b2c1980",
+        "after": "9c8c7d204ef1695c64bb9647523b1f36443879f748c3b0f0c4bc7c7b719ce349"
+      },
+      "runtime/analysis/test_functional_camera_profile.py": {
+        "previous_inventory_sha256": "2045b0b791639c57d7fc225a9bbff4970dd211410b20c96b4418f97d3ef1bc45",
+        "after": "b57d0469885d5aee810a4c3022cd48f01f640df580c1da85f1ed556028c47c8c"
+      },
+      "runtime/analysis/test_functional_jpeg_codec.py": {
+        "previous_inventory_sha256": "3982d8f8cb4c3dc0fea633e27a2f348d0ecc05a3a8fd4ed44432f67966482976",
+        "after": "aa9e330d015dc6b9c3fba58805df90f45faab411ce8c4b1e23748d002feb5899"
+      },
+      "runtime/analysis/test_functional_startup_control_core.py": {
+        "previous_inventory_sha256": "65f0e1b0c63e61c7c02dd6735e7322873cd8e4cba5f33571fb5908e76fe40db9",
+        "after": "e14c991b7f1d25879351bfa7ae174dce08935269e779995739cc6ae1b6ba90f6"
+      },
+      "runtime/analysis/test_functional_still_format.py": {
+        "previous_inventory_sha256": "7ee2c93686961c6bb4a8e1913afbfccae549c1f159f08b230b0e9c75ae267aed",
+        "after": "adeef503cbc20c9fd9e17d49955014f2c022cab921c19df6197544a5eb041bc1"
+      },
+      "runtime/analysis/test_functional_still_format_core.py": {
+        "previous_inventory_sha256": "6f9e352d33943be19678ade1f06de34d5b81b0f69ef074c01b0f47b98709e41a",
+        "after": "fcee6998f2e4d348c3792a813402103222604a3d467acf894c6d2cbc61503399"
+      },
+      "runtime/analysis/test_functional_vdf_bit_width.py": {
+        "previous_inventory_sha256": "24de0b422a625799836c1366cb0efccead0f6901af2db76c9d9d73abdc6168dc",
+        "after": "1fbd53f3970c07d8a30e5e04a8a312d02575164211a3f5f5573ad1260f057fad"
+      },
+      "runtime/analysis/test_functional_vdf_integration.py": {
+        "previous_inventory_sha256": "fe29ddebeea8b63f97ffdd16320d9753461f850d4c338b150040079c24d7b57e",
+        "after": "cd23b567acf52eb47689c02c564d151c4e1c8b2cf659536377c9df4fcb5b507f"
+      },
+      "tools/public-model-tests.json": {
+        "previous_inventory_sha256": "6a9e7964c2011e984b068f319d4eaf5aa4121fcc25bb2cdfb88199967e7aa098",
+        "after": "f6acc15c93694d672795306918c7d29b1c03dd8c720558a73be7a7817e7e5d5a"
+      },
+      "validation/README.md": {
+        "previous_inventory_sha256": "1afc6512ea3df64378ede8081df1db8249fd97ae164118d293433542b631e9fe",
+        "after": "65359fc98a5b13068d090a55732fdd3e71c735345e865781692cb1db06ba0275"
+      },
+      "validation/default-cmos-host-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "fb9d62a0813d5b71a6d4ae88afc554649edcf380f1f68c3a99c040d40c5832ee"
+      },
+      "validation/default-cmos-runtime-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "d28b9a342bc8142ee2187a6eea8399d8aabbe980ae8cccffe8e162a1f18b5bd2"
+      }
+    },
+    "host_receipt": "validation/default-cmos-host-20261120.json",
+    "host_passed": 2582,
+    "workers": 2,
+    "groups": 2,
+    "unrelated_inventory_entries_reverified": false,
+    "original_ap_runtime_verified": true,
+    "original_p4_postprocessor_passed": false,
+    "runtime_receipt": "validation/default-cmos-runtime-20261120.json",
+    "full_resolution_verified": false,
+    "raw_verified": false,
+    "live_view_verified": false,
+    "physical_compatible": false
+  },
   "native_ap_cp_pair_v7_upm_bootinfo_20261112": {
     "source_changes": {
       "report/2026-11-11-cp-boot-progress/host-validation-rsp-v18.json": {

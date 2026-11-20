@@ -1,12 +1,13 @@
 # 内部虚拟镜头／场景成像原型
 
-本组件输出实际可检验的**自定线性RGB888像素**，用于准备后续CMOS适配；尚未连接Sony固件，没有实现Sony/Bayer/YC格式、plane、lease、ACK、ready或相机拍摄。帧号与摘要独立存于metadata，不覆盖图像首行，也不写JPG/MP4。
+本组件输出实际可检验的**自定线性RGB888像素**。当前拍摄功能模型在640×480和7008×4672尺寸默认使用[虚拟CMOS采样](../virtual-sensor/README.md)，再解马赛克并应用曝光和离焦模糊；其它尺寸及显式`legacy-checker`继续保留棋盘原型。此处不建立Sony的YC格式、plane、lease或消息ACK，也不直接写JPG/MP4。帧号与摘要独立存于metadata，不覆盖图像首行。默认CMOS的原厂拍摄写卡复验另行记录。
 
 ## 复现
 
 ```bash
 # 从本目录执行；需要host C编译器、libm和ASan/UBSan
-TMPDIR=/var/tmp bash verify.sh
+mkdir -p .build/tmp
+TMPDIR="$PWD/.build/tmp" bash verify.sh
 ```
 
 脚本以严格警告及ASan/UBSan编译到被忽略的`.build/`。任一断言、越界、未定义行为或泄漏诊断使验证失败。主会话已逐字读实现并独立复跑代理原交付，得到下列数值；移交后又补充空指针、奇数宽度/外侧哨兵，以及像素尺度/F数与模糊半径关系的独立边界测试。
@@ -34,15 +35,15 @@ bash verify_guest_abi.sh ../../runtime/analysis/menu-root "$QEMU_USER"
 
 `optics_render`接收镜头参数、width/height、字节stride、调用方buffer/容量、帧号及独立metadata/statistics。像素顺序固定R/G/B，每行仅写width×3字节，padding不变；帧摘要FNV-1a仅覆盖有效像素。
 
-返回0才更新metadata与completed_frames；非法参数、容量/乘法溢出或计数溢出返回−1，目的像素、metadata和统计均不改。函数不分配内存，不建立固件消息或buffer lease。调用方负责有效且互不重叠的对象、buffer寿命以及共享对象的外部串行化。
+返回0才更新metadata与completed_frames；非法参数/profile、容量/乘法溢出、计数溢出或内存分配失败返回−1，目的像素、metadata和统计均不改。CMOS路径分配Bayer/RGB帧及一份RGB模糊工作区，棋盘路径不分配内存。函数不建立固件消息或buffer lease；调用方负责有效且互不重叠的对象、buffer寿命以及共享对象的外部串行化。
 
 ## 明确的原型假设
 
 - 固定35mm定焦，传感器宽度36mm；这些是原型设定，**不是已核A7C2电气或接口事实**。
 - F4/F8/F16、对焦距离≥0.1m或正无限远、有限正快门/ISO。焦距不提供变焦功能。
-- 左／右半图是1m和4m两层固定棋盘目标，以免目标纹理差异污染清晰度比较；没有遮挡与边缘散景。
+- 左／右半图是1m和4m两层目标；CMOS使用采样图案，棋盘对照保留原周期纹理；没有遮挡与边缘散景。
 - 焦距f以m计，场景／焦点屈光度Ds/Df（无限远Df=0），圈半径为 `f²×abs(Ds−Df)/(2N×(1−fDf))×width/0.036`，上限16像素。
-- 使用可分离方框滤波及相邻整数半径插值，近似离焦；不是实测PSF，没有衍射、畸变、AF、噪声、滚动快门或色彩标定。
+- CMOS使用线性成本的双向滑窗方框滤波，半径向上取整；棋盘对照保留相邻整数半径插值。它们是离焦近似，不是实测PSF，没有衍射、畸变、噪声、滚动快门或色彩标定。
 - 在线性亮度上乘 `shutter_s×ISO×64/N²`，clamp后量化到8bit。非常小的曝光会量化为黑，饱和区不再保持曝光比。
 
 ## 验收与未完成项

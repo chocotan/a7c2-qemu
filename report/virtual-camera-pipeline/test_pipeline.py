@@ -29,7 +29,7 @@ def builds(tmp_path_factory):
         "pkg-config", "--cflags", "--libs", "libjpeg", "libavcodec", "libavformat",
         "libavutil", "libswscale"], text=True, timeout=10))
     sources = [HERE / "test_pipeline.c",
-               REPORT / "virtual-optics/optics.c",
+               REPORT / "virtual-optics/optics.c", REPORT / "virtual-sensor/sensor-core.c",
                REPORT / "virtual-optical-frame-owner/optical-frame-owner.c",
                REPORT / "virtual-jpeg-hardware/jpeg-hardware.c",
                REPORT / "virtual-jpeg-hardware/jpeg-hardware-codec.c",

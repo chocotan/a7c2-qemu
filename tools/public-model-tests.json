@@ -151,6 +151,7 @@
   "runtime/analysis/test_media_initial_write.py",
   "report/virtual-jpeg-hardware/test_hardware.py",
   "report/virtual-optical-frame-owner/test_owner.py",
+  "report/virtual-sensor/test_sensor_core.py",
   "report/virtual-video-engine/test_video_engine.py",
   "report/virtual-camera-pipeline/test_pipeline.py",
   "report/native-jpeg-binding/test_native_binding.py",

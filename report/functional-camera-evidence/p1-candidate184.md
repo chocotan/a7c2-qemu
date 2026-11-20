@@ -378,4 +378,22 @@ header/Aux接入原op20，只接受已观测的`0x80d61/0x27f`与原40字节/opt
 
 启动层验收账（对102基线）：settle -86.6s、派生 -17.1s、实例盘暖缓存 -27.6s（观察项非代码收益）；首帧点 -43.2s、菜单就绪 -15s。检查点复用与产品侧固化待后续；EE/取帧方差另计，不旧账回填。
 
+## 默认虚拟CMOS与第107轮准备
+
+按用户要求，拍摄功能模型默认采用虚拟CMOS；640×480及显式7008×4672源从GRBG 14位Bayer采样，经真实解马赛克、曝光及两层景深模糊进入现有RGB消费者。没有默认退回棋盘；`legacy-checker`只用于明确的对照，其余小尺寸组件保持既有棋盘计算。未知profile拒绝。传感器帧序号耗尽返回0，配置代次错误和短缓冲在写出前拒绝。
+
+主会话核收并完成所有编译消费者接线，统一两线程回归 **999+1583=2582 passed，0失败、0跳过**；收据见`validation/default-cmos-host-20261120.json`。测试临时树通过两次引用审计后，实际回收200,261,632B，原始日志/JUnit保留。此前4个RAM目录用例失败来自旧fixture未显式选择原阻断策略，本批修其前提而未放宽生产守卫。
+
+新模型SHA为`8748da8422471d1b4d762ccf08e03f145ab3c9855817bb6842de484aae0b8b6c`。第107轮准备脚本明确将`MODEL_BASE`从旧隔离e1535e84改为产品`runtime/analysis`并绑定新SHA，保留原首设+Off与加速启动链；不复用旧VM或失败收据。第107轮原厂快门/写卡业务结果另计。
+
+33MP帧源不等于33MP写卡：7008×4672 RGB为98,224,128B，当前64MiB结果缓冲与原厂640×480格式事务仍需同步升级。RAW封装候选尚未接到原厂消费者，取景及录像亦未通过；不从本批宿主通过提升这些状态。
+
+### 第107轮 `4227` 同轮结果
+
+默认CMOS模型被本轮实际消费者使用，原`natural-request-owned rc=0`，原MainComp主图22,298B和缩略图2,074B均rc0。原Fsys将`DCIM/100MSDCF/DSC00001.JPG`写为83,738B；`FSYS_WRITE_NATIVE_READBACK rc=0 eof=1 close_rc=0`、coverage=1、`write-retired write_verified=1 resources_released=1`。独立FAT16提取的JPEG与原Fsys读回FNV`50018feb47b6788b`一致，Pillow解码为640×480 RGB。两次原flush均rc0，两份整卡导出SHA相同：`1f34cb9039c7c2e0f1c1f37bfcd5281307f2ca3fd0b95c6bbe8a76bedfc6e9ce`。该结果证明本虚拟帧源的原厂JPEG写卡链，不提升33MP、RAW、实时取景或物理兼容。
+
+VM正常收尾已核：QMP quit确认、QEMU rc0、signals=[]、租约持有到退出、原QEMU PID消失。尝试层`passed-p1-transport`，但顶层P4后处理保留为FAILED：`create_runtime_manifest`无条件写入`isolated_model`，把产品`runtime/analysis`误标为候选树，`selected_model_base`据原规则拒绝。后续权威候选`scratch/a7c2-capture-export-order-v1/p4_driver.py`已改为仅在`model_base != native`时设置该标记；旧轮次脚本、manifest和失败收据均未覆盖。主会话复用现有`require_capture_closed`、原write-ready字段判据及独立卡读片，另立`validation/default-cmos-runtime-20261120.json`；`p4_production_batch_verified=false`保持。
+
+本轮启动计时：独立设置盘24.7s、派生缓存7.2s、启动至guest shell累计63.6s、首帧累计113.0s、settle6.2s；首设及Off短菜单后，broker attach阶段耗时197.6s（从VM启动阶段起算，含构建准备的全局累计237.0s）。对102轮相同`boot_to_broker_attached`基线299.2s减少101.6s。整轮至后处理结束465.2s；本轮已取得成功写卡链，启动提速的端到端观察不再借用失败拍摄轮。
+
 

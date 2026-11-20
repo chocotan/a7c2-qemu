@@ -786,7 +786,7 @@ def actual_core_library(tmp_path_factory):
         return library, expected
     core = REPORT / 'functional-camera-core/functional-camera-core.c'
     dependencies = [REPORT / path for path in (
-        'virtual-optics/optics.c', 'virtual-optical-frame-owner/optical-frame-owner.c',
+        'virtual-optics/optics.c', 'virtual-sensor/sensor-core.c', 'virtual-optical-frame-owner/optical-frame-owner.c',
         'virtual-jpeg-hardware/jpeg-hardware.c', 'virtual-jpeg-hardware/jpeg-hardware-codec.c',
         'virtual-jpeg-sos/jpeg-sos.c', 'virtual-video-engine/video-engine.c',
         'virtual-camera-pipeline/camera-pipeline.c',

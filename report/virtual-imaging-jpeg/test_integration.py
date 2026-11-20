@@ -46,7 +46,8 @@ def batches(tmp_path_factory):
     optics, jpeg = ROOT.parent / "virtual-optics", ROOT.parent / "virtual-jpeg-engine"
     common = compiler + ["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic",
                          "-I", str(optics), "-I", str(jpeg), str(ROOT / "integration.c"),
-                         str(optics / "optics.c"), str(jpeg / "jpeg-engine.c")]
+                         str(optics / "optics.c"), str(ROOT.parent / "virtual-sensor/sensor-core.c"),
+                         str(jpeg / "jpeg-engine.c")]
     for name, flags in (
         ("normal", ["-O2"]),
         ("sanitized", ["-O1", "-g", "-fsanitize=address,undefined",
@@ -66,7 +67,7 @@ def batches(tmp_path_factory):
         assert result.stderr == b""
         return result.stdout
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         payloads = list(pool.map(run, ("normal", "sanitized", "normal", "sanitized")))
     return payloads, [unpack(payload) for payload in payloads]
 

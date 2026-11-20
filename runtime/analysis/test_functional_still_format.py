@@ -21,7 +21,7 @@ REPORT = HERE.parents[1] / "report"
 EVIDENCE = HERE.parents[1] / "validation/tmp/functional-still-format-owner"
 SOURCES = (
     "functional-camera-core/functional-camera-core.c",
-    "virtual-optics/optics.c",
+    "virtual-optics/optics.c", "virtual-sensor/sensor-core.c",
     "virtual-optical-frame-owner/optical-frame-owner.c",
     "virtual-jpeg-hardware/jpeg-hardware.c",
     "virtual-jpeg-hardware/jpeg-hardware-codec.c",

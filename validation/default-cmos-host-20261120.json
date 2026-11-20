@@ -1,0 +1,67 @@
+{
+  "schema": "a7c2-default-cmos-host-v1",
+  "workers": 2,
+  "groups": {
+    "core": {
+      "tests": 999,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 999
+    },
+    "consumers": {
+      "tests": 1583,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "passed": 1583
+    }
+  },
+  "passed": 2582,
+  "model_sha256": "8748da8422471d1b4d762ccf08e03f145ab3c9855817bb6842de484aae0b8b6c",
+  "model_sources": {
+    "report/functional-camera-core/functional-camera-core.c": "48533f701597a1884c302db378e8d0021e0c4c36c2882d0bffc2d76116d00c47",
+    "report/functional-camera-core/functional-camera-core.h": "8ba13ed4e21748e5c50c5219d67afd2c7d7662cdf96cc6876ad5661777adf97a",
+    "report/virtual-camera-pipeline/camera-pipeline.c": "af78d4c9da1ec505ddc1a39d5ef6c36ab75790b597d7a6d16283abb9f4a5e8c0",
+    "report/virtual-camera-pipeline/camera-pipeline.h": "6b5801aaf9da815efb751620b9cce8273c47f53df32ff77cf8076245b199fb2c",
+    "report/virtual-jpeg-hardware/jpeg-hardware-codec.c": "308055236827ead624f23146a6403aa860da08cdf93ae74740a416a30dccac8e",
+    "report/virtual-jpeg-hardware/jpeg-hardware-codec.h": "241782b9376eac0b7f24d2a699eb0bdbef8f91afc4d5103a0c1d2182e5d6f9ec",
+    "report/virtual-jpeg-hardware/jpeg-hardware.c": "0824c4461a90f573f66e5b5a707e6a1b498ef38a9b6330c2670578d8a490bb52",
+    "report/virtual-jpeg-hardware/jpeg-hardware.h": "43de1b7104015e201128dbddd470f85211f9956d8d36779bf75e86c1762c080d",
+    "report/virtual-jpeg-sos/jpeg-sos.c": "0db3d9a9bbb6327c3a7da107ab232f3cfb02fee4784530ebe042eaab0714b0be",
+    "report/virtual-jpeg-sos/jpeg-sos.h": "118ebf8053705885600ccdd36f42dfcaa979ecab3b803f61aec41632aab7e7e4",
+    "report/virtual-optical-frame-owner/optical-frame-owner.c": "fc23ad480c2d2327b7f38cca752d4e0b65eca736f498217411b61f2159609a82",
+    "report/virtual-optical-frame-owner/optical-frame-owner.h": "0c917780cec071a1229aac8a7ac56b79951aa906d6a584a4dda092f238a8c54c",
+    "report/virtual-optics/optics.c": "9e4d3cedf7feeabcbab007f021d3f7420ef28d3b95567d4680bde5f78d9eef8e",
+    "report/virtual-optics/optics.h": "1395774f7114802a0501729f05ab602bf6ea75d10871343a837e5ebd24feefc8",
+    "report/virtual-sensor/sensor-core.c": "aca80922f24e307686689cbf3685e12a54d354ebf70b6311302573941eb972d0",
+    "report/virtual-sensor/sensor-core.h": "60b68fd2f6cc37304e1f8f234151948020d5c7007fcf1398da824af2976e0477",
+    "report/virtual-video-engine/video-engine.c": "6f422c37151753f9b1dae8aaa1642d82456fdfee33dccc4e5537a9860132af2e",
+    "report/virtual-video-engine/video-engine.h": "30147896e7c44fa313520e8d3f63b4e1dbf4f627d009fb957c34bca34e1b0e39",
+    "runtime/analysis/build-functional-camera-model.py": "464fd3ab4a9a2ae8035082fb1d6344b9a204f83401c91f311ce93ff7300c2d48",
+    "runtime/analysis/device-models/cp-parameter-batch.c": "8f627e77d94d63434e4be7de3d398a1e3865946c44c7244f2b2553a483409a2e",
+    "runtime/analysis/device-models/cp-parameter-batch.h": "b135d20b06de68e3dd78a2714a637a705f36b1c7372c9301577adc7afaa8cb35",
+    "runtime/analysis/functional-bb-startup-abi.h": "a48120ba31318bdbc8d9b3419870f1d9a0e98608703c24a592f2890013df3795",
+    "runtime/analysis/functional-camera-abi.h": "587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77",
+    "runtime/analysis/functional-startup-control-abi.h": "dfb4df55e158ea5e15721ec336895a761b8a045c6e096417ba34c601964bf316",
+    "runtime/analysis/functional-still-format-abi.h": "54f27f4b98a0ece89fc7f09f4cca38d2e05fd9c0ee84843210fa16822413d51c",
+    "runtime/analysis/functional-vdf-bit-width-abi.h": "143a20f22a16aae41439ef59c5bdaac4d16dbd841b20602e043202c1356543d7",
+    "runtime/analysis/functional-vdf-path-abi.h": "d1fa18b0d45baa277361e22b76802356549e9922a048ef42a89a1325e01937d0"
+  },
+  "source_archive_sha256": "9ef93f97a78d09b8fa83a71c8ef2a6653dd53e85daa924543abe8e454ed67246",
+  "default_source": "virtual GRBG 14-bit samples -> demosaiced RGB -> optics",
+  "default_model_resolution": [
+    640,
+    480
+  ],
+  "profile_override_required": false,
+  "model_abi_unchanged": true,
+  "original_ap_runtime_verified": false,
+  "full_resolution_card_write_verified": false,
+  "raw_card_write_verified": false,
+  "live_view_verified": false,
+  "video_card_write_verified": false,
+  "physical_compatible": false,
+  "evidence": "scratch/a7c2-cmos-default-v1/acceptance-1",
+  "next_consumer": "fresh round107 original AP capture/write-card verification"
+}

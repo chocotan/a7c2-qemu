@@ -20,10 +20,11 @@ typedef struct {
 
 typedef struct { uint64_t completed_frames; } optics_stats;
 
-/* Returns 0 on success, -1 on invalid input/capacity/overflow.
+/* Returns 0 on success, -1 on invalid input/profile/capacity/overflow or allocation failure.
  * Failure leaves dst, metadata and stats unchanged. Padding is never written.
  * Requires capacity >= stride * height. Objects must not overlap; caller owns
- * valid storage for dst[capacity], params, metadata and stats. No allocations.
+ * valid storage for dst[capacity], params, metadata and stats. The default CMOS
+ * path allocates its Bayer/RGB frame and one RGB blur scratch; checker does not.
  */
 int optics_render(const optics_params *params, size_t width, size_t height,
                   size_t stride, unsigned char *dst, size_t capacity,

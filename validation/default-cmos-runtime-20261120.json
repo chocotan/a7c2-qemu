@@ -1,0 +1,40 @@
+{
+  "schema": "a7c2-default-cmos-runtime-v1",
+  "run": "4227",
+  "model_sha256": "8748da8422471d1b4d762ccf08e03f145ab3c9855817bb6842de484aae0b8b6c",
+  "default_cmos_consumed": true,
+  "natural_capture_and_original_jpeg_lifecycle_closed": true,
+  "original_fsys_readback_and_resources_retired": true,
+  "jpeg_path": "DCIM/100MSDCF/DSC00001.JPG",
+  "jpeg_bytes": 83738,
+  "jpeg_fnv1a64": "50018feb47b6788b",
+  "independently_decoded": {
+    "format": "JPEG",
+    "mode": "RGB",
+    "width": 640,
+    "height": 480
+  },
+  "whole_card_export_sha256": "1f34cb9039c7c2e0f1c1f37bfcd5281307f2ca3fd0b95c6bbe8a76bedfc6e9ce",
+  "two_whole_card_exports_equal": true,
+  "original_flush_rc": [
+    0,
+    0
+  ],
+  "qmp_quit_confirmed": true,
+  "qemu_returncode": 0,
+  "vm_signals_sent": [],
+  "disk_lease_retained_until_exit": true,
+  "original_qemu_pid_absent": true,
+  "p4_production_batch_verified": false,
+  "original_postprocessor_failure": "Isolated model must be in the local candidate tree",
+  "original_failure_receipts_preserved": true,
+  "postprocessor_cause": "manifest producer labelled the canonical product model as isolated",
+  "full_resolution_verified": false,
+  "raw_verified": false,
+  "live_view_verified": false,
+  "video_card_write_verified": false,
+  "media_database_semantics_verified": false,
+  "physical_compatible": false,
+  "capture_verified": false,
+  "evidence": "scratch/a7c2-apo-menu-round107 and scratch/a7c2-cmos-default-v1/card-readback-107"
+}

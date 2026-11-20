@@ -18,7 +18,7 @@ REPORT = ROOT / 'report'
 COMPONENTS = (
     'virtual-optics', 'virtual-optical-frame-owner', 'virtual-jpeg-hardware',
     'virtual-jpeg-sos', 'virtual-video-engine', 'virtual-camera-pipeline',
-    'functional-camera-core',
+    'functional-camera-core', 'virtual-sensor',
 )
 SOURCES = (
     'virtual-optics/optics.c',
@@ -29,6 +29,7 @@ SOURCES = (
     'virtual-video-engine/video-engine.c',
     'virtual-camera-pipeline/camera-pipeline.c',
     'functional-camera-core/functional-camera-core.c',
+    'virtual-sensor/sensor-core.c',
 )
 
 

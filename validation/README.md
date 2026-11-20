@@ -1,5 +1,15 @@
 # 本包验证记录
 
+## 11月20日默认虚拟CMOS宿主集中验收
+
+拍摄功能模型在640×480尺寸默认采用GRBG 14位采样→解马赛克RGB→曝光/离焦，不需要环境开关。`legacy-checker`仅保留为对照，模型ABI未变。新模型`8748da8422471d1b4d762ccf08e03f145ab3c9855817bb6842de484aae0b8b6c`已重建，第107轮隔离运行绑定该产品产物。
+
+[宿主收据](default-cmos-host-20261120.json)：**两工作线程、两组，999+1583=2582项通过，0失败、0跳过**，含默认CMOS采样/CFA/代次/短缓冲、真实焦点像素/曝光/padding、JPEG独立解码及全部受影响编译消费者。4个RAM目录守卫旧fixture已明确启用其原阻断策略；没有放宽生产FD守卫。前一轮失败不改写。
+
+第107轮`4227`实跑已完成自然快门、原JPEG主图22,298B/缩略图2,074B、原Fsys写入和原文件读回83,738B、资源退休、两次1GiB整卡导出一致及独立640×480 RGB解码；QMP确认退出、rc0、零VM信号且租约保留到退出。[同轮只读收据](default-cmos-runtime-20261120.json)记录这些已核事实。旧P4归档生产者错误地给产品模型加`isolated_model`标记，导致后处理拒绝路径；该轮顶层失败状态保留，后续候选生产者已修正标记条件，未重跑guest或回填旧结果。33MP、RAW、实时取景、录像、媒体DB语义与物理兼容仍未通过。
+
+测试临时文件经两次完整引用审计，实际回收200,261,632B；原始stdout/stderr、JUnit及模型构建归档保留，pytest `current`符号链接按边界保留。
+
 ## 11月19日 同轮省电关闭与全按直接分派观察（不记通过）
 
 `1273` 在同一 boot 内用原厂菜单把省电开始时间改为「关」，重开读回并返回拍摄页；控制台无 APO1 或关机序列。半按、全按、全按释放、半按释放四条边沿由同一 PID 324/TID 419 消费，只有释放进入 `0x2688a08` 执行层并发出 `0x4039`；未出现自然 `0x4038`、JPEG 或写卡。QMP 退出确认、QEMU 返回 0、零信号、租约持有到退出，`capture_verified=false`。收据为 `scratch/a7c2-apo-menu-round18/storage.json`（SHA-256 `d5a9a9d489bc7e195339ac29cbab897526a8808e1b57ede08d345ce0aa589545`），日志在 `runtime/analysis/menu-runs/1273/console.log`；专题见 [APO1 报告](../report/native-apo-power.md)和 [c184 全按路径](../report/functional-camera-evidence/p1-candidate184.md)。

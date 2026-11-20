@@ -21,7 +21,7 @@ HERE = Path(__file__).resolve().parent
 NATIVE = HERE.parents[1]
 CORE_SOURCES = (
     "functional-camera-core/functional-camera-core.c",
-    "virtual-optics/optics.c",
+    "virtual-optics/optics.c", "virtual-sensor/sensor-core.c",
     "virtual-optical-frame-owner/optical-frame-owner.c",
     "virtual-jpeg-hardware/jpeg-hardware.c",
     "virtual-jpeg-hardware/jpeg-hardware-codec.c",

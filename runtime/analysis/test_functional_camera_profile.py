@@ -341,6 +341,13 @@ def ram_artifact_validator(monkeypatch):
 
 
 @pytest.fixture
+def blocked_ram_directory_creation(monkeypatch):
+    """Exercise the blocked creation policy separately from admitted private-FD creation."""
+    monkeypatch.setattr(backup, '_RAM_DIRECTORY_CREATION_BLOCKED',
+                        'Functional camera directory creation refused: no atomic creation identity')
+
+
+@pytest.fixture
 def synthetic_ram_directory_creation(monkeypatch):
     """Exercise downstream derivation only; this is not same-UID-safe creation."""
     def create(parent_fd):
@@ -450,7 +457,8 @@ def test_ram_profile_missing_real_model_artifact_fails_before_card_hashing(
     assert not output_parent.exists()
 
 
-def test_ram_profile_creation_has_no_path_based_fallback(ram_profile_inputs):
+def test_ram_profile_creation_has_no_path_based_fallback(
+        ram_profile_inputs, blocked_ram_directory_creation):
     native, env, card, output_parent = ram_profile_inputs
     with mock.patch.object(tempfile, 'mkdtemp', side_effect=AssertionError('path creation must not run')) as create:
         with pytest.raises(ValueError, match='directory creation refused: no atomic creation identity'):
@@ -516,7 +524,8 @@ def test_ram_profile_derives_local_evidence_but_refuses_path_only_consumer_hando
 
 
 @pytest.mark.parametrize('replacement', ['rename', 'symlink', 'directory'])
-def test_ram_profile_rejects_directory_rebinding_immediately_after_creation(ram_profile_inputs, replacement):
+def test_ram_profile_rejects_directory_rebinding_immediately_after_creation(
+        ram_profile_inputs, blocked_ram_directory_creation, replacement):
     native, env, card, output_parent = ram_profile_inputs
     external = output_parent.parent/'external'
     external.mkdir(mode=0o700)

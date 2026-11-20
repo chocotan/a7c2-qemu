@@ -80,6 +80,7 @@ def builds(tmp_path_factory):
                        str(ROOT / "example-optical-stream.c"),
                        str(ROOT.parent / "virtual-optical-frame-owner" / "optical-frame-owner.c"),
                        str(ROOT.parent / "virtual-optics" / "optics.c"),
+                       str(ROOT.parent / "virtual-sensor" / "sensor-core.c"),
                        "-o", str(directory / (name + "-optical"))] + flags + ["-lm"], check=True)
     shared = directory / "libvideo-engine.so"
     subprocess.run(compiler + strict + ["-O2", "-shared", "-fPIC", source,

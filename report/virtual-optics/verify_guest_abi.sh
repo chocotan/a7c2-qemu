@@ -28,7 +28,7 @@ clang --target=aarch64-linux-gnu -fuse-ld=lld -nostdlib -O2 \
   -mno-outline-atomics -isystem /usr/aarch64-linux-gnu/include \
   -Wl,--no-undefined -Wl,-e,_start \
   -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
-  optics.c test_optics.c guest_entry.c \
+  optics.c ../virtual-sensor/sensor-core.c test_optics.c guest_entry.c \
   "$root/lib/libm-2.25.so" "$root/lib/libc-2.25.so" "$root/lib/ld-2.25.so" \
   -o .build/test_optics_aarch64
 python3 - <<'PY'

@@ -27,7 +27,8 @@ def builds(tmp_path_factory):
         ["pkg-config", "--cflags", "--libs", "libjpeg"], text=True, timeout=10
     ))
     sources = [ROOT / "optical-frame-owner.c", ROOT / "test_owner.c",
-               optics / "optics.c", jpeg / "jpeg-engine.c"]
+               optics / "optics.c", ROOT.parent / "virtual-sensor/sensor-core.c",
+               jpeg / "jpeg-engine.c"]
     common = compiler + ["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic"]
     for name, flags in (
         ("normal", ["-O2"]),
