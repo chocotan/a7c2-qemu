@@ -1,4 +1,5 @@
 """Private live-control transport and serial commands; no caller-supplied shell."""
+from contextlib import contextmanager
 import base64
 import io
 import json
@@ -6,8 +7,11 @@ import os
 import re
 import secrets
 import select
+import signal
 import socket
+import stat
 import time
+import threading
 import hashlib
 
 from pathlib import Path
@@ -15,6 +19,8 @@ from pathlib import Path
 from headless_osd_capture import decode_export, HEADER, METADATA
 
 MAX_MESSAGE = 2 * 1024 * 1024
+MAX_SERIAL_OUTPUT = 8 * 1024 * 1024
+MAX_CONSOLE = 16 * 1024 * 1024
 # One declaration for both UIs and command generation. Unknown codes stay unavailable.
 KEY_DEFINITIONS = {
     'MENU': dict(label='MENU', code='0x1ab', verified=True, native='M', shortcuts=['m', 'Escape']),
@@ -147,7 +153,15 @@ class FirmwareMonitor:
                 self.tail = data[-128:]
 
 
-def connect_in_run(sock, directory, name):
+def connect_in_run(sock, directory, name, *, socket_environment=None):
+    selected=os.environ if socket_environment is None else socket_environment
+    if ('A7C2_SINGLE_AP_SOCKETS' in selected or 'A7C2_SINGLE_AP_SOCKET_ROOT' in selected or
+            os.path.lexists(Path(directory)/'single-ap-socket-binding.json')):
+        from single_ap_sockets import roots_for_run
+        roots=roots_for_run(directory,selected)
+        if roots is not None:
+            with roots.connect_path(roots.sockets/name) as address:sock.connect(address)
+            return
     # Linux AF_UNIX paths are short; the run directory may live in a long checkout.
     fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -295,27 +309,271 @@ def netdev_socket_alias(out):
     return alias/'ethernet.sock', alias
 
 
+class QMPStrictStream:
+    """Synthetic-only opt-in transport; owns a private RX duplicate until close()."""
+    def __init__(self, sock, rx_fd, check_generation, *, synthetic_only=False):
+        if synthetic_only is not True:
+            raise RuntimeError('Strict QMP real owner adapter unavailable; synthetic-only candidate')
+        if not isinstance(sock,socket.socket) or sock.family!=socket.AF_UNIX or sock.type!=socket.SOCK_STREAM:
+            raise ValueError('Strict QMP requires its exclusive raw Unix stream socket')
+        if sock.gettimeout() is None or sock.gettimeout()<=0:
+            raise ValueError('Strict QMP requires a finite positive socket timeout')
+        if not callable(check_generation):raise TypeError('Real generation checker required')
+        original=os.fstat(rx_fd)
+        private_fd=os.dup(rx_fd)
+        try:
+            info=os.fstat(private_fd)
+            identity=lambda value:(value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_nlink)
+            if identity(original)!=identity(info):
+                raise ValueError('Strict QMP RX evidence changed during duplication')
+            if not stat.S_ISREG(info.st_mode) or info.st_uid!=os.geteuid() or stat.S_IMODE(info.st_mode)!=0o600 or info.st_nlink!=1 or info.st_size:
+                raise ValueError('Strict QMP requires a fresh owned private regular RX evidence file')
+            os.pread(private_fd,1,0)
+        except BaseException:
+            try:os.close(private_fd)
+            except OSError:pass
+            raise
+        self.sock,self.check_generation=sock,check_generation
+        # dup pins caller-close lifetime, not immutable content: the original shares this inode.
+        self._rx_fd=private_fd
+        self._rx_identity=identity(info)
+        self._closed=False
+        self._close_error=None
+        self._received=0
+        self._buffer=bytearray()
+        self._state=threading.Lock()
+        self._inflight=threading.Lock()
+        self._failure_requested=threading.Event()
+        self._failed=self._greeted=self._acknowledged=self._recording=False
+        self._proc=None
+
+    def _healthy(self):
+        with self._state:
+            if self._closed or self._failed or self._failure_requested.is_set():
+                raise RuntimeError('Strict QMP failure latched or closed; no further commands')
+
+    def _fail(self,proc):
+        # Announce before waiting for state, so an ACK cannot hide a queued failure.
+        self._failure_requested.set()
+        with self._state:
+            self._failed=True
+            if proc is not None:proc._menu_qmp_desynchronized=True
+            if self._proc is not None:self._proc._menu_qmp_desynchronized=True
+
+    def _check(self,stage):
+        self._healthy()
+        self.check_generation(stage)
+        self._healthy()
+
+    @contextmanager
+    def transaction(self,proc,*,greeting=False):
+        if not self._inflight.acquire(blocking=False):
+            self._fail(proc)
+            raise RuntimeError('Strict QMP concurrent/reentrant request; failure latched')
+        try:
+            with self._state:
+                self._acknowledged=False
+                if (self._failed or self._failure_requested.is_set() or
+                        (self._proc is not None and self._proc is not proc) or
+                        getattr(proc,'_menu_qmp_desynchronized',False) or
+                        (greeting and self._greeted) or (not greeting and not self._greeted)):
+                    raise RuntimeError('Strict QMP boundary unavailable; failure latched')
+                self._proc=proc
+            self._check('transaction')
+            yield
+            self._healthy()
+        except BaseException:
+            if not self._acknowledged:self._fail(proc)
+            raise
+        finally:
+            self._inflight.release()
+
+    def _evidence_info(self,size=None):
+        if self._closed:raise RuntimeError('Strict QMP RX evidence is closed')
+        info=os.fstat(self._rx_fd)
+        identity=(info.st_dev,info.st_ino,info.st_mode,info.st_uid,info.st_nlink)
+        if identity!=self._rx_identity or (size is not None and info.st_size!=size):
+            raise ValueError('Strict QMP RX evidence identity or length changed')
+        return info
+
+    def close(self):
+        """Close only the adapter-owned duplicate; never close the socket or source FD."""
+        if not self._inflight.acquire(blocking=False):
+            self._fail(self._proc)
+            raise RuntimeError('Strict QMP close during active transaction; failure latched')
+        try:
+            if self._closed:
+                if self._close_error is not None:raise self._close_error
+                return
+            with self._state:
+                recording=self._recording
+            if recording:raise RuntimeError('Strict QMP close during RX evidence recording')
+            # Ignore length on teardown, but never close a replaced foreign descriptor.
+            try:self._evidence_info()
+            except BaseException as error:
+                # Unknown FD lifetime: retire the number without closing or checking it again.
+                self._rx_fd=None
+                self._closed=True
+                self._close_error=error
+                raise
+            private_fd,self._rx_fd=self._rx_fd,None
+            # Retire before close: an error may still have released and reused its FD number.
+            self._closed=True
+            try:os.close(private_fd)
+            except BaseException as error:
+                self._close_error=error
+                raise
+        except BaseException:
+            self._fail(self._proc)
+            raise
+        finally:
+            self._inflight.release()
+
+    def _record(self,raw):
+        # Consumed bytes are evidence even after another transaction has poisoned QMP.
+        with self._state:
+            reentrant=self._recording
+            if not reentrant:self._recording=True
+        if reentrant:
+            self._fail(self._proc)
+            raise RuntimeError('Strict QMP reentrant RX evidence; failure latched')
+        try:
+            start=self._received
+            self._evidence_info(start)
+            if start+len(raw)>8*1024*1024:raise ValueError('Strict QMP RX evidence budget exceeded')
+            written=os.pwrite(self._rx_fd,raw,start)
+            self._evidence_info(start+written)
+            if written!=len(raw):raise OSError('Short strict QMP evidence write')
+            os.fsync(self._rx_fd)
+            self._evidence_info(start+len(raw))
+            readback=os.pread(self._rx_fd,len(raw),start)
+            self._evidence_info(start+len(raw))
+            if readback!=raw:raise ValueError('Strict QMP RX evidence readback differs')
+            with self._state:self._received=start+len(raw)
+        except BaseException:
+            self._fail(self._proc)
+            raise
+        finally:
+            with self._state:self._recording=False
+
+    def readline(self,limit):
+        while True:
+            end=self._buffer.find(b'\n')+1
+            if end or len(self._buffer)>=limit:
+                end=min(end or limit,limit)
+                raw=bytes(self._buffer[:end]);del self._buffer[:end]
+                return raw
+            self._check('recv')
+            raw=self.sock.recv(min(4096,limit-len(self._buffer)))
+            self._proc._menu_qmp_last_raw=raw
+            if raw:self._record(raw)
+            # Record before checking: even a generation failure must retain received bytes.
+            self._check('recv-complete')
+            if not raw:
+                raw=bytes(self._buffer);self._buffer.clear()
+                return raw
+            self._buffer.extend(raw)
+
+    def write(self,raw):return self.sock.send(raw)
+    def flush(self):pass  # Raw socket writes have no userspace output buffer.
+
+    def _ack(self,*,greeting=False):
+        self._check('ack')
+        with self._state:
+            if self._failed or self._failure_requested.is_set():
+                raise RuntimeError('Strict QMP failure latched before ACK')
+            self._acknowledged=True
+            if greeting:self._greeted=True
+            self._proc._menu_qmp_desynchronized=False
+
+    def greeting(self,proc):
+        with self.transaction(proc,greeting=True):
+            proc._menu_qmp_desynchronized=True
+            raw=self.readline(65537)
+            proc._menu_qmp_last_raw=raw
+            self._check('frame')
+            reply=_qmp_decode_frame(raw)
+            if set(reply)!={'QMP'} or not isinstance(reply['QMP'],dict):
+                raise ValueError('Unexpected strict QMP greeting')
+            self._ack(greeting=True)
+            return reply
+
+
+def _qmp_decode_frame(raw):
+    if not raw or len(raw)>=65537 or not raw.endswith(b'\n'):raise OSError('Incomplete QMP reply')
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result:raise ValueError('Duplicate QMP JSON field')
+            result[key]=value
+        return result
+    reply=json.loads(raw,object_pairs_hook=unique)
+    if not isinstance(reply,dict):raise ValueError('QMP reply must be an object')
+    return reply
+
+
+def qmp_transaction(proc,stream,name,arguments=None,*,send=None):
+    """One QMP request; strict transport is opt-in, with the same return/send contract."""
+    if isinstance(stream,QMPStrictStream):
+        with stream.transaction(proc):
+            return _qmp_transaction(proc,stream,name,arguments,send=send)
+    return _qmp_transaction(proc,stream,name,arguments,send=send)
+
+
+def _qmp_transaction(proc,stream,name,arguments=None,*,send=None):
+    if getattr(proc,'_menu_qmp_desynchronized',False):
+        raise RuntimeError('QMP transaction boundary lost; no further commands')
+    request_id=secrets.token_hex(16)
+    message={'execute':name,'id':request_id}
+    if arguments is not None:message['arguments']=arguments
+    encoded=(json.dumps(message)+'\n').encode()
+    proc._menu_qmp_request_id=request_id
+    proc._menu_qmp_last_raw=None
+    proc._menu_qmp_desynchronized=True
+    if isinstance(stream,QMPStrictStream):stream._check('send')
+    if send is None:
+        if stream.write(encoded)!=len(encoded):raise OSError('Short QMP command write')
+        stream.flush()
+    else:
+        if send(encoded)!=len(encoded):raise OSError('Short QMP descriptor command write')
+    for _ in range(1024):
+        raw=stream.readline(65537)
+        proc._menu_qmp_last_raw=raw
+        if isinstance(stream,QMPStrictStream):stream._check('frame')
+        reply=_qmp_decode_frame(raw)
+        if 'event' in reply and not any(key in reply for key in ('id','return','error')):
+            continue
+        if reply.get('id')!=request_id or ('return' in reply)==('error' in reply):
+            raise ValueError('QMP reply does not match the current request')
+        if isinstance(stream,QMPStrictStream):stream._ack()
+        else:proc._menu_qmp_desynchronized=False
+        if 'error' in reply:raise RuntimeError(str(reply['error']))
+        del reply['id']
+        return reply
+    raise RuntimeError('QMP event budget exceeded; no response received')
+
+
 def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulted_cleanup=False):
     """Ignore echoed commands/prompts and require this command's exact RC sentinel."""
-    transport = getattr(proc, '_app_input_transport', None)
-    if transport is not None:
-        transport.pause()
     if getattr(proc, '_menu_serial_desynchronized', False):
         raise RuntimeError('Serial transaction boundary lost; retain VM for explicit recovery, no further commands')
-    monitor = None if allow_faulted_cleanup else (monitor or FirmwareMonitor(console))
-    if monitor:monitor.check()
     marker = 'MENU_DIAG_COMMAND_DONE_' + secrets.token_hex(12)
     wire = (command + "; rc=$?; printf '\\n" + marker + ":%s\\n' \"$rc\"\n").encode()
     if any(len(line) > 1000 for line in wire.split(b'\n')):
         raise ValueError('Guest serial physical command line exceeds safe1000-byte bound; split the command')
-    # Live console writers use O_APPEND; discard old exports only between commands.
-    if console.stat().st_size > 16 * 1024 * 1024:
-        verified_yc_preview(console.parent)  # preserve input admission before dropping its one-time log
-        with console.open('r+b') as old:
-            old.truncate(0)
+    # A running writer may still hold this inode; truncating it destroys evidence.
+    if console.stat().st_size > MAX_CONSOLE:
+        proc._menu_serial_desynchronized = True
+        raise RuntimeError('串口日志超过安全上限；保留原日志及 VM，禁止继续发送命令')
+    transport = getattr(proc, '_app_input_transport', None)
+    if transport is not None:
+        transport.pause()
+    monitor = None if allow_faulted_cleanup else (monitor or FirmwareMonitor(console))
+    if monitor:monitor.check()
     from console_wakeup import ConsoleWakeup
     with ConsoleWakeup(console) as wakeup, console.open('rb') as reader:
         reader.seek(0, 2)
+        proc._menu_serial_desynchronized = True
         proc.stdin.write(wire)
         proc.stdin.flush()
         data = bytearray()
@@ -323,13 +581,14 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
         while deadline is None or time.monotonic() < deadline:
             if monitor:monitor.check()
             data.extend(reader.read(65536))
-            if len(data) > 8 * 1024 * 1024:
-                raise RuntimeError('单次串口输出超过限制')
+            if len(data) > MAX_SERIAL_OUTPUT:
+                raise RuntimeError('单次串口输出超过限制；命令边界未知，保留 VM 和日志')
             clean = clean_console(bytes(data))
             if not allow_faulted_cleanup and b'Exception>' in clean:
                 raise RuntimeError('固件进入异常监视器')
             match = re.search(rb'\n' + marker.encode() + rb':([0-9]+)\n', clean)
             if match:
+                proc._menu_serial_desynchronized = False
                 if int(match[1]):
                     raise RuntimeError('guest 命令失败，返回码 ' + match[1].decode())
                 return bytes(data)
@@ -338,6 +597,126 @@ def serial_command(proc, console, command, timeout=90, monitor=None,allow_faulte
             wakeup.wait(.05 if deadline is None else min(.05, max(0, deadline - time.monotonic())))
     proc._menu_serial_desynchronized = True
     raise TimeoutError('串口命令缺少完成标记；停止 VM 以避免后续命令交错')
+
+
+@contextmanager
+def owner_signal_guard():
+    """Keep cooperative signals from dropping a live VM owner."""
+    previous={}
+    try:
+        for number in (signal.SIGTERM,signal.SIGINT):
+            previous[number]=signal.signal(number,lambda _number,_frame:None)
+        yield
+    finally:
+        for number,handler in previous.items():signal.signal(number,handler)
+
+
+def retain_running_owner(proc, run, cause=None, *, reason):
+    with owner_signal_guard():
+        return _retain_running_owner(proc,run,cause,reason=reason)
+
+
+def _retain_running_owner(proc, run, cause=None, *, reason):
+    """Keep the current owner alive while VM exit is not confirmed."""
+    if reason not in ('serial-boundary','qmp-exit'):
+        raise ValueError('Unknown owner-retention reason')
+    try:exited=proc.poll() is not None
+    except BaseException:exited=False
+    try:
+        receipt={'schema':'a7c2-unknown-owner-v3','pid':proc.pid,'reason':reason,
+                 'serial_boundary_known':False if getattr(proc,'_menu_serial_desynchronized',False) else None,
+                 'signals_sent':[],'owner_retention_intent':not exited,'process_exit_observed':exited,
+                 'cause':str(cause)[:2048] if cause else None}
+        filename=reason+'-unknown.json'
+        directory=os.open(run,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+        try:
+            folder=os.fstat(directory)
+            if not stat.S_ISDIR(folder.st_mode) or folder.st_uid!=os.geteuid() or folder.st_mode&0o022:
+                raise ValueError('Serial owner receipt directory is not owned')
+            last=getattr(proc,'_menu_qmp_last_raw',None) if reason=='qmp-exit' else None
+            receipt['qmp_request_id']=getattr(proc,'_menu_qmp_request_id',None) if reason=='qmp-exit' else None
+            receipt['qmp_last_wire_frame_available']=isinstance(last,bytes)
+            if isinstance(last,bytes):
+                raw_fd=os.open('qmp-unknown-last-frame.raw',os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600,dir_fd=directory)
+                try:
+                    if os.write(raw_fd,last)!=len(last):raise OSError('Short QMP evidence write')
+                    os.fsync(raw_fd)
+                    if os.pread(raw_fd,len(last)+1,0)!=last:raise ValueError('QMP evidence readback differs')
+                finally:os.close(raw_fd)
+                receipt['qmp_last_wire_frame_sha256']=hashlib.sha256(last).hexdigest()
+            fd=os.open(filename,os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600,dir_fd=directory)
+            try:
+                raw=(json.dumps(receipt,indent=2,allow_nan=False)+'\n').encode()
+                if os.write(fd,raw)!=len(raw):raise OSError('Short serial owner receipt write')
+                os.fsync(fd)
+                info=os.fstat(fd);named=os.stat(filename,dir_fd=directory,follow_symlinks=False)
+                if (info.st_dev,info.st_ino,info.st_size)!=(named.st_dev,named.st_ino,len(raw)) or os.pread(fd,len(raw)+1,0)!=raw:
+                    raise ValueError('Serial owner receipt readback differs')
+                os.fsync(directory)
+            finally:os.close(fd)
+        finally:os.close(directory)
+    except BaseException as error:
+        try:print('SERIAL_OWNER_RECEIPT_FAILED '+repr(error),flush=True)
+        except BaseException:pass
+    if exited:return False
+    try:print('SERIAL_OWNER_RETAINED pid='+str(proc.pid)+' no-signals',flush=True)
+    except BaseException:pass
+    reported=False
+    while True:
+        try:
+            if proc.poll() is not None:break
+            proc.wait()
+        except (InterruptedError,KeyboardInterrupt):continue
+        except Exception as error:
+            if not reported:
+                try:print('SERIAL_OWNER_WAIT_FAILED '+repr(error),flush=True)
+                except BaseException:pass
+                reported=True
+            try:time.sleep(.2)
+            except KeyboardInterrupt:pass
+    return True
+
+
+@contextmanager
+def guard_live_owner(proc,run):
+    try:yield
+    except BaseException as error:
+        retain_running_owner(proc,run,error,reason='qmp-exit')
+        raise
+
+
+def retain_process_group(proc):
+    with owner_signal_guard():
+        return _retain_process_group(proc)
+
+
+def _retain_process_group(proc):
+    reported=False
+    while True:
+        try:
+            os.killpg(proc.pid,0)
+        except ProcessLookupError:break
+        except BaseException as probe_error:
+            if not reported:
+                try:print('OWNER_GROUP_IDENTITY_UNKNOWN '+repr(probe_error),flush=True)
+                except BaseException:pass
+                reported=True
+        try:time.sleep(.5)
+        except (KeyboardInterrupt,InterruptedError):continue
+
+
+@contextmanager
+def guard_process_group(proc,run):
+    try:yield
+    except BaseException as error:
+        retain_running_owner(proc,run,error,reason='qmp-exit')
+        retain_process_group(proc)
+        raise
+
+
+def retain_serial_owner(proc,run,cause=None):
+    if not getattr(proc,'_menu_serial_desynchronized',False):return False
+    return retain_running_owner(proc,run,cause,reason='serial-boundary')
 
 
 def verified_yc_preview(run):

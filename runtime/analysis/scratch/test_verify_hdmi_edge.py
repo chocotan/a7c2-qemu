@@ -1631,10 +1631,33 @@ def test_approved_source_sets_require_a_complete_tuple(new_main, new_recipe):
             v._condition_source_set(sources)
 
 
-def test_actual_current_sources_match_parent_approved_exact_set():
-    sources = {str(BASE / name): {'sha256': hashlib.sha256((BASE / name).read_bytes()).hexdigest()}
-               for name in v.PRODUCT_DEVELOPMENT_20261108_SOURCES}
-    assert v._condition_source_set(sources) == v.PRODUCT_DEVELOPMENT_20261108_SOURCES
+def test_historical_condition_recipe_is_bound_to_reviewed_observer():
+    selected = {
+        'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2',
+        'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722',
+        'menu-observe.c': '9d880941dbb3c8b58b9d020563a006fc216a6a69a9ce6281ec73dd627fe711c4',
+        'build-observers.sh': 'a9f33123ee99178589dc73377b378f90bfc2c053e43b582870709e495f75bd1d',
+    }
+    sources = {str(BASE / name): {'sha256': digest} for name, digest in selected.items()}
+    assert v._condition_source_set(sources) == selected
+    sources[str(BASE / 'build-observers.sh')]['sha256'] = '38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f'
+    with pytest.raises(ValueError, match='unreviewed condition ledger/hook source set'):
+        v._condition_source_set(sources)
+
+
+def test_actual_current_sources_are_not_approved_as_historical_evidence():
+    current = {name: hashlib.sha256((BASE / name).read_bytes()).hexdigest()
+               for name in v.ISOLATED_OBSERVER_CONCURRENCY_SOURCES}
+    assert current == v.ISOLATED_OBSERVER_CONCURRENCY_SOURCES
+    for candidate in (v.ISOLATED_OBSERVER_CONCURRENCY_SOURCES, v.ISOLATED_OBSERVER_BT_COMPILEFIX_SOURCES,
+                      v.ISOLATED_OBSERVER_BT_BOUNDARY_SOURCES, v.ISOLATED_OBSERVER_AUDITFIRST_SOURCES,
+                      v.ISOLATED_OBSERVER_FORMATFIX_SOURCES):
+        sources = {str(BASE / name): {'sha256': digest} for name, digest in candidate.items()}
+        with pytest.raises(ValueError, match='unreviewed condition ledger/hook source set'):
+            v._condition_source_set(sources)
+    historical = {str(BASE / name): {'sha256': digest}
+                  for name, digest in v.PRODUCT_DEVELOPMENT_20261108_SOURCES.items()}
+    assert v._condition_source_set(historical) == v.PRODUCT_DEVELOPMENT_20261108_SOURCES
 
 
 @pytest.mark.parametrize('version', ('FOCUS_RESET_CONDITION_SOURCES', 'FOCUS_RESET_ZERO_INIT_CONDITION_SOURCES', 'SCENE_FOCUS_MIRROR_CONDITION_SOURCES', 'HUTI_FOCUS_QUERY_CONDITION_SOURCES', 'PKNP_VDF163_DISPATCH_CONDITION_SOURCES', 'OV45_HDMI_SIGNAL_MODE_CONDITION_SOURCES', 'E6U_HDMI_INITIAL_PREFIX_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_CONDITION_SOURCES', 'GKH1_CP4073_ZERO_RETIRE_CONDITION_SOURCES', 'VDF170_EFRAMING_CONDITION_SOURCES', 'ZQ6_CP_PARAMETER_BANK_CONDITION_SOURCES'))

@@ -1,3 +1,5 @@
+import errno
+import fcntl
 import hashlib
 import json
 import os
@@ -62,6 +64,83 @@ class CameraDiskTests(unittest.TestCase):
         with api['lease'](self.output) as second:
             self.assertEqual(os.pread(second['fd'],19,position),b'changed appFw block')
         self.assertEqual((self.source/'a7c2-usr.img').read_bytes(),bytes([15])*4096)
+
+    def test_inherited_disk_ofd_blocks_new_lease_until_last_descriptor_closes(self):
+        self.create();held=None;image=self.output/'camera.emmc'
+        before=hashlib.sha256(image.read_bytes()).hexdigest()
+        try:
+            with api['lease'](self.output) as first:
+                held=os.dup(first['fd'])
+            with self.assertRaises(BlockingIOError):
+                with api['lease'](self.output):self.fail('live OFD admitted another writer')
+            self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),before)
+            lock=api['_DiskLock'](fcntl.F_WRLCK,os.SEEK_SET,0,1,0)
+            fcntl.fcntl(held,fcntl.F_OFD_SETLK,bytes(lock))
+            self.assertEqual(os.pread(held,8,0),b'82462.00')
+        finally:
+            if held is not None:os.close(held)
+        with api['lease'](self.output) as second:
+            self.assertEqual(os.pread(second['fd'],8,0),b'82462.00')
+
+    def test_unsupported_disk_lock_abi_refuses_lease_without_writing(self):
+        self.create();image=self.output/'camera.emmc';before=hashlib.sha256(image.read_bytes()).hexdigest()
+        with patch.dict(api['lease'].__wrapped__.__globals__,ctypes=SimpleNamespace(sizeof=lambda _type:0)):
+            with self.assertRaisesRegex(ValueError,'Unsupported OFD'):
+                with api['lease'](self.output):self.fail('unsupported ABI admitted')
+        self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),before)
+
+    def test_ofd_lock_error_fails_closed_and_releases_lease(self):
+        self.create();image=self.output/'camera.emmc';before=hashlib.sha256(image.read_bytes()).hexdigest()
+        def reject(*_args):raise OSError(errno.EINVAL,'OFD lock unsupported')
+        proxy=SimpleNamespace(flock=fcntl.flock,LOCK_EX=fcntl.LOCK_EX,LOCK_NB=fcntl.LOCK_NB,
+                              F_OFD_SETLK=fcntl.F_OFD_SETLK,F_WRLCK=fcntl.F_WRLCK,fcntl=reject)
+        with patch.dict(api['lease'].__wrapped__.__globals__,fcntl=proxy):
+            with self.assertRaises(OSError) as error:
+                with api['lease'](self.output):self.fail('unsupported lock admitted')
+        self.assertEqual(error.exception.errno,errno.EINVAL)
+        self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),before)
+        with api['lease'](self.output) as leased:self.assertEqual(os.pread(leased['fd'],8,0),b'82462.00')
+
+    def test_lock_open_failure_closes_instance_directory(self):
+        self.create();opened=[];original=api['lease'].__wrapped__.__globals__['SECURE_OPEN']
+        def secure(path,*args,**kwargs):
+            if kwargs.get('directory'):
+                fd=original(path,*args,**kwargs);opened.append(fd);return fd
+            if Path(path).name=='.disk.lock':raise FileNotFoundError('synthetic missing lock')
+            return original(path,*args,**kwargs)
+        with patch.dict(api['lease'].__wrapped__.__globals__,SECURE_OPEN=secure):
+            with self.assertRaisesRegex(FileNotFoundError,'missing lock'):
+                with api['lease'](self.output):self.fail('missing lock admitted')
+        self.assertEqual(len(opened),1)
+        with self.assertRaises(OSError):os.fstat(opened[0])
+
+    def test_owner_marker_binds_actual_shared_lease_and_survives_release(self):
+        from owner_quarantine import Marker,Rejected
+        self.create();marker=self.output/'owner-quarantine.json'
+        with api['lease'](self.output) as leased:
+            token=Marker(leased['dir_fd'],leased['lock_fd'],leased['fd'],'synthetic-run','synthetic-owner')
+            try:
+                token.arm_before_gate();token.require_armed_before_gate()
+                raw=marker.read_bytes()
+            finally:token.close()
+        self.assertEqual(marker.read_bytes(),raw)
+        with self.assertRaisesRegex(Rejected,'unfinished quarantine marker'):
+            with api['lease'](self.output):self.fail('retained owner marker ignored')
+        self.assertEqual(marker.read_bytes(),raw)
+
+    def test_unfinished_owner_marker_blocks_shared_disk_lease(self):
+        self.create();image=self.output/'camera.emmc';before=hashlib.sha256(image.read_bytes()).hexdigest()
+        marker=self.output/'owner-quarantine.json';marker.write_bytes(b'partial or unknown owner')
+        with self.assertRaisesRegex(RuntimeError,'unfinished quarantine marker'):
+            with api['lease'](self.output):self.fail('unfinished owner admitted')
+        self.assertEqual(marker.read_bytes(),b'partial or unknown owner')
+        self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),before)
+
+    def test_quarantine_marker_symlink_never_counts_as_absent(self):
+        self.create();marker=self.output/'owner-quarantine.json';marker.symlink_to(self.root/'missing')
+        with self.assertRaisesRegex(RuntimeError,'unfinished quarantine marker'):
+            with api['lease'](self.output):self.fail('symlink marker admitted')
+        self.assertTrue(marker.is_symlink())
 
     def test_pending_settings_recovery_blocks_all_disk_leases(self):
         self.create();image=self.output/'camera.emmc';before=hashlib.sha256(image.read_bytes()).hexdigest()

@@ -134,6 +134,12 @@ int main(void) {
     capture_shutter_route(3,(unsigned long)manager,(unsigned long)raw,0,0);
     assert(records==33 && strstr(last,"stage=3"));
     raw[2]=0x1234;capture_shutter_route(3,0,(unsigned long)raw,0,0);assert(records==33);
+    raw[0]=0x1f3;capture_shutter_route(0,0,(unsigned long)raw,0,0);
+    assert(records==34 && strstr(last,"words=[0x1f3,"));
+    raw[2]=0x02130000;capture_shutter_route(3,0,(unsigned long)raw,0,0);
+    assert(records==35 && strstr(last,"0x2130000"));
+    raw[2]=0x02130001;capture_shutter_route(3,0,(unsigned long)raw,0,0);
+    assert(records==36 && strstr(last,"0x2130001"));
     return 0;
 }
 '''
@@ -169,6 +175,8 @@ static void record(const char *prefix,const char *line) {
 int main(void) {
     unsigned char frame[64]={0},frame_copy[64];
     unsigned int event[8]={0},event_copy[8],mode_event[8]={0},ee_obj[16]={0},raw=0x02060001;
+    assert(shutter_detail_code(0x02130000) && shutter_detail_code(0x02130001));
+    assert(!shutter_detail_code(0x02130002));
     unsigned short desc[92]={0};
     unsigned long methods[3]={0,0,appfw_base+0x1234};
     unsigned long vtable=(unsigned long)methods;
@@ -180,6 +188,11 @@ int main(void) {
     assert(inhibit_page!=MAP_FAILED);
     *(unsigned char *)(appfw_base+0x83337e3)=0xa5;
     *(unsigned char *)(appfw_base+0x83337e4)=0xfe;
+    *(unsigned char *)(appfw_base+0x8333ba5)=0x81;
+    *(unsigned int *)(appfw_base+0x7e6efb0)=1;
+    *(unsigned int *)(appfw_base+0x7ed9ac0)=0x12;
+    *(unsigned int *)(appfw_base+0x7e6f070)=2;
+    *(unsigned int *)(appfw_base+0x7e82310)=0x34;
     void *product=mmap((void *)(appfw_base+0x370c000),0x1000,
                        PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,-1,0);
     void *groups=mmap((void *)(appfw_base+0x3dcf000),0x1000,
@@ -216,11 +229,13 @@ int main(void) {
     assert(errno==EDOM && records==3 && strstr(last,"handler=appFw+0x1b54dc0") && strstr(last,"code=0x2070000"));
     assert(strstr(last,"state_c408=0x11") && strstr(last,"state_d428=0x22") && strstr(last,"state_71f00=0x33"));
     assert(strstr(last,"state_d498=0x44") && strstr(last,"reads=16/4/4/4/4"));
-    unsigned int id=0x40a;
-    capture_shutter_flow(0,(unsigned long)event,0x111,0x222,0x333);
+    unsigned int id=0x40a, direct_class=6;
+    capture_shutter_flow(0,(unsigned long)event,(unsigned long)&direct_class,0x222,0x333);
     assert(records==4 && strstr(last,"site=core") && strstr(last,"code=0x2070000"));
+    assert(strstr(last,"direct_inputs_v=1 direct_class=0x6 direct_6efb0=0x1 direct_d9ac0=0x12"));
+    assert(strstr(last,"direct_6f070=0x2 direct_82310=0x34 direct_33ba5=0x81 direct_reads=4/4/4/4/4/1"));
     capture_shutter_flow(1,(unsigned long)(event+7),0,0,0);
-    assert(records==5 && strstr(last,"site=final") && strstr(last,"code=0x2070000"));
+    assert(records==5 && strstr(last,"site=final") && strstr(last,"code=0x2070000") && !strstr(last,"direct_inputs_v="));
     assert(strstr(last,"press_local=0x99") && strstr(last,"transition_67fc8=0x66"));
     assert(strstr(last,"inhibit_83337e3=0xa5") && strstr(last,"duplicate_d570=0x77"));
     assert(strstr(last,"gate_reads=4/4/1/4 observation_only=1 atomic_snapshot=0 original_branch_observed=0"));
@@ -445,6 +460,8 @@ def test_system_mode_records_are_mirrored_to_the_console():
     assert '"SYSTEM_MODE "' in block
     assert '"SHUTTER_MODE "' in block
     assert '"EE_SEQUENCE "' in block
+    assert '"CAPTURE_INHIBIT_SOURCE "' in block
+    assert '"EE_TRANSITION_TRACE "' in block
     assert '"SEQUENCE_QUEUE "' in block
     assert '"SEQUENCE_CREATE "' in block
     assert '"MODE_FACTORY "' in block

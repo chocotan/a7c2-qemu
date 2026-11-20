@@ -445,7 +445,7 @@
     {"asset":"I","address":1183332,"bytes":96,"sha256":"96de5449b85b530fc2afe639cbf1bd8b5452dfe169c5f47757739a1108d72db5","purpose":"Main ACK ignores status and returns zero","runtime_fnv1a64":"464e48ea08c2cf3a"},
     {"asset":"I","address":1191420,"bytes":76,"sha256":"df72c9e111fbf94d28c9d28293236fcf7d60e200462013ec029707a2bbbefb89","purpose":"distinct original MainComp wait Exec","runtime_fnv1a64":"b3d0afdf302e393f"},
     {"asset":"I","address":1190724,"bytes":696,"sha256":"1aef4a43b72776ae27c8fa96901f04758efc02d5c5cdd0128f1fe8e3bef950e9","purpose":"original MainComp DONE status, key1048 pointer and three actual length stores","runtime_fnv1a64":"d26134b62e7fd103"},
-    {"asset":"I","address":673508,"bytes":196,"sha256":"4f369139be02e942d26973679172723d1d10fe9561ba35af751c8ea83025341f","purpose":"existing original ParameterControl pointer getter; virtual slot a8 must match","runtime_fnv1a64":"5f07e9e6ab435299"},
+    {"asset":"I","address":673508,"bytes":196,"sha256":"4f369139be02e942d26973679172723d1d10fe9561ba35af751c8ea83025341f","purpose":"existing original ParameterControl pointer getter; virtual slot b0 must match","runtime_fnv1a64":"5f07e9e6ab435299"},
     {"asset":"I","address":1186720,"bytes":984,"sha256":"8a3678da3afc9c3302236fbc4df87f93fa9a1792669e1bce7e72d63b97f7cb5c","purpose":"original selector0 width, quality codes 0/1/2/6 and addSoi0"},
     {"asset":"I","address":1187704,"bytes":936,"sha256":"ca2584739dcdfd32f277a49e08006acc51e9cd7a946a00e72c9966ffb69b8db8","purpose":"original selector1 160x120 quality4 addSoi1"},
     {"asset":"I","address":1188640,"bytes":932,"sha256":"f96daa2d755e632b4ddf2d185d63e2f53fd5e44b315009a420b3df80fd85a0e1","purpose":"original selector2 ScreenNail quality3 addSoi0"},

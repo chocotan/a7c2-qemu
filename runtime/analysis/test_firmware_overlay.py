@@ -92,6 +92,15 @@ class OverlayTests(unittest.TestCase):
                 verify_image(self.output, {'usr/lib/appFw.so': sha(b'official')})
                 self.output.unlink()
 
+    def test_many_small_entries_recheck_cumulative_output_space(self):
+        for index in range(8):
+            self.put(f'items/{index}.bin', b'x'*16)
+        with mock.patch.object(overlay, 'SPACE_CHECK_INTERVAL', 128), \
+                mock.patch.object(overlay, '_space', wraps=overlay._space) as checked:
+            self.build()
+        self.assertGreater(checked.call_count, 1)
+        self.assertEqual(self.base.read_bytes(), self.original)
+
     def test_zero_length_file(self):
         self.put('zero', b'')
         result = self.build()
@@ -199,9 +208,9 @@ class OverlayTests(unittest.TestCase):
         original_copy = overlay._copy
         changed = False
 
-        def change(stream, output, length, digest=None):
+        def change(stream, output, length, digest=None, guard=None):
             nonlocal changed
-            original_copy(stream, output, length, digest)
+            original_copy(stream, output, length, digest, guard)
             if output is not None and digest is not None and not changed:
                 changed = True
                 source.unlink()
@@ -217,8 +226,8 @@ class OverlayTests(unittest.TestCase):
         source = self.put('payload', b'before')
         original_copy = overlay._copy
 
-        def change(stream, output, length, digest=None):
-            original_copy(stream, output, length, digest)
+        def change(stream, output, length, digest=None, guard=None):
+            original_copy(stream, output, length, digest, guard)
             if output is not None and digest is not None:
                 source.write_bytes(b'after!')
 
@@ -231,9 +240,9 @@ class OverlayTests(unittest.TestCase):
         original_copy = overlay._copy
         changed = False
 
-        def change(stream, output, length, digest=None):
+        def change(stream, output, length, digest=None, guard=None):
             nonlocal changed
-            original_copy(stream, output, length, digest)
+            original_copy(stream, output, length, digest, guard)
             if output is not None and not changed:
                 changed = True
                 with self.base.open('ab') as base:
@@ -301,9 +310,9 @@ class OverlayTests(unittest.TestCase):
         original_copy = overlay._copy
         changed = False
 
-        def change(stream, output, length, digest=None):
+        def change(stream, output, length, digest=None, guard=None):
             nonlocal changed
-            original_copy(stream, output, length, digest)
+            original_copy(stream, output, length, digest, guard)
             if output is not None and digest is not None and not changed:
                 changed = True
                 (self.source / 'nested').rename(self.source / 'renamed')
@@ -318,10 +327,10 @@ class OverlayTests(unittest.TestCase):
         self.put('payload')
         original_copy = overlay._copy
 
-        def fail(stream, output, length, digest=None):
+        def fail(stream, output, length, digest=None, guard=None):
             if output is not None and digest is not None:
                 raise OSError('injected read failure')
-            original_copy(stream, output, length, digest)
+            original_copy(stream, output, length, digest, guard)
 
         with mock.patch.object(overlay, '_copy', side_effect=fail):
             with self.assertRaisesRegex(OSError, 'read failure'):

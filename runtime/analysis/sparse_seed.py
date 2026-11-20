@@ -3,13 +3,16 @@
 Only nonzero 4 KiB blocks enter RAM0. The guest reconstructs and hashes the full
 ordinary image before original Fsys consumes it; no host block device is used.
 """
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import stat
 
-from sd_transport import card_source
+from sd_transport import card_source, identity
 
 TOTAL = 1024**3
 BLOCK = 4096
@@ -22,8 +25,37 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def build(source, destination):
-    """Create a fresh seed directory; failures remain for diagnosis."""
+@contextmanager
+def _source(source, source_fd):
+    """A supplied FD is the input capability; never reopen its descriptive path."""
+    if source_fd is None:
+        with card_source(source) as fd:
+            yield fd
+        return
+    if type(source_fd) is not int or source_fd < 0:
+        raise ValueError('Sparse seed requires an exact caller-held source FD')
+    fd = os.dup(source_fd)
+    try:
+        before = os.fstat(fd)
+        if (not stat.S_ISREG(before.st_mode) or before.st_uid != os.geteuid() or
+                before.st_nlink != 1 or stat.S_IMODE(before.st_mode) != 0o600 or
+                fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY):
+            raise ValueError('Sparse seed FD requires owned single-link 0600 read-only input')
+        yield fd
+        after = os.fstat(fd)
+        if (identity(before) != identity(after) or before.st_mode != after.st_mode or
+                before.st_nlink != after.st_nlink or before.st_uid != after.st_uid):
+            raise ValueError('Sparse seed FD identity changed while packaging')
+    finally:
+        os.close(fd)
+
+
+def build(source, destination, *, source_fd=None):
+    """Create a fresh seed directory; failures remain for diagnosis.
+
+    source_fd is an optional borrowed, read-only capability. The caller keeps its
+    lease until packaging and later consumption finish; source is then a label.
+    """
     destination = Path(destination).absolute()
     if '..' in destination.parts or destination.exists() or destination.is_symlink():
         raise ValueError('Sparse seed requires a fresh ordinary destination')
@@ -58,7 +90,7 @@ def build(source, destination):
         data_bytes += len(raw)
         pending = bytearray()
 
-    with card_source(source) as fd:
+    with _source(source, source_fd) as fd:
         before = os.fstat(fd)
         if before.st_size != TOTAL:
             raise ValueError('The product camera SD must be exactly 1 GiB')

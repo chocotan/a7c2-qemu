@@ -20,6 +20,8 @@ struct full_vdf_snapshot {
     unsigned char panel_shadow[64], panel_valid[2], panel_size[2];
     unsigned int panel_pending, panel_caller;
     unsigned long long panel_applied, panel_invalid;
+    unsigned long long panel_out_nochange;
+    unsigned int panel_out_applied_mask;
     unsigned int reverse_properties[4], reverse_osd, reverse_control;
     unsigned char reverse_internal[20];
     unsigned long long reverse_applied, reverse_control_consumed;
@@ -27,6 +29,10 @@ struct full_vdf_snapshot {
 /* Disabled dispatch preserves original transport. Enabled transport errors keep
  * the caller's request. Success consumes it once; reply ownership is separate. */
 int full_vdf_dispatch(unsigned int, void *, const struct full_imaging_io *, int, int *);
+/* Only the original LCD-on/EVF-off boot request can be a no-change operation.
+ * read_outputs must inspect the installed output consumers, not request bytes. */
+int full_vdf_panel_out_dispatch(unsigned int, void *, const struct full_imaging_io *,
+                                int (*read_outputs)(unsigned int *, unsigned int *), int, int *);
 /* Explicit virtual immediate-panel subset; no hardware events or flipped pixels. */
 int full_vdf_reverse_dispatch(unsigned int, void *, const struct full_imaging_io *, int, int *);
 /* Call independently of the current enable switch: existing leases still own

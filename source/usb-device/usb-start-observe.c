@@ -228,6 +228,76 @@ static uintptr_t u_complete(uint32_t event,uintptr_t arg,int32_t status) {
 
 #include "usb-msc-sender.inc"
 
+#ifdef USB_MSC_SCHEDULER_OBSERVE
+#if USB_MSC_SCHEDULER_OBSERVE != 1
+#error "MSC scheduler observations require explicit =1"
+#endif
+/* Only original calls are delegated; no getter, callback, event or request is synthesized. */
+static uintptr_t (*real_msc_page_init)(uintptr_t,uintptr_t);
+static uint32_t (*real_msc_page_event)(uintptr_t,uintptr_t,uint32_t);
+static void (*real_msc_submit)(uintptr_t,uint32_t,uintptr_t);
+static void (*real_msc_consume)(uintptr_t);
+static void msc_page_state(const char *phase,uintptr_t self) {
+    unsigned char flags[7]={0},again[7]={0};char hex[15];
+    uint32_t config1=0,config2=0,check1=0,check2=0;
+    int readable=readmem(self?self+0x302:0,flags,sizeof flags)&&
+        readmem(app_base+0x7e640c0+0x218,&config1,4)&&readmem(app_base+0x7e64080,&config2,4);
+    int stable=readable&&readmem(self+0x302,again,sizeof again)&&!memcmp(flags,again,sizeof flags)&&
+        readmem(app_base+0x7e640c0+0x218,&check1,4)&&config1==check1&&
+        readmem(app_base+0x7e64080,&check2,4)&&config2==check2;
+    for(unsigned i=0;i<sizeof flags;i++)snprintf(hex+2*i,3,"%02x",flags[i]);
+    emit(!readable||!stable,"MSC_PAGE_STATE","phase=%s self=%#lx flags302_308=%s config1=%#x config2=%#x readable=%u stable=%u atomic=0",phase,self,hex,config1,config2,readable,stable);
+}
+static uintptr_t u_msc_page_init(uintptr_t self,uintptr_t argument) {
+    int saved=errno;
+    emit(0,"MSC_PAGE_INIT_ENTER","self=%#lx x1=%#lx lr=%p",self,argument,__builtin_return_address(0));
+    msc_page_state("init-enter",self);errno=saved;
+    uintptr_t raw=real_msc_page_init(self,argument);int e=errno;
+    emit(0,"MSC_PAGE_INIT_RETURN","self=%#lx return_semantics=unclassified",self);
+    msc_page_state("init-return",self);errno=e;return raw;
+}
+static int msc_page_event_relevant(uint32_t id) {
+    return (id>=0x01000053&&id<=0x01000058)||id==0x01000116||id==0x01000289||id==0x01000291;
+}
+static uint32_t u_msc_page_event(uintptr_t self,uintptr_t event,uint32_t id) {
+    int saved=errno,relevant=msc_page_event_relevant(id);
+    if(relevant){
+        uint32_t a=0,b=0,c=0,aa=0,bb=0,cc=0;
+        int readable=event&&readmem(event+8,&a,4)&&readmem(event+0xc,&b,4)&&readmem(event+0x14,&c,4);
+        int stable=readable&&readmem(event+8,&aa,4)&&a==aa&&readmem(event+0xc,&bb,4)&&b==bb&&readmem(event+0x14,&cc,4)&&c==cc;
+        emit(!readable||!stable,"MSC_PAGE_EVENT_ENTER","self=%#lx event=%#lx id=%#x event8=%#x eventc=%#x event14=%#x readable=%u stable=%u atomic=0 lr=%p",self,event,id,a,b,c,readable,stable,__builtin_return_address(0));
+        msc_page_state("event-enter",self);
+    }
+    errno=saved;uint32_t r=real_msc_page_event(self,event,id);int e=errno;
+    if(relevant){emit(0,"MSC_PAGE_EVENT_RETURN","self=%#lx event=%#lx id=%#x w0=%#x",self,event,id,r);msc_page_state("event-return",self);}
+    errno=e;return r;
+}
+static void msc_request_gate(const char *phase) {
+    uint32_t gate=0,again=0;int readable=readmem(app_base+0x7e4e608,&gate,4);
+    int stable=readable&&readmem(app_base+0x7e4e608,&again,4)&&gate==again;
+    emit(!readable||!stable,"MSC_REQUEST_GATE","phase=%s gate_raw32=%#x gate_low8=%#x readable=%u stable=%u atomic=0",phase,gate,gate&255,readable,stable);
+}
+static void u_msc_submit(uintptr_t input,uint32_t flag,uintptr_t associated) {
+    int saved=errno;
+    emit(0,"MSC_SUBMIT_ENTER","input=%#lx flag_low8=%#x x1_raw=%#x associated=%#lx lr=%p",input,flag&255,flag,associated,__builtin_return_address(0));
+    msc_request_gate("submit-enter");errno=saved;
+    real_msc_submit(input,flag,associated);int e=errno;
+    emit(0,"MSC_SUBMIT_RETURN","input=%#lx return_type=void",input);
+    msc_request_gate("submit-return");errno=e;
+}
+static void u_msc_consume(uintptr_t request) {
+    int saved=errno;unsigned char data[24]={0},again[24]={0};
+    int readable=readmem(request,data,sizeof data);
+    int stable=readable&&readmem(request,again,sizeof again)&&!memcmp(data,again,sizeof data);
+    uint32_t id,flag;uintptr_t associated,input;
+    memcpy(&id,data,4);memcpy(&flag,data+4,4);memcpy(&associated,data+8,8);memcpy(&input,data+0x10,8);
+    emit(!readable||!stable,"MSC_CONSUME_ENTER","request=%#lx id=%#x flag=%#x associated=%#lx input=%#lx readable=%u stable=%u atomic=0 lr=%p",request,id,flag,associated,input,readable,stable,__builtin_return_address(0));
+    errno=saved;real_msc_consume(request);int e=errno;
+    /* Request ownership may end during the call: never dereference it after delegation. */
+    emit(0,"MSC_CONSUME_RETURN","request=%#lx return_type=void",request);errno=e;
+}
+#endif
+
 /* Compact SHA-256 keeps verification inside the process, before installing hooks. */
 static uint32_t rr(uint32_t x,unsigned n){return(x>>n)|(x<<(32-n));}
 static const uint32_t k[64]={
@@ -367,6 +437,12 @@ static int find_dso(struct dl_phdr_info *info,size_t size,void *arg) {
     emit(0,"DSO_IDENTITY","path=%s map=%s base=%#lx bytes=%zu sha256=%s pid=%ld",path,info->dlpi_name,base,bytes,sha,(long)getpid());
     if(app){
         struct entry entries[]={
+#ifdef USB_MSC_SCHEDULER_OBSERVE
+            {0x207665c,{0xa9b97bfd,0x52800403,0x52800022,0x910003fd},u_msc_page_init,(void **)&real_msc_page_init},
+            {0x19005f4,{0xa9bc7bfd,0x910003fd,0xa90153f3,0xaa0003f3},u_msc_page_event,(void **)&real_msc_page_event},
+            {0x24f2db4,{0xa9ba7bfd,0x910003fd,0xa90153f3,0xaa0003f4},u_msc_submit,(void **)&real_msc_submit},
+            {0x24871a4,{0xa9be7bfd,0x910003fd,0xf9000bf3,0xaa0003f3},u_msc_consume,(void **)&real_msc_consume},
+#endif
 #ifdef USB_RESOURCE_OBSERVE
             {0x34e552c,{0xa9b87bfd,0x910003fd,0xa9025bf5,0x9101c3b6},u_resource_rpc,(void **)&real_resource_rpc},
 #endif
@@ -374,6 +450,9 @@ static int find_dso(struct dl_phdr_info *info,size_t size,void *arg) {
             {0x354db04,{0xa9b87bfd,0x52820062,0x52874001,0x910003fd},u_ap_send,(void **)&real_ap_send}};
         for(unsigned i=0;i<sizeof entries/sizeof *entries;i++)entry_install(base,entries+i);
         app_base=base;
+#ifdef USB_MSC_SCHEDULER_OBSERVE
+        emit(0,"MSC_SCHEDULER_TAPS_ARMED","base=%#lx group=6 taps=4 passive=1",base);
+#endif
 #ifdef USB_EE_OBSERVER
         ee_install(base);
 #endif
@@ -447,9 +526,26 @@ __attribute__((constructor)) static void initialize(void) {
     errno=saved;
 }
 static void *usb_loader_dlopen(const char *name,int flags) {
+    static unsigned int msc_loads;
+    int incoming=errno,trace=0;
     if(!next_dlopen)initialize();
+    if(name) {
+        const char *leaf=strrchr(name,'/');
+        leaf=leaf?leaf+1:name;
+        if(!strcmp(leaf,"libInfraMscServer.so")) {
+            unsigned int count=__atomic_load_n(&msc_loads,__ATOMIC_RELAXED);
+            while(count<16u && !__atomic_compare_exchange_n(&msc_loads,&count,count+1u,0,__ATOMIC_RELAXED,__ATOMIC_RELAXED)) {}
+            trace=count<16u;
+        }
+    }
+    if(trace)emit(0,"MSC_DLOPEN_ENTER","name=%.256s flags=%#x caller=%p passive=1",
+                  name,(unsigned int)flags,__builtin_return_address(0));
+    errno=incoming;
     void *handle=next_dlopen(name,flags);int saved=errno;
-    if(handle)dl_iterate_phdr(find_dso,0);errno=saved;return handle;
+    if(handle)dl_iterate_phdr(find_dso,0);
+    if(trace)emit(0,"MSC_DLOPEN","name=%.256s flags=%#x handle=%p errno=%d caller=%p passive=1",
+                  name,(unsigned int)flags,handle,saved,__builtin_return_address(0));
+    errno=saved;return handle;
 }
 static void *usb_loader_dlsym(void *handle,const char *name) {
     if(!lookup)initialize();

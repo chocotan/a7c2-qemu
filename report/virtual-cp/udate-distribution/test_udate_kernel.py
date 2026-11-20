@@ -23,7 +23,10 @@ class UdateKernelClient(unittest.TestCase):
             'osal_snd_sync_direct', 'osal_valloc_msg_wait', 'printk', 'param_ops_bool',
             'pci_get_domain_bus_and_slot','pci_enable_device','pci_disable_device',
             'pci_set_master','pci_dev_put','pci_bus_read_config_dword','pci_iomap_range',
-            'pci_iounmap','__memcpy_fromio','pcidma_connect']))
+            'pci_iounmap','__memcpy_fromio','pcidma_connect',
+            'kthread_create_on_node','wake_up_process','kthread_stop',
+            'kthread_should_stop','msleep','_raw_spin_lock_irqsave',
+            '_raw_spin_unlock_irqrestore']))
 
     def run_backup_cases(self, source, cases):
         seed=HERE.parents[2]/'runtime/analysis/menu-root/seed-backup.bin'
@@ -35,7 +38,8 @@ class UdateKernelClient(unittest.TestCase):
             built=subprocess.run([
                 'cc','-std=c11','-Wall','-Wextra','-Werror','-pedantic','-g',
                 '-fsanitize=address,undefined','-fno-omit-frame-pointer','-no-pie',
-                str(HERE/source),'-o',str(binary),
+                '-DBB_RECEIVER_TEST','-Wno-unused-function','-pthread',
+                str(HERE/'test_kernel_lock.c'),str(HERE/source),'-o',str(binary),
             ],capture_output=True,text=True,timeout=30)
             self.assertEqual(built.returncode,0,built.stdout+built.stderr)
             environment=dict(os.environ,ASAN_OPTIONS='detect_leaks=1:abort_on_error=1',
@@ -56,18 +60,38 @@ class UdateKernelClient(unittest.TestCase):
         self.run_backup_cases('test_backup_pci.c',[
             'default-off','normal','freeze-failure','epoch-mismatch',*map(str,range(1,13))])
 
+    def test_bb_receiver_ownership_and_concurrency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            binary = Path(directory) / 'bb-kernel-test'
+            built = subprocess.run([
+                'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-g',
+                '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie',
+                '-pthread', str(HERE / 'test_bb_receiver.c'), '-o', str(binary),
+            ], capture_output=True, text=True, timeout=30)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            environment = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:abort_on_error=1',
+                               UBSAN_OPTIONS='halt_on_error=1')
+            for case in ('lifecycle', 'edges', 'free-failure', 'deferred-retirement',
+                         'concurrent', 'thread-loop', 'create-failure', 'register-failure',
+                         'lock-contention', 'address-reuse', 'panel-record', 'reject-log'):
+                with self.subTest(case=case):
+                    result = subprocess.run([str(binary), case], cwd=directory, env=environment,
+                                            capture_output=True, text=True, timeout=30)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_protocol_and_failure_ownership(self):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / 'udate-kernel-test'
             built = subprocess.run([
                 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-g',
                 '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie',
-                str(HERE / 'test_client.c'), '-o', str(binary),
+                '-DBB_RECEIVER_TEST', '-Wno-unused-function', '-pthread',
+                str(HERE / 'test_kernel_lock.c'), str(HERE / 'test_client.c'), '-o', str(binary),
             ], capture_output=True, text=True, timeout=30)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             environment = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:abort_on_error=1',
                                UBSAN_OPTIONS='halt_on_error=1')
-            cases = ['normal', 'unsupported', *map(str, range(1, 11)),
+            cases = ['normal', 'unsupported', 'reasons', 'reason-failures', *map(str, range(1, 11)),
                      'original-retry', 'busy', 'register']
             for case in cases:
                 with self.subTest(case=case):

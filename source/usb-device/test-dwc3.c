@@ -151,6 +151,48 @@ static void init(void)
     assert(!f.irq);
 }
 
+static void test_not_ready_reasons(void)
+{
+    init();
+    assert(sony_dwc3_not_ready_reason(&f.s) == NULL);
+    f.s.vbus = false;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "VBUS absent"));
+    f.s.vbus = true; f.s.connected = false;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest controller not connected"));
+    f.s.connected = true; f.s.resetting = true;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest controller resetting"));
+    f.s.resetting = false; f.s.regs[SDWC_DCTL/4] &= ~SDWC_RUN;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest controller not running"));
+    f.s.regs[SDWC_DCTL/4] |= SDWC_RUN; f.s.ep0_desynced = true;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest EP0 desynchronized"));
+    f.s.ep0_desynced = false; f.s.regs[SDWC_DALEPENA/4] &= ~1u;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest EP0 disabled"));
+    f.s.regs[SDWC_DALEPENA/4] |= 1u; f.s.ep[0].configured = false;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest EP0 not configured"));
+    f.s.ep[0].configured = true; f.s.ep[1].allocated = false;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest EP0 resources not allocated"));
+    f.s.ep[1].allocated = true; f.s.regs[SDWC_GEVNTSIZ/4] = 0;
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest event ring unavailable"));
+    assert(!sony_dwc3_ready(&f.s));
+}
+
+static void test_event_ring_resize_bounds(void)
+{
+    init();
+    assert(f.s.event_pos == 8 && !f.s.event_count);
+    memset(f.ram + EVENT + 4, 0xa5, 16);
+    wr(SDWC_GEVNTSIZ, 4);
+    assert(f.s.event_pos == 0);
+    assert(!sony_dwc3_set_vbus(&f.s, false));
+    assert(f.s.event_count == 4);
+    for (unsigned i = 0; i < 16; i++) assert(f.ram[EVENT + 4 + i] == 0xa5);
+    init();
+    wr(SDWC_GEVNTSIZ, 4);
+    f.s.event_pos = 8;
+    assert(!sony_dwc3_ready(&f.s));
+    assert(!strcmp(sony_dwc3_not_ready_reason(&f.s), "guest event ring unavailable"));
+}
+
 static void test_control_in(void)
 {
     uint8_t data[64] = {0};
@@ -469,6 +511,8 @@ static void compare(void (*scenario)(void)) {
     assert(!memcmp(&before,&f,sizeof f));
 }
 int main(void) {
+    test_not_ready_reasons();
+    test_event_ring_resize_bounds();
     test_no_response_update();
     init();
     assert((rd(SDWC_GHWPARAMS0)&3u)==2);

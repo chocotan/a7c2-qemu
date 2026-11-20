@@ -25,6 +25,14 @@ int dmm_service_reply(struct dmm_service *s, const unsigned char *q, unsigned in
     int raw = 0;
     unsigned int index = handle & 0x3ff;
     struct dmm_slot *slot = 0;
+    unsigned int unit = get(q + 4, 4);
+    int lut = op == 0x20 ? unit == 0x62a : index == DMM_LUT_INDEX;
+    if (lut && (!s->lut_memory || s->lut_physical != DMM_LUT_PHYSICAL)) return -1021;
+    unsigned int bytes = lut ? DMM_LUT_SIZE : 0x80000U;
+    unsigned long long *allocations = lut ? &s->lut_allocations : &s->allocations;
+    unsigned int *changed = lut ? &s->lut_lifecycle_changed : &s->lifecycle_changed;
+    struct dmm_slot *selected = lut ? &s->lut_slot : index < 2 ? s->slots + index : 0;
+    unsigned long long physical = lut ? s->lut_physical : s->physical + index * 0x80000ULL;
     if (op == 0x2a) {
         /* op2a is the original handle->physical-segments query (icdt.ko pins:
          * 40B request carries only op at +0 and handle at +8; reply 802a has
@@ -32,55 +40,58 @@ int dmm_service_reply(struct dmm_service *s, const unsigned char *q, unsigned in
          * with u64 address at +0 and u32 length at +8). Same handle/generation
          * binding as ops 21..23; segment address uses the CP-side physical
          * domain already evidenced by the op20/21 reply convention. */
-        if (index >= 2) raw = -0x105;
-        else if (s->slots[index].handle != handle) raw = -0x205;
-        else if (!s->slots[index].allocated) raw = -1;
+        if (!selected) raw = -0x105;
+        else if (selected->handle != handle) raw = -0x205;
+        else if (!selected->allocated) raw = -1;
         else {
-            slot = s->slots + index;
-            unsigned long long seg = s->physical - 0x400000000ULL + index * 0x80000ULL;
+            slot = selected;
+            unsigned long long seg = physical - 0x400000000ULL;
             put(r + 8, 1, 2);
             put(r + 0x18, (unsigned int)seg, 4);
             put(r + 0x1c, (unsigned int)(seg >> 32), 4);
-            put(r + 0x20, 0x80000, 4);
+            put(r + 0x20, bytes, 4);
         }
     } else if (op == 0x20) {
         if (option > 1) raw = -4; /* Other original options are outside this test model. */
-        else if (get(q + 4, 4) != 0x63a) raw = -3;
+        else if (unit != 0x63a && unit != 0x62a) raw = -3;
         else {
-            for (index = 0; index < 2 && s->slots[index].allocated; ++index) {}
-            if (index == 2) raw = -0x201;
+            if (lut) index = DMM_LUT_INDEX;
+            else for (index = 0; index < 2 && s->slots[index].allocated; ++index) {}
+            if (lut ? s->lut_slot.allocated : index == 2) raw = -0x201;
             else {
-                if (s->allocations == ~0ULL) return -1021;
-                slot = s->slots + index;
-                slot->allocation_epoch = ++s->allocations;
+                if (*allocations == ~0ULL) return -1021;
+                slot = lut ? &s->lut_slot : s->slots + index;
+                slot->allocation_epoch = ++*allocations;
                 slot->creator_kind = DMM_CREATOR_UNKNOWN;
                 /* CP C1E51E sets bit15; generations run 1..31 then 1. */
                 slot->generation = slot->generation < 31 ? slot->generation + 1 : 1;
                 handle = 0x8000U | (slot->generation << 10) | index;
                 slot->handle = handle; slot->allocated = 1; slot->open_count = option;
-                for (unsigned int i = 0; i < 0x80000; ++i) s->memory[index * 0x80000 + i] = 0;
+                unsigned char *memory = lut ? s->lut_memory : s->memory + index * 0x80000;
+                for (unsigned int i = 0; i < bytes; ++i) memory[i] = 0;
+                physical = lut ? s->lut_physical : s->physical + index * 0x80000ULL;
                 put(r + 12, handle, 4);
-                put(r + 16, 0x63a, 4);
+                put(r + 16, unit, 4);
             }
         }
     } else {
-        if (index >= 2) raw = -0x105;
-        else if (s->slots[index].handle != handle) raw = -0x205;
-        else if (!s->slots[index].allocated) raw = -1;
+        if (!selected) raw = -0x105;
+        else if (selected->handle != handle) raw = -0x205;
+        else if (!selected->allocated) raw = -1;
         else {
-            slot = s->slots + index;
+            slot = selected;
             if (op == 0x21) {
                 if (option > 1) raw = -4;
                 else if (slot->open_count == 255) raw = -1;
-                else { ++slot->open_count; s->lifecycle_changed = 1; }
+                else { ++slot->open_count; *changed = 1; }
             } else if (op == 0x22) {
                 if (option) raw = -4;
                 else if (!slot->open_count) raw = 1;
-                else { --slot->open_count; s->lifecycle_changed = 1; }
+                else { --slot->open_count; *changed = 1; }
             } else {
                 if (option != 0 && option != 2) raw = -4;
                 else {
-                    s->lifecycle_changed = 1;
+                    *changed = 1;
                     if (option == 2 && slot->open_count) --slot->open_count;
                     raw = slot->open_count ? 3 : 0;
                     slot->open_count = 0; slot->allocated = 0;
@@ -89,11 +100,11 @@ int dmm_service_reply(struct dmm_service *s, const unsigned char *q, unsigned in
         }
     }
     if (!raw && slot && ((op == 0x20 && option == 1) || op == 0x21)) {
-        unsigned long long cp_address = s->physical - 0x400000000ULL + index * 0x80000;
+        unsigned long long cp_address = physical - 0x400000000ULL;
         put(r + 8, 1, 2);
         put(r + 24, (unsigned int)cp_address, 4);
         put(r + 28, (unsigned int)(cp_address >> 32), 4);
-        put(r + 32, 0x80000, 4);
+        put(r + 32, bytes, 4);
     }
     int converted = raw == -0x201 ? -1 : (raw == -0x105 || raw == -0x205) ? -5 : raw;
     put(r + 10, (unsigned int)raw, 2);

@@ -154,6 +154,9 @@ static int sony_usb_power_write(SonyUsbPower *p, uint32_t address,
 
 /* Functional Sony USB clock/reset/PHY/GPIO; no UDC ready or AP mode injection. */
 #include "hw/core/irq.h"
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+#include "hw/usb/buspower-board.inc"
+#endif
 #define SONY_USB_VBUS_INPUT (1u << 12)
 #define SONY_USB_C1_INPUT (1u << 18)
 typedef struct SonyUsbPlatform {
@@ -161,6 +164,11 @@ typedef struct SonyUsbPlatform {
     uint32_t gpio_regs[20], int_regs[16];
     SonyUsbPower power;
     bool present, c1_input;
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+    SonyBusPower *buspower;
+    bool beets_primary, beets_secondary;
+    qemu_irq beets_irq[2];
+#endif
     uint64_t generation, reads;
     qemu_irq vbus_irq, controller_vbus;
 } SonyUsbPlatform;
@@ -175,9 +183,18 @@ static MemTxResult sony_usb_bad(hwaddr a, unsigned n, bool write)
 
 static uint32_t sony_usb_gpio_rdata(const SonyUsbPlatform *p)
 {
-    return (p->gpio_regs[0x10 / 4] & ~(SONY_USB_VBUS_INPUT | SONY_USB_C1_INPUT)) |
+    uint32_t input_mask = SONY_USB_VBUS_INPUT | SONY_USB_C1_INPUT;
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+    if (p->buspower) input_mask |= (1u << 15) | (1u << 11);
+#endif
+    return (p->gpio_regs[0x10 / 4] & ~input_mask) |
            (p->present ? SONY_USB_VBUS_INPUT : 0) |
-           (p->c1_input ? SONY_USB_C1_INPUT : 0);
+           (p->c1_input ? SONY_USB_C1_INPUT : 0)
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+           | (p->buspower && p->beets_primary ? 1u << 15 : 0)
+           | (p->buspower && p->beets_secondary ? 1u << 11 : 0)
+#endif
+           ;
 }
 
 static MemTxResult sony_usb_gpio_read(void *opaque, hwaddr off, uint64_t *v,
@@ -220,6 +237,9 @@ static MemTxResult sony_usb_gpio_write(void *opaque, hwaddr off, uint64_t v,
     case 8: *r &= ~v; break;
     default: return sony_usb_bad(0xf102e000 + off, n, true);
     }
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+    if (p->buspower) sony_buspower_gpio17(p->buspower, p->gpio_regs[0], p->gpio_regs[0x40 / 4]);
+#endif
     return MEMTX_OK;
 }
 
@@ -329,11 +349,62 @@ static void sony_usb_vbus_request(void *opaque, int n, int level)
             " present=%d gpio=17.12; kernel event unverified\n", p->generation, present);
 }
 
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+static void sony_usb_buspower_reset(void *opaque)
+{
+    SonyUsbPlatform *p = opaque;
+    const uint32_t pins = (1u << 11) | (1u << 13) | (1u << 15);
+    for (unsigned i = 0; i < ARRAY_SIZE(p->gpio_regs); i++)
+        p->gpio_regs[i] &= ~pins;
+    for (unsigned i = 0; i < ARRAY_SIZE(p->int_regs); i++)
+        p->int_regs[i] &= ~pins;
+    p->beets_primary = p->beets_secondary = false;
+    qemu_irq_lower(p->beets_irq[0]);
+    qemu_irq_lower(p->beets_irq[1]);
+    sony_buspower_gpio17(p->buspower, p->gpio_regs[0], p->gpio_regs[0x40 / 4]);
+}
+
+static void sony_usb_beets_event(void *opaque, int n, int level)
+{
+    SonyUsbPlatform *p = opaque;
+    bool *old = n ? &p->beets_secondary : &p->beets_primary;
+    unsigned bit = n ? 11 : 15;
+    bool rising = !*old && level;
+    *old = level != 0;
+    if (rising && (p->int_regs[0x20 / 4] & (1u << bit)) &&
+        !(p->int_regs[0x10 / 4] & (1u << bit)) &&
+        !(p->gpio_regs[0] & (1u << bit)) &&
+        (p->gpio_regs[0x20 / 4] & (1u << bit))) {
+        qemu_irq_pulse(p->beets_irq[n]);
+    }
+}
+#endif
+
 static void sony_usb_platform_create(MemoryRegion *sysmem, DeviceState *usb,
                                      DeviceState *gic)
 {
     SonyUsbPlatform *p = g_new0(SonyUsbPlatform, 1);
     sony_usb_power_init(&p->power);
+#ifdef SONY_USB_BUSPOWER_CANDIDATE
+    const char *profile = g_getenv("QEMU_SONY_USB_BUSPOWER_PROFILE");
+    if (profile) {
+        if (strcmp(profile, SONY_BUSPOWER_PROFILE) ||
+            g_getenv("QEMU_CP_BOOT_PERIPHERALS") ||
+            g_getenv("QEMU_AP_CP_GPIO_LINES") || g_getenv("QEMU_CP_GPIO18_PROFILE")) {
+            error_report("Unknown or conflicting USB BusPower source candidate");
+            exit(EXIT_FAILURE);
+        }
+        p->buspower = sony_buspower_create(sysmem, gic);
+        p->beets_irq[0] = qdev_get_gpio_in(gic, 103 - 32);
+        p->beets_irq[1] = qdev_get_gpio_in(gic, 99 - 32);
+        for (unsigned i = 0; i < 2; i++)
+            qdev_connect_gpio_out_named(p->buspower->beets, "event", i,
+                qemu_allocate_irq(sony_usb_beets_event, p, i));
+        sony_usb_buspower_reset(p);
+        qemu_register_reset(sony_usb_buspower_reset, p);
+    }
+#endif
+
     p->vbus_irq = qdev_get_gpio_in(gic, 68);
     p->controller_vbus = qdev_get_gpio_in_named(usb, "vbus", 0);
     qdev_connect_gpio_out_named(usb, "vbus-request", 0,

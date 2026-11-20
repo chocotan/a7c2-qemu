@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from usb_control import ControlBlocked, UsbControl, read_json
+from usb_control import ControlBlocked, UsbControl, read_json, context_arguments
 
 
 def action(run_dir, operation):
@@ -25,9 +25,7 @@ def action(run_dir, operation):
                 'blocked_reason':{'code':'device_backend_not_enabled',
                                   'detail':'本次 VM 尚未启用相机 USB 设备端点模型，不能连接本机电脑'},
                 'host_enumerated':False,'authentication_verified':False,'guest_root_verified':False}
-    if set(context) != {'run_id','qmp_path','backend_path','lease','vm_pid'}:
-        raise ControlBlocked('invalid_context', 'Unexpected USB run context fields')
-    control = UsbControl(run, **context)
+    control = UsbControl(run, **context_arguments(context))
     result = getattr(control, operation)()
     # Authentication/root are set only by a separate, real jiritsu consumer.
     return result

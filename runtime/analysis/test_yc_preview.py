@@ -31,7 +31,7 @@ def test_preview_requires_guest_readback_and_output_delivery(tmp_path: Path, mon
 
 
 @pytest.mark.parametrize('split_delivery', [False, True])
-def test_preview_receipt_survives_console_truncation(tmp_path: Path, monkeypatch, split_delivery):
+def test_preview_preserves_console_when_limit_exceeded(tmp_path: Path, monkeypatch, split_delivery):
     pixels = bytes([76]) * (1920 * 1080)
     source = tmp_path / 'yc-input.gray'; source.write_bytes(pixels)
     monkeypatch.setenv('MENU_YC_INPUT_RAW', str(source))
@@ -42,20 +42,19 @@ def test_preview_receipt_survives_console_truncation(tmp_path: Path, monkeypatch
     console = tmp_path / 'console.log'
     digest = f'YCIN_INPUT: PNG luma readback bytes=2073600 fnv64={value:016x}\n'.encode()
     delivery = b'YCIN_VDT_REPLY: OUT1 frame delivery\n'
-    console.write_bytes(digest + (b'' if split_delivery else delivery) + b'x' * (17 * 1024 * 1024))
+    monkeypatch.setattr('menu_live.MAX_CONSOLE', 128)
+    original = digest + (b'' if split_delivery else delivery) + b'x' * 128
+    console.write_bytes(original)
     class Process:
         stdin = io.BytesIO()
         def poll(self):return None
     process = Process()
-    with pytest.raises(TimeoutError, match='串口命令缺少完成标记'):
+    with pytest.raises(RuntimeError, match='保留原日志'):
         serial_command(process, console, 'true', timeout=.01)
-    # Even a command with no reply preserves admission before rotating its console.
-    assert json.loads((tmp_path / 'yc-preview-admission.json').read_text())['out1_delivered'] is (not split_delivery)
+    assert console.read_bytes() == original and process._menu_serial_desynchronized
     if split_delivery:
-        assert verified_yc_preview(tmp_path) is None  # A digest alone must not show pixels.
-        console.write_bytes(delivery)  # Actual OUT1 arrives after the digest's log was rotated.
-        assert verified_yc_preview(tmp_path) == pixels
-    console.write_bytes(b'')
+        assert verified_yc_preview(tmp_path) is None
+        with console.open('ab') as stream:stream.write(b'\n'+delivery)
     assert verified_yc_preview(tmp_path) == pixels
     (tmp_path / 'runtime-manifest.json').write_bytes(manifest + b'\n')
     with pytest.raises(ValueError, match='receipt differs'):

@@ -27,6 +27,9 @@ class Process:
     def poll(self):
         return 0
 
+    def wait(self,timeout):
+        return 0
+
 
 @pytest.fixture
 def vm(tmp_path):
@@ -86,16 +89,16 @@ def test_failed_cleanup_keeps_exclusion_until_confirmed_retry(vm,tmp_path,monkey
     monkeypatch.setattr(control,'receive_message',bad_reply)
     if failure=='termination':
         def fail(*a,**kw):raise subprocess.TimeoutExpired('owned fixture',3)
-        monkeypatch.setattr(control,'terminate_owned',fail)
+        monkeypatch.setattr(control,'wait_functional_camera_owner',fail)
     else:
-        monkeypatch.setattr(control,'terminate_owned',lambda _:None)
+        monkeypatch.setattr(control,'wait_functional_camera_owner',lambda _:None)
     monkeypatch.setattr(control.os,'killpg',lambda *a:None)
     vm._run()
     assert vm.cleanup_error and vm.instance_lease is not None and vm.owned_process is process
     with pytest.raises(Busy):
         with Instance(vm.instance.path).run_lease():pytest.fail('cleanup still owns instance')
     with pytest.raises(ValueError):vm.reset_instance(None,confirmed=True)
-    monkeypatch.setattr(control,'terminate_owned',lambda _:None)
+    monkeypatch.setattr(control,'wait_functional_camera_owner',lambda _:None)
     monkeypatch.setattr(control.os,'killpg',missing_group)
     vm.close()
     assert vm.instance_lease is None and vm.owned_process is None and vm.state=='exited'
@@ -111,7 +114,7 @@ def test_successful_cleanup_releases_after_group_is_gone(vm,tmp_path,monkeypatch
     def terminate(_):
         with pytest.raises(Busy):
             with Instance(vm.instance.path).run_lease():pytest.fail('released before termination')
-    monkeypatch.setattr(control,'terminate_owned',terminate)
+    monkeypatch.setattr(control,'wait_functional_camera_owner',terminate)
     monkeypatch.setattr(control.os,'killpg',missing_group)
     vm._run()
     assert not vm.cleanup_error and vm.instance_lease is None

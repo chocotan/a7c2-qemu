@@ -1,0 +1,84 @@
+{
+  "binary_sha256": "f35211d4a4b8baaa91ba77ab5d93dd41c3a9ff783cb68774cd8834dd735c22cf",
+  "bkup_handshake_injected": false,
+  "capture_verified": false,
+  "cp_irq_supported": false,
+  "default_off": true,
+  "diagnostic_ram_bytes": 134217728,
+  "full_boot_verified": false,
+  "guest_copy_writable": true,
+  "guest_index_end": "0x04001432",
+  "guest_index_table": "0x04000100",
+  "guest_root": "0x04000000",
+  "guest_whole_record_readback_verified": true,
+  "host": {
+    "pytest_tests": 45,
+    "raw_result_sha256": "d4714b2e16f57d92ab880de6d364713de55b72f71aefb4c94e5891dd327642e7",
+    "subtests": 29,
+    "workers": 2
+  },
+  "installation_verified": false,
+  "next_first_fault": {
+    "address": "0xf1388054",
+    "instruction_pc": "0xbef42a",
+    "live_r11_is_init_index": false,
+    "operation": "str r1,[r0,r2]",
+    "saved_init_index": 12,
+    "stage": "USER_TSK_DRV_INIT",
+    "value": "0x40000"
+  },
+  "observations": [
+    {
+      "normal_cp_exit": true,
+      "normal_functional_peer_exit": true,
+      "raw_result_sha256": "8c055c7c075b55e774f22999cc9dd49098ffc52ae95c7a44f0574b1b0cbbe4ce",
+      "run": "cp-progress-_s460w5m",
+      "watchdog_resets": 0
+    },
+    {
+      "final_runtime_globals": {
+        "globals_address": "0x1a7e85c",
+        "index_end": "0x4001432",
+        "index_table": "0x4000100",
+        "official_819_entry_binding": true,
+        "raw": "000000040001000432140004",
+        "root": "0x4000000"
+      },
+      "initial_runtime_globals": {
+        "globals_address": "0x1a7e85c",
+        "index_end": "0x0",
+        "index_table": "0x0",
+        "official_819_entry_binding": false,
+        "raw": "000000000000000000000000",
+        "root": "0x0"
+      },
+      "normal_cp_exit": true,
+      "normal_functional_peer_exit": true,
+      "raw_result_sha256": "6790a672b497bb4c773d3d30e79f57f025813a7ae77dff7535724fd53e7c9d1c",
+      "run": "cp-progress-2g84h8_8",
+      "saved_init_index": 12,
+      "saved_init_name": "USER_TSK_DRV_INIT",
+      "saved_init_record": "0xeb56b4",
+      "watchdog_resets": 0
+    }
+  ],
+  "original_ap_consumption_verified": false,
+  "original_bk4_runtime_binding_verified": true,
+  "original_cp_sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+  "physical_alias_verified": false,
+  "physical_cp_ram_size_verified": false,
+  "profile": "virtual-official-cp-bk4-input-v1",
+  "receiver_verified": false,
+  "record": "ed000",
+  "record_bytes": 1419512,
+  "record_sha256": "a90b46ae1d0fa054daeba321c52dc9d44d6bf32ca6eefcd1efb84fab2116e977",
+  "schema": "a7c2-official-cp-bk4-input-validation-v1",
+  "sony_loader_selection_verified": false,
+  "source_pp_sha256": "3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47",
+  "source_readonly": true,
+  "source_sha256": {
+    "source/cp-boot/BACKUP.md": "c69de5bd9bbd8a8967b325b20c30eaff3c3e01c39df2835a9503fc29d870c8ab",
+    "source/cp-boot/official-backup.py": "b54cb2fac84b0974d3f9354242618b9eebb3a54d905bb80f10e4c92ccd35ef8f",
+    "source/cp-boot/test_official_backup.py": "fd1bea9c4c67bcf2e628e1013d7a4b368c584dac5ce19f548dd6e6d6ae1d0fd7"
+  }
+}

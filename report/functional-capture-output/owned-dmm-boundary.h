@@ -1,5 +1,5 @@
 /* Explicit component OSAL fixture; never a physical/native DMM implementation. */
-struct owned_span { uint32_t handle; unsigned char *cpu; size_t capacity; uint64_t alias; unsigned refs; };
+struct owned_span { uint32_t handle; unsigned char *cpu; size_t capacity; uint64_t alias; unsigned refs; uint32_t unit_type; };
 static struct owned_span owned_spans[4];
 static uint64_t actual_map_base,header_alias,thumb_alias;
 static unsigned native_shares,native_queries,native_frees,native_packet_releases;
@@ -42,12 +42,12 @@ int osal_snd_msg(uint32_t destination,void *body) {
     assert(index<4 && owned_spans[index].refs && destination==DMM_SID);
     assert(only_packet->source==REQUEST_SOURCE);
     struct owned_span *span=&owned_spans[index];uint16_t op=read16(q),option=read16(q+22);
-    assert((op==0x21 && option==1 && read32(q+4)==1) ||
+    assert((op==0x21 && option==1 && read32(q+4)==span->unit_type) ||
            (op==0x2a && option==0) || (op==0x23 && option==2));
     assert(capture_output_memory_reply(output_owner,q,actual_map_base,body)==0);
     if(op==0x21){++span->refs;++native_shares;}
     if(op==0x2a)++native_queries;
-    if(op==0x23){assert(span->refs>1);--span->refs;++native_frees;}
+    if(op==0x23){assert(span->refs);--span->refs;++native_frees;}
     only_packet->queued=1;return 0;
 }
 int osal_rcv_msg_tmo(uint32_t source,void **out,int32_t timeout) {
@@ -60,15 +60,16 @@ int osal_free_msg(uint32_t source,void *body) {
     assert(source==REQUEST_SOURCE && only_packet && only_packet->queued && body==only_packet->bytes);
     free(only_packet);only_packet=NULL;++native_packet_releases;return 0;
 }
-static void register_owned_span(unsigned index,uint32_t handle,unsigned char *cpu,size_t capacity) {
+static void register_owned_span(unsigned index,const struct capture_output_span *span) {
+    uint32_t handle=span->handle;unsigned char *cpu=(void *)span->cpu;size_t capacity=span->capacity;
     assert(index<4 && cpu && capacity && capacity<=UINT32_MAX && (uintptr_t)cpu>=actual_map_base);
     const uint64_t alias=(uintptr_t)cpu-actual_map_base;
     assert(alias && alias<=UINT64_MAX-capacity && !(handle&0x8000));
-    owned_spans[index]=(struct owned_span){handle,cpu,capacity,alias,1};
+    owned_spans[index]=(struct owned_span){handle,cpu,capacity,alias,1,span->unit_type};
 }
 static void actual_original_area_from_wire(const unsigned char area[16],void *destination) {
     unsigned index=0;while(index<4 && owned_spans[index].handle!=read32(area))++index;
-    assert(index<4 && read32(area+12)==1);
+    assert(index<4 && read32(area+12)==owned_spans[index].unit_type);
     struct owned_span *span=&owned_spans[index];
     uint32_t offset=read32(area+4),bytes=read32(area+8);
     assert(bytes && offset<span->capacity && bytes<=span->capacity-offset);
@@ -84,7 +85,7 @@ static void actual_original_area_from_wire(const unsigned char area[16],void *de
 }
 static void actual_original_area(unsigned index,void *destination,size_t bytes) {
     assert(index<4 && bytes && bytes<=owned_spans[index].capacity);
-    unsigned char area[16]={0};put32(area,owned_spans[index].handle);put32(area+8,(uint32_t)bytes);put32(area+12,1);
+    unsigned char area[16]={0};put32(area,owned_spans[index].handle);put32(area+8,(uint32_t)bytes);put32(area+12,owned_spans[index].unit_type);
     actual_original_area_from_wire(area,destination);
 }
 static void actual_original_release_spans(void) {
@@ -94,6 +95,7 @@ static void actual_original_release_spans(void) {
         assert(owned_spans[index].refs==2);assert(close_and_free(owned_spans[index].handle)==1);
         assert(owned_spans[index].refs==1);
     }
+    assert(close_and_free(owned_spans[0].handle)==1 && !owned_spans[0].refs);
     struct capture_output_info state;assert(capture_output_memory_info(output_owner,&state)==0 && !state.native_references);
-    assert(!only_packet && native_shares==4 && native_queries==4 && native_frees==4 && native_packet_releases==12);
+    assert(!only_packet && native_shares==4 && native_queries==4 && native_frees==5 && native_packet_releases==13);
 }

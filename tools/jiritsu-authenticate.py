@@ -8,7 +8,7 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 ANALYSIS=ROOT/'runtime/analysis'
 sys.path.insert(0,str(ANALYSIS))
-from usb_control import UsbControl,read_json
+from usb_control import UsbControl,read_json,context_arguments
 from usb_jiritsu import JiritsuConsumer
 
 
@@ -24,9 +24,7 @@ def main(argv=None):
     if run.parent!=ANALYSIS/'menu-runs' or any(p.is_symlink() for p in (run,*run.parents)):
         parser.error('ordinary product menu-runs/run-* directory required')
     context=read_json(run/'usb-context.json')
-    if set(context)!={'run_id','qmp_path','backend_path','lease','vm_pid'}:
-        raise ValueError('Unexpected USB context fields')
-    control=UsbControl(run,**context)
+    control=UsbControl(run,**context_arguments(context))
     result=JiritsuConsumer(control).run(args.action,commands=args.command,large_out_check=args.large_out_check)
     from usb_control import usbip
     output={'authenticate':'jiritsu-authentication.json','version':'jiritsu-version.json','root':'jiritsu-root.json'}[args.action]

@@ -115,10 +115,13 @@ static int run(int argc,char **argv) {
     prefix=(void *)header_span.cpu;main_data=(void *)main_span.cpu;
     free(thumbnail);thumbnail=(void *)thumb_span.cpu;
     uint64_t export_token=0;assert(capture_output_memory_hold(output_owner,&export_token)==0);
-    register_owned_span(0,header_span.handle,prefix,header_span.capacity);
-    register_owned_span(1,main_span.handle,main_data,main_span.capacity);
-    register_owned_span(2,thumb_span.handle,thumbnail,thumb_span.capacity);
-    register_owned_span(3,meta_span.handle,(void *)meta_span.cpu,meta_span.capacity);
+    uint8_t allocation[40]={0},allocation_reply[40];allocation[0]=0x20;put32(allocation+4,header_span.unit_type);
+    put32(allocation+12,UINT32_MAX);allocation[22]=1;
+    assert(capture_output_memory_reply(output_owner,allocation,actual_map_base,allocation_reply)==0);
+    register_owned_span(0,&header_span);
+    register_owned_span(1,&main_span);
+    register_owned_span(2,&thumb_span);
+    register_owned_span(3,&meta_span);
     header_alias=header_span.alias;thumb_alias=thumb_span.alias;
     struct capture_notifications notifications={0};
     const unsigned char job_time[12]={0,0,0xea,7,11,3,12,34,56,0,0,0};

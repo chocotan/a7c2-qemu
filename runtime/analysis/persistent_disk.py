@@ -6,6 +6,7 @@ Hardware boot0/boot1 occupy separate logical areas in the same backing file;
 their container offsets are a virtual format, not physical eMMC LBAs.
 """
 import argparse
+import ctypes
 from contextlib import ExitStack, contextmanager
 import fcntl
 import hashlib
@@ -196,19 +197,38 @@ def create(source_dir,partinf,output):
             raise
 
 
+class _DiskLock(ctypes.Structure):
+    _fields_=[('l_type',ctypes.c_short),('l_whence',ctypes.c_short),
+              ('l_start',ctypes.c_longlong),('l_len',ctypes.c_longlong),('l_pid',ctypes.c_int)]
+
+
 @contextmanager
 def lease(instance):
     """One writer/VM per instance; callers retain this lease through VM shutdown."""
     instance=Path(os.path.abspath(instance))
     directory=SECURE_OPEN(instance,directory=True)
-    lock=SECURE_OPEN(instance/'.disk.lock',os.O_RDWR)
+    lock=None
     disk=None
     metadata=[]
     try:
+        lock=SECURE_OPEN(instance/'.disk.lock',os.O_RDWR)
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if os.path.lexists(instance/'settings-reset-pending.json'):
             raise ValueError('内部盘有未完成的配置复位；先核恢复事务')
         disk=SECURE_OPEN(instance/'camera.emmc',os.O_RDWR)
+        # QEMU inherits this OFD, so its last live descriptor keeps the write lease.
+        if (os.uname().sysname!='Linux' or os.uname().machine not in ('x86_64','aarch64') or
+                not hasattr(fcntl,'F_OFD_SETLK') or struct.calcsize('P')!=8 or
+                ctypes.sizeof(_DiskLock)!=32 or _DiskLock.l_start.offset!=8 or _DiskLock.l_pid.offset!=24):
+            raise ValueError('Unsupported OFD disk-lock ABI')
+        fcntl.fcntl(disk,fcntl.F_OFD_SETLK,bytes(_DiskLock(fcntl.F_WRLCK,os.SEEK_SET,0,1,0)))
+        for name,descriptor in (('.disk.lock',lock),('camera.emmc',disk)):
+            named=os.stat(name,dir_fd=directory,follow_symlinks=False)
+            opened=os.fstat(descriptor)
+            if not stat.S_ISREG(named.st_mode) or (named.st_dev,named.st_ino)!=(opened.st_dev,opened.st_ino):
+                raise ValueError('Persistent instance lease path changed')
+        from owner_quarantine import refuse_unfinished
+        refuse_unfinished(directory)
         for name in ('geometry.json','instance.json'):
             fd=SECURE_OPEN(instance/name);metadata.append(fd)
             if os.fstat(fd).st_size>1024**2:raise ValueError('Instance metadata exceeds budget')
@@ -220,11 +240,15 @@ def lease(instance):
             raise ValueError('Camera geometry was changed')
         if os.fstat(disk).st_size!=geometry['backing_bytes']:raise ValueError('Camera backing capacity changed')
         if os.pread(disk,SECTOR,0)[:8]!=b'82462.00':raise ValueError('Camera SDM2 label is invalid')
-        yield dict(fd=disk,geometry=geometry,state=state,path=instance)
+        yield dict(fd=disk,dir_fd=directory,lock_fd=lock,geometry=geometry,state=state,path=instance)
     finally:
-        if disk is not None:os.close(disk)
-        for fd in metadata:os.close(fd)
-        os.close(lock);os.close(directory)
+        try:
+            if disk is not None:os.close(disk)
+            for fd in metadata:os.close(fd)
+        finally:
+            try:
+                if lock is not None:os.close(lock)
+            finally:os.close(directory)
 
 
 def main():

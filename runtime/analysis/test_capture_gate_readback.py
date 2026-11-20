@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture_gate_readback as gate
 
@@ -52,6 +54,38 @@ def test_parse_rejects_missing_or_duplicated_cells():
         assert 'ambig' in str(error).lower()
     else:
         raise AssertionError('duplicated cell accepted')
+
+
+def test_byte_cell_does_not_include_neighbouring_state():
+    parts = [_synthetic(gate.CHUNKS[0], 0), _synthetic(gate.CHUNKS[1], 0)]
+    parts[0] = parts[0].replace(b'83337e3: 00 00 00 00', b'83337e3: 00 ff ff ff')
+    assert gate.parse(parts)['reads'][0]['value'] == 0
+    command = gate.commands(b'OBS FRAME_DRAW_ENTER call=3 tid=302 this=0x1\n')[0]
+    assert '/proc/302/mem 0x83337e3 1 appFw.so' in command
+    parts[0] = parts[0].replace(b'address=83337e3 bytes=4', b'address=83337e3 bytes=1').replace(
+        b'83337e3: 00 ff ff ff', b'83337e3: 01')
+    assert gate.parse(parts)['reads'][0]['value'] == 1
+
+
+@pytest.mark.parametrize('old,new', [
+    (b'/proc/302/mem address=7e1c00c', b'/proc/303/mem address=7e1c00c'),
+    (b'address=7e1c00c bytes=4', b'address=7e1c010 bytes=4'),
+    (b'7e1c00c: 01 00 00 00', b'7e1c00c: 01 00 00'),
+    (b'address=7e1c00c bytes=4', b'address=7e1c00c bytes=8'),
+])
+def test_parse_rejects_mixed_identity_or_short_success(old, new):
+    parts = [_synthetic(gate.CHUNKS[0], 0), _synthetic(gate.CHUNKS[1], 0)]
+    assert old in parts[0]
+    parts[0] = parts[0].replace(old, new)
+    with pytest.raises(ValueError):
+        gate.parse(parts)
+
+
+def test_failed_helper_does_not_produce_a_value():
+    parts = [_synthetic(gate.CHUNKS[0], 0), _synthetic(gate.CHUNKS[1], 0)]
+    parts[0] = parts[0].replace(b'CAPTURE_INHIBIT_COUNT_RC=0', b'CAPTURE_INHIBIT_COUNT_RC=5')
+    result = gate.parse(parts)['reads'][1]
+    assert result['returncode'] == 5 and result['value'] is None
 
 
 GATE_GETTERS = {

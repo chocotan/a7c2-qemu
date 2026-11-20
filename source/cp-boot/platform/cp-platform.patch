@@ -1,0 +1,222 @@
+--- a/hw/core/null-machine.c
++++ b/hw/core/null-machine.c
+@@ -17,24 +17,114 @@
+ #include "system/address-spaces.h"
+ #include "hw/core/cpu.h"
+ #include "hw/arm/machines-qom.h"
++#include "hw/intc/arm_gic.h"
++#include "hw/core/irq.h"
++#include "hw/core/sysbus.h"
++#include "hw/core/qdev-properties.h"
++#include "target/arm/cpu-qom.h"
++#include "target/arm/gtimer.h"
++#include "qapi/error.h"
+ #include "hw/riscv/machines-qom.h"
++
++/* Local cp-boot-probe change: the CP RTOS probes an ARM GIC at the Sony alias
++ * 0xf13a1000 (GICD_IIDR low 12 bits must read 0x43b). Attach a stock arm_gic
++ * there so the probe resolves. Opt-in and absent from the shared tree. */
++static void cp_attach_gic(MachineState *mch)
++{
++    DeviceState *gic = qdev_new(TYPE_ARM_GIC);
++    SysBusDevice *sbd;
++
++    qdev_prop_set_uint32(gic, "revision", 2);
++    qdev_prop_set_uint32(gic, "num-cpu", mch->smp.cpus);
++    qdev_prop_set_uint32(gic, "num-irq", 512); /* CP descriptor table declares 466 lines */
++    qdev_prop_set_bit(gic, "has-security-extensions", true); /* GIC-400 has TrustZone; without it IGROUPR is RAZ/WI and everything becomes group0 FIQ */
++    qdev_prop_set_bit(gic, "has-virtualization-extensions", false);
++    sbd = SYS_BUS_DEVICE(gic);
++    sysbus_realize_and_unref(sbd, &error_fatal);
++    sysbus_mmio_map(sbd, 0, 0xf13a1000);
++    sysbus_mmio_map(sbd, 1, 0xf13a2000);
++    for (int i = 0; i < mch->smp.cpus; i++) {
++        CPUState *cs = qemu_get_cpu(i);
++        sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(cs), ARM_CPU_IRQ));
++        sysbus_connect_irq(sbd, mch->smp.cpus + i,
++                           qdev_get_gpio_in(DEVICE(cs), ARM_CPU_FIQ));
++        /* Conditional CP model: original secure-entry path + firmware INTID30.
++         * Sony wiring is not independently verified; never enabled implicitly. */
++        if (g_getenv("QEMU_CP_HYPOTHESIS_SEC_TIMER30")) {
++            qdev_connect_gpio_out(DEVICE(cs), GTIMER_SEC,
++                                  qdev_get_gpio_in(gic, 512 - 32 + i * 32 + 30));
++        }
++    }
++    if (g_getenv("QEMU_CP_TIMERS")) {
++        for (unsigned i = 0; i < 4; i++) {
++            DeviceState *timer = qdev_new("sony-hwtimer");
++            SysBusDevice *timer_bus = SYS_BUS_DEVICE(timer);
++            sysbus_realize_and_unref(timer_bus, &error_fatal);
++            sysbus_mmio_map(timer_bus, 0, 0xf1042000 + i * 0x1000);
++            /* Original CP dis_int/ena_int uses INTID 0x19d + channel. */
++            sysbus_connect_irq(timer_bus, 0,
++                               qdev_get_gpio_in(gic, 0x19d + i - 32));
++        }
++    }
++    if (g_getenv("QEMU_CP_WATCHDOG")) {
++        DeviceState *wdt = qdev_new("sony-cp-wdt");
++        SysBusDevice *wdt_bus = SYS_BUS_DEVICE(wdt);
++        sysbus_realize_and_unref(wdt_bus, &error_fatal);
++        sysbus_mmio_map(wdt_bus, 0, 0xf1052000);
++        sysbus_mmio_map(wdt_bus, 1, 0xf1388300);
++    }
++    if (g_getenv("QEMU_CP_EDMA_GATE")) {
++        DeviceState *gate = qdev_new("sony-cp-edma-gate");
++        SysBusDevice *gate_bus = SYS_BUS_DEVICE(gate);
++        sysbus_realize_and_unref(gate_bus, &error_fatal);
++        sysbus_mmio_map(gate_bus, 0, 0xf11e0274);
++        /* Original CP pcidma_init/ISR table: GIC INTID0x193 (403). */
++        sysbus_connect_irq(gate_bus, 0, qdev_get_gpio_in(gic, 0x193 - 32));
++        if (g_getenv("QEMU_CP_EDMA_DIRECT")) {
++            DeviceState *edma = qdev_new("sony-cp-edma");
++            SysBusDevice *edma_bus = SYS_BUS_DEVICE(edma);
++            sysbus_realize_and_unref(edma_bus, &error_fatal);
++            sysbus_mmio_map(edma_bus, 0, 0xf6780000);
++            for (unsigned i = 0; i < 16; i++) {
++                sysbus_connect_irq(edma_bus, i,
++                                   qdev_get_gpio_in_named(gate, "edma", i));
++            }
++        }
++    }
++}
+ 
+ static void machine_none_init(MachineState *mch)
+ {
+     CPUState *cpu = NULL;
+ 
+-    /* Initialize CPU (if user asked for it) */
++    /* Initialize CPUs (if user asked for them). Local cp-boot-probe change: the
++     * CP image is a 4-core SMP RTOS, so this private build allows more than one
++     * CPU while keeping RAM at address zero. Does not affect the shared tree. */
+     if (mch->cpu_type) {
+-        cpu = cpu_create(mch->cpu_type);
+-        if (!cpu) {
+-            error_report("Unable to initialize CPU");
+-            exit(1);
++        for (int i = 0; i < mch->smp.cpus; i++) {
++            cpu = cpu_create(mch->cpu_type);
++            if (!cpu) {
++                error_report("Unable to initialize CPU");
++                exit(1);
++            }
+         }
+     }
+ 
+     /* RAM at address zero */
+     if (mch->ram) {
+         memory_region_add_subregion(get_system_memory(), 0, mch->ram);
++    }
++    if (g_getenv("QEMU_CP_UIPC_RAM")) {
++        MemoryRegion *oom = g_new0(MemoryRegion, 1);
++        /* Original1MiB buffer at0xca21e00; TCG RAM backing must be page aligned.
++         * Padding is diagnostic backing, not a proven Sony PA alias/RAM map. */
++        memory_region_init_ram(oom, NULL, "cp-uipc-oom", 0x101000,
++                               &error_fatal);
++        memory_region_add_subregion(get_system_memory(), 0x0ca21000, oom);
++    }
++
++    if (g_getenv("QEMU_CP_GIC")) {
++        cp_attach_gic(mch);
+     }
+ 
+     if (mch->kernel_filename) {
+@@ -48,7 +138,7 @@
+ {
+     mc->desc = "empty machine";
+     mc->init = machine_none_init;
+-    mc->max_cpus = 1;
++    mc->max_cpus = 4;
+     mc->default_ram_size = 0;
+     mc->default_ram_id = "ram";
+     mc->no_serial = 1;
+--- a/hw/dma/meson.build
++++ b/hw/dma/meson.build
+@@ -12,3 +12,4 @@
+ system_ss.add(when: 'CONFIG_RASPI', if_true: files('bcm2835_dma.c'))
+ system_ss.add(when: 'CONFIG_SIFIVE_PDMA', if_true: files('sifive_pdma.c'))
+ system_ss.add(when: 'CONFIG_XLNX_CSU_DMA', if_true: files('xlnx_csu_dma.c'))
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cp_edma.c'))
+--- a/hw/misc/meson.build
++++ b/hw/misc/meson.build
+@@ -170,3 +170,4 @@
+ system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
+ system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_spacc_stub.c'))
+ system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cxd_bus_stub.c'))
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cp_edma_gate.c'))
+--- a/hw/watchdog/meson.build
++++ b/hw/watchdog/meson.build
+@@ -9,3 +9,4 @@
+ system_ss.add(when: 'CONFIG_K230_WDT', if_true: files('k230_wdt.c'))
+ system_ss.add(when: 'CONFIG_WDT_SBSA', if_true: files('sbsa_gwdt.c'))
+ specific_ss.add(when: 'CONFIG_PSERIES', if_true: files('spapr_watchdog.c'))
++system_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('sony_cxd_wdt.c'))
+--- a/hw/timer/sony_hwtimer.c
++++ b/hw/timer/sony_hwtimer.c
+@@ -74,22 +74,32 @@
+     }
+ }
+ 
+-static uint64_t timer_read(void *opaque, hwaddr offset, unsigned size)
++static MemTxResult timer_read(void *opaque, hwaddr offset, uint64_t *value,
++                              unsigned size, MemTxAttrs attrs)
+ {
+     SonyHwtimerState *s = opaque;
+     switch (offset) {
+-    case 0: return s->control;
+-    case 8: return s->compare;
+-    case 12: return counter(s);
+-    default: return 0;
++    case 0: *value = s->control; break;
++    case 8: *value = s->compare; break;
++    case 12: *value = counter(s); break;
++    default:
++        qemu_log_mask(LOG_GUEST_ERROR, "Sony timer unsupported read at 0x%" HWADDR_PRIx "\n", offset);
++        return MEMTX_ERROR;
+     }
++    return MEMTX_OK;
+ }
+ 
+-static void timer_write(void *opaque, hwaddr offset, uint64_t value, unsigned size)
++static MemTxResult timer_write(void *opaque, hwaddr offset, uint64_t value,
++                               unsigned size, MemTxAttrs attrs)
+ {
+     SonyHwtimerState *s = opaque;
+     switch (offset) {
+     case 0:
++        /* Capture/control bit16 is not modeled; never silently discard it. */
++        if (value & ~UINT64_C(0x80001137)) {
++            qemu_log_mask(LOG_GUEST_ERROR, "Sony timer unsupported control 0x%" PRIx64 "\n", value);
++            return MEMTX_ERROR;
++        }
+         s->count = counter(s);
+         s->epoch = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+         if (value & 0x80000000) {
+@@ -100,6 +110,9 @@
+         s->control = value & 0xffff;
+         break;
+     case 4:
++        if (value & ~UINT64_C(0x11)) {
++            return MEMTX_ERROR;
++        }
+         if (value & 0x10) {
+             s->count = 0;
+             s->epoch = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+@@ -115,14 +128,15 @@
+         break;
+     default:
+         qemu_log_mask(LOG_UNIMP, "Sony timer write offset 0x%" HWADDR_PRIx "\n", offset);
+-        return;
++        return MEMTX_ERROR;
+     }
+     reschedule(s);
++    return MEMTX_OK;
+ }
+ 
+ static const MemoryRegionOps timer_ops = {
+-    .read = timer_read,
+-    .write = timer_write,
++    .read_with_attrs = timer_read,
++    .write_with_attrs = timer_write,
+     .endianness = DEVICE_LITTLE_ENDIAN,
+     .valid.min_access_size = 4,
+     .valid.max_access_size = 4,

@@ -7,6 +7,7 @@
 /runtime/bodydata-cache/
 /runtime/tmp/
 /runtime/diagnostics/
+/runtime/observer-private-inputs/
 /runtime/sources/
 /runtime/analysis/menu-root/
 /runtime/analysis/unpacked/
@@ -23,6 +24,13 @@
 /runtime/analysis/menu-runs/
 /runtime/analysis/ui-runs/
 /runtime/analysis/usb-network-profiles/
+/runtime/analysis/functional-camera-profiles/
+/runtime/analysis/.recovery-functional-camera-ram-media-v1/
+/report/2026-11-14-fsck-owner-backup/
+/report/2026-11-14-functional-ram-media-replacement-backup/
+/report/2026-11-14-functional-ram-profile-fd-backup/
+/report/native-card-write/recovery-raw-source-binding-01/
+/task-output/functional-ram-profile-worker-recovery/
 /runtime/analysis/*-check/
 /runtime/analysis/*-checks/
 /runtime/analysis/native-controls-live/
@@ -44,6 +52,7 @@
 /source/ram-state-build.json
 /runtime/analysis/firmware-tests/
 /runtime/analysis/persistent-flash-module/
+/runtime/analysis/persistent-flash-types/
 /source/*.log
 /validation/*.log
 /validation/tmp/
@@ -72,3 +81,7 @@ runtime/analysis/camera-instances/
 *.so
 !tools/jiritsu/payload/a7c2_shell.arm64.so
 *.pem
+runtime/research/
+validation/scratch/
+*.orig
+source/build/observer-*

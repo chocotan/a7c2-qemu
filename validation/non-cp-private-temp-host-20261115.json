@@ -1,0 +1,27 @@
+{
+  "schema": "a7c2-non-cp-private-temp-host-validation-v1",
+  "status": "passed-scoped-host-only",
+  "workers": 2,
+  "groups": [
+    {"name": "usb-observer", "tests": 15, "passed": 15, "failed": 0, "skipped": 0},
+    {"name": "msc-cold", "tests": 15, "passed": 15, "failed": 0, "skipped": 0}
+  ],
+  "scope": "Sealed observer build inputs and private pinned-directory temporary files; original-cold audit and MSC probe host regressions",
+  "public_sources_sha256": {
+    "runtime/analysis/sony_usb_device.py": "aedb827b561bf71ec0fd079e0433874b6973ff54a89ff7ffba1512417ec57025",
+    "runtime/analysis/original_cold_boot.py": "fa23cee4513eb06592b11e344d5b6a9f3c5cd39c34e7b954b7ea5eebf422cb23",
+    "runtime/analysis/test_usb_ee_normal_cold.py": "ba50ae83a49ba7740cd988d37335fe94a59ad06765831b702c560c246b29a205",
+    "runtime/analysis/test_original_cold_boot.py": "99128d78f52bc045ff6fa8889e4d403bc6f5bd372f103d16538398f449eaa0ad",
+    "runtime/analysis/test_usb_msc.py": "21df49e6d784970d5ce39990308b88605f713aa44caffdcb25cd899fc8aeee44",
+    "runtime/analysis/usb_msc.py": "96e482e88e390211801f1490b3a1dcaf6ef8285f038fb389b919c3ba72766395",
+    "source/usb-device/usb-start-observe.c": "e043699f744bb57858c53d06b5bf04e8bed3cd0a1babbfd8aa13bd55eb6fcf00",
+    "source/cp-boot/observer_private_inputs.py": "bc946d7211dbeb3a0cdb218b1359f2c4825649e5af1bf0bf6c45b9b854e4039d"
+  },
+  "limitations": ["This host batch uses selected local firmware-derived build inputs; no original AP or QEMU run occurred.", "The research-lineage-only test was not selected; no result was inherited for it.", "Same-UID hostile directory moves and abnormal parent death were not proven safe."],
+  "qemu_started": false,
+  "physical_devices_used": false,
+  "msc_storage_readback_verified": false,
+  "installation_verified": false,
+  "capture_verified": false,
+  "full_hardware_boot_verified": false
+}

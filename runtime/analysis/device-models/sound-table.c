@@ -37,7 +37,7 @@ static int attach(void) {
     if (!n || extra!=EOF || error || memchr(command,0,n)) return -1;
     unsigned int reserved=0,enabled=0;char *save=0;
     for (char *p=strtok_r(command," \r\n\t",&save);p;p=strtok_r(0," \r\n\t",&save)) {
-        if (!strcmp(p,SYSTEM_SOUND_RESERVATION)) reserved++;
+        if (!strcmp(p,SYSTEM_SOUND_RESERVATION) || !strcmp(p,SYSTEM_SOUND_LUT_RESERVATION)) reserved++;
         if (!strcmp(p,"fullsystem.sound-owner=1")) enabled++;
     }
     if (reserved!=1 || enabled!=1) return -1;

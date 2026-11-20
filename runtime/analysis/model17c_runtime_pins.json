@@ -1,0 +1,213 @@
+{
+  "abi": "AArch64 little endian; ELF VAs + verified load bias; no register/stack writes",
+  "asset_sha256": "2ea02f7ecbc5bb917316fe8ef4ce5ffd87eb66efaae78ba2ce11420552df539b",
+  "points": {
+    "capture_model_ctor": {
+      "instructions": [
+        "0x3369aec: sequence_un_spinal_still_capture ctor (creator 0x336a024, factory id 0x7e); x0=this"
+      ],
+      "original_hex": "fd7bb8a9fd030091f35301a9f30300aa",
+      "sha256": "b3410af49e7a792926331ad00bd9577f27768a33b151f5ca8b4ed900fdf9b69e",
+      "va": 53910252
+    },
+    "clear_call": {
+      "instructions": [
+        "0x209ee9c: bl #0x267b7a8",
+        "0x209eea0: mov x0, x19",
+        "0x209eea4: bl #0x251dd5c",
+        "0x209eea8: cbnz w28, #0x209ef38"
+      ],
+      "original_hex": "43721794e00313aaaefb11949c040035",
+      "sha256": "793fb1f81d934744ab0dad707b3322c839e4377f8094381b09d9ba9247caff54",
+      "va": 34205340
+    },
+    "clear_return": {
+      "instructions": [
+        "0x209eea0: mov x0, x19",
+        "0x209eea4: bl #0x251dd5c",
+        "0x209eea8: cbnz w28, #0x209ef38",
+        "0x209eeac: mov x0, x20"
+      ],
+      "original_hex": "e00313aaaefb11949c040035e00314aa",
+      "sha256": "01e82508b1aaab1540f073837723e34a9753c3577e00b2b9818a8b4ac46d42ef",
+      "va": 34205344
+    },
+    "current_gate": {
+      "instructions": [
+        "0x209ee70: cmp w0, #1",
+        "0x209ee74: mov x0, x19",
+        "0x209ee78: cset w23, eq",
+        "0x209ee7c: bl #0x2e068cc"
+      ],
+      "original_hex": "1f040071e00313aaf7179f1a949e3594",
+      "sha256": "8f1b26a6f633a19118138b801a7078e81db7e8a35ebbade36cecdc4871be12b7",
+      "va": 34205296
+    },
+    "date_gate": {
+      "instructions": [
+        "0x209ee20: ldr w0, [x29, #0x8c]",
+        "0x209ee24: cmp w0, #2",
+        "0x209ee28: cset w0, eq",
+        "0x209ee2c: orr w0, w28, w0"
+      ],
+      "original_hex": "a08f40b91f080071e0179f1a8003002a",
+      "sha256": "ebc27012f4d9f62db4157d8a4b66a67aad64831fa0429e159f40bb3eca228696",
+      "va": 34205216
+    },
+    "helper_return": {
+      "instructions": [
+        "0x209ee3c: uxtb w24, w0",
+        "0x209ee40: cbnz w24, #0x209f2b4",
+        "0x209ee44: mov x0, x20",
+        "0x209ee48: mov w23, #0"
+      ],
+      "original_hex": "181c0053b8230035e00314aa17008052",
+      "sha256": "674ab0eb59f9c52dc6b674201425456d7a86174d1e4de9e4a8b6102075b386ad",
+      "va": 34205244
+    },
+    "power_key_return": {
+      "instructions": [
+        "0x209ec44: uxtb w23, w0",
+        "0x209ec48: adrp x0, #0x412c000",
+        "0x209ec4c: mov w5, w23",
+        "0x209ec50: mov w4, w24"
+      ],
+      "original_hex": "171c0053600401d0e503172ae403182a",
+      "sha256": "f5de229d043d38c57a1d97a96bc032bc3e71e0316b2781c393ea2b369dd8f0d2",
+      "va": 34204740
+    },
+    "power_mode_return": {
+      "instructions": [
+        "0x209ec70: cmp w0, #1",
+        "0x209ec74: cset w0, eq",
+        "0x209ec78: tst w23, w0",
+        "0x209ec7c: b.ne #0x209f280"
+      ],
+      "original_hex": "1f040071e0179f1aff02006a21300054",
+      "sha256": "b586d40075dbb2b206098933191f1573f0e6e9b9c100a82c3eec1cd1797d88ab",
+      "va": 34204784
+    },
+    "qr_return": {
+      "instructions": [
+        "0x209ec90: uxtb w23, w0",
+        "0x209ec94: mov x0, x19",
+        "0x209ec98: bl #0x251dd5c",
+        "0x209ec9c: cbz w23, #0x209ee20"
+      ],
+      "original_hex": "171c0053e00313aa31fc1194370c0034",
+      "sha256": "65457b97478664ed4f48979f87a58cb387431ec85568b400d97a8c04ba3cf94a",
+      "va": 34204816
+    },
+    "restore_dispatch": {
+      "instructions": [
+        "0x2ae0054: sxtw x0, w0",
+        "0x2ae0058: mov x2, #0x30",
+        "0x2ae005c: adrp x1, #0x571a000",
+        "0x2ae0060: add x1, x1, #0x560"
+      ],
+      "original_hex": "007c4093020680d2c16101d021801591",
+      "sha256": "daa39b5a9d58084b8395ff2edc826ec819f9e78c8c1fb8d6bf5c4897e291d014",
+      "va": 44957780
+    },
+    "setter_entry": {
+      "instructions": [
+        "0x267b698: stp x29, x30, [sp, #-0x30]!",
+        "0x267b69c: mov x4, #4",
+        "0x267b6a0: mov x29, sp",
+        "0x267b6a4: stp x19, x20, [sp, #0x10]"
+      ],
+      "original_hex": "fd7bbda9840080d2fd030091f35301a9",
+      "sha256": "85c4b90617a1ca771473ccd08e17f0b84e9d372a026ba2e462e671e103e6826b",
+      "va": 40351384
+    },
+    "setter_exit": {
+      "instructions": [
+        "0x267b700: ret ",
+        "0x267b704: ldr x2, [x19]",
+        "0x267b708: bl #0x36830a8",
+        "0x267b70c: b #0x267b6e4"
+      ],
+      "original_hex": "c0035fd6620240f9681e4094f6ffff17",
+      "sha256": "e517953d824690bbfd82d95490434ded57f3750d0e359f460201c42dd633896f",
+      "va": 40351488
+    },
+    "setter_wrapper_return": {
+      "instructions": [
+        "0x267b768: mov x0, x19",
+        "0x267b76c: bl #0x255a6e0",
+        "0x267b770: mov x0, x21",
+        "0x267b774: bl #0x178f974"
+      ],
+      "original_hex": "e00313aadd7bfb97e00315aa8050c497",
+      "sha256": "42e0fc00521e5f3896dcb1b35ee2016a317df068ed9a337f1cee60f3245acf93",
+      "va": 40351592
+    },
+    "setting_gate": {
+      "instructions": [
+        "0x209ee58: cmp w0, #1",
+        "0x209ee5c: b.ne #0x209ee80",
+        "0x209ee60: mov x0, x19",
+        "0x209ee64: bl #0x2e06cc0"
+      ],
+      "original_hex": "1f04007121010054e00313aa979f3594",
+      "sha256": "425772d18c3f323ed4cd928f7eec2ce3264ba28cad8a7b408b1412a7495499a4",
+      "va": 34205272
+    },
+    "snapshot_dispatch": {
+      "instructions": [
+        "0x2ae0038: sxtw x0, w0",
+        "0x2ae003c: mov x1, #0x30",
+        "0x2ae0040: mul x0, x0, x1",
+        "0x2ae0044: adrp x1, #0x571a000"
+      ],
+      "original_hex": "007c4093010680d2007c019bc16101d0",
+      "sha256": "f85a9ae8666d2d6cfc59df739c65f02d159586f07c2611a9c127dd7992f0c70e",
+      "va": 44957752
+    },
+    "special_boot_return": {
+      "instructions": [
+        "0x209ec38: uxtb w24, w0",
+        "0x209ec3c: mov x0, x21",
+        "0x209ec40: bl #0x209d680",
+        "0x209ec44: uxtb w23, w0"
+      ],
+      "original_hex": "181c0053e00315aa90faff97171c0053",
+      "sha256": "6087d95ee2f1ca6fcab42ba431f18693cbdb21d2353e13589d16129da6b537d6",
+      "va": 34204728
+    }
+  },
+  "schema": "model17c-runtime-observation-pins-v2",
+  "setter_disassembly": [
+    "0x267b698: stp x29, x30, [sp, #-0x30]!",
+    "0x267b69c: mov x4, #4",
+    "0x267b6a0: mov x29, sp",
+    "0x267b6a4: stp x19, x20, [sp, #0x10]",
+    "0x267b6a8: mov x19, x0",
+    "0x267b6ac: mov w20, w1",
+    "0x267b6b0: ldr w1, [x0, #0x10]",
+    "0x267b6b4: ldr x0, [x0, #8]",
+    "0x267b6b8: add x3, x29, #0x2c",
+    "0x267b6bc: ldr x2, [x0, #8]",
+    "0x267b6c0: ldr x0, [x19, #0x18]",
+    "0x267b6c4: str w20, [x29, #0x2c]",
+    "0x267b6c8: cbz x2, #0x267b704",
+    "0x267b6cc: bl #0x36830a8",
+    "0x267b6d0: ldr x0, [x19, #8]",
+    "0x267b6d4: ldr x0, [x0, #8]",
+    "0x267b6d8: str w20, [x0]",
+    "0x267b6dc: mov w0, #1",
+    "0x267b6e0: strb w0, [x19, #0x15]",
+    "0x267b6e4: ldr x0, [x19]",
+    "0x267b6e8: str w20, [x0]",
+    "0x267b6ec: mov w0, #1",
+    "0x267b6f0: strb w0, [x19, #0x14]",
+    "0x267b6f4: mov x0, x19",
+    "0x267b6f8: ldp x19, x20, [sp, #0x10]",
+    "0x267b6fc: ldp x29, x30, [sp], #0x30",
+    "0x267b700: ret ",
+    "0x267b704: ldr x2, [x19]",
+    "0x267b708: bl #0x36830a8",
+    "0x267b70c: b #0x267b6e4"
+  ],
+  "setter_full_hex": "fd7bbda9840080d2fd030091f35301a9f30300aaf403012a011040b9000440f9a3b30091020440f9600e40f9b42f00b9e20100b4771e4094600640f9000440f9140000b92000805260560039600240f9140000b92000805260520039e00313aaf35341a9fd7bc3a8c0035fd6620240f9681e4094f6ffff17"
+}

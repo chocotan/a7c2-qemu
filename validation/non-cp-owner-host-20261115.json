@@ -1,0 +1,38 @@
+{
+  "schema": "a7c2-non-cp-owner-host-validation-v1",
+  "status": "passed-scoped-host-only",
+  "workers": 2,
+  "groups": [
+    {"name": "serial-lifecycle", "tests": 183, "passed": 183, "failed": 0, "skipped": 0},
+    {"name": "usb-cold", "tests": 36, "passed": 36, "failed": 0, "skipped": 0}
+  ],
+  "scope": "Host fixtures for shared serial and QMP framing, cooperative-signal owner retention, exception-monitor reply boundaries, UI lifecycle and leases, and selected USB cold-start guards",
+  "source_snapshot_sha256": "f09cea49f09ec65a8b68d0a75b94bc46aff65c179369eb5e5995da8385e80348",
+  "result_sha256": "b143be542e828506fe3d85000ad584627f0bc053448da513fc0e8964cc569030",
+  "public_sources_sha256": {
+    "runtime/analysis/menu_live.py": "dd10e4bc737f483fe80db912417b54cee1bfa17bc66013d33feb73113e415ce4",
+    "runtime/analysis/qemu-menu-probe.py": "5e18ec9179f7d36a084a06e99ef1fce215f9e4d09ba5f0fd07f8fae0df5c6c1f",
+    "runtime/analysis/qemu-kernel-probe.sh": "a6bcfc87c29036a5da70ce0fe63605e96274afcef0304c167ffa78bed667093d",
+    "runtime/analysis/menu_control.py": "e5ab56776972b2c80e4c1ef24402f7721d2e847e6760dcaafdcc28ea3483e40e",
+    "runtime/analysis/exception_diagnostics.py": "601727355dfdba590c15f09718d31cf69fb545b18a7b916eff7123a7643bd1b3",
+    "runtime/analysis/test_serial_command_boundary.py": "8c7c98bd67e3c7c950972de37a97e7834cf64ff1a351515082487ebf6f42b404",
+    "runtime/analysis/test_exception_diagnostics.py": "299817f4ecd899aa13622316cd66865b9d7a1540e0cea4ccc079d2c45fc676df",
+    "runtime/analysis/test_vm_instance_lifecycle.py": "fcdd8940053b4666e97b52c5ffce111dee6759ff1eb0faf586e9ea00cbdb3f22",
+    "tools/run-original-cold.py": "7f32bc73d0f3ba9acd1ce099b6a3ed89418d88c9a8aaa351c3f6c0b46dea6279"
+  },
+  "limitations": [
+    "Host tests use simulated process, QMP and serial interactions; no real QEMU lifecycle was exercised.",
+    "Cooperative signals are handled by the owning Python process; SIGKILL, abnormal parent death, descendant identity and uninterrupted disk leases are not proven.",
+    "Historical MSC evidence still does not prove host enumeration or storage readback. The full P1 installation and capture-to-card workflows remain unverified.",
+    "This batch overlaps earlier host batches and must not be added to their counts."
+  ],
+  "qemu_started": false,
+  "physical_devices_used": false,
+  "qemu_owner_verified": false,
+  "parent_death_takeover_verified": false,
+  "msc_host_enumerated": false,
+  "msc_storage_readback_verified": false,
+  "installation_verified": false,
+  "capture_verified": false,
+  "full_hardware_boot_verified": false
+}

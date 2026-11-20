@@ -12058,5 +12058,272 @@ class CPOuCrankNativeEvidenceTests(unittest.TestCase):
             self.native(rows)
 
 
+class IsolatedObserverBatchTests(unittest.TestCase):
+    def test_explicit_archive_extent_keeps_legacy_bound_and_checks_live_proof(self):
+        self.assertEqual(checker.selected_archive_extent({}), (1024**3, None))
+        size = 1492830000
+        path = '/experiment/functional-ram-initramfs.cpio'
+        digest = '1' * 64
+        identity = dict(isolated_observer={}, initramfs=dict(path=path, sha256=digest, identity={'bytes': size}),
+                        consumer_at_manifest={'initramfs_sha256': digest})
+        manifest = dict(p4_identity=identity, probe_args={'initramfs_file': path})
+        self.assertEqual(checker.selected_archive_extent(manifest), (size, size))
+        identity['initramfs']['identity']['bytes'] = checker.OWNED_INITRD_WINDOW + 1
+        with self.assertRaisesRegex(ValueError, 'extent or launch digest'):
+            checker.selected_archive_extent(manifest)
+        identity['initramfs']['identity']['bytes'] = size
+        identity['consumer_at_manifest']['initramfs_sha256'] = '2' * 64
+        with self.assertRaisesRegex(ValueError, 'extent or launch digest'):
+            checker.selected_archive_extent(manifest)
+
+    def test_isolated_observer_requires_actual_launch_receipt_and_binary(self):
+        with tempfile.TemporaryDirectory(prefix='isolated-observer-batch-') as temp:
+            root = Path(temp).resolve()
+            observer = root / 'source/build/diagnostic/menu-observe.so'
+            observer.parent.mkdir(parents=True, mode=0o700)
+            observer.write_bytes(b'synthetic isolated observer fixture')
+            digest = checker.sha(observer.read_bytes())
+            receipt = dict(schema='a7c2-isolated-observer-build-v2', observer_only=True,
+                           original_runtime_untouched=True, physical_compatible=False, observer_sha256=digest)
+            path = observer.parent / 'diagnostic-build.json'
+            path.write_text(json.dumps(receipt))
+            receipt_sha = checker.sha(path.read_bytes())
+            binding = dict(schema='a7c2-p4-isolated-observer-v1', path=str(observer), build_receipt_sha256=receipt_sha)
+            manifest = dict(p4_identity=dict(observer_sha256=digest, isolated_observer=binding),
+                            files={str(observer): digest, str(path): receipt_sha})
+            with mock.patch.object(checker, 'NATIVE', root):
+                self.assertEqual(checker.isolated_observer(manifest), (observer, receipt))
+                observer.write_bytes(b'changed after launch')
+                with self.assertRaisesRegex(ValueError, 'actual isolated observer'):
+                    checker.isolated_observer(manifest)
+
+
+class JPEGOnlyRawEvidenceTests(unittest.TestCase):
+    """Synthetic join/parser checks only; no test fixture is native acceptance."""
+
+    def replay(self):
+        original = bytes.fromhex('05003840') + struct.pack('<I', 73) + b'\x02' + bytes(7)
+        request_fnv = f'{checker.fnv(original):016x}'
+        common = dict(rc='0', pid='123', job='1', phase='5', request_fnv=request_fnv,
+            cookie='73', frame_token='7', model_instance='9', request_freed='1', encoded='1',
+            frame_released='1', notification_consumed='3', write_verified='1', resources_released='0',
+            write_token='2', write_bytes='100', write_fnv='a'*16,
+            policy='original-consumer-natural4038-software-jpeg-v1', original_AP_saved='0',
+            capture_verified='0', physical_ASIC_verified='0')
+        rows = []
+        for line, op in ((1, 'natural-request-owned'), (5, 'notifications-queued-unsaved'),
+                         (6, 'notifications-consumed-unsaved'), (7, 'write-source-matched'),
+                         (10, 'write-lifecycle'), (11, 'write-retired')):
+            fields = dict(common, operation=op)
+            if op == 'natural-request-owned':
+                fields.update({key: '0' for key in ('frame_token', 'model_instance', 'encoded', 'frame_released',
+                    'notification_consumed', 'write_verified', 'resources_released', 'write_token', 'write_bytes')})
+                fields['phase'] = '1'
+            if op == 'write-retired':
+                fields['resources_released'] = '1'
+            rows.append(dict(tag='FUNCTIONAL_CAMERA_CAPTURE', line=line, fields=fields))
+        lines = [b'HOST_TEST parser replay']*30
+        lines[14] = b'SD_FSYS_FLUSH seq=10 pid=123 drive=65 rc=0'
+        lines[24] = b'SD_FSYS_FLUSH seq=20 pid=123 drive=65 rc=0'
+        console = b'\n'.join(lines) + b'\n'
+        path = 'DCIM/100MSDCF/DSC00001.JPG'
+        item = dict(path=path, pid=123, token=2, bytes=100, fnv1a64='a'*16, sha256='b'*64,
+            original_fsys_lifecycle_verified=True, native_readback_verified=True,
+            two_raw_exports_match=True, decode=dict(format='JPEG'), native_readbacks=[dict(line=9), dict(line=19)])
+        storage = dict(writeback_verified=True, independent_decoded=True, console_sha256=checker.sha(console),
+            exports=dict(pid=123, drive='A', storage_kind='raw-1gib'), export_sequences=[10, 20], items=[item])
+        transport = dict(pid=123, model_instance=9, transfers=[dict(opcode=17, first=5, line=3,
+            origin=dict(fnv1a64=checker.fnv(original)), request_payload={})])
+        jpeg = dict(capture_verified=True, jobs=[dict(kind='main', selector=0, path=path, bridge=dict(line=4),
+            retained_input_identity=dict(frame_token=7, model_instance=9, source_capture_first=5))])
+        return rows, transport, storage, jpeg, original, console
+
+    def joined(self, replay):
+        rows, transport, storage, jpeg, original, console = replay
+        with mock.patch.object(checker, 'read', return_value=console), \
+             mock.patch.object(checker, 'payload_read', return_value=original):
+            return checker.check_natural_jpeg_raw(Path('/HOST_TEST'), rows, transport, storage, jpeg)
+
+    def test_same_round_parser_join_is_scoped_and_never_full_capture(self):
+        result = self.joined(self.replay())
+        self.assertTrue(result['verified'])
+        self.assertTrue(result['jpeg_capture_verified'])
+        self.assertFalse(result['capture_verified'])
+        self.assertFalse(result['physical_asic_compatibility_verified'])
+
+    def test_missing_native_lifecycle_receipts_and_retained_frame_fail_closed(self):
+        for index in range(6):
+            replay = self.replay()
+            del replay[0][index]
+            with self.subTest(missing=index), self.assertRaises(ValueError):
+                self.joined(replay)
+        replay = self.replay()
+        replay[3]['jobs'][0]['retained_input_identity'] = None
+        with self.assertRaises(checker.MissingEvidence):
+            self.joined(replay)
+        replay = self.replay()
+        replay[2]['items'][0]['native_readback_verified'] = False
+        with self.assertRaises(ValueError):
+            self.joined(replay)
+
+    def test_cross_round_cookie_frame_model_write_and_export_owner_rejected(self):
+        for key, wrong in (('cookie', '74'), ('frame_token', '8'), ('model_instance', '10'),
+                           ('write_token', '3'), ('write_bytes', '101'), ('request_fnv', 'c'*16)):
+            replay = self.replay()
+            replay[0][-1]['fields'][key] = wrong
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                self.joined(replay)
+        for key, wrong in (('pid', 124), ('token', 3), ('fnv1a64', 'c'*16), ('path', 'other.JPG')):
+            replay = self.replay()
+            replay[2]['items'][0][key] = wrong
+            with self.subTest(storage=key), self.assertRaises(ValueError):
+                self.joined(replay)
+        replay = self.replay()
+        replay[1]['transfers'].append(dict(replay[1]['transfers'][0], first=6))
+        with self.assertRaises(ValueError):
+            self.joined(replay)
+
+    def test_raw_export_requires_same_console_flush_sequences_after_native_readback(self):
+        for old, new in ((b'seq=20 pid=123', b'seq=21 pid=123'),
+                         (b'seq=10 pid=123', b'seq=10 pid=124'),
+                         (b'drive=65 rc=0', b'drive=66 rc=0')):
+            replay = list(self.replay())
+            replay[-1] = replay[-1].replace(old, new)
+            replay[2]['console_sha256'] = checker.sha(replay[-1])
+            with self.subTest(mutation=new), self.assertRaises(ValueError):
+                self.joined(replay)
+        replay = self.replay()
+        replay[2]['items'][0]['native_readbacks'][0]['line'] = 16
+        with self.assertRaisesRegex(ValueError, 'order'):
+            self.joined(replay)
+
+    def test_jpeg_raw_profile_is_explicit_and_default_remains_directory(self):
+        fields = checker.source_module(checker.RUNTIME / 'backup_profile.py').functional_camera_profile_fields(checker.PROFILE)
+        manifest = dict(fields, backup_transport=copy.deepcopy(fields), directory_sd_profile=None,
+                        rm_file_image_bytes=1024**3)
+        self.assertTrue(checker.check_profile(manifest, True)['verified'])
+        with self.assertRaisesRegex(ValueError, '256GB directory'):
+            checker.check_profile(manifest)
+        manifest['rm_file_image_bytes'] = checker.writeback.CARD_BYTES
+        with self.assertRaisesRegex(ValueError, 'raw 1GiB'):
+            checker.check_profile(manifest, True)
+
+    def test_raw_source_dependencies_and_two_explicit_sequences_required(self):
+        with self.assertRaises(checker.MissingEvidence):
+            checker.check_raw_sources({})
+        for kwargs in (dict(first_sequence=10, second_sequence=20),
+                       dict(jpeg_only_raw_1gib=True),
+                       dict(jpeg_only_raw_1gib=True, first_sequence=True, second_sequence=20),
+                       dict(jpeg_only_raw_1gib=True, first_sequence=20, second_sequence=10)):
+            value = checker.evaluate('/HOST_TEST', '/HOST_TEST_BATCH', **kwargs)
+            self.assertFalse(value['capture_verified'])
+            self.assertEqual(value['verdict'], 'FAIL')
+            self.assertEqual(value['missing'][0]['stage'], 'options')
+
+    def test_jpeg_raw_gate_cannot_promote_to_default_full_camera_pass(self):
+        def assembled():
+            return dict(acceptance_scope=checker.JPEG_RAW_SCOPE, missing=[],
+                evidence={name: dict(verified=True, capture_verified=True) for name in
+                    ('profile', 'batch', 'transport', 'CMOS_encoder', 'graph', 'JPEG_causality',
+                     'natural4038_raw_join', 'raw_source_closure', 'final_immutability')},
+                products=dict(JPEG=dict(writeback_verified=True, independent_decoded=True, functional_codec_verified=True)))
+        value = checker.finish_verdict(assembled(), {})
+        self.assertTrue(value['jpeg_capture_verified'])
+        self.assertEqual(value['verdict'], 'JPEG_ONLY_PASS')
+        self.assertFalse(value['capture_verified'])
+        self.assertFalse(value['full_camera_verified'])
+        for stage in ('natural4038_raw_join', 'raw_source_closure', 'final_immutability'):
+            value = assembled()
+            del value['evidence'][stage]
+            self.assertFalse(checker.finish_verdict(value, {})['jpeg_capture_verified'])
+        for evidence_class in ('HOST_TEST', 'NATIVE_PARSER_TEST'):
+            value = checker.finish_verdict(assembled(), dict(evidence_class=evidence_class))
+            self.assertFalse(value['jpeg_capture_verified'])
+            self.assertFalse(value['capture_verified'])
+
+
+class RawSourceBindingTests(unittest.TestCase):
+    def closure(self):
+        paths = (checker.NATIVE / 'report/native-card-write/check_raw_writeback.py',
+                 checker.NATIVE / 'report/native-card-write/check_writeback.py',
+                 checker.NATIVE / 'report/capture-evidence/check_evidence.py',
+                 checker.NATIVE / 'report/native-card-write/test_raw_writeback.py',
+                 checker.RUNTIME / 'sd_transport.py', checker.RUNTIME / 'sd_flush_barrier.py',
+                 checker.RUNTIME / 'functional-capture.c',
+                 checker.NATIVE / 'report/functional-capture-output/capture-save.c')
+        digests = {str(path): checker.sha(path.read_bytes()) for path in paths}
+        bound = {}
+        with mock.patch.object(checker, 'read_absolute', wraps=checker.read_absolute) as read_source:
+            receipt = checker.check_raw_sources(digests, source_bytes=bound)
+        self.assertTrue(receipt['verified'])
+        self.assertEqual(read_source.call_count, len(paths))
+        self.assertEqual(set(bound), set(digests))
+        return paths, digests, bound
+
+    def test_verified_raw_dependency_bytes_execute_without_reopen_or_bytecode(self):
+        paths, _, bound = self.closure()
+        with mock.patch.object(Path, 'read_bytes', side_effect=AssertionError('source reopened')), \
+             mock.patch.object(checker, 'read_absolute', side_effect=AssertionError('source reread')), \
+             mock.patch('importlib.machinery.SourceFileLoader.get_code',
+                        side_effect=AssertionError('bytecode loader used')), \
+             mock.patch('importlib.machinery.SourceFileLoader.get_source',
+                        side_effect=AssertionError('unbound source loader used')):
+            reader = checker.source_module(paths[0], sources=bound)
+            self.assertEqual(reader.CARD_BYTES, 1024**3)
+            self.assertEqual(reader.sd.CAP, 0x400000)
+            self.assertIs(reader.wb, reader._source_module(paths[1]))
+            self.assertIs(reader.wb._reader, reader._source_module(paths[2]))
+            self.assertIs(reader.sd, reader._source_module(checker.RUNTIME / 'sd_transport.py'))
+            # Later mutations of the caller's mapping cannot replace the captured bytes.
+            bound[str(paths[2])] = b'raise AssertionError("replacement executed")'
+            self.assertIs(reader.wb._reader, reader._source_module(paths[2]))
+
+    def test_missing_transitive_sources_and_changed_digest_fail_closed(self):
+        paths, digests, bound = self.closure()
+        for path in (paths[1], paths[2], checker.RUNTIME / 'sd_transport.py'):
+            incomplete = dict(bound)
+            del incomplete[str(path)]
+            with self.subTest(missing=path), self.assertRaisesRegex(ValueError, 'unbound evidence source'):
+                checker.source_module(paths[0], sources=incomplete)
+            incomplete_digests = dict(digests)
+            del incomplete_digests[str(path)]
+            with self.subTest(unfrozen=path), self.assertRaises(checker.MissingEvidence):
+                checker.check_raw_sources(incomplete_digests)
+        with mock.patch.object(checker, 'read_absolute', return_value=b'HOST_TEST changed source'):
+            with self.assertRaisesRegex(ValueError, 'SHA256 differs'):
+                checker.check_raw_sources(digests, source_bytes={})
+
+    def test_source_import_cannot_fall_back_to_unbound_repository_modules(self):
+        path = checker.RUNTIME / 'HOST_TEST_unbound_import.py'
+        for source in (b'import sd_transport', b'from . import sd_transport'):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError, 'unsupported evidence source import'):
+                checker.source_module(path, sources={str(path): source})
+
+    def test_raw_content_joins_require_and_reuse_the_supplied_reader(self):
+        storage = dict(writeback_verified=True, independent_decoded=True,
+                       exports=dict(storage_kind='raw-1gib', run_directory='/HOST_TEST'))
+        item = dict(writeback_verified=True, independent_decoded=True)
+        reader = mock.Mock()
+        reader.stored_media_bytes.return_value = b'HOST_TEST same reader bytes'
+        with mock.patch.object(checker, 'source_module', side_effect=AssertionError('reader reopened')), \
+             mock.patch.object(checker.writeback, 'directory', return_value=Path('/HOST_TEST')):
+            self.assertEqual(checker.stored_bytes(storage, item, raw_reader=reader),
+                             b'HOST_TEST same reader bytes')
+            reader.stored_media_bytes.assert_called_once_with(Path('/HOST_TEST'), storage, item)
+            with self.assertRaisesRegex(checker.MissingEvidence, 'same verified source-bound reader'):
+                checker.stored_bytes(storage, item)
+
+    def test_default_directory_join_never_loads_raw_sources(self):
+        data = b'HOST_TEST existing directory readback'
+        storage = dict(writeback_verified=True, independent_decoded=True,
+                       exports=dict(host_directory='/HOST_TEST'))
+        item = dict(writeback_verified=True, independent_decoded=True, path='DCIM/HOST_TEST.JPG',
+                    bytes=len(data), sha256=checker.sha(data), fnv1a64=f'{checker.fnv(data):016x}')
+        with mock.patch.object(checker, 'source_module', side_effect=AssertionError('raw reader loaded')), \
+             mock.patch.object(checker.writeback, 'directory', return_value=Path('/HOST_TEST')), \
+             mock.patch.object(checker, 'read', return_value=data):
+            self.assertEqual(checker.stored_bytes(storage, item), data)
+
+
 if __name__ == '__main__':
     unittest.main()

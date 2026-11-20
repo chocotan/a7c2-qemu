@@ -23,6 +23,9 @@ def main():
                         help='默认 GTK；none 仅用于自动化验收，不打开窗口')
     parser.add_argument('--natural-boot',action='store_true',help='自然首设启动与真实文件RM2服务，不强制进入菜单')
     args = parser.parse_args()
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     for command in ('bash', 'flock', 'clang', 'cpio', 'bwrap'):
         if not shutil.which(command):
             parser.error('缺少依赖：' + command)

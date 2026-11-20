@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bounded, read-only evidence inspection; never establishes firmware capture."""
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -163,8 +164,13 @@ def candidate(path, data):
 
 
 class Fat16:
-    def __init__(self, f, size):
-        self.f, self.size = f, size
+    def __init__(self, f, size, on_file=None, *, max_file=MAX_FILE,
+                 read_budget=64 * 1024 * 1024, file_filter=None):
+        require(type(max_file) is int and 0 < max_file <= 128 * 1024 * 1024 and
+                type(read_budget) is int and 0 < read_budget <= 512 * 1024 * 1024 and
+                (file_filter is None or callable(file_filter)), 'invalid FAT read bounds')
+        self.f, self.size, self.on_file = f, size, on_file
+        self.max_file, self.file_filter = max_file, file_filter
         b = self.read(0, 512)
         u16 = lambda n: struct.unpack_from('<H', b, n)[0]
         u32 = lambda n: struct.unpack_from('<I', b, n)[0]
@@ -191,7 +197,7 @@ class Fat16:
                     'FAT copies disagree')
         self.used, self.entries, self.candidates = set(), [], []
         self.lfn_skipped = 0
-        self.read_budget = 64 * 1024 * 1024
+        self.read_budget = read_budget
 
     def read(self, offset, length):
         require(0 <= offset <= self.size and 0 <= length <= self.size - offset, 'disk read out of bounds')
@@ -253,7 +259,9 @@ class Fat16:
             require(not any(x['path'] == path for x in self.entries), 'duplicate directory entry')
             directory = bool(e[11] & 16)
             first, length = struct.unpack_from('<H', e, 26)[0], struct.unpack_from('<I', e, 28)[0]
-            require(len(self.entries) < 4096 and length <= MAX_FILE, 'file/entry size budget exceeded')
+            selected = not directory and (self.file_filter is None or self.file_filter(path))
+            require(len(self.entries) < 4096 and length <= (self.max_file if selected else self.size),
+                    'file/entry size budget exceeded')
             item = {'path': path, 'bytes': length, 'directory': directory}
             self.entries.append(item)
             if directory:
@@ -264,16 +272,24 @@ class Fat16:
                 capacity = ((length + self.cluster_bytes - 1) // self.cluster_bytes) * self.cluster_bytes
                 chain = self.chain(first, capacity)
                 require(len(chain) * self.cluster_bytes == capacity, 'file chain shorter than size')
+                if not selected:
+                    item['content_skipped'] = True
+                    continue
                 data = self.content(chain, length)
                 item['sha256'] = hashlib.sha256(data).hexdigest()
+                if self.on_file is not None:
+                    self.on_file(path, data)
                 c = candidate(path, data)
                 if c:
                     self.candidates.append(c)
             else:
                 require(first == 0, 'empty file owns clusters')
-                c = candidate(path, b'')
-                if c:
-                    self.candidates.append(c)
+                if selected and self.on_file is not None:
+                    self.on_file(path, b'')
+                if selected:
+                    c = candidate(path, b'')
+                    if c:
+                        self.candidates.append(c)
 
 
 def png_digest(file):
@@ -334,11 +350,33 @@ def check_input(root, proof, expected):
             'png': rows, 'png_digest_mode': 'SHA256(decoded RGB bytes); Pillow required'}
 
 
+@contextmanager
+def owned_temp_directory(path):
+    path = Path(path).absolute()
+    require(path != Path('/') and '..' not in path.parts and
+            path != Path('/tmp') and Path('/tmp') not in path.parents,
+            'temporary evidence requires a non-/tmp owned directory')
+    fd = os.open('/', os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
+    try:
+        for part in path.parts[1:]:
+            child = os.open(part, os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        info = os.fstat(fd)
+        require(info.st_uid == os.geteuid() and not info.st_mode & 0o022,
+                'temporary evidence directory must be owned and private')
+        yield fd
+    finally:
+        os.close(fd)
+
+
 def check_disk(root):
     report = load_json(root, 'SD/export.json')
     # Hash and parse the SAME private byte snapshot. Re-reading the live source
     # fd for FAT after hashing could bind its digest to a different tree.
-    with open_owned(root, 'SD/card.img', CARD_SIZE) as f, tempfile.TemporaryFile() as snapshot:
+    with owned_temp_directory(Path(root)/'SD') as directory_fd, \
+            open_owned(root, 'SD/card.img', CARD_SIZE) as f, \
+            tempfile.TemporaryFile(dir=f'/proc/self/fd/{directory_fd}') as snapshot:
         space = os.fstatvfs(snapshot.fileno())
         require(space.f_bavail * space.f_frsize >= CARD_SIZE + 1024 * 1024,
                 'insufficient private snapshot space')

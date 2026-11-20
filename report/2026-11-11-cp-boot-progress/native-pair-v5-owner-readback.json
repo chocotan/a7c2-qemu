@@ -1,0 +1,62 @@
+{
+  "schema": "a7c2-native-ap-cp-pair-readback-v1",
+  "attempt": "native-original-pair-v5",
+  "status": "verified-blocker",
+  "scope": "local isolated QEMU only; no real camera or physical SD",
+  "inputs": {
+    "source_freeze": "native-batch-source-freeze-v15",
+    "source_freeze_sha256": "641e7daddf62c69fd748beecf4de1ee9fd309a0ae0923570b24e5b81a1f0dde6",
+    "qemu_binary_sha256": "a0242ea0b7e1b2ba7d3ad54426b18d1eee0ef8f239df424324abc89102cc217a",
+    "device_qtest": "native-device-actual-v8"
+  },
+  "coordinator_barrier": {
+    "complete_ap_owner_record_waited": true,
+    "production_owner_check_passed_before_cp_launch": true,
+    "host_barrier_tests_passed": 203,
+    "workers": 2
+  },
+  "ap": {
+    "claim_generation_bound": true,
+    "qmp_so_peercred_bound_to_actual_qemu": true,
+    "guest_exception": "guest exception monitor during settle",
+    "exception_diagnostics_read_only": true,
+    "qmp_quit_confirmed": true,
+    "qemu_returncode": 0,
+    "signals_sent": []
+  },
+  "cp": {
+    "qemu_started_paused": true,
+    "original_input_bytes_fully_loaded_and_rsp_sha256_verified": true,
+    "ap_owner_and_qemu_pidfds_pinned": true,
+    "initial_cont_refused_after_ap_owner_exit": true,
+    "cont_sent": false,
+    "receiver_entry_observed": false,
+    "qmp_quit_confirmed": true,
+    "qemu_returncode": 0,
+    "signals_sent": []
+  },
+  "closure": {
+    "all_tool_and_qemu_processes_absent": true,
+    "pair_lease_released": false,
+    "observation_completed_normally": false
+  },
+  "private_evidence_sha256": {
+    "coordinator_result": "7ccaa658faa5aba1538c20c740ef6c34f0a0d9a727eed9985d574fa412c5f973",
+    "cp_result": "03ab1c92e2e6a047650dc028fdf26d0bc72830459318bed76b7a5be23c53e09d",
+    "ap_owner_record": "22cc4e125eb19be8d09c78c2b7f1db5a5fd8ba756957c94df924dad256ddd4fb",
+    "ap_qmp_quit": "c42b8e965740784c4ada357cc3a030775c17acf5a1ceae5cf1b8615f39534db0",
+    "ap_console": "a1fd69b44e98a4313a331d0418d897caa7370cacbf6547644e23a834beb8b815",
+    "ap_exception_diagnostics": "467e8e1b8d834191b21740cdb986977231272caa81303a8cd350d25262e9c45b"
+  },
+  "verified": {
+    "actual_ap_qmp_owner_binding": true,
+    "actual_cp_fail_closed_pre_cont": true,
+    "original_ap_consumption": false,
+    "original_cp_execution": false,
+    "full_boot": false,
+    "receiver_entry": false,
+    "installation": false,
+    "capture": false,
+    "physical_compatibility": false
+  }
+}

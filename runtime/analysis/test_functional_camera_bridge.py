@@ -17,6 +17,7 @@ import shlex
 import socket
 import struct
 import subprocess
+import tempfile
 import threading
 import time
 
@@ -120,13 +121,24 @@ class PhysicalMemory:
         raise AssertionError('Unapproved RSP command: ' + repr(command))
 
 
+def bind_unix(listener, path):
+    if len(os.fsencode(path)) < 108:
+        listener.bind(str(path))
+        return
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        listener.bind(f'/proc/self/fd/{directory}/{path.name}')
+    finally:
+        os.close(directory)
+
+
 class RSPServer:
     """Actual AF_UNIX byte-stream fixture, with deliberately fragmented packets."""
     def __init__(self, path, memory):
         self.path, self.memory = path, memory
         self.errors = []
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.listener.bind(str(path))
+        bind_unix(self.listener, path)
         os.chmod(path, 0o600)
         self.listener.listen(1)
         self.connection = None
@@ -483,16 +495,23 @@ def test_debugger_handoff_required_before_endpoint_or_library_access():
                 debugger_quiesced=False, resume_allowed=lambda: True)
 
 
-def test_listener_binding_permissions_and_existing_client(wire):
-    _, _, server = wire
-    with pytest.raises(ValueError, match='connected client'):
-        b.checked_socket(server.path.parent, server.path, os.getpid())
-    os.chmod(server.path, 0o644)
-    with pytest.raises(ValueError, match='0600'):
-        b.checked_socket(server.path.parent, server.path, os.getpid())
-    os.chmod(server.path, 0o600)
-    with pytest.raises(FileNotFoundError):
-        b.checked_socket(server.path.parent, server.path.parent / 'missing', os.getpid())
+def test_listener_binding_permissions_and_existing_client():
+    runtime = Path('/run/user') / str(os.getuid())
+    with tempfile.TemporaryDirectory(prefix='a7c2-bridge-', dir=runtime) as temporary:
+        server = RSPServer(Path(temporary) / 'gdb.sock', PhysicalMemory())
+        rsp = b.RSP(server.path, expected_pid=os.getpid())
+        try:
+            with pytest.raises(ValueError, match='connected client'):
+                b.checked_socket(server.path.parent, server.path, os.getpid())
+            os.chmod(server.path, 0o644)
+            with pytest.raises(ValueError, match='0600'):
+                b.checked_socket(server.path.parent, server.path, os.getpid())
+            os.chmod(server.path, 0o600)
+            with pytest.raises(FileNotFoundError):
+                b.checked_socket(server.path.parent, server.path.parent / 'missing', os.getpid())
+        finally:
+            rsp.close()
+            server.close()
 
 
 def test_rsp_peer_pid_must_be_the_actual_bound_process(tmp_path):
@@ -510,15 +529,9 @@ def test_qmp_fragmented_events_and_matching_ids(tmp_path, long_path):
     directory.mkdir(exist_ok=True)
     path = directory / 'qmp.sock'
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    bind_unix(listener, path)
     if long_path:
-        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
-        try:
-            listener.bind(f'/proc/self/fd/{fd}/{path.name}')
-        finally:
-            os.close(fd)
         assert len(os.fsencode(path)) >= 108
-    else:
-        listener.bind(str(path))
     listener.listen(1)
     errors = []
 
@@ -549,16 +562,50 @@ def test_qmp_fragmented_events_and_matching_ids(tmp_path, long_path):
     assert not errors and not thread.is_alive()
 
 
+@pytest.mark.parametrize('fault', ['send', 'timeout', 'old-id', 'bool-id', 'malformed', 'eof', 'events'])
+def test_qmp_transport_fault_latches_before_next_request(fault):
+    class Stream:
+        def __init__(self):
+            self.sent = []
+            self.reads = 0
+
+        def settimeout(self, timeout):
+            pass
+
+        def sendall(self, data):
+            self.sent.append(json.loads(data))
+            if fault == 'send':
+                raise BrokenPipeError('simulated write failure')
+
+        def recv(self, count):
+            self.reads += 1
+            if fault == 'timeout' and self.reads == 1:
+                raise TimeoutError('simulated read timeout')
+            return {'old-id': b'{"id":0,"return":{}}\n',
+                    'bool-id': b'{"id":true,"return":{}}\n',
+                    'malformed': b'not json\n', 'eof': b'',
+                    'events': b'{"event":"STOP"}\n',
+                    'timeout': b'{"id":1,"return":{}}\n'}[fault]
+
+    qmp = b.QMP.__new__(b.QMP)
+    qmp.timeout, qmp.serial, qmp.desynchronized = 1, 0, False
+    qmp.socket, qmp.buffer = Stream(), bytearray()
+    expected = {'send': BrokenPipeError, 'timeout': TimeoutError, 'eof': EOFError}.get(fault, ValueError)
+    with pytest.raises(expected):
+        qmp.execute('query-status')
+    reads = qmp.socket.reads
+    with pytest.raises(ValueError, match='stream desynchronized'):
+        qmp.execute('stop')
+    assert qmp.socket.sent == [{'execute': 'query-status', 'id': 1}]
+    assert qmp.socket.reads == reads
+
+
 def test_rsp_long_run_path_uses_real_peer(tmp_path):
     directory = tmp_path / ('deep-' + 'x' * 90)
     directory.mkdir()
     path = directory / 'gdb.sock'
     assert len(os.fsencode(path)) >= 108
-    fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
-    try:
-        server = RSPServer(Path(f'/proc/self/fd/{fd}/{path.name}'), PhysicalMemory())
-    finally:
-        os.close(fd)
+    server = RSPServer(path, PhysicalMemory())
     rsp = None
     try:
         rsp = b.RSP(path, expected_pid=os.getpid())

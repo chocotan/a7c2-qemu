@@ -171,7 +171,17 @@ def test_scope_skips_only_declared_asset_and_launcher_integrations():
 
 def test_model_list_preserves_host_callers_and_explicit_external_stages():
     names = json.loads((ROOT / 'tools/public-model-tests.json').read_text())
-    assert isinstance(names, list) and len(names) == len(set(names)) == 253
+    native = {'source/cp-boot/' + name for name in (
+        'test_gpio18.py','test_stage.py','test_notify_stage.py','test_official_backup.py',
+        'test_scu.py','test_tpu.py','test_native_link.py','test_native_ap.py','test_native_cp.py',
+        'test_native_qtest.py','test_native_device_check.py','test_peripherals_stage.py','test_platform_port.py',
+        'test_capture_initramfs.py','test_observer_diagnostic_build.py','test_observer_private_inputs.py',
+        'test_official_loader_page_tables.py','test_p1_spi_monitor.py','test_p1_spi_ssi.py')}
+    additional = {'runtime/analysis/test_upm_diagnostic.py', 'runtime/analysis/test_p1_transport_frontier.py',
+                  'runtime/analysis/test_sd_transport.py', 'report/native-card-write/test_raw_writeback.py',
+                  'report/capture-evidence/test_check_evidence.py'}
+    assert isinstance(names, list) and len(names) == len(set(names)) == 254 + len(native) + len(additional)
+    assert native | additional <= set(names)
     assert {'source/persistent-flash/test_freeze.py','runtime/analysis/test_factory_images.py','runtime/analysis/test_observer_process_scope.py','runtime/analysis/test_original_cold_boot.py'} <= set(names)
     assert {
         'runtime/analysis/test-menu-control.py',

@@ -25,6 +25,15 @@ extern long osal_snd_sync_direct(u32, void *);
 #define UDATE_BYTES 44u
 #define UDATE_REPLY_TIMEOUT_MS 5000L
 #define RETAINED_MAX 4u
+#define UDATE_REASON_MIN 1u
+#define UDATE_REASON_MAX 5u
+
+/* Model reasons 1..5; the original generic handler skips type4 for reason 4.
+ * Other reasons remain delegated until supported producers are identified. */
+static u32 valid_reason(u32 reason)
+{
+    return reason >= UDATE_REASON_MIN && reason <= UDATE_REASON_MAX;
+}
 
 static long (*sender_handle)(u32, void *);
 static u32 busy, faults, unhandled, remote_valid, done_sent;
@@ -94,6 +103,7 @@ static long release_or_retain(u32 id, void **message)
     *message = 0;
     return rc;
 }
+#include "bb-receiver.c"
 #include "backup-endpoint.c"
 #ifndef BACKUP_ENDPOINT_TEST
 #include "backup-pci.c"
@@ -128,9 +138,8 @@ static u32 valid_timezone(const u8 *p)
     return valid_zone_half(get16(p)) && valid_zone_half(get16(p + 2)) && get16(p + 4) == 0;
 }
 
-/* The original public path calls this with the original qid/message. Other
- * public traffic retains the original no-service default; this module never
- * claims to have consumed it. */
+/* Nonzero send leaves ownership with the original caller; zero transfers it
+ * to a receiver. Unimplemented remote services must not accept allocations. */
 static long udate_sender(u32 qid, void *message)
 {
     const u8 *body = message;
@@ -142,26 +151,34 @@ static long udate_sender(u32 qid, void *message)
     const char *stage = "roundtrip";
     long rc;
 
-    if (qid == BACKUP_TARGET) return backup_sender(qid, message);
-    if (qid != UDATE_TARGET1 || !message) return 0;
+    if (!message) return -1024;
+    if (qid == BB_TARGET) return bb_sender(message);
+    if (qid == BACKUP_TARGET && backup_enabled) return backup_sender(qid, message);
+    if (qid != UDATE_TARGET1) {
+        if (__sync_fetch_and_add(&unhandled, 1) < 16)
+            printk("\0016UDATE_K_UNSERVED: destination=%#x rc=-1020 caller_owns=1 virtual_completion=0\n",
+                   qid);
+        return -1020;
+    }
     size = ((u32 *)message)[-2];
     source = osal_get_msg_src(message);
     type = size >= 4 ? get32(body) : 0;
     sync = size >= 12 ? get32(body + 8) : 0;
     reason = size >= 0x2a ? get16(body + 0x28) : 0;
-    if (size != UDATE_BYTES || type != 1 || sync != 0 || reason != 1 || source != UDATE_SOURCE) {
-        if (unhandled++ < 16)
-            printk("\0016UDATE_K_UNHANDLED: destination=%#x source=%#x size=%u type=%#x sync=%#x reason=%#x original_default=1\n",
+    if (size != UDATE_BYTES || type != 1 || sync != 0 || !valid_reason(reason) ||
+        source != UDATE_SOURCE) {
+        if (__sync_fetch_and_add(&unhandled, 1) < 16)
+            printk("\0016UDATE_K_UNHANDLED: destination=%#x source=%#x size=%u type=%#x sync=%#x reason=%#x rc=-1020 caller_owns=1 virtual_completion=0\n",
                    qid, source, size, type, sync, reason);
-        return 0;
+        return -1020;
     }
     if (__sync_lock_test_and_set(&busy, 1)) return fail("busy", -1021);
     if (faults) {
         __sync_lock_release(&busy);
         return fail("latched-fault", -1021);
     }
-    printk("\0016UDATE_K_REQUEST: destination=%#x source=%#x bytes=%u reason=1 async=1\n",
-           qid, source, size);
+    printk("\0016UDATE_K_REQUEST: destination=%#x source=%#x bytes=%u reason=%u async=1\n",
+           qid, source, size, reason);
 
     rc = timer_read(&before);
     if (rc) { __sync_lock_release(&busy); return fail("timer-before", rc); }
@@ -225,12 +242,32 @@ static long udate_sender(u32 qid, void *message)
            (short)get16(response + 0x20), (short)get16(response + 0x22),
            (unsigned long long)remote_elapsed);
 
+    /* Original reason 4 updates the distribution clock but intentionally
+     * returns without sending the type4 completion notification. */
+    if (reason == 4) {
+        rc = osal_free_msg(qid, message);
+        if (rc) {
+            retained_request = message;
+            retained_request_id = qid;
+            ++faults;
+            printk("\0016UDATE_K_RETAIN: original request id=%#x message=%p rc=%ld\n",
+                   qid, message, rc);
+        }
+        __sync_lock_release(&busy);
+        printk("\0016UDATE_K_ACK: generation=%llu reason=4 timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%ld faults=%u request_retained=%u done_sent=0 virtual_completion=1\n",
+               (unsigned long long)generation,
+               (unsigned long long)before, (unsigned long long)after,
+               (unsigned long long)remote_elapsed, rc, faults,
+               retained_request != 0);
+        return 0;
+    }
+
     stage = "done-allocate";
     rc = osal_valloc_msg_wait(source, &done, UDATE_BYTES, 1);
     if (rc || !done) goto cleanup;
     zero(done, UDATE_BYTES);
     put32(done, 4);
-    put16((u8 *)done + 0x28, 1);
+    put16((u8 *)done + 0x28, reason);
     /* Local receive-side identity: done_notified extracts target1 from source. */
     osal_set_msg_src(done, UDATE_TARGET1);
     stage = "done-send";
@@ -247,8 +284,8 @@ static long udate_sender(u32 qid, void *message)
                qid, message, rc);
     }
     __sync_lock_release(&busy);
-    printk("\0016UDATE_K_DONE: generation=%llu target=1 done_source=%#x timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%ld faults=%u request_retained=%u done_sent=1 virtual_completion=1 hardware_ready=0 camera_capture_verified=0\n",
-           (unsigned long long)generation, UDATE_TARGET1,
+    printk("\0016UDATE_K_DONE: generation=%llu target=1 done_source=%#x reason=%u timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%ld faults=%u request_retained=%u done_sent=1 virtual_completion=1 hardware_ready=0 camera_capture_verified=0\n",
+           (unsigned long long)generation, UDATE_TARGET1, reason,
            (unsigned long long)before, (unsigned long long)after,
            (unsigned long long)remote_elapsed, rc, faults, retained_request != 0);
     return 0;
@@ -278,8 +315,17 @@ int __attribute__((section(".init.text"))) init_module(void)
         if (rc) return (int)rc;
     }
 #endif
+    rc = bb_prepare();
+    if (rc) {
+#ifndef BACKUP_ENDPOINT_TEST
+        if (backup_model) backup_pci_release();
+#endif
+        return (int)rc;
+    }
     sender_handle = udate_sender;
     rc = osal_reg_public((long)&sender_handle);
+    if (rc) bb_cancel();
+    else bb_start();
 #ifndef BACKUP_ENDPOINT_TEST
     if (backup_model) {
         if (rc) backup_pci_release();

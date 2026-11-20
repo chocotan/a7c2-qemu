@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the isolated original RAM0/init/pivot route; no physical devices."""
 import argparse
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 import fcntl
 import hashlib
 import json
@@ -20,7 +20,7 @@ ANALYSIS=ROOT/'runtime/analysis'
 sys.path.insert(0,str(ANALYSIS))
 from original_cold_boot import prepare,need,sha,verify_root_observation,original_menu_pixels,chinese_language_rows,verify_chain_log,product_input_bindings
 import persistent_storage as storage
-from menu_live import connect_in_run,serial_command,key_command
+from menu_live import connect_in_run,serial_command,key_command,qmp_transaction
 
 
 def navigate_main_menu(process,runtime,qmp):
@@ -95,6 +95,8 @@ def navigate_main_menu(process,runtime,qmp):
 def cold_environment(live=False):
     environment=dict(os.environ) if live else runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
     environment.update(SONY_TIMER_MODEL='1',SONY_DMM_SERVICE='1',QEMU_SYSTEM_SOUND_OWNER='1',QEMU_PIN_CONTROL_MEMORY='1',MENU_RM_FILE='1',MENU_NATIVE_WINDOW='1',QEMU_NATIVE_DISPLAY='none',QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0',QEMU_TRACE_FLAGS='guest_errors,unimp',A7C2_ORIGINAL_COLD='original-init-v1')
+    if 'A7C2_USB_GENERATION_OBSERVE' in os.environ:
+        environment['A7C2_USB_GENERATION_OBSERVE']=os.environ['A7C2_USB_GENERATION_OBSERVE']
     return environment
 
 
@@ -107,49 +109,74 @@ def bind_ram_qemu(environment):
 
 
 def usb_msc_environment(environment):
-    environment['A7C2_USB_MSC']='1'
-    for name in ('A7C2_SONY_USB_DEVICE','A7C2_USB_DEVICE_BUILD'):
+    required=('A7C2_SONY_USB_DEVICE','A7C2_USB_DEVICE_BUILD')
+    for name in required:
         need(os.environ.get(name),'USB MSC requires explicit device profile and candidate receipt: '+name)
-        environment[name]=os.environ[name]
+    from sony_usb_device import selected
+    selected({'A7C2_SONY_USB_DEVICE':os.environ['A7C2_SONY_USB_DEVICE']})
+    enabled=os.environ.get('A7C2_USB_EE_NORMAL_COLD')
+    declared=os.environ.get('A7C2_USB_EE_NORMAL_COLD_INPUT')
+    if enabled is not None or declared is not None:
+        need(enabled=='1' and bool(declared),'EE cold requires explicit profile 1 and private input together')
+    environment['A7C2_USB_MSC']='1'
+    environment.update({name:os.environ[name] for name in required})
+    for name in ('A7C2_USB_EE_NORMAL_COLD','A7C2_USB_EE_NORMAL_COLD_INPUT','A7C2_USB_MSC_SCHEDULER'):
+        environment.pop(name,None)
+    scheduler=os.environ.get('A7C2_USB_MSC_SCHEDULER')
+    if scheduler is not None:
+        need(scheduler=='1','MSC scheduler requires explicit 1')
+        environment['A7C2_USB_MSC_SCHEDULER']=scheduler
+    if enabled is not None:
+        environment.update(A7C2_USB_EE_NORMAL_COLD=enabled,A7C2_USB_EE_NORMAL_COLD_INPUT=declared)
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(environment)
 
 
 def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,built=None,leased=None,usb_msc=False,ram_session=False):
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(os.environ)
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     need(not (ram_capture and ram_restore) and not (live and (ram_capture or usb_msc)),'RAM/MSC probes require their declared original-cold action')
     need(not (live and ram_restore) or ram_session,'Live RAM restore requires the explicit window mode')
     ram_session=bool(ram_session or ram_capture or ram_restore)
     need(not (usb_msc and (ram_capture or ram_restore)),'USB MSC excludes RAM migration')
     runtime=output if live else output/'run'
     environment=cold_environment(live)
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        environment.update({name:os.environ[name] for name in ('A7C2_SINGLE_AP_SOCKETS','A7C2_SINGLE_AP_SOCKET_ROOT')})
     if usb_msc:usb_msc_environment(environment)
+    runtime_preflight(environment)
     if ram_session:
         from sony_usb_device import selected
         need(not selected(environment),'Sony USB device migration is not audited; disconnect and use a RAM-only session')
         environment['QEMU_RAM_SESSION']='1';bind_ram_qemu(environment)
     environment['QEMU_OUTPUT_DIR']=str(runtime)
     if built is None:built=prepare(instance,output/'build',environment)
+    from usb_scheduler import enabled as scheduler_enabled, load_contract as scheduler_contract
+    scheduler=scheduler_contract(built) if scheduler_enabled(environment) else None
     build_result=Path(built['ram0']).parent/'result.json'
     if not live:runtime.mkdir(mode=0o700)
     process=None;stream=None;connection=None;quit_attempted=False
-    result=dict(schema='a7c2-product-original-init-cold-actual-v1',verified=False,guest_started=False,full_boot_verified=False,physical_devices_used=False,capture_verified=False,ram_capture_verified=False,ram_restore_verified=False,sony_wbi_resume_executed=False,build_result_sha256=sha(build_result))
+    result=dict(schema='a7c2-product-original-init-cold-actual-v2',verified=False,guest_started=False,full_boot_verified=False,physical_devices_used=False,capture_verified=False,ram_capture_verified=False,ram_restore_verified=False,sony_wbi_resume_executed=False,qmp_boundary_unknown=False,serial_boundary_unknown=False,owner_retention_requested=False,build_result_sha256=sha(build_result))
     def save():
         temporary=output/'result.new';temporary.write_text(json.dumps(result,indent=2)+'\n');os.replace(temporary,output/'result.json')
     def qmp(command,arguments=None,pass_fd=None):
         nonlocal quit_attempted
+        need(not getattr(process,'_menu_qmp_desynchronized',False),
+             'QMP transaction boundary lost; no further commands')
         if command=='quit':
+            need(not getattr(process,'_menu_serial_desynchronized',False),
+                 'Serial boundary unknown; QMP quit is not admitted')
             need(not quit_attempted,'Quit already attempted');quit_attempted=True
-        message=dict(execute=command)
-        if arguments is not None:message['arguments']=arguments
-        encoded=(json.dumps(message)+'\n').encode()
-        if pass_fd is None:
-            stream.write(encoded);stream.flush()
-        else:
+        send=None
+        if pass_fd is not None:
             need(command=='getfd' and type(pass_fd) is int and pass_fd>=0,'QMP descriptor passing is limited to getfd')
-            connection.sendmsg([encoded],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,struct.pack('i',pass_fd))])
-        while True:
-            raw=stream.readline(65537);need(raw and len(raw)<65537,'Incomplete original-cold QMP reply');reply=json.loads(raw)
-            if 'error' in reply:raise RuntimeError(str(reply['error']))
-            if 'return' in reply:return reply
-    with (storage.instance_lease(instance) if leased is None else nullcontext(leased)) as leased:
+            def send(encoded):
+                return connection.sendmsg([encoded],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,struct.pack('i',pass_fd))])
+        return qmp_transaction(process,stream,command,arguments,send=send)
+    with (storage.instance_lease(instance) if leased is None else nullcontext(leased)) as leased, ExitStack() as owner_guards:
         selected_qemu=Path(environment.get('QEMU_SYSTEM_DIR',str(ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui')))/environment.get('QEMU_SYSTEM_BINARY','qemu-system-aarch64')
         environment.update(storage.inherited_environment(leased,binary=selected_qemu if ram_session else None,
                                                            ram_state=ram_session))
@@ -166,11 +193,21 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
         environment.update(usb_environment(environment,runtime))
         if ram_restore:environment['QEMU_RAM_INCOMING']='defer'
         else:environment.pop('QEMU_RAM_INCOMING',None)
+        if 'A7C2_SINGLE_AP_SOCKETS' in environment or 'A7C2_SINGLE_AP_SOCKET_ROOT' in environment:
+            from single_ap_sockets import prepare as prepare_single_ap_sockets
+            environment.update(prepare_single_ap_sockets(environment,runtime))
         command=['bash',str(ANALYSIS/'qemu-kernel-probe.sh'),'4096',str(ANALYSIS/'qemu-virt-board/virt-packed.dtb'),'1','1',built['ram0']]
         with (runtime/'console.log').open('xb') as console,(runtime/'stderr.log').open('xb') as stderr:
             try:
                 clean_environment={k:v for k,v in os.environ.items() if not k.startswith(('QEMU_','MENU_','SONY_','A7C2_','LD_'))}
+                from menu_live import guard_process_group,owner_signal_guard,retain_running_owner,retain_process_group
+                owner_guards.enter_context(owner_signal_guard())
                 process=subprocess.Popen(command,cwd=ANALYSIS,env={**clean_environment,**environment},stdin=subprocess.PIPE,stdout=console,stderr=stderr,start_new_session=True,pass_fds=(leased['fd'],))
+                try:owner_guards.enter_context(guard_process_group(process,runtime))
+                except BaseException as error:
+                    retain_running_owner(process,runtime,error,reason='qmp-exit')
+                    retain_process_group(process)
+                    raise
                 result.update(guest_started=True,owner_pid=process.pid,command=command);save();print('ORIGINAL_COLD_STARTED',process.pid,output,flush=True)
                 connection=socket.socket(socket.AF_UNIX);connection.settimeout(15);deadline=time.monotonic()+30
                 while True:
@@ -261,7 +298,7 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
                 result['main_menu']=navigate_main_menu(process,runtime,qmp)
                 if usb_msc:
                     from usb_msc import probe
-                    result['usb_msc']=probe(process,runtime,qmp)
+                    result['usb_msc']=probe(process,runtime,qmp,**({'scheduler_contract':scheduler} if scheduler is not None else {}))
                 result['internal_storage']=storage.prepare_shutdown(lambda command:serial_command(process,runtime/'console.log',command,timeout=30),runtime)
                 result.update(original_ram_init_observed=b'PRODUCT_COLD_BEFORE_ORIGINAL_INIT' in observed,original_init2_observed=b'PRODUCT_COLD_INIT2 parent=' in observed,p7_root_observed=True,original_ram0_release_verified=True,original_ap_draw_observed=True,
                               verified=bool(not usb_msc or result['usb_msc'].get('msc_verified')))
@@ -271,13 +308,40 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
                     storage._save(receipt_path(ram_capture),captured)
                     result.update(ram_capture=captured,ram_capture_verified=True)
             except BaseException as error:
-                result.update(verified=False,error=type(error).__name__+': '+str(error));print('ORIGINAL_COLD_ERROR',result['error'],flush=True)
+                detail=type(error).__name__+': '+str(error)
+                for note in getattr(error,'__notes__',()):detail+='\n'+str(note)
+                result.update(verified=False,error=detail);print('ORIGINAL_COLD_ERROR',result['error'],flush=True)
             finally:
+                if process is not None and getattr(process,'_menu_qmp_desynchronized',False):
+                    result.update(verified=False,owner_retention_requested=True,qmp_boundary_unknown=True)
+                    try:save()
+                    except BaseException as error:
+                        try:print('QMP_OWNER_SAVE_FAILED '+repr(error),flush=True)
+                        except BaseException:pass
+                    from menu_live import retain_running_owner
+                    retain_running_owner(process,runtime,result.get('error'),reason='qmp-exit')
+                if process is not None and getattr(process,'_menu_serial_desynchronized',False):
+                    result.update(verified=False,owner_retention_requested=True,serial_boundary_unknown=True)
+                    try:save()
+                    except BaseException as error:
+                        try:print('SERIAL_OWNER_SAVE_FAILED '+repr(error),flush=True)
+                        except BaseException:pass
+                    from menu_live import retain_serial_owner
+                    retain_serial_owner(process,runtime,result.get('error'))
                 from original_cold_live import saved_for_close
                 if process is not None and process.poll() is None and stream is not None and (not live or saved_for_close(runtime)):
                     try:
                         reply=qmp('quit');process.wait(timeout=30);result['qmp_exit']=dict(qmp_quit_confirmed=True,reply=reply,returncode=process.returncode,signals_sent=[])
-                    except BaseException as error:result['close_error']=type(error).__name__+': '+str(error)
+                    except BaseException as error:
+                        result['close_error']=type(error).__name__+': '+str(error)
+                        if getattr(process,'_menu_qmp_desynchronized',False):
+                            result.update(verified=False,owner_retention_requested=True,qmp_boundary_unknown=True)
+                            try:save()
+                            except BaseException as save_error:
+                                try:print('QMP_OWNER_SAVE_FAILED '+repr(save_error),flush=True)
+                                except BaseException:pass
+                            from menu_live import retain_running_owner
+                            retain_running_owner(process,runtime,error,reason='qmp-exit')
                 if stream is not None:stream.close()
                 if connection is not None:connection.close()
                 if process is not None:
@@ -299,9 +363,15 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
 
 def ram_roundtrip(instance,output,seconds):
     """One source/target pair under one disk lease; no cold fallback."""
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(os.environ)
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     from original_ram_restore import receipt_path
     output=Path(output).absolute();stream=output/'snapshot.qevm'
-    environment=cold_environment();environment['QEMU_RAM_SESSION']='1';bind_ram_qemu(environment)
+    environment=cold_environment();runtime_preflight(environment)
+    environment['QEMU_RAM_SESSION']='1';bind_ram_qemu(environment)
     built=prepare(instance,output/'build',environment)
     summary=dict(schema='a7c2-product-original-ram-roundtrip-v1',actual_ram_roundtrip_verified=False,
                  same_persistent_disk_lease=True,sony_wbi_resume_executed=False,full_boot_verified=False,capture_verified=False)
@@ -324,8 +394,19 @@ def ram_roundtrip(instance,output,seconds):
 
 
 def main():
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(os.environ)
     parser=argparse.ArgumentParser();selection=parser.add_mutually_exclusive_group(required=True);selection.add_argument('--instance',type=Path);selection.add_argument('--new-instance',action='store_true',help='create an independent disk from this product official BODYDATA cache');parser.add_argument('--output',type=Path,required=True);parser.add_argument('--seconds',type=int,default=120);parser.add_argument('--prepare-only',action='store_true');parser.add_argument('--ram-roundtrip',action='store_true',help='save original AP RAM, normally exit, restore on the same disk, and verify original MENU/LCD');parser.add_argument('--usb-msc',action='store_true',help='use the ordinary original AP USB cable and ENTER, then preserve actual MSC evidence');args=parser.parse_args()
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     need(15<=args.seconds<=300,'Original-cold observation must be15..300 seconds');need(not args.output.exists(),'Fresh output required');need(not (args.prepare_only and (args.ram_roundtrip or args.usb_msc)),'RAM/MSC probes and prepare-only are exclusive');need(not (args.ram_roundtrip and args.usb_msc),'RAM roundtrip and USB MSC are exclusive')
+    if args.usb_msc:
+        usb_environment={};usb_msc_environment(usb_environment)
+        from sony_usb_device import candidate,inspect_ee_input
+        candidate(usb_environment['A7C2_USB_DEVICE_BUILD'])
+        if usb_environment.get('A7C2_USB_EE_NORMAL_COLD')=='1':
+            inspect_ee_input(usb_environment['A7C2_USB_EE_NORMAL_COLD_INPUT'])
     descriptor=os.open(ANALYSIS/'.menu-probe.lock',os.O_RDWR|os.O_CREAT|os.O_NOFOLLOW,0o600)
     try:
         try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)

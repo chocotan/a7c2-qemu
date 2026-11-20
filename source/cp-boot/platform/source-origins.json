@@ -1,0 +1,173 @@
+{
+  "boundaries": {
+    "capture_verified": false,
+    "full_boot_verified": false,
+    "legacy_edma_llp_supported": false,
+    "legacy_edma_pcie_remap_supported": false,
+    "migration_supported": false,
+    "original_ap_cp_consumption_verified": false,
+    "physical_compatible": false,
+    "secure_timer30_wiring_verified": false,
+    "timer_input_clock_calibrated": false,
+    "watchdog_irq_mode_supported": false
+  },
+  "default_off": true,
+  "downstream": {
+    "gpio18_stage_sha256": "f7f94f364bd1509957d9b5aea8370dab2ae02fe874237efc0081a8728024be0d",
+    "notify_stage_sha256": "79041461b7b834ef3c1610bb98eff521574d567c5f789d5eb7d62b65b7d67c1e",
+    "notify_fresh_stage_sha256": "1efa461744f73cea3199f2dd14cd0b361608c9d0760e1e4b99069e732b618a14",
+    "recipe_files": {
+      "gpio18-qemu.c": "de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873",
+      "gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+      "gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+      "notify-qemu.c": "a7f4031567c724700420259ac5bcc3170349ed5a15f5e55fcbca0dada03ecda4",
+      "notify.c": "6ec69708a31b84191f9b7c54c87566c69e16ae9fd8500e78de5fbf2244887db1",
+      "notify.h": "ae0ac8d7857a4c5c8939a58bb0049bc2502c4ed3f75a3e5ecddb9476e61e5a94",
+      "stage-notify.py": "508a3e84d699f656612fdaacf4df734bdf56048e88eb36c13edffc4a37aa580a",
+      "stage.py": "652462c9aaa327f9bd46d141b7f6464de109eb4f7e7993d9e56168cd0b6257e6"
+    }
+  },
+  "excluded_differences": {
+    "include/ui/sony-ui-input.h": {
+      "native_sha256": "a7add6e2a61f6c8999cbfa526345a927b7c6e60c1435cc8585ee26b486349428",
+      "observed_cp_sha256": "be4d0f7d45c40a0a195e691d76fc4453ce1f801fb91fe0bb623697f58358499a",
+      "reason": "Existing research camera-shell/UI changes are outside CP hardware runtime and not imported."
+    },
+    "ui/gtk.c": {
+      "native_sha256": "72620cd014f45526e830a229376b45ef2d6c1625946dea517fce76bbf08fb049",
+      "observed_cp_sha256": "5a88c70f49934fe5ef09e65f50fe167f1adcdc8a27a72c618710ac0a2d907224",
+      "reason": "Existing research camera-shell/UI changes are outside CP hardware runtime and not imported."
+    }
+  },
+  "patch": {
+    "path": "cp-platform.patch",
+    "sha256": "84b5740d41e930f3fba64679b4a0365704067648477e963cccd3bd4f5fa72baa"
+  },
+  "profile": "virtual-cp-platform-v1",
+  "schema": "a7c2-cp-platform-origins-v1",
+  "scope": "Public hardware runtime port from official QEMU 11.1.2 plus the pinned product native patch. BODYDATA and QEMU archive are the only external source inputs; no pre-existing CP tree is a build input.",
+  "source_models": {
+    "hw/dma/sony_cp_edma.c": "39f3b275a4514d5c01adc66fd9359933ee70b0424aacdf47c828f8cf3c3f06da",
+    "hw/misc/sony_cp_edma_gate.c": "a76e7f93549abf15eb65cf4e3449b9daf3ce103eee127c2c8fc2cfed29984322",
+    "hw/watchdog/sony_cxd_wdt.c": "6a1dcf61ecaf7a54d7a1c70ef9ee646665843879252ff653180a4f11843dbe44"
+  },
+  "sources": {
+    "hw/core/null-machine.c": {
+      "after": "8d4e4ab5863c5bd8408ba276f13c5f58b93bf1048750a68bb450e0fc4de06af3",
+      "before": "4ddc1e4298c524eedde1e70d10fa067cc3a79dfa2311194460c32d23dd63b61b",
+      "operation": "patch",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/cp-gpio18-before/hw/core/null-machine.c",
+      "reason": "Pre-GPIO18 board only: 4 CPUs, opt-in GIC-400 512 IRQs, timer/secure-timer hypothesis, watchdog, eDMA gate/direct legacy engine and diagnostic OOM RAM. default_ram_id=ram already exists upstream."
+    },
+    "hw/dma/meson.build": {
+      "after": "3a7edbdeede45fb6f7716ff7e780b92a0b34cb6f0fdb53bd7500c0a30814d7a8",
+      "before": "e354182347c4fed87cce1e76701681f9658e5291c17f35ca7de0a5841cd51368",
+      "operation": "patch",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/dma/meson.build",
+      "reason": "Add only the legacy runtime sony_cp_edma.c reference."
+    },
+    "hw/dma/sony_cp_edma.c": {
+      "after": "39f3b275a4514d5c01adc66fd9359933ee70b0424aacdf47c828f8cf3c3f06da",
+      "before": null,
+      "license": "GPL-2.0-or-later",
+      "meson": "hw/dma/meson.build",
+      "operation": "copy",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/dma/sony_cp_edma.c",
+      "reason": "Legacy direct local-RAM eDMA; kept for exact base identity and opt-in legacy path. Native child selects its separate a7c2-native-edma model.",
+      "source": "hw/dma/sony_cp_edma.c"
+    },
+    "hw/misc/meson.build": {
+      "after": "9721ba5a49048114ed7e91b6297aee7bbf77c8bc4e1ac26d57aa8c11869882ad",
+      "before": "d537567c233008950cd770454e0976ff4b8a26dbfceb9e8c16ae31fb368baa1b",
+      "operation": "patch",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/misc/meson.build",
+      "reason": "Add only sony_cp_edma_gate.c; native patch already supplies the two AP bus/crypto stubs."
+    },
+    "hw/misc/sony_cp_edma_gate.c": {
+      "after": "a76e7f93549abf15eb65cf4e3449b9daf3ce103eee127c2c8fc2cfed29984322",
+      "before": null,
+      "license": "GPL-2.0-or-later",
+      "meson": "hw/misc/meson.build",
+      "operation": "copy",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/misc/sony_cp_edma_gate.c",
+      "reason": "Sixteen-line low-bit eDMA enable/IRQ gate, not a PCIe link/status model.",
+      "source": "hw/misc/sony_cp_edma_gate.c"
+    },
+    "hw/timer/sony_hwtimer.c": {
+      "after": "a037811b6e945b60348b6d232de2338d73f7e007b4b33c3160d5b22e89cb293f",
+      "before": "050193cca7d211539430440f076d7edf15c70bb1275003369057e8d93b97c30b",
+      "operation": "patch",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/timer/sony_hwtimer.c",
+      "reason": "CP delta over the native patch: MemTxResult, unsupported accesses/control capture refusal. Nominal 4MHz is inherited, not a measured clock."
+    },
+    "hw/watchdog/meson.build": {
+      "after": "d090e23dd86d6d581f5131afa0fa6874bf4e5929c4ccc113606dc432f2bdc9af",
+      "before": "85c3097c10939506d87afd3334d60f2a4fae9e5d83f47a6d024a3300296494d0",
+      "operation": "patch",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/watchdog/meson.build",
+      "reason": "Add only sony_cxd_wdt.c, whose QOM type is sony-cp-wdt."
+    },
+    "hw/watchdog/sony_cxd_wdt.c": {
+      "after": "6a1dcf61ecaf7a54d7a1c70ef9ee646665843879252ff653180a4f11843dbe44",
+      "before": null,
+      "license": "GPL-2.0-or-later",
+      "meson": "hw/watchdog/meson.build",
+      "operation": "copy",
+      "origin": "analysis/cp-boot-probe/qemu-cp-src/hw/watchdog/sony_cxd_wdt.c",
+      "reason": "Registers QOM sony-cp-wdt; there is no separate sony_cp_wdt.c. Limited reset-mode watchdog and original SCU ownership.",
+      "source": "hw/watchdog/sony_cxd_wdt.c"
+    }
+  },
+  "unchanged_cpu_frequency": {
+    "default_frequency_changed": false,
+    "example_hz": 2000000,
+    "patched": false,
+    "physical_frequency_verified": false,
+    "property": "cntfrq",
+    "upstream_property": true
+  },
+  "unchanged_inputs": {
+    "VERSION": "cd84fbf4a8ce7e474f895cf5bb270947afc90a305aca471b556d80085d20639f",
+    "configs/devices/aarch64-softmmu/default.mak": "16c4a9e12081911634685f48eb23a65844c3398e55968ed6d4ec9bd1cb030461",
+    "hw/arm/Kconfig": "75fb56926a49c78fa387ac8ac3813afb65bf471999db409d29eb30f88deef7fc",
+    "hw/arm/virt.c": "0e7ff65238d2ae7b49cc902573fe03cdf325206fdf80079d57f70de817e3d103",
+    "hw/char/pl011.c": "bd7961c4f1f9caaf85ed04f17fe6754ece40b957868b3ea896bdb23b9c9fabf9",
+    "hw/core/meson.build": "f1dee460319f606be13a4e4a884e5788e2bc091e874d4e459ee1b600494c3760",
+    "hw/dma/pl080.c": "0a1a151fefe1e3b987dc760522970ef6257110aafbf7c396e13bfefab60832f4",
+    "hw/dma/pl330.c": "e34d68bd9a30854c8b616a3b6fc582ca6db8498a250096e11d0b61dd3f017cba",
+    "hw/gpio/meson.build": "f28a7f223c66915f96198503de99a9aa937a384823cd9806953012ab3384aae4",
+    "hw/i2c/Kconfig": "64065413fe35e304b44c68f9fe71677ec14a5592552820b06be149717e9295c1",
+    "hw/i2c/designware_i2c.c": "48035387864db59e0eb376447672174cc892d6a7ce46349a26abd37152d68785",
+    "hw/input/meson.build": "18f143c836ba295ea1410998570a5fbec2e5b1838f979460fb826edbb0c6cabd",
+    "hw/input/sony-ui-input.c": "d787ec495f9679b29f66678e0fd5314643f31fda19f3dd7704d46a41a474591a",
+    "hw/intc/arm_gic.c": "3d38255a07f572f466109c664543e83473255c3fcdf75b6a91923970bfa607e2",
+    "hw/intc/arm_gic_common.c": "25f8655d07d1e0e2ffe6253efbc73ae20cde1a69e3f0abd76718ce2e6f1414a2",
+    "hw/misc/sony_cxd_bus_stub.c": "b35384709c130a9e94badc103b7f2296d55ee4834a76029e7486cb3a12fb83c8",
+    "hw/misc/sony_spacc_stub.c": "a99d1c98b620e401ca624504c2524688c63644f43faf7aa2e46c883aa90dbe06",
+    "hw/timer/meson.build": "e25b4cc7ef87012106701807d2ecf8cd6d9e0163ec9df09220000358325ed7fc",
+    "include/hw/char/pl011.h": "8b3ef84c7ccb26b35e2ee4386638572c03d34b06afd525b18ded90891c2f83f6",
+    "include/hw/i2c/designware_i2c.h": "1fd1c92862820002f324ce6bb394c3c456ff8c1e3aae10ec516c022f74145866",
+    "include/ui/gtk.h": "8463187ba4f562bec9cf0e24db803613de66c010d7a31758a72077b195f278cf",
+    "include/ui/sony-ui-input.h": "a7add6e2a61f6c8999cbfa526345a927b7c6e60c1435cc8585ee26b486349428",
+    "target/arm/cpu.c": "770dcec4a22de97a7c61ae724eff7f080b1faa9283490d10ccd3c3a56dd53453",
+    "target/arm/cpu.h": "1bafa6cddb4bc46e35fedca33b92c4a258a5d7f231309f8744fd484ddad37fb4",
+    "target/arm/cpu64.c": "127da2e7f34d4ebd66280cb5c696a02b49db575dc48e0f59d6eeab9c98127af7",
+    "target/arm/tcg/cpu64.c": "4c661376f953932194ebe99d8c944238f8af3fca0c0e38b78d37ab3c9a8dfae6",
+    "ui/gtk.c": "72620cd014f45526e830a229376b45ef2d6c1625946dea517fce76bbf08fb049"
+  },
+  "upstream": {
+    "archive": {
+      "filename": "qemu-11.1.2.tar.xz",
+      "sha256": "731b5681e4bb18be313231579b8efd0296c5b015fa36dc533874b639ba838016",
+      "url": "https://download.qemu.org/qemu-11.1.2.tar.xz"
+    },
+    "native_manifest": {
+      "path": "source/manifest.json",
+      "sha256": "4c07278cb8f31904400ae159a21146e893d0d7baabf4511eb95fa3157d451a93"
+    },
+    "native_patch": {
+      "path": "source/qemu-sony-native.patch",
+      "sha256": "29a84ae7a23897af25279f3c438bef387a01d59137767e0362631d4c294f78f8"
+    }
+  }
+}

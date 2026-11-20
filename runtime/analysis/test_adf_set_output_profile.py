@@ -67,10 +67,10 @@ def guest_setup(host):
                     any(isinstance(s,ast.Assign) and isinstance(s.targets[0],ast.Name) and
                         s.targets[0].id=='setup' for s in n.body))
     start=next(i for i,n in enumerate(setup_body) if isinstance(n,ast.Assign) and
-               isinstance(n.targets[0],ast.Name) and n.targets[0].id=='setup')
-    end=next(i for i,n in enumerate(setup_body) if isinstance(n,ast.Expr) and
-             isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Attribute) and
-             ast.unparse(n.value.func)=='proc.stdin.write')
+               isinstance(n.targets[0],ast.Name) and n.targets[0].id=='capture_seed_setup')
+    end=next(i for i,n in enumerate(setup_body) if isinstance(n,ast.Assign) and
+             len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and
+             n.targets[0].id=='setup_result')
     scope={'argparse':argparse,'__doc__':'setup-only regression','os':os,'Path':Path,
            '__file__':str(HERE/'qemu-menu-probe.py'),
            'args':SimpleNamespace(),'manifest':{'qemu_cpu_count':1},'live_fd':False,

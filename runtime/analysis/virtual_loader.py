@@ -214,13 +214,16 @@ def wbi_resume_assets(instance, out_dir, *, ram_bytes=DDR_SIZE):
 def _write_wbi_assets(leased, out_dir, ram_bytes):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ram = out_dir / 'wbi-ram.bin'
+    parsed = parse_wbi_fd(leased['fd'], leased['geometry'])
+    highest = max(row['target'] + (row['rlen'] if row['kind'] == 'data' else row['olen'])
+                  for row in parsed['rows'])
+    span = highest - DDR_BASE
+    ram = out_dir / 'wbi-ddr.bin'
     if ram.exists():
         raise ValueError('WBI resume output must be fresh')
-    parsed = parse_wbi_fd(leased['fd'], leased['geometry'])
     fd = os.open(ram, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o600)
     try:
-        os.ftruncate(fd, ram_bytes)
+        os.ftruncate(fd, span)
         written = 0
         partition_offset = _slices(leased['fd'], leased['geometry'])['nflasha5']['offset']
         for row in parsed['rows']:
@@ -245,7 +248,7 @@ def _write_wbi_assets(leased, out_dir, ram_bytes):
         os.fsync(fd)
     finally:
         os.close(fd)
-    return dict(ram=str(ram), ram_bytes=ram_bytes, entry=parsed['resume_vector'],
+    return dict(ram=str(ram), ram_bytes=span, ddr_base=DDR_BASE, entry=parsed['resume_vector'],
                 sections=parsed['sections'], data_bytes=parsed['r_data_size'],
                 written=written, schema=SCHEMA, profile=PROFILE,
                 physical_wbi_resume_compatible=False)

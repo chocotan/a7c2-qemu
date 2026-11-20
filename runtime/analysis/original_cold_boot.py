@@ -95,6 +95,7 @@ def guest_environment(host):
     if host.get('A7C2_USB_MSC') is not None:
         need(usb_selected(host) and host['A7C2_USB_MSC']=='1' and not host.get('A7C2_USB_SENSER'),'MSC startup requires its exclusive USB device profile')
         selected['PRODUCT_USB_MSC']='1'
+    usb_buspower_candidate(host)
     return selected
 
 
@@ -171,8 +172,9 @@ def font_install_script(fonts):
     return '\n'.join(commands)+'\n'
 
 
-def _checked(command,log,timeout=90):
-    result=subprocess.run(command,capture_output=True,text=True,timeout=timeout,env={**os.environ,'LC_ALL':'C'})
+def _checked(command,log,timeout=90,pass_fds=(),environment=None):
+    result=subprocess.run(command,capture_output=True,text=True,timeout=timeout,
+                          env={**(os.environ if environment is None else environment),'LC_ALL':'C'},pass_fds=pass_fds)
     log.write_text(result.stdout+result.stderr)
     need(result.returncode==0,'Cold preparation command failed; see '+str(log))
     return result
@@ -274,7 +276,24 @@ def settings_import(payload,host):
     return {name:payload/name for name in ('install-settings.sh','settings-restore.bin') if (payload/name).exists()}
 
 
+
+def usb_buspower_candidate(host):
+    value = host.get('A7C2_USB_BUSPOWER_MODEL')
+    if value is None:
+        return False
+    from sony_usb_device import selected as usb_selected
+    need(value == 'virtual-a7c2-usb-buspower-v1', 'Unknown USB BusPower candidate')
+    need(host.get('A7C2_ORIGINAL_COLD') == PROFILE and
+         host.get('A7C2_USB_MSC') == '1' and usb_selected(host) and
+         host.get('A7C2_USB_SENSER') is None,
+         'BusPower candidate requires exclusive original-cold USB-MSC')
+    need(host.get('MENU_BUSPOWER', BASE_GUEST['MENU_BUSPOWER']) == '1',
+         'BusPower candidate preserves the unique MENU_BUSPOWER initialization')
+    return True
+
 def usb_imdb(host,payload):
+    if usb_buspower_candidate(host):
+        raise ValueError('Source-only BusPower candidate: module source/DT/command evidence and isolated launcher are not runtime-accepted')
     if host.get('A7C2_USB_MSC')!='1':return {}
     source=ANALYSIS/'prepare-assets.py'
     spec=importlib.util.spec_from_file_location('a7c2_prepare_assets',source)
@@ -287,7 +306,19 @@ def usb_imdb(host,payload):
     return {'libIMDB-msc.so':target,'libIMDB.so':target}
 
 
+def build_audit(payload,output,private_inputs):
+    from sony_usb_device import verify_private_libraries,sealed_link_libraries,private_tool_environment
+    verify_private_libraries(private_inputs)
+    audit=payload/'audit'
+    with sealed_link_libraries(private_inputs) as (libraries,descriptors), private_tool_environment(private_inputs) as (environment,temp_fd):
+        _checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(SOURCE/'cold-start-audit.c'),libraries[0],'-o',str(audit)],output/'audit-build.log',pass_fds=descriptors+(temp_fd,),environment=environment)
+    verify_private_libraries(private_inputs);audit.chmod(0o755)
+    return audit
+
+
 def prepare(instance,output,host_environment):
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(host_environment)
     input_bindings=product_input_bindings()
     output=Path(output).absolute();need(not output.exists(),'Fresh cold output required');output.mkdir(mode=0o700)
     work=output/'work';work.mkdir();payload=output/'payload';payload.mkdir()
@@ -310,7 +341,9 @@ def prepare(instance,output,host_environment):
                 name='ram0.original.ext2' if entry.path=='/initrd.img' else 'kernel.original.img';path=output/name;path.write_bytes(data);need(sha(path)==expected,'Extracted original boot file readback differs');found[name]=dict(bytes=len(data),sha256=expected)
         need(len(found)==2,'Original p3 kernel/RAM0 missing')
         ram=output/'ram0.ext2';shutil.copyfile(output/'ram0.original.ext2',ram)
-        audit=payload/'audit';_checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(SOURCE/'cold-start-audit.c'),str(ANALYSIS/'menu-root/lib/libc-2.25.so'),'-o',str(audit)],output/'audit-build.log');audit.chmod(0o755)
+        from sony_usb_device import prepare_private_libraries,prepare_observer
+        private_inputs=prepare_private_libraries(payload)
+        audit=build_audit(payload,output,private_inputs)
         helpers={}
         for path in (ANALYSIS/'menu-root/simulation').rglob('*'):
             if path.is_file() and path.name!='media-camera.fat':
@@ -324,8 +357,9 @@ def prepare(instance,output,host_environment):
         entries=storage.stage_file_tests(payload,overwrite,host_environment.get('A7C2_STORAGE_RESTORE_FILE'),host_environment.get('A7C2_STORAGE_RESTORE_SELECTION'))
         for path in payload.glob('persistent-*'):helpers[path.name]=path
         helpers.update(settings_import(payload,host_environment))
-        from sony_usb_device import prepare_observer
-        helpers.update(prepare_observer(host_environment,payload))
+        helpers.update(prepare_observer(host_environment,payload,private_inputs=private_inputs))
+        from usb_scheduler import prepare as prepare_scheduler
+        helpers.update(prepare_scheduler(host_environment,payload,private_inputs=private_inputs))
         helpers.update(usb_imdb(host_environment,payload))
         expected_bindings={**input_bindings,'guest_inputs':dict(input_bindings['guest_inputs'])}
         if host_environment.get('A7C2_USB_MSC')=='1':

@@ -60,7 +60,7 @@ static struct {
     struct dmm_inflight inflight[16];
     int dmm_sending;long dmm_sender;
     uint64_t export_token;
-    unsigned opened,closed;
+    unsigned opened,closed,output_diagnostic_notes;
     _Alignas(16) uint8_t table[FUNCTIONAL_MPR_MEMORY_TABLE_BYTES];
 } job;
 static uint16_t u16(const uint8_t *p){return (uint16_t)(p[0]|(uint16_t)p[1]<<8);}
@@ -79,6 +79,37 @@ static void note(const char *operation,int rc){
         (unsigned long long)s.frame_token,(unsigned long long)s.model_instance,s.request_freed,s.encoded,s.frame_released,s.notification_consumed,s.write_readback_verified,s.resources_released,
         s.write_token,(unsigned long long)s.write_bytes,(unsigned long long)s.write_fnv,FUNCTIONAL_CAPTURE_POLICY);
         job.io.record("FUNCTIONAL_CAMERA_CAPTURE ",text);}
+}
+static void output_diagnostic(const char *detail){
+    int saved=errno;struct functional_capture_snapshot snapshot;
+    struct capture_output_span spans[3]={{0}};int reads[3];unsigned number;
+    const enum capture_output_role roles[3]={CAPTURE_OUT_HEADER,CAPTURE_OUT_MAIN,CAPTURE_OUT_THUMB};
+    pthread_mutex_lock(&mutex);
+    void (*logger)(const char *,const char *)=job.io.record;
+    if(!logger || !job.output || job.output_diagnostic_notes>=48){pthread_mutex_unlock(&mutex);errno=saved;return;}
+    number=++job.output_diagnostic_notes;snapshot=state;
+    for(unsigned i=0;i<3;++i)reads[i]=capture_output_memory_span(job.output,roles[i],&spans[i]);
+    pthread_mutex_unlock(&mutex);
+    char text[2048];snprintf(text,sizeof text,
+        "n=%u limit=48 pid=%d job=%llu phase=%d error=%d frame_token=%#llx %s "
+        "span_reads=%d/%d/%d header_cpu=%#llx header_alias=%#llx header_capacity=%llu header_generation=%llu header_refs=%u "
+        "main_cpu=%#llx main_alias=%#llx main_capacity=%llu main_generation=%llu main_refs=%u "
+        "thumb_cpu=%#llx thumb_alias=%#llx thumb_capacity=%llu thumb_generation=%llu thumb_refs=%u capture_verified=0",
+        number,getpid(),(unsigned long long)snapshot.job,snapshot.phase,snapshot.error,(unsigned long long)snapshot.frame_token,detail,
+        reads[0],reads[1],reads[2],(unsigned long long)spans[0].cpu,(unsigned long long)spans[0].alias,
+        (unsigned long long)spans[0].capacity,(unsigned long long)spans[0].generation,spans[0].references,
+        (unsigned long long)spans[1].cpu,(unsigned long long)spans[1].alias,(unsigned long long)spans[1].capacity,
+        (unsigned long long)spans[1].generation,spans[1].references,(unsigned long long)spans[2].cpu,
+        (unsigned long long)spans[2].alias,(unsigned long long)spans[2].capacity,
+        (unsigned long long)spans[2].generation,spans[2].references);
+    logger("FUNCTIONAL_CAMERA_OUTPUT_DIAGNOSTIC ",text);errno=saved;
+}
+static void output_dmm_diagnostic(const uint8_t q[40],unsigned source,unsigned destination,uintptr_t caller,int handled,int rc){
+    unsigned op=u16(q);if(op!=0x20 && op!=0x21 && op!=0x23 && op!=0x28 && op!=0x2a)return;
+    char text[256];snprintf(text,sizeof text,
+        "site=dmm op=%#x handle=%#x source=%#x destination=%#x caller=%#llx handled=%d rc=%d unit_type=%#x option=%#x",
+        op,u32(q+8),source,destination,(unsigned long long)caller,handled,rc,u32(q+4),u16(q+22));
+    output_diagnostic(text);
 }
 static void fault(int rc){pthread_mutex_lock(&mutex);if(!state.error)state.error=rc?rc:-EIO;state.phase=FAULT;pthread_cond_broadcast(&wake);pthread_mutex_unlock(&mutex);note("fault-retained",rc);}
 static struct timespec deadline(unsigned milliseconds){struct timespec t;clock_gettime(CLOCK_REALTIME,&t);t.tv_sec+=milliseconds/1000;t.tv_nsec+=(long)(milliseconds%1000)*1000000L;if(t.tv_nsec>=1000000000L){++t.tv_sec;t.tv_nsec-=1000000000L;}return t;}
@@ -141,8 +172,23 @@ static int finish_encoding(void){
     return memory.active_mask?-EBUSY:0;
 }
 static int notification_send(unsigned destination,void *packet){
-    pthread_mutex_lock(&mutex);job.published_delivery=job.delivery;pthread_mutex_unlock(&mutex);
-    return job.io.send(destination,packet);
+    struct capture_delivery_info info;
+    pthread_mutex_lock(&mutex);job.published_delivery=job.delivery;
+    int rc=capture_delivery_info(job.delivery,&info);
+    int publication=!rc && packet==info.leases[2].pointer;
+    if(publication)rc=capture_output_memory_publish_begin(job.output);
+    pthread_mutex_unlock(&mutex);if(rc)return rc;
+    rc=job.io.send(destination,packet);
+    if(publication){
+        pthread_mutex_lock(&mutex);
+        int checked=capture_delivery_info(job.delivery,&info);
+        if(!checked)checked=(!rc || info.leases[2].received || info.leases[2].freed)?
+            capture_output_memory_publish_commit(job.output):capture_output_memory_publish_cancel(job.output);
+        if(checked && !state.error)state.error=checked;
+        if(checked && !rc)rc=checked;
+        pthread_mutex_unlock(&mutex);
+    }
+    return rc;
 }
 static int retire_notifications(void){
     struct timespec until=deadline(60000);
@@ -165,6 +211,16 @@ void functional_capture_fsys_begin(unsigned token,const struct fsys_write_layout
     if(rc)++callback_entries;
     pthread_mutex_unlock(&mutex);
     if(rc)note(rc<0?"write-source-refused":"write-source-matched",rc<0?rc:0);
+    if(rc && layout && hashes && readable){
+        for(unsigned i=0;i<layout->count && i<FSYS_WRITE_AREAS;++i){
+            char text[320];snprintf(text,sizeof text,
+                "site=fsys-source token=%u rc=%d area=%u address=%#llx offset=%llu bytes=%llu submitted_bytes=%llu readable=%u fnv=%016llx",
+                token,rc,i,(unsigned long long)layout->area[i].address,(unsigned long long)layout->area[i].offset,
+                (unsigned long long)layout->area[i].bytes,(unsigned long long)layout->area[i].submitted_bytes,
+                readable[i],(unsigned long long)hashes[i]);
+            output_diagnostic(text);
+        }
+    }
     pthread_mutex_lock(&mutex);if(rc)--callback_entries;pthread_cond_broadcast(&wake);pthread_mutex_unlock(&mutex);
     errno=saved;
 }
@@ -204,19 +260,58 @@ static int retire_saved_output(void){
     pthread_mutex_unlock(&mutex);
     if(!rc){full_imaging_capture_end();note("write-retired",0);pthread_mutex_lock(&mutex);state.phase=IDLE;pthread_mutex_unlock(&mutex);}return rc;
 }
+static int admit_frame(uint8_t model[FCAM_STATE_BYTES],struct fcam_bridge_result *result){
+    struct timespec until;
+    uint64_t instance=0;
+    if(clock_gettime(CLOCK_MONOTONIC,&until))return -errno;
+    ++until.tv_sec;
+    for(unsigned attempt=0;;++attempt){
+        struct timespec now;
+        if(attempt){
+            if(clock_gettime(CLOCK_MONOTONIC,&now))return -errno;
+            if(now.tv_sec>until.tv_sec || (now.tv_sec==until.tv_sec && now.tv_nsec>=until.tv_nsec))return -ETIMEDOUT;
+        }
+        int rc=fcam_bridge_call(&job.origin,FCAM_OP_STATE,NULL,0,model,FCAM_STATE_BYTES,result);if(rc)return rc;
+        if(result->used!=128 || result->required!=128)return -EPROTO;
+        uint32_t width=u32(model+8),height=u32(model+12);
+        uint64_t read_instance=u64(model+48);
+        if(u32(model)!=1 || !(u32(model+4)&FCAM_CAP_STILL) ||
+           !width || width>8192 || !height || height>8192 || !read_instance ||
+           result->model_instance!=read_instance || u32(model+104) || u32(model+108))return -ENOTSUP;
+        if(instance && instance!=read_instance)return -ESTALE;
+        instance=read_instance;
+        rc=job.guard.reserve();if(rc)return rc;
+        int ready=job.guard.predecessor_ready()==1;
+        rc=ready?full_imaging_capture_begin_functional(model,FCAM_STATE_BYTES,result->model_instance,u64(model+56)):-ENODATA;
+        if(ready && rc!=-EBUSY){job.guard.release();return rc;}
+        struct full_imaging_snapshot imaging={0};
+        full_imaging_snapshot(&imaging);
+        job.guard.release();
+        /* 403d can be busy before the lock is visible or still have a live reply after unlock. */
+        unsigned lock=imaging.effective&~FULL_IMAGING_POWER_ON_INHIBIT;
+        int transient=imaging.functional_owner_pid==getpid() && imaging.functional_enabled && !imaging.suppressed &&
+            !imaging.active_capture && !imaging.faults && !(lock&~0x8000u) &&
+            (lock || imaging.functional_busy || imaging.live_replies);
+        if(job.io.record && (!attempt || !transient)){
+            char text[224];snprintf(text,sizeof text,
+                "job=%llu attempt=%u rc=%d retry=%u effective=%#x busy=%u live_replies=%u faults=%u capture_verified=0",
+                (unsigned long long)state.job,attempt+1,rc,(unsigned)transient,imaging.effective,
+                imaging.functional_busy,imaging.live_replies,imaging.faults);
+            job.io.record("FUNCTIONAL_CAMERA_ADMISSION_RECHECK ",text);
+        }
+        if(!transient)return rc;
+        if(clock_gettime(CLOCK_MONOTONIC,&now))return -errno;
+        now.tv_nsec+=10000000L;
+        if(now.tv_nsec>=1000000000L){++now.tv_sec;now.tv_nsec-=1000000000L;}
+        if(now.tv_sec>until.tv_sec || (now.tv_sec==until.tv_sec && now.tv_nsec>until.tv_nsec))now=until;
+        rc=clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&now,NULL);
+        if(rc && rc!=EINTR)return -rc;
+    }
+}
 static int execute_job(void){
     uint8_t model[FCAM_STATE_BYTES]={0};struct fcam_bridge_result result={0};
-    int rc=fcam_bridge_call(&job.origin,FCAM_OP_STATE,NULL,0,model,sizeof model,&result);if(rc)return rc;
-    if(result.used!=128 || result.required!=128)return -EPROTO;
+    int rc=admit_frame(model,&result);if(rc)return rc;
     uint32_t width=u32(model+8),height=u32(model+12);
-    if(u32(model)!=1 || !(u32(model+4)&FCAM_CAP_STILL) ||
-       !width || width>8192 || !height || height>8192 || !u64(model+48) ||
-       result.model_instance!=u64(model+48) || u32(model+104) || u32(model+108))return -ENOTSUP;
-    rc=job.guard.reserve();
-    if(!rc){rc=job.guard.predecessor_ready()==1?
-        full_imaging_capture_begin_functional(model,sizeof model,result.model_instance,u64(model+56)):-ENODATA;
-        job.guard.release();}
-    if(rc)return rc;
     if(job.io.record){
         char raw[257],text[640];for(unsigned i=0;i<128;++i)snprintf(raw+2*i,3,"%02x",model[i]);
         snprintf(text,sizeof text,"pid=%d job=%llu request_fnv=%016llx model_instance=%#llx generation=%llu state_fnv=%016llx state128=%s policy=%s original_CP_D012_verified=0 capture_verified=0",
@@ -404,13 +499,13 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
     if(slot==16){pthread_mutex_unlock(&mutex);*result=-ENOSPC;return 1;}
     int senc=source==0x80550123 && (op==0x24 || op==0x25),owned=0;
     int output_request=job.output && ((handle&UINT32_C(0xff000000))==UINT32_C(0x68000000) ||
-        (op==0x28 && (handle==0x80d61 || handle==0x27f) && job.save &&
+        (op==0x20 && (u32(q+4)==0x80d61 || u32(q+4)==0x27f) && job.save &&
          (state.phase==DELIVERING || state.phase==WAIT_SAVE)));
     if((job.retained_dmm || job.retained_dmm_reply) && (senc || output_request)){
         pthread_mutex_unlock(&mutex);*result=-EBUSY;return 1;
     }
     struct functional_mpr_memory_lease opened={0},closed={0};
-    uint64_t mapbase=0;
+    uint64_t mapbase=0;uint32_t output_unit=0;
     if(senc && (state.phase==ENCODING || state.phase==FAULT)){
         if(op==0x24){
             if(u32(q+12)!=UINT32_MAX){pthread_mutex_unlock(&mutex);*result=-ENOTSUP;return 1;}
@@ -436,15 +531,24 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
         }
         p16(reply,op|0x8000);p32(reply+8,handle);p32(reply+12,handle);
     }else if(output_request){
-        if(caller!=original.base+0x2b1f08 && caller!=original.base+0x2b2388){pthread_mutex_unlock(&mutex);*result=-EPERM;return 1;}
-        if(state.phase==FAULT && op==0x21){pthread_mutex_unlock(&mutex);*result=-ECANCELED;return 1;}
+        if((caller!=original.base+0x2b1f08 && caller!=original.base+0x2b2388) ||
+           (op==0x20 && caller!=original.base+0x2b1f08)){
+            pthread_mutex_unlock(&mutex);*result=-EPERM;output_dmm_diagnostic(q,source,destination,caller,1,*result);return 1;
+        }
+        if(state.phase==FAULT && (op==0x20 || op==0x21)){pthread_mutex_unlock(&mutex);*result=-ECANCELED;output_dmm_diagnostic(q,source,destination,caller,1,*result);return 1;}
         memcpy(&mapbase,(void *)(original.base+0x3d82a0),8);
+        if(op==0x23){
+            for(unsigned i=0;i<CAPTURE_OUT_COUNT;++i){
+                struct capture_output_span span;
+                if(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span) && span.handle==handle){output_unit=span.unit_type;break;}
+            }
+        }
         rc=capture_output_memory_reply(job.output,q,mapbase,reply);owned=1;
     }
-    if(!owned){pthread_mutex_unlock(&mutex);return 0;}
+    if(!owned){pthread_mutex_unlock(&mutex);output_dmm_diagnostic(q,source,destination,caller,0,0);return 0;}
     if(rc){
         if(opened.token){int released=functional_mpr_memory_release(opened.token);if(released){job.open=opened;if(!state.error)state.error=released;}}
-        pthread_mutex_unlock(&mutex);*result=rc;return 1;
+        pthread_mutex_unlock(&mutex);*result=rc;output_dmm_diagnostic(q,source,destination,caller,1,rc);return 1;
     }
     void *packet=NULL;int accepted=0;rc=io->allocate(source,&packet,40,1);
     if(!rc && !packet)rc=-ENOMEM;
@@ -467,9 +571,13 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
         if(opened.token){int released=functional_mpr_memory_release(opened.token);if(released){job.open=opened;if(!state.error)state.error=released;}}
         if(closed.token){struct functional_mpr_memory_lease restored={0};int undo=functional_mpr_memory_acquire_sds(0,handle,0,closed.bytes,&restored);
             if(!undo){job.open=restored;--job.closed;}else if(!state.error)state.error=undo;}
+        if(!senc && op==0x20){
+            int undone=capture_output_memory_cancel_allocation(job.output,u32(reply+12));
+            if(undone && !state.error)state.error=undone;
+        }
         if(!senc && (op==0x21 || op==0x23)){
             uint8_t undo[40],ignored[40];memcpy(undo,q,40);p16(undo,op==0x21?0x23:0x21);p16(undo+22,op==0x21?2:1);
-            if(op==0x23)p32(undo+4,1);
+            if(op==0x23)p32(undo+4,output_unit);
             int undone=capture_output_memory_reply(job.output,undo,mapbase,ignored);if(undone && !state.error)state.error=undone;
         }
     }else{
@@ -480,7 +588,7 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
     if(rc && !state.error)state.error=rc;
     pthread_cond_broadcast(&wake);pthread_mutex_unlock(&mutex);
     if(rc)note("DMM-error-retained",rc);
-    *result=accepted?0:rc;return 1;
+    *result=accepted?0:rc;output_dmm_diagnostic(q,source,destination,caller,1,*result);return 1;
 }
 int functional_capture_native_dma(void *,void *,uint32_t) __asm__("_ZN3mpr4dmac16memcpyThreadSafeEPvS1_j");
 int functional_capture_native_dma(void *destination,void *source,uint32_t bytes){
@@ -508,7 +616,15 @@ int functional_capture_native_dma(void *destination,void *source,uint32_t bytes)
         }
         pthread_mutex_unlock(&mutex);
     }
-    if(owned){if(logger)logger("FUNCTIONAL_CAMERA_THUMB_DMA ",text);errno=saved;return rc;}
+    if(owned){
+        char detail[256];snprintf(detail,sizeof detail,
+            "site=thumbnail-dma rc=%d destination=%#llx source=%#llx bytes=%u caller=%#llx",
+            rc,(unsigned long long)(uintptr_t)destination,(unsigned long long)(uintptr_t)source,
+            bytes,(unsigned long long)(uintptr_t)__builtin_return_address(0));
+        output_diagnostic(detail);
+        if(logger)logger("FUNCTIONAL_CAMERA_THUMB_DMA ",text);
+        errno=saved;return rc;
+    }
     void *symbol=dlsym(RTLD_NEXT,"_ZN3mpr4dmac16memcpyThreadSafeEPvS1_j");int (*delegate)(void *,void *,uint32_t)=NULL;
     if(symbol)memcpy(&delegate,&symbol,sizeof symbol);
     errno=saved;return delegate?delegate(destination,source,bytes):-ENOSYS;

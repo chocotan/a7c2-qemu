@@ -7,7 +7,9 @@
 struct packet {unsigned size,source;uint8_t data[1280];};
 static unsigned allocations,releases,sends,rpcs,reservations,unlocks;
 static int allocate_error,send_error,release_error,reserve_error,predecessor=1,inline_receive,imaging_live,dmm_inline;
-static struct packet *sent_packets[8];
+static int info_send_error,info_observe_before_error;
+static unsigned admission_case,admission_calls,admission_snapshots;
+static struct packet *sent_packets[32];
 static uint8_t saved_config_body[56];
 static struct packet *packet(void *p){return (struct packet *)((uint8_t *)p-2*sizeof(unsigned));}
 static struct packet *make_packet(unsigned bytes,unsigned source){struct packet *p=calloc(1,sizeof *p);assert(p);p->size=bytes;p->source=source;return p;}
@@ -17,7 +19,9 @@ static void set_source(void *p,unsigned source){packet(p)->source=source;}
 static unsigned size(void *p){return packet(p)->size;}
 static unsigned source(void *p){return packet(p)->source;}
 static int send_packet(unsigned destination,void *p){
+    int info_packet=destination==0x80020002 && size(p)==CAPTURE_NOTIFY_INFO_BYTES && u16((uint8_t *)p+2)==0x1006;
     ++sends;if(send_error)return send_error;
+    if(info_packet && info_send_error && !info_observe_before_error)return info_send_error;
     if(destination==0x80c70047 || destination==0x8055001f){
         if(destination==0x8055001f)functional_capture_observe_received(destination,p);
         assert(!release(destination,p));functional_capture_observe_freed(destination,p,0,original.base+0x283e78);return 0;
@@ -27,21 +31,40 @@ static int send_packet(unsigned destination,void *p){
         functional_capture_observe_freed(destination,p,0,0);return 0;
     }
     if(destination==0x80020002 && inline_receive){
-        functional_capture_observe_received(destination,p);int rc=77;assert(functional_capture_release_notification(destination,p,&rc)==1 && !rc);return 0;
+        functional_capture_observe_received(destination,p);int rc=77;assert(functional_capture_release_notification(destination,p,&rc)==1 && !rc);return info_packet?info_send_error:0;
     }
-    assert(sends<=8);sent_packets[sends-1]=packet(p);return 0;
+    assert(sends<=32);sent_packets[sends-1]=packet(p);return 0;
 }
 static const struct full_imaging_io io={alloc,release,set_source,send_packet,size,source,NULL};
 static int reserve(void){++reservations;return reserve_error;}
 static void unlock(void){++unlocks;}
-static int ready(void){return predecessor;}
+static int ready(void){return admission_case?(admission_case>=9 || ((admission_case==1 || admission_case==5 ||
+    admission_case==6 || admission_case==7) && reservations>1)):predecessor;}
 static const struct native_cp_state_publication_guard guard={reserve,unlock,ready};
+void full_imaging_snapshot(struct full_imaging_snapshot *s){
+    ++admission_snapshots;
+    unsigned mask=(admission_case==7 || admission_case==10)?0:0x8000u;
+    if(admission_case==3 || admission_case==8)mask|=0x200u;
+    *s=(struct full_imaging_snapshot){.functional_owner_pid=getpid(),.functional_enabled=1,
+        .effective=FULL_IMAGING_POWER_ON_INHIBIT|mask,.functional_busy=admission_case==6 || admission_case==8,
+        .live_replies=admission_case==7};
+}
 int full_imaging_capture_begin_functional(const uint8_t *p,size_t bytes,uint64_t instance,uint64_t generation){
-    (void)p;(void)bytes;(void)instance;(void)generation;assert(!"State failure fixture must not enter functional imaging");return -ENODEV;
+    if(bytes!=128 || instance!=22 || generation!=reservations || u64(p+56)!=generation || unlocks!=reservations-1)abort();
+    if(admission_case>=9 && reservations==1)return -EBUSY;
+    if((admission_case!=1 && admission_case!=6 && admission_case!=7 && admission_case!=9) || reservations!=2)abort();
+    ++admission_calls;
+    return 0;
 }
 void full_imaging_capture_end(void){assert(imaging_live);imaging_live=0;}
 int fcam_bridge_call(const struct fcam_native_origin *origin,uint32_t op,const void *in,size_t n,void *out,size_t capacity,struct fcam_bridge_result *result){
-    assert(origin && origin->command==0x4038 && op==FCAM_OP_STATE && !in && !n && out && capacity==128 && result);++rpcs;return -ENODEV;
+    assert(origin && origin->command==0x4038 && op==FCAM_OP_STATE && !in && !n && out && capacity==128 && result);
+    ++rpcs;if(!admission_case)return -ENODEV;
+    uint8_t *p=out;memset(p,0,capacity);p32(p,1);p32(p+4,FCAM_CAP_STILL);
+    uint64_t instance=admission_case==5 && rpcs>1?23:22;
+    p32(p+8,16);p32(p+12,16);p64(p+48,instance);p64(p+56,rpcs);
+    *result=(struct fcam_bridge_result){.used=128,.required=128,.model_instance=instance};
+    return 0;
 }
 int functional_jpeg_codec_attach_capture(struct capture_input *c){(void)c;assert(!"No encoding in this ownership fixture");return -ENOSYS;}
 int functional_jpeg_codec_capture_output(uint64_t base,struct capture_output_memory **out){(void)base;(void)out;assert(!"No encoded image in this ownership fixture");return -ENOSYS;}
@@ -67,7 +90,7 @@ static void setup_memory(void){
 }
 static uint32_t main_unit(void){struct functional_mpr_memory_lease l;uintptr_t a=(uintptr_t)u64(job.table+0x2a0);assert(!functional_mpr_memory_acquire(a,1,&l));uint32_t unit=l.span.unit;assert(!functional_mpr_memory_release(l.token));return unit;}
 static struct packet *dmm_packet(unsigned op,uint32_t handle){struct packet *p=make_packet(40,0x80550123);p16(p->data,op);p32(p->data+8,handle);if(op==0x24)p32(p->data+12,UINT32_MAX);return p;}
-static void drain_packets(void){for(unsigned i=0;i<8;++i)if(sent_packets[i]){
+static void drain_packets(void){for(unsigned i=0;i<32;++i)if(sent_packets[i]){
     void *p=sent_packets[i]->data;unsigned destination=source(p)==0x61003c?(u16(p)==0x8024 || u16(p)==0x8025?0x80550123:0x80c70073):0;
     assert(destination);functional_capture_observe_received(destination,p);assert(!release(destination,p));functional_capture_observe_freed(destination,p,0,0);sent_packets[i]=NULL;
 }}
@@ -134,6 +157,12 @@ static void test_output_dmm(void){
 static void *receive_notifications(void *unused){(void)unused;
     for(unsigned i=0;i<3;++i){assert(sent_packets[i]);void *p=sent_packets[i]->data;functional_capture_observe_received(0x80020002,p);int rc=1;assert(functional_capture_release_notification(0x80020002,p,&rc)==1 && !rc);sent_packets[i]=NULL;}return NULL;
 }
+static void output_reference(unsigned op,const struct capture_output_span *span){
+    struct packet *p=make_packet(40,0x80c70073);p16(p->data,op);p32(p->data+4,span->unit_type);
+    p32(p->data+8,span->handle);p16(p->data+22,op==0x21?1:2);int rc=77;
+    assert(functional_capture_dmm(0x61003c,p->data,&io,original.base+(op==0x21?0x2b1f08:0x2b2388),&rc)==1 && !rc);
+    drain_packets();
+}
 static void test_delivery(int asynchronous){
     setup();input_owner();state.phase=DELIVERING;imaging_live=1;inline_receive=!asynchronous;
     uint8_t local[12]={0};p16(local+2,2026);local[4]=11;local[5]=3;local[6]=12;
@@ -142,7 +171,16 @@ static void test_delivery(int asynchronous){
     pthread_t receiver;if(asynchronous)assert(!pthread_create(&receiver,NULL,receive_notifications,NULL));
     assert(!retire_notifications());if(asynchronous)assert(!pthread_join(receiver,NULL));
     assert(!job.delivery && !job.published_delivery && state.notification_consumed==3 && reservations==1 && unlocks==1 && imaging_live);
-    assert(!state.saved_verified && !state.resources_released && functional_capture_shutdown()==-EBUSY);full_imaging_capture_end();destroy_output();
+    assert(!state.saved_verified && !state.resources_released && functional_capture_shutdown()==-EBUSY);
+    struct capture_output_info info;assert(!capture_output_memory_info(job.output,&info) && info.native_references==3);
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i){
+        struct capture_output_span span;assert(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span) && span.references==1);
+        output_reference(0x21,&span);output_reference(0x23,&span);
+        assert(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span) && span.references==1);
+        output_reference(0x23,&span);
+    }
+    assert(!capture_output_memory_info(job.output,&info) && !info.native_references);
+    full_imaging_capture_end();destroy_output();
 }
 static void test_native_queue(unsigned variant){
     setup();state.phase=ENCODING;unsigned resize=variant/3,bad=variant%3;struct packet *p=make_packet(48,0x80c70047);
@@ -171,11 +209,11 @@ static void test_creator_save_retirement(int native_reference){
     assert(!capture_save_prepare(job.output,0x4321,&job.save));
     for(unsigned i=0;i<2;++i){
         struct capture_output_span expected;assert(!capture_output_memory_span(job.output,i?CAPTURE_OUT_AUX:CAPTURE_OUT_HEADER,&expected));
-        struct packet *q=make_packet(40,0x80c70073);p16(q->data,0x28);p32(q->data+8,i?0x27f:0x80d61);int result=1;
+        struct packet *q=make_packet(40,0x80c70073);p16(q->data,0x20);p32(q->data+4,expected.unit_type);p32(q->data+12,UINT32_MAX);p16(q->data+22,1);int result=1;
         assert(functional_capture_dmm(0x61003c,q->data,&io,0,&result)==1 && result==-EPERM);
         assert(functional_capture_dmm(0x61003c,q->data,&io,original.base+0x2b1f08,&result)==1 && !result);
-        struct packet *r=sent_packets[sends-1];assert(r && u16(r->data)==0x8028 && u32(r->data+12)==expected.handle &&
-            u64(r->data+24)==expected.alias && u32(r->data+32)==expected.capacity);
+        struct packet *r=sent_packets[sends-1];assert(r && u16(r->data)==0x8020 && u32(r->data+12)==expected.handle &&
+            u32(r->data+16)==expected.unit_type && u64(r->data+24)==expected.alias && u32(r->data+32)==expected.capacity);
         drain_packets();
     }
     struct capture_output_span header,main;assert(!capture_output_memory_span(job.output,CAPTURE_OUT_HEADER,&header));assert(!capture_output_memory_span(job.output,CAPTURE_OUT_MAIN,&main));
@@ -195,18 +233,99 @@ static void test_creator_save_retirement(int native_reference){
     assert(!state.write_readback_verified && !state.resources_released);
     functional_capture_fsys_event(0,CAPTURE_SAVE_COVERAGE,0,1,1,0);
     assert(state.write_readback_verified && !state.resources_released);
+    for(unsigned i=CAPTURE_OUT_HEADER;i<=CAPTURE_OUT_AUX;++i){
+        struct capture_output_span span;assert(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span));output_reference(0x23,&span);
+    }
     pthread_t consumer;
     if(native_reference){uint8_t q[40]={0},r[40];p16(q,0x21);p16(q+22,1);p32(q+4,1);p32(q+8,main.handle);assert(!capture_output_memory_reply(job.output,q,0,r));release_handle=main.handle;assert(!pthread_create(&consumer,NULL,release_native_output,NULL));}
     assert(!retire_saved_output());if(native_reference)assert(!pthread_join(consumer,NULL));
     assert(state.resources_released && state.phase==IDLE && !job.input && !job.output && !job.save && !imaging_live && !state.saved_verified);
     assert(!functional_capture_shutdown());free((void *)original.base);
 }
+static void test_publication_failure(int observed){
+    setup();input_owner();state.phase=DELIVERING;inline_receive=1;info_send_error=-ENOSPC;info_observe_before_error=observed;
+    uint8_t time[12]={0};p16(time+2,2026);time[4]=11;time[5]=3;
+    struct full_imaging_io delivery_io=io;delivery_io.send=notification_send;
+    assert(capture_delivery_begin(job.output,job.request,time,&delivery_io,&guard,&job.delivery)==-ENOSPC);
+    struct capture_output_info info;assert(!capture_output_memory_info(job.output,&info) && info.native_references==(observed?3u:0u));
+    struct capture_delivery_info delivery;assert(!capture_delivery_info(job.delivery,&delivery) && delivery.first_error==-ENOSPC && delivery.queued==2 && delivery.wire_consumed==2);
+    fault(-ENOSPC);assert(functional_capture_shutdown()==-EBUSY && !state.saved_verified);
+    assert(!capture_delivery_cleanup(job.delivery) && !capture_delivery_close(job.delivery));job.delivery=job.published_delivery=NULL;
+    if(observed){
+        assert(capture_output_memory_publish_cancel(job.output)==-EBUSY);
+        for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i){
+            struct capture_output_span span;assert(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span));output_reference(0x23,&span);
+        }
+    }
+    assert(state.error==-ENOSPC);destroy_output();
+}
+static struct packet *prefix_allocation(void){
+    struct packet *p=make_packet(40,0x80c70073);p16(p->data,0x20);p32(p->data+4,0x80d61);p32(p->data+12,UINT32_MAX);p16(p->data+22,1);return p;
+}
+static void test_allocation_failure(unsigned scenario){
+    setup();input_owner();state.phase=WAIT_SAVE;assert(!capture_save_prepare(job.output,0x4321,&job.save));
+    struct packet *p=prefix_allocation();int result=77,handled;uintptr_t caller=original.base+0x2b1f08;
+    if(scenario==2 || scenario==6){
+        assert(functional_capture_dmm(0x61003c,p->data,&io,caller,&result)==1 && !result);drain_packets();
+        p=prefix_allocation();
+        if(scenario==6){
+            struct capture_output_span span;assert(!capture_output_memory_span(job.output,CAPTURE_OUT_HEADER,&span));output_reference(0x21,&span);
+            p16(p->data,0x23);p32(p->data+8,span.handle);p16(p->data+22,2);caller=original.base+0x2b2388;send_error=-ENOSPC;
+        }
+    }
+    if(scenario==0)allocate_error=-ENOMEM;
+    if(scenario==1)send_error=-ENOSPC;
+    if(scenario==3)caller=original.base+0x2b2388;
+    if(scenario==4)p32(p->data+4,0x80d62);
+    if(scenario==5)p16(p->data+22,3);
+    result=77;handled=functional_capture_dmm(0x61003c,p->data,&io,caller,&result);
+    const int expected[]={-ENOMEM,-ENOSPC,-EBUSY,-EPERM,77,-ENOTSUP,-ENOSPC};
+    assert(handled==(scenario!=4) && result==expected[scenario]);free(p);
+    struct capture_output_info info;assert(!capture_output_memory_info(job.output,&info) && info.native_references==(scenario==2?1u:scenario==6?2u:0u));
+    assert(!state.saved_verified && !state.resources_released && functional_capture_shutdown()==-EBUSY);
+    /* A failed unsaved owner stays reachable; process exit releases this host fixture. */
+}
 static void test_fork(void){setup();pthread_mutex_lock(&mutex);pid_t child=fork();assert(child>=0);
     if(!child){struct functional_capture_snapshot s;_exit(functional_capture_snapshot(&s)==-ECHILD && functional_capture_shutdown()==-ECHILD?0:1);}
     int status;assert(waitpid(child,&status,0)==child && WIFEXITED(status) && !WEXITSTATUS(status));pthread_mutex_unlock(&mutex);
 }
+static void test_admission(unsigned scenario){
+    setup();admission_case=scenario;job.origin.command=0x4038;
+    if(scenario==4)reserve_error=-ENODATA;
+    uint8_t model[FCAM_STATE_BYTES]={0};struct fcam_bridge_result result={0};
+    int rc=admit_frame(model,&result);
+    if(scenario==1 || scenario==6 || scenario==7 || scenario==9){
+        if(rc || rpcs!=2 || reservations!=2 || unlocks!=2 || admission_calls!=1 || admission_snapshots!=1)abort();
+    }else if(scenario==2){if(rc!=-ETIMEDOUT || rpcs<2 || rpcs!=unlocks || reservations!=unlocks || admission_calls || admission_snapshots!=unlocks)abort();}
+    else if(scenario==3 || scenario==8 || scenario==10){
+        if(rc!=(scenario==10?-EBUSY:-ENODATA) || rpcs!=1 || reservations!=1 || unlocks!=1 || admission_calls || admission_snapshots!=1)abort();
+    }else if(scenario==4){if(rc!=-ENODATA || rpcs!=1 || reservations!=1 || unlocks || admission_calls || admission_snapshots)abort();}
+    else if(rc!=-ESTALE || rpcs!=2 || reservations!=1 || unlocks!=1 || admission_calls || admission_snapshots!=1)abort();
+}
+static unsigned diagnostic_records;
+static void diagnostic_record(const char *tag,const char *text){
+    assert(!strcmp(tag,"FUNCTIONAL_CAMERA_OUTPUT_DIAGNOSTIC "));
+    assert(strstr(text,"site=dmm op=0x28 handle=0x80d60") && strstr(text,"handled=0 rc=0"));
+    assert(strstr(text,"header_cpu=") && strstr(text,"thumb_refs=") && strstr(text,"capture_verified=0"));
+    ++diagnostic_records;errno=EDOM;
+}
+static void test_output_diagnostics(void){
+    setup();input_owner();state.phase=WAIT_SAVE;job.io.record=diagnostic_record;
+    struct capture_output_info before,after;assert(!capture_output_memory_info(job.output,&before));
+    struct functional_capture_snapshot original_state=state;
+    struct packet *p=make_packet(40,0x80c70073);p16(p->data,0x28);p32(p->data+8,0x80d60);
+    uint8_t original_packet[40];memcpy(original_packet,p->data,40);
+    for(unsigned i=0;i<52;++i){
+        errno=EINTR;int result=77;
+        assert(functional_capture_dmm(0x61003c,p->data,&io,original.base+0x2b2388,&result)==0);
+        assert(errno==EINTR && result==77 && !memcmp(original_packet,p->data,40));
+    }
+    assert(diagnostic_records==48 && job.output_diagnostic_notes==48 && !allocations && !releases && !sends);
+    assert(!capture_output_memory_info(job.output,&after) && !memcmp(&before,&after,sizeof before));
+    assert(!memcmp(&original_state,&state,sizeof state));free(p);destroy_output();
+}
 int main(int argc,char **argv){assert(argc==2);int mode=atoi(argv[1]);
     if(mode<6)test_reject(mode);else if(mode<8)test_accept(mode-6);else if(mode<11)test_terminal(mode==9,mode==10);
-    else if(mode<16)test_dmm((unsigned)mode-11);else if(mode==16)test_output_dmm();else if(mode<19)test_delivery(mode==18);else if(mode==19)test_fork();else if(mode<26)test_native_queue((unsigned)mode-20);else test_creator_save_retirement(mode==27);
+    else if(mode<16)test_dmm((unsigned)mode-11);else if(mode==16)test_output_dmm();else if(mode<19)test_delivery(mode==18);else if(mode==19)test_fork();else if(mode<26)test_native_queue((unsigned)mode-20);else if(mode<28)test_creator_save_retirement(mode==27);else if(mode==38)test_output_diagnostics();else if(mode==39 || mode==40)test_publication_failure(mode==40);else if(mode>=41 && mode<=47)test_allocation_failure((unsigned)mode-41);else test_admission((unsigned)mode-27);
     puts("PASS HOST_ONLY capture ownership/gates/native transport/provider rollback/notification retirement; original_AP=0 original_codec=0 Fsys_saved=0 capture_verified=0");return 0;
 }

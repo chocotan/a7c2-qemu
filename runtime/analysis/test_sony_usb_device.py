@@ -192,6 +192,53 @@ int main(void){unsigned char table[120]={1,2,3};expected_handle=0x1234;expected_
         subprocess.run([str(binary)],check=True,capture_output=True)
 
 
+def test_msc_loader_observer_preserves_result_errno_and_log_bound(tmp_path):
+    import subprocess
+    source=Path(__file__).resolve().parents[2]/'source/usb-device/usb-start-observe.c'
+    text=source.read_text()
+    start=text.index('static void *usb_loader_dlopen(')
+    end=text.index('\nstatic void *usb_loader_dlsym(',start)
+    test=tmp_path/'msc-loader.c'
+    test.write_text('''#include <assert.h>
+#include <errno.h>
+#include <stddef.h>
+#include <string.h>
+static unsigned calls, enters, returns;
+static int find_dso, incoming;
+static void *fake_open(const char *name,int flags) {
+    (void)name; (void)flags; assert(errno==incoming); calls++; errno=EACCES;
+    return calls == 1 ? (void *)0 : (void *)&calls;
+}
+static void *(*next_dlopen)(const char *,int)=fake_open;
+static void initialize(void) { assert(0); }
+static void emit(int error,const char *kind,const char *format,...) {
+    (void)error; (void)format;
+    if(!strcmp(kind,"MSC_DLOPEN_ENTER")) {assert(enters==returns);enters++;}
+    else {assert(!strcmp(kind,"MSC_DLOPEN") && enters==returns+1);returns++;}
+    errno=ERANGE;
+}
+#define dl_iterate_phdr(a,b) ((void)(a),(void)(b),(void)(errno=EDOM))
+'''+text[start:end]+'''
+int main(void) {
+    errno=incoming=EINTR;assert(!usb_loader_dlopen("/usr/lib/libInfraMscServer.so",1));
+    assert(errno==EACCES && enters==1 && returns==1);
+    errno=incoming=EINTR;assert(usb_loader_dlopen("libInfraMscServer.so",2)==&calls);
+    assert(errno==EACCES && enters==2 && returns==2);
+    errno=incoming=EINTR;assert(usb_loader_dlopen("other.so",3)==&calls);
+    assert(errno==EACCES && enters==2 && returns==2);
+    for (unsigned i=0;i<20;i++) {errno=incoming=EINTR;assert(usb_loader_dlopen("libInfraMscServer.so",4)==&calls);}
+    assert(errno==EACCES && enters==16 && returns==16 && calls==23);
+    return 0;
+}
+''')
+    for name,flags in (('strict',['-O0']),('sanitized',['-O1','-fsanitize=address,undefined',
+                                                        '-fno-sanitize-recover=all','-fno-omit-frame-pointer'])):
+        binary=tmp_path/('msc-loader-'+name)
+        subprocess.run(['cc','-std=c11','-Wall','-Wextra','-Werror','-pedantic',*flags,str(test),'-o',str(binary)],
+                       check=True,capture_output=True)
+        subprocess.run([str(binary)],check=True,capture_output=True)
+
+
 def test_callback_tree_observer_is_bounded_and_never_corrects_original_pointer(tmp_path):
     import subprocess
     source=Path(__file__).resolve().parents[2]/'source/usb-device/usb-start-observe.c'

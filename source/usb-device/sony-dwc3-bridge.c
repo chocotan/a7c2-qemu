@@ -485,13 +485,15 @@ static void describe(BridgeClient *c, uint32_t id)
 {
     SonyDWC3Bridge *b = c->bridge;
     QDict *d = response("describe", id, true);
-    if (!b->ready || !sony_dwc3_ready(b->core)) {
+    const char *controller_reason = sony_dwc3_not_ready_reason(b->core);
+    if (!b->ready || controller_reason) {
         if (!b->discovery_stage && now_ms() >= b->discovery_retry &&
-            sony_dwc3_ready(b->core) && (!b->import_owner || (b->import_owner == c && !c->pending))) {
+            !controller_reason && (!b->import_owner || (b->import_owner == c && !c->pending))) {
             discovery_submit(b, 1, 18);
         }
         qdict_put_bool(d, "ready", false);
-        qdict_put_str(d, "reason", b->reason ? b->reason : "guest EP0 descriptor discovery pending");
+        qdict_put_str(d, "reason", controller_reason ? controller_reason :
+                      b->reason ? b->reason : "guest EP0 descriptor discovery pending");
         send_frame(c, d, NULL, 0); return;
     }
     QDict *device = qdict_new();

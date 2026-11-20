@@ -4,11 +4,57 @@
 set -euo pipefail
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 analysis_dir="$project_dir/analysis"
+socket_dir=/out
+socket_bind=()
+qemu_prefix=()
+if [[ -v A7C2_SINGLE_AP_SOCKETS || -v A7C2_SINGLE_AP_SOCKET_ROOT ]]; then
+  python3 -B "$analysis_dir/single_ap_sockets.py"
+  socket_dir=/sockets
+  socket_bind=(--bind "$A7C2_SINGLE_AP_SOCKET_ROOT" /sockets)
+  qemu_prefix=(/usr/bin/sh -c 'umask 0177; exec "$@"' sh)
+fi
+if [[ -n "${A7C2_STORAGE_PROFILE:-}" ]]; then
+  python3 -B - "$analysis_dir" <<'PERSISTENT_PREFLIGHT'
+import os,sys
+sys.path.insert(0,sys.argv[1])
+from persistent_storage import inherited_fd
+inherited_fd(os.environ)
+PERSISTENT_PREFLIGHT
+fi
+# Default off: the RAM capture card and the internal settings disk are combined only
+# under this one reviewed profile, and never through a relaxed storage guard.
+settings_restart="${A7C2_SETTINGS_RESTART_PROFILE:-}"
+if [[ -n "$settings_restart" ]]; then
+  [[ "$settings_restart" == functional-ram-card-independent-internal-v1 &&
+     "${A7C2_STORAGE_PROFILE:-}" == product-single-disk-v1 &&
+     "${A7C2_FUNCTIONAL_RAM_CONSUMER:-}" == inherited-ram-card-fds-v1 ]] || {
+    echo 'Settings-restart profile requires its exact persistent/RAM storage combination' >&2; exit 2; }
+fi
+if [[ -v A7C2_CAPTURE_SOCKET_PROFILE || -v A7C2_CAPTURE_SOCKET_ROOT || -v A7C2_CAPTURE_SOCKET_FD ]]; then
+  [[ ! -v A7C2_SINGLE_AP_SOCKETS && ! -v A7C2_SINGLE_AP_SOCKET_ROOT &&
+     "$settings_restart" == functional-ram-card-independent-internal-v1 &&
+     "${A7C2_RAM_CARD_LAUNCH_PROFILE:-}" == inherited-ram-card-fds-v1 &&
+     "${QEMU_HDMI_UPM_GDB:-0}" == 1 && "${QEMU_NATIVE_DISPLAY:-none}" == none &&
+     "${QEMU_REQUEST_QUEUE_GDB:-0}" == 0 && "${QEMU_NATIVE_INPUT:-0}" == 0 &&
+     "${QEMU_SONY_USB_DEVICE:-0}" == 0 && ! -v QEMU_NATIVE_AP_CP_LINK &&
+     "${QEMU_RAM_SESSION:-0}" == 0 && "${QEMU_RAM_INCOMING:-0}" == 0 &&
+     -z "${QEMU_ICOUNT_ARGS:-}" ]] || {
+    echo 'Capture short sockets require the held-disk headless capture route only' >&2; exit 2; }
+  python3 -B "$analysis_dir/capture_socket_roots.py"
+  [[ "$(bwrap --help)" == *"--bind-fd"* ]] || {
+    echo 'Capture short sockets require writable directory FD binding' >&2; exit 2; }
+  socket_dir=/sockets
+  socket_bind=(--bind-fd "$A7C2_CAPTURE_SOCKET_FD" /sockets)
+  qemu_prefix=(/usr/bin/sh -c 'umask 0177; exec "$@"' sh)
+fi
 tool_root="${QEMU_SYSTEM_DIR:-$project_dir/sources/qemu-11.1.2/build-sony-ui}"
 binary_relative="${QEMU_SYSTEM_BINARY:-qemu-system-aarch64}"
+sandbox_library_path=/tools/usr/lib
 sony_timers="${SONY_TIMER_MODEL:-0}"
 native_window="${MENU_NATIVE_WINDOW:-0}"
 native_display="${QEMU_NATIVE_DISPLAY:-none}"
+observation_seconds="${QEMU_TIMEOUT_SECONDS:-0}"
+[[ "$observation_seconds" == 0 ]] || { echo 'QEMU timeout signaling is disabled; use an owned QMP supervisor' >&2; exit 2; }
 ram_session="${QEMU_RAM_SESSION:-0}"
 case "$ram_session" in 0|1) ;; *) echo 'QEMU_RAM_SESSION must be 0 or 1' >&2; exit 2 ;; esac
 cpu_count="${QEMU_CPU_COUNT:-1}"
@@ -57,8 +103,8 @@ if [[ "$hdmi_debug" == 1 ]]; then
      "${MENU_PINMEM_HDMI_VIDEO_CONNECT:-}" == virtual-pinmem-video0-hdmi-video0-initializing-v1 ]] || {
     echo 'HDMI consumer debug requires the isolated owned video profile' >&2; exit 2;
   }
-  debug_args=(-gdb unix:/out/hdmi-upm-gdb.sock,server=on,wait=off
-              -qmp unix:/out/hdmi-upm-control.sock,server=on,wait=off)
+  debug_args=(-gdb unix:$socket_dir/hdmi-upm-gdb.sock,server=on,wait=off
+              -qmp unix:$socket_dir/hdmi-upm-control.sock,server=on,wait=off)
 fi
 if [[ "$native_window" == 1 ]]; then
   display_args=(-display "$native_display" -device ramfb,id=a7c2-screen)
@@ -77,7 +123,7 @@ if [[ "$native_window" == 1 ]]; then
       -name 'Sony A7C II - experimental menu')
   fi
   if [[ "${QEMU_NATIVE_INPUT:-0}" == 1 ]]; then
-    display_args+=(-chardev socket,id=sonykeys,path=/out/native-input.sock,server=on,wait=off
+    display_args+=(-chardev socket,id=sonykeys,path=$socket_dir/native-input.sock,server=on,wait=off
       -device sony-ui-input,chardev=sonykeys,display=a7c2-screen)
   fi
 elif [[ "$native_display" != none ]]; then
@@ -95,7 +141,28 @@ if [[ "$sony_usb_device" != 0 ]]; then
     [[ -n "${!name:-}" ]] || { echo "Missing USB binding $name" >&2; exit 2; }
     timer_environment+=(--setenv "$name" "${!name}")
   done
-  usb_device_qmp=(-qmp unix:/out/usb-qmp.sock,server=on,wait=off)
+  usb_device_qmp=(-qmp unix:$socket_dir/usb-qmp.sock,server=on,wait=off)
+fi
+usb_generation_args=()
+if [[ "${A7C2_USB_GENERATION_OBSERVE+x}" == x ]]; then
+  [[ "$A7C2_USB_GENERATION_OBSERVE" == virtual-usb-generation-observe-v1 ]] || {
+    echo 'Unknown explicit USB generation observer profile' >&2; exit 2;
+  }
+  [[ "$sony_usb_device" == 1 && "${A7C2_ORIGINAL_COLD:-}" == original-init-v1 ]] || {
+    echo 'USB generation observer requires the enabled original cold USB device' >&2; exit 2;
+  }
+  case ",${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}," in
+    *,guest_errors,*) ;;
+    *) echo 'USB generation observer requires guest_errors trace logging' >&2; exit 2 ;;
+  esac
+  usb_generation_args=(-global sony-dwc3-gadget.generation-observe=on)
+fi
+
+# A7C2_BOOT_QUIET=1 (iteration runs): skip per-MMIO/-d trace logging entirely.
+if [[ "${A7C2_BOOT_QUIET:-}" == 1 ]]; then
+  trace_args=()
+else
+  trace_args=(-d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log)
 fi
 bootfs="$analysis_dir/unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked"
 test_initrd="${5:-$bootfs/initrd.img}"
@@ -108,6 +175,17 @@ case "$ram_mb" in 1024|4096) ;; *) echo 'Use 1024 or 4096 MiB' >&2; exit 2 ;; es
 board_dtb="${2:-}"
 loader_args=()
 output_dir="$analysis_dir/qemu-kernel-output-$ram_mb"
+if [[ -n "${QEMU_NATIVE_AP_CP_LINK:-}" ]]; then
+  python3 -B - "$analysis_dir" "$tool_root/$binary_relative" <<'PY'
+from pathlib import Path
+import os,runpy,sys
+api=runpy.run_path(str(Path(sys.argv[1]).parents[1]/'source/cp-boot/native-link.py'))
+if os.environ['QEMU_NATIVE_AP_CP_LINK']!=api['PROFILE']:
+    raise ValueError('Unknown native AP/CP link profile')
+api['admit'](Path(os.environ['QEMU_NATIVE_LINK_DIR']),Path(sys.argv[2]))
+PY
+  output_dir="$QEMU_NATIVE_LINK_DIR/ap-board-$ram_mb"
+fi
 if [[ -n "$board_dtb" ]]; then
   output_dir="${output_dir}-dtb"
   install -D -m 0644 "$board_dtb" "$output_dir/virt.dtb"
@@ -134,7 +212,7 @@ if [[ "$native_window" == 1 ]] && { [[ "$skip_hwtimer" != 1 || "$boot_memory" !=
 fi
 cmdline='console=ttyAMA0 earlycon=pl011,0x09000000 loglevel=8 root=/dev/ram0 init=/bin/sh'
 if [[ -n "$original_cold" ]]; then
-  cmdline='console=ttyAMA0 earlycon=pl011,0x09000000 loglevel=8 root=/dev/ram0 rootfstype=ext2 rw noatime init=/sbin/product-cold-bootstrap product.cold=original-init-v1'
+  cmdline='console=ttyAMA0 earlycon=pl011,0x09000000 loglevel=${A7C2_BOOT_QUIET_LOGLEVEL:-8} root=/dev/ram0 rootfstype=ext2 rw noatime init=/sbin/product-cold-bootstrap product.cold=original-init-v1'
 fi
 high_ddr=0
 if [[ "$test_initrd" != "$bootfs/initrd.img" ]]; then
@@ -199,6 +277,9 @@ PY
       if [[ "${SONY_DMM_SERVICE:-0}" == 1 ]]; then
         # Separate virtual CP buffers from both Linux pages and camera DMM pools.
         cmdline+=' memrsv=0x00100000@0x41e000000:uc'
+        if [[ "$sound_owner" != 1 ]]; then
+          cmdline+=' memrsv=0x00010000@0x41d020000:uc'
+        fi
       fi
       if [[ "$native_window" == 1 ]]; then
         # Independent scanout: two 2 MiB slots, DMA/config in last page.
@@ -225,9 +306,15 @@ PY
     cmdline+=' fullsystem.pin-control-memory=1 memrsv=0x00002000@0x500000000:uc'
   fi
   if [[ "$sound_owner" == 1 ]]; then
-    cmdline+=' fullsystem.sound-owner=1 memrsv=0x00020000@0x41d000000:uc'
+    if [[ "${SONY_DMM_SERVICE:-0}" == 1 ]]; then
+      # Adjacent owners share a reservation, keeping the original 16-entry budget.
+      cmdline+=' fullsystem.sound-owner=1 memrsv=0x00030000@0x41d000000:uc'
+    else
+      cmdline+=' fullsystem.sound-owner=1 memrsv=0x00020000@0x41d000000:uc'
+    fi
   fi
-  cmdline+=' initcall_debug initcall_blacklist=__boottime___udif_init_udif_hwtimer,__boottime___udif_init_udif_wdt,__boottime___udif_init_udif_fusb_otg,__boottime___udif_init_udif_pcie,__boottime___udif_init_udif_ddrc,__boottime___udif_init_pcidma,__boottime_sony_usb_init'
+  [[ "${A7C2_BOOT_QUIET:-}" != 1 ]] && cmdline+=' initcall_debug'
+cmdline+=' initcall_blacklist=__boottime___udif_init_udif_hwtimer,__boottime___udif_init_udif_wdt,__boottime___udif_init_udif_fusb_otg,__boottime___udif_init_udif_pcie,__boottime___udif_init_udif_ddrc,__boottime___udif_init_pcidma,__boottime_sony_usb_init'
   if [[ "$high_ddr" == 1 ]]; then
     # GPIO now has register backing; let the original OTG notification state initialize.
     cmdline="${cmdline/,__boottime___udif_init_udif_fusb_otg/}"
@@ -361,7 +448,10 @@ if sys.argv[5] == '1':
         p = fdt.fdt_getprop(buffer, offset, b'device_type', ctypes.byref(n))
         if p and ctypes.string_at(p, n.value).rstrip(b'\0') == b'memory':
             # Extra test RAM beyond camera workspaces holds the in-memory /usr copy.
-            ddr_size = 0x180000000
+            # Functional RAM-card routes use the same verified 8GiB bank as the
+            # native AP CP link: the 1.49GB derived CPIO OOMs the legacy 6GiB bank.
+            ddr_size = 0x200000000 if (os.environ.get('QEMU_NATIVE_AP_CP_LINK') == 'virtual-native-ap-cp-link-v1' or
+                                        os.environ.get('A7C2_RAM_CARD_LAUNCH_PROFILE')) else 0x180000000
             value = struct.pack('>QQ', 0x400000000, ddr_size)
             if fdt.fdt_setprop(buffer, offset, b'reg', value, len(value)) != 0:
                 raise RuntimeError('Cannot relocate guest DDR bank')
@@ -386,6 +476,9 @@ if sys.argv[5] == '1':
     }.items():
         if fdt.fdt_setprop(buffer, node, name, value, len(value)) != 0:
             raise RuntimeError('Cannot set timer map property')
+if os.environ.get('QEMU_NATIVE_AP_CP_LINK') == 'virtual-native-ap-cp-link-v1':
+    runpy.run_path(str(Path(sys.argv[6])/'native_pcie_board.py'))['add_iomaps'](
+        fdt,buffer,os.environ['QEMU_NATIVE_AP_CP_LINK'])
 if os.environ.get('QEMU_SONY_RC')=='1':
     runpy.run_path(str(Path(sys.argv[6])/'native_rc_board.py'))['add_control_map'](fdt,buffer)
 # Reject overlapping static virtual mappings before booting the unmodified kernel.
@@ -440,13 +533,18 @@ if [[ "$wbi_resume" == 1 ]]; then
   [[ -f "${QEMU_WBI_RAM:-}" && ! -L "${QEMU_WBI_RAM:-}" ]] || { echo 'QEMU_WBI_RAM must be a prepared sparse DDR image' >&2; exit 2; }
   [[ "${QEMU_WBI_ENTRY:-}" =~ ^0x[0-9a-fA-F]+$ ]] || { echo 'QEMU_WBI_ENTRY must be a hex address' >&2; exit 2; }
   memory_config=24576
-  wbi_bind=(--bind "$QEMU_WBI_RAM" /out/wbi-ram.bin)
-  wbi_args=(-object memory-backend-file,size=${memory_config}M,mem-path=/out/wbi-ram.bin,id=wbiRam
-            -machine virt,secure=off,gic-version=2,memory-backend=wbiRam
+  wbi_bind=(--ro-bind "$QEMU_WBI_RAM" /out/wbi-ddr.bin)
+  wbi_args=(-device loader,file=/out/wbi-ddr.bin,addr=0x400000000,force-raw=on
             -device loader,addr="$QEMU_WBI_ENTRY",cpu-num=0)
 fi
 machine_args=(-machine virt,secure=off,gic-version=2)
-if [[ "$wbi_resume" == 1 ]]; then machine_args=(-machine 'virt,secure=off,gic-version=2,memory-backend=wbiRam'); fi
+if [[ "$wbi_resume" == 1 ]]; then machine_args=(-machine 'virt,secure=off,gic-version=2'); fi
+
+# Iteration profile: a large TCG translation cache avoids retranslation thrash
+# while the original firmware loops; single thread matches the timing contract.
+if [[ "${A7C2_BOOT_QUIET:-}" == 1 ]]; then
+  machine_args+=(-accel tcg,thread=single,tb-size=2048)
+fi
 boot_args=(-kernel /kernel.img -initrd /initrd.img -append "$cmdline")
 if [[ "$wbi_resume" == 1 ]]; then
   boot_args=("${wbi_args[@]}")
@@ -486,10 +584,43 @@ PY
   persistent_bind=(--dir /instance --ro-bind "$A7C2_EMMC_INSTANCE/persistent-geometry.bin" /instance/persistent-geometry.bin)
   persistent_environment=(--setenv QEMU_A7PF_PROFILE persistent-flash-cold-v1
     --setenv QEMU_A7PF_FD "$A7C2_EMMC_FD" --setenv QEMU_A7PF_DEV "$A7C2_EMMC_DEV" --setenv QEMU_A7PF_INO "$A7C2_EMMC_INO")
+  if [[ -n "${QEMU_A7PF_WRITEBACK_FLUSH:-}" ]]; then
+    [[ "$QEMU_A7PF_WRITEBACK_FLUSH" == 1 ]] || { echo 'Invalid writeback-flush profile' >&2; exit 2; }
+    persistent_environment+=(--setenv QEMU_A7PF_WRITEBACK_FLUSH 1)
+  fi
   if [[ "$ram_session" == 1 ]]; then
     persistent_environment+=(--setenv QEMU_A7PF_RETAINED_STATE 1)
   fi
-  if bwrap --help | grep -q -- --preserve-fds; then persistent_fd_options=(--preserve-fds "$((A7C2_EMMC_FD-2))"); fi
+  if [[ -z "$settings_restart" ]] && bwrap --help | grep -q -- --preserve-fds; then persistent_fd_options=(--preserve-fds "$((A7C2_EMMC_FD-2))"); fi
+fi
+native_link_bind=()
+native_link_environment=()
+native_link_args=()
+if [[ -n "${QEMU_NATIVE_AP_CP_LINK:-}" ]]; then
+  python3 -B - "$analysis_dir" "$tool_root/$binary_relative" "$memory_config" "$output_dir" <<'PY'
+from pathlib import Path
+import json,os,runpy,sys
+api=runpy.run_path(str(Path(sys.argv[1]).parents[1]/'source/cp-boot/native-link.py'))
+proof=api['admit_ap'](Path(os.environ.get('QEMU_NATIVE_LINK_DIR','')),Path(sys.argv[2]),int(sys.argv[3]),os.environ)
+args=api['ram_arguments'](Path(os.environ['QEMU_NATIVE_LINK_DIR']),'ap',sandbox=True)
+with (Path(sys.argv[4])/'native-link-args.nul').open('xb') as stream:
+    stream.write(b''.join(arg.encode('utf-8')+b'\0' for arg in args))
+with (Path(sys.argv[4])/'native-link-admission.json').open('x') as stream:
+    json.dump(proof,stream,indent=2);stream.write('\n')
+PY
+  mapfile -d '' -t native_link_args < "$output_dir/native-link-args.nul"
+  native_link_bind=(--bind "$QEMU_NATIVE_LINK_DIR" /native-link)
+  native_link_environment=(--setenv QEMU_NATIVE_AP_CP_LINK virtual-native-ap-cp-link-v1
+    --setenv QEMU_AP_CP_GPIO_LINES virtual-ap-cp-gpio-lines-v1 --setenv QEMU_AP_CP_GPIO_SIDE ap
+    --setenv QEMU_SONY_TIMERS 1 --setenv QEMU_SONY_PCIDMA 1)
+  if [[ -n "${QEMU_NATIVE_P1_SPI_COMPONENT:-}" ]]; then
+    [[ "$QEMU_NATIVE_P1_SPI_COMPONENT" == virtual-p1-pl022-component-v1 ]] || {
+      echo 'Unknown P1 SPI component profile' >&2; exit 2;
+    }
+    native_link_environment+=(--setenv QEMU_NATIVE_P1_SPI_COMPONENT virtual-p1-pl022-component-v1)
+  fi
+  native_link_args+=(-chardev socket,id=notify-peer,path=/native-link/notify.sock,server=on,wait=off)
+  machine_args=(-machine virt,secure=off,gic-version=2,memory-backend=native-local-ram)
 fi
 scope_bind=()
 scope_args=()
@@ -542,8 +673,6 @@ PY
 elif [[ -n "${QEMU_SHUTTER_WRITER_SHA256:-}" ]]; then
   echo 'Writer observer digest has no matched plugin' >&2; exit 2
 fi
-observation_seconds="${QEMU_TIMEOUT_SECONDS:-15}"
-[[ "$observation_seconds" =~ ^[0-9]+$ ]] || { echo 'Invalid timeout' >&2; exit 2; }
 incoming_args=()
 if [[ "$ram_session" == 1 || "${QEMU_RAM_INCOMING:-0}" != 0 ]]; then
   [[ "$ram_session" == 1 && "${A7C2_ORIGINAL_COLD:-}" == original-init-v1 &&
@@ -556,36 +685,155 @@ if [[ "${QEMU_RAM_INCOMING:-0}" != 0 ]]; then
   [[ "${QEMU_RAM_INCOMING}" == defer ]] || { echo 'QEMU_RAM_INCOMING must be defer' >&2; exit 2; }
   incoming_args=(-S -incoming defer)
 fi
-# Exit 124 means the observation window elapsed; zero allows an interactive session.
-runner=(timeout --signal=TERM --kill-after=2s "${observation_seconds}s")
-# The UI owns this process tree; exec preserves ownership for stop and parent death.
-if [[ "${QEMU_UI_LIVE:-0}" == 1 ]]; then runner=(exec); fi
+# The parent owns QMP shutdown; never send timeout signals to a VM.
+ram_input_bind=(--ro-bind "$test_initrd" /initrd.img)
+ram_fd_options=()
+ram_fd_environment=()
+ram_handoff_bind=()
+ram_handoff_launch=()
+ram_qemu_path="/tools/$binary_relative"
+if [[ -n "${A7C2_RAM_CARD_LAUNCH_PROFILE:-}" ]]; then
+  [[ "$A7C2_RAM_CARD_LAUNCH_PROFILE" == inherited-ram-card-fds-v1 &&
+     "${A7C2_FUNCTIONAL_RAM_CONSUMER:-}" == inherited-ram-card-fds-v1 &&
+     "${MENU_FUNCTIONAL_CAMERA:-}" == virtual-functional-camera-v1 &&
+     ( -z "${A7C2_STORAGE_PROFILE:-}" || "$settings_restart" == functional-ram-card-independent-internal-v1 ) &&
+     "$test_initrd" == *.cpio ]] || {
+    echo 'Inherited RAM-card launch requires the explicit functional raw-initramfs route' >&2; exit 2;
+  }
+  ram_max_fd="$(python3 -B - "$analysis_dir" <<'RAM_CARD_FD_HANDOFF'
+import os,sys
+sys.path.insert(0,sys.argv[1])
+from functional_camera_runner import verify_ram_card_inherited
+print(verify_ram_card_inherited(os.environ))
+RAM_CARD_FD_HANDOFF
+)"
+  [[ "$ram_max_fd" =~ ^[1-9][0-9]*$ && "$ram_max_fd" -ge 3 ]] || exit 2
+  if [[ -n "$settings_restart" ]]; then
+    # One preserve range must cover the writable internal OFD as well as the five RAM inputs.
+    [[ "$A7C2_EMMC_FD" =~ ^[1-9][0-9]*$ && "$A7C2_EMMC_FD" -ge 3 ]] || { echo 'Internal settings descriptor is invalid' >&2; exit 2; }
+    (( A7C2_EMMC_FD > ram_max_fd )) && ram_max_fd="$A7C2_EMMC_FD"
+  fi
+  ram_input_bind=(--ro-bind "/proc/self/fd/$A7C2_RAM_CARD_INITRAMFS_FD" /initrd.img
+                  --ro-bind "/proc/self/fd/$A7C2_RAM_CARD_QEMU_FD" /qemu-system-aarch64)
+  ram_qemu_path=/qemu-system-aarch64
+  ram_bwrap_help="$(bwrap --help)"
+  if grep -q -- --preserve-fds <<< "$ram_bwrap_help"; then
+    ram_fd_options=(--preserve-fds "$((ram_max_fd-2))")
+    for ram_fd_name in SEED DIRECTORY RECEIPT INITRAMFS QEMU; do
+      ram_fd_variable="A7C2_RAM_CARD_${ram_fd_name}_FD"
+      ram_fd_environment+=(--setenv "$ram_fd_variable" "${!ram_fd_variable}")
+    done
+    if [[ -n "$settings_restart" ]]; then
+      ram_fd_environment+=(--setenv A7C2_SETTINGS_RESTART_PROFILE "$settings_restart"
+                           --setenv A7C2_STORAGE_PROFILE "$A7C2_STORAGE_PROFILE"
+                           --setenv A7C2_EMMC_FD "$A7C2_EMMC_FD"
+                           --setenv A7C2_EMMC_DEV "$A7C2_EMMC_DEV"
+                           --setenv A7C2_EMMC_INO "$A7C2_EMMC_INO"
+                           --setenv A7C2_EMMC_INSTANCE "$A7C2_EMMC_INSTANCE")
+    fi
+  elif grep -q -- --ro-bind-fd <<< "$ram_bwrap_help"; then
+    # bwrap consumes --ro-bind-fd descriptors; expose verified inodes as read-only paths.
+    # No --preserve-fds here, so the read-only inputs travel as inode binds and the
+    # writable internal disk keeps its owner OFD through a SCM_RIGHTS handoff: a bind
+    # mount would reopen the inode as a different OFD (measurements in the task report).
+    ram_input_bind=(--ro-bind-fd "$A7C2_RAM_CARD_INITRAMFS_FD" /initrd.img
+                    --ro-bind-fd "$A7C2_RAM_CARD_QEMU_FD" /qemu-system-aarch64)
+    ram_fd_options=(--dir /ram-card
+                    --ro-bind-fd "$A7C2_RAM_CARD_SEED_FD" /ram-card/seed
+                    --ro-bind-fd "$A7C2_RAM_CARD_DIRECTORY_FD" /ram-card/directory
+                    --ro-bind-fd "$A7C2_RAM_CARD_RECEIPT_FD" /ram-card/receipt)
+    ram_fd_environment=(--setenv A7C2_RAM_CARD_SEED_PATH /ram-card/seed
+                        --setenv A7C2_RAM_CARD_DIRECTORY_PATH /ram-card/directory
+                        --setenv A7C2_RAM_CARD_RECEIPT_PATH /ram-card/receipt
+                        --setenv A7C2_RAM_CARD_INITRAMFS_PATH /initrd.img
+                        --setenv A7C2_RAM_CARD_QEMU_PATH /qemu-system-aarch64)
+    if [[ -n "$settings_restart" ]]; then
+      # The sixth descriptor is the leased writable internal disk; only the owner's own
+      # open file description may reach QEMU, so it is not rebound from a path.
+      [[ "$A7C2_EMMC_FD" =~ ^[1-9][0-9]*$ && "$A7C2_EMMC_DEV" =~ ^[0-9]+$ &&
+         "$A7C2_EMMC_INO" =~ ^[0-9]+$ ]] || { echo 'Internal settings descriptor identity is invalid' >&2; exit 2; }
+      internal_handoff_dir="/run/user/$(id -u)/a7c2-internal-disk-$$"
+      internal_handoff_socket="$internal_handoff_dir/internal-disk.sock"
+      [[ ! -e "$internal_handoff_dir" ]] || { echo 'Internal disk handoff directory already exists' >&2; exit 2; }
+      mkdir -m 0700 -- "$internal_handoff_dir" || { echo 'Internal disk handoff directory refused' >&2; exit 2; }
+      python3 -B - "$internal_handoff_socket" "$A7C2_EMMC_FD" "$A7C2_EMMC_DEV" "$A7C2_EMMC_INO" <<'INTERNAL_DISK_HANDOFF' >&2 &
+import fcntl,os,socket,stat,struct,sys
+path,number,device,inode=sys.argv[1],int(sys.argv[2]),int(sys.argv[3]),int(sys.argv[4])
+info=os.fstat(number)
+if ((info.st_dev,info.st_ino)!=(device,inode) or not stat.S_ISREG(info.st_mode) or
+        fcntl.fcntl(number,fcntl.F_GETFL)&os.O_ACCMODE!=os.O_RDWR):
+    raise SystemExit('Internal disk broker lost the verified descriptor identity')
+listener=socket.socket(socket.AF_UNIX,socket.SOCK_SEQPACKET)
+listener.bind(path)
+os.chmod(path,0o600)
+listener.listen(1)
+listener.settimeout(60)
+try:
+    connection,_=listener.accept()
+    connection.settimeout(60)
+    connection.sendmsg([b'1'],[(socket.SOL_SOCKET,socket.SCM_RIGHTS,struct.pack('i',number))])
+    connection.recv(1)
+    connection.close()
+finally:
+    listener.close()
+    try:os.unlink(path)
+    except OSError:pass
+    try:os.rmdir(os.path.dirname(path))
+    except OSError:pass
+INTERNAL_DISK_HANDOFF
+      for _attempt in $(seq 1 500); do
+        [[ -S "$internal_handoff_socket" ]] && break
+        sleep 0.02
+      done
+      [[ -S "$internal_handoff_socket" ]] || { rmdir -- "$internal_handoff_dir" 2>/dev/null || :; echo 'Internal disk handoff broker did not publish its socket' >&2; exit 2; }
+      ram_handoff_bind=(--bind "$internal_handoff_dir" /internal-disk
+                        --ro-bind "$analysis_dir/ram_card_fd_receiver.py" /internal-disk-receiver.py)
+      ram_handoff_launch=(/usr/bin/env -u LD_LIBRARY_PATH /usr/bin/python3 -B /internal-disk-receiver.py
+                          /internal-disk/internal-disk.sock "$A7C2_EMMC_FD" "$A7C2_EMMC_DEV"
+                          "$A7C2_EMMC_INO" "$sandbox_library_path" --)
+      ram_fd_environment+=(--setenv A7C2_SETTINGS_RESTART_PROFILE "$settings_restart"
+                           --setenv A7C2_STORAGE_PROFILE "$A7C2_STORAGE_PROFILE"
+                           --setenv A7C2_EMMC_FD "$A7C2_EMMC_FD"
+                           --setenv A7C2_EMMC_DEV "$A7C2_EMMC_DEV"
+                           --setenv A7C2_EMMC_INO "$A7C2_EMMC_INO")
+    fi
+  else
+    echo 'This sandbox cannot bind or preserve the exact RAM-card descriptor handoff' >&2; exit 2
+  fi
+  ram_fd_environment+=(--setenv A7C2_RAM_CARD_LAUNCH_PROFILE "$A7C2_RAM_CARD_LAUNCH_PROFILE")
+fi
+runner=(exec)
 "${runner[@]}" \
   bwrap --unshare-all --die-with-parent --new-session --clearenv \
     --ro-bind /usr /usr --symlink usr/lib /lib --symlink usr/lib /lib64 \
     --proc /proc --dev /dev --tmpfs /tmp \
     --ro-bind "$tool_root" /tools \
     --ro-bind "$bootfs/vmlinux.bin" /kernel.img \
-    --ro-bind "$test_initrd" /initrd.img \
+    "${ram_input_bind[@]}" \
     --bind "$output_dir" /out \
-    --chdir / --setenv LD_LIBRARY_PATH /tools/usr/lib --setenv LC_ALL C \
+    "${socket_bind[@]}" \
+    --chdir / --setenv LD_LIBRARY_PATH "$sandbox_library_path" --setenv LC_ALL C \
     "${timer_environment[@]}" \
     "${persistent_fd_options[@]}" "${persistent_bind[@]}" "${persistent_environment[@]}" \
+    "${ram_fd_options[@]}" "${ram_fd_environment[@]}" "${ram_handoff_bind[@]}" \
     "${wbi_bind[@]}" \
+    "${native_link_bind[@]}" "${native_link_environment[@]}" \
     "${pcidma_environment[@]}" \
     "${display_environment[@]}" \
     "${scope_bind[@]}" \
     "${writer_bind[@]}" \
-    "/tools/$binary_relative" \
+    "${ram_handoff_launch[@]}" "${qemu_prefix[@]}" "$ram_qemu_path" \
       "${machine_args[@]}" -cpu cortex-a35 -smp "$cpu_count" -m "$memory_config" \
       ${QEMU_ICOUNT_ARGS:-} \
       -nodefaults "${display_args[@]}" -monitor none -serial stdio -nic none \
-      -no-reboot -sandbox on -qmp unix:/out/qmp.sock,server=on,wait=off \
-      -qmp unix:/out/lcd-qmp.sock,server=on,wait=off \
+      -no-reboot -sandbox on -qmp unix:$socket_dir/qmp.sock,server=on,wait=off \
+      -qmp unix:$socket_dir/lcd-qmp.sock,server=on,wait=off \
       "${usb_device_qmp[@]}" \
+      "${usb_generation_args[@]}" \
       "${debug_args[@]}" \
       "${scope_args[@]}" \
       "${writer_args[@]}" \
       "${incoming_args[@]}" \
+      "${native_link_args[@]}" \
       "${boot_args[@]}" "${loader_args[@]}" \
-      -d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log
+      "${trace_args[@]}"

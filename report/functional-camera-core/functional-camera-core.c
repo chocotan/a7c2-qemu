@@ -1899,7 +1899,11 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
     }
     case FCAM_OP_FRAME_CAPTURE:
         if (!fcam_capture_input_valid(in, size)) return -EINVAL;
-        if (!m->sensor_initialized || !m->capture_configured) return -ENODATA;
+        /* Native 402d commits a verified still format without a host CONFIGURE. */
+        if (!m->sensor_initialized || (!m->capture_configured &&
+            (!m->still_format_valid || !still_format_domain(m) || m->vdf_class != 1 ||
+             m->vdf_config[0] != 1 || m->vdf_config[1] != 5 || m->vdf_config[2] != 5 ||
+             m->config.width != 640 || m->config.height != 480))) return -ENODATA;
         if (m->capture_token) return -EBUSY;
         if ((size_t)m->config.width * m->config.height * 3u >
             FCAM_MAX_RESULT_BYTES - FCAM_FRAME_HEADER_BYTES) return -E2BIG;

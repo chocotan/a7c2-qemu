@@ -29,8 +29,9 @@ struct native_udate_snapshot {
     unsigned long long timer_before, timer_after, elapsed, generation;
     unsigned int valid, done_sent, faults, busy, retained;
 };
-/* Returns 0 for an unhandled message. Recognized requests return 1 and set
- * result. Success consumes the original type1 only after real round-trip work
+/* Returns 0 for an unhandled message. Recognized type1 requests with reason
+ * 1..5 return 1 and set result; reason 4 intentionally has no type4 notify.
+ * Success consumes the original type1 only after real round-trip work
  * and a successful type4 transfer. The remote clock is an explicit virtual
  * model, not execution of the original CP or a hardware/Backup ready claim. */
 int native_udate_distribution_dispatch(unsigned int, void *,

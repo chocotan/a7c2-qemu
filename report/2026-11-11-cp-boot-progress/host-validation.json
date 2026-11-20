@@ -1,0 +1,35 @@
+{
+  "schema": "a7c2-native-owner-host-validation-v1",
+  "status": "passed",
+  "profile": "virtual-native-ap-cp-link-v1",
+  "workers": 2,
+  "host_tests_passed": 336,
+  "host_tests_failed": 0,
+  "groups": {
+    "platform_stage_device_ap_link": {"passed": 272, "failed": 0},
+    "cp_launcher_observer_owner": {"passed": 64, "failed": 0}
+  },
+  "covered_contracts": [
+    "exclusive creation and exact readback of AP admission claim/run pointer/owner record",
+    "claim PID start ticks, host boot ID, fixed argv digest and run nonce",
+    "post-exec claim validator rejects a reused PID generation",
+    "QMP peer credential to process/executable identity binding contract",
+    "AP quit transaction lock acquisition and release on success/error",
+    "O_EXCL quit marker precedes native QMP write",
+    "QMP-unavailable teardown preserves VM/lease without signaling",
+    "CP nonblocking lock contention refusal and inode/timestamp verification",
+    "CP query-status and owner recheck ordering before both continuations",
+    "pidfd monitoring for both AP probe owner and QMP peer QEMU, including exit refusal/CP stop",
+    "CP observer finalization errors do not replace the original AP-owner exit failure",
+    "negative fixtures for stale/reused owner, QEMU, socket, lock, nonce, marker and duplicate JSON"
+  ],
+  "qemu_started": false,
+  "original_ap_cp_pair_started": false,
+  "real_camera_connected": false,
+  "physical_storage_written": false,
+  "original_ap_consumption_verified": false,
+  "original_cp_consumption_verified": false,
+  "full_boot_verified": false,
+  "physical_compatible": false,
+  "limitation": "All QMP peer/process identities in host fixtures are simulated. This receipt is not evidence of an original AP/CP QEMU pair consuming the guard."
+}

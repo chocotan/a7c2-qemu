@@ -15,6 +15,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "functional-face-runtime.h"
+#include "device-models/cp-background-device.h"
 #include "functional-face-ap-observer.h"
 #include "test-capture-inactive-fixture.h"
 #include "device-models/functional-camera-control.h"

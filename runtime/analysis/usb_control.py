@@ -67,6 +67,15 @@ def read_json(path):
     return result
 
 
+def context_arguments(value):
+    legacy = {'run_id', 'qmp_path', 'backend_path', 'lease', 'vm_pid'}
+    extended = legacy | {'socket_root', 'socket_profile', 'socket_binding'}
+    if (not isinstance(value, dict) or set(value) not in (legacy, extended) or
+            any(value[key] is None for key in value)):
+        raise ControlBlocked('invalid_context', 'USB context requires complete legacy or bound socket fields')
+    return dict(value)
+
+
 def empty_status(run_id=None, lease_id=None):
     return {'schema': 'a7c2.usb-control.v1', 'run_id': run_id, 'lease_id': lease_id,
             'phase': 'disconnected', 'blocked_reason': None, 'backend_ready': False,
@@ -106,17 +115,19 @@ def vhci_rows(text):
 
 class UsbControl:
     def __init__(self, run_dir, *, qmp_path, lease, vm_pid, backend_path=None, run_id=None,
-                 sysfs_root='/sys'):
+                 sysfs_root='/sys', socket_root=None, socket_profile=None, socket_binding=None):
         run = Path(run_dir)
-        self.context = usbip.Context.create(run, qmp_path, backend_path or run / 'usb-endpoint.sock',
-                                            lease, vm_pid, run_id)
+        endpoint_root = run if socket_root is None else Path(socket_root)
+        self.context = usbip.Context.create(run, qmp_path, backend_path or endpoint_root / 'usb-endpoint.sock',
+                                            lease, vm_pid, run_id, socket_root=socket_root,
+                                            socket_profile=socket_profile, socket_binding=socket_binding)
         # Dependency injection for tests; the CLI never accepts an alternate host sysfs.
         self.sysfs = Path(sysfs_root).resolve()
         self.owner_file = self.context.run_dir / 'usb-owner.json'
         self.server_process = None
 
     def _base(self):
-        return empty_status(self.context.run_id, self.context.lease_id)
+        return dict(empty_status(self.context.run_id, self.context.lease_id), **self.context.binding_fields())
 
     def _failure(self, result, error):
         result['phase'] = 'recovery_required' if result['preload_recovery_required'] else 'blocked'
@@ -131,7 +142,7 @@ class UsbControl:
             return {}
         expected = {'run_id': self.context.run_id, 'lease_id': self.context.lease_id,
                     'qmp_path': str(self.context.qmp_path), 'vm_pid': self.context.vm_pid,
-                    'backend_path': str(self.context.backend_path)}
+                    'backend_path': str(self.context.backend_path), **self.context.binding_fields(endpoints=True)}
         if any(record.get(k) != v for k, v in expected.items()):
             raise ControlBlocked('lease_mismatch', 'USB owner belongs to a different run/VM/lease')
         for name in ('cable_connected', 'preload_recovery_required'):
@@ -207,7 +218,7 @@ class UsbControl:
         usbip.check_unix(self.context.qmp_path, private=False)
         with socket.socket(socket.AF_UNIX) as peer:
             peer.settimeout(2)
-            with usbip.unix_path(self.context.qmp_path, private=False) as path:
+            with self.context.connection_path(self.context.qmp_path, private=False) as path:
                 peer.connect(path)
             pid, uid, _ = struct.unpack('3i', peer.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             if pid != self.context.vm_pid or uid != os.getuid():
@@ -396,7 +407,8 @@ class UsbControl:
         if (not isinstance(capability, _GenerationCapability) or capability.control is not self or
                 any(record.get(k) != capability.record.get(k) for k in
                     ('run_id', 'lease_id', 'owner_id', 'qmp_path', 'vm_pid', 'vm_start', 'backend_path',
-                     'server_pid', 'server_start', 'server_port', 'attachment_id', 'device_key')) or
+                     'server_pid', 'server_start', 'server_port', 'attachment_id', 'device_key',
+                     'socket_binding', 'socket_endpoints')) or
                 record.get('owned_port') != capability.record.get('owned_port')):
             raise ControlBlocked('generation_owner_changed', 'generation capability no longer owns this run/VM/port/import')
         if record.get('preload_recovery_required') and not capability.recovery:
@@ -409,6 +421,8 @@ class UsbControl:
         receipt = read_json(self.context.run_dir / 'usb-import.json')
         fields = ('run_id', 'lease_id', 'owner_id', 'vm_pid', 'vm_start', 'qmp_path', 'backend_path',
                   'server_pid', 'server_start', 'attachment_id', 'device_key')
+        if self.context.socket_roots is not None:
+            fields += ('socket_binding', 'socket_endpoints')
         owned = record.get('owned_port') or {}
         if (any(receipt.get(k) != record.get(k) for k in fields) or
                 any(receipt.get(k) != owned.get(k) for k in
@@ -479,7 +493,7 @@ class UsbControl:
                 'qmp_path': str(self.context.qmp_path), 'backend_path': str(self.context.backend_path),
                 'vm_pid': self.context.vm_pid, 'vm_start': process_start(self.context.vm_pid),
                 'owner_id': uuid.uuid4().hex, 'cable_connected': False, 'owned_port': None,
-                'preload_recovery_required': False}
+                'preload_recovery_required': False, **self.context.binding_fields(endpoints=True)}
 
     def _server_alive(self, record):
         pid = record.get('server_pid')
@@ -494,9 +508,18 @@ class UsbControl:
                      b'--backend', str(self.context.backend_path).encode(),
                      b'--lease', self.context.lease.encode(), b'--vm-pid', str(self.context.vm_pid).encode(),
                      b'--run-id', self.context.run_id.encode()]
+        arguments += [value.encode() for value in self._socket_arguments()]
         prefix = [sys.executable.encode(), b'-B']
         return command == prefix + [str(BRIDGE_SOURCE).encode()] + arguments + [b''] or command == (
             prefix + [str(CONTROL_SOURCE).encode(), b'--serve-owned'] + arguments + [b''])
+
+    def _socket_arguments(self):
+        if self.context.socket_roots is None:
+            return []
+        binding = self.context.binding_fields()['socket_binding']
+        return ['--socket-root', str(self.context.socket_roots.sockets),
+                '--socket-profile', binding['profile'], '--socket-binding',
+                json.dumps(binding, sort_keys=True, separators=(',', ':'))]
 
     def _owns_socket(self, owned):
         def address(value):
@@ -517,7 +540,8 @@ class UsbControl:
         ready = self.context.run_dir / 'usb-server.json'
         if ready.exists() or ready.is_symlink():
             old = read_json(ready)
-            if old.get('run_id') != self.context.run_id or old.get('lease_id') != self.context.lease_id:
+            if (old.get('run_id') != self.context.run_id or old.get('lease_id') != self.context.lease_id or
+                    any(old.get(key) != value for key, value in self.context.binding_fields(endpoints=True).items())):
                 raise ControlBlocked('server_lease_mismatch', 'existing server record belongs to another lease')
             if process_start(old.get('pid')) is not None:
                 raise ControlBlocked('server_already_running', 'existing USB/IP server must be disconnected by its owner')
@@ -531,7 +555,7 @@ class UsbControl:
             command = [sys.executable, '-B', str(CONTROL_SOURCE), '--serve-owned', '--run-dir', str(self.context.run_dir),
                        '--qmp', str(self.context.qmp_path), '--backend', str(self.context.backend_path),
                        '--lease', self.context.lease, '--vm-pid', str(self.context.vm_pid),
-                       '--run-id', self.context.run_id]
+                       '--run-id', self.context.run_id, *self._socket_arguments()]
             process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=fd, stderr=fd, start_new_session=True)
             self.server_process = process
         finally:
@@ -545,7 +569,8 @@ class UsbControl:
             if ready.exists():
                 data = read_json(ready)
                 if (data.get('pid') != process.pid or data.get('lease_id') != self.context.lease_id or
-                        data.get('run_id') != self.context.run_id or data.get('host') != '127.0.0.1'):
+                        data.get('run_id') != self.context.run_id or data.get('host') != '127.0.0.1' or
+                        any(data.get(key) != value for key, value in self.context.binding_fields(endpoints=True).items())):
                     raise ControlBlocked('server_lease_mismatch', 'server readiness identity mismatch')
                 record['server_port'] = usbip.integer(data.get('port'), 1, 65535, 'server port')
                 self._save(record)
@@ -734,8 +759,9 @@ class UsbControl:
         ready = self.context.run_dir / 'usb-server.json'
         if ready.exists():
             bound = read_json(ready)
-            if any(bound.get(key) != expected for key, expected in
-                   (('pid', record['server_pid']), ('run_id', self.context.run_id), ('lease_id', self.context.lease_id))):
+            expected = {'pid': record['server_pid'], 'run_id': self.context.run_id,
+                        'lease_id': self.context.lease_id, **self.context.binding_fields(endpoints=True)}
+            if any(bound.get(key) != value for key, value in expected.items()):
                 raise ControlBlocked('server_owner_mismatch', 'server readiness identity changed; record retained')
             ready.unlink()
         record.pop('server_pid', None)
@@ -1068,6 +1094,8 @@ def _owned_server_types(control):
                     raise ControlBlocked('import_owner_mismatch', 'TCP peer is not this owner attachment request')
                 receipt = {key: record[key] for key in ('run_id', 'lease_id', 'owner_id', 'vm_pid', 'vm_start',
                                                        'qmp_path', 'backend_path', 'server_pid', 'server_start')}
+                if control.context.socket_roots is not None:
+                    receipt.update(control.context.binding_fields(endpoints=True))
                 receipt.update(request, state='opening', safe_to_rebind=False)
                 hold = writer.get_extra_info('socket').dup()
                 holds[request['attachment_id']] = (hold, receipt)
@@ -1101,7 +1129,8 @@ async def _serve_owned(control):
         server = await OwnedServer(control.context).start()
         usbip.write_owned_json(control.context.run_dir / 'usb-server.json',
                                {'run_id': control.context.run_id, 'lease_id': control.context.lease_id,
-                                'pid': os.getpid(), 'port': server.port, 'host': server.host})
+                                'pid': os.getpid(), 'port': server.port, 'host': server.host,
+                                **control.context.binding_fields(endpoints=True)})
         stop = asyncio.Event()
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -1130,10 +1159,18 @@ def main(argv=None):
     parser.add_argument('--backend')
     parser.add_argument('--vm-pid', type=int, required=True)
     parser.add_argument('--run-id')
+    parser.add_argument('--socket-root')
+    parser.add_argument('--socket-profile')
+    parser.add_argument('--socket-binding')
     args = parser.parse_args(argv)
     try:
+        binding = json.loads(args.socket_binding, object_pairs_hook=usbip._object) if args.socket_binding is not None else None
+        if args.socket_binding is not None and not isinstance(binding, dict):
+            raise ControlBlocked('invalid_context', 'socket binding must be an object')
         control = UsbControl(args.run_dir, qmp_path=args.qmp, backend_path=args.backend,
-                             lease=args.lease, vm_pid=args.vm_pid, run_id=args.run_id)
+                             lease=args.lease, vm_pid=args.vm_pid, run_id=args.run_id,
+                             socket_root=args.socket_root, socket_profile=args.socket_profile,
+                             socket_binding=binding)
         if args.serve_owned:
             if args.check or args.action != 'status':
                 raise ControlBlocked('server_action_invalid', 'owned server accepts no control action')

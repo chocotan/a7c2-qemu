@@ -24,6 +24,40 @@ def fat(tmp_path_factory):
     return raw
 
 
+def test_large_capture_export_keeps_64gib_floor():
+    total = 1024**3
+    assert sd.required_export_space(total) == sd.FREE_SPACE_FLOOR + 2*total + sd.CAP + sd.RESERVE
+    assert sd.required_export_space(total, sd.CAP) == sd.FREE_SPACE_FLOOR + 2*(total-sd.CAP) + sd.CAP + sd.RESERVE
+    assert sd.required_export_space(128*1024**2) == 2*(128*1024**2) + sd.CAP + sd.RESERVE
+
+
+def test_capture_export_proof_requires_flush_and_is_immutable(tmp_path):
+    result = dict(ok=True, card_published=True, expected_total=1024**3, fsck_rc=0,
+                  sha256='1'*64, evidence='export-'+'a'*32, sequence=42,
+                  chunks=[dict(offset=i*sd.CAP, len=sd.CAP, qmp={'return': {}},
+                               guest_fnv64='0'*16, actual_fnv64='0'*16) for i in range(256)],
+                  quiesce=dict(owner_stopped=True, original_Fsys_FlushVolume_rc=0,
+                                sequence=42, pid=123, drive=65),
+                  flush_lifecycle=dict(ok=True, resumed=True, status='resumed',
+                                       sequence=42, pid=123))
+    with sd.directory(tmp_path) as parent:
+        name = sd.write_capture_export_proof(parent, result)
+        assert json.loads((tmp_path/name).read_text()) == result
+        with pytest.raises(FileExistsError):
+            sd.write_capture_export_proof(parent, result)
+        for key in ('quiesce', 'flush_lifecycle'):
+            bad = dict(result)
+            bad[key] = dict(result[key], sequence=43)
+            with pytest.raises(ValueError, match='incomplete'):
+                sd.write_capture_export_proof(parent, bad)
+        bad = dict(result, fsck_rc=False)
+        with pytest.raises(ValueError, match='incomplete'):
+            sd.write_capture_export_proof(parent, bad)
+        bad = dict(result, chunks=result['chunks'][:-1])
+        with pytest.raises(ValueError, match='window coverage'):
+            sd.write_capture_export_proof(parent, bad)
+
+
 class VM:
     def __init__(self, raw, mode=None):
         self.raw = raw

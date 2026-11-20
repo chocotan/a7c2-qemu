@@ -15,6 +15,7 @@ MODES = (
     "request-free-failure", "reply-free-failure", "send-failure", "send-after-inline",
     "inline", "inline-operations", "open-queued", "share-queued", "close-queued", "free-queued",
     "metadata", "ambiguity", "threads", "tid", "fork", "pointer", "reentry", "wire",
+    "list-valid", "list-invalid", "list-fork", "list-stale", "list-free-failure",
 )
 FLAGS = ["-std=c11", "-O1", "-g", "-Wall", "-Wextra", "-Werror", "-pedantic", "-pthread"]
 SOURCES = ("functional-face-runtime.c", "functional-face-dmm.c", "functional-face-registry.c")
@@ -79,7 +80,7 @@ def test_standalone_facade_exports(tmp_path):
         "functional_face_runtime_prepare", "functional_face_runtime_dispatch",
         "functional_face_runtime_observe", "functional_face_runtime_release",
         "functional_face_runtime_lookup_creator", "functional_face_runtime_borrow_destination",
-        "functional_face_runtime_snapshot",
+        "functional_face_runtime_snapshot", "functional_face_runtime_list_dispatch",
     }
 
 

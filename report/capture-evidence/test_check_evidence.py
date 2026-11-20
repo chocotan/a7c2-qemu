@@ -81,6 +81,27 @@ def test_files_directories_and_ignored_lfn_are_bounded():
     assert result.lfn_skipped == 1 and result.candidates[0]['structure_valid']
 
 
+def test_filtered_fat_read_skips_unselected_content_without_weakening_chain_checks():
+    b, root, data = fat_image()
+    media = minimal_jpeg()
+    entry(b, root, b'HOST    JPG', 2, media)
+    entry(b, root+32, b'OTHER   BIN', 3, b'x'*512)
+    set_link(b, 2, 0xffff)
+    set_link(b, 3, 0xffff)
+    b[data:data+len(media)] = media
+    b[data+512:data+1024] = b'x'*512
+    seen = []
+    volume = C.Fat16(io.BytesIO(b), len(b), on_file=lambda path, raw: seen.append((path, raw)),
+                     max_file=64, read_budget=1024, file_filter=lambda path: path == '/HOST.JPG')
+    volume.walk()
+    assert seen == [('/HOST.JPG', media)]
+    assert volume.entries[1]['content_skipped'] is True
+    assert volume.used == {2, 3}
+    set_link(b, 3, 2)
+    with pytest.raises(ValueError, match='crosslink'):
+        C.Fat16(io.BytesIO(b), len(b), max_file=64, file_filter=lambda p: p == '/HOST.JPG').walk()
+
+
 @pytest.mark.parametrize('corruption', ['cycle', 'crosslink', 'outside', 'fat-disagree', 'oversized', 'bad-bpb'])
 def test_corrupt_filesystem_is_rejected(corruption):
     b, root, data = fat_image()
@@ -273,7 +294,7 @@ def test_private_snapshot_space_failure_returns_disk_error(tmp_path, monkeypatch
 
 def test_private_snapshot_creation_failure_is_a_structured_error(tmp_path, monkeypatch):
     disk_fixture(tmp_path, monkeypatch)
-    def unavailable():
+    def unavailable(*_args, **_kwargs):
         raise OSError('fixture: temporary storage unavailable')
     monkeypatch.setattr(C.tempfile, 'TemporaryFile', unavailable)
     result = C.inspect(tmp_path, [(0xa7, 1)])

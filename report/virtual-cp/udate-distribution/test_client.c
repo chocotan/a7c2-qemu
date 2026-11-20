@@ -65,6 +65,7 @@ static void reset_case(void)
     sender_handle = udate_sender;
 }
 static long call_sender(void) { return udate_sender(UDATE_TARGET1, original.body); }
+static void set_reason(u32 reason) { put16(original.body + 0x28, reason); }
 
 long osal_reg_public(long slot)
 {
@@ -201,21 +202,29 @@ static void check_normal(void)
 static void check_unsupported(void)
 {
     reset_case();
-    assert(udate_sender(UDATE_SOURCE, original.body) == 0 && !send_calls && !original_freed);
+    assert(udate_sender(UDATE_SOURCE, original.body) == -1020 && !send_calls && !original_freed);
     reset_case();
     put32(original.body + 8, 1);
     put32(original.body + 0x0c, 0x90000123U);
-    assert(call_sender() == 0 && !send_calls && !dynamic_create && !original_freed);
+    assert(call_sender() == -1020 && !send_calls && !dynamic_create && !original_freed);
     reset_case();
     original.meta[3] = UDATE_TARGET1;
-    assert(call_sender() == 0 && !send_calls && !original_freed);
+    assert(call_sender() == -1020 && !send_calls && !original_freed);
     reset_case();
     put32(original.body, 2);
-    assert(call_sender() == 0 && !send_calls && !original_freed);
+    assert(call_sender() == -1020 && !send_calls && !original_freed);
+    reset_case();
+    set_reason(0);
+    assert(call_sender() == -1020 && !send_calls && !original_freed);
+    reset_case();
+    set_reason(6);
+    assert(call_sender() == -1020 && !send_calls && !original_freed);
     reset_case();
     tiny.meta[3] = UDATE_SOURCE;
     tiny.meta[4] = 1;
-    assert(udate_sender(UDATE_TARGET1, tiny.body) == 0 && !send_calls);
+    assert(udate_sender(UDATE_TARGET1, tiny.body) == -1020 && !send_calls);
+    assert(!faults && !busy && !remote_valid && !done_sent);
+    assert(call_sender() == 0 && done_sent && original_freed && !faults);
 }
 static void check_failure(u32 which)
 {
@@ -242,6 +251,26 @@ static void check_failure(u32 which)
     if (which == 3) assert(retained[0].message == response.body && retained[0].id == response_destination);
     if (which == 5) assert(done_release_id == UDATE_SOURCE && done_freed);
     if (which == 6) assert(query_release_id == UDATE_SOURCE && query_freed);
+}
+static void check_reasons(void)
+{
+    for (u32 reason=1; reason<=5; ++reason) {
+        reset_case();set_reason(reason);
+        long rc=call_sender();
+        assert(rc==0 && remote_valid && original_freed && !faults);
+        if (reason==4) assert(!done_sent && !done_freed && alloc_calls==1);
+        else assert(done_sent && done_freed && alloc_calls==2 && get16(done.body+0x28)==reason);
+        assert(remote_elapsed==300 && queue_freed==1 && response_freed);
+    }
+}
+static void check_reason_failures(void)
+{
+    for (u32 reason=1; reason<=5; ++reason) {
+        reset_case();set_reason(reason);receive_rc=-55;
+        long rc=call_sender();
+        assert(rc<0 && !done_sent && !original_freed && faults);
+        assert(!queue_freed && !response_freed);
+    }
 }
 static void check_original_retry(void)
 {
@@ -274,6 +303,8 @@ int main(int argc, char **argv)
     assert(argc == 2);
     if (!strcmp(argv[1], "normal")) check_normal();
     else if (!strcmp(argv[1], "unsupported")) check_unsupported();
+    else if (!strcmp(argv[1], "reasons")) check_reasons();
+    else if (!strcmp(argv[1], "reason-failures")) check_reason_failures();
     else if (!strcmp(argv[1], "original-retry")) check_original_retry();
     else if (!strcmp(argv[1], "busy")) check_busy();
     else if (!strcmp(argv[1], "register")) check_register();

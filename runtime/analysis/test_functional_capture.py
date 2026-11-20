@@ -35,14 +35,14 @@ def capture_binary(request, tmp_path_factory):
     return work / 'capture'
 
 
-@pytest.mark.parametrize('mode', range(28))
+@pytest.mark.parametrize('mode', range(48))
 def test_capture_ownership_and_real_transport_boundaries(capture_binary, mode):
     ran = subprocess.run([str(capture_binary), str(mode)], capture_output=True,
                          text=True, timeout=20)
     assert ran.returncode == 0, ran.stdout + ran.stderr
     assert 'PASS HOST_ONLY' in ran.stdout
     assert 'original_AP=0 original_codec=0 Fsys_saved=0 capture_verified=0' in ran.stdout
-    if mode >= 26:
+    if mode in (26, 27):
         from functional_camera_runner import require_natural_capture_closed
         lines = [line for line in ran.stdout.splitlines() if line.startswith('OBS FUNCTIONAL_CAMERA_CAPTURE ')]
         assert lines and 'operation=write-retired' in lines[-1]
@@ -50,6 +50,8 @@ def test_capture_ownership_and_real_transport_boundaries(capture_binary, mode):
         binding = {'mailbox': {'pid': pid, 'nonce': 22}}
         console = ('\n'.join(lines) + '\n').encode()
         require_natural_capture_closed(console, binding)
+        replay = b'\n'.join(line.removeprefix(b'OBS ') for line in console.splitlines()) + b'\n'
+        require_natural_capture_closed(console + replay, binding)
         for damaged in [b'\n'.join(console.splitlines()[:-1]) + b'\n',
                         console.replace(b'resources_released=1', b'resources_released=0'),
                         console.replace(b'operation=write-retired rc=0', b'operation=write-retired rc=-5'),

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #define FULL_IMAGING_POWER_ON_INHIBIT 0x04000000u
 #define FULL_IMAGING_FUNCTIONAL_POLICY "actual-state128-virtual-optics-admission-v1"
+#define FULL_IMAGING_STILL_UNLOCK_POLICY "functional-owner-still-unlock-virtual-intent-v1"
 #define FULL_IMAGING_LENS_POSITION_CP 0x90030001u
 #define FULL_IMAGING_LENS_POSITION_POLICY "original-consumer-lens-position-unavailable-v1"
 #define FULL_IMAGING_FOCUS_MAGNIFICATION_POLICY "original-consumer-focus-magnification-unavailable-v1"
@@ -48,6 +49,8 @@ struct full_imaging_snapshot {
     unsigned long long focus_reset_requests,focus_reset_applied,focus_reset_failed;
     uint64_t focus_model_instance,focus_config_generation,focus_frame_generation,focus_result_fnv;
     unsigned long long focus_query_requests,focus_query_succeeded,focus_query_failed;
+    uintptr_t functional_still_pending_free;
+    int functional_still_free_rc;
 };
 
 /* Returns 0 for another destination. A handled error retains the caller's
@@ -72,7 +75,11 @@ int full_imaging_functional_bind_focus_reset(full_imaging_focus_reset_backend);
  * Fresh same-instance STATE validates its live domain; missing state stays f001. */
 int full_imaging_functional_bind_focus_query(full_imaging_focus_query_backend);
 int full_imaging_capture_begin_functional(const uint8_t *,size_t,uint64_t expected_instance,uint64_t expected_generation);
-/* Exact403d/4040 share this owner. Exact type5/414d8B on CP90030001 returns
+/* Exact4037 type5/16B on CP90040193 updates still/focus intent in this owner,
+ * consumes once without AP reply, and preserves interlocks. Active capture or
+ * selector13 pending work is unavailable. A failed receiver free is retained
+ * in snapshot with a sticky fault; it never returns ownership after applying.
+ * Exact403d/4040 share this owner. Exact type5/414d8B on CP90030001 returns
  * 24B unavailable (f001); exact type5/403f16B on CP90040193 stays unavailable
  * unless body(0,0) completes the bound actual full-RGB-viewport transaction.
  * Exact type0/3020/12B on CP90030001, u32 input0/1, returns 12B FELock unavailable.

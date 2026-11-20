@@ -3,12 +3,14 @@ import ast
 import copy
 import json
 import os
+import tempfile
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
 import backup_profile as backup
+import functional_camera_runner as runner
 from test_backup_profile import build_fixture, directory_lease, directory_profile
 from test_bb_set_mode_profile import bb_constructor, clean_guest_environment, load_script, menu_probe_setup
 from test_cp_capture_format_profile import host_environment, profile_scope
@@ -209,6 +211,555 @@ def test_functional_profile_rejects_non_natural_boot(tmp_path):
     launcher = load_script('functional_camera_direct_boot', 'start-menu.py')
     with pytest.raises(ValueError):
         launcher.profile_environment(environment(tmp_path), natural_boot=False)
+
+
+def test_functional_card_seed_rejects_hardlinks_and_shared_write(tmp_path):
+    source=tmp_path/'card.img';source.write_bytes(b'synthetic-card');source.chmod(0o600)
+    alias=tmp_path/'alias.img';os.link(source,alias)
+    with pytest.raises(ValueError,match='one link'):
+        backup._bound_profile_input(source,single_link=True)
+    alias.unlink();source.chmod(0o620)
+    with pytest.raises(ValueError,match='private write permissions'):
+        backup._bound_profile_input(source,single_link=True)
+
+
+def test_ram_media_candidate_unset_keeps_directory_profile_unchanged(tmp_path):
+    launcher = load_script('functional_camera_default_media', 'start-menu.py')
+    original = environment(tmp_path)
+    before = copy.deepcopy(original)
+    default = launcher.profile_environment(original, natural_boot=True)
+    explicit_unset = launcher.profile_environment(
+        {**original, 'A7C2_FUNCTIONAL_CAMERA_MEDIA': ''}, natural_boot=True)
+    explicit_unset.pop('A7C2_FUNCTIONAL_CAMERA_MEDIA')
+    assert explicit_unset == default
+    assert original == before
+    assert default['A7C2_DIRECTORY_SD'] == original['A7C2_DIRECTORY_SD']
+    assert default[HOST] == default[GUEST] == PROFILE
+    assert default['MENU_CP_CAPTURE_FORMAT'] == backup.FULL_CP_OWNED_STATE_PROFILE
+    assert 'A7C2_FUNCTIONAL_CAMERA_MEDIA' not in default
+    assert backup.validate_functional_camera_media({}) is None
+
+
+@pytest.mark.parametrize('selection', ['1', 'true', 'unknown',
+    backup.FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE + ' ', None, True, 1])
+def test_ram_media_candidate_rejects_unknown_or_untyped_selection(tmp_path, selection):
+    launcher = load_script('functional_camera_bad_media', 'start-menu.py')
+    env = {**environment(tmp_path), 'A7C2_FUNCTIONAL_CAMERA_MEDIA': selection}
+    with pytest.raises(ValueError, match='A7C2_FUNCTIONAL_CAMERA_MEDIA must be'):
+        launcher.profile_environment(env, natural_boot=True)
+    with mock.patch.object(backup, 'validate_build') as build:
+        with pytest.raises(ValueError, match='A7C2_FUNCTIONAL_CAMERA_MEDIA must be'):
+            backup.prepare_profile(HERE, env)
+        build.assert_not_called()
+
+
+def ram_environment(tmp_path):
+    return {**environment(tmp_path), 'A7C2_DIRECTORY_SD': '',
+            'A7C2_BOOT_PROFILE': 'direct-bootin',
+            'A7C2_FUNCTIONAL_CAMERA_MEDIA': backup.FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE}
+
+
+def test_ram_media_intent_keeps_all_predecessors_and_disables_automatic_hotplug(tmp_path):
+    launcher = load_script('functional_camera_ram_intent', 'start-menu.py')
+    selected = launcher.profile_environment(ram_environment(tmp_path), natural_boot=True)
+    assert selected['A7C2_FUNCTIONAL_CAMERA_MEDIA'] == backup.FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE
+    assert selected[HOST] == selected[GUEST] == PROFILE
+    assert selected['MENU_CP_CAPTURE_FORMAT'] == backup.FULL_CP_OWNED_STATE_PROFILE
+    assert selected['MENU_PINMEM_OSD_CONNECT'] == backup.FULL_PINMEM_OSD_CONNECTION_PROFILE
+    assert not selected.get('MENU_USB_NET')
+    assert not selected.get('A7C2_SD_HOTPLUG')
+    assert not selected.get('A7C2_DIRECTORY_SD')
+    # Intent is not a consumer admission receipt or a verified seed capability.
+    assert not selected.get('MENU_BACKUP_PROFILE_RECEIPT')
+    assert not selected.get('MENU_KERNEL_SCRIPT')
+    with pytest.raises(ValueError):
+        launcher.profile_environment(ram_environment(tmp_path), natural_boot=False)
+
+
+@pytest.mark.parametrize('changes', [
+    {'A7C2_DIRECTORY_SD': '/still-a-directory-card'},
+    {'A7C2_HOST_SD': '256gb'},
+    {'A7C2_SD_SPARSE': '10g-empty'},
+    {'A7C2_SD_HOTPLUG': '1'},
+    {'MENU_USB_NET': '1'},
+    {'A7C2_USB_NET': '1'},
+    {'QEMU_SONY_USB_NET': '1'},
+    {'A7C2_USB_NET_SELFTEST': '1'},
+    {'QEMU_NATIVE_AP_CP_LINK': 'virtual-native-ap-cp-link-v1'},
+    {'QEMU_NATIVE_LINK_DIR': '/forged-link'},
+    {'MENU_KERNEL_SCRIPT': '/forged-kernel.sh'},
+    {'MENU_DTB': '/forged-board.dtb'},
+    {'QEMU_SYSTEM_DIR': '/forged-qemu'},
+    {'A7C2_BOOT_PROFILE': 'full-system-cold'},
+    {'A7C2_RAM_RESTORE_STREAM': '/forged-ram'},
+    {'A7C2_CP_EMULATION': '1'},
+    {'SEED_BACKUP': 'private'},
+    {HOST: ''},
+    {'A7C2_CP_CAPTURE_FORMAT': backup.FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE},
+])
+def test_ram_media_conflicts_fail_before_real_binding_or_output(tmp_path, changes):
+    launcher = load_script('functional_camera_blocked_ram_media', 'start-menu.py')
+    env = {**ram_environment(tmp_path), **changes}
+    before = copy.deepcopy(env)
+    with pytest.raises(ValueError):
+        launcher.profile_environment(env, natural_boot=True)
+    with mock.patch.object(backup, 'validate_build') as build:
+        with pytest.raises(ValueError):
+            backup.prepare_profile(HERE, env)
+        build.assert_not_called()
+    assert env == before
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('host_key', [
+    'A7C2_CP_BACKGROUND', 'A7C2_UDATE_DISTRIBUTION', 'A7C2_TOUCH_PANEL',
+    'A7C2_TCIN_DETECT', 'A7C2_DFS_SELECTOR', 'A7C2_VEF_PATH', 'A7C2_ADF_PROC_PATH',
+    'A7C2_ADF_SET_INPUT', 'A7C2_ADF_SET_OUTPUT', 'A7C2_BB_SET_MODE',
+    'A7C2_IMAGING_CONNECT', 'A7C2_IMAGING_CONTROL_CONNECT', 'A7C2_IMAGING_ADF_CONNECT',
+    'A7C2_INFRABB_VEF_CONNECT', 'A7C2_INFRABB_VEF_CONTROL_CONNECT',
+    'A7C2_VEF_PINMEM_INPUT_CONNECT', 'A7C2_VEF_PINMEM_CONTROL_CONNECT',
+    'A7C2_PINMEM_PEER_CONNECT', 'A7C2_PINMEM_HDMI_VIDEO_CONNECT',
+    'A7C2_PINMEM_OSD_CONNECT', 'A7C2_ADF_HDMI_AUDIO_CONNECT',
+    'A7C2_CP302C_DIAGNOSTIC', 'A7C2_CP_NOTIFICATION_CONTROL',
+])
+def test_ram_media_does_not_relax_any_host_predecessor(tmp_path, host_key):
+    launcher = load_script('functional_camera_ram_predecessors', 'start-menu.py')
+    env = ram_environment(tmp_path)
+    assert env[host_key]
+    env.pop(host_key)
+    with pytest.raises(ValueError):
+        launcher.profile_environment(env, natural_boot=True)
+
+
+@pytest.fixture
+def ram_artifact_validator(monkeypatch):
+    """Synthetic derivation tests admit no real binary/model; runner owns that boundary."""
+    actual = runner.validate_artifact
+    validator = mock.Mock(return_value={})
+    monkeypatch.setattr(runner, 'validate_artifact', validator)
+    return validator, actual
+
+
+@pytest.fixture
+def synthetic_ram_directory_creation(monkeypatch):
+    """Exercise downstream derivation only; this is not same-UID-safe creation."""
+    def create(parent_fd):
+        created = Path(tempfile.mkdtemp(prefix='profile-', dir=f'/proc/self/fd/{parent_fd}'))
+        fd = os.open(created.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                     dir_fd=parent_fd)
+        return created.name, fd
+
+    monkeypatch.setattr(backup._RamProfileOutput, '_create_directory', staticmethod(create))
+
+
+@pytest.fixture
+def ram_profile_inputs(tmp_path, monkeypatch, ram_artifact_validator):
+    """Small synthetic assets exercise binding only; no QEMU or 1GiB image creation."""
+    native = tmp_path/'runtime/analysis'
+    seed = native/'menu-root/seed-backup.bin'
+    seed.parent.mkdir(parents=True)
+    seed.write_bytes(b'S' * 2390264)
+    monkeypatch.setattr(backup, 'SEED_SHA', backup.sha(seed))
+    monkeypatch.setattr(backup, 'PRIMARY_SHA', backup.hashlib.sha256(seed.read_bytes()[0xed000:]).hexdigest())
+    (tmp_path/'report').symlink_to(HERE.parents[1]/'report', target_is_directory=True)
+    launcher = native/'qemu-kernel-probe.sh'
+    launcher.write_bytes((HERE/'qemu-kernel-probe.sh').read_bytes())
+    board = native/'qemu-virt-board/virt-packed.dtb'
+    board.parent.mkdir()
+    board.write_bytes((HERE/'qemu-virt-board/virt-packed.dtb').read_bytes())
+    official = native/'unpacked/firmware.tar_unpacked/0800_appli/setting/cxd90057.dtb'
+    official.parent.mkdir(parents=True)
+    official.write_bytes(b'synthetic official-board input; never booted')
+    card = native/'menu-root/simulation/media-camera.fat'
+    card.parent.mkdir()
+    card.write_bytes(b'RAM test card' * 4096)
+    monkeypatch.setattr(backup, 'FUNCTIONAL_CAMERA_RAM_BYTES', card.stat().st_size)
+    original_load = backup.load_module
+
+    def synthetic_board(base, output, official_source, **flags):
+        base, output, official_source = map(iomap_module.Path, (base, output, official_source))
+        assert base.parent == output.parent == official_source.parent
+        assert str(output.parent).startswith('/proc/self/fd/')
+        assert base.read_bytes() == board.read_bytes()
+        assert official_source.read_bytes() == official.read_bytes()
+        assert flags == dict(all_pcie_wrappers=True, ccf_provider=True,
+                             phy_upload=True, dma_window=True, backup_control=True)
+        # Exercise the production iomap Path contract without booting any assets.
+        assert not output.exists() and base.resolve() != output.resolve()
+        output.write_bytes(base.read_bytes() + b'SYNTHETIC-DERIVATION')
+        (output.parent/'iomap-board-proof.json').write_text('{"synthetic": true}\n')
+        return output
+
+    iomap_module = mock.Mock(Path=Path, prepare=synthetic_board)
+
+    def load(name, path):
+        if name == 'backup_iomap_board':
+            return iomap_module
+        return original_load(name, path)
+
+    monkeypatch.setattr(backup, 'load_module', load)
+    build, _ = build_fixture(tmp_path)
+    selected = load_script('functional_camera_ram_prepare', 'start-menu.py').profile_environment(
+        {**ram_environment(tmp_path), 'A7C2_BACKUP_BUILD': str(build)}, natural_boot=True)
+    return native, selected, card, tmp_path/'profiles'
+
+
+@pytest.mark.parametrize('scope', ['', '/explicit/reviewed-scope-build.json'])
+def test_ram_profile_runner_artifact_refusal_precedes_all_input_hashing(
+        ram_profile_inputs, ram_artifact_validator, scope):
+    native, env, card, output_parent = ram_profile_inputs
+    validator, _ = ram_artifact_validator
+    env['A7C2_SCOPE_OBSERVER_BUILD'] = scope
+    validator.side_effect = ValueError('Functional camera artifact identity rejected')
+    with mock.patch.object(backup, '_bound_profile_input') as bound:
+        with pytest.raises(ValueError, match='artifact identity rejected'):
+            backup.prepare_profile(native, env, output_parent)
+        bound.assert_not_called()
+    validator.assert_called_once_with(native, Path(env['A7C2_BACKUP_BUILD'])/'build/qemu-system-aarch64',
+                                      scope_build_receipt=scope or None)
+    assert not output_parent.exists()
+
+
+def test_ram_lease_forwards_explicit_model_before_card_hashing(ram_profile_inputs, ram_artifact_validator):
+    native, env, _, output_parent = ram_profile_inputs
+    validator, _ = ram_artifact_validator
+    candidate = native.parents[1] / 'isolated-model/runtime/analysis'
+    with pytest.raises(ValueError, match='live RAM-card lease'):
+        backup.prepare_profile(native, env, output_parent, _model_base=candidate)
+    validator.assert_not_called()
+    validator.side_effect = ValueError('Candidate model rejected')
+    with mock.patch.object(backup, '_bound_profile_input') as bound:
+        with pytest.raises(ValueError, match='Candidate model rejected'):
+            with backup.ram_profile_lease(native, env, output_parent, parallel_peak_bytes=0, model_base=candidate):
+                pytest.fail('Failed model verification must not admit a lease')
+        bound.assert_not_called()
+    validator.assert_called_once_with(candidate, Path(env['A7C2_BACKUP_BUILD'])/'build/qemu-system-aarch64',
+                                      scope_build_receipt=None)
+    assert not output_parent.exists()
+
+
+def test_ram_profile_missing_real_model_artifact_fails_before_card_hashing(
+        ram_profile_inputs, ram_artifact_validator):
+    native, env, card, output_parent = ram_profile_inputs
+    validator, actual = ram_artifact_validator
+    validator.side_effect = actual
+    with mock.patch.object(backup, '_bound_profile_input') as bound:
+        with pytest.raises(FileNotFoundError, match='functional-camera-model-build.json'):
+            backup.prepare_profile(native, env, output_parent)
+        bound.assert_not_called()
+    assert not output_parent.exists()
+
+
+def test_ram_profile_creation_has_no_path_based_fallback(ram_profile_inputs):
+    native, env, card, output_parent = ram_profile_inputs
+    with mock.patch.object(tempfile, 'mkdtemp', side_effect=AssertionError('path creation must not run')) as create:
+        with pytest.raises(ValueError, match='directory creation refused: no atomic creation identity'):
+            backup.prepare_profile(native, env, output_parent)
+    create.assert_not_called()
+    assert not list(output_parent.iterdir())
+
+
+def test_ram_profile_consumer_handoff_is_fixed_refusal():
+    with pytest.raises(ValueError, match='consumer handoff refused: no caller-held exact FD binding'):
+        backup._RamProfileOutput.consumer_environment()
+
+
+def test_ram_profile_derives_local_evidence_but_refuses_path_only_consumer_handoff(
+        ram_profile_inputs, synthetic_ram_directory_creation):
+    native, env, card, output_parent = ram_profile_inputs
+    before = copy.deepcopy(env)
+    originals = {path: backup.sha(path) for path in (
+        native/'qemu-kernel-probe.sh', native/'qemu-virt-board/virt-packed.dtb', card)}
+    with pytest.raises(ValueError, match='consumer handoff refused: no caller-held exact FD binding'):
+        backup.prepare_profile(native, env, output_parent)
+    output, = output_parent.glob('profile-*')
+    selected = {'MENU_BACKUP_PROFILE_RECEIPT': str(output/'backup-profile.json'),
+                'MENU_KERNEL_SCRIPT': str(output/'kernel-ram-backup.sh'),
+                'MENU_DTB': str(output/'board-ram-backup.dtb')}
+    proof = json.loads(Path(selected['MENU_BACKUP_PROFILE_RECEIPT']).read_text())
+    script = Path(selected['MENU_KERNEL_SCRIPT']).read_text()
+    assert proof['consumer_handoff'] == 'refused-path-only-no-caller-held-fds'
+    assert proof['consumer_binding_verified'] is False
+    assert 'driver=vvfat' not in script and '-device usb-net' not in script
+    assert '--setenv QEMU_SONY_USB_NET 1' not in script
+    assert '--setenv QEMU_SONY_BACKUP_TEST 1' in script
+    assert '--setenv QEMU_SONY_DFS_TEST 1' in script
+    assert 'project_dir=' + str(native.parent) in script
+    assert proof['schema'] == 'a7c2-functional-camera-ram-media-v1'
+    assert proof['physical_compatible'] is False
+    assert proof['media_profile'] == backup.FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE
+    assert proof['media_seed_source'] == str(card)
+    assert proof['media_seed_sha256'] == backup.sha(card)
+    assert proof['media_seed_bytes'] == card.stat().st_size
+    assert proof['media_seed_identity'] == list(backup.identity(card.stat()))
+    for field in ('source_backup_seed', 'source_script', 'source_board', 'official_board', 'source_binary'):
+        source = proof[field]
+        assert set(source) == {'path', 'bytes', 'sha256', 'identity'}
+        assert source['sha256'] == backup.sha(source['path'])
+        assert source['identity'] == list(backup.identity(Path(source['path']).stat()))
+    assert proof['derived_script_sha256'] == backup.sha(selected['MENU_KERNEL_SCRIPT'])
+    assert proof['derived_board_sha256'] == backup.sha(selected['MENU_DTB'])
+    assert proof['source_binary']['sha256'] == proof['binary_sha256']
+    assert not proof['directory_sd_added'] and not proof['usb_ethernet_added']
+    assert not proof['capture_verified'] and not proof['original_cp_executed']
+    assert all(proof['functional_camera_' + claim] is False for claim in CLAIMS)
+    assert env == before
+    assert {path: backup.sha(path) for path in originals} == originals
+    for key in ('MENU_KERNEL_SCRIPT', 'MENU_DTB', 'MENU_BACKUP_PROFILE_RECEIPT'):
+        assert Path(selected[key]).is_file() and not selected[key].startswith('/proc/')
+    output = Path(selected['MENU_BACKUP_PROFILE_RECEIPT']).parent
+    assert (output/'.backup-profile.pending.json').read_bytes() == (output/'backup-profile.json').read_bytes()
+    assert json.loads((output/'iomap-board-proof.json').read_text()) == {'synthetic': True}
+    with pytest.raises(ValueError, match='consumer handoff refused: no caller-held exact FD binding'):
+        backup.prepare_profile(native, env, output_parent)
+    assert len(list(output_parent.glob('profile-*'))) == 2
+
+
+@pytest.mark.parametrize('replacement', ['rename', 'symlink', 'directory'])
+def test_ram_profile_rejects_directory_rebinding_immediately_after_creation(ram_profile_inputs, replacement):
+    native, env, card, output_parent = ram_profile_inputs
+    external = output_parent.parent/'external'
+    external.mkdir(mode=0o700)
+    sentinel = external/'source-board.dtb'
+    sentinel.write_bytes(b'never overwrite this unrelated file')
+    before = {path.name: backup._bound_profile_input(path)[0] for path in external.iterdir()}
+    create = backup._RamProfileOutput._create_directory
+    retained = []
+    replacements = []
+
+    def replace_created(parent_fd):
+        # A real renamed/replaced directory cannot supply an atomic creation proof.
+        created = Path(tempfile.mkdtemp(prefix='profile-', dir=f'/proc/self/fd/{parent_fd}'))
+        saved = created.with_name(created.name + '-retained')
+        created.rename(saved)
+        retained.append(output_parent/saved.name)
+        if replacement == 'symlink':
+            created.symlink_to(external, target_is_directory=True)
+        elif replacement == 'directory':
+            created.mkdir(mode=0o700)
+            replacements.append(output_parent/created.name)
+        return create(parent_fd)
+
+    with mock.patch.object(backup._RamProfileOutput, '_create_directory', side_effect=replace_created):
+        with pytest.raises(ValueError, match='directory creation refused: no atomic creation identity'):
+            backup.prepare_profile(native, env, output_parent)
+    assert retained and all(path.is_dir() and not list(path.iterdir()) for path in retained)
+    assert all(path.is_dir() and not list(path.iterdir()) for path in replacements)
+    assert {path.name: backup._bound_profile_input(path)[0] for path in external.iterdir()} == before
+    assert not list(output_parent.glob('profile-*/backup-profile.json'))
+
+
+@pytest.mark.parametrize('scope', ['profile', 'parent'])
+@pytest.mark.parametrize('replacement', ['symlink', 'directory'])
+def test_ram_profile_iomap_stays_on_held_directory_after_public_rebinding(
+        ram_profile_inputs, synthetic_ram_directory_creation, scope, replacement):
+    native, env, card, output_parent = ram_profile_inputs
+    external = output_parent.parent/'external'
+    external.mkdir(mode=0o700)
+    for name in ('source-board.dtb', 'board-ram-backup.dtb', 'iomap-board-proof.json'):
+        (external/name).write_bytes(b'unrelated content: ' + name.encode())
+    before = {path.name: backup._bound_profile_input(path)[0] for path in external.iterdir()}
+    load = backup.load_module
+    retained = []
+
+    def rebinding_load(name, path):
+        module = load(name, path)
+        if name == 'backup_iomap_board':
+            prepare = module.prepare
+
+            def rebind(*args, **kwargs):
+                profile, = output_parent.glob('profile-*')
+                public = profile if scope == 'profile' else output_parent
+                saved = public.with_name(public.name + '-retained')
+                public.rename(saved)
+                retained.append(saved if scope == 'profile' else saved/profile.name)
+                if replacement == 'symlink':
+                    public.symlink_to(external, target_is_directory=True)
+                else:
+                    public.mkdir(mode=0o700)
+                return prepare(*args, **kwargs)
+
+            module.prepare = rebind
+        return module
+
+    with mock.patch.object(backup, 'load_module', side_effect=rebinding_load):
+        with pytest.raises((OSError, ValueError)):
+            backup.prepare_profile(native, env, output_parent)
+    assert {path.name: backup._bound_profile_input(path)[0] for path in external.iterdir()} == before
+    assert retained and (retained[0]/'board-ram-backup.dtb').is_file()
+    assert (retained[0]/'kernel-ram-backup.sh').is_file()
+    assert not (retained[0]/'backup-profile.json').exists()
+    if replacement == 'directory':
+        public = output_parent if scope == 'parent' else output_parent/retained[0].name.removesuffix('-retained')
+        assert not list(public.iterdir())
+
+
+@pytest.mark.parametrize('target', ['source-board.dtb', 'official-board.dtb', 'backup-primary.bin',
+                                    'board-ram-backup.dtb', 'iomap-board-proof.json',
+                                    'kernel-ram-backup.sh', '.backup-profile.pending.json'])
+def test_ram_profile_every_derived_write_refuses_existing_symlink(
+        ram_profile_inputs, synthetic_ram_directory_creation, target):
+    native, env, card, output_parent = ram_profile_inputs
+    victim = output_parent.parent/'unrelated.bin'
+    victim.write_bytes(b'keep original bytes')
+    before = backup._bound_profile_input(victim)[0]
+    regular = backup.regular
+    injected = False
+
+    def inject(parent_fd, name, flags=os.O_RDONLY):
+        nonlocal injected
+        if name == target and flags & os.O_CREAT and not injected:
+            os.symlink(victim, name, dir_fd=parent_fd)
+            injected = True
+        return regular(parent_fd, name, flags)
+
+    with mock.patch.object(backup, 'regular', side_effect=inject):
+        with pytest.raises(FileExistsError):
+            backup.prepare_profile(native, env, output_parent)
+    assert injected and backup._bound_profile_input(victim)[0] == before
+    assert not list(output_parent.glob('profile-*/backup-profile.json'))
+
+
+def test_ram_profile_retracts_receipt_and_preserves_staging_if_publication_path_changes(
+        ram_profile_inputs, synthetic_ram_directory_creation):
+    native, env, card, output_parent = ram_profile_inputs
+    external = output_parent.parent/'external'
+    external.mkdir(mode=0o700)
+    sentinel = external/'backup-profile.json'
+    sentinel.write_bytes(b'unrelated receipt')
+    before = backup._bound_profile_input(sentinel)[0]
+    link = backup.os.link
+    retained = []
+
+    def rebind_after_link(*args, **kwargs):
+        result = link(*args, **kwargs)
+        profile, = output_parent.glob('profile-*')
+        saved = profile.with_name(profile.name + '-retained')
+        profile.rename(saved)
+        profile.symlink_to(external, target_is_directory=True)
+        retained.append(saved)
+        return result
+
+    with mock.patch.object(backup.os, 'link', side_effect=rebind_after_link):
+        with pytest.raises(ValueError, match='output directory changed'):
+            backup.prepare_profile(native, env, output_parent)
+    assert backup._bound_profile_input(sentinel)[0] == before
+    assert retained and (retained[0]/'.backup-profile.pending.json').is_file()
+    assert not (retained[0]/'backup-profile.json').exists()
+
+
+@pytest.mark.parametrize('change', ['rewrite', 'replace'])
+def test_ram_profile_rejects_derived_identity_drift_even_with_identical_bytes(
+        ram_profile_inputs, synthetic_ram_directory_creation, change):
+    native, env, card, output_parent = ram_profile_inputs
+    load = backup.load_module
+
+    def drifting_load(name, path):
+        module = load(name, path)
+        if name == 'backup_iomap_board':
+            prepare = module.prepare
+
+            def derive(*args, **kwargs):
+                result = prepare(*args, **kwargs)
+                output = Path(result)
+                raw = output.read_bytes()
+                before = output.stat()
+                if change == 'replace':
+                    output.rename(output.with_name('retained-original-board.dtb'))
+                output.write_bytes(raw)
+                os.utime(output, ns=(before.st_atime_ns, before.st_mtime_ns + 1))
+                return result
+
+            module.prepare = derive
+        return module
+
+    with mock.patch.object(backup, 'load_module', side_effect=drifting_load):
+        with pytest.raises(ValueError, match='derived file identity changed'):
+            backup.prepare_profile(native, env, output_parent)
+    assert not list(output_parent.glob('profile-*/backup-profile.json'))
+
+
+def test_ram_profile_rejects_iomap_returning_an_unbound_path(
+        ram_profile_inputs, synthetic_ram_directory_creation):
+    native, env, card, output_parent = ram_profile_inputs
+    load = backup.load_module
+
+    def wrong_return(name, path):
+        module = load(name, path)
+        if name == 'backup_iomap_board':
+            prepare = module.prepare
+
+            def derive(*args, **kwargs):
+                prepare(*args, **kwargs)
+                return output_parent/'different-board.dtb'
+
+            module.prepare = derive
+        return module
+
+    with mock.patch.object(backup, 'load_module', side_effect=wrong_return):
+        with pytest.raises(ValueError, match='unexpected output path'):
+            backup.prepare_profile(native, env, output_parent)
+    assert not list(output_parent.glob('profile-*/backup-profile.json'))
+
+
+@pytest.mark.parametrize('change', ['missing', 'small', 'symlink', 'relative'])
+def test_ram_profile_real_source_binding_fails_before_output(ram_profile_inputs, change):
+    native, env, card, output_parent = ram_profile_inputs
+    if change == 'missing':
+        env['A7C2_SD_IMAGE'] = str(card.with_name('missing.fat'))
+    elif change == 'small':
+        card.write_bytes(b'wrong size')
+    elif change == 'symlink':
+        link = card.with_name('link.fat')
+        link.symlink_to(card)
+        env['A7C2_SD_IMAGE'] = str(link)
+    else:
+        env['A7C2_SD_IMAGE'] = 'relative-card.fat'
+    with pytest.raises((OSError, ValueError)):
+        backup.prepare_profile(native, env, output_parent)
+    assert not output_parent.exists()
+
+
+def test_ram_binding_rejects_non_1g_before_hashing(tmp_path):
+    path = tmp_path/'small.fat'
+    path.write_bytes(b'too small')
+    assert backup.FUNCTIONAL_CAMERA_RAM_BYTES == 1024**3
+    with mock.patch.object(backup, 'digest_fd') as digest:
+        with pytest.raises(ValueError, match='expected 1073741824 bytes'):
+            backup._bound_profile_input(path, expected_bytes=backup.FUNCTIONAL_CAMERA_RAM_BYTES)
+        digest.assert_not_called()
+
+
+def test_ram_profile_source_drift_never_publishes_receipt(
+        ram_profile_inputs, synthetic_ram_directory_creation):
+    native, env, card, output_parent = ram_profile_inputs
+    original_read = backup._bound_profile_input
+    seen = 0
+
+    def drifting(path, **options):
+        nonlocal seen
+        if Path(path) == card:
+            seen += 1
+            if seen == 2:
+                card.write_bytes(b'X' * card.stat().st_size)
+        return original_read(path, **options)
+
+    with mock.patch.object(backup, '_bound_profile_input', side_effect=drifting):
+        with pytest.raises(ValueError, match='source changed during derivation'):
+            backup.prepare_profile(native, env, output_parent)
+    assert not list(output_parent.glob('profile-*/backup-profile.json'))
+
+
+def test_ram_media_candidate_rejects_guest_only_override(tmp_path):
+    launcher = load_script('functional_camera_guest_media', 'start-menu.py')
+    env = {**environment(tmp_path),
+           'MENU_FUNCTIONAL_CAMERA_MEDIA': backup.FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE}
+    with pytest.raises(ValueError, match='not a supported guest override'):
+        launcher.profile_environment(env, natural_boot=True)
+    with mock.patch.object(backup, 'validate_build') as build:
+        with pytest.raises(ValueError, match='not a supported guest override'):
+            backup.prepare_profile(HERE, env)
+        build.assert_not_called()
 
 
 @pytest.mark.parametrize('failure', ['', 'FIXTURE_FUNCTIONAL_OWNER_FAIL', 'FIXTURE_STILL_FORMAT_OWNER_FAIL',
@@ -514,9 +1065,11 @@ class TestCPMovieFormatAndOUCrankProfile:
         host = launcher.profile_environment(env, natural_boot=True)
         host.update(MENU_BACKUP_SYNC=backup.PROFILE, SEED_BACKUP='alllang',
                     A7C2_DIRECTORY_SD_PROFILE='directory-vvfat-256gb-v1')
-        with directory_lease(tmp_path / 'card') as lease:
+        with directory_lease(tmp_path / 'card') as lease, mock.patch.object(
+                runner, 'validate_artifact', side_effect=AssertionError('directory profile must keep its existing admission')) as artifact:
             host.update(directory_profile(HERE, lease, tmp_path / 'directory-profile'))
             host.update(synthetic_backup_profile(host))
+        artifact.assert_not_called()
         receipt_path = Path(host['MENU_BACKUP_PROFILE_RECEIPT'])
         receipt = json.loads(receipt_path.read_text())
         tree = ast.parse((HERE / 'qemu-menu-probe.py').read_text())

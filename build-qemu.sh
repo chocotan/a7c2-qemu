@@ -96,7 +96,8 @@ python3 - "$here/source/qemu-directory-sd.json" "$src" "$here/source" <<'PY'
 import hashlib,json,sys
 from pathlib import Path
 manifest=json.loads(Path(sys.argv[1]).read_text());root=Path(sys.argv[2])
-assert hashlib.sha256((Path(sys.argv[3])/manifest['patch']).read_bytes()).hexdigest()==manifest['patch_sha256']
+if hashlib.sha256((Path(sys.argv[3])/manifest['patch']).read_bytes()).hexdigest()!=manifest['patch_sha256']:
+    raise SystemExit('Directory-SD patch identity differs')
 for name,record in manifest['source_files'].items():
     if hashlib.sha256((root/name).read_bytes()).hexdigest()!=record['before']:
         raise SystemExit('Directory-SD patch input differs: '+name)
@@ -155,7 +156,8 @@ QEMU_TEST_BINARY="$stage/build/qemu-system-aarch64" python3 -B "$here/runtime/an
 python3 - "$stage/build/libfdt.so.1" <<'PY'
 import ctypes,sys
 library=ctypes.CDLL(sys.argv[1])
-assert library.fdt_open_into and library.fdt_setprop
+if not library.fdt_open_into or not library.fdt_setprop:
+    raise SystemExit('Required host libfdt symbols are missing')
 print('HOST_LIBFDT_SYMBOLS_PASS')
 PY
 python3 - "$stage/pci-hardware-source.json" "$stage/build/qemu-system-aarch64" "$stage/pci-hardware-build.json" "$here" <<'PY'

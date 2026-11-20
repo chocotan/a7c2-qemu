@@ -1,5 +1,87 @@
 # Functional capture evidence checker
 
+第 184 跑见 [全按与释放路径的分离核查](p1-candidate184.md)：两轮实跑均只有释放进入拍摄执行；`0x7e` 工厂实际创建了释放对象，早期 GDB 零命中不能否定创建。全按的首设状态分支仍待按原厂流程闭合，`capture_verified=false`。
+
+同轮省电对照（`1273`）与直接分派输入观察：在同一个 boot 内用原厂菜单把省电开始时间改为「关」、重开读回并回到拍摄页，控制台无 APO1 或关机；半按、全按、全按释放、半按释放四条边沿由同一 PID/TID 消费，仍只有释放进入执行并发 `0x4039`，无自然 `0x4038`、JPEG 或写卡。QMP 退出确认、QEMU 返回 0、零信号、租约持有到退出，`capture_verified=false`（[APO1 省电与关机报告](../native-apo-power.md)）。为核对不经 `0x1af16dc` 的另一条原厂直接分派路径，`SHUTTER_FLOW site=core` 新增 `direct_inputs_v=1`，只读分类值与五个原守卫输入；宿主两组 8+6 项通过；随后完成独立 AArch64 共享库链接及 initramfs 读回，仍未在 guest 验证。另见 [验证入口](../../validation/README.md)。收据见 `scratch/a7c2-apo-menu-round18/storage.json`、`scratch/a7c2-shutter-dispatch-cross-v1/storage.json`；产品权威路径 `runtime/analysis/menu-observe.c`（SHA-256 `3b3596a0b01864b0c4de007ca1db62894b3ec4ac0fb961a71078b91ec33eda3e`）、`test_shutter_route_trace.py`（`f57a5cb627b96e7c3a574cead18e86ba1ee06f0d03312e8e1eb5fab5998f8123`）、`capture_socket_roots.py`（`d7110820861b82a569a53a407dbbb02140208d11aa9ef2b5a7fd793a5bf4dae4`），本次只记录身份，不复制源码。
+
+P1 第四十九跑见 [type0 预览请求接收与实际首设校准](p1-candidate49.md)：确认301a为无AP回包的EID_PREVIEW_MODE，原CP转换为内部8102事件；新增精确type0/12B接收及请求释放，内部状态机保持pending。更正bac2“未进入拍摄”的旧交接判断，快门前新增实际readiness和拍摄页OCR守卫。两线程宿主回归及重建已通过，运行结果以专题所引最终收据为准，capture_verified=false。
+
+P1 第四十八跑见 [JPEG 空闲观察器与输入积压](p1-candidate48.md)：延长原样诊断证明n78不是永久停点；原UI栈停在JPEG观察器的maps扫描。已添加pending/目的队列快速过滤，保留真实JPEG全部校验，229项JPEG及2963项接线/槽位通过；旧参数夹具声明补齐后44项通过。新镜像的原半按/全按消费与自然4038验证见专题，capture_verified=false。
+
+P1 第四十四跑见 [4080 派生参数合同与 40a1/40b6 参数续推](p1-candidate44.md)：4080按0x357bd4+0x8da97e全量直译实现（写+0x1fc后三分支重算+0x22c/+0x230/+0x234/+0x218，未知前值按unknown记账不伪造零基线），run0082实际消费/free0且派生行实证branch_known=0、四输出unknown；40a1(+0x750)、40b6(+0x780)同样获实际消费收据；40b4(+0x77c)已实现+宿主验证，但其验证跑两次在早期system_mode门控波基础设施故障拦截（一次重试额度用尽），运行消费待补。EE、自然4038和JPEG未通过，capture_verified=false。
+
+P1 第四十三跑见 [4147 参数接收与 400f 实际消费](p1-candidate43.md)：run05a0已确认4147与400f实际消费/free0，两组两线程核收、UPM/all13/broker、guest摘要和quit/rc0闭合。新40d3按原handler补word参数+0xb24，独立重试1db6已实际消费/free0并完整核收；第二轮e877的all13早期失败原样保留。新4151七字段按原handler实现，第三轮70b8实际消费/free0且完整核收。当前首拒4080含派生配置辅助函数，原指令和依赖已保存，保持诚实拒绝待下轮实现；EE、自然4038和JPEG未通过，capture_verified=false。
+
+P1 第四十二跑见 [ISCN lock mode 与后续拍摄参数接收](p1-candidate42.md)：4167与414a已获原AP实际接收/free0、guest observer SHA、两笔UPM/all13/broker及正常quit/rc0核收；新400f三字段按原handler/checker实现，第三轮验证中。两组两线程宿主回归和完整重建均通过；原失败现场与恢复前像保留。EE、自然4038、JPEG与写卡仍未通过，capture_verified=false。
+
+P1 第四十一跑见 [face index6 接线与 object tracking mode](p1-candidate41.md)：真实 face SID 已调用既有列表处理器，原 AP 调用点及原指令双读验证，index6 generation1/retired1/free0。首轮新拒绝推进到4083；已按原handler补有界参数接收，值2因face后端缺失明确拒绝。两组两线程宿主回归、observer/CPIO/正式derive完成；独立第二轮运行核收见专题。EE、自然快门、4038、JPEG与写卡尚未通过，capture_verified=false。第一轮正常quit/rc0、无信号、两笔UPM及broker/租约闭合，原失败与前像保留。
+
+P1 第三十八跑见 [set_trinity_mode 参数接收与资源快照前沿](p1-candidate38.md)：40ee后台参数写入、共同dirty及真实请求free已验证，CP 96项/22子测试和观察器426项通过。首跑正常quit/rc0后保留宿主source profile未启用造成的−95失败；同构建独立重试只补宿主显式profile，EE/快门/JPEG/写卡尚未通过，capture_verified=false。最终核收及空间/owner见该专题。
+
+P1 第三十六跑见 [实际 EE 禁止源与 HDMI/UPM 主机接线](p1-candidate36.md)：135 字段读回证实 13 个 driver 中仅 EE/0x7b 命中，禁止计数1。接入已有原生 UPM 观察器后，实际两笔消息消费/free、正常detach、all13 accepted=1 与 functional-camera broker attach 均达成；新的 PID_SET_KEY_CLEAR/0x406a 向0x90040193发送返回−1020，触发原 Imaging3109。EE完成、快门、JPEG和写卡未通过。新增测试与495项相关测试通过，15项旧runner失败在修改前备份逐项复现；全组不记绿。两轮quit/rc0、无信号、租约到退出，原失败与恢复前像保留给PID命令调查；未执行回收。
+
+P1 第三十三跑见 [首设后拍摄模式、原快门与显示/关机新前沿](p1-candidate33.md)：两轮原AP走过温度提示和说明页，ENTER_REC_STILL及Imaging三连接commit/原AP回复释放可见；首跑原半按/全按四条消息被AP接收，但总禁止1、LENS_RETRACTED=1，未见自然4038或capture生命周期。菜单/拍摄页状态能切换，实际LCD仍停触控说明，HUD未验收。首跑保留16MiB采集上限失败；唯一重试在关机0x4001的CP302C前置检查失败后出现Imaging3109，不归为快门触发。两轮唯一ID quit/rc0、无信号、租约到退出及两线程核收通过；未执行回收，原证据与profile保留给镜头、显示与4001合同调查。
+
+P1 第三十二跑见 [CP周期配置接收与启动继续](p1-candidate32.md)：候选31独立审查、五文件集成、完整observer/CPIO/生产derive及宿主回归通过。两轮guest实际接收0x91170319并free0，原sequence_boot返回、1985断言未复现；真实CP timer/样本仍未执行。首跑LCD导出被PCIe日志污染，原失败保留并以双校验确认修正；唯一重试的首设、HUD、三连接、mailbox及快门结果见专题，不提升为完整拍摄或写卡通过。两轮quit/rc0、无信号、租约到退出；当前恢复前像和运行证据保留给父会话核收。
+
+P1 第二十八跑见 [BB0145实际接收与BB011b新前沿](p1-candidate28.md)：独立审查、三文件精确集成、完整KO/CPIO/生产derive及两线程两组宿主回归通过。原AP0145/24B send0，worker实际free并提交generation1；VDF0312仍仅意图记录，lower_sent/applied/notifications/completion均0。新首个负发送为同一原AP线程的BB011b/10B，−1020后仍触发BB949；未达首设走图/HUD、三连接、mailbox或快门写卡。QEMU唯一ID quit响应、rc0、无信号、租约到退出及socket清理核收通过；原失败、当前binding与恢复前像保留给011b合同调查。
+
+P1 第二十七跑见 [七槽退休集成与BB0145新前沿](p1-candidate27.md)：独立审查及九文件精确集成、全部快照消费者/preload/CPIO/生产derive和两线程宿主回归通过；原AP两笔4028均实际free0、retired1/2，第三笔4037及4084/40fb继续，Imaging3109本轮未复现。新首个负发送为BB0145/type13/24B，被现有10B/22B接收合同拒绝−1020后触发BB949。七槽缺失副作用/4023中央8306及0118/0159/0500后端仍未完成；HUD、三连接、mailbox、快门和写卡未通过。QEMU同ID响应quit/rc0、无信号、租约到退出，原失败及恢复前像保留，下一消费者为BB0145真实接收合同实现。
+
+P1 第二十六跑见 [两笔4023退休与重复4028新前沿](p1-candidate26.md)：八文件精确集成、完整preload/CPIO/生产derive与两线程宿主回归通过；原AP两笔同值4023均实际free0、retired1/2，首笔中央8306义务保持未投递，APPLY未完成。原AP继续第三笔4037及4084/40fb后，第二笔4028命中其旧单笔pending守卫，触发Imaging3109；HUD/三连接/mailbox/快门/写卡均未通过。QEMU同ID响应quit/rc0、无信号、租约到退出；当前binding、原失败及恢复前像保留，下一消费者为4028语义与请求退休调查。
+
+P1 第二十五跑见 [4037实际消费与重复4023保留槽前沿](p1-candidate25.md)：四文件精确集成、全部快照依赖重建、preload/CPIO/新生产binding与两线程宿主回归通过。实际同一原AP线程两笔4037均更新still token并free0，interlock保持；继续4022及首笔4023后，第二笔4023命中既有单笔pending守卫，触发Imaging3109。HUD/三连接/mailbox/快门/写卡未通过；下一缺口为4023业务后端与退休。QEMU同ID响应quit/rc0、无信号、租约到退出，唯一失败及恢复前像保留。
+
+P1 第二十四跑见 [六槽集成与4037功能路径新前沿](p1-candidate24.md)：七文件精确集成、preload/CPIO/生产derive及两组两线程宿主回归通过。实际guest一笔4028 pending后，原AP继续409c与403d；新4037原send返回−1020并触发Imaging3109。定位到旧still-unlock源码虽存在，但生产functional dispatcher未路由4037。其余五新槽仅host覆盖，0118/0159/0500仍partial；HUD/mailbox/快门/写卡未通过。QEMU同ID响应quit/rc0、无信号、租约到退出，原失败及恢复前像保留。
+
+P1 第二十三跑见 [4070单笔接管与4028新拒绝前沿](p1-candidate23.md)：六文件精确集成、preload/CPIO/生产derive及两组两线程宿主回归通过。真实guest各一笔404e/4070 pending，同一原AP线程随后发送4028/16B，原send返回−1020后触发Imaging3109；本次未捕获1010/event39等待。worker/bracketing/1010/completion仍0，0118/0159/0500仍partial；HUD/mailbox/快门/写卡未通过。QEMU quit/rc0、唯一QMP ID、无信号、租约到退出，原失败及恢复前像保留。
+
+P1 第二十二跑见 [404e 单笔接管与4070新拒绝前沿](p1-candidate22.md)：五文件精确集成、preload/CPIO/生产derive与两组两线程产品回归通过。实际guest恰一笔404e pending，原AP继续4043/4070；4070原send返回−1020后仍触发Imaging3109。FC handler/内部0901/completion均未执行，0118/0159/0500仍partial；未进入HUD、未发快门、mailbox/写卡未通过。QEMU quit/rc0、唯一QMP ID、无信号、租约到退出，原失败及恢复前像保留。
+
+P1 第二十一跑见 [BB042b 集成与 CP404e 新拒绝前沿](p1-candidate21.md)：三文件精确集成、KO/preload/CPIO/生产derive及两线程两组宿主回归通过。两轮guest中042b/0500原send均rc0，日志重试确认042b参数提交及原请求free，BB949未复现；新CP404e返回−1020触发Imaging3109。0118仍pending、0159仍未发送VDF0302、0500仍未闭合1500/模式后端；未进入HUD、未发快门，mailbox/拍摄写卡未通过。两轮均quit/rc0、无信号、租约到退出，原失败及恢复前像完整保留。
+
+P1 第二十跑见 [16参数入口集成与 BB042b 新拒绝前沿](p1-candidate20.md)：五文件精确集成、preload/KO/CPIO/生产derive及两线程宿主回归通过。两轮实际guest中40b8、402a、40af接收/free成功，旧402a/Imaging3109前缀推进；下一BB042b返回-1020触发原BB949。0118仍pending且未完成，余13参数入口未获guest覆盖；未进入HUD、未发快门、mailbox/写卡未通过。两轮均quit/rc0、无信号、租约到退出，原失败与恢复前像完整保留。
+
+P1 第十九跑见 [40b8/0159 集成与 402a 新发送前沿](p1-candidate19.md)：独立审查修复旧40b8测试消费者后，完整preload/KO/CPIO/生产derive与两线程宿主回归通过。实际guest中40b8参数接收/free成功、0159原send返回0；新402a返回-1020后触发原Imaging3109。BB949未复现，0118及VDF/APPLY完成仍未验收；未进入HUD、未发快门，mailbox及写卡未通过。原失败独立保留，运行与重试收尾以该报告所引原收据为准。
+
+P1 第十七跑见 [BB candidate2 集成与发送边界失败](p1-candidate17.md)：候选已集成，KO/CPIO/生产derive读回一致，产品5方法（57个既有协议+12个BB场景）及两组/两线程USB回归通过。两轮实际guest先出现Imaging3109、随后BB949，均为发送失败；近512KiB的normal池空闲，三队列可见outstanding均0，未复现池耗尽。没有观察到BB接收或0118 pending，978修复、0118完成后端、HUD/mailbox/拍摄均未验收。首跑和一次重试均quit/rc0、无信号、租约到退出，原失败及前像完整保留。
+
+P1 第十六跑见 [UDATE sender 修复集成与 BB 接收缺口](p1-candidate16.md)：两份补丁、KO、CPIO 和新 RAM derive 已集成，模块协议与两组/两线程 USB 回归通过；实际 guest 在 BB 主线程异步发送的原行978断言，暴露 `0x92840747` 接收/所有权缺口。尚未进入拍摄 HUD、未提交快门，连续池恢复与拍摄链均未验收。QEMU quit/rc0、无信号、租约到退出，前像与原失败完整保留。
+
+P1 第十五跑见 [UIPC 公共池碎片化与远端消息所有权缺口](p1-candidate15.md)：确认原公共变量池为512KiB，4096B Backup回复实际需4224B连续区；原池快照仍有116,288B空闲但最大区仅1536B。实际公共sender对非UDATE/Backup远端消息返回0且无消费/释放出口，三个相关queue的未释放allocation持续增长。本轮未复现同一Backup等待，反而进入拍摄HUD并完成三条Imaging连接的原AP回复消费，随后在shutdown路径断言；mailbox/拍摄写卡仍未通过。未改产品、未绕过pending，两组/两线程核收通过，QEMU quit/rc0、无信号，原失败保留。
+
+P1 第十四跑见 [日期确认后的 Backup 回复分配阻塞](p1-candidate14.md)：日期前 pending=0，日期后原 AppBackupDaemon 持续停在虚拟 public callback 的 4096B 回复分配（`osal_valloc_msg_wait → vpool_alloc`），原 AppFw 同步等待，LCD 未继续更新。具体池身份、消息生命周期及资源不可用原因仍待核查；没有直接清 pending 或伪造成功，拍摄写卡未通过。
+
+2026-11-15 P1 第十一跑见 [DMM 用户 LUT 集成与实际分配验证](p1-candidate11.md)：candidate2 已完整集成重建；修正原 `:ex` 内核参数的解析后，guest `0x62a` 分配成功（handle `0x8405`、48,288 字节），但 Imaging 三业务仍为 0/0/0、mailbox/broker 与拍摄写卡未通过。两轮 QEMU 均 quit/rc0、无信号、租约保留到退出；原失败和唯一修正重跑分别留证。第十跑背景见 [EE 与蓝牙调查](p1-candidate10.md)。
+
+2026-11-15 P1 第九跑见 [RM2 对齐后原 Fsys 挂载成功，EE 入口仍未完成](p1-candidate9.md)：只改虚拟卡逻辑位置后，原媒体 open/Mount/GetFreeSpace 成功，BB:906 与 Imaging:3109 均未复现；前三条 Imaging 业务仍为0，mailbox/broker/拍摄写卡未通过。按 ulog 记录边界纠正 callback QID 为 NFC 的 `0x0184e0d9`，历史末尾 `1` 属于下一条记录长度。
+
+2026-11-15 P1 第八跑结果见 [完整 guarded 链与 BB/Imaging 同步断言复现](p1-candidate8.md)：完整配置已在第七跑启用，独立运行仍复现两处断言；mailbox、Fsys 同卡与拍摄写卡尚未通过。下文早期宿主准入状态保留为对应批次的历史记录。
+
+## 1 GiB 原卡 JPEG 范围
+
+显式 `--jpeg-only-raw-1gib --first-sequence N --second-sequence M` 检查同轮原 AP `4038`、模型帧、原 MPR/Fsys、两次完整原卡导出及独立 JPEG 解码。检查器逐窗口重算实际卡数据并核全卡 SHA；通过时只给 `JPEG_ONLY_PASS`，不提升整机 `capture_verified` 或物理兼容性。
+
+两工作线程的宿主回归分别为 409 和 420 项通过、0 跳过（本地证据 `scratch/non-cp-mainline-tests/run-xyk0dahy/result.json`，不属于独立产品构建输入；SHA-256 `020d8733f642a254bc693748a5904f3e83b62368b701ff078c402cfe251f4fd4`）。该轮未启动 QEMU，没有实际拍摄或写卡结果。该轮的准入状态保留为历史证据；当前宿主目录、FD 路由与 fsck 恢复 owner 的接入状态见下一节，顶层 RAM 卡运行门仍关闭。完整原系统更新仍依赖暂缓的 CP 更新 loader。
+
+### RAM 卡宿主准入接入（2026-11-15）
+
+本批集成高熵私有目录创建、bwrap FD 路由及专职 fsck 恢复 owner；`qemu-menu-probe.py:330` 的拒绝门保持原字节。目录放行依赖 `scratch/a7c2-ram-dir-unblock-20261115-candidate1/trusted-execution-contract.md`：单用户隔离执行，不声称抵御恶意同 UID 在 mkdir 后首次 stat 前替换目录。
+
+`fsck_readonly` 现在 fork 专职恢复进程，再由该进程启动只读 fsck；它从开始就持有工具、seed、临时目录和工作目录 FD，并设置 Linux subreaper。通过 SCM_RIGHTS 向调用者移交 fsck pidfd，以随机 generation、PID/start_ticks/boot_id 与 pidfd 身份核对握手。恢复进程负责限长日志、首错误和 `waitid(P_PIDFD)` 收码；调用者消失或拒绝握手后仍等待自然退出，保存 `fsck-recovery.json`，不发送信号。进程边界保留异常类型与消息；原日志处理函数的同进程错误注入测试仍核对原异常对象。
+
+bwrap 优先使用 `--preserve-fds`；不支持时使用五个 `--ro-bind-fd` 将已核验 FD 的同 inode 暴露为只读沙箱路径。`Popen(pass_fds=...)` 和租约保留不变，两种能力都缺失仍拒绝；非 RAM 入口不变。
+
+产品接入验收：`scratch/a7c2-gate-unblock-integration-20261115/acceptance-e3ta7xnm/result.json`，两组/两线程，**10 + 178 项通过、0 跳过**。覆盖真实 8 MiB 合成 FAT 的 fsck 0/1 返回、调用者突然退出、错误身份/握手拒绝、握手前 OSError/KeyboardInterrupt，以及原日志/交接测试。首轮唯一失败为旧目录拒绝断言，原始失败保留在 `acceptance-x64sg5jv/`，没有回填。既有统一回归：`analysis/scratch/cp-wait-20261111/usb-msc-host-batch-v4/run-f0rw6tmy/result.json`，**22 + 78 项及 39 subtest 通过、0 跳过**，源码稳定。
+
+复现入口在工程根：`python3 -B scratch/a7c2-gate-unblock-integration-20261115/run_acceptance.py`；将 TMPDIR 指向该任务 `tmp/` 并设置 PYTHONDONTWRITEBYTECODE=1。原工具回归入口为 `analysis/scratch/cp-wait-20261111/run-usb-msc-batch-v4.py`。当前只验证宿主准入与合成单测；未执行生产 1 GiB derive、QEMU、guest 消费、真实拍摄、写卡或真实设备操作。下一消费者是主会话的生产 derive 读回验收，通过后才能另行放行顶层门。
+
+| Evidence | Finding | Path |
+| --- | --- | --- |
+| 两组产品接入收据、真实 fsck stdout/stderr 与恢复收据 | 调用者消失后专职 owner 保留 FD，收取自然退出状态并留下失败证据 | `fsck_readonly` → recovery owner → pidfd 握手 → 原日志处理 → `fsck-recovery.json` |
+| 已审 launcher SHA `338e2905ccf0fe4f3dcdb0529f75d3740fdc273a5f5cb8c23b324b943fd8a0b4` 与候选相同 | 同 inode 的只读 bwrap 路由已集成 | host FD 校验 → preserve-fds 或 ro-bind-fd → 待后续 guest 验收 |
+| 修改前恢复点、顶层脚本完整 SHA 不变 | 宿主测试不会放行未验证的实际运行 | `restore/` → 源码读回/回退 → 生产 derive → 顶层门另批验收 |
+
 当前公开增量增加[原API40源内容检查](../functional-face-source-snapshot/README.md)与[015e/OP12位宽事务](../disp-bit-width/README.md)。OP11使用独立source provider及token空间，不生成Core/frame proof；检查实际暂停窗口、完整源读取、分块/功能CP读回、原callback和退租。OP12要求真实RGB消费、完整168B/class7/proof kind4及独立成功115e的request-free/send/receive/ticket/free；它的proof result_bytes/result_fnv覆盖168B，不沿用旧kind4空结果规则。两份profile策略须类型和值完整匹配。复现当前公开host检查用仓库根的 `python3 -B tools/test-public-models.py`；下述前轮结果和工作区命令保留为历史资料。新增本包测试不证明原VM拍照录像或物理ASIC，`capture_verified=false`。
 
 `check_evidence.py` implements the positive content joins for the approved `virtual-functional-camera-v1` software RGB888 bus: original AP/SDK request → actual rendered/encoder-consumed frame → original MPR/Fsys → virtual SD → independent JPEG **and** H.264 MP4 decoding. It returns a structured verdict for a completed run and its current immutable batch. Missing or invalid evidence fails the relevant stage; there are no unconditional obsolete missing-contract markers or force flags.

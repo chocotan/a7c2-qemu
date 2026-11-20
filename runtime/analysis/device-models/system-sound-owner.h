@@ -9,6 +9,7 @@
 #define SYSTEM_SOUND_FNV 0x0500159a93ab9e42ULL
 #define SYSTEM_SOUND_SHA256 "5d94c660c48afde364fbb936105abdaf5c35f8bf8fc0bfd6945cd12146f6824a"
 #define SYSTEM_SOUND_RESERVATION "memrsv=0x00020000@0x41d000000:uc"
+#define SYSTEM_SOUND_LUT_RESERVATION "memrsv=0x00030000@0x41d000000:uc"
 /* Explicit virtual owner: AUDIO_PHYS64 follows the ADF [800000000,880000000)
  * phys64->CPU-offset window, BUS is the modeled CPU offset, and PHYSICAL is
  * this VM's separately reserved backing. This is not proof of the original

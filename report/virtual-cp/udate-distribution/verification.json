@@ -1,10 +1,16 @@
 {
-  "scope": "sole kernel public sender; UDATE with opt-in guarded Backup PCI fixture, not CP firmware or runtime proof",
+  "scope": "sole kernel public sender; UDATE, guarded Backup, IRQ-safe BB config receiver and one retained panel request; panel completion not implemented",
   "backup_default_off": true,
-  "size": 19808,
-  "sha256": "1300b44c53834e1cbb9492e53641a894b42002a909231662792faa99b637b9b5",
+  "size": 29048,
+  "sha256": "837342f6dd72361cee3e4dd1ffedbff1a7f4951e1f628defb37359c17a6334ec",
   "imports": [
     "__memcpy_fromio",
+    "_raw_spin_lock_irqsave",
+    "_raw_spin_unlock_irqrestore",
+    "kthread_create_on_node",
+    "kthread_should_stop",
+    "kthread_stop",
+    "msleep",
     "osal_dynamic_id",
     "osal_free_msg",
     "osal_get_msg_src",
@@ -24,7 +30,8 @@
     "pci_iounmap",
     "pci_set_master",
     "pcidma_connect",
-    "printk"
+    "printk",
+    "wake_up_process"
   ],
   "resident": true
 }

@@ -333,6 +333,8 @@ static void a7pf_realize(DeviceState *dev, Error **errp)
 {
     A7PFDevice *s=A7PF(dev);
     int backend=-1, geometry=-1, err=EINVAL;
+    const char *writeback = g_getenv("QEMU_A7PF_WRITEBACK_FLUSH");
+    if (writeback && strcmp(writeback, "1")) goto failed;
     if ((!s->backend && s->backend_fd<0) || (s->backend && s->backend_fd>=0) ||
         !s->geometry || !s->expected_dev || !s->expected_ino) goto failed;
     backend=s->backend_fd>=0 ? fcntl(s->backend_fd,F_DUPFD_CLOEXEC,3) :
@@ -343,6 +345,7 @@ static void a7pf_realize(DeviceState *dev, Error **errp)
     err=a7pf_init(&s->core, backend, geometry, s->expected_dev, s->expected_ino,
                    a7pf_ram_dma, s);
     if (err) goto failed;
+    s->core.writeback = writeback != NULL;
     s->opened=true;
     close(backend); close(geometry);
     return;

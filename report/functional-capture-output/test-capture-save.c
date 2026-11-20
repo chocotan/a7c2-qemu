@@ -31,13 +31,15 @@ int main(int argc,char **argv){
     struct capture_input *input=NULL;assert(!capture_input_create(frame,nf,request,parameters,&input));struct capture_output_memory *owner=NULL;
     assert(!capture_output_memory_create(input,main,nm,thumb,nt,0,&owner));assert(!capture_save_prepare(owner,0x4321,&save_owner));
     struct capture_output_span header,body;assert(!capture_output_memory_span(owner,CAPTURE_OUT_HEADER,&header));assert(!capture_output_memory_span(owner,CAPTURE_OUT_MAIN,&body));
+    uint8_t allocation[40]={0},allocated[40];allocation[0]=0x20;p32(allocation+4,header.unit_type);p32(allocation+12,UINT32_MAX);allocation[22]=1;
+    assert(!capture_output_memory_reply(owner,allocation,0,allocated));
     memset((void *)header.cpu,0,4096);((unsigned char *)header.cpu)[0]=255;((unsigned char *)header.cpu)[1]=216;
     if(mode>=27){
         struct capture_output_span thumbnail;assert(!capture_output_memory_span(owner,CAPTURE_OUT_THUMB,&thumbnail));
         uint8_t query[40]={0},response[40];
         if(mode!=31){
-            query[0]=0x21;p32(query+4,1);query[22]=1;p32(query+8,header.handle);assert(!capture_output_memory_reply(owner,query,0,response));
-            p32(query+8,thumbnail.handle);assert(!capture_output_memory_reply(owner,query,0,response));
+            query[0]=0x21;p32(query+4,header.unit_type);query[22]=1;p32(query+8,header.handle);assert(!capture_output_memory_reply(owner,query,0,response));
+            p32(query+4,thumbnail.unit_type);p32(query+8,thumbnail.handle);assert(!capture_output_memory_reply(owner,query,0,response));
         }
         uint64_t digest=0;int rc=capture_dma_thumbnail(owner,mode==29?header.alias+header.capacity:header.alias+16,
             mode==28?thumbnail.alias+1:thumbnail.alias,mode==30?thumbnail.bytes-1:thumbnail.bytes,&digest);
@@ -77,6 +79,8 @@ int main(int argc,char **argv){
     struct capture_save_info info;assert(!capture_save_info(save_owner,&info));assert(!info.write_readback_verified && capture_save_close(save_owner)!=0);
     struct fsys_native_read_ops ops={file_open,file_read,file_close};errno=EINTR;int readback=fsys_write_trace_readback(&ops);assert(errno==EINTR && stages>0);
     if(mode==26){assert(!readback);readback=fsys_write_trace_readback(&ops);assert(!readback && errno==EINTR);}
+    uint8_t closed[40]={0},closed_reply[40];closed[0]=0x23;p32(closed+8,header.handle);closed[22]=2;
+    assert(!capture_output_memory_reply(owner,closed,0,closed_reply));
     assert(!capture_save_info(save_owner,&info));int positive=mode==0 || mode==1 || mode==23 || mode==25 || mode==26 || mode>=27;
     if(positive){assert(!readback && info.write_readback_verified && !info.first_error && info.token==1 && info.bytes==4096+body.bytes);assert(!capture_save_close(save_owner));}
     else{assert(!info.write_readback_verified && (info.first_error || !info.token));assert(capture_save_close(save_owner)!=0);

@@ -42,7 +42,7 @@ static int reservation_present(void) {
     if (extra!=EOF) return 0;
     command[n]=0;unsigned int count=0;char *save=0;
     for (char *word=strtok_r(command," \r\n\t",&save);word;word=strtok_r(0," \r\n\t",&save))
-        if (!strcmp(word,SYSTEM_SOUND_RESERVATION)) count++;
+        if (!strcmp(word,SYSTEM_SOUND_RESERVATION) || !strcmp(word,SYSTEM_SOUND_LUT_RESERVATION)) count++;
     return count==1;
 }
 static int run(int argc,char **argv) {

@@ -71,7 +71,8 @@ def test_run_manifest_indexes_passive_collector_and_its_direct_local_dependencie
     manifest = {'files': {}}
     namespace = dict(Path=Path, base=base, command=[str(base / 'kernel')],
         kernel_script=base / 'kernel.sh', board_dtb=base / 'board.dtb', FONT_GUEST='fonts', FONT_SPECS={}, env={},
-        manifest=manifest, sha256_file=lambda path: hashlib.sha256(path.read_bytes()).hexdigest())
+        manifest=manifest, isolated_observer_proof=None,
+        sha256_file=lambda path: hashlib.sha256(path.read_bytes()).hexdigest())
     exec(compile(ast.Module(body=[loop], type_ignores=[]), 'actual-manifest-index-loop', 'exec'), namespace)
     assert manifest['files'] == expected
 

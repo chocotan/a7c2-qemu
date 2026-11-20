@@ -21,6 +21,7 @@ struct capture_output_memory {
     size_t total;
     unsigned char *memory;
     uint64_t next_export,exports[EXPORTS];
+    unsigned allocated_prefixes,publication,publication_used;
     pid_t pid;
 };
 static _Atomic uint32_t generations;
@@ -76,6 +77,8 @@ int capture_output_memory_create(struct capture_input *input,const void *main,si
             .bytes=bytes[i],.capacity=capacities[i],.handle=UINT32_C(0x68000000)+id*8u+i+1u,.unit_type=1};
         offset+=capacities[i];
     }
+    m->spans[CAPTURE_OUT_HEADER].unit_type=UINT32_C(0x80d61);
+    m->spans[CAPTURE_OUT_AUX].unit_type=UINT32_C(0x27f);
     memset((void *)m->spans[CAPTURE_OUT_METADATA].cpu,255,512);
     memcpy((void *)m->spans[CAPTURE_OUT_MAIN].cpu,(const uint8_t *)main+2,main_bytes-2);
     memcpy((void *)m->spans[CAPTURE_OUT_THUMB].cpu,thumb,thumb_bytes);
@@ -94,6 +97,36 @@ int capture_output_memory_span(struct capture_output_memory *m,enum capture_outp
     int rc=source_live(m);if(rc)return rc;if(!out || (unsigned)role>=CAPTURE_OUT_COUNT)return -EINVAL;
     *out=m->spans[role];return 0;
 }
+int capture_output_memory_publish_begin(struct capture_output_memory *m) {
+    int rc=source_live(m);if(rc)return rc;
+    if(m->publication)return -EALREADY;
+    if(m->info.native_references>UINT32_MAX-3)return -EOVERFLOW;
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i)
+        if(m->spans[i].references)return -EBUSY;
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i)++m->spans[i].references;
+    m->info.native_references+=3;m->publication=1;m->publication_used=0;return 0;
+}
+int capture_output_memory_publish_commit(struct capture_output_memory *m) {
+    int rc=source_live(m);if(rc)return rc;if(m->publication!=1)return -EINVAL;
+    m->publication=2;return 0;
+}
+int capture_output_memory_publish_cancel(struct capture_output_memory *m) {
+    int rc=source_live(m);if(rc)return rc;
+    if(m->publication!=1 || m->publication_used)return -EBUSY;
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i)
+        if(m->spans[i].references!=1)return -EBUSY;
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i)--m->spans[i].references;
+    m->info.native_references-=3;m->publication=0;return 0;
+}
+int capture_output_memory_cancel_allocation(struct capture_output_memory *m,uint32_t handle) {
+    int rc=source_live(m);if(rc)return rc;
+    for(unsigned i=CAPTURE_OUT_HEADER;i<=CAPTURE_OUT_AUX;++i) {
+        if(m->spans[i].handle!=handle)continue;
+        if(!(m->allocated_prefixes&(1u<<i)) || m->spans[i].references!=1)return -EBUSY;
+        --m->spans[i].references;--m->info.native_references;m->allocated_prefixes&=~(1u<<i);return 0;
+    }
+    return -ESTALE;
+}
 int capture_output_memory_reply(struct capture_output_memory *m,const uint8_t q[40],uint64_t mapbase,uint8_t out[40]) {
     int rc=source_live(m);if(rc)return rc;
     if(!q || !out || mapbase!=m->info.original_map_base)return -EINVAL;
@@ -101,28 +134,34 @@ int capture_output_memory_reply(struct capture_output_memory *m,const uint8_t q[
     if(a>UINTPTR_MAX-40 || b>UINTPTR_MAX-40 || (a<b+40 && b<a+40))return -EINVAL;
     uint16_t op=get16(q),option=get16(q+22);
     uint32_t handle=get32(q+8);unsigned index=0;
-    if(op==0x28) {
-        if(option)return -ENOTSUP;
-        if(handle==UINT32_C(0x00080d61))index=CAPTURE_OUT_HEADER;
-        else if(handle==UINT32_C(0x27f))index=CAPTURE_OUT_AUX;
+    if(op==0x20) {
+        uint32_t unit=get32(q+4);
+        if(unit==UINT32_C(0x80d61))index=CAPTURE_OUT_HEADER;
+        else if(unit==UINT32_C(0x27f))index=CAPTURE_OUT_AUX;
         else return -ENODATA;
+        if(option!=1 || handle || get32(q+12)!=UINT32_MAX || get16(q+20))return -ENOTSUP;
+        if(m->allocated_prefixes&(1u<<index))return -EBUSY;
+        if(m->info.native_references==UINT32_MAX)return -EOVERFLOW;
     } else {
         for(;index<CAPTURE_OUT_COUNT && m->spans[index].handle!=handle;++index){}
         if(index==CAPTURE_OUT_COUNT)return -ESTALE;
+        if(index>=CAPTURE_OUT_HEADER && !(m->allocated_prefixes&(1u<<index)))return -ESTALE;
     }
     struct capture_output_span *span=&m->spans[index];
     if(op==0x21) {
         if(option!=1 || get32(q+4)!=span->unit_type)return -ENOTSUP;
         if(span->references==255 || m->info.native_references==UINT32_MAX)return -EOVERFLOW;
-    } else if(op==0x2a) { if(option)return -ENOTSUP; }
+    } else if(op==0x2a || op==0x28) { if(option)return -ENOTSUP; }
     else if(op==0x23) { if(option!=2)return -ENOTSUP;if(!span->references)return -EALREADY; }
-    else if(op!=0x28)return -ENOTSUP;
+    else if(op!=0x20)return -ENOTSUP;
     uint8_t reply[40]={0};put16(reply,(uint16_t)(op|0x8000));put32(reply+12,span->handle);
     if(op!=0x23) {
         put16(reply+8,1);put32(reply+16,span->unit_type);put64(reply+24,span->alias);put32(reply+32,(uint32_t)span->capacity);
     }
+    if(op==0x20){m->allocated_prefixes|=1u<<index;++span->references;++m->info.native_references;}
     if(op==0x21){++span->references;++m->info.native_references;}
     if(op==0x23){--span->references;--m->info.native_references;}
+    if(index<=CAPTURE_OUT_THUMB && m->publication==1)m->publication_used=1;
     memcpy(out,reply,sizeof reply);return 0;
 }
 int capture_output_memory_hold(struct capture_output_memory *m,uint64_t *token) {

@@ -165,7 +165,8 @@ static void check_unsupported(void) {
     struct mock m;setup(&m);call(&m,SID);assert(!m.last_handled && !m.send_calls);
     setup(&m);m.original_source=DEST;call(&m,DEST);assert(!m.last_handled && !m.send_calls);
     setup(&m);put32(m.original,2);call(&m,DEST);assert(!m.last_handled && !m.send_calls);
-    setup(&m);put16(m.original+0x28,4);call(&m,DEST);assert(!m.last_handled && !m.send_calls);
+    setup(&m);put16(m.original+0x28,0);call(&m,DEST);assert(!m.last_handled && !m.send_calls);
+    setup(&m);put16(m.original+0x28,6);call(&m,DEST);assert(!m.last_handled && !m.send_calls);
     setup(&m);m.original_size=40;call(&m,DEST);assert(!m.last_handled && !m.send_calls);
     setup(&m);put32(m.original+8,1);put32(m.original+0x0c,0x90000123U);call(&m,DEST);
     assert(!m.last_handled && !m.send_calls && !m.dynamic_create && !m.original_freed);
@@ -208,6 +209,25 @@ static void check_failure(int which) {
             io_release,io_record,&rc)==0); /* successful retry removes retained ownership */
     }
 }
+static void check_reasons(void) {
+    for (unsigned int reason=1;reason<=5;reason++) {
+        struct mock m;setup(&m);put16(m.original+0x28,reason);call(&m,DEST);
+        assert(m.last_handled==1 && m.last_result==0 && m.original_freed);
+        if (reason==4) assert(!m.done_sent && !m.done_freed && m.alloc_calls==1);
+        else assert(m.done_sent && m.done_freed && m.alloc_calls==2 && m.done_reason==(int)reason);
+        assert(m.response_freed && m.queue_freed==1);
+        struct native_udate_snapshot s;native_udate_test_snapshot(&s);
+        assert(s.valid && s.reason==reason && s.generation==1 && !s.faults);
+    }
+}
+static void check_reason_failures(void) {
+    for (unsigned int reason=1;reason<=5;reason++) {
+        struct mock m;setup(&m);put16(m.original+0x28,reason);m.receive_rc=-55;call(&m,DEST);
+        assert(m.last_handled==1 && m.last_result<0 && !m.done_sent && !m.original_freed);
+        struct native_udate_snapshot s;native_udate_test_snapshot(&s);
+        assert(s.faults && !s.done_sent && !s.busy);
+    }
+}
 static void check_original_retry(void) {
     struct mock m;setup(&m);m.original_release_rc=-77;call(&m,DEST);
     assert(m.last_handled==1 && m.last_result==0 && m.done_sent && !m.original_freed);
@@ -248,6 +268,8 @@ int main(int argc,char **argv) {
     assert(argc==2);const char *name=argv[1];
     if (!strcmp(name,"normal")) check_normal();
     else if (!strcmp(name,"unsupported")) check_unsupported();
+    else if (!strcmp(name,"reasons")) check_reasons();
+    else if (!strcmp(name,"reason-failures")) check_reason_failures();
     else if (!strcmp(name,"original-retry")) check_original_retry();
     else if (!strcmp(name,"busy")) check_busy();
     else if (!strcmp(name,"fork")) check_fork();

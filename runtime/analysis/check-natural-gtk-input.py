@@ -185,6 +185,8 @@ FIRSTBOOT_CONTROLS = {
     'reader': ((0x1c6,0x1e0), (60,145,580,195), '1e42f1b10248af217c47e267d9ccd67a6f5ba7f8b551d52b81820053ff9d60ff'),
     'privacy': ((0x1e0,0x1dd), (0,0,150,52), 'a9c20aad9a20b14c01234670aead4d96e4cac8dc1aa1cb2a81be63f0842a5581'),
     'setup-on-camera': ((0x1dd,0x21e), (150,428,536,479), 'e3b33a20c03542553b2bbae785e817792ec11fdec921bcaf94b0ad5da8683946'),
+    'connect-smartphone': ((0x212,), (0,0,210,52), '89b4cc1020652f4bcf4c3700e17d834355142ca3c2ed6db3de4d280d6ba93d0a'),
+    'connect-smartphone-wait': ((0x212,), (0,0,640,52), '36436a8cfdd23909dda5b0180b639ed37893780c5f0a38243ff9c6069b6f511d'),
     'area-prompt': ((0x1c5,), (170,145,470,195), 'dfc13a0e709861b2957425a361aad5749a8d107bd397cf7be44a947db481a064'),
     'area': ((0xd1,), (0,0,150,52), '6c041e51f382eab581770c60de1c237402c3fe56803e58c9a62c49f7c6f2912e'),
     'date-format': ((0x11c,), (0,0,150,52), 'ca7d67651264ab16b49a8c78799dc4802c78b89d803c7457b59affa4ecfb88da'),
@@ -290,6 +292,8 @@ def firstboot_step(initial_image, read_console, refresh, action, wait, image_pat
     if ui['page']=='shooting':
         return {'ready':True,'page':ui,'lcd_stable':True,'capture_verified':False}
     submitted=[]
+    if ui['page'] in ('connect-smartphone','connect-smartphone-wait'):
+        raise RuntimeError('Unexpected smartphone pairing page during first setup; no confirm input sent')
 
     def navigate(name, mouse=True):
         nonlocal image
@@ -315,7 +319,7 @@ def firstboot_step(initial_image, read_console, refresh, action, wait, image_pat
             'reason':'original page advanced; shooting readiness remains pending','capture_verified':False}
 
 
-def select_simplified_chinese(initial_image, read_console, refresh, press_down, wait):
+def select_simplified_chinese(initial_image, read_console, refresh, press_down, wait, allow_unchanged=False, wait_for_frame=True):
     """A submitted DOWN can precede rendering; advance only after the LCD settles."""
     font=re.compile(r'OBS RESOURCE_OPEN call=(\d+) result=(-?\d+) errno=(\d+) '
                     r'path=/tmp/images/MYingHeiC-GB18030-SJ_wIcon\.ltt\r?\n')
@@ -324,8 +328,12 @@ def select_simplified_chinese(initial_image, read_console, refresh, press_down, 
     def down(step):
         nonlocal image
         press_down()
+        if not wait_for_frame:
+            return
         try:
-            image=wait_lcd_settled(image,refresh,wait,f'language-{step:02d}')
+            # Cached headless frames may stay black; consumed original keys and
+            # the exact font-open event carry this opt-in navigation's evidence.
+            image=wait_lcd_settled(image,refresh,wait,f'language-{step:02d}',changed=not allow_unchanged)
         except TimeoutError as error:
             raise TimeoutError(f'Language DOWN {step}: original LCD did not change and settle') from error
 

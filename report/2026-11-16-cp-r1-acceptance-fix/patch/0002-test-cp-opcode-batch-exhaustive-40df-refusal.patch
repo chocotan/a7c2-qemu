@@ -1,0 +1,12 @@
+--- a/runtime/analysis/device-models/test_cp_opcode_batch.c
++++ b/runtime/analysis/device-models/test_cp_opcode_batch.c
+@@ -436,6 +436,9 @@
+             else if(op==0x404e){CHECK(handled && rc==-1020);CHECK(!release(NATIVE_CP_BACKGROUND_SID,p));}
+             else if(op==0x4070 || op==0x4023 || op==0x4077){CHECK(handled && !rc);}
+             else if(op==0x4022 || op==0x4028){CHECK(handled && rc==-1020);CHECK(!release(NATIVE_CP_BACKGROUND_SID,p));}
++            /* 40df is handled only as the exact 16B push_mr; this 12B wire is refused
++             * before any lease/ownership transfer, so the caller still frees it. */
++            else if(op==0x40df){CHECK(handled && rc==-1020);CHECK(!release(NATIVE_CP_BACKGROUND_SID,p));}
+             else{CHECK(!handled && rc==123);CHECK(!release(NATIVE_CP_BACKGROUND_SID,p));}
+         }
+         struct native_cp_background_4070_snapshot pending;

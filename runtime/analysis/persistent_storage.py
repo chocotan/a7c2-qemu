@@ -74,10 +74,16 @@ def module_file():
     return path
 
 
-def binary_environment(binary=None,ram_state=False):
+def binary_environment(binary=None,ram_state=False,proof_path=None):
     default=binary is None
     binary=ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64' if default else Path(binary).absolute()
-    proof_path=PRODUCT/'source/persistent-flash-build.json' if default else binary.parent.parent/'persistent-flash-build.json'
+    # An explicit proof file must still bind this exact executable and module sources.
+    default_proof=PRODUCT/'source/persistent-flash-build.json'
+    if proof_path is None:
+        proof_path=default_proof if default else binary.parent.parent/'persistent-flash-build.json'
+    else:
+        proof_path=Path(proof_path).absolute()
+    if proof_path.is_symlink() or not proof_path.is_file():raise ValueError('Persistent build proof must be a regular file')
     if not default and (binary.is_symlink() or not binary.is_file()):raise ValueError('Persistent candidate must be a regular file')
     proof=json.loads(proof_path.read_bytes())
     if proof.get('binary_sha256')!=sha(binary) or proof.get('profile')!='persistent-flash-cold-v1' or proof.get('mmio_base')!='0x0b010000':
@@ -112,11 +118,11 @@ def instance_lease(instance):
         yield leased
 
 
-def inherited_environment(leased,binary=None,ram_state=False):
+def inherited_environment(leased,binary=None,ram_state=False,proof_path=None):
     info=os.fstat(leased['fd'])
     if not stat.S_ISREG(info.st_mode) or info.st_size!=leased['geometry']['backing_bytes']:
         raise ValueError('Persistent inherited descriptor is not the instance disk')
-    return dict(binary_environment(binary,ram_state),A7C2_STORAGE_PROFILE=PROFILE,A7C2_EMMC_INSTANCE=str(leased['path']),
+    return dict(binary_environment(binary,ram_state,proof_path),A7C2_STORAGE_PROFILE=PROFILE,A7C2_EMMC_INSTANCE=str(leased['path']),
                 A7C2_EMMC_FD=str(leased['fd']),A7C2_EMMC_DEV=str(info.st_dev),A7C2_EMMC_INO=str(info.st_ino))
 
 
@@ -131,10 +137,20 @@ def inherited_fd(environment):
     fd,device,inode=values
     if fd<3:raise ValueError('Persistent descriptor must be parent-owned')
     info=os.fstat(fd)
-    if not stat.S_ISREG(info.st_mode) or (info.st_dev,info.st_ino)!=(device,inode):raise ValueError('Persistent descriptor identity changed')
+    if (not stat.S_ISREG(info.st_mode) or (info.st_dev,info.st_ino)!=(device,inode) or
+            fcntl.fcntl(fd,fcntl.F_GETFL)&os.O_ACCMODE!=os.O_RDWR):
+        raise ValueError('Persistent descriptor identity changed')
     instance=Path(environment['A7C2_EMMC_INSTANCE']).absolute()
-    if (instance/'camera.emmc').is_symlink() or (instance/'camera.emmc').stat().st_ino!=inode:
-        raise ValueError('Persistent path does not match inherited descriptor')
+    directory=disk.SECURE_OPEN(instance,directory=True)
+    try:
+        named=os.stat('camera.emmc',dir_fd=directory,follow_symlinks=False)
+        if not stat.S_ISREG(named.st_mode) or (named.st_dev,named.st_ino)!=(device,inode):
+            raise ValueError('Persistent path does not match inherited descriptor')
+        from owner_quarantine import _lock_present,refuse_unfinished
+        _lock_present(fd,'OFDLCK',-1,'0')
+        refuse_unfinished(directory)
+    finally:
+        os.close(directory)
     return fd
 
 

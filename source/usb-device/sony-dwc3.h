@@ -143,6 +143,8 @@ int sony_dwc3_write(SonyDWC3 *, uint32_t offset, unsigned size, uint32_t value);
  * device/configuration descriptors through ordinary EP0 submits before export.
  */
 bool sony_dwc3_ready(SonyDWC3 *);
+/* NULL means transport-ready; this never manufactures guest descriptors. */
+const char *sony_dwc3_not_ready_reason(SonyDWC3 *);
 int sony_dwc3_set_vbus(SonyDWC3 *, bool present);
 int sony_dwc3_bus_reset(SonyDWC3 *);
 /* Accepted=0, including synchronous completion; failure<0 retains no ownership.

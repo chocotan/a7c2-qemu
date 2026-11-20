@@ -18,7 +18,7 @@ from backup_profile import (ADF_PROFILE, INPUT_PROFILE, OUTPUT_PROFILE, BB_SET_M
                             FULL_PINMEM_HDMI_VIDEO_CONNECTION_PROFILE, FULL_PINMEM_OSD_CONNECTION_PROFILE,
                             FULL_CP302C_NO_TRANSITION_PROFILE, FULL_CP302C_DIAGNOSTIC_PROFILE,
                             FULL_CP_NOTIFICATION_CONTROL_PROFILE, FULL_CP_CAPTURE_FORMAT_PROFILE, FULL_CP_STARTUP_DIAGNOSTIC_PROFILE, FULL_CP_EE_DIAGNOSTIC_PROFILE, FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE, FULL_CP_OWNED_STATE_PROFILE,
-                            FUNCTIONAL_CAMERA_PROFILE,
+                            FUNCTIONAL_CAMERA_PROFILE, validate_functional_camera_media,
                             ADF_CONFLICTS, BB_MODE_CONFLICTS)
 
 BASE = Path(__file__).resolve().parent
@@ -26,6 +26,7 @@ ROOT = BASE.parents[1]
 
 
 def profile_environment(current, menu_key=False, natural_boot=False):
+    ram_media = validate_functional_camera_media(current)
     cp_background=current.get('A7C2_CP_BACKGROUND','')
     if cp_background not in ('','virtual-mode3-cold-v1'):
         raise ValueError('A7C2_CP_BACKGROUND must be virtual-mode3-cold-v1 or unset')
@@ -55,7 +56,7 @@ def profile_environment(current, menu_key=False, natural_boot=False):
     backup_sync=current.get('A7C2_BACKUP_SYNC','')
     if backup_sync not in ('','virtual-primary-v1'):
         raise ValueError('A7C2_BACKUP_SYNC must be virtual-primary-v1 or unset')
-    if backup_sync and (not natural_boot or not directory_sd or imaging_profile or
+    if backup_sync and (not natural_boot or (not directory_sd and not ram_media) or imaging_profile or
             cp_background!='virtual-mode3-cold-v1' or udate!='virtual-roundtrip-v1' or
             touch_panel!='virtual-config-v1' or not current.get('A7C2_BACKUP_BUILD')):
         raise ValueError('Backup requires natural directory SD, CP3007/UDATE/touch and explicit combined build')
@@ -94,7 +95,7 @@ def profile_environment(current, menu_key=False, natural_boot=False):
     bb_set_mode=current.get('A7C2_BB_SET_MODE','')
     if bb_set_mode not in ('',BB_SET_MODE_PROFILE):
         raise ValueError('A7C2_BB_SET_MODE must be virtual-bb-still-target3-op0-v1 or unset')
-    if bb_set_mode and (not natural_boot or not directory_sd or host_sd or sparse_sd or imaging_profile or
+    if bb_set_mode and (not natural_boot or (not directory_sd and not ram_media) or host_sd or sparse_sd or imaging_profile or
             backup_sync!='virtual-primary-v1' or not current.get('A7C2_BACKUP_BUILD') or
             cp_background!='virtual-mode3-cold-v1' or udate!='virtual-roundtrip-v1' or
             touch_panel!='virtual-config-v1' or tcin!='virtual-inactive-v1' or
@@ -186,9 +187,9 @@ def profile_environment(current, menu_key=False, natural_boot=False):
     functional_guest = current.get('MENU_FUNCTIONAL_CAMERA', '')
     if (functional_camera not in ('', FUNCTIONAL_CAMERA_PROFILE) or
             functional_guest not in ('', functional_camera) or
-            (functional_camera and (not natural_boot or not directory_sd or
+            (functional_camera and (not natural_boot or (not directory_sd and not ram_media) or
              cp_capture_format != FULL_CP_OWNED_STATE_PROFILE))):
-        raise ValueError('A7C2_FUNCTIONAL_CAMERA requires the exact functional profile, natural directory-SD boot and owned-state predecessor')
+        raise ValueError('A7C2_FUNCTIONAL_CAMERA requires the exact functional profile, natural guarded media boot and owned-state predecessor')
     if current.get('A7C2_BACKUP_BUILD') and not backup_sync:
         raise ValueError('A7C2_BACKUP_BUILD requires the explicit Backup profile')
     if directory_sd:
@@ -271,7 +272,7 @@ def profile_environment(current, menu_key=False, natural_boot=False):
                        QEMU_SONY_PCIDMA='1',QEMU_SYSTEM_DIR=str(pcidma),
                        QEMU_SYSTEM_BINARY='qemu-system-aarch64',MENU_DTB=str(board))
         # Default hotplug applies only to the compatible one-card RM2 backend.
-        if (current.get('MENU_RM_SLOT1') != '1' and not directory_sd and not host_sd and
+        if (current.get('MENU_RM_SLOT1') != '1' and not directory_sd and not host_sd and not ram_media and
                 not sparse_sd and not imaging_profile and not current.get('A7C2_PREVIEW_PNG')):
             env.setdefault('A7C2_SD_HOTPLUG', '1')
         if cp_background:env['MENU_CP_BACKGROUND']=cp_background
@@ -374,6 +375,9 @@ def main():
     parser.add_argument('--menu-key', action='store_true', help='追加已验证的 MENU/返回短按；可能退出当前菜单')
     parser.add_argument('--no-open', action='store_true', help='仅保存快照，不调用桌面图片查看器')
     args = parser.parse_args()
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     for command in ('bash', 'flock', 'clang', 'cpio', 'bwrap'):
         if not shutil.which(command):
             parser.error('缺少依赖：' + command)

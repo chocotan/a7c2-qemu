@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 import time
 import signal
+import struct
 import sys
 from contextlib import ExitStack, nullcontext
 from gpe_captures import raster_sources
@@ -81,6 +82,60 @@ parser.add_argument('--require-full-boot', action='store_true',
                     default=os.environ.get('A7C2_REQUIRE_FULL_BOOT') == '1',
                     help='refuse this diagnostic route when full boot coverage is required')
 args = parser.parse_args()
+if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+    from single_ap_sockets import admit
+    admit()
+native_link_profile = os.environ.get('QEMU_NATIVE_AP_CP_LINK')
+native_pair = None
+native_api = native_binary = native_admission = None
+native_claim = native_claim_sha = native_control_fd = native_vm_owner = None
+isolated_observer_build = os.environ.get('A7C2_NATIVE_OBSERVER_BUILD')
+isolated_observer_api = isolated_observer_proof = None
+if isolated_observer_build is not None and (not isolated_observer_build or not native_link_profile):
+    parser.error('Isolated observer selection requires an explicit build and native AP/CP route')
+if native_link_profile:
+    if native_link_profile != 'virtual-native-ap-cp-link-v1':
+        parser.error('Unknown native AP/CP link profile')
+    allowed_menu = {'MENU_PCIE_IF', 'MENU_SETTLE_SECONDS', 'MENU_DIAG_TIMEOUT', 'MENU_CONTROL_FD',
+                    'MENU_VIRTUAL_UPM_PROFILE'}
+    capture_diagnostic = os.environ.get('MENU_NATIVE_CAPTURE_DIAGNOSTIC', '')
+    if capture_diagnostic not in ('', '1'):
+        parser.error('Native capture diagnostic must be 1 or unset')
+    if capture_diagnostic:
+        expected_card = str(Path(os.environ['QEMU_NATIVE_LINK_DIR'])/'capture-seed.img')
+        if (os.environ.get('A7C2_SD_IMAGE') != expected_card or
+                os.environ.get('MENU_RM_FILE') != '1' or
+                os.environ.get('MENU_JPEG_REQUEST_TRACE') != '1' or
+                os.environ.get('MENU_LIVE_APP_INPUT') != '1' or
+                os.environ.get('A7C2_FSYS_ASYNC_OBSERVE') != '1' or
+                not os.environ.get('MENU_CONTROL_FD', '').isdecimal() or
+                not os.environ.get('MENU_CONTROL_OWNER_PID', '').isdecimal()):
+            parser.error('Native capture diagnostic requires its owned card and all observation options')
+        allowed_menu.update(('MENU_NATIVE_CAPTURE_DIAGNOSTIC','MENU_RM_FILE','MENU_JPEG_REQUEST_TRACE',
+                             'MENU_CONTROL_OWNER_PID','MENU_LIVE_APP_INPUT'))
+    if any(name.startswith('MENU_') and name not in allowed_menu for name in os.environ):
+        parser.error('Native CP route requires a clean MENU environment without software CP providers')
+    if (not all((args.initramfs,args.load_ipc,args.load_dmm,args.sony_timers,args.bootin,args.bootall)) or
+            any((args.transport_errors,args.capid_service,args.sa_address_service,args.hdmi_format_service,
+                 args.hdmi_photo_service,args.dmm_service,args.display_info_service,args.software_gpe,
+                 args.headless_osd,args.menu_target,args.native_display is not None))):
+        parser.error('Native CP route requires original headless bootin/IPC and excludes service/display substitutes')
+    native_api = runpy.run_path(str(Path(__file__).resolve().parents[2]/'source/cp-boot/native-link.py'))
+    native_binary = Path(os.environ['QEMU_SYSTEM_DIR'])/os.environ.get('QEMU_SYSTEM_BINARY','qemu-system-aarch64')
+    native_pair = Path(os.environ['QEMU_NATIVE_LINK_DIR'])
+    if isolated_observer_build is not None:
+        isolated_observer_api = runpy.run_path(str(Path(__file__).resolve().parents[2]/'source/cp-boot/capture_initramfs.py'))
+        isolated_observer_proof = isolated_observer_api['validate_observer_build'](isolated_observer_build)
+    if capture_diagnostic or isolated_observer_build is not None:
+        if args.initramfs_file is not None:
+            parser.error('Native diagnostic selects only the pair-owned initramfs')
+        stem = 'capture' if capture_diagnostic else 'observer'
+        args.initramfs_file = native_pair/(stem+'-initramfs.cpio')
+        if args.initramfs_file.is_symlink() or not args.initramfs_file.is_file():
+            parser.error('Native diagnostic initramfs is unavailable')
+    native_admission = native_api['admit'](native_pair,native_binary)
+    if os.environ.get('MENU_PCIE_IF') != '1':
+        parser.error('Native CP route requires original pcieatu and pcie-if modules')
 try:
     validate_profile(args.boot_profile, args.require_full_boot)
 except ValueError as error:
@@ -173,6 +228,11 @@ for setting in ('MENU_VDF_CONFIG', 'MENU_HDMI_BOOT_CONFIG', 'MENU_AUDIO_BOOT_CON
     if setting in ('MENU_VDF_CONFIG', 'MENU_HDMI_BOOT_CONFIG', 'MENU_AUDIO_BOOT_CONFIG', 'MENU_DMM_UNIT_CONFIG', 'MENU_PIN_REGISTRY','MENU_RM_FILE') and os.environ.get(setting) == '1' and any(os.environ.get(name) for name in
             ('MENU_HONEST_ROUTING', 'MENU_ASYNC_SEND', 'MENU_PIPELINE_VIRT')):
         parser.error(f'{setting} cannot share the experimental send-GOT hooks')
+upm_profile=os.environ.get('MENU_VIRTUAL_UPM_PROFILE','')
+if upm_profile not in ('','diagnostic-v1'):
+    parser.error('MENU_VIRTUAL_UPM_PROFILE must be diagnostic-v1 or unset')
+if upm_profile and not (args.initramfs and args.observe):
+    parser.error('MENU_VIRTUAL_UPM_PROFILE requires --initramfs --observe')
 if os.environ.get('MENU_NATURAL_START_TRACE', '') not in ('', '1'):
     parser.error('MENU_NATURAL_START_TRACE must be 1 or unset')
 if os.environ.get('MENU_NATURAL_START_TRACE') and not (args.initramfs and args.observe):
@@ -255,11 +315,29 @@ if touch_panel and (not args.initramfs or not args.observe or
                     any(os.environ.get(name) for name in
                         ('MENU_HONEST_ROUTING','MENU_ASYNC_SEND','MENU_PIPELINE_VIRT','MENU_PIPELINE_ENDPOINT'))):
     parser.error('MENU_TOUCH_PANEL requires CP3007+UDATE, initramfs/observe and no experimental send hooks')
+ram_capture_media=os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA','')
+if ram_capture_media not in ('','direct-bootin-ram-card-1g-v1'):
+    parser.error('Unknown functional-camera media profile')
+if ram_capture_media and (not rm_file or not os.environ.get('A7C2_SD_IMAGE') or
+        os.environ.get('A7C2_FUNCTIONAL_CAMERA')!=FUNCTIONAL_CAMERA_PROFILE or
+        os.environ.get('MENU_FUNCTIONAL_CAMERA')!=FUNCTIONAL_CAMERA_PROFILE or
+        any(os.environ.get(name) for name in ('A7C2_DIRECTORY_SD','A7C2_DIRECTORY_SD_PROFILE',
+            'A7C2_HOST_SD','A7C2_SD_SPARSE','A7C2_SD_HOTPLUG','MENU_USB_NET',
+            'A7C2_USB_NET','QEMU_SONY_USB_NET','A7C2_USB_NET_SELFTEST',
+            'QEMU_NATIVE_AP_CP_LINK','A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM'))):
+    parser.error('Functional-camera RAM card requires its exact owned one-card profile without other media or CP routes')
+if ram_capture_media and os.environ.get('A7C2_RAM_CARD_PRODUCER_ADMITTED') != 'production-derive-v1':
+    # Admitted 2026-11-15 by scratch/a7c2-capture-derive-20261115-candidate1/
+    # derive-admission.json: fsck v4 run-7_7exap7, parent-death run-p8sw_b0h,
+    # product recovery-owner integration, production derive 74c708dc….
+    # The exact owned one-card profile checks above still apply.
+    parser.error('Functional-camera RAM card requires the admitted production derive binding')
 backup_sync=os.environ.get('MENU_BACKUP_SYNC','')
 if backup_sync not in ('','virtual-primary-v1'):
     parser.error('MENU_BACKUP_SYNC must be virtual-primary-v1 or unset')
 if backup_sync and (touch_panel!='virtual-config-v1' or not args.load_ipc or not args.seed_backup or
-        os.environ.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1' or
+        (os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA')!='direct-bootin-ram-card-1g-v1' and
+         os.environ.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1') or
         os.environ.get('QEMU_SONY_PCIDMA')!='1' or os.environ.get('MENU_PCIDMA_XFER')=='1'):
     parser.error('Backup requires the guarded native directory profile and no diagnostic pattern DMA')
 tcin_detect=os.environ.get('MENU_TCIN_DETECT','')
@@ -309,7 +387,8 @@ if bb_set_mode_profile not in ('',BB_SET_MODE_PROFILE) or (bb_set_mode_profile a
         vef_path_profile!='virtual-nomem-v1' or adf_proc_path_profile!=ADF_PROFILE or
         adf_set_input_profile!=INPUT_PROFILE or adf_set_output_profile!=OUTPUT_PROFILE or
         os.environ.get('SEED_BACKUP')!='alllang' or
-        os.environ.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1' or
+        (os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA')!='direct-bootin-ram-card-1g-v1' and
+         os.environ.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1') or
         not args.initramfs or not args.observe or not args.load_ipc or not args.seed_backup or
         not args.load_dmm or not args.dmm_service or not args.sony_timers or args.native_display is None or
         os.environ.get('QEMU_CPU_COUNT','1')!='1' or
@@ -458,7 +537,7 @@ if not 1 <= boot_type <= 8:
     parser.error('QEMU_BOOT_TYPE must be between 1 and 8')
 base = Path(__file__).resolve().parent
 sd_seed=Path(os.environ['A7C2_SD_IMAGE']).absolute() if os.environ.get('A7C2_SD_IMAGE') else None
-sd_seed_bytes=sd_seed_sha256=None
+sd_seed_bytes=sd_seed_sha256=sd_seed_identity=None
 host_sd_fd=None
 directory_sd_fd=None
 host_sd_export_verified=[False]
@@ -491,13 +570,17 @@ if os.environ.get('A7C2_DIRECTORY_SD'):
 elif os.environ.get('A7C2_DIRECTORY_SD_FD'):
     parser.error('Unrequested directory SD fd')
 if sd_seed:
-    from sd_transport import card_source,digest_fd
+    from sd_transport import card_source,digest_fd,identity as sd_identity
     with card_source(sd_seed) as source_fd:
-        sd_seed_bytes=os.fstat(source_fd).st_size
+        seed_stat=os.fstat(source_fd)
+        if ram_capture_media and (seed_stat.st_nlink!=1 or seed_stat.st_mode&0o022 or seed_stat.st_size!=1024**3):
+            raise ValueError('Functional camera requires a private single-link 1GiB card seed')
+        sd_seed_bytes=seed_stat.st_size
         sd_seed_sha256=digest_fd(source_fd)
+        sd_seed_identity=list(sd_identity(seed_stat))
 if language_fonts and any(not (base/'menu-root'/FONT_GUEST/name).is_file() for name in FONT_SPECS):
     parser.error('Missing official Chinese fonts; install with prepare-assets.py --install-language-fonts --firmware-root ORIGINAL --runtime RUNTIME')
-lock_path = base / '.menu-probe.lock'
+lock_path = (native_pair/'ap-probe.lock') if native_pair else base / '.menu-probe.lock'
 inherited_lock = os.environ.get('MENU_PROBE_LOCK_FD')
 if inherited_lock is None:
     lock = lock_path.open('a')
@@ -509,10 +592,17 @@ else:
     if (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
         raise RuntimeError('Inherited descriptor does not refer to the probe lock')
 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-runs = base / 'menu-runs'
+runs = (native_pair/'ap-runs') if native_pair else base / 'menu-runs'
 runs.mkdir(exist_ok=True)
 out = Path(tempfile.mkdtemp(prefix='run-', dir=runs))
-(base / 'latest-menu-run.txt').write_text(str(out) + '\n')
+latest_run = (native_pair/'latest-ap-run.txt') if native_pair else base / 'latest-menu-run.txt'
+if native_pair:
+    native_claim,native_claim_sha=native_api['read_ap_admission_claim'](native_pair)
+    native_api['validate_ap_admission_claim'](native_pair,native_binary,native_admission,native_claim)
+    native_api['write_ap_run_pointer'](native_pair,out)
+    native_control_fd,_=native_api['create_ap_control_lock'](out)
+else:
+    latest_run.write_text(str(out) + '\n')
 live_fd = os.environ.get('MENU_CONTROL_FD')
 late_passive=os.environ.get('A7C2_EE_PASSIVE_AFTER_SHUTTER','')
 if late_passive not in ('','1') or (late_passive and (not live_fd or
@@ -523,8 +613,10 @@ if still_passive not in ('','1') or (still_passive and (not live_fd or
         os.environ.get('A7C2_EE_PASSIVE_SNAPSHOT')!='1' or
         os.environ.get('MENU_NATURAL_START_TRACE')!='1' or not dfs_selector)):
     parser.error('Still-entry passive sampling requires the live DFS natural trace and passive profile')
-env = dict(os.environ, QEMU_TIMEOUT_SECONDS="0" if live_fd else "180", QEMU_TRACE_FLAGS="cpu_reset,guest_errors,unimp",
+env = dict(os.environ, QEMU_TIMEOUT_SECONDS="0", QEMU_TRACE_FLAGS="cpu_reset,guest_errors,unimp",
            QEMU_OUTPUT_DIR=str(out), SONY_DMM_SERVICE='1' if args.dmm_service else '0')
+if native_pair:
+    env.update(QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0')
 env['QEMU_PIN_CONTROL_MEMORY'] = '1' if pin_control_memory else '0'
 env['QEMU_SYSTEM_SOUND_OWNER'] = '1' if audio_boot_config else '0'
 if pinmem_hdmi_video_connection_profile and request_queue_gdb:
@@ -552,6 +644,9 @@ if args.sony_timers:
     env['SONY_TIMER_MODEL'] = '1'
     env.setdefault('QEMU_SYSTEM_DIR', str(base.parent / 'sources/qemu-11.1.2/build-sony-ui'))
     env.setdefault('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64')
+if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+    from single_ap_sockets import prepare as prepare_single_ap_sockets
+    env.update(prepare_single_ap_sockets(env,out))
 # The isolated-USB derivation reuses this launcher with an extended script and a
 # derived DTB; the defaults below keep every other run byte-identical.
 kernel_script = Path(os.environ.get('MENU_KERNEL_SCRIPT', str(base / "qemu-kernel-probe.sh")))
@@ -606,6 +701,29 @@ if backup_sync:
     selected_build,selected_binary,selected_receipt=validate_build(base,os.environ.get('A7C2_BACKUP_BUILD',''))
     profile_path=Path(os.environ['MENU_BACKUP_PROFILE_RECEIPT'])
     backup_profile_receipt=json.loads(profile_path.read_text())
+    if os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA')=='direct-bootin-ram-card-1g-v1':
+        from backup_profile import _bound_profile_input
+        source_paths={
+            'source_backup_seed':base/'menu-root/seed-backup.bin',
+            'source_script':base/'qemu-kernel-probe.sh',
+            'source_board':base/'qemu-virt-board/virt-packed.dtb',
+            'official_board':base/'unpacked/firmware.tar_unpacked/0800_appli/setting/cxd90057.dtb',
+            'source_binary':selected_binary,
+        }
+        if (backup_profile_receipt.get('schema')!='a7c2-functional-camera-ram-media-v1' or
+                backup_profile_receipt.get('physical_compatible') is not False or
+                backup_profile_receipt.get('media_profile')!='direct-bootin-ram-card-1g-v1' or
+                backup_profile_receipt.get('media_seed_source')!=str(sd_seed) or
+                backup_profile_receipt.get('media_seed_bytes')!=sd_seed_bytes or
+                backup_profile_receipt.get('media_seed_sha256')!=sd_seed_sha256 or
+                backup_profile_receipt.get('media_seed_identity')!=sd_seed_identity or
+                backup_profile_receipt.get('usb_ethernet_added') is not False or
+                backup_profile_receipt.get('directory_sd_added') is not False):
+            raise ValueError('Functional camera RAM card differs from its profile receipt')
+        for name,path in source_paths.items():
+            current,_=_bound_profile_input(path)
+            if backup_profile_receipt.get(name)!=current:
+                raise ValueError('Functional camera profile input changed: '+name)
     active_binary=(Path(env['QEMU_SYSTEM_DIR'])/env.get('QEMU_SYSTEM_BINARY','qemu-system-aarch64')).resolve()
     if (active_binary!=selected_binary or backup_profile_receipt.get('profile')!=backup_sync or
             backup_profile_receipt.get('binary_sha256')!=selected_receipt['binary_sha256'] or
@@ -678,12 +796,23 @@ if backup_sync:
             overwrite_manifest or settings_restore_manifest):
         raise ValueError('Backup profile identity/admission mismatch; current fixture requires a fresh ALLLANG instance')
 
+model17c_runtime_profile = os.environ.get('MENU_MODEL17C_RUNTIME_OBSERVE', '')
+if model17c_runtime_profile not in ('', 'virtual-model17c-runtime-ro-v1') or (model17c_runtime_profile and (
+        not functional_camera_profile or not args.initramfs or not args.observe or media_selftest or
+        native_pair is not None)):
+    parser.error('model17c read-only startup requires the functional RAM-card observed AP shell route')
 functional_camera = None
 if functional_camera_profile:
     from functional_camera_runner import prepare as prepare_functional_camera
+    socket_options={}
+    if 'A7C2_SINGLE_AP_SOCKETS' in env or 'A7C2_SINGLE_AP_SOCKET_ROOT' in env:
+        from single_ap_sockets import PROFILE,roots_for_run
+        roots=roots_for_run(out,env)
+        if roots is None:raise ValueError('Functional camera requires the admitted single AP socket binding')
+        socket_options=dict(socket_root=str(roots.sockets),socket_profile=PROFILE,socket_binding=roots.binding())
     functional_camera = prepare_functional_camera(functional_camera_profile, base, out,
         Path(env['QEMU_SYSTEM_DIR']) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64'),
-        scope_build_receipt=env.get('A7C2_SCOPE_OBSERVER_BUILD') or None)
+        scope_build_receipt=env.get('A7C2_SCOPE_OBSERVER_BUILD') or None,**socket_options)
 
 cp_background_identity=None
 if cp_background:
@@ -874,7 +1003,7 @@ manifest['probe_args']['initramfs_file'] = str(args.initramfs_file) if args.init
 if functional_camera is not None:
     manifest['functional_camera_runtime'] = functional_camera.receipt('preflight')
 for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_profile.py',
-             base / 'scope_observer_profile.py',
+             base / 'scope_observer_profile.py', base / 'model17c_startup.py',
              base / 'menu-observe.c', base / 'menu-observe.so',
              base / 'menu-regs.c', base / 'menu-root/simulation/menu-regs', base / 'menu-readmem.c',
              base / 'capid-service.c', base / 'capid-service.h',
@@ -886,6 +1015,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'gui-model-wire.c',base / 'gui-model-wire.h',
              base / 'gui-model-store.c',base / 'gui-model-store.h',
              base / 'gui_model_capture.py',base / 'menu_live.py',base / 'media_state_readback.py',
+             base / 'single_ap_sockets.py',base / 'diagnostic_fs_socket_roots.py',
              base.parent.parent / 'report/camera-input-coverage/input_bindings.py',
              base / 'wifi_toggle.py',base / 'ethernet_peer.py',base / 'menu_control.py',base / 'usb_network.py',
              base / 'ee_entry_snapshot.py', base / 'capture_gate_readback.py',
@@ -913,7 +1043,7 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'native-pin-control-region.py', base / 'menu-root/simulation/pin-control-probe',
              base / 'snapshot-observer-sources.py', base / 'observer-build-inputs.json',
              base / 'initramfs_identity.py',
-             base / 'native_smp.py',base / 'native_rc_board.py',base / 'boot_irq_diagnostics.py',
+             base / 'native_smp.py',base / 'native_rc_board.py',base / 'native_pcie_board.py',base / 'boot_irq_diagnostics.py',
              base / 'rc_reference_evidence.py',base / 'build-rc-reference.sh',
              base / 'sa_job_evidence.py',
              base / 'sa_mmu.py',base / 'sa_program_evidence.py',base / 'sa_data_evidence.py',
@@ -944,6 +1074,8 @@ for path in [Path(command[-1]), base / 'qemu-menu-probe.py', base / 'backup_prof
              base / 'menu-root/usr/lib/appFw.so', base / 'menu-root/usr/lib/libObj.so',
              base / 'menu-root/usr/lib/libgpe.so', base / 'menu-root/usr/lib/libupdaterufp.so',
              Path(env.get('QEMU_SYSTEM_DIR', str(base.parent / 'sources/qemu-11.1.2/build-sony-ui'))) / env.get('QEMU_SYSTEM_BINARY', 'qemu-system-aarch64')]:
+    if isolated_observer_proof and path.name in ('menu-observe.so', 'observer-build-inputs.json') and path.parent == base:
+        path = Path(isolated_observer_build)/path.name
     if path.is_file():
         manifest['files'][str(path)] = sha256_file(path)
 if scope_observer is not None:
@@ -979,14 +1111,47 @@ if udate_distribution:
                  base/'../../report/virtual-cp/udate-distribution/test_client.c',
                  base/'../../report/virtual-cp/udate-distribution/test_udate_kernel.py'):
         manifest['files'][str(path)] = sha256_file(path)
-build_inputs = json.loads((base / 'observer-build-inputs.json').read_text())
-archive = base / 'observer-build-sources.tar.gz'
-if build_inputs['observer_sha256'] != sha256_file(base / 'menu-observe.so') or \
+observer_directory = Path(isolated_observer_build) if isolated_observer_proof else base
+build_inputs = (isolated_observer_proof['inputs'] if isolated_observer_proof else
+                json.loads((observer_directory / 'observer-build-inputs.json').read_text()))
+archive = observer_directory / 'observer-build-sources.tar.gz'
+if build_inputs['observer_sha256'] != sha256_file(observer_directory / 'menu-observe.so') or \
         build_inputs['source_archive_sha256'] != sha256_file(archive):
     raise RuntimeError('Observer build artifacts differ; rebuild before launching')
+if isolated_observer_proof:
+    if isolated_observer_api['validate_observer_build'](observer_directory) != isolated_observer_proof:
+        raise ValueError('Isolated observer build changed during preflight')
+    if Path(command[-1]) != args.initramfs_file:
+        raise ValueError('Isolated observer route excludes additional initramfs overlays')
+    manifest['isolated_observer_derivative'] = isolated_observer_api['verify_observer_derivative'](
+        native_pair, Path(command[-1]), isolated_observer_proof, capture=bool(capture_diagnostic))
+    derivative_receipt = native_pair/('capture-initramfs.json' if capture_diagnostic else 'observer-initramfs.json')
+    manifest['files'][str(derivative_receipt)] = sha256_file(derivative_receipt)
+    for name in ('diagnostic-build.json', 'observer-build-inputs.json', 'observer-build-sources.tar.gz'):
+        manifest['files'][str(observer_directory/name)] = sha256_file(observer_directory/name)
+    with isolated_observer_api['_read'](observer_directory/'diagnostic-build.json') as original:
+        diagnostic_bytes = original.read(8*1024**2+1)
+    if hashlib.sha256(diagnostic_bytes).hexdigest() != isolated_observer_proof['receipt_sha256']:
+        raise ValueError('Isolated observer build receipt changed')
+    with (out/'diagnostic-build.json').open('xb') as copied:
+        copied.write(diagnostic_bytes)
+        copied.flush()
+        os.fsync(copied.fileno())
+    if (out/'diagnostic-build.json').read_bytes() != diagnostic_bytes:
+        raise ValueError('Isolated observer build receipt copy differs')
 manifest['compiled_observer'] = build_inputs
-(out / 'observer-build-inputs.json').write_bytes((base / 'observer-build-inputs.json').read_bytes())
-(out / 'observer-build-sources.tar.gz').write_bytes(archive.read_bytes())
+for name in ('observer-build-inputs.json', 'observer-build-sources.tar.gz'):
+    source = observer_directory/name
+    original_context = isolated_observer_api['_read'](source) if isolated_observer_proof else source.open('rb')
+    with original_context as original, (out/name).open('xb') as copied:
+        while block := original.read(1024**2):
+            copied.write(block)
+        copied.flush()
+        os.fsync(copied.fileno())
+    expected_copy_sha = (isolated_observer_proof['source_receipt_sha256' if name.endswith('.json') else
+                                                'source_archive_sha256'] if isolated_observer_proof else sha256_file(source))
+    if sha256_file(out/name) != expected_copy_sha:
+        raise ValueError('Observer evidence readback differs: '+name)
 identity = json.loads((base / 'runtime-manifest.json').read_text())
 for library in ('usr/lib/appFw.so', 'usr/lib/libObj.so'):
     if manifest['files'][str(base / 'menu-root' / library)] != identity[library]:
@@ -995,6 +1160,9 @@ if args.initramfs:
     expected_guest = {library: identity[library] for library in ('usr/lib/appFw.so', 'usr/lib/libObj.so')}
     expected_guest['simulation/menu-observe.so'] = build_inputs['observer_sha256']
     expected_guest['simulation/pin-control-probe'] = build_inputs['pin_control_probe_sha256']
+    if isolated_observer_proof:
+        expected_guest['simulation/system-sound-owner'] = build_inputs['system_sound_owner_sha256']
+        expected_guest.update(isolated_observer_proof['libraries_sha256'])
     if udate_distribution:
         expected_guest['simulation/sony_udate_distribution.ko'] = manifest['files'][str(udate_kernel_module)]
     if resize_mmio_watch:
@@ -1015,8 +1183,32 @@ if args.initramfs:
             expected_guest['simulation/'+name]=sha256_file(base/'menu-root/simulation'/name)
         expected_guest['usr/bin/bsa_server']='4e2c75171967ceaf99ddc5f63dde64a905035802c39da16d8b4f2cb560a230ea'
     if sd_seed:
-        expected_guest['simulation/sd-card.fat']=sd_seed_sha256
-        manifest['virtual_sd_seed_sha256']=expected_guest['simulation/sd-card.fat']
+        if native_pair is not None and capture_diagnostic:
+            with native_api['_directory'](native_pair) as pair_fd:
+                capture_receipt, capture_receipt_sha = native_api['_read_json'](
+                    pair_fd, 'capture-initramfs.json', private=True)
+            archive_proof = native_api['_digest'](args.initramfs_file)
+            compressed_sha = capture_receipt.get('compressed_seed_sha256')
+            if (capture_receipt.get('schema') != 'a7c2-native-capture-initramfs-v2' or
+                    capture_receipt.get('profile') != 'virtual-native-capture-diagnostic-v1' or
+                    capture_receipt.get('seed_sha256') != sd_seed_sha256 or
+                    capture_receipt.get('seed_bytes') != 1024**3 or
+                    capture_receipt.get('output') != str(args.initramfs_file) or
+                    capture_receipt.get('output_sha256') != archive_proof['sha256'] or
+                    capture_receipt.get('output_bytes') != archive_proof['size'] or
+                    archive_proof['size'] > 0x580000000-0x504000000 or
+                    not isinstance(compressed_sha, str) or not re.fullmatch('[0-9a-f]{64}', compressed_sha)):
+                raise ValueError('Native capture seed/initramfs identity differs')
+            expected_guest['simulation/sd-card.fat.gz'] = compressed_sha
+            manifest['native_capture_diagnostic'] = dict(
+                schema='a7c2-native-capture-diagnostic-v1', profile='virtual-native-capture-diagnostic-v1',
+                seed_sha256=sd_seed_sha256, compressed_seed_sha256=compressed_sha,
+                initramfs_sha256=archive_proof['sha256'], receipt_sha256=capture_receipt_sha,
+                fsys_observation_only=True, synthetic_capture_reply=False,
+                original_capture_verified=False, physical_compatible=False)
+        else:
+            expected_guest['simulation/sd-card.fat']=sd_seed_sha256
+        manifest['virtual_sd_seed_sha256']=sd_seed_sha256
     if language_fonts:
         for name,(size,digest) in FONT_SPECS.items():
             expected_guest[FONT_GUEST+'/'+name]=digest
@@ -1040,7 +1232,8 @@ if args.initramfs:
         for name in ('simulation/fsys-file-test','simulation/file-media-config.so','simulation/media-template.fat'):
             expected_guest[name]=manifest['files'][str(base/'menu-root'/name)]
         if rm_file:
-            expected_guest['simulation/media-camera.fat']=manifest['files'][str(base/'menu-root/simulation/media-camera.fat')]
+            if not ram_capture_media:
+                expected_guest['simulation/media-camera.fat']=manifest['files'][str(base/'menu-root/simulation/media-camera.fat')]
             expected_guest['simulation/sd-window-export']=manifest['files'][str(base/'menu-root/simulation/sd-window-export')]
             if host_sd_fd is not None or directory_sd_fd is not None:
                 for name in ('host-sd-probe','host-block-sd.so'):
@@ -1070,11 +1263,14 @@ if args.initramfs:
         Path(command[-1]), expected_guest,
         forbidden=('simulation/yc-input-uncompressed','simulation/yc-ownership-observe',
                    'tmp/sd10g.ready','tmp/sony-sd10g/card.img') +
+                  (('simulation/media-camera.fat',) if ram_capture_media else ()) +
                   (() if os.environ.get('MENU_YC_INPUT_RAW') else ('simulation/yc-input.gray',)))
     manifest['original_libraries_unchanged'] = not overwrite_manifest or not any(
         entry['path'].startswith(('usr/lib/','lib/')) and entry['new_sha256']!=entry['old_sha256']
         for entry in overwrite_manifest['entries'])
     manifest['selected_observer_matches_build'] = expected_guest['simulation/menu-observe.so']==build_inputs['observer_sha256']
+    if isolated_observer_proof and not manifest['selected_observer_matches_build']:
+        raise RuntimeError('Isolated observer cannot be replaced by another overlay')
     if udate_distribution and not manifest['selected_observer_matches_build']:
         raise RuntimeError('UDATE distribution requires the current observer build; overlay replacement is not admitted')
 elif args.observe:
@@ -1097,12 +1293,19 @@ manifest['qemu_log_streams'] = dict(schema='qemu-separated-host-stderr-v1',
     guest_serial=str(out / 'console.log'), host_stderr=str(out / 'qemu-stderr.log'), merged=False)
 (out / 'runtime-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 boot_receipt = begin_boot_receipt(out, Path(command[-1]), command, profile=args.boot_profile)
+from menu_live import guard_live_owner,owner_signal_guard,retain_running_owner,qmp_transaction
 with (out / "console.log").open("a" if live_fd else "w") as console, \
         (out / 'qemu-stderr.log').open('xb') as qemu_stderr, ExitStack() as qmp_resources:
+    qmp_resources.enter_context(owner_signal_guard())
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=console,
                             stderr=qemu_stderr, env=env,
                             pass_fds=tuple(fd for fd in (host_sd_fd,directory_sd_fd,persistent_fd) if fd is not None))
+    try:qmp_resources.enter_context(guard_live_owner(proc,out))
+    except BaseException as error:
+        retain_running_owner(proc,out,error,reason='qmp-exit')
+        raise
     early_media_watch=None
+    qmp=None
     qmp_quit_attempted=[False]
     try:
         if media_init_watch:
@@ -1125,13 +1328,19 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 if "QMP" not in json.loads(stream.readline()):
                     raise RuntimeError("Unexpected QMP greeting")
 
-                def qmp(name, arguments=None):
+                def qmp_unlocked(name, arguments=None):
+                    if getattr(proc,'_menu_qmp_desynchronized',False):
+                        raise RuntimeError('QMP transaction boundary lost; no further commands')
+                    if name=='quit' and getattr(proc,'_menu_serial_desynchronized',False):
+                        raise RuntimeError('Serial boundary unknown; QMP quit is not admitted')
                     if name=='quit' and (out/'console.log').is_file() and b'Exception> ' in (out/'console.log').read_bytes() and not (out/'exception-diagnostics.json').exists():
                         try:
                             from exception_diagnostics import collect_exception
                             collect_exception(proc,out)
                         except (OSError,RuntimeError,ValueError) as error:
                             (out/'exception-diagnostics-error.txt').write_text(type(error).__name__+': '+str(error)+'\n')
+                    if name=='quit' and getattr(proc,'_menu_serial_desynchronized',False):
+                        raise RuntimeError('Serial boundary became unknown during exception diagnostics; QMP quit is not admitted')
                     # Centralize every quit, including startup-exception paths.
                     with (functional_camera.qmp_command(name) if functional_camera is not None else nullcontext()):
                         if name == 'quit' and early_media_watch is not None:
@@ -1142,40 +1351,50 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                             guard_host_sd(proc,out,host_sd_export_verified[0])
                             if proc.poll() is not None:
                                 raise RuntimeError('QEMU exited before guarded quit; no quit command sent')
-                        message = {"execute": name}
-                        if arguments:
-                            message['arguments'] = arguments
                         if name == 'quit':
                             if qmp_quit_attempted[0]:
                                 raise RuntimeError('QMP quit already attempted; do not resend')
                             # A failed write/flush may have sent bytes; never retry this quit.
                             qmp_quit_attempted[0]=True
-                            (out/'qmp-quit.json').write_text(json.dumps(dict(
-                                attempted=True,qmp_quit_confirmed=False,signals_sent=[],
-                                owner_pid=proc.pid,attempted_at=time.time()),indent=2)+'\n')
+                            receipt=dict(attempted=True,qmp_quit_confirmed=False,signals_sent=[],
+                                        owner_pid=(native_vm_owner['qemu_pid'] if native_vm_owner else proc.pid),
+                                        attempted_at=time.time())
+                            if native_pair is not None:
+                                with native_api['_directory'](out) as owner_fd:
+                                    native_api['_root'](os.fstat(owner_fd))
+                                    native_api['_write_json'](owner_fd,'qmp-quit.json',receipt)
+                            else:
+                                (out/'qmp-quit.json').write_text(json.dumps(receipt,indent=2)+'\n')
                         try:
-                            stream.write((json.dumps(message) + "\n").encode())
-                            stream.flush()
-                            while True:
-                                result = json.loads(stream.readline())
-                                if "error" in result:
-                                    raise RuntimeError(result["error"])
-                                if "return" in result:
-                                    if name=='quit':
-                                        receipt=json.loads((out/'qmp-quit.json').read_text())
-                                        receipt.update(qmp_quit_confirmed=True,reply=result,confirmed_at=time.time())
-                                        (out/'qmp-quit.json').write_text(json.dumps(receipt,indent=2)+'\n')
-                                    return result
+                            result=qmp_transaction(proc,stream,name,arguments)
+                            if name=='quit':
+                                receipt=json.loads((out/'qmp-quit.json').read_text())
+                                receipt.update(qmp_quit_confirmed=True,reply=result,confirmed_at=time.time())
+                                (out/'qmp-quit.json').write_text(json.dumps(receipt,indent=2)+'\n')
+                            return result
                         except Exception as error:
                             if name == 'quit' and (host_sd_fd is not None or directory_sd_fd is not None):
                                 (out/'host-sd-quit-error.json').write_text(json.dumps({'error':str(error),
                                     'force_kill_authorized':False})+'\n')
                             raise
 
+                def qmp(name,arguments=None):
+                    if native_pair is not None and name=='quit':
+                        return native_api['with_ap_control_lock'](
+                            native_control_fd,lambda:qmp_unlocked(name,arguments))
+                    return qmp_unlocked(name,arguments)
+
                 qmp("qmp_capabilities")
+                if native_pair is not None:
+                    peer_pid,peer_uid,peer_gid=struct.unpack('3i',sock.getsockopt(
+                        socket.SOL_SOCKET,socket.SO_PEERCRED,struct.calcsize('3i')))
+                    native_vm_owner,_=native_api['bind_ap_vm_owner'](
+                        native_pair,out,native_binary,native_admission,native_claim,native_claim_sha,
+                        peer_pid,peer_uid,peer_gid,native_control_fd)
+                    print('NATIVE_AP_QMP_PEER_BOUND',peer_pid,flush=True)
                 if functional_camera is not None:
                     functional_camera.start(proc)
-                deadline = time.monotonic() + 25
+                deadline = time.monotonic() + (120 if native_pair is not None else 25)
                 while b"/ #" not in (out / "console.log").read_bytes():
                     if proc.poll() is not None or time.monotonic() > deadline:
                         raise RuntimeError("Merged filesystem did not reach shell")
@@ -1196,6 +1415,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     from request_queue_watch import QueueWatch
                     early_media_watch=QueueWatch(out,0,manifest['host_control_owner_pid'],'resize',autostart=False)
                     early_media_watch.start()
+                capture_seed_setup = None
                 setup = ["mount -t proc proc /proc", "mount -t sysfs sysfs /sys",
                          "mount -t tmpfs tmpfs /tmp", "mount -t tmpfs tmpfs /setting",
                          "mount -t tmpfs tmpfs /tmp_wbshd",
@@ -1543,6 +1763,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     setup += ["export MENU_DIG_LEVEL=virtual"]
                 if panel_reverse_mode:
                     setup += ["export MENU_PANEL_REVERSE=virtual"]
+                if upm_profile:
+                    setup += ['export MENU_VIRTUAL_UPM_PROFILE=diagnostic-v1']
                 if dmm_unit_config:
                     setup += ["export MENU_DMM_UNIT_CONFIG=1"]
                 if os.environ.get("MENU_PIN_REGISTRY") == "1":
@@ -1696,6 +1918,10 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                   '/simulation/sd-sparse create && : > /image_mmca && '
                                   'mount -o bind /tmp/sony-sd10g/card.img /image_mmca && '
                                   'echo ready > /tmp/sd10g.ready']
+                    elif native_pair is not None and capture_diagnostic:
+                        capture_api = runpy.run_path(str(base.parents[1]/'source/cp-boot/capture_initramfs.py'))
+                        capture_seed_setup = capture_api['guest_seed_command'](sd_seed_sha256)
+                        setup += [capture_seed_setup]
                     else:
                         setup += ['cp /simulation/'+('sd-card.fat' if sd_seed else 'media-camera.fat' if rm_file else 'media-template.fat')+' /image_mmca']
                     preloads.append('/simulation/file-media-config.so')
@@ -1705,6 +1931,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 if args.observe:
                     preloads.append('/simulation/menu-observe.so')
                 prefix = 'LD_PRELOAD=' + ':'.join(preloads) + ' ' if preloads else ''
+                if native_pair is not None and capture_diagnostic:
+                    prefix = 'test -f /tmp/native-capture-seed.ready && ' + prefix
                 if sd_sparse:
                     prefix = 'test -f /tmp/sd10g.ready && ' + prefix
                 if host_sd_fd is not None or directory_sd_fd is not None:
@@ -1713,6 +1941,9 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     prefix = 'test -f /tmp/date-clock.ready && ' + prefix
                 if audio_boot_config:
                     prefix = 'test -f /tmp/system-sound.ready && ' + prefix
+                if model17c_runtime_profile:
+                    setup += ['export MENU_MODEL17C_RUNTIME_OBSERVE=' + model17c_runtime_profile]
+                model17c_launch_index = len(setup)
                 if media_selftest:
                     setup += ['(' + prefix + '/simulation/fsys-file-test front-owner && ' + prefix +
                               '/simulation/fsys-file-test queue && ' + prefix +
@@ -1724,10 +1955,38 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     options = ' target=qemu' + (' bootall' if args.bootall else '')
                     setup += [prefix + "/usr/bin/im.elf" + options + " > /tmp/im.log 2>&1 &"]
                 setup += ["echo IM_LAUNCH_PID=$!"]
-                proc.stdin.write(("\n".join(setup) + "\n").encode())
-                proc.stdin.flush()
                 from menu_live import serial_command
-                (out/'setup-consumed.log').write_bytes(serial_command(proc,out/'console.log',':',timeout=120))
+                if capture_seed_setup is not None:
+                    if setup.count(capture_seed_setup)!=1:
+                        raise ValueError('Native capture seed setup must be unique')
+                    split=setup.index(capture_seed_setup)
+                    serial_command(proc,out/'console.log','\n'.join(setup[:split]+[':']),timeout=120)
+                    raw_seed=serial_command(proc,out/'console.log',capture_seed_setup,timeout=600)
+                    capture_api['verify_guest_seed_result'](raw_seed,sd_seed_sha256)
+                    with (out/'capture-seed-guest.raw').open('xb') as seed_log:
+                        seed_log.write(raw_seed);seed_log.flush();os.fsync(seed_log.fileno())
+                    if (out/'capture-seed-guest.raw').read_bytes()!=raw_seed:
+                        raise ValueError('Guest capture seed evidence readback differs')
+                    setup=setup[split+1:]
+                    model17c_launch_index -= split + 1
+                if model17c_runtime_profile:
+                    # Sample actual identities and arm the sole GDB before bootin.elf/im.elf can execute.
+                    startup_inventory = (
+                        "/bin/busybox grep -E ' (_text|vm_mmap_pgoff|memstart_addr|__entry_task|__per_cpu_offset)$' /proc/kallsyms | "
+                        "while read addr kind name rest; do echo MODEL17C_SYMBOL \"$name\" \"$addr\"; done; "
+                        'for m in upm osal_uipc; do echo MODEL17C_MODULE "$m" '
+                        '$(cat /sys/module/$m/sections/.text); done; '
+                        'out=$(/usr/bin/openssl dgst -sha256 /usr/lib/appFw.so) && echo "${out##* } /usr/lib/appFw.so"')
+                    raw = serial_command(proc, out/'console.log',
+                        '\n'.join(setup[:model17c_launch_index] + [startup_inventory]), timeout=120)
+                    with (out/'model17c-startup-serial.raw').open('xb') as output:
+                        output.write(raw)
+                    if (out/'model17c-startup-serial.raw').read_bytes() != raw:
+                        raise ValueError('Startup identity readback differs')
+                    functional_camera.arm_model17c(raw)
+                    setup = setup[model17c_launch_index:]
+                setup_result=serial_command(proc,out/'console.log','\n'.join(setup+[':']),timeout=120)
+                (out/'setup-consumed.log').write_bytes(setup_result)
                 if media_selftest:
                     from menu_live import serial_command
                     result = serial_command(proc, out / 'console.log',
@@ -1963,7 +2222,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                             from request_queue_watch import resume_debug_cpu
                             cpu=resume_debug_cpu(qmp)
                             (out/'queue-debug-cpu-resume.json').write_text(json.dumps(cpu,indent=2)+'\n')
-                        from sd_transport import export_card,directory,report
+                        from sd_transport import export_card,directory,report,write_capture_export_proof
                         from sd_export_lifecycle import export_with_flush_lifecycle
                         from sd_flush_barrier import cancel_resume
                         if os.environ.get('A7C2_EE_ENTRY_SNAPSHOT') == '1' and not ee_snapshot_done[0]:
@@ -2032,6 +2291,9 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                 raise ValueError('SD output inode changed')
                             args['filename']='/out/'+relative.as_posix()
                             return qmp('pmemsave',args)
+                        raw_capture=(functional_camera is not None and rm_file and
+                                     directory_sd_fd is None and host_sd_fd is None and
+                                     manifest['rm_file_image_bytes']==1024**3)
                         def export_once(flush_and_stop):
                             if directory_sd_fd is not None:
                                 from directory_snapshot import snapshot, read_commit_status
@@ -2048,7 +2310,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                     quiesce=flush_and_stop,guest_sync=lambda:barrier_serial('/simulation/host-sd-probe sync',timeout=90))
                             return export_card(out,manifest['rm_file_image_bytes'],
                                 serial_command=lambda c:barrier_serial(c,timeout=90),qmp=download,
-                                expected_old_sha256=last_sd_export_sha[0],quiesce=flush_and_stop,sparse=bool(sd_sparse))
+                                expected_old_sha256=last_sd_export_sha[0],quiesce=flush_and_stop,
+                                sparse=bool(sd_sparse) and not raw_capture)
                         def publish_final(result):
                             if result.get('flush_lifecycle',{}).get('ok'):pending_sd_sequence[0]=None
                             if result.get('card_published'):last_sd_export_sha[0]=result['sha256']
@@ -2056,7 +2319,12 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                 # export_card() creates SD for the old image path;
                                 # directory snapshots publish the same private report directory.
                                 (out/'SD').mkdir(mode=0o700,exist_ok=True)
-                            with directory(out/'SD') as parent:report(parent,result)
+                            with directory(out/'SD') as parent:
+                                report(parent,result)
+                                if ((raw_capture or (native_pair is not None and
+                                      os.environ.get('MENU_NATIVE_CAPTURE_DIAGNOSTIC')=='1'))
+                                        and result.get('ok') is True):
+                                    write_capture_export_proof(parent,result)
                         result=export_with_flush_lifecycle(export_once,barrier_serial,sequence,publish_final)
                         if host_sd_fd is not None or directory_sd_fd is not None:host_sd_export_verified[0]=bool(result.get('ok'))
                         if early_media_watch is not None:
@@ -2164,23 +2432,42 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                                 serial_command(proc,out/'console.log',command,timeout=timeout),qmp,out)
                             exported=export_virtual_sd()
                             return {**exported,'settings':saved_settings, **ownership}
+                        if native_pair is not None and capture_diagnostic:
+                            raw_app=serial_command(proc,out/'console.log',capture_api['guest_app_ready_command'](),timeout=30)
+                            capture_api['verify_guest_app_ready_result'](raw_app)
+                            with (out/'capture-app-ready.raw').open('xb') as app_log:
+                                app_log.write(raw_app);app_log.flush();os.fsync(app_log.fileno())
+                            if (out/'capture-app-ready.raw').read_bytes()!=raw_app:
+                                raise ValueError('Original AppFw readiness evidence readback differs')
                         run_live(proc, out, int(live_fd),
                                  display_capture=capture_native_display if args.native_display is not None else None,
                                  sd_export=export_with_settings if rm_file else None,
                                  network=wifi, sd_card=sd_card)
                     finally:
-                        if functional_camera is not None:
-                            functional_camera.guard_shutdown(proc, sys.exc_info()[1])
-                        if wifi is not None:
-                            wifi.close()
-                        if early_media_watch is not None:
-                            from media_initial_write import guard_shutdown
-                            guard_shutdown(early_media_watch,proc,out)
-                        if host_sd_fd is not None or directory_sd_fd is not None:
-                            from host_sd_guard import guard_shutdown as guard_host_sd
-                            guard_host_sd(proc,out,host_sd_export_verified[0])
-                        if proc.poll() is None:
-                            qmp('quit')
+                        inner_error = sys.exc_info()[1]
+                        if inner_error is not None and not (isinstance(inner_error, SystemExit) and inner_error.code in (0, None)):
+                            import traceback
+                            (out/'probe-run-live-original-error.json').write_text(json.dumps(dict(
+                                error=f'{type(inner_error).__name__}: {inner_error}',
+                                traceback=traceback.format_exc()), indent=2) + '\n')
+                        with guard_live_owner(proc,out):
+                            if getattr(proc,'_menu_qmp_desynchronized',False):
+                                retain_running_owner(proc,out,sys.exc_info()[1],reason='qmp-exit')
+                            if getattr(proc,'_menu_serial_desynchronized',False):
+                                from menu_live import retain_serial_owner
+                                retain_serial_owner(proc,out,sys.exc_info()[1])
+                            if functional_camera is not None:
+                                functional_camera.guard_shutdown(proc, sys.exc_info()[1])
+                            if wifi is not None:
+                                wifi.close()
+                            if early_media_watch is not None:
+                                from media_initial_write import guard_shutdown
+                                guard_shutdown(early_media_watch,proc,out)
+                            if host_sd_fd is not None or directory_sd_fd is not None:
+                                from host_sd_guard import guard_shutdown as guard_host_sd
+                                guard_host_sd(proc,out,host_sd_export_verified[0])
+                            if proc.poll() is None:
+                                qmp('quit')
                     raise SystemExit(0)
                 # Optional key injection: MENU_KEY_INJECT="key_code,sub,press_status,ex,from[,hold_seconds[,release_status]]"
                 # Multiple shots separated by ';' are injected in sequence with a pause between them.
@@ -2209,8 +2496,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                         shot.append("sleep %s" % os.environ.get("MENU_KEY_POST_WAIT", "8"))
                     static_injection = {'route': 'app32' if app32 else 'infra20',
                                         'expected_records': expected_sends}
-                    proc.stdin.write(("\n".join(shot) + "\n").encode())
-                    proc.stdin.flush()
+                    serial_command(proc,out/'console.log','\n'.join(shot+[':']),timeout=int(os.environ.get('MENU_DIAG_TIMEOUT','240')))
                 # Optional CP event injection: MENU_CP_EVENT_INJECT="frame,code,sub,param[,wait_seconds]"
                 # Multiple events separated by ';' are delivered to the dataflow CP port in order.
                 cp_events = os.environ.get("MENU_CP_EVENT_INJECT", "")
@@ -2227,8 +2513,7 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                         shot.append("echo CP_EVENT_SHOT_BEGIN=%d" % shot_index)
                         shot.append("/simulation/inject-cp-event %s %s %s %s %s %s" % (cp_queue, cp_src, *parts[:4]))
                     shot.append("sleep %s" % os.environ.get("MENU_CP_EVENT_POST_WAIT", "10"))
-                    proc.stdin.write(("\n".join(shot) + "\n").encode())
-                    proc.stdin.flush()
+                    serial_command(proc,out/'console.log','\n'.join(shot+[':']),timeout=int(os.environ.get('MENU_DIAG_TIMEOUT','240')))
                 diagnostic = ["/bin/busybox sh /simulation/diag.sh"]  # baked-in script: giant one-liners get silently truncated when the guest tty input queue overruns
                 if pin_buffer_selftest:
                     diagnostic += ["mkdir -p /log/qemu; /simulation/pin-control-probe; echo PIN_CONTROL_PROBE_RC=$?"]
@@ -2267,29 +2552,12 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     # Explicit diagnostic: briefly ptrace-stop this guest UI thread,
                     # read its registers/frame chain, then detach without writing it.
                     diagnostic += ["tid=$(/bin/busybox sed -n '/FRAME_DRAW_ENTER call=1 tid=/{s/.* tid=\\([0-9]*\\).*/\\1/;p;q;}' /tmp/menu-load.log); echo BOOT_UI_TID=$tid; test -n \"$tid\" && /simulation/menu-regs \"$tid\"; echo BOOT_UI_STACK_STATUS=$?"]
-                # Earlier queued key commands can emit prompts; only our own marker proves completion.
                 prompt_deadline = time.monotonic() + int(os.environ.get("MENU_DIAG_TIMEOUT", "240"))
-                for diagnostic_index, line in enumerate(diagnostic):
-                    marker = f"MENU_DIAG_COMMAND_DONE_{diagnostic_index}"
-                    proc.stdin.write((line + "\nprintf '\\n" + marker + "\\n'\n").encode())
-                    proc.stdin.flush()
-                    while not diagnostic_done((out / "console.log").read_bytes(), marker):
-                        if b'Exception>' in (out / "console.log").read_bytes():
-                            # Guest hit the Sony exception monitor before diag completed:
-                            # capture the crash-state memory for offline analysis.
-                            qmp('pmemsave', {'val': 0x405000000, 'size': 0x800000,
-                                             'filename': '/out/menu-ulogio.bin'})
-                            qmp('pmemsave', {'val': 0x4102bb400, 'size': 0x8000,
-                                             'filename': '/out/menu-monitor.bin'})
-                            print("GUEST_CRASH_DUMPS_CAPTURED", flush=True)
-                            from exception_diagnostics import collect_exception
-                            collect_exception(proc,out)
-                            qmp('quit')
-                            raise RuntimeError("guest exception monitor before diagnostics")
-                        if time.monotonic() > prompt_deadline:
-                            raise RuntimeError("diagnostic command timed out waiting for completion marker: " + line[:60])
-                        time.sleep(0.5)
-                proc.stdin.flush()
+                for line in diagnostic:
+                    remaining=prompt_deadline-time.monotonic()
+                    if remaining<=0:
+                        raise RuntimeError('diagnostic command budget exhausted before sending: '+line[:60])
+                    serial_command(proc,out/'console.log',line+'\n:',timeout=remaining)
                 deadline = time.monotonic() + int(os.environ.get("MENU_DIAG_TIMEOUT", "120"))
                 while b"\nMENU_PROBE_FINISHED" not in (out / "console.log").read_bytes():
                     captured = (out / "console.log").read_bytes()
@@ -2406,6 +2674,17 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 qmp("quit")
         proc.wait(timeout=5)
     finally:
+        active_error=sys.exc_info()[1]
+        if active_error is not None and not (isinstance(active_error, SystemExit) and active_error.code in (0, None)):
+            import traceback
+            (out/'probe-outer-original-error.json').write_text(json.dumps(dict(
+                error=f'{type(active_error).__name__}: {active_error}',
+                traceback=traceback.format_exc()), indent=2) + '\n')
+        if getattr(proc,'_menu_qmp_desynchronized',False):
+            retain_running_owner(proc,out,active_error,reason='qmp-exit')
+        if getattr(proc,'_menu_serial_desynchronized',False):
+            from menu_live import retain_serial_owner
+            retain_serial_owner(proc,out,active_error)
         if functional_camera is not None:
             functional_camera.guard_shutdown(proc, sys.exc_info()[1])
         if early_media_watch is not None:
@@ -2416,13 +2695,24 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
             guard_host_sd(proc,out,host_sd_export_verified[0])
         if proc.poll() is None:
             if not qmp_quit_attempted[0]:
+                if qmp is None:
+                    error=RuntimeError('Camera QMP session never established; retain VM and lease, never signal sandbox')
+                    from menu_live import retain_running_owner
+                    retain_running_owner(proc,out,error,reason='qmp-exit')
+                    if active_error is not None:raise error from active_error
+                    raise error
                 try:qmp('quit')
-                except Exception as error:
-                    raise RuntimeError('Camera QMP quit failed; retain VM and lease, never signal sandbox') from error
+                except BaseException as error:
+                    from menu_live import retain_running_owner
+                    retain_running_owner(proc,out,error,reason='qmp-exit')
+                    detail=('; active error: '+repr(active_error)) if active_error is not None else ''
+                    raise RuntimeError('Camera QMP quit failed; retained VM owner until natural exit, never signaled sandbox'+detail) from error
             try:
                 proc.wait(timeout=30)
-            except subprocess.TimeoutExpired as error:
-                raise RuntimeError('Owned camera VM still running; retain lease, never TERM/KILL') from error
+            except BaseException as error:
+                from menu_live import retain_running_owner
+                retain_running_owner(proc,out,error,reason='qmp-exit')
+                raise RuntimeError('Owned camera VM exit was unconfirmed; retained owner until natural exit, never TERM/KILL') from error
         receipt_path=out/'qmp-quit.json'
         if receipt_path.is_file():
             receipt=json.loads(receipt_path.read_text())

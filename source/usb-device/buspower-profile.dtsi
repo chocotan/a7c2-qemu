@@ -1,0 +1,26 @@
+/* Source draft only; not included by any default DT/build/launcher.
+ * Requires the verified same-SoC clk/rst and virtual GIC labels already bound.
+ * Merge only into an isolated original-cold USB-MSC derived DT, never official.
+ * Clock ID60 -> SCU gate bank5 bit18; reset184 -> bank5 bit24.
+ */
+/ {
+    aliases {
+        i2c0 = "/soc/i2c0";
+    };
+    soc {
+        i2c0 {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            compatible = "snps,designware-i2c";
+            reg = <0x0 0xf1012000 0x0 0x1000>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 216 4>; /* GIC_SPI216, INTID248 */
+            clocks = <&clk 60>;
+            clock-names = "i2c_clk";
+            clock-frequency = <400000>;
+            resets = <&rst 184>;
+            reset-names = "i2c_rst";
+            status = "okay";
+        };
+    };
+};

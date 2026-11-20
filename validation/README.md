@@ -1,5 +1,39 @@
 # 本包验证记录
 
+## 11月19日 同轮省电关闭与全按直接分派观察（不记通过）
+
+`1273` 在同一 boot 内用原厂菜单把省电开始时间改为「关」，重开读回并返回拍摄页；控制台无 APO1 或关机序列。半按、全按、全按释放、半按释放四条边沿由同一 PID 324/TID 419 消费，只有释放进入 `0x2688a08` 执行层并发出 `0x4039`；未出现自然 `0x4038`、JPEG 或写卡。QMP 退出确认、QEMU 返回 0、零信号、租约持有到退出，`capture_verified=false`。收据为 `scratch/a7c2-apo-menu-round18/storage.json`（SHA-256 `d5a9a9d489bc7e195339ac29cbab897526a8808e1b57ede08d345ce0aa589545`），日志在 `runtime/analysis/menu-runs/1273/console.log`；专题见 [APO1 报告](../report/native-apo-power.md)和 [c184 全按路径](../report/functional-camera-evidence/p1-candidate184.md)。
+
+直接分派输入观察：产品 `runtime/analysis/menu-observe.c` 的 `SHUTTER_FLOW site=core` 新增 `direct_inputs_v=1`，读取分类值与五个原守卫输入，`direct_reads` 保留每笔字节数，仍标 `atomic_snapshot=0 original_branch_observed=0`。宿主两组 8+6=14 项通过，最初只交叉编译 AArch64 对象。随后隔离链接/归档两组 44+23=67 项通过：已用封存 FD 链接 `source/build/observer-shutter-direct-v1/menu-observe.so`，并完整读回单成员替换后的独立 initramfs（归档 SHA-256 `5600bf5eaa7633e865c0de0d0ed8362a640d6ef6c704a8a97a2878c2da4822c1`，账本 `scratch/a7c2-shutter-dispatch-overlay-v1/storage.json`）。默认运行产物未替换；新观察器尚未在真实 guest 装载取证。`b369` 无 TCG 插件 API，旧分支插件绑定另一构建。收据为 `scratch/a7c2-shutter-dispatch-cross-v1/storage.json`（SHA-256 `3463aa5b3c61828cfd6fd1f2e48ea53d6df0369b66b2083ae4b27784b49274f2`）。产品权威路径身份：`menu-observe.c` `3b3596a0…`（13,130 行 / 776,866 B）、`test_shutter_route_trace.py` `f57a5cb6…`（508 行）、`capture_socket_roots.py` `d7110820…`（259 行）；本次只核对，不复制或覆盖源码/测试。
+
+第 19 轮 P4 预检：隔离观察器须与启动 manifest、构建收据、实际 ABI 输入和选中归档一致。仅该显式实验按实际加载窗口流式保全归档；虚拟卡仍为 1 GiB，原厂 `0x4038`、JPEG、两次整卡导出和独立解码判据不变。定向宿主 16 项、27 子用例通过；新版观察器用原固件 libc 的单加载和媒体共加载自检均返回 0。第 19 轮实跑已启动，尚未取得原厂快门或写卡结果。收据见 `scratch/a7c2-apo-menu-round19/p4-host-acceptance.json`。
+
+此前报告索引同步未移动日志或私有输入；未提交或推送。
+
+## 11月15–16日拍摄写卡P1运行链（进行中，不记通过）
+
+产品功能相机RAM卡链路经过34轮迭代，全部使用诚实发送者（未实现目的返回-1020由caller释放，不伪造完成）。核心成果：P1基础设施（生产derive真实fsck+恢复owner、FD三元组→QEMU `b3699813…`、guest全卡SHA、原`Fsys_Mount`挂载RAM卡为A:、owner生命周期多轮稳定）；四门禁解除（fsck执行/高熵目录+bwrap `--ro-bind-fd`/顶层probe准入）；CP命令链全部闭合（参数族、异步族、槽统一退休、4037 functional路由、`0x91170319`周期服务）；BB族（042b/0145/011b/0150）；UDATE reason 1–5；`0118→1118`面板输出完成链（`FULL_VDF_NATIVE_REPLY_FREE cmd=0x118 rc=0`）。诚实链下`sequence_boot::run`完整返回、首设走完、`ENTER_REC_STILL`+三连接commit达成（run `097e`）；第三十四跑2.4小时浸泡（console 126,853行）UDATE三代、Backup stage3/0二代、DMM 0x62a生命周期全过、全部命令链稳定，QMP quit rc0无信号租约到退出。
+
+各轮收据目录：`scratch/a7c2-capture-p1-runtime-20261115-candidate2…candidate34/`、`scratch/a7c2-capture-derive-20261115-candidate1/`（`derive-admission.json`）、`scratch/a7c2-gate-unblock-integration-20261115/`、`scratch/fsck-offline-batch-tests/run-7_7exap7/`、`scratch/fsck-parentdeath-batch-tests/run-p8sw_b0h/`、`final/a7c2-qemu/report/functional-camera-evidence/p1-candidate10.md`与`p1-candidate34.md`；QEMU run目录`runtime/analysis/menu-runs/`下`1aa5/9fa5/7161/097e/dd15`等，均两轮干净退出。当前binding `derive-prod-cea11c32e1b4618c`。
+
+**尚未通过**：自然快门仍被capture readiness门控挡住（无`0x4038`，用户已指示跳过镜头伸出线继续）；`capture_verified=false`；JPEG生命周期、写卡两次导出、JPEG_ONLY_PASS均未执行；mailbox/broker从未attach。所有失败轮（candidate2–33的首次失败现场）原样保留。本轮各运行不代表真实硬件、真实CP执行或物理镜头行为。
+
+## 非CP更新与MSC host检查
+
+[非 CP host 收据](non-cp-host-20261115.json)（SHA-256 `70817eadd321fb82b96dd6b930a6eadbd2c2238b9dd2039f596fa12222a9dbb1`）记录两线程两组 40 项通过、0 跳过，范围为冷启动/USB observer 私有链接与虚拟 P1 SPI 协议。随后 [MSC 观察器复验](msc-observation-host-20261115.json)（SHA-256 `c0554d2d8c1a2b711ec0f30fd69e0fb070197591e486b496df55efb2cd3d1024`）针对新增变更两组 16 项通过、0 跳过；两轮范围重叠，不合并成不重复测试总数。之后 [私有临时目录 FD 复验](non-cp-private-temp-host-20261115.json)（SHA-256 `0b4cf8e0ac02127ea099147cb169a4956fb4305cd2ac4190f163ad3c0c757030`）在修复后又以两组、两线程通过 30 项，仍有重叠。
+
+[串口、QMP 与 owner 宿主复验](non-cp-owner-host-20261115.json)（SHA-256 `175cd3e3d8f75263ce0dab8412bc4f4b7f858d02e0d687ae004de06c0057fc84`）以两个工作线程分别通过 183 和 36 项，0 跳过；覆盖模拟的请求边界、协作信号、异常监视器和 UI 租约路径。此前因测试环境缺少 Capstone 而失败的批次保留，不与此通过结果合并；各轮测试存在重叠。
+
+后续本地批次 `scratch/non-cp-mainline-tests/run-c4l77_rs/` 两组分别 409、426 项通过；其后租约 FD 修改在 `scratch/lease-fd-component-tests/run-32pcq762/` 分别以 20、17 项复验。再后的 `scratch/owner-media-usb-batch-tests/run-sc2e9dl0/` 两组 36、34 项通过，含六次对 8 MiB 合成 FAT16 的真实只读 fsck；其前一轮 `run-c5shsncr/` 的 4 项失败、6 项 setup 错误及原始输出保留，未回填。合成盘 owner 组合随后在 `scratch/combined-owner-host-tests/run-fx0scsmx/` 两组 26、25 项通过；此前 `run-qbdt7q4z/` 因测试夹具等待超时而失败，经用户授权仅向其合成 controller 发送一次 PIDFD SIGTERM，合成 child 由 owner 自然回收，原始失败和隔离标记保留。各轮范围重叠且源码存在先后变化，不合并计数；这些本地 host 收据不代表真实 QEMU owner、MSC、拍摄或完整更新通过。USB 诊断接线按已测候选完整 SHA 集成，实际模型消费仍未验证。共享 QMP 接入产品后，`scratch/non-cp-mainline-tests/run-r0wiz44p/` 两组 457、433 项通过、0 跳过；其中 48 项为严格 QMP 合成测试，仍未验证真实 owner 或 peer。
+
+上述各轮均未启动 QEMU 或访问真实设备，不证明普通 AP 的 MSC 枚举/块读回、原系统 BODYDATA 更新或拍摄写卡通过。原 CP 暂停，单 AP 短 socket、持盘 owner 与异常恢复仍待完成；旧来源清单也尚未完成当前工作树身份闭环。
+
+本地候选批次 `scratch/no-storage-owner-host-tests/run-6gauhtc2/` 使用两个工作线程、四个隔离进程组，分别通过 126、35、1、2 项，零跳过；源码内容及文件身份前后稳定。合成 pathname socket 在 `umask 0177` 下实读为 `0600` 并由夹具关闭移除。该批未启动 QEMU、未验证真实 owner、staged 写者、QMP peer、detach 或 guest 消费；候选尚未接入产品，按键记录和日志范围仅限宿主组件，不能作为构建、MSC、更新或拍摄通过证据。
+
+后续 `scratch/build-owner-host-tests/run-oegn8r1_/` 以两个工作线程完成三个独立组 56、1、3 项，零跳过；完成标记、结果和账本摘要、进程返回码及无失败收据均已核对。该批未编译 supervisor、未运行 fixture 进程或 QEMU，不证明真实编译、后代 drain、实际 writer 或资源恢复；与前述批次分账。
+
+USB 探针和描述符解析修复在 `analysis/scratch/cp-wait-20261111/usb-msc-host-batch-v3/run-4y8uh9rm/` 以两个工作线程分别通过 22、78 项，兼容组另有 39 个 subtest 通过，零跳过；源码身份前后稳定，原始 wait 和两组退出码均为 0。该批不启动 QEMU、不访问真实设备，不证明 MSC 枚举或块读回。此前 `usb-msc-host-batch-v2/run-8vewjq5u/` 两项测试因异常附注匹配失败、兼容组因 subtest 计数判据失败，原结果保留；`usb-msc-host-batch-v3/run-bkiglpoc/` 因启动器误设超时而中断、无完整 wait 收据，亦保留失败现场。
+
 ## 11月10日通用USB大OUT与完整持久文件周期
 
 [公开收据](usb-large-out-file-cycle-20261110.json)（SHA-256 `71bc7f06f6c59877f8ef449cffda167ae25da06cee1d80b2c03d4f6795491433`）与[USB技术报告](../docs/tech/2026-11-09-usb-jiritsu.md)记录修复后的真实VHCI/libusb验收。70,931B OUT线请求的实际 `flags=0x40000` 是host `URB_DMA_MAP_SG`；bridge仅剥离HCD映射元数据后，结果为 `status=0 actual=70931`，guest 70,912B文件全文SHA为 `7b26726960a3dea5751a3805b392ad623bfdba26c606c6d3c94da1a74c0bcf47`。
@@ -156,7 +190,7 @@ python3 tools/check-source.py
 sha256sum -c SOURCE-SHA256SUMS
 ```
 
-`test-host.py`不运行编译器或VM。`test-public-models.py`允许本包C模型的宿主编译与ASan/UBSan，需要pytest 9、Pillow、C编译器及libjpeg/FFmpeg开发库；模块清单在`tools/public-model-tests.json`。它使用0700的短`/var/tmp/a7m-*`测试目录以满足Unix socket长度，结束后清理；JUnit保留在被忽略的`validation/tmp/public-models/`。
+`test-host.py`不运行编译器或VM。共享 QMP 的合成 socketpair 回归由 `runtime/analysis/test_qmp_strict.py` 在项目内专用 `TMPDIR` 和全新 `--basetemp` 下执行，默认不连接 QEMU；严格传输的真实 owner 适配仍关闭。构建脚本身份守卫另由 `tools/test-build-qemu-guards.py` 在项目内专用 `TMPDIR` 和全新 `--basetemp` 下单独执行；它只运行合成 Python 守卫及构建/USB 启动脚本的 `bash -n`，不构建或启动 QEMU，故不混入禁止执行构建脚本的 `test-host.py` 审计范围。`test-public-models.py`允许本包C模型的宿主编译与ASan/UBSan，需要pytest 9、Pillow、C编译器及libjpeg/FFmpeg开发库；模块清单在`tools/public-model-tests.json`。它使用0700的短`/var/tmp/a7m-*`测试目录以满足Unix socket长度，结束后清理；JUnit保留在被忽略的`validation/tmp/public-models/`。
 
 公开模型入口的固定排除项及逐项理由以`tools/test-public-models.py::OUTSIDE_HOST_SCOPE`为准：包含原Sony glibc/ARM执行、原件窗口/ABI链接及VM启动器拒绝集成。新增纯host字节、读错误、errno保持与生命周期测试实际执行，未因同模块另有集成项而整文件跳过。需要官方原件/本地历史运行内容的少数检查仍按原测试自己的条件跳过，实际数量见本次发布收据。审计hook继续拒绝真实QEMU、bubblewrap及启动/构建入口；host socket mock不是真相机或VM。
 

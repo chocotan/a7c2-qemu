@@ -57,7 +57,7 @@ import time
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
-from usb_control import ControlBlocked, UsbControl, usbip
+from usb_control import ControlBlocked, UsbControl, usbip, context_arguments
 
 HOST_PYTHON = HERE / 'vendor/host-python'
 if HOST_PYTHON.is_dir() and not HOST_PYTHON.is_symlink():
@@ -138,12 +138,23 @@ def command_results_verified(raw, commands):
     except (ValueError,TypeError):return False
 
 
+def consumer_context(request):
+    if not isinstance(request, dict):
+        raise blocked('invalid_context', 'consumer request must be an object')
+    metadata = {'action', 'sources', 'scripts', 'pmca', 'run_dir', 'commands', 'large_out_check'}
+    required = metadata - {'commands', 'large_out_check'}
+    if not required <= set(request):
+        raise blocked('invalid_context', 'consumer request lacks required fields')
+    return context_arguments({key: value for key, value in request.items() if key not in metadata})
+
+
 def result_base(control, action):
+    binding = control.context.binding_fields() if getattr(control.context, 'socket_roots', None) is not None else {}
     return {'schema': 'a7c2.usb-jiritsu.v1', 'run_id': control.context.run_id,
             'lease_id': control.context.lease_id, 'action': action, 'phase': 'blocked',
             'blocked_reason': None, 'authentication_verified': False,
             'guest_root_verified': False, 'preload_recovery_required': False,
-            'target': None, 'sources': {}, 'events': []}
+            'target': None, 'sources': {}, 'events': [], **binding}
 
 
 def recovery_target_supported(control):
@@ -352,7 +363,8 @@ class Sources:
 
     def manifest(self, action):
         required = [HERE / 'usb_jiritsu.py', HERE / 'usb_control.py',
-                    HERE / 'usb-gadget/usbip_server.py']
+                    HERE / 'usb-gadget/usbip_server.py', HERE / 'single_ap_sockets.py',
+                    HERE / 'diagnostic_fs_socket_roots.py']
         if action != 'authenticate':
             required += [self.scripts / name for name in ('jiritsu_version_read.py',
                          'jiritsu_preload_deploy.py', 'jiritsu_run_command.py', 'jiritsu_preload_clear.py')]
@@ -673,6 +685,8 @@ class JiritsuConsumer:
                        'qmp_path': str(context.qmp_path), 'backend_path': str(context.backend_path),
                        'lease': context.lease, 'vm_pid': context.vm_pid, 'run_id': context.run_id, 'commands': commands,
                        'large_out_check': large_out_check}
+            if getattr(context, 'socket_roots', None) is not None:
+                request.update(context.context_fields())
             # -I ignores user PYTHONPATH/site customizations; secret lease travels on stdin.
             completed = subprocess.run([sys.executable, '-I', '-B', str(HERE / 'usb_jiritsu.py'), '--consumer'],
                                        input=json.dumps(request), capture_output=True, text=True,
@@ -683,8 +697,12 @@ class JiritsuConsumer:
             received = json.loads(completed.stdout, object_pairs_hook=usbip._object)
             if (not isinstance(received, dict) or received.get('schema') != result['schema'] or
                     any(received.get(name) != result[name] for name in ('run_id', 'lease_id', 'action')) or
-                    received.get('sources') != manifest or completed.returncode not in (0, 2)):
+                    received.get('sources') != manifest or completed.returncode not in (0, 2) or
+                    received.get('socket_binding') != result.get('socket_binding')):
                 raise blocked('consumer_result_invalid', 'isolated consumer identity/source/result mismatch')
+            if getattr(context, 'socket_roots', None) is not None:
+                if context.binding_fields() != {'socket_binding': received['socket_binding']}:
+                    raise blocked('consumer_result_invalid', 'socket binding changed during consumer execution')
             events = received.get('events')
             if (type(received.get('authentication_verified')) is not bool or
                     type(received.get('guest_root_verified')) is not bool or not isinstance(events, list)):
@@ -726,24 +744,28 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--consumer', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('action', nargs='?', choices=ACTIONS, default='authenticate')
-    for name in ('run-dir', 'qmp', 'lease', 'backend', 'run-id', 'pmca'):
+    for name in ('run-dir', 'qmp', 'lease', 'backend', 'run-id', 'pmca',
+                 'socket-root', 'socket-profile', 'socket-binding'):
         parser.add_argument('--' + name)
     parser.add_argument('--vm-pid', type=int)
     args = parser.parse_args(argv)
     if args.consumer:
         # Never accept alternate sysfs/backend providers through the child protocol.
         request = json.loads(sys.stdin.read(1024 * 1024), object_pairs_hook=usbip._object)
-        control = UsbControl(request['run_dir'], qmp_path=request['qmp_path'], lease=request['lease'],
-                             vm_pid=request['vm_pid'], backend_path=request['backend_path'],
-                             run_id=request['run_id'])
+        control = UsbControl(request['run_dir'], **consumer_context(request))
         result = consume(control, Sources(request['scripts'], request['pmca']),
                          request['action'], request['sources'], request.get('commands'),
                          request.get('large_out_check', False))
     else:
         if not all((args.run_dir, args.qmp, args.lease, args.vm_pid)):
             parser.error('--run-dir, --qmp, --lease and --vm-pid are required')
+        binding = json.loads(args.socket_binding, object_pairs_hook=usbip._object) if args.socket_binding is not None else None
+        if args.socket_binding is not None and not isinstance(binding, dict):
+            raise blocked('invalid_context', 'socket binding must be an object')
         control = UsbControl(args.run_dir, qmp_path=args.qmp, lease=args.lease,
-                             vm_pid=args.vm_pid, backend_path=args.backend, run_id=args.run_id)
+                             vm_pid=args.vm_pid, backend_path=args.backend, run_id=args.run_id,
+                             socket_root=args.socket_root, socket_profile=args.socket_profile,
+                             socket_binding=binding)
         result = JiritsuConsumer(control, pmca=args.pmca).run(args.action)
     print(json.dumps(result, sort_keys=True))
     return 0 if result['phase'] == 'complete' else 2

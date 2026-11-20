@@ -5,7 +5,6 @@ import hashlib
 import json
 from pathlib import Path
 import struct
-from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
 
 HERE = Path(__file__).resolve().parent
 UNPACKED = HERE.parents[2]/'runtime/analysis/unpacked/firmware.tar_unpacked'
@@ -97,6 +96,7 @@ def fdt_nodes(data):
 
 
 def main():
+    from capstone import Cs, CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN
     parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--capture',action='store_true')
     args=parser.parse_args(); image=KERNEL.read_bytes(); dtb=DTB.read_bytes()
     assert len(image)==6610952 and hashlib.sha256(image).hexdigest()==KERNEL_SHA

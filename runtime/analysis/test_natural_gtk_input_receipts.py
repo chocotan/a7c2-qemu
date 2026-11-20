@@ -427,6 +427,38 @@ def test_language_navigation_waits_after_real_receipts_for_changed_stable_lcd_an
     assert language_route.font in language_route.console
 
 
+def test_language_navigation_can_use_consumed_keys_and_font_with_cached_black_frames(language_route, route, wire):
+    state=language_route
+    def black_refresh(label):
+        state.polls+=1
+        state.captures.append((state.step,state.polls,label))
+        if state.step==state.font_step and state.polls>=2 and state.font not in state.console:
+            state.console+=state.font
+        state.settled=True
+        return {'pixel_sha256':'cached-black-frame'}
+    result=checker.select_simplified_chinese(
+        {'pixel_sha256':'cached-black-frame'},lambda:state.console,black_refresh,
+        state.press_down,route.wait,allow_unchanged=True)
+    assert result=={'navigation_steps':24,'font_open_call':47,'selection_frame_stable':True}
+    assert state.step==24 and state.settled and len(wire.statuses)==48
+    assert state.font in state.console
+
+
+def test_language_navigation_can_skip_frames_with_original_keys_and_exact_font(language_route, route, wire):
+    state=language_route
+    original_press=state.press_down
+    def press():
+        original_press()
+        state.settled=True
+        if state.step==state.font_step:
+            state.console+=state.font
+    result=checker.select_simplified_chinese(
+        {'pixel_sha256':'cached-black-frame'},lambda:state.console,state.refresh,press,route.wait,
+        allow_unchanged=True,wait_for_frame=False)
+    assert result=={'navigation_steps':24,'font_open_call':47,'selection_frame_stable':True}
+    assert state.step==24 and state.captures==[] and len(wire.statuses)==48
+
+
 def test_language_navigation_checks_font_after_fortieth_settled_down(language_route, wire):
     language_route.font_step=40
     result=language_route.run()
@@ -696,6 +728,14 @@ def firstboot_route(route, wire, tmp_path):
     state.run=lambda:checker.firstboot_step(refresh('initial'),lambda:state.console,refresh,action,
                                              route.wait,lambda:state.path,'setup')
     return state
+
+
+@pytest.mark.parametrize('page',['connect-smartphone','connect-smartphone-wait'])
+def test_unexpected_pairing_page_never_receives_confirm(firstboot_route, wire, page):
+    state=firstboot_route;state.pages=[page]
+    with pytest.raises(RuntimeError,match='Unexpected smartphone pairing page'):
+        state.run()
+    assert not state.actions and not wire.statuses
 
 
 def test_firstboot_serializes_pending_enters_reader_delete_date_and_temperature_cancel(firstboot_route, wire):

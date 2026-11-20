@@ -127,6 +127,18 @@ def test_real_jpeg_unicode_zero_tail_and_inline_completion(tmp_path):
     assert result['items'][0]['capture_verified'] is False
 
 
+def test_private_media_snapshot_requires_real_filesystem_space(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    run, _, _ = make_run(tmp_path)
+    host = run/'host-sd'
+    before = {path.relative_to(host) for path in host.rglob('*')}
+    monkeypatch.setattr(checker.os, 'fstatvfs', lambda _fd: SimpleNamespace(f_bavail=0, f_frsize=4096))
+    result = checker.inspect(run)
+    assert not result['writeback_verified']
+    assert 'insufficient snapshot space' in result['items'][0]['error']
+    assert {path.relative_to(host) for path in host.rglob('*')} == before
+
+
 def test_original_callback_can_return_before_async_worker_finishes(tmp_path):
     run, _, _ = make_run(tmp_path)
     log = run / 'console.log'

@@ -155,13 +155,19 @@ int main(int argc,char **argv) {
         assert(!release(NATIVE_CP_BACKGROUND_SID,shortp));
         assert(!release(NATIVE_CP_BACKGROUND_SID,batch));
         assert(!release(NATIVE_CP_BACKGROUND_SID,p));
-    } else if (!strcmp(argv[1],"bad-command") || !strcmp(argv[1],"bad-type") ||
-               !strcmp(argv[1],"legacy-40b8")) {
+    } else if (!strcmp(argv[1],"parameter-40b8")) {
+        lookup(p)->bytes=12;lookup(p)->source=0x80020002;
+        ((unsigned char *)p)[0]=5;((unsigned char *)p)[2]=0xb8;((unsigned char *)p)[3]=0x40;
+        ((unsigned char *)p)[8]=0xe7;
+        struct native_cp_background_parameter_snapshot state={0};
+        if (native_cp_background_dispatch(NATIVE_CP_BACKGROUND_SID,p,&io,1,&rc)!=1 || rc ||
+            lookup(p)->live || allocations || sends || releases!=1 ||
+            native_cp_background_parameter_snapshot(&state) || state.parameter170!=0xe7 ||
+            !state.parameter_valid || !state.apply_pending || state.generation!=1)
+            return 1;
+    } else if (!strcmp(argv[1],"bad-command") || !strcmp(argv[1],"bad-type")) {
         if (!strcmp(argv[1],"bad-command")) ((unsigned char *)p)[2]=0x73;
-        else if (!strcmp(argv[1],"legacy-40b8")) {
-            lookup(p)->bytes=12;lookup(p)->source=0x80020002;
-            ((unsigned char *)p)[0]=5;((unsigned char *)p)[2]=0xb8;((unsigned char *)p)[3]=0x40;
-        } else ((unsigned char *)p)[0]=2;
+        else ((unsigned char *)p)[0]=2;
         assert(!native_cp_background_dispatch(NATIVE_CP_BACKGROUND_SID,p,&io,1,&rc));
         assert(rc==123 && lookup(p)->live && !allocations && !sends && !releases);
         assert(!release(NATIVE_CP_BACKGROUND_SID,p));

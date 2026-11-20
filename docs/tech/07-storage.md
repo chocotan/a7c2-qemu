@@ -4,6 +4,8 @@
 运行中的安全拔出/重插、以及第 9 步的关机保存导出。
 对象只是实验目录里的普通虚拟文件，不接物理 SD。
 
+内部单盘的共享租约现在持有与 QEMU 相同文件描述的 OFD 写锁；若实例目录中存在 `owner-quarantine.json`，共享租约和继承 FD 入口都会拒绝启动，不能靠 PID 消失自动放行。隔离标记组件及实际租约 FD 的宿主模拟检查已通过（本地证据 `scratch/lease-fd-component-tests/run-32pcq762/main-readback-v1.json`，不是产品构建输入）；生产 owner 尚未接入自动创建或安全清除标记，真实 QEMU 退出、磁盘 detach 和异常恢复尚未验证。不要手动删除标记来绕过保护。
+
 变量见[索引](README.md)。第1–8节保留已验的 FAT 文件后端与默认关机协议；**其成功不能借给最新功能 profile 的失败运行**。
 
 2026-11-10 起新原 cold 实例的默认卡是 **1GiB FAT16**（32KiB 簇，卷 ID `7C220201`）。旧 128MiB 收据、运行及失败证据保持原值。`sparse_seed.py` 只把非零 4KiB 块送入 RAM0；`cold/install-sd.sh` 在 guest 专属 tmpfs 重建普通卡，逐块读回并以 OpenSSL 核完整 1GiB SHA，再绑定 `/image_mmca`。因此容量提升不增加整卡 initrd RAM，原 Fsys 仍消费普通 FAT 文件，且任何读回差异会阻断启动。

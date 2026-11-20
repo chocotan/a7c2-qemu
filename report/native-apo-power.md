@@ -8,6 +8,32 @@
 
 ## 原始通知与屏幕
 
+### 首设后进入菜单却触发 APO1（`98bc`）
+
+原厂触控说明在第一笔 `MENU` 后仍显示；后续 `ENTER` 进入了原厂主菜单。`runtime/analysis/menu-runs/98bc/console.log` 第 13879 行记录 `0x920143`、原因 `8`，第 13921 行进入 `SHUTDOWN_ENTER`。`scratch/a7c2-apo-menu-round10b/runtime-1/` 的 `ui-43.png` 是菜单，`ui-45.png` 是黑帧；第 14148、14157 行完整接收原半按按下、释放，`ui-46.png` 仍为黑帧，未确认唤醒。菜单设置尚未改动，未进行拍摄。`result.json` 记录 QMP 退出确认、`rc=0`、未发送进程信号、租约持有至退出；试验失败实物保留。
+
+这一轮确认等待操作时会触发自动关机，但不是 c184/L24 全按不执行的因果证明。对照操作按[原厂手册](https://helpguide.sony.net/ilc/2360/v1/en/contents/0601B_power_save_start_time.html)选择“设置 → 电源设置选项 → 自动关机开始时间 → 关”，不动温度保护。下一轮仅在隔离 QEMU 菜单画面等待宿主操作时使用已绑定的 QMP owner 暂停、恢复，避免将等待时间混入菜单测试；是否关掉仍以退出、重进后的原菜单值和实际原厂通知为准。
+
+### 设置回读与第二次复现（`75e7` / `c35b`）
+
+`75e7` 通过原厂菜单将省电开始时间从 1 分钟改为「关」，确认后退出并重进核实选中值；温度保护仍是「标准」。快门前的 guest 日志游标命令因 BusyBox 缺失 `stat` 而返回 127，所以本轮未发快门。隔离实例正常退出。用同一 AArch64 BusyBox 在宿主跑完整采样时，又确认旧命令的 `head` 也找不到，且末尾 `true` 掩盖返回码。下一轮脚本改用固定日志描述符和有界 `dd`，已通过同一文件游标、追加窗口、按键所属线程、残行、换文件与超限检查；验证使用合成日志和 QEMU 用户态，尚未在原厂快门路径执行。
+
+`c35b` 第 64 步的按下和释放均被应用接收；随后控制台第 29074 行记录 `0x920143`、原因 `8`，第 29115 行进入 `SHUTDOWN_ENTER`。最后完整检查点是第 63 帧；本轮没有重新回读设置，没有开始拍摄或写卡。broker 已断开调试器，但没有完成邮箱解绑，隔离实例与磁盘租约仍保留。下一轮的宿主监视可直接区分 APO1、owner 保留、正常到帧和预算耗尽，两组宿主测试合计 31 项通过；不把监视通过算作拍摄或关机通过。
+
+`c35b` 的 broker 事件 2508 首报读超时；事件 2510 保留模型取消结果，2511 的清理记录显示邮箱解绑超时、断开调试器时又收到了旧 QMP 回复。现有代码已改为发送或接收失步后锁存该连接，阻止后续命令继续写入；不改变邮箱解绑、持盘或退出门。定向宿主验收 20 项通过，含 135 个子用例。本修复未应用到正在保留的 `c35b`，也未在新 QEMU 上验证。
+
+### 短 socket 实跑与宿主启动修复（`bd4b`）
+
+`bd4b` 已在真实 QEMU 中核到同一进程的 4 个私有短路径监听器，并抵达 Linux shell。宿主 driver 随后在建立 QMP 控制前重复关闭已置为 `None` 的启动探针 socket；原失败收据确认了 `AttributeError`。本轮没启动相机应用、没到第 42 帧、没发快门，不能记为拍摄通过。
+
+核对同一代际、四监听器及无在途写入后，独立恢复记录取得一次匹配的 QMP `quit` 回复和进程退出；QEMU launcher 返回 0，driver 仍以 2 保留原失败，磁盘租约持有到退出，未向 VM 或 owner 发信号。没有改动 `c35b`。第 18 轮修复了重复关闭和早期失败通知，19 项定向宿主测试通过，已启动新隔离盘；同轮省电回读、快门、JPEG 和整卡读回尚待验证。
+
+### 第 18 轮同次启动对照（`1273`）
+
+`1273` 用原厂菜单从 1 分钟改为「关」，重新打开选项核对并返回拍摄页。第 85、87、89、91 帧分别与此前人工确认的菜单、重开选项、返回菜单及拍摄页逐字节相同，温度保护仍为「标准」。本轮原厂控制台未见 APO1 或关机序列。
+
+原厂应用在同一 PID/TID 下消费了半按、全按、全按释放和半按释放。实际 guest 的日志游标与有界追加读取通过：inode `21`，起始偏移 `10928443`，收据和原始日志留在 `scratch/a7c2-apo-menu-round18/runtime-1/`。仍只见释放进入执行层并发 `0x4039`，未出现 `0x4038` 或自然写卡；整卡导出检查按合同跳过。QMP 退出确认、QEMU 返回 0、租约持有到退出、零信号。下一步沿[全按路径调查](functional-camera-evidence/p1-candidate184.md)核对实际分支，省电没有解释这次复现。
+
 ### 最新：实际队列写点与取消对象静态链
 
 `run-ns8rhlui`真实私有Unix GDB观察在原`24d8774`命中caller`262aafc`及单个request100；随后取得16次硬件计数变化，含`0→1→2→3→0`。发布写位于`24cba50`、停在`24cba54`；清零写位于`24cce14`、停在`24cce18`，同时原Q的前后指针均回到Q。观察上限16已实际触及，不将之后未记录的时段作否定证据。它证明该队列被处理，尚不单独证明同一R执行了取消序列。
@@ -97,3 +123,17 @@ SD原Flush/恢复及导出通过，main独立读回镜像SHA256=`e3c579ac6a86a98
 前两轮虽记录ENTRY_PROBE_ARMED，但新增前缀没有加入既有console镜像，只写有界内存日志；所以“终端没看到”不证明回调没执行。修复`POWER_/SHUTDOWN_/SD_ACK_`日志输出后才得到上述通知内容；旧失败结论没有改成成功。
 
 同run已实际看到`SD_ACK_BIND`四个非空函数指针，以及`SD_ACK_RETRY_WORKER … detach_rc=0 ack_only=1`。它证明独立确认管理线程创建，**不替代guest故障注入或实际ACK重试消费证据**。原Fsys正常保存/恢复另见[SD持久化报告](native-sd-persistence.md)；本run卡SHA为`52fd77a9be155096ef103e9eedb461232b096e61f8a112e058bb2ec82af4455e`。
+
+## 第19轮（run 1d52）：Off 写入路径走通、等待预算缺陷终止实跑
+
+第19轮在隔离观察器（menu-observe.so `13934a8e…`，overlay `5600bf5e…`）下复现第18轮菜单链：帧42与第18轮逐字节相同（`5ba90a96…`）。逐帧匹配导航中三处UI漂移（43、57、79 附近）均以 refresh+人工核帧纠正后重新对齐，最终 `76→87` 段与第18轮完全一致：`Power Save Start Time` 选中 Off、ENTER 确认（84→86）、重开取值画面（87）。`apo-menu-readback.json` 未写出，快门未发出。
+
+终止原因不是 guest 故障：`wait-apo-early-notice.py` 的帧等待预算锚定在 owner 启动时刻（`started+budget-now`），菜单导航至 1266.9s 时预算耗尽，监视器写下 `stop-after-action` 协作停止标记，driver 以 `TimeoutError('APO experiment stopped before dispatching the next action')` 收尾。退出本身干净：`qmp_quit_confirmed=true`、rc0、零信号、lease 持至退出、runner closed；`capture_verified=false`、`status=skipped-no-natural-capture`。证据保留于 `scratch/a7c2-apo-menu-round19/`（attempt-1.json sha `1dba7637…` 同轮收据）与 `menu-runs/1d52/`。
+
+修复（第20轮起生效）：`watch()` 改为只读——单帧窗口 ≤150s、超时仅返回码 3、不再写任何停止标记；运行总期限完全交还 driver 的动作 deadline。宿主测试 `test_wait_watch.py`（2 项）验证只读超时与帧回报。第20轮首轮启动 5.9s 失败已归档：外层缺 `A7C2_SETTINGS_RESTART_PROFILE=functional-ram-card-independent-internal-v1`，环境合同断言拒绝（attempts=[]、未启动 QEMU）；带上该键后 `session.prepare()` 自行派生本轮内部盘实例，run `b459` 正常进入启动。
+
+### b459 的真实结局与第21轮
+
+第20轮 run `b459` 带组合 profile 键重启后走得更远：首设 41 键 156s 完成、MENU 帧42 于 315.8s 产出，但 327s 在 broker 挂接前失败——宿主环境还缺 `MENU_MODEL17C_RUNTIME_OBSERVE=virtual-model17c-runtime-ro-v1`，`model17c_early` 默认关闭直接返回 None，UPM watch 退化为无绑定的 scope-only 模式（`model17c_runtime` 不进 watch 配置，`seconds` 120≠2700，bridge 事件无 `kernel_task`）。随后产品缺陷被第一次触发：`Correlator.feed` 的 bridge 分支无条件引用仅在有身份时赋值的 `tid`，抛 `UnboundLocalError`，driver 以 "did not prove both original native lifetimes" 收尾。QEMU 干净退出（rc0、零信号、`qmp_quit_confirmed`），`capture_verified=false`；证据保留于 `scratch/a7c2-apo-menu-round20/` 与 `menu-runs/b459/`。
+
+产品修复：bridge 分支现在先 `require(task is not None, 'Identity-less bridge observation cannot prove a lease lifetime')`，明确失败代替未绑定变量崩溃；回归测试 `test_identity_less_bridge_fails_closed_instead_of_unbound_local` 以真实 upm/osal_uipc 模块构造 Correlator 验证。第21轮 run `9d21` 补齐两个宿主键后 `early_observer armed=true`（94.6s），model17c 绑定恢复。

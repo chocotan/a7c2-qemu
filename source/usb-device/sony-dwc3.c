@@ -94,6 +94,9 @@ static int event_space(SonyDWC3 *s)
     if (size < 4 || (size & 3) || (base & 3)) {
         return -EAGAIN;
     }
+    if ((s->event_pos & 3) || s->event_pos > size - 4) {
+        return -EINVAL;
+    }
     if (s->event_count > size - 4) {
         return -ENOSPC;
     }
@@ -230,13 +233,23 @@ static bool running(SonyDWC3 *s)
            (REG(s, SDWC_DCTL) & SDWC_RUN);
 }
 
+const char *sony_dwc3_not_ready_reason(SonyDWC3 *s)
+{
+    if (!s->vbus) return "VBUS absent";
+    if (!s->connected) return "guest controller not connected";
+    if (s->resetting) return "guest controller resetting";
+    if (!(REG(s, SDWC_DCTL) & SDWC_RUN)) return "guest controller not running";
+    if (s->ep0_desynced) return "guest EP0 desynchronized";
+    if ((REG(s, SDWC_DALEPENA) & 3) != 3) return "guest EP0 disabled";
+    if (!s->ep[0].configured || !s->ep[1].configured) return "guest EP0 not configured";
+    if (!s->ep[0].allocated || !s->ep[1].allocated) return "guest EP0 resources not allocated";
+    if (event_space(s)) return "guest event ring unavailable";
+    return NULL;
+}
+
 bool sony_dwc3_ready(SonyDWC3 *s)
 {
-    return running(s) && !s->ep0_desynced &&
-           (REG(s, SDWC_DALEPENA) & 3) == 3 &&
-           s->ep[0].configured && s->ep[1].configured &&
-           s->ep[0].allocated && s->ep[1].allocated &&
-           event_space(s) == 0;
+    return sony_dwc3_not_ready_reason(s) == NULL;
 }
 
 static int link_up(SonyDWC3 *s)
@@ -820,8 +833,9 @@ int sony_dwc3_write(SonyDWC3 *s, uint32_t off, unsigned size, uint32_t val)
         if (off == SDWC_GEVNTSIZ && ((val & 0xffff) & 3)) {
             return fail(s, "event ring size is unaligned", -EINVAL, off);
         }
+        bool resize = off == SDWC_GEVNTSIZ && ((val ^ REG(s, off)) & 0xffff);
         REG(s, off) = val;
-        if (off != SDWC_GEVNTSIZ) { s->event_pos = 0; }
+        if (off != SDWC_GEVNTSIZ || resize) { s->event_pos = 0; }
         irq_update(s);
     } else if (off == SDWC_DCTL) {
         if (val & SDWC_SOFTRST) {

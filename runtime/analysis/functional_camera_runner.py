@@ -3,7 +3,7 @@
 Only the broker accesses the dedicated guest mailbox. This module validates build
 and console evidence, hands off the existing Unix debugger, and gates teardown.
 """
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import hashlib
 import io
 import json
@@ -14,20 +14,28 @@ import re
 import signal
 import stat
 import struct
+import subprocess
 import tarfile
 import threading
 import time
 
+import backup_profile
+import capture_socket_roots as capture_sockets
 from backup_profile import FUNCTIONAL_CAMERA_PROFILE
+import functional_ram_initramfs as ram_initramfs
 import functional_camera_broker as transport
 import scope_observer_profile
 from menu_live import FirmwareFault, FirmwareMonitor
 
-QEMU_SHA256 = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
+QEMU_SHA256 = 'b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad'
+WRITEBACK_FLUSH_QEMU_SHA256 = 'df6144a095f8cfbde49c454a9872129811ee9c831051417639e7129a4ddeb4b9'
 READONLY_SCOPE_QEMU_SHA256 = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
 RECEIPT = 'functional-camera-runner.json'
 GDB = 'hdmi-upm-gdb.sock'
 QMP = 'hdmi-upm-control.sock'
+RAM_CONSUMER_PROFILE = 'inherited-ram-card-fds-v1'
+SETTINGS_RESTART_PROFILE = 'functional-ram-card-independent-internal-v1'
+RAM_CONSUMER_RECEIPT = 'functional-camera-ram-consumer.json'
 CLOSE_FIELDS = ('safe_to_close', 'mailbox_detached', 'debugger_stopped',
                 'protocol_physmode_restored', 'worker_stopped')
 
@@ -165,7 +173,11 @@ def validate_artifact(base, qemu_binary, *, scope_build_receipt=None):
                 require(digest(stream.read(member.size + 1)) == sources[member.name], 'Model archived source differs')
         require(seen == set(sources), 'Model archive omits a source/ABI file')
     qemu_sha256 = digest(checked_read(qemu_binary, 256 * 1024 * 1024))
-    if scope_build_receipt is None:
+    if os.environ.get('QEMU_A7PF_WRITEBACK_FLUSH') == '1':
+        require(scope_build_receipt is None, 'Writeback-flush QEMU cannot use the scope observer profile')
+        require(qemu_sha256 == WRITEBACK_FLUSH_QEMU_SHA256,
+                'Writeback-flush profile requires its exact isolated QEMU executable')
+    elif scope_build_receipt is None:
         require(qemu_sha256 == QEMU_SHA256,
                 'Functional camera requires the accepted unchanged QEMU executable')
     else:
@@ -178,6 +190,75 @@ def validate_artifact(base, qemu_binary, *, scope_build_receipt=None):
             'source_archive_sha256': digest(archive_raw), 'compile_receipt_sha256': digest(compile_raw),
             'abi_header_sha256': sources['runtime/analysis/functional-camera-abi.h'],
             'abi': check_library_abi(raw), 'qemu_sha256': qemu_sha256}
+
+
+def verify_ram_card_inherited(environment):
+    """Check inherited host FDs before bwrap preserves them or binds their inodes.
+
+    Read-only sandbox paths are an alternative to raw descriptor inheritance;
+    neither transport is QEMU/guest readback.
+    """
+    require(environment.get('A7C2_RAM_CARD_LAUNCH_PROFILE') == RAM_CONSUMER_PROFILE,
+            'Unknown inherited RAM-card launch profile')
+    names = ('SEED', 'DIRECTORY', 'RECEIPT', 'INITRAMFS', 'QEMU')
+    fds = []
+    for name in names:
+        raw = environment.get('A7C2_RAM_CARD_' + name + '_FD', '')
+        require(re.fullmatch('[1-9][0-9]*', raw) and int(raw) >= 3, 'Invalid inherited RAM-card FD')
+        fds.append(int(raw))
+    require(len(set(fds)) == len(fds), 'Inherited RAM-card FD aliases')
+    import fcntl
+    for name, fd in zip(names, fds):
+        before = os.fstat(fd)
+        require(before.st_uid == os.geteuid() and not before.st_mode & 0o022,
+                'Untrusted inherited RAM-card input')
+        require(fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE == os.O_RDONLY,
+                'Inherited RAM-card input must be read-only')
+        if name == 'DIRECTORY':
+            require(stat.S_ISDIR(before.st_mode) and stat.S_IMODE(before.st_mode) == 0o700,
+                    'Inherited RAM-card directory must be private')
+            continue
+        links = 2 if name == 'RECEIPT' else 1
+        require(stat.S_ISREG(before.st_mode) and before.st_nlink == links and before.st_size > 0,
+                'Inherited RAM-card input link count/type differs: ' + name)
+        if name == 'SEED':
+            ram_initramfs.fat16(fd, before.st_size)
+        elif name == 'INITRAMFS':
+            require(before.st_size <= ram_initramfs.MAX_INITRD_BYTES, 'Inherited initramfs exceeds load window')
+        elif name == 'QEMU':
+            require(before.st_mode & 0o111, 'Inherited QEMU is not executable')
+        expected = environment.get('A7C2_RAM_CARD_' + name + '_SHA256', '')
+        require(re.fullmatch('[0-9a-f]{64}', expected) and
+                ram_initramfs.sha_range(fd, 0, before.st_size) == expected and
+                ram_initramfs.metadata(before) == ram_initramfs.metadata(os.fstat(fd)),
+                'Inherited RAM-card readback differs: ' + name)
+        if name == 'RECEIPT':
+            # The producer retains both publication names for this exact receipt inode.
+            for published in ('.backup-profile.pending.json', 'backup-profile.json'):
+                named_fd = os.open(published, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                   dir_fd=fds[1])
+                try:
+                    named = os.fstat(named_fd)
+                    require(ram_initramfs.metadata(named) == ram_initramfs.metadata(before) and
+                            ram_initramfs.sha_range(named_fd, 0, named.st_size) == expected and
+                            ram_initramfs.metadata(os.fstat(named_fd)) == ram_initramfs.metadata(before) and
+                            ram_initramfs.metadata(os.fstat(fd)) == ram_initramfs.metadata(before) and
+                            ram_initramfs.metadata(os.stat(published, dir_fd=fds[1], follow_symlinks=False)) ==
+                            ram_initramfs.metadata(before),
+                            'Inherited RAM-card receipt publication differs: ' + published)
+                finally:
+                    os.close(named_fd)
+    accepted_qemu = (WRITEBACK_FLUSH_QEMU_SHA256,) if environment.get(
+        'QEMU_A7PF_WRITEBACK_FLUSH') == '1' else (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256)
+    require(environment['A7C2_RAM_CARD_QEMU_SHA256'] in accepted_qemu,
+            'Inherited QEMU is not an accepted functional-camera build')
+    for name, fd in (('media-camera.fat', fds[0]), ('.backup-profile.pending.json', fds[2]),
+                     ('backup-profile.json', fds[2])):
+        held = os.fstat(fd)
+        named = os.stat(name, dir_fd=fds[1], follow_symlinks=False)
+        require(ram_initramfs.metadata(held) == ram_initramfs.metadata(named),
+                'Inherited RAM-card directory binding differs: ' + name)
+    return max(fds)
 
 
 def parse_mailbox(console):
@@ -203,16 +284,16 @@ def parse_mailbox(console):
     return binding
 
 
-def require_natural_capture_closed(console, binding):
-    """Resource retirement after real native write/readback is distinct from capture acceptance."""
+def _natural_capture_state(console, binding):
+    """Parse the same strict capture lifecycle for readiness and final retirement."""
     require(b'FUNCTIONAL_CAPTURE ' not in console, 'Natural still capture owner is active or unsaved; legacy receipt')
-    prefix = b'FUNCTIONAL_CAMERA_CAPTURE'
-    rows = list(re.finditer(rb'(?:^|\n)(?:OBS )?FUNCTIONAL_CAMERA_CAPTURE ([^\r\n]*)\r?(?=\n|$)', console))
+    prefix = b'OBS FUNCTIONAL_CAMERA_CAPTURE'
+    rows = list(re.finditer(rb'(?:^|\n)OBS FUNCTIONAL_CAMERA_CAPTURE ([^\r\n]*)\r?(?=\n|$)', console))
     require(console.count(prefix) == len(rows), 'Natural still capture owner is active or unsaved; incomplete framing')
     expected = set(('operation rc pid job phase request_fnv cookie frame_token model_instance request_freed '
                     'encoded frame_released notification_consumed write_verified resources_released write_token '
                     'write_bytes write_fnv policy original_AP_saved capture_verified physical_ASIC_verified').split())
-    pending, last_job, frames = None, 0, set()
+    pending, last_job, frames, completed = None, 0, set(), None
     for row in rows:
         require(row.end() < len(console), 'Natural still capture owner is active or unsaved; truncated receipt')
         tokens = row[1].decode('ascii').split()
@@ -268,10 +349,64 @@ def require_natural_capture_closed(console, binding):
                     fields['write_verified'] == fields['resources_released'] == '1' and number('notification_consumed') == 3,
                     'Natural still capture owner is active or unsaved; native write/resources not retired')
             frames.add(frame)
+            completed = pending
             pending = None
         else:
             raise ValueError('Natural still capture owner is active or unsaved; unknown operation: ' + operation)
+    return pending, completed
+
+
+def require_natural_capture_closed(console, binding):
+    """Resource retirement after real native write/readback is distinct from capture acceptance."""
+    pending, _ = _natural_capture_state(console, binding)
     require(pending is None, 'Natural still capture owner is active or unsaved; retain VM, card and owner resources')
+
+
+def require_natural_capture_write_ready(console, binding):
+    """Permit the original flush after matching write completion, never teardown or capture success."""
+    pending, completed = _natural_capture_state(console, binding)
+    current = pending if pending is not None else completed
+    require(current is not None and current['queued'] and current['consumed'] and current['matched'] and
+            current['write'] is not None, 'Natural capture native write is not complete for flush')
+    pid, job, request_fnv, _, _ = current['identity']
+    token, size, file_fnv = current['write']
+    require(0 < size < 2**32, 'Natural capture write size outside native range')
+    tags = ('FSYS_WRITE_REQUEST', 'FSYS_WRITE_SUBMIT', 'MPR_WRITE_CALLBACK',
+            'MPR_WRITE_FINISHED', 'MPR_WRITE_CALLBACK_RETURN')
+    records = {}
+    pattern = rb'^(?:OBS )?(' + b'|'.join(tag.encode() for tag in tags) + rb') ([^\r\n]+)\r?\n'
+    for row in re.finditer(pattern, console, re.M):
+        parts = row[2].decode('ascii').split()
+        require(all(part.count('=') == 1 for part in parts), 'Malformed original write lifecycle')
+        fields = dict(part.split('=', 1) for part in parts)
+        require(len(fields) == len(parts), 'Duplicate original write fields')
+        if fields.get('pid') != pid or fields.get('token') != str(token):
+            continue
+        tag = row[1].decode('ascii')
+        require(tag not in records, 'Duplicate original write lifecycle: ' + tag)
+        records[tag] = fields, row.start()
+    require(set(records) == set(tags), 'Original write submit/callback/finished is incomplete for flush')
+    request, request_at = records['FSYS_WRITE_REQUEST']
+    require(request.get('bytes') == '1288' and request.get('observation_rc') == '0' and
+            request.get('payload_complete') == '1' and request.get('expected_bytes') == str(size) and
+            request.get('address_mode') == '1' and re.fullmatch(r'0x[0-9a-f]+', request.get('cookie', '')) and
+            int(request['cookie'], 16) > 0, 'Original write request does not match capture')
+    require(all(request_at < position for tag, (_, position) in records.items() if tag != 'FSYS_WRITE_REQUEST'),
+            'Original write lifecycle precedes its request')
+    submit = records['FSYS_WRITE_SUBMIT'][0]
+    callback = records['MPR_WRITE_CALLBACK'][0]
+    finished = records['MPR_WRITE_FINISHED'][0]
+    returned = records['MPR_WRITE_CALLBACK_RETURN'][0]
+    require(submit.get('rc') == '0' and submit.get('callback_seen') in ('0', '1') and
+            callback.get('rc') == '0' and callback.get('result_copied') == '1' and
+            callback.get('duplicate') == '0' and callback.get('result_bytes') == '1240' and
+            callback.get('cookie') == request['cookie'] and finished.get('cookie') == request['cookie'] and
+            finished.get('rc') == '0' and finished.get('input_copied') == '1' and
+            finished.get('returned') == returned.get('returned') == '1' and finished.get('duplicate') == '0' and
+            records['MPR_WRITE_CALLBACK'][1] < records['MPR_WRITE_CALLBACK_RETURN'][1],
+            'Original write completion failed or changed callback identity')
+    return dict(pid=int(pid), job=int(job), request_fnv=request_fnv, token=token,
+                bytes=size, file_fnv=file_fnv, write_complete=True, capture_verified=False)
 
 
 def require_capture_closed(run):
@@ -313,7 +448,7 @@ def require_capture_closed(run):
         **{f'original-freed-{stage}': reply_fields + ' free_rc' for stage in ('ack', 'done')},
         **{f'original-rescmd-{stage}': callback_fields for stage in ('ack', 'done')},
     }
-    for match in re.finditer(rb'(?:^|\n)(?:OBS )?FUNCTIONAL_(MPR_(?:REQUEST|OPERATION|EVENT_RECEIVED|EVENT_FREE)|JPEG_CODEC)([^\n]*?)\r?(?=\n|$)', console):
+    for match in re.finditer(rb'(?:^|\n)(?:/ # )?(?:OBS )?FUNCTIONAL_(MPR_(?:REQUEST|OPERATION|EVENT_RECEIVED|EVENT_FREE)|JPEG_CODEC)([^\n]*?)\r?(?=\n|$)', console):
         kind, raw = match.groups()
         require(raw.startswith(b' '), 'Malformed native capture shutdown record framing')
         raw = raw[1:]
@@ -504,9 +639,12 @@ def _owned_descendant(identity, owner_pid):
     return False
 
 
-def debugger_handoff(run, owner_pid):
+def debugger_handoff(run, owner_pid, *, socket_root=None, socket_profile=None, socket_binding=None):
     """Observe closed clients/processes; never stop an observer to steal its lease."""
     root, _ = transport.validate_run(run)
+    roots = transport.endpoint_roots(root, socket_root=socket_root,
+        socket_profile=socket_profile, socket_binding=socket_binding)
+    endpoint_root = root if roots is None else roots.sockets
     for entry in Path('/proc').iterdir():
         if not entry.name.isdecimal():
             continue
@@ -515,7 +653,8 @@ def debugger_handoff(run, owner_pid):
             if Path(identity['exe']).name not in ('gdb', 'gdb-multiarch'):
                 continue
             command = (entry / 'cmdline').read_bytes().split(b'\0')
-            if any(os.fsencode(root) in arg for arg in command) or (entry / 'cwd').resolve() == root:
+            if (any(os.fsencode(root) in arg or os.fsencode(endpoint_root) in arg for arg in command) or
+                    (entry / 'cwd').resolve() in (root, endpoint_root)):
                 return None
         except (OSError, ValueError):
             continue
@@ -525,6 +664,13 @@ def debugger_handoff(run, owner_pid):
         if not result.exists():
             return None
         observer_result = object_json(checked_read(result))
+        import hdmi_upm_watch
+        observer_config = hdmi_upm_watch.read_config(root / 'hdmi-upm-watch-config.json')
+        if observer_config.get('model17c_runtime') is not None:
+            require(observer_result.get('model17c_runtime') == observer_config['model17c_runtime'],
+                    'model17c result/config binding differs')
+            if observer_config.get('mailbox') is None:
+                hdmi_upm_watch.model17c_handoff(observer_result)
         require(observer_result.get('detached') is True and not observer_result.get('detach_error') and
                 not observer_result.get('breakpoint_cleanup_error'), 'HDMI observer detach is unconfirmed')
     coordinator = root / 'hdmi-upm-coordinator.json'
@@ -553,25 +699,27 @@ def debugger_handoff(run, owner_pid):
     qemu = candidates[0]
     sockets = {}
     for name in (GDB, QMP):
-        path = root / name
+        path = endpoint_root / name
         info = path.lstat()
         require(stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid(), 'Untrusted functional-camera Unix endpoint')
-        os.chmod(path, 0o600, follow_symlinks=False)
+        if roots is None:
+            os.chmod(path, 0o600, follow_symlinks=False)
         try:
-            sockets[name] = transport.checked_socket(root, path, qemu['pid'])
+            options = {} if roots is None else dict(socket_roots=roots)
+            sockets[name] = transport.checked_socket(root, path, qemu['pid'], **options)
         except ValueError as error:
             if str(error) == 'Unix endpoint already has a connected client':
                 return None
             raise
     return {'qemu_pid': qemu['pid'], 'qemu_identity': qemu, 'debugger_quiesced': True,
-            'sockets': sockets, 'previous_hdmi_observer': observer_result}
+            'sockets': sockets, 'previous_hdmi_observer': observer_result, **transport.endpoint_options(roots)}
 
 
 def _publish(root, filename, value):
     root, _ = transport.validate_run(root)
     path = root / filename
     require(not path.is_symlink(), 'Runner receipt may not be a symlink')
-    pending = root / ('.' + filename + '.tmp')
+    pending = root / ('.' + filename + f'.{os.getpid():x}.{threading.get_ident():x}.{os.urandom(8).hex()}.tmp')
     fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
         with os.fdopen(fd, 'w', encoding='ascii') as stream:
@@ -749,15 +897,53 @@ class UnsafeCameraClose(RuntimeError):
     """The owning process must remain alive until the retained VM exits."""
 
 
+def parse_hdmi_mailbox(console):
+    """Bind only complete original observer records; repeated serial readback is harmless."""
+    found = None
+    for line in console.splitlines(keepends=True):
+        if not line.endswith(b'\n'):
+            continue
+        match = re.fullmatch(rb'(?:OBS )?FULL_HDMI_UPM_MAILBOX_INIT (.+)\r?\n', line)
+        if match is None:
+            continue
+        fields = dict(item.split(b'=', 1) for item in match[1].split())
+        required = {b'pid', b'tid', b'user_va', b'physical', b'bytes', b'nonce', b'upm_text',
+                    b'osal_text', b'version', b'record_bytes', b'lease', b'U', b'index', b'raw', b'effective'}
+        require(set(fields) == required, 'Incomplete HDMI/UPM mailbox announcement')
+        require(all(fields[k] == value for k, value in ((b'bytes', b'4096'), (b'version', b'1'),
+                    (b'record_bytes', b'256'), (b'index', b'0'),
+                    (b'raw', b'170192000000000000009a0000000000'),
+                    (b'effective', b'170192000000000000009a0000000000'))),
+                'HDMI/UPM mailbox ABI or first native message differs')
+        value = dict(mailbox={k: int(fields[f], 0) for k, f in
+                     (('phys', b'physical'), ('nonce', b'nonce'), ('pid', b'pid'))},
+                     module_texts={k: int(fields[f], 0) for k, f in
+                     (('upm', b'upm_text'), ('osal_uipc', b'osal_text'))})
+        require(found is None or found == value, 'HDMI/UPM mailbox owner changed')
+        found = value
+    return found
+
+
 class FunctionalCameraRunner:
-    def __init__(self, run, artifact):
+    def __init__(self, run, artifact, *, socket_root=None, socket_profile=None, socket_binding=None):
         self.run, _ = transport.validate_run(run)
+        roots = transport.endpoint_roots(self.run, socket_root=socket_root,
+            socket_profile=socket_profile, socket_binding=socket_binding)
+        self.socket_options = transport.endpoint_options(roots)
+        self.endpoint_root = self.run if roots is None else roots.sockets
         self.artifact = artifact
         self.owner = transport.process_identity(os.getpid())
         self.coordination_lock = threading.RLock()
         self.done = threading.Event()
         self.thread = self.broker = self.proc = None
         self.binding = self.handoff = self.cleanup = self.error = self.startup_cleanup = None
+        self.hdmi_watch = self.hdmi_binding = self.hdmi_cleanup = None
+        self.model17c_startup = self.model17c_events_size = None
+        self.model17c_identity = None
+        self.model17c_identity_only = False
+        self.model17c_startup_deadline = None
+        self.model17c_console_base = 0
+        self.model17c_handed_off = False
         self.run_allowed = True
         self.closed = False
         self.final_receipts = None
@@ -776,6 +962,502 @@ class FunctionalCameraRunner:
         self.thread = threading.Thread(target=self._watch, name='functional-camera-runner', daemon=True)
         self.thread.start()
 
+    @contextmanager
+    def ram_card_process(self, native, environment, initramfs_binding, qemu_binary, *,
+                         parallel_peak_bytes, stdout, stderr, output_parent=None,
+                         scope_build_receipt=None, internal=None, model_base=None):
+        """Borrow the exact producer FDs until confirmed exit; caller owns QMP/serial.
+
+        initramfs_binding must be a trusted derive() return or independently
+        SHA-verified v3 receipt. The launcher verifies host FDs before bwrap
+        preserves them, binds their read-only inodes, or hands the leased
+        internal disk over SCM_RIGHTS (same OFD, never a reopened path).
+        No sandbox transport alone is guest acceptance.
+        internal carries the sixth, independently leased internal-disk descriptor of
+        the explicit settings-restart profile; it is never a pathname fallback.
+        The existing probe does not call this candidate entry point.
+        """
+        self._check_owner()
+        require(environment.get('A7C2_FUNCTIONAL_RAM_CONSUMER') == RAM_CONSUMER_PROFILE,
+                'Functional RAM consumer is off; explicit opt-in required')
+        require(self.proc is None and self.thread is None and not self.closed,
+                'Functional RAM consumer requires an unused runner')
+        if capture_sockets.PROFILE == self.socket_options.get('socket_profile'):
+            require(internal is not None, 'Capture short sockets require the separately leased settings disk')
+            capture_roots = transport.endpoint_roots(self.run, **self.socket_options)
+            socket_launch = capture_roots.launch()
+        else:
+            socket_launch = nullcontext(({}, None))
+        require(not set(environment).intersection((capture_sockets.PROFILE_ENV, capture_sockets.ROOT_ENV, capture_sockets.FD_ENV)),
+                'Only the runner supplies capture socket launch parameters')
+        from menu_live import owner_signal_guard, retain_running_owner
+        result = dict(schema='a7c2-functional-ram-consumer-v1', profile=RAM_CONSUMER_PROFILE,
+                      host_fd_binding_verified=False, fd_inheritance_requested=False,
+                      consumer_endpoint_verified=False, guest_consumption_verified=False,
+                      sealed_memfd_verified=False, capture_verified=False, runtime_verified=False,
+                      physical_compatible=False, process_exit_observed=False)
+        try:
+            # Keep both accepted-build guards, including the scope build receipt.
+            result['actual_qemu_sha256'] = digest(checked_read(qemu_binary, 256 * 1024 * 1024))
+            if model_base is not None:
+                require(internal is not None and capture_sockets.PROFILE == self.socket_options.get('socket_profile'),
+                        'Alternate model requires the isolated capture route')
+                model_base = Path(model_base)
+                require(model_base.is_absolute() and model_base.resolve(strict=True) == model_base and
+                        checked_read(model_base / 'functional-camera-abi.h') == checked_read(Path(native) / 'functional-camera-abi.h'),
+                        'Isolated model path or ABI differs')
+            artifact = validate_artifact(native if model_base is None else model_base, qemu_binary,
+                                         scope_build_receipt=scope_build_receipt)
+            require(artifact == self.artifact, 'RAM consumer differs from prepared model/QEMU artifact')
+            ram_initramfs.verify_for_consumer(initramfs_binding)
+            model_options = {} if model_base is None else {'model_base': model_base}
+            with owner_signal_guard(), socket_launch as (socket_env, socket_fd), backup_profile.ram_profile_lease(
+                    native, environment, output_parent, parallel_peak_bytes=parallel_peak_bytes,
+                    **model_options) as lease:
+                merged = {**environment, **lease['environment'], **socket_env}
+                selected_qemu = Path(merged['QEMU_SYSTEM_DIR']) / merged['QEMU_SYSTEM_BINARY']
+                require(selected_qemu == Path(qemu_binary), 'RAM profile selected a different QEMU executable')
+                lease['verify']()
+                seed_fd, directory_fd, receipt_fd = lease['pass_fds']
+                receipt_raw = os.pread(receipt_fd, 16 * 1024 * 1024 + 1, 0)
+                require(len(receipt_raw) <= 16 * 1024 * 1024, 'Oversized RAM profile receipt')
+                receipt = object_json(receipt_raw)
+                seed_sha = ram_initramfs.sha_range(seed_fd, 0, os.fstat(seed_fd).st_size)
+                require(seed_sha == receipt.get('media_seed_sha256') == initramfs_binding['seed']['sha256'],
+                        'Leased seed differs from the derived initramfs payload')
+                launcher = Path(merged['MENU_KERNEL_SCRIPT'])
+                launcher_raw = checked_read(launcher)
+                require(digest(launcher_raw) == receipt.get('derived_script_sha256') and
+                        b'A7C2_RAM_CARD_LAUNCH_PROFILE' in launcher_raw,
+                        'RAM launcher lacks the reviewed inherited-FD sandbox protocol')
+                if internal is not None:
+                    # Reuse the product identity/OFD/quarantine checks, never a bare path.
+                    require(environment.get('A7C2_SETTINGS_RESTART_PROFILE') == SETTINGS_RESTART_PROFILE,
+                            'Internal settings disk requires the exact explicit profile')
+                    from persistent_storage import inherited_fd as persistent_inherited_fd
+                    require(persistent_inherited_fd(merged) == internal['fd'],
+                            'Inherited internal descriptor differs from its identity')
+                    require(b'A7C2_SETTINGS_RESTART_PROFILE' in launcher_raw and
+                            b'--preserve-fds' in launcher_raw and
+                            b'ram_card_fd_receiver.py' in launcher_raw,
+                            'launcher lacks the combined internal-disk handoff protocol')
+                with ram_initramfs.source(Path(initramfs_binding['output']['path'])) as (archive_fd, info, unchanged), \
+                        ram_initramfs.source(Path(qemu_binary)) as (qemu_fd, qinfo, qcheck):
+                    require(ram_initramfs.metadata(info) == initramfs_binding['output']['identity'] and
+                            ram_initramfs.sha_range(archive_fd, 0, info.st_size) == initramfs_binding['output']['sha256'],
+                            'Inherited initramfs differs from trusted derivation')
+                    require(ram_initramfs.sha_range(qemu_fd, 0, qinfo.st_size) == artifact['qemu_sha256'],
+                            'Inherited executable differs from accepted QEMU')
+                    pass_fds = (*lease['pass_fds'], archive_fd, qemu_fd)
+                    if internal is not None:
+                        require(len(set(pass_fds)) == 5 and internal['fd'] not in pass_fds,
+                                'Internal descriptor aliases a RAM input')
+                        pass_fds = (*pass_fds, internal['fd'])
+                        require(len(set(pass_fds)) == 6, 'Combined consumer descriptor aliases')
+                    else:
+                        require(len(set(pass_fds)) == 5, 'RAM consumer descriptor aliases')
+                    if socket_fd is not None:
+                        require(socket_fd not in pass_fds and b'A7C2_CAPTURE_SOCKET_FD' in launcher_raw,
+                                'Capture short-socket directory handoff missing or overlaps an owned input')
+                        pass_fds = (*pass_fds, socket_fd)
+                        result.update(schema='a7c2-functional-ram-consumer-v2', capture_socket_dirfd=socket_fd,
+                                      capture_socket_binding=self.socket_options['socket_binding'])
+                    merged.update(A7C2_RAM_CARD_LAUNCH_PROFILE=RAM_CONSUMER_PROFILE,
+                                  A7C2_RAM_CARD_INITRAMFS_FD=str(archive_fd),
+                                  A7C2_RAM_CARD_QEMU_FD=str(qemu_fd),
+                                  A7C2_RAM_CARD_INITRAMFS_SHA256=initramfs_binding['output']['sha256'],
+                                  A7C2_RAM_CARD_SEED_SHA256=seed_sha,
+                                  A7C2_RAM_CARD_RECEIPT_SHA256=digest(receipt_raw),
+                                  A7C2_RAM_CARD_QEMU_SHA256=artifact['qemu_sha256'],
+                                  QEMU_OUTPUT_DIR=str(self.run))
+                    command = ['bash', str(launcher), '4096', merged['MENU_DTB'], '1', '1',
+                               initramfs_binding['output']['path']]
+                    result.update(host_fd_binding_verified=True, pass_fds=list(pass_fds),
+                                  seed_sha256=seed_sha, initramfs_sha256=initramfs_binding['output']['sha256'],
+                                  settings_restart_profile=None if internal is None else SETTINGS_RESTART_PROFILE,
+                                  internal_fd=None if internal is None else internal['fd'])
+                    lease['verify'](); unchanged(); qcheck()
+                    _publish(self.run, RAM_CONSUMER_RECEIPT, result)
+                    proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=stdout, stderr=stderr,
+                                            env=merged, pass_fds=pass_fds)
+                    result.update(fd_inheritance_requested=True, process_pid=proc.pid)
+                    original = None
+                    try:
+                        self.start(proc)
+                        _publish(self.run, RAM_CONSUMER_RECEIPT, result)
+                        yield proc
+                    except BaseException as error:
+                        original = error
+                        raise
+                    finally:
+                        try:
+                            self.guard_shutdown(proc, original)
+                        except BaseException as cleanup_error:
+                            if original is None:
+                                raise
+                            original.add_note('RAM consumer shutdown failed: ' + repr(cleanup_error))
+                        finally:
+                            # No quit/signal/kill: never release FDs while exit is unknown.
+                            retain_running_owner(proc, self.run, original, reason='qmp-exit')
+                            result.update(process_exit_observed=True, returncode=proc.returncode)
+                    lease['verify'](); unchanged(); qcheck()
+        except BaseException as error:
+            result['error'] = f'{type(error).__name__}: {error}'
+            result['error_notes'] = list(getattr(error, '__notes__', ()))
+            try:
+                _publish(self.run, RAM_CONSUMER_RECEIPT, result)
+            except BaseException as save_error:
+                error.add_note('RAM consumer receipt save failed: ' + repr(save_error))
+            raise
+        else:
+            _publish(self.run, RAM_CONSUMER_RECEIPT, result)
+
+    def arm_model17c(self, raw):
+        """Called by the serial owner before its original AP launch command."""
+        self._check_owner()
+        require(self.proc is not None and self.broker is None and self.hdmi_watch is None and
+                self.model17c_startup is None, 'Early model17c requires the unused debugger owner')
+        import hdmi_upm_watch
+        import model17c_startup
+        startup = model17c_startup.metadata(raw, Path(__file__).resolve().parent)
+        if not self.socket_options:
+            os.chmod(self.endpoint_root / GDB, 0o600, follow_symlinks=False)
+        for attempt in (1, 2):
+            # The early GDB↔QEMU remote channel is intermittently flaky (internal
+            # crash, wedge, broken pipe). A dead early GDB is a host process:
+            # retry once with a fresh GDB instead of burning a full guest boot.
+            try:
+                self.hdmi_watch = hdmi_upm_watch.start(self.run, self.owner['pid'], startup['module_texts'],
+                    None, self.artifact.get('scope_build_receipt'), model17c_startup=startup, **self.socket_options)
+                break
+            except BaseException as error:
+                failed = getattr(error, 'hdmi_upm_watcher', None)
+                cleanup = getattr(error, 'hdmi_upm_cleanup', None)
+                if failed is not None:
+                    try:
+                        failed.stop()
+                    except BaseException:
+                        pass
+                retryable = attempt == 1 and isinstance(error, (TimeoutError, RuntimeError, ValueError))
+                if not retryable:
+                    self.hdmi_watch = failed
+                    self.hdmi_cleanup = cleanup
+                    raise
+                for path in sorted(self.run.glob('model17c-startup-*')):
+                    archive = self.run / (path.name + '-retry1')
+                    if not archive.exists():
+                        path.rename(archive)
+                _publish(self.run, 'model17c-startup-retry.json', dict(
+                    attempt=2, original_error=f'{type(error).__name__}: {error}', vm_signalled=False))
+        self._publish('model17c-early-breakpoint-armed')
+        # Bounded startup phase: the mmap window self-bounds at 300s inside the
+        # GDB script; a wedged GDB (e.g. descriptor exhaustion) must fail the
+        # run honestly instead of holding the owner forever.
+        self.model17c_startup_deadline = time.monotonic() + 900
+        console = self.run / 'console.log'
+        self.model17c_console_base = console.stat().st_size if console.exists() else 0
+        # Publish the model17c route last: the worker must never observe a live
+        # hdmi_watch with a None startup deadline while this method is arming.
+        self.model17c_startup = startup
+
+    def _guest_exception_recovery(self, context):
+        """A guest crash during the armed startup phase: prove QMP responsive,
+        issue one quit, then close only this runner's exact GDB pid. The VM
+        itself is never signalled."""
+        import socket as _socket
+        receipt = dict(schema='a7c2-guest-crash-recovery-v1', context=context[:512],
+                       signals_to_vm=[], ts=time.strftime('%Y-%m-%dT%H:%M:%SZ'))
+        for name in ('lcd-qmp.sock', 'hdmi-upm-control.sock'):
+            endpoint = self.endpoint_root / name if not self.socket_options else None
+            if endpoint is None:
+                continue
+            try:
+                client = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+                client.settimeout(8)
+                client.connect(str(endpoint))
+                stream = client.makefile('rw')
+                json.loads(stream.readline())
+                client.sendall(json.dumps({'execute': 'qmp_capabilities'}).encode() + b'\n')
+                json.loads(stream.readline())
+                client.sendall(json.dumps({'execute': 'query-status'}).encode() + b'\n')
+                receipt['last_status'] = json.loads(stream.readline()).get('return')
+                client.sendall(json.dumps({'execute': 'quit', 'id': 'guest-crash-1'}).encode() + b'\n')
+                try:
+                    stream.readline()
+                except OSError:
+                    pass
+                client.close()
+                receipt['quit_via'] = name
+                break
+            except OSError as error:
+                receipt.setdefault('probe_errors', []).append(f'{name}: {error}')
+        self._publish('model17c-guest-crash.json', receipt)
+        if self.hdmi_watch is not None and self.hdmi_watch.process is not None:
+            pid = self.hdmi_watch.process.pid
+            if self.hdmi_watch.process.poll() is None:
+                import signal as _signal
+                for sig in (_signal.SIGTERM, _signal.SIGKILL):
+                    try:
+                        os.kill(pid, sig)
+                    except OSError:
+                        break
+                    for _ in range(25):
+                        time.sleep(0.2)
+                        try:
+                            os.kill(pid, 0)
+                        except OSError:
+                            break
+                    else:
+                        continue
+                    break
+            receipt['gdb_pid'] = pid
+        with (self.run / 'model17c-guest-crash-recovery.json').open('x') as out:
+            json.dump(receipt, out, indent=2)
+
+    def _handoff_model17c_startup(self):
+        """Replace the exited early GDB with a fresh runtime observer process."""
+        import hdmi_upm_watch as h
+        early = self.hdmi_watch
+        require(early is not None and early.process.poll() == 0 and not self.model17c_handed_off,
+                'Early model17c GDB did not exit cleanly for separate-process handoff')
+        stop = object_json(checked_read(self.run / 'model17c-startup-stop.json', 128 * 1024))
+        result = object_json(checked_read(self.run / 'model17c-startup-result.json', 16 * 1024))
+        require(stop.get('schema') == 'a7c2-model17c-startup-stop-v2' and
+                stop.get('handoff') == 'separate-gdb-process-v1' and
+                stop.get('early_breakpoints_deleted') is True,
+                'Early model17c stop receipt is incomplete')
+        runtime_binding = h.model17c_binding(stop['binding'], None)
+        require(runtime_binding == stop.get('runtime_binding'),
+                'Early model17c runtime binding differs at handoff')
+        binding_sha = hashlib.sha256(json.dumps(runtime_binding, sort_keys=True).encode('ascii')).hexdigest()
+        require(result == dict(schema='a7c2-model17c-startup-detached-v1', detached=True,
+                               separate_process_handoff=True, early_breakpoints_remaining=[],
+                               runtime_binding_sha256=binding_sha),
+                'Early model17c did not prove detach and breakpoint cleanup')
+        if early.log is not None:
+            early.log.close()
+            early.log = None
+        _publish(self.run, 'model17c-startup-coordinator.json', result)
+        if getattr(self, 'model17c_identity_only', False):
+            # Keep the detached early AP identity, but do not stop the guest on
+            # runtime model17c probes before the UPM mailbox announcement.
+            # The normal mailbox route reuses this identity for native task/TID
+            # evidence and takes the GDB socket directly, with no yield race.
+            self.model17c_identity = stop['binding']
+            self.hdmi_watch = self.hdmi_cleanup = self.hdmi_binding = None
+            self.model17c_startup = None
+            self.model17c_events_size = None
+            self.model17c_handed_off = True
+            return
+        try:
+            runtime = h.start(self.run, self.owner['pid'], self.model17c_startup['module_texts'],
+                              None, self.artifact.get('scope_build_receipt'),
+                              model17c_runtime=stop['binding'], **self.socket_options)
+        except BaseException as error:
+            self.hdmi_watch = getattr(error, 'hdmi_upm_watcher', early)
+            self.hdmi_cleanup = getattr(error, 'hdmi_upm_cleanup', None)
+            raise
+        self.hdmi_watch = runtime
+        self.hdmi_binding = dict(model17c_runtime=runtime.config['model17c_runtime'])
+        self.model17c_events_size = None
+        self.model17c_handed_off = True
+
+    def _observe_model17c(self):
+        import hdmi_upm_watch as h
+        error_path = self.run / 'model17c-startup-error.json'
+        require(not error_path.exists(), 'Early model17c failed; GDB/VM owner retained without signals')
+        if self.hdmi_watch is not None and self.hdmi_watch.process.poll() is None:
+            # Only the short-lived early process has a startup deadline. Its
+            # fresh runtime successor may observe the entire capture lifecycle.
+            if not self.model17c_handed_off:
+                require(time.monotonic() < self.model17c_startup_deadline,
+                        'model17c startup observer did not complete within its bounded window')
+            # Active abort: a guest crash into the exception monitor while the
+            # startup observer waits for the appFw mmap can never complete;
+            # raise immediately with the crash context instead of idling.
+            console = self.run / 'console.log'
+            if console.exists():
+                base = getattr(self, 'model17c_console_base', 0)
+                size = console.stat().st_size
+                if size > base:
+                    with console.open('rb') as stream:
+                        stream.seek(max(0, base))
+                        appended = stream.read(min(size - base, 256 * 1024))
+                    if b'Exception> ' in appended:
+                        head = appended[appended.index(b'Exception>') - 400:appended.index(b'Exception>')]
+                        self._guest_exception_recovery(
+                            'guest exception monitor while model17c startup armed: ' +
+                            head.decode('ascii', 'replace'))
+                        raise ValueError('Guest crashed into the exception monitor during the '
+                                         'model17c startup window (see model17c-guest-crash.json)')
+        if not self.model17c_handed_off and self.hdmi_watch.process.poll() is not None:
+            try:
+                self._handoff_model17c_startup()
+            except BaseException as error:
+                import traceback
+                _publish(self.run, 'model17c-handoff-error.json', dict(
+                    error=f'{type(error).__name__}: {error}', traceback=traceback.format_exc()))
+                raise
+            if self.hdmi_watch is None:
+                return
+        if self.model17c_handed_off and self.hdmi_watch is not None and self.hdmi_watch.process.poll() is None:
+            # The guest's FULL_HDMI_UPM mailbox needs a HOST watch carrying that
+            # exact mailbox binding; the read-only model17c observer must yield
+            # so the functional mailbox watch can take the single GDB socket.
+            console_bytes = (self.run / 'console.log').read_bytes()
+            upm = parse_hdmi_mailbox(console_bytes)
+            if upm is not None:
+                # Capture the yielded observer's AP identity before it stops:
+                # the mailbox watch needs it for native producer task/TID evidence.
+                runtime_identity = self.hdmi_watch.config.get('model17c_runtime')
+                if runtime_identity is not None:
+                    # The runtime binding carries archival digest keys the exact
+                    # mailbox contract rejects; pass the identity subset only.
+                    runtime_identity = {key: value for key, value in runtime_identity.items()
+                                        if key not in ('asset_sha256', 'maps_sha256')}
+                _publish(self.run, 'model17c-yield.json', dict(
+                    reason='upm-mailbox-announcement', upm_mailbox=upm['mailbox']))
+                import signal as _signal
+                pid = self.hdmi_watch.process.pid
+                os.kill(pid, _signal.SIGINT)
+                grace = time.monotonic() + 10
+                while self.hdmi_watch.process.poll() is None and time.monotonic() < grace:
+                    time.sleep(.2)
+                forced = None
+                if self.hdmi_watch.process.poll() is None:
+                    # The embedded-Python signal path can wedge; this is our own
+                    # host observer process (never the VM). QEMU clears all GDB
+                    # breakpoints when the client socket closes.
+                    forced = 'SIGTERM'
+                    os.kill(pid, _signal.SIGTERM)
+                    grace = time.monotonic() + 5
+                    while self.hdmi_watch.process.poll() is None and time.monotonic() < grace:
+                        time.sleep(.2)
+                if self.hdmi_watch.process.poll() is None:
+                    forced = 'SIGKILL'
+                    os.kill(pid, _signal.SIGKILL)
+                deadline = time.monotonic() + 10
+                while self.hdmi_watch.process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.2)
+                require(self.hdmi_watch.process.poll() is not None,
+                        'model17c runtime observer did not yield to the UPM mailbox watch')
+                if forced is not None:
+                    _publish(self.run, 'model17c-yield-force.json', dict(
+                        pid=pid, final_signal=forced, reason='observer cleanup wedged after SIGINT',
+                        vm_signalled=False))
+                    self.hdmi_cleanup = dict(debugger_stopped=True, detached=False,
+                                             safe_to_close=True, forced_yield=True,
+                                             errors=['yield-forced: ' + forced])
+                else:
+                    self._close_hdmi()
+                # Archive the read-only phase under its own names so the mailbox
+                # watch can create the canonical config/events/result files.
+                # Archive every canonical watch artifact of the read-only phase
+                # so the mailbox watch can exclusively create the same names.
+                for path in sorted(self.run.glob(h.PREFIX + '*')):
+                    archive = self.run / ('model17c-watch' + path.name[len(h.PREFIX):])
+                    if not archive.exists():
+                        path.rename(archive)
+                _publish(self.run, 'model17c-phase-complete.json', dict(
+                    phase='model17c-readonly-observer', yielded_to='functional-mailbox-watch',
+                    receipts_required_from='mailbox-watch'))
+                # Continue in the normal functional path: mailbox watch + broker.
+                import hdmi_upm_watch
+                self.hdmi_watch = self.hdmi_cleanup = None
+                self.model17c_events_size = None
+                self.hdmi_binding = upm
+                self.model17c_startup = None  # mailbox route owns the socket from here
+                self.binding = None
+                # Keep the early binding as identity-only evidence: mailbox mode
+                # does not install model17c probes, but needs per-cpu symbols to
+                # resolve the actual native producer task/TID for UPM receipts.
+                runtime_identity = runtime_identity  # captured at yield start
+                require(runtime_identity is not None, 'Yielded mailbox watch lost the AP identity binding')
+                try:
+                    self.hdmi_watch = hdmi_upm_watch.start(self.run, self.owner['pid'],
+                        upm['module_texts'], upm['mailbox'],
+                        self.artifact.get('scope_build_receipt'), seconds=2700,
+                        model17c_runtime=runtime_identity, **self.socket_options)
+                except BaseException as error:
+                    self.hdmi_watch = getattr(error, 'hdmi_upm_watcher', None)
+                    self.hdmi_cleanup = getattr(error, 'hdmi_upm_cleanup', None)
+                    raise
+                self._publish('hdmi-upm-observer-armed')
+                return
+        config_path = self.run / 'hdmi-upm-watch-config.json'
+        if config_path.exists():
+            config = h.read_config(config_path)
+            require(config.get('model17c_runtime') is not None, 'Actual model17c binding missing')
+            self.hdmi_watch.config = config
+            self.hdmi_binding = dict(model17c_runtime=config['model17c_runtime'])
+            events = self.run / 'hdmi-upm-watch-events.jsonl'
+            size = events.stat().st_size if events.exists() else None
+            if size is not None and size != self.model17c_events_size:
+                self.model17c_events_size = size
+                try:
+                    receipts = h.read_receipts(self.run)
+                except ValueError as error:
+                    if str(error) != 'Incomplete published event line':
+                        raise
+                else:
+                    for receipt in receipts:
+                        if not (self.run / ('hdmi-upm-watch-ack-' + str(receipt['bridge_seq']) + '.json')).exists():
+                            h.ack_receipt(self.run, receipt['bridge_seq'])
+        if self.hdmi_watch.process.poll() is not None and self.hdmi_cleanup is None:
+            self._close_hdmi()
+            result = object_json(checked_read(self.run / 'hdmi-upm-watch-result.json'))
+            mailbox_route = isinstance(self.hdmi_binding, dict) and self.hdmi_binding.get('mailbox') is not None
+            if not mailbox_route:
+                h.model17c_handoff(result)
+            require(not result.get('error') and result.get('receipts') == 2,
+                    'model17c H observer did not prove both original native lifetimes')
+
+    def _close_hdmi(self):
+        if self.hdmi_watch is None:
+            return
+        self.hdmi_cleanup = self.hdmi_watch.stop()
+        _publish(self.run, 'hdmi-upm-coordinator.json',
+                 dict(owner=self.owner, binding=self.hdmi_binding, cleanup=self.hdmi_cleanup))
+        require(self.hdmi_cleanup.get('safe_to_close') is True and
+                self.hdmi_cleanup.get('errors') == [], 'HDMI/UPM debugger detach unconfirmed')
+
+    def _observe_hdmi(self, console):
+        if self.model17c_startup is not None:
+            if self.hdmi_watch is not None:
+                self._observe_model17c()
+            return
+        binding = parse_hdmi_mailbox(console)
+        if binding is None:
+            return
+        require(self.hdmi_binding is None or self.hdmi_binding == binding,
+                'HDMI/UPM producer changed after observer startup')
+        if os.environ.get('A7C2_HDMI_UPM_DISABLE') == '1':
+            self.hdmi_binding = binding
+            return
+        if self.hdmi_watch is None and not (self.run / 'hdmi-upm-watch-config.json').exists():
+            require(self.broker is None, 'HDMI observer cannot acquire the active camera debugger')
+            import hdmi_upm_watch
+            if not self.socket_options:
+                os.chmod(self.endpoint_root / GDB, 0o600, follow_symlinks=False)
+            self.hdmi_binding = binding
+            identity = getattr(self, 'model17c_identity', None)
+            try:
+                self.hdmi_watch = hdmi_upm_watch.start(self.run, self.owner['pid'],
+                    binding['module_texts'], binding['mailbox'],
+                    self.artifact.get('scope_build_receipt'),
+                    seconds=2700 if identity is not None else None,
+                    model17c_runtime=identity, **self.socket_options)
+            except BaseException as error:
+                self.hdmi_watch = getattr(error, 'hdmi_upm_watcher', None)
+                self.hdmi_cleanup = getattr(error, 'hdmi_upm_cleanup', None)
+                raise
+            self._publish('hdmi-upm-observer-armed')
+        if self.hdmi_watch is not None and self.hdmi_watch.process.poll() is not None and self.hdmi_cleanup is None:
+            self._close_hdmi()
+            result = object_json(checked_read(self.run / 'hdmi-upm-watch-result.json'))
+            require(not result.get('error') and result.get('receipts') == 2,
+                    'HDMI/UPM observer did not prove both original native lifetimes')
+
     def _watch(self):
         try:
             monitor = FirmwareMonitor(self.run / 'console.log')
@@ -783,15 +1465,22 @@ class FunctionalCameraRunner:
             while not self.done.is_set():
                 self._check_owner()
                 monitor.check()
-                observed = parse_mailbox((self.run / 'console.log').read_bytes())
+                console = (self.run / 'console.log').read_bytes()
+                self._observe_hdmi(console)
+                observed = parse_mailbox(console)
                 if observed:
                     require(self.binding is None or self.binding['mailbox'] == observed['mailbox'], 'Functional mailbox owner changed')
                     self.binding = observed
+                    hdmi_pid = (None if self.hdmi_binding is None else
+                        self.hdmi_binding['model17c_runtime']['pid'] if self.model17c_startup is not None else
+                        self.hdmi_binding['mailbox']['pid'])
+                    require(hdmi_pid is None or observed['mailbox']['pid'] == hdmi_pid,
+                            'Functional camera and HDMI/UPM belong to different AP processes')
                     if deadline is None:
                         deadline = time.monotonic() + 20  # Guest exchange has an actual 30-second deadline.
                         self._publish('waiting-for-debugger-handoff')
                     if self.broker is None:
-                        handoff = debugger_handoff(self.run, self.owner['pid'])
+                        handoff = debugger_handoff(self.run, self.owner['pid'], **self.socket_options)
                         if handoff is not None:
                             monitor.check()
                             if self.done.is_set():
@@ -800,10 +1489,10 @@ class FunctionalCameraRunner:
                             self.broker = transport.start(self.run, self.owner['pid'], self.binding['mailbox'],
                                 self.artifact['library'], qemu_pid=handoff['qemu_pid'],
                                 qemu_sha256=self.artifact['qemu_sha256'], library_sha256=self.artifact['library_sha256'],
-                                gdb_socket=self.run / GDB, qmp_socket=self.run / QMP,
+                                gdb_socket=self.endpoint_root / GDB, qmp_socket=self.endpoint_root / QMP,
                                 coordination_lock=self.coordination_lock, debugger_quiesced=True,
                                 resume_allowed=lambda: self.run_allowed and self.proc.poll() is None,
-                                seconds=3600.0, io_timeout=1.0)
+                                seconds=3600.0, io_timeout=1.0, **self.socket_options)
                             self._publish('attached')
                         elif time.monotonic() >= deadline:
                             raise TimeoutError('Functional mailbox guest deadline: previous debugger lease did not close')
@@ -862,10 +1551,11 @@ class FunctionalCameraRunner:
                   'phase': phase, 'owner': self.owner, 'artifact': self.artifact,
                   'mailbox_evidence': self.binding, 'debugger_handoff': self.handoff,
                   'cleanup': self.cleanup, 'startup_cleanup': self.startup_cleanup,
+                  'hdmi_upm_binding': self.hdmi_binding, 'hdmi_upm_cleanup': self.hdmi_cleanup,
                   'error': self.error, 'broker_started': self.broker is not None,
                   'capture_verified': False,
                   'physical_ASIC_compatibility_verified': False, 'original_CP_RAM_verified': False,
-                  'standalone_host_media_write': False,
+                  'standalone_host_media_write': False, **self.socket_options,
                   'acceptance_requires': 'original AP -> actual CMOS -> encoder -> original MPR/Fsys -> directory SD -> independent decode'}
         if self.final_receipts is not None:
             result['broker_event_counts'] = {}
@@ -917,6 +1607,13 @@ class FunctionalCameraRunner:
         safe = type(self.cleanup) is dict and self.cleanup.get('safe_to_close') is True and self.cleanup.get('errors') == []
         if self.broker is not None:
             safe = safe and all(self.cleanup.get(key) is True for key in CLOSE_FIELDS)
+        if safe and self.hdmi_watch is not None:
+            try:
+                self._close_hdmi()
+            except BaseException as error:
+                self.cleanup = {**self.cleanup, 'safe_to_close': False,
+                                'errors': [*self.cleanup['errors'], str(error)]}
+                safe = False
         if not safe:
             self._publish('blocked-' + reason)
             raise UnsafeCameraClose('Functional-camera cleanup unconfirmed; retain VM, disk and owner locks: ' + repr(self.cleanup))
@@ -932,6 +1629,8 @@ class FunctionalCameraRunner:
                         binding.get('mailbox') == self.binding['mailbox'] and
                         binding.get('config', {}).get('owner') == self.owner and
                         binding.get('config', {}).get('qemu') == self.handoff['qemu_identity'] and
+                        all(_typed_equal(binding.get('config', {}).get(key), value)
+                            for key, value in self.socket_options.items()) and
                         all(type(event.get('model_instance')) is int and event['model_instance'] == self.binding['mailbox']['nonce'] and
                             type(event.get('event')) is int and event['event'] == index for index, event in enumerate(events, 1)),
                         'Broker cleanup binding/sequence differs from current VM')
@@ -992,12 +1691,17 @@ class FunctionalCameraRunner:
                 signal.signal(number, previous)
 
 
-def prepare(profile, base, run, qemu_binary, *, scope_build_receipt=None):
+def prepare(profile, base, run, qemu_binary, *, scope_build_receipt=None,
+            socket_root=None, socket_profile=None, socket_binding=None):
     require(profile in ('', FUNCTIONAL_CAMERA_PROFILE), 'Unknown functional-camera runner profile')
+    selected = any(value is not None for value in (socket_root, socket_profile, socket_binding))
     if not profile:
+        require(not selected, 'F/S functional camera requires explicit functional profile')
         return None
+    roots = transport.endpoint_roots(run, socket_root=socket_root,
+        socket_profile=socket_profile, socket_binding=socket_binding)
     return FunctionalCameraRunner(run, validate_artifact(base, qemu_binary,
-        scope_build_receipt=scope_build_receipt))
+        scope_build_receipt=scope_build_receipt), **transport.endpoint_options(roots))
 
 
 def read_receipts(run):

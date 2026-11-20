@@ -19,6 +19,8 @@ expected = {
     'pci_get_domain_bus_and_slot', 'pci_enable_device', 'pci_disable_device',
     'pci_set_master', 'pci_dev_put', 'pci_bus_read_config_dword', 'pci_iomap_range',
     'pci_iounmap', '__memcpy_fromio', 'pcidma_connect',
+    'kthread_create_on_node', 'wake_up_process', 'kthread_stop',
+    'kthread_should_stop', 'msleep', '_raw_spin_lock_irqsave', '_raw_spin_unlock_irqrestore',
 }
 parameter=module.byname['__param']
 abi.require((parameter['size'],parameter['align'])==(40,8),'bool parameter record ABI')
@@ -31,13 +33,17 @@ abi.require(sorted((r['offset'],r['type'],r['symbol'],r['addend']) for r in modu
 flag=module.named('backup_model')
 abi.require(flag['size']==1 and module.sections[flag['shndx']]['type']==8,
             'Backup parameter must be one zero-initialized byte')
+for name, size in (('bb_lock', 4), ('bb_inflight', 32), ('bb_panel_pending', 32)):
+    symbol = module.named(name)
+    abi.require(symbol['size'] == size and module.sections[symbol['shndx']]['type'] == 8,
+                'zero-initialized BB lock/retained-record ABI: ' + name)
 imports = {s['name'] for s in module.symbols if s['shndx'] == 0 and s['name']}
 abi.require(imports == expected, 'normal exported kernel OSAL/PCI APIs only')
 abi.require(all(r['type'] in (257, 282, 283) for r in module.relocs), 'unsupported relocation')
 abi.require(not any(s['name'] == 'cleanup_module' for s in module.symbols),
             'resident until guest shutdown; no unsafe unwind')
 print(json.dumps({
-    'scope': 'sole kernel public sender; UDATE with opt-in guarded Backup PCI fixture, not CP firmware or runtime proof',
+    'scope': 'sole kernel public sender; UDATE, guarded Backup, IRQ-safe BB config receiver and one retained panel request; panel completion not implemented',
     'backup_default_off': True,
     'size': len(module.raw),
     'sha256': hashlib.sha256(module.raw).hexdigest(),

@@ -19,6 +19,11 @@ class ContinuousLCD:
         if self.run.is_symlink() or not 15 < fps <= 120:
             raise ValueError('Invalid LCD run or refresh rate')
         self.owner, self.publish, self.period = owner, publish, 1 / fps
+        from single_ap_sockets import roots_for_run
+        self.roots = roots_for_run(run)
+        if self.roots is not None:
+            from diagnostic_fs_socket_roots import process_identity
+            self.owner_identity = process_identity(owner.pid)
         self.cancel = threading.Event()
         self.thread = None
         self.error = ''
@@ -51,17 +56,33 @@ class ContinuousLCD:
     def _run(self):
         from menu_live import connect_in_run
         try:
-            path = self.run / 'lcd-qmp.sock'
+            root = self.run if self.roots is None else self.roots.sockets
+            path = root / 'lcd-qmp.sock'
+            if self.roots is not None:
+                from diagnostic_fs_socket_roots import process_identity
+                self.roots.endpoint(path)
             info = path.lstat()
             if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.geteuid():
                 raise ValueError('LCD QMP socket is not owned by this user')
             with socket.socket(socket.AF_UNIX) as sock:
                 sock.settimeout(3)
-                connect_in_run(sock, self.run, 'lcd-qmp.sock')
+                if self.roots is None:
+                    connect_in_run(sock, self.run, 'lcd-qmp.sock')
+                else:
+                    with self.roots.connect_path(path) as address:
+                        sock.connect(address)
+                    if process_identity(self.owner.pid) != self.owner_identity:
+                        raise ValueError('LCD VM owner start identity changed')
                 pid, uid, _ = struct.unpack('3i', sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
                 if uid != os.geteuid() or self.owner.poll() is not None or not self._descendant(pid, self.owner.pid):
                     raise ValueError('LCD QMP peer is not the current VM owner descendant')
                 self.peer = pid
+                if self.roots is not None:
+                    peer_identity = process_identity(pid)
+                    self.roots.endpoint(path)
+                    if (process_identity(self.owner.pid) != self.owner_identity or
+                            process_identity(pid) != peer_identity):
+                        raise ValueError('LCD peer/owner changed during connect')
                 with sock.makefile('rwb') as stream:
                     if 'QMP' not in json.loads(stream.readline(65537)):
                         raise ValueError('LCD QMP greeting missing')
@@ -70,6 +91,11 @@ class ContinuousLCD:
                     while not self.cancel.is_set():
                         if self.owner.poll() is not None:
                             return
+                        if self.roots is not None:
+                            self.roots.endpoint(path)
+                            if (process_identity(self.owner.pid) != self.owner_identity or
+                                    process_identity(pid) != peer_identity or not self._descendant(pid, self.owner.pid)):
+                                raise ValueError('LCD peer/owner identity changed')
                         self._command(stream, 'screendump', {'filename': '/out/lcd-continuous.ppm'})
                         self._frame(self.run / 'lcd-continuous.ppm')
                         deadline += self.period

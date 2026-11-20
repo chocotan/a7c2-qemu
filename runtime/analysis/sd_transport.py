@@ -18,6 +18,7 @@ import uuid
 CAP = 0x400000
 PHYS = 0x41E600000
 RESERVE = 1024 * 1024
+FREE_SPACE_FLOOR = 64 * 1024**3
 MARKER = re.compile(
     rb'SD_EXPORT_READY offset=(0|[1-9][0-9]*) len=([1-9][0-9]*) total=([1-9][0-9]*) '
     rb'dev=(0|[1-9][0-9]*) inode=([1-9][0-9]*) '
@@ -86,6 +87,60 @@ def write_file(parent, name, data):
         os.fsync(stream.fileno())
 
 
+def validate_capture_export_proof(result):
+    """Reject incomplete raw-card exports without modifying any evidence."""
+    if type(result) is not dict:
+        raise ValueError('capture export must be an object')
+    sequence = result.get('sequence')
+    q, life = result.get('quiesce'), result.get('flush_lifecycle')
+    if (type(sequence) is not int or not 0 < sequence < 2**64 or
+            result.get('ok') is not True or result.get('card_published') is not True or
+            result.get('expected_total') != 1024**3 or type(result.get('fsck_rc')) is not int or result['fsck_rc'] != 0 or
+            not isinstance(result.get('sha256'), str) or not re.fullmatch('[0-9a-f]{64}', result['sha256']) or
+            not isinstance(result.get('evidence'), str) or not re.fullmatch('export-[0-9a-f]{32}', result['evidence']) or
+            type(q) is not dict or q.get('owner_stopped') is not True or
+            type(q.get('original_Fsys_FlushVolume_rc')) is not int or q['original_Fsys_FlushVolume_rc'] != 0 or
+            type(q.get('sequence')) is not int or q['sequence'] != sequence or
+            type(q.get('pid')) is not int or q['pid'] <= 1 or type(q.get('drive')) is not int or
+            not 65 <= q['drive'] <= 90 or type(life) is not dict or life.get('ok') is not True or
+            life.get('resumed') is not True or life.get('status') != 'resumed' or
+            type(life.get('sequence')) is not int or life['sequence'] != sequence or
+            type(life.get('pid')) is not int or life['pid'] != q['pid']):
+        raise ValueError('incomplete raw-card Fsys export proof')
+    chunks = result.get('chunks')
+    if type(chunks) is not list or not chunks or len(chunks) > 256:
+        raise ValueError('incomplete raw-card window coverage')
+    offset = 0
+    for chunk in chunks:
+        if (type(chunk) is not dict or type(chunk.get('offset')) is not int or chunk['offset'] != offset or
+                type(chunk.get('len')) is not int or not 0 < chunk['len'] <= CAP or
+                chunk.get('qmp') != {'return': {}} or
+                not isinstance(chunk.get('guest_fnv64'), str) or
+                not re.fullmatch('[0-9a-f]{16}', chunk['guest_fnv64']) or
+                chunk.get('actual_fnv64') != chunk['guest_fnv64']):
+            raise ValueError('incomplete raw-card window coverage')
+        offset += chunk['len']
+    if offset != 1024**3:
+        raise ValueError('incomplete raw-card window coverage')
+
+
+def write_capture_export_proof(parent, result):
+    """Persist a raw-card capture export only after the original Fsys owner resumes."""
+    validate_capture_export_proof(result)
+    sequence = result['sequence']
+    raw = (json.dumps(result, sort_keys=True, allow_nan=False) + '\n').encode()
+    name = f'capture-export-{sequence:020d}.json'
+    write_file(parent, name, raw)
+    fd = regular(parent, name)
+    try:
+        if os.read(fd, len(raw)+1) != raw:
+            raise ValueError('capture export proof readback differs')
+    finally:
+        os.close(fd)
+    os.fsync(parent)
+    return name
+
+
 def report(parent, result):
     try:
         fd = regular(parent, 'export.json')
@@ -121,6 +176,12 @@ def check_space(parent, needed):
     available = info.f_bavail * info.f_frsize
     if available < needed:
         raise ValueError(f'insufficient free space: available={available} required={needed}')
+
+
+def required_export_space(total, offset=0):
+    """Candidate plus retained QMP chunks, with the large-write safety floor."""
+    floor = FREE_SPACE_FLOOR if total >= 1024**3 else 0
+    return (total-offset) * 2 + CAP + RESERVE + floor
 
 
 def export_card(run_dir, expected_total, *, serial_command, qmp, expected_old_sha256=None,quiesce=None,sparse=False):
@@ -178,7 +239,7 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
             if expected_old is None or digest_fd(old) != expected_old:
                 raise ValueError('unknown old card: refusing overwrite')
             old_identity = identity(os.fstat(old))
-        check_space(parent, 2 * total + CAP + RESERVE)
+        check_space(parent, required_export_space(total))
         if quiesce is not None:result['quiesce']=quiesce()
         name = 'export-' + uuid.uuid4().hex
         os.mkdir(name, 0o700, dir_fd=parent)
@@ -234,7 +295,7 @@ def _export_locked(parent, total, serial_command, qmp, expected_old, result,quie
         else:
             windows=((offset,min(CAP,total-offset)) for offset in range(0,total,CAP))
         for offset,length in windows:
-            check_space(parent, (total-offset) * 2 + CAP + RESERVE)
+            check_space(parent, required_export_space(total, offset))
             expected_fnv = guest(offset, length)
             if first_hash is None:
                 first_hash = expected_fnv

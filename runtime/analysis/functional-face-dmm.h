@@ -70,6 +70,9 @@ struct functional_face_dmm_snapshot {
 int functional_face_dmm_enable(const struct functional_face_dmm_registry *);
 int functional_face_dmm_snapshot(struct functional_face_dmm_snapshot *);
 int functional_face_dmm_shutdown(void);
+/* Software CP consumer retires an exact saved shared lease, never a raw handle.
+ * No wire reply, AP completion or creator release is synthesized. */
+int functional_face_dmm_consume_share(const struct functional_face_dmm_descriptor *);
 
 /* Return 0 to decline unknown/malformed/disabled traffic to the strict backend.
  * Wire offsets are hexadecimal: only 20/24 use +0c=ffffffff; 21/23/25 use 0.

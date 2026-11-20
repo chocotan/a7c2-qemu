@@ -6,6 +6,13 @@
 # Any MENU_* environment variables exported by the caller are forwarded to the guest as before.
 set -euo pipefail
 analysis_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -v A7C2_SINGLE_AP_SOCKETS || -v A7C2_SINGLE_AP_SOCKET_ROOT ]]; then
+    python3 -B "$analysis_dir/single_ap_sockets.py"
+fi
+if [[ -n "${A7C2_FUNCTIONAL_CAMERA_MEDIA:-}" ]]; then
+    echo 'Functional RAM card requires an isolated initramfs producer; current runtime is preserved' >&2
+    exit 2
+fi
 cd "$analysis_dir"
 LOCK="$analysis_dir/.menu-probe.lock"
 exec 9>>"$LOCK"

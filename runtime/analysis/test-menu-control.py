@@ -382,15 +382,15 @@ class TransportTests(unittest.TestCase):
             with self.assertRaises(FirmwareFault):
                 monitor.check()
 
-    def test_cleanup_only_owns_created_group(self):
-        owned = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)
-        unrelated = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True)
-        try:
-            terminate_owned(owned)
-            self.assertIsNotNone(owned.poll())
-            self.assertIsNone(unrelated.poll())
-        finally:
-            terminate_owned(unrelated)
+    def test_cleanup_only_waits_for_owned_process_without_signals(self):
+        from unittest.mock import Mock
+        owned=Mock(pid=12345)
+        owned.wait.side_effect=subprocess.TimeoutExpired('owned fixture',65)
+        with patch('menu_control.os.killpg') as group:
+            with self.assertRaises(subprocess.TimeoutExpired):terminate_owned(owned)
+        group.assert_not_called()
+        owned.terminate.assert_not_called()
+        owned.kill.assert_not_called()
 
     def test_sentinel_ignores_prompt_echo_and_old_markers(self):
         with tempfile.TemporaryDirectory() as tmp:

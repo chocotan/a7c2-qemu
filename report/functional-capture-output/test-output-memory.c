@@ -42,15 +42,40 @@ int main(int argc,char **argv) {
     unsigned char overlap[80]={0};memcpy(overlap,q,40);assert(capture_output_memory_reply(owner,overlap,0,overlap+1)==-EINVAL);
     assert(!capture_output_memory_reply(owner,q,0,r));assert(u32(r+12)==spans[1].handle && u64(r+24)==spans[1].alias && u32(r+32)==spans[1].capacity);
     struct capture_output_info info;assert(!capture_output_memory_info(owner,&info) && !info.native_references);
-    request(q,0x28,0x80d61,0);assert(!capture_output_memory_reply(owner,q,0,r) && u32(r+12)==spans[CAPTURE_OUT_HEADER].handle);
-    request(q,0x28,0x27f,0);assert(!capture_output_memory_reply(owner,q,0,r) && u32(r+12)==spans[CAPTURE_OUT_AUX].handle);
-    request(q,0x28,0xdead,0);assert(capture_output_memory_reply(owner,q,0,r)==-ENODATA);
+    for(unsigned i=CAPTURE_OUT_HEADER;i<=CAPTURE_OUT_AUX;++i){
+        request(q,0x2a,spans[i].handle,0);assert(capture_output_memory_reply(owner,q,0,r)==-ESTALE);
+        request(q,0x20,0,1);p32(q+4,spans[i].unit_type);p32(q+12,UINT32_MAX);
+        assert(!capture_output_memory_reply(owner,q,0,r) && u32(r+12)==spans[i].handle && u32(r+16)==spans[i].unit_type);
+        assert(capture_output_memory_reply(owner,q,0,r)==-EBUSY);
+        assert(!capture_output_memory_cancel_allocation(owner,spans[i].handle));
+        assert(!capture_output_memory_reply(owner,q,0,r));
+        request(q,0x23,spans[i].handle,2);assert(!capture_output_memory_reply(owner,q,0,r));
+    }
+    request(q,0x20,0,1);p32(q+4,0xdead);p32(q+12,UINT32_MAX);assert(capture_output_memory_reply(owner,q,0,r)==-ENODATA);
+    request(q,0x28,0x80d61,0);assert(capture_output_memory_reply(owner,q,0,r)==-ESTALE);
     request(q,0x23,spans[1].handle,2);assert(capture_output_memory_reply(owner,q,0,r)==-EALREADY);
     request(q,0x21,spans[1].handle,1);
     for(unsigned i=0;i<255;++i)assert(!capture_output_memory_reply(owner,q,0,r));
     assert(capture_output_memory_reply(owner,q,0,r)==-EOVERFLOW && capture_output_memory_destroy(owner)==-EBUSY);
     request(q,0x23,spans[1].handle,2);
     for(unsigned i=0;i<255;++i)assert(!capture_output_memory_reply(owner,q,0,r));
+    assert(!capture_output_memory_publish_begin(owner));
+    assert(capture_output_memory_publish_begin(owner)==-EALREADY);
+    assert(!capture_output_memory_publish_cancel(owner));
+    assert(!capture_output_memory_info(owner,&info) && !info.native_references);
+    assert(!capture_output_memory_publish_begin(owner));
+    request(q,0x2a,spans[CAPTURE_OUT_MAIN].handle,0);assert(!capture_output_memory_reply(owner,q,0,r));
+    assert(capture_output_memory_publish_cancel(owner)==-EBUSY);
+    assert(!capture_output_memory_publish_commit(owner));
+    assert(capture_output_memory_publish_cancel(owner)==-EBUSY);
+    for(unsigned i=CAPTURE_OUT_METADATA;i<=CAPTURE_OUT_THUMB;++i){
+        struct capture_output_span span;assert(!capture_output_memory_span(owner,(enum capture_output_role)i,&span) && span.references==1);
+        request(q,0x21,span.handle,1);assert(!capture_output_memory_reply(owner,q,0,r));
+        request(q,0x23,span.handle,2);assert(!capture_output_memory_reply(owner,q,0,r));
+        assert(!capture_output_memory_span(owner,(enum capture_output_role)i,&span) && span.references==1);
+        assert(!capture_output_memory_reply(owner,q,0,r));
+    }
+    assert(!capture_output_memory_info(owner,&info) && !info.native_references);
     uint64_t tokens[9]={0};for(unsigned i=0;i<8;++i)assert(!capture_output_memory_hold(owner,&tokens[i]));
     assert(capture_output_memory_hold(owner,&tokens[8])==-ENOSPC && capture_output_memory_destroy(owner)==-EBUSY);
     for(unsigned i=0;i<8;++i)assert(!capture_output_memory_drop(owner,tokens[i]));

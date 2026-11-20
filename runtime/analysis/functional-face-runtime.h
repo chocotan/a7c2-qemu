@@ -57,6 +57,18 @@ struct functional_face_runtime_transaction {
     struct functional_face_dmm_descriptor binding;
     struct functional_face_runtime_ticket receipt;
 };
+/* CP type2/index6 -> internal0e00 -> CP817dac's pending 80B list.
+ * The functional profile starts its own face instance (constructor gate0,
+ * virtual start event1/11 -> gate1). This is NOT an observed original CP gate.
+ * Each accepted list owns one actual committed DMM share until replacement.
+ * notify_pending records the unbound event2c consumer, never completion. */
+struct functional_face_runtime_list {
+    uint32_t gate, valid, count, generation, retired, shares_released, notify_pending;
+    uintptr_t request;
+    unsigned char wire[24], payload[80], known[80];
+    struct functional_face_dmm_descriptor span;
+    int release_result;
+};
 struct functional_face_runtime_snapshot {
     uint64_t snapshot_id, producer_owner;
     int owner_pid;
@@ -68,6 +80,7 @@ struct functional_face_runtime_snapshot {
     struct functional_face_runtime_unit units[FUNCTIONAL_FACE_DMM_UNITS];
     struct functional_face_runtime_transaction transactions[FUNCTIONAL_FACE_RUNTIME_TRANSACTIONS];
     struct functional_face_runtime_transaction last_completed;
+    struct functional_face_runtime_list list;
     /* Nonzero means unavailable (e.g. callback reentry -EBUSY), never success
      * with invented zero read/write counts. Only this real model owns stats. */
     int model_snapshot_result;
@@ -116,4 +129,12 @@ int functional_face_runtime_borrow_destination(uint64_t producer_owner, uint32_t
 /* Whole ledger/tickets copied under the facade mutex; logger runs outside it.
  * Callback snapshots remain readable even while model_snapshot_result is busy. */
 int functional_face_runtime_snapshot(struct functional_face_runtime_snapshot *);
+/* Parent pins the original AP constructor, owner and sender TID. Only exact24B
+ * source80020002/type2/index6/unit1db is handled. Saved share receipt identity
+ * is required and selected uniquely; padding+2..3 and unused IDs are opaque.
+ * Invalid counts/IDs, ambiguous/stale leases, reentry/fork fail before release.
+ * This consumes ingress/list storage only; event2c, original CP and capture
+ * completion remain unverified. Failed request release is retained and faulted. */
+int functional_face_runtime_list_dispatch(unsigned int, void *, const struct full_imaging_io *,
+    int explicit_enabled, const struct functional_face_runtime_caller *, int *);
 #endif

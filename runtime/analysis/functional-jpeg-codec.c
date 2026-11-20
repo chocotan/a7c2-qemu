@@ -213,6 +213,26 @@ static int read_object(const void *pointer, void *out, size_t bytes) {
     errno = saved;
     return rc;
 }
+/* UIPC uses remap_pfn_range without vm_ops->access. A pipe uses ordinary usercopy,
+ * so an inaccessible source still returns EFAULT instead of faulting this process. */
+static int read_osal_packet(const void *pointer, void *out, size_t bytes) {
+    if (bytes > PACKET_BYTES) return -EMSGSIZE;
+    int rc = read_object(pointer, out, bytes);
+    if (rc != -EIO) return rc;
+    int saved = errno, pipefd[2];
+    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK) < 0) {
+        rc = -errno; errno = saved; return rc;
+    }
+    ssize_t n;
+    do { n = write(pipefd[1], pointer, bytes); } while (n < 0 && errno == EINTR);
+    if (n == (ssize_t)bytes) {
+        do { n = read(pipefd[0], out, bytes); } while (n < 0 && errno == EINTR);
+    }
+    rc = n == (ssize_t)bytes ? 0 : n < 0 ? -errno : -EFAULT;
+    close(pipefd[0]); close(pipefd[1]);
+    errno = saved;
+    return rc;
+}
 static void *next_symbol(const char *name) {
     int saved = errno;
 #ifdef FJPEG_HOST_TEST
@@ -676,12 +696,15 @@ int functional_jpeg_codec_capture_output(uint64_t mapbase, struct capture_output
     pthread_mutex_unlock(&lock);
     return rc;
 }
-static int rejected(int rc, int *result) {
+static int rejected_detail(int rc, int *result, const char *detail) {
     if (current) current->dispatch_error = rc;
     pthread_mutex_lock(&lock); ++stats.rejected; stats.last_error = rc; pthread_mutex_unlock(&lock);
     *result = rc;
-    note("request-rejected", NULL, rc);
+    note_detail("request-rejected", NULL, rc, detail);
     return 1;
+}
+static int rejected(int rc, int *result) {
+    return rejected_detail(rc, result, NULL);
 }
 int functional_jpeg_codec_dispatch(unsigned int destination, void *request,
     const struct full_imaging_io *io, int *result) {
@@ -694,8 +717,16 @@ int functional_jpeg_codec_dispatch(unsigned int destination, void *request,
     struct full_imaging_io transport;
     if (read_object(io, &transport, sizeof transport) || !valid_io(&transport)) return rejected(-EINVAL, result);
     uint8_t packet[PACKET_BYTES];
-    if (!request || read_object(request, packet, sizeof packet) ||
-        transport.size(request) != sizeof packet) return rejected(-EMSGSIZE, result);
+    int read_rc = request ? read_osal_packet(request, packet, sizeof packet) : -EFAULT;
+    unsigned reported = read_rc ? 0 : transport.size(request);
+    if (read_rc || reported != sizeof packet) {
+        char prefix[32 * 2 + 1], detail[192];
+        size_t n = reported < 32 ? reported : 32;
+        if (n) hex_bytes(packet, n, prefix);
+        snprintf(detail, sizeof detail, "expected_bytes=%zu reported_bytes=%u packet_read_rc=%d prefix_hex=%s",
+                 sizeof packet, reported, read_rc, n ? prefix : "-");
+        return rejected_detail(-EMSGSIZE, result, detail);
+    }
     if (!envelope(packet, sizeof packet, REQUEST_BYTES) ||
         transport.source(request) != current->qid || u32(packet) != current->qid ||
         current->submitted) return rejected(-EPROTO, result);
@@ -891,7 +922,7 @@ uint32_t functional_jpeg_main_exec(void *object, const uint8_t *trigger) {
 static int main_config(struct jpeg_job *j) {
     uintptr_t vptr, slot, expected;
     if (read_object(j->native.control, &vptr, sizeof vptr) ||
-        vptr > UINTPTR_MAX - 0xa8 || read_object((void *)(vptr + 0xa8), &slot, sizeof slot)) return -EFAULT;
+        vptr > UINTPTR_MAX - 0xb0 || read_object((void *)(vptr + 0xb0), &slot, sizeof slot)) return -EFAULT;
     memcpy(&expected, &original.get_pointer, sizeof expected);
     if (slot != expected) return -ELIBBAD;
     void *config = NULL;
@@ -906,7 +937,15 @@ static int main_config(struct jpeg_job *j) {
     unsigned offset = 0x54 + 12u * j->native.selector;
     if (read_object((uint8_t *)config + offset, fields, sizeof fields) ||
         u32(fields) != u32(j->request + 0x28) || u32(fields + 4) != u32(j->request + 0x38) ||
-        u32(fields + 8) != u32(j->request + 0x3c)) return -EPROTO;
+        u32(fields + 8) != u32(j->request + 0x3c)) {
+        char detail[256];
+        snprintf(detail, sizeof detail,
+            "config=%p offset=%u actual=%#x/%#x/%#x expected=%#x/%#x/%#x",
+            config, offset, u32(fields), u32(fields + 4), u32(fields + 8),
+            u32(j->request + 0x28), u32(j->request + 0x38), u32(j->request + 0x3c));
+        note_detail("main-config-fields", j, -EPROTO, detail);
+        return -EPROTO;
+    }
     j->config = config;
     return 0;
 }
@@ -968,10 +1007,15 @@ int functional_jpeg_codec_observe_received(unsigned int destination, void *reply
     if (!atomic_load_explicit(&enabled, memory_order_acquire)) return 0;
     int rc = process_guard();
     if (rc) return rc;
+    pthread_mutex_lock(&lock);
+    int observing = stats.pending && destination == pending.native.qid;
+    pthread_mutex_unlock(&lock);
+    /* Ordinary input receives must not scan process maps while the codec is idle. */
+    if (!observing) return 0;
     struct full_imaging_io transport;
     if (read_object(io, &transport, sizeof transport) || !valid_io(&transport)) return -EINVAL;
     uint8_t packet[ENVELOPE_BYTES + REPLY_BYTES];
-    if (!reply || read_object(reply, packet, sizeof packet)) return -EFAULT;
+    if (!reply || read_osal_packet(reply, packet, sizeof packet)) return -EFAULT;
     if (transport.source(reply) != FUNCTIONAL_JPEG_CODEC_SID) return 0;
     if (transport.size(reply) != sizeof packet ||
         !envelope(packet, sizeof packet, REPLY_BYTES)) return -EPROTO;

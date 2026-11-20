@@ -1,10 +1,12 @@
 """Adversarial original-kernel allocation evidence, without QEMU or sockets."""
 import ast
+from contextlib import contextmanager
 import copy
 import ctypes
 import json
 import os
 from pathlib import Path
+import stat
 import struct
 import subprocess
 import sys
@@ -58,7 +60,7 @@ def test_startup_timeout_preserves_unsafe_cleanup_and_watcher(tmp_path, monkeypa
     config = dict(run=str(tmp_path), context=w.context(TEXTS))
     child = types.SimpleNamespace(poll=lambda: None, pid=12345)
     cleanup = dict(debugger_stopped=False, detached=False, safe_to_close=False, errors=['retained'])
-    monkeypatch.setattr(w, 'owned_config', lambda *args: config)
+    monkeypatch.setattr(w, 'owned_config', lambda *args, **kwargs: config)
     monkeypatch.setattr(w, 'revalidate', lambda _: config)
     monkeypatch.setattr(w.subprocess, 'Popen', lambda *args, **kwargs: child)
     monkeypatch.setattr(w.Watch, 'stop', lambda self: cleanup)
@@ -73,19 +75,29 @@ def test_startup_timeout_preserves_unsafe_cleanup_and_watcher(tmp_path, monkeypa
 
 @pytest.fixture
 def owned_qemu(tmp_path, monkeypatch):
-    import socket
-    run = tmp_path / 'run'
+    socket_files = set()
+    class SyntheticPath(type(tmp_path)):
+        def lstat(self):
+            info = super().lstat()
+            # Only registered regular-file identities stand in for socket types.
+            if (info.st_dev, info.st_ino) in socket_files and stat.S_ISREG(info.st_mode):
+                return os.stat_result((stat.S_IFSOCK | stat.S_IMODE(info.st_mode), *info[1:]))
+            return info
+    def socket_file(path):
+        path.write_bytes(b'HOST_TEST synthetic Unix endpoint; never a real socket')
+        path.chmod(0o600)
+        info = Path(path).lstat()
+        assert stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+        socket_files.add((info.st_dev, info.st_ino))
+    run = SyntheticPath(tmp_path / 'run')
     run.mkdir()
-    directory = os.open(run, os.O_RDONLY | os.O_DIRECTORY)
-    server = socket.socket(socket.AF_UNIX)
-    server.bind(f'/proc/self/fd/{directory}/' + w.SOCKET)
-    os.chmod(run / w.SOCKET, 0o600)
+    socket_file(run / w.SOCKET)
     proc = tmp_path / 'proc'
     qemu = proc / '345'
     (qemu / 'net').mkdir(parents=True)
     (qemu / 'fd').mkdir()
     (qemu / 'root').mkdir()
-    other = tmp_path / 'other'
+    other = SyntheticPath(tmp_path / 'other')
     other.mkdir()
     (qemu / 'root/out').symlink_to(run)
     (qemu / 'fd/4').symlink_to('socket:[678]')
@@ -98,11 +110,10 @@ def owned_qemu(tmp_path, monkeypatch):
     os.chmod(executable, 0o700)
     (qemu / 'exe').symlink_to(executable)
     monkeypatch.setattr(w, 'QEMU_SHA', w.hashlib.sha256(executable.read_bytes()).hexdigest())
-    real_path = Path
     def path(value):
         if str(value) == '/proc':
             return proc
-        return real_path(value)
+        return SyntheticPath(value)
     monkeypatch.setattr(w, 'Path', path)
     monkeypatch.setattr(w, 'RUNS', tmp_path)
     monkeypatch.setattr(w, 'original_opcodes', lambda _: {})
@@ -111,11 +122,52 @@ def owned_qemu(tmp_path, monkeypatch):
                     exe='/tools/qemu-system-aarch64', cmdline=[b'qemu-system-aarch64', b'-m', b'24576',
                                                 b'-gdb', ('unix:/out/' + w.SOCKET).encode()])
     monkeypatch.setattr(w, 'process_identity', identity)
-    try:
-        yield types.SimpleNamespace(run=run, proc=proc, qemu=qemu, binary=executable, other=other, table=table)
-    finally:
-        server.close()
-        os.close(directory)
+    return types.SimpleNamespace(run=run, proc=proc, qemu=qemu, binary=executable,
+                                 other=other, table=table, socket_file=socket_file)
+
+
+def test_inherited_fd_qemu_uses_exact_admitted_hash(owned_qemu, monkeypatch):
+    f = owned_qemu
+    digest = w.hashlib.sha256(f.binary.read_bytes()).hexdigest()
+    monkeypatch.setattr(w, 'QEMU_SHA', '0' * 64)
+    monkeypatch.setattr(w, 'RAM_CARD_QEMU_SHA', digest)
+    assert w.owned_config(f.run, 1234, TEXTS)['running_QEMU_sha256'] == digest
+    f.binary.write_bytes(b'unreviewed replacement')
+    with pytest.raises(ValueError, match='Untrusted actual running QEMU'):
+        w.owned_config(f.run, 1234, TEXTS)
+
+
+def test_writeback_qemu_requires_explicit_profile_and_exact_running_hash(owned_qemu, monkeypatch):
+    f = owned_qemu
+    digest = w.hashlib.sha256(f.binary.read_bytes()).hexdigest()
+    monkeypatch.setattr(w, 'QEMU_SHA', '0' * 64)
+    monkeypatch.setattr(w, 'RAM_CARD_QEMU_SHA', '0' * 64)
+    monkeypatch.setattr(w, 'WRITEBACK_FLUSH_QEMU_SHA', digest)
+    monkeypatch.setenv('QEMU_A7PF_WRITEBACK_FLUSH', '1')
+    assert w.owned_config(f.run, 1234, TEXTS)['running_QEMU_sha256'] == digest
+    monkeypatch.setattr(w, 'WRITEBACK_FLUSH_QEMU_SHA', '0' * 64)
+    with pytest.raises(ValueError, match='Untrusted actual running QEMU'):
+        w.owned_config(f.run, 1234, TEXTS)
+
+
+def test_owned_socket_type_mock_keeps_real_file_identity_and_rejects_replacement(owned_qemu):
+    f = owned_qemu
+    endpoint = f.run / w.SOCKET
+    actual, synthetic = Path(endpoint).lstat(), endpoint.lstat()
+    assert stat.S_ISREG(actual.st_mode) and stat.S_IMODE(actual.st_mode) == 0o600
+    assert stat.S_ISSOCK(synthetic.st_mode) and stat.S_IMODE(synthetic.st_mode) == 0o600
+    assert synthetic[1:] == actual[1:]
+    ordinary = f.run / 'ordinary-file'
+    ordinary.write_bytes(b'HOST_TEST non-endpoint')
+    assert stat.S_ISREG(ordinary.lstat().st_mode)
+    saved = f.run / 'saved-endpoint'
+    endpoint.rename(saved)
+    assert stat.S_ISSOCK(saved.lstat().st_mode)
+    endpoint.write_bytes(b'HOST_TEST replacement with a different inode')
+    endpoint.chmod(0o600)
+    assert stat.S_ISREG(endpoint.lstat().st_mode)
+    with pytest.raises(ValueError, match='owned private Unix GDB socket'):
+        w.owned_config(f.run, 1234, TEXTS)
 
 
 @pytest.mark.parametrize('scenario', ['owned-namespace', 'host-only-listener', 'wrong-out-mount'])
@@ -533,6 +585,14 @@ O = 0xffffff8001000000
 TEXTS = {'upm': T, 'osal_uipc': O}
 TASK = 0xffffffc010000000
 PRODUCER = 0xffffffc010010000
+# Per-cpu task identity: this gdbstub exposes no sp_el0/ttbr0_el1, so the UPM
+# event loop labels every stop through __entry_task/mm->pgd reads instead.
+PERCPU = {'__entry_task': 0xffffff8003000000, '__per_cpu_offset': 0xffffff8003001000}
+IDENTITY = dict(profile='virtual-model17c-runtime-ro-v1', pid=210, base=0x7000000000,
+                ttbr0=0x400123000, task=PRODUCER, mm=0xffffffc010002000, pgd=0xffffffc000123000,
+                memstart=0x400000000, cpu=2, symbols=dict(PERCPU),
+                abi={'task_mm': 0x2d8, 'mm_pgd': 0x40}, inline_profile='virtual-model17c-runtime-ro-v1',
+                maps='synthetic')
 FRAME = 0xffffffc011001000
 USERBASE = 0x40000000
 KBASE = 0xffffffc012000000
@@ -561,7 +621,7 @@ def event(kind, seq, op=0, effective=0, u=U, k=K, allocator='vpool', units=1, fl
     tid = 210 if task == PRODUCER else 144
     pcbase, offset = w.POINTS[kind]
     regs = dict.fromkeys(w.REGS, 0)
-    regs.update(pc=TEXTS[pcbase] + offset, sp_el0=task, sp=FRAME, x29=FRAME)
+    regs.update(pc=TEXTS[pcbase] + offset, sp=FRAME, x29=FRAME)
     memory = {}
     def put(name, address, raw):
         memory[name] = dict(address=address, hex=raw.hex())
@@ -596,7 +656,7 @@ def event(kind, seq, op=0, effective=0, u=U, k=K, allocator='vpool', units=1, fl
         put('header', k - 24, header(ref, units, flags))
         put('body', k, body(current_op))
     return dict(kind=kind, seq=seq, context=w.context(TEXTS), registers=regs, memory=memory,
-                kernel_tid=tid, gdb_vcpu_thread=3)
+                kernel_task=task, kernel_tid=tid, gdb_vcpu_thread=3)
 
 
 def lifetime(start=1, op=0, effective=0, u=U, k=K, allocator='vpool', units=1, flags=0):
@@ -638,6 +698,39 @@ def test_two_complete_actual_lifetimes_and_aba_after_retirement(effective, alloc
     assert len(tracker.receipts) == 2 and second['allocator'] == allocator
 
 
+@pytest.mark.parametrize('lease_count', [0, 2])
+@pytest.mark.parametrize('stage,expected', [
+    ('receive', {'load'}), ('load', {'consumer'}), ('consumer', {'branch'}),
+    ('branch', {'handled'}), ('handled', {'free_entry'}),
+    ('free_entry', {'vpool', 'vpool_fallback', 'fblock'}), ('allocator', {'free_return'}),
+])
+def test_only_next_native_lease_stage_is_armed(stage, expected, lease_count):
+    tree = ast.parse(Path(w.__file__).read_text())
+    selector, = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                 and node.name == 'select_breakpoints']
+    leases = [] if not lease_count else [dict(k=K, stage=stage), dict(k=K+4096, stage='retired')]
+    tracker = types.SimpleNamespace(context=w.context(TEXTS), leases=leases, bridges={}, active={
+        TASK: dict(frame=FRAME, k=K, stage=stage)})
+    points = {number: (types.SimpleNamespace(enabled=None, condition=None), kind)
+              for number, kind in enumerate(w.POINTS) if kind not in ('task_entry', 'receive_call')}
+    namespace = dict(tracker=tracker, breakpoints=points, QUEUE=w.QUEUE, MESSAGE=w.MESSAGE, SOURCE=w.SOURCE)
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[selector], type_ignores=[])),
+                 str(w.__file__), 'exec'), namespace)
+    namespace['select_breakpoints']()
+    selected = {kind for bp, kind in points.values() if bp.enabled and kind not in ('bridge', 'send', 'receive')}
+    assert selected == expected
+    if lease_count == 2:
+        assert not next(bp for bp, kind in points.values() if kind == 'bridge').enabled
+
+
+def test_duplicate_native_load_is_still_rejected_by_correlator():
+    tracker = feed(lifetime()[:4])
+    duplicate = copy.deepcopy(lifetime()[3])
+    duplicate['seq'] = 5
+    with pytest.raises(ValueError, match='Wrong original body load'):
+        tracker.feed(duplicate)
+
+
 def test_checked_original_instruction_contract():
     actual = w.original_opcodes(TEXTS)
     assert {name: actual[name].hex() for name in OPCODES} == OPCODES
@@ -657,9 +750,9 @@ def test_completed_but_unpublished_receipt_is_not_returned():
 def test_wrong_kernel_tid_cannot_be_substituted_by_vcpu_number():
     events = lifetime()
     wrong = events[7]
+    wrong['kernel_task'] += 0x20000
     wrong['kernel_tid'] = 145
-    wrong['registers']['sp_el0'] += 0x20000
-    wrong['memory']['task_pid'] = dict(address=wrong['registers']['sp_el0'] + 0x388, hex='91000000')
+    wrong['memory']['task_pid'] = dict(address=wrong['kernel_task'] + 0x388, hex='91000000')
     with pytest.raises(ValueError, match='same-task'):
         feed(events)
 
@@ -946,7 +1039,7 @@ def test_symlink_run_and_unknown_bases_fail_closed(tmp_path, monkeypatch):
 
 def test_start_accepts_a_successfully_detached_capture_that_completed_immediately(tmp_path, monkeypatch):
     config = dict(run=str(tmp_path), context=w.context(TEXTS))
-    monkeypatch.setattr(w, 'owned_config', lambda *args: config)
+    monkeypatch.setattr(w, 'owned_config', lambda *args, **kwargs: config)
     monkeypatch.setattr(w, 'revalidate', lambda _: config)
     def launch(*args, **kwargs):
         w.publish_json(tmp_path, w.PREFIX + '-ready.json', dict(connected=True, armed=True, context=config['context']))
@@ -959,7 +1052,8 @@ def test_start_accepts_a_successfully_detached_capture_that_completed_immediatel
 
 def test_complete_gdb_observation_path_delivers_both_receipts_before_resuming(tmp_path, monkeypatch):
     config = dict(run=str(tmp_path), context=w.context(TEXTS), owner_pid=os.getpid(),
-                  owner_starttime=1, owner_exe='test', mailbox=MAILBOX, limit=64,
+                  owner_starttime=1, owner_exe='test', mailbox=MAILBOX, limit=64, seconds=w.SECONDS,
+                  model17c_runtime=dict(IDENTITY),
                   run_device=tmp_path.stat().st_dev, run_inode=tmp_path.stat().st_ino)
     config_path = tmp_path / (w.PREFIX + '-config.json')
     config_path.write_text(json.dumps(config))
@@ -983,6 +1077,8 @@ def test_complete_gdb_observation_path_delivers_both_receipts_before_resuming(tm
             breakpoints[self.number] = self
         def delete(self):
             self.deleted = True
+        def is_valid(self):
+            return not self.deleted
     def connect(handler):
         nonlocal stop_handler
         stop_handler = handler
@@ -1010,6 +1106,10 @@ def test_complete_gdb_observation_path_delivers_both_receipts_before_resuming(tm
         if physical:
             assert MAILBOX['phys'] <= address and address + size <= MAILBOX['phys'] + 256
             return bytes(page[address - MAILBOX['phys']:address - MAILBOX['phys'] + size])
+        if address == PERCPU['__per_cpu_offset'] + 8 * IDENTITY['cpu'] and size == 8:
+            return (0).to_bytes(8, 'little')
+        if address == PERCPU['__entry_task'] and size == 8:
+            return (current['kernel_task']).to_bytes(8, 'little')
         for kind, (module, offset) in w.POINTS.items():
             if address == TEXTS[module] + offset:
                 return opcodes[kind]
@@ -1026,18 +1126,18 @@ def test_complete_gdb_observation_path_delivers_both_receipts_before_resuming(tm
         writes.append((current['kind'] if current else 'arm', address, len(data)))
         page[address - MAILBOX['phys']:address - MAILBOX['phys'] + len(data)] = data
     def parse_and_eval(name):
-        # QEMU XML exposes this system register in uppercase on some builds.
-        if name == '$sp_el0':
-            raise ValueError('Register spelling differs')
-        return current['registers']['sp_el0' if name == '$SP_EL0' else name[1:]]
+        return current['registers'][name[1:]]
     fake = types.SimpleNamespace(execute=execute, Breakpoint=BP, BP_HARDWARE_BREAKPOINT=1,
                                  events=types.SimpleNamespace(stop=types.SimpleNamespace(connect=connect, disconnect=lambda _: None)),
                                  selected_inferior=lambda: types.SimpleNamespace(read_memory=read_memory, write_memory=write_memory),
                                  parse_and_eval=parse_and_eval, selected_thread=lambda: types.SimpleNamespace(num=3))
     monkeypatch.setitem(sys.modules, 'gdb', fake)
+    # Preserve a failure result for the assertions instead of retaining this synthetic host process forever.
+    monkeypatch.setattr(w, 'retain_model17c_stop', lambda: None)
     w.gdb_main(config_path)
     result = json.loads((tmp_path / (w.PREFIX + '-result.json')).read_text())
     assert 'error' not in result and result['receipts'] == 2 and result['detached']
+    assert 'model17c_installed' not in result  # Identity-only: mailbox run never arms the observer.
     assert len(result['mailbox_deliveries']) == 2 and cursor == 20
     assert all(kind == 'free_return' for kind, _, _ in writes[1:])
     assert len(w.read_receipts(tmp_path)) == 2
@@ -1065,6 +1165,8 @@ def test_gdb_failure_always_deletes_hardware_breakpoints_and_detaches(tmp_path, 
             breakpoints.append(self)
         def delete(self):
             self.deleted = True
+        def is_valid(self):
+            return not self.deleted
     def read_memory(address, size):
         for kind, (module, offset) in w.POINTS.items():
             if address == TEXTS[module] + offset:
@@ -1475,7 +1577,7 @@ def test_reader_profile_claim_never_bypasses_actual_owned_config_equality(tmp_pa
     path.write_text(json.dumps(claimed))
     assert w.read_config(path) == claimed
     calls = []
-    def owned_config(*args):
+    def owned_config(*args, **kwargs):
         calls.append(args)
         return authoritative
     monkeypatch.setattr(w, 'owned_config', owned_config)
@@ -1542,7 +1644,7 @@ def test_gate2_large_result_still_requires_current_trusted_provenance(tmp_path, 
 
 def test_large_gate2_result_is_consumed_by_start_and_stop_without_reconnect(tmp_path, monkeypatch):
     config, result = result_fixture(tmp_path)
-    monkeypatch.setattr(w, 'owned_config', lambda *args: config)
+    monkeypatch.setattr(w, 'owned_config', lambda *args, **kwargs: config)
     monkeypatch.setattr(w, 'revalidate', lambda _: config)
     def launch(*args, **kwargs):
         w.publish_json(tmp_path, w.PREFIX + '-ready.json', dict(connected=True, armed=True, context=config['context']))
@@ -1552,3 +1654,292 @@ def test_large_gate2_result_is_consumed_by_start_and_stop_without_reconnect(tmp_
     watcher = w.start(tmp_path, os.getpid(), TEXTS)
     assert watcher.stop() == dict(debugger_stopped=True, detached=True, safe_to_close=True, errors=[])
     assert w.read_result(config) == result
+
+
+class HdmiSyntheticRoots:
+    """Host fixture only: never a runtime admission or QEMU acceptance receipt."""
+    def __init__(self, run, sockets):
+        self.files, self.sockets = run, sockets
+        self.active = False
+
+    def binding(self):
+        return dict(profile=w.socket_transport.diagnostic_fs.DIAGNOSTIC_FS_PROFILE,
+                    files=str(self.files), sockets=str(self.sockets), directories={})
+
+    def endpoint(self, path):
+        assert path.parent == self.sockets
+
+    @contextmanager
+    def connect_path(self, path):
+        self.endpoint(path)
+        fd = os.open(self.sockets, os.O_RDONLY | os.O_DIRECTORY)
+        self.active = True
+        try:
+            yield f'/proc/self/fd/{fd}/{path.name}'
+        finally:
+            self.active = False
+            os.close(fd)
+
+
+def hdmi_short_options(run, sockets):
+    roots = HdmiSyntheticRoots(run, sockets)
+    return roots, dict(socket_root=str(sockets), socket_profile=roots.binding()['profile'],
+                       socket_binding=roots.binding())
+
+
+@pytest.mark.parametrize('mask', range(1, 7))
+def test_hdmi_short_partial_contract_fails_before_module_or_debugger_access(tmp_path, monkeypatch, mask):
+    monkeypatch.setattr(w, 'RUNS', tmp_path.parent)
+    roots, options = hdmi_short_options(tmp_path, tmp_path / 'sockets')
+    partial = {key: options[key] for index, key in enumerate(options) if mask & (1 << index)}
+    monkeypatch.setattr(w, 'original_opcodes', lambda _: pytest.fail('must reject before module input'))
+    monkeypatch.setattr(w.subprocess, 'Popen', lambda *a, **k: pytest.fail('must not launch GDB'))
+    with pytest.raises(ValueError, match='complete explicit F/S'):
+        w.start(tmp_path, os.getpid(), TEXTS, **partial)
+
+
+def test_hdmi_short_gate_remains_fixed_closed_despite_environment(tmp_path, monkeypatch):
+    monkeypatch.setattr(w, 'RUNS', tmp_path.parent)
+    roots, options = hdmi_short_options(tmp_path, tmp_path / 'sockets')
+    monkeypatch.setenv('A7C2_SINGLE_AP_SOCKETS', options['socket_profile'])
+    monkeypatch.setenv('A7C2_SINGLE_AP_SOCKET_ROOT', options['socket_root'])
+    monkeypatch.setattr(w, 'original_opcodes', lambda _: pytest.fail('must reject before module input'))
+    monkeypatch.setattr(w.subprocess, 'Popen', lambda *a, **k: pytest.fail('must not launch GDB'))
+    with pytest.raises(RuntimeError, match='BLOCKED:'):
+        w.start(tmp_path, os.getpid(), TEXTS, **options)
+    assert not (tmp_path / (w.PREFIX + '-config.json')).exists()
+
+
+def test_hdmi_single_ap_receipt_cannot_fall_back_to_legacy(tmp_path, monkeypatch):
+    monkeypatch.setattr(w, 'RUNS', tmp_path.parent)
+    binding = tmp_path / 'single-ap-socket-binding.json'
+    for dangling in (False, True):
+        if dangling:
+            binding.symlink_to(tmp_path / 'missing')
+        else:
+            binding.write_text('{}')
+        with pytest.raises(ValueError, match='explicit F/S parameters'):
+            w.owned_config(tmp_path, os.getpid(), TEXTS)
+        binding.unlink()
+
+
+def test_hdmi_legacy_route_does_not_read_socket_environment(owned_qemu, monkeypatch):
+    monkeypatch.setenv('A7C2_SINGLE_AP_SOCKETS', 'forged')
+    monkeypatch.setenv('A7C2_SINGLE_AP_SOCKET_ROOT', '/not/an/endpoint')
+    config = w.owned_config(owned_qemu.run, 1234, TEXTS)
+    assert not set(w.SOCKET_FIELDS) & config.keys()
+    with w.debugger_endpoint(config) as address:
+        assert address == w.SOCKET
+
+
+@pytest.fixture
+def hdmi_short_owned(owned_qemu, monkeypatch):
+    fixture = owned_qemu
+    roots, options = hdmi_short_options(fixture.run, fixture.other)
+    (fixture.run / w.SOCKET).rename(roots.sockets / w.SOCKET)
+    fixture.socket_file(roots.sockets / w.QMP_SOCKET)
+    (fixture.qemu / 'root/sockets').symlink_to(roots.sockets)
+    (fixture.qemu / 'fd/5').symlink_to('socket:[679]')
+    table = (fixture.table.replace('/out/', '/sockets/') +
+             '001: 2 0 00010000 0001 01 679 /sockets/' + w.QMP_SOCKET + '\n')
+    (fixture.qemu / 'net/unix').write_text(table)
+    identity = w.process_identity
+    def process(pid):
+        value = identity(pid)
+        value['cmdline'] = [arg.replace(b'/out/', b'/sockets/') for arg in value['cmdline']]
+        return value
+    monkeypatch.setattr(w, 'process_identity', process)
+    monkeypatch.setattr(w.socket_transport, 'Path', w.Path)
+    def endpoint_roots(run, **received):
+        assert str(run) == str(fixture.run) and received == options
+        return roots
+    monkeypatch.setattr(w.socket_transport, 'endpoint_roots', endpoint_roots)
+    monkeypatch.setattr(w.socket_transport.diagnostic_fs, 'require_runtime_ready', lambda: None)
+    calls = []
+    class Peer:
+        def __init__(self, path, timeout, expected_pid, socket_roots):
+            calls.append(('connect', path, timeout, expected_pid, socket_roots))
+        def status(self):
+            calls.append(('status',))
+            return 'running'
+        def close(self):
+            calls.append(('close',))
+    monkeypatch.setattr(w.socket_transport, 'QMP', Peer)
+    return types.SimpleNamespace(**{**vars(fixture), 'table': table}, roots=roots, options=options, calls=calls)
+
+
+def test_hdmi_short_binds_both_listeners_and_qmp_peer_generation(hdmi_short_owned):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    assert {key: config[key] for key in w.SOCKET_FIELDS} == f.options
+    assert config['gdb_endpoint']['path'] == str(f.roots.sockets / w.SOCKET)
+    assert config['qmp_endpoint']['path'] == str(f.roots.sockets / w.QMP_SOCKET)
+    assert config['gdb_endpoint']['listener_inode'] == 678
+    assert config['qmp_endpoint']['listener_inode'] == 679
+    assert f.calls == [('connect', str(f.roots.sockets / w.QMP_SOCKET), 2.0, 345, f.roots),
+                       ('status',), ('close',)]
+    assert w.revalidate(json.loads(json.dumps(config))) == config
+
+
+@pytest.mark.parametrize('damage', ['client', 'qmp-client', 'listener', 'generation', 'mount', 'peer',
+                                     'gdb-mode', 'qmp-mode'])
+def test_hdmi_short_changed_or_busy_endpoint_fails_closed(hdmi_short_owned, monkeypatch, damage):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    if damage in ('client', 'qmp-client'):
+        name = w.SOCKET if damage == 'client' else w.QMP_SOCKET
+        (f.qemu / 'net/unix').write_text(f.table + '002: 2 0 00000000 0001 03 680 /sockets/' + name + '\n')
+    elif damage == 'listener':
+        (f.qemu / 'net/unix').write_text(f.table.replace('01 678 ', '01 681 '))
+        (f.qemu / 'fd/4').unlink()
+        (f.qemu / 'fd/4').symlink_to('socket:[681]')
+    elif damage == 'generation':
+        identity = w.process_identity
+        def changed(pid):
+            value = identity(pid)
+            value['starttime'] += 1
+            return value
+        monkeypatch.setattr(w, 'process_identity', changed)
+    elif damage in ('gdb-mode', 'qmp-mode'):
+        name = w.SOCKET if damage == 'gdb-mode' else w.QMP_SOCKET
+        (f.roots.sockets / name).chmod(0o622 if damage == 'gdb-mode' else 0o640)
+    elif damage == 'mount':
+        (f.qemu / 'root/sockets').unlink()
+        (f.qemu / 'root/sockets').symlink_to(f.run)
+    else:
+        def wrong_peer(*args, **kwargs):
+            raise ValueError('QMP peer process differs from bound QEMU')
+        monkeypatch.setattr(w.socket_transport, 'QMP', wrong_peer)
+    with pytest.raises(ValueError):
+        w.revalidate(config)
+
+
+def test_hdmi_short_generation_change_during_qmp_check_is_rejected(hdmi_short_owned, monkeypatch):
+    f = hdmi_short_owned
+    identity = w.process_identity
+    changed = False
+    def process(pid):
+        value = identity(pid)
+        if changed and pid == 345:
+            value['starttime'] += 1
+        return value
+    def status(self):
+        nonlocal changed
+        changed = True
+        return 'running'
+    monkeypatch.setattr(w, 'process_identity', process)
+    monkeypatch.setattr(w.socket_transport.QMP, 'status', status)
+    with pytest.raises(ValueError, match='generation changed during QMP'):
+        w.owned_config(f.run, 1234, TEXTS, **f.options)
+    assert f.calls[-1] == ('close',)
+
+
+def test_hdmi_recovery_keeps_short_directory_fd_until_target_attach(hdmi_short_owned, monkeypatch):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    commands = []
+    def execute(command, to_string):
+        commands.append(command)
+        if command.startswith('target remote '):
+            assert f.roots.active
+            path = Path(command.removeprefix('target remote '))
+            assert path.name == w.SOCKET and path.parent.parent == Path('/proc/self/fd')
+            assert os.fstat(int(path.parent.name)).st_ino == f.roots.sockets.stat().st_ino
+        else:
+            assert command == 'detach' and not f.roots.active
+    monkeypatch.setitem(sys.modules, 'gdb', types.SimpleNamespace(execute=execute))
+    w.gdb_recover(config)
+    assert len(commands) == 2 and commands[-1] == 'detach'
+
+
+def test_hdmi_short_results_bind_socket_and_process_generation(hdmi_short_owned):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    result = dict(detached=True, endpoint_binding=w.endpoint_binding(config))
+    path = f.run / (w.PREFIX + '-result.json')
+    path.write_text(json.dumps(result))
+    assert w.read_result(config) == result
+    result['endpoint_binding']['qemu_starttime'] += 1
+    path.write_text(json.dumps(result))
+    with pytest.raises(ValueError, match='endpoint/process generation'):
+        w.read_result(config)
+
+
+def test_hdmi_short_start_forwards_explicit_contract_without_env(tmp_path, monkeypatch):
+    roots, options = hdmi_short_options(tmp_path, tmp_path / 'sockets')
+    calls = []
+    expected = object()
+    def factory(*args, **kwargs):
+        calls.append((args, kwargs))
+        return expected
+    monkeypatch.setattr(w, 'Watch', factory)
+    assert w.start(tmp_path, 1234, TEXTS, MAILBOX, '/scope', seconds=2700, **options) is expected
+    assert calls == [((tmp_path, 1234, TEXTS, MAILBOX, '/scope'), {**options, 'seconds': 2700})]
+
+
+def test_watch_explicit_seconds_reach_owned_config(tmp_path, monkeypatch):
+    calls = []
+    def config(*args, **kwargs):
+        calls.append(kwargs)
+        return {'run': str(tmp_path)}
+    monkeypatch.setattr(w, 'owned_config', config)
+    monkeypatch.setattr(w.shutil, 'which', lambda _: None)
+    with pytest.raises(ValueError, match='Installed AArch64 GDB required'):
+        w.Watch(tmp_path, 1234, TEXTS, MAILBOX, seconds=2700)
+    assert calls == [{'seconds': 2700}]
+
+
+@pytest.mark.parametrize('outcome', ['failed', 'timeout', 'detached'])
+def test_hdmi_short_recovery_preserves_raw_output_and_original_failure(hdmi_short_owned, monkeypatch, outcome):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    result = dict(detached=False, error='original observer failure', endpoint_binding=w.endpoint_binding(config))
+    original = json.dumps(result).encode()
+    result_path = f.run / (w.PREFIX + '-result.json')
+    result_path.write_bytes(original)
+    watcher = w.Watch.__new__(w.Watch)
+    watcher.config, watcher.run = config, f.run
+    watcher.cleanup = watcher.log = None
+    watcher.process = types.SimpleNamespace(poll=lambda: 0)
+    watcher.executable = '/owned-gdb'
+    raw = b'original recovery output\n' + (b'HDMI_UPM_DETACHED\n' if outcome == 'detached' else b'failed\n')
+    def recover(command, **kwargs):
+        assert watcher.process.poll() == 0
+        assert 'gdb_recover(' in command[-1]
+        assert 'target remote ' + w.SOCKET not in command
+        assert kwargs['timeout'] == 10 and kwargs['cwd'] == f.run
+        if outcome == 'timeout':
+            raise subprocess.TimeoutExpired(command, 10, output=raw)
+        return types.SimpleNamespace(returncode=0 if outcome == 'detached' else 1, stdout=raw)
+    monkeypatch.setattr(w.subprocess, 'run', recover)
+    cleanup = watcher.stop()
+    assert cleanup['safe_to_close'] is (outcome == 'detached')
+    assert cleanup['detached'] is (outcome == 'detached')
+    assert (f.run / (w.PREFIX + '-detach-gdb.log')).read_bytes() == raw
+    assert result_path.read_bytes() == original
+
+
+def test_hdmi_short_debugger_attach_rechecks_generation(hdmi_short_owned, monkeypatch):
+    f = hdmi_short_owned
+    config = w.owned_config(f.run, 1234, TEXTS, **f.options)
+    identity = w.process_identity
+    def changed(pid):
+        value = identity(pid)
+        value['starttime'] += 1
+        return value
+    monkeypatch.setattr(w, 'process_identity', changed)
+    with pytest.raises(ValueError, match='generation changed before debugger attach'):
+        with w.debugger_endpoint(config):
+            pytest.fail('changed generation cannot attach')
+
+
+
+def test_identity_less_bridge_fails_closed_instead_of_unbound_local():
+    texts = {'upm': 0xffffff8001000000, 'osal_uipc': 0xffffff8001400000}
+    correlator = w.Correlator(texts)
+    pc = texts['osal_uipc'] + w.POINTS['bridge'][1]
+    event = dict(kind='bridge', seq=1, context=correlator.context, gdb_vcpu_thread=1,
+                 registers={name: (pc if name == 'pc' else 0x1000) for name in w.REGS},
+                 memory={'opcode': dict(address=pc, hex=correlator.opcodes['bridge'].hex())})
+    with pytest.raises(ValueError, match='Identity-less bridge observation'):
+        correlator.feed(event)

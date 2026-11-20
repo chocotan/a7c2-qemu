@@ -44,31 +44,13 @@ def native_display_environment(env, native_display):
 
 
 def terminate_owned(process):
-    """Only a Popen created with start_new_session=True is passed here."""
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=6)
-    except subprocess.TimeoutExpired:
-        pass
-    # Descendants can outlive their leader; this group was allocated by our Popen.
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    process.wait(timeout=3)
+    """Legacy entry point: wait only; never signal an owned VM."""
+    return wait_functional_camera_owner(process)
 
 
 def terminate_host_disk_owner(process):
-    """No SIGKILL while a persistent host disk may be owned by descendants."""
-    try:os.killpg(process.pid,signal.SIGTERM)
-    except ProcessLookupError:pass
-    process.wait(timeout=15)
-    try:os.killpg(process.pid,0)
-    except ProcessLookupError:return
-    raise RuntimeError('宿主磁盘VM进程组未退出；保留磁盘租约，不强杀')
+    """Legacy entry point: retain the disk owner until natural exit."""
+    return wait_functional_camera_owner(process)
 
 
 def wait_functional_camera_owner(process):
@@ -80,7 +62,7 @@ def wait_functional_camera_owner(process):
 
 
 class VM:
-    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None,boot_profile='direct-bootin'):
+    def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None,boot_profile='direct-bootin',settings_restart=False):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
             raise ValueError('不支持的原生显示后端')
         self.command = command or ['bash', str(BASE / 'run-menu-probe.sh')]
@@ -104,6 +86,13 @@ class VM:
         self.ram_restored=False
         self._ram_restore=None
         self.persistent_storage=bool(persistent_storage or boot_profile=='original-init-cold')
+        # Default off.  Only this explicit flag admits the reviewed RAM capture card plus
+        # independent internal settings disk combination; every other route is unchanged.
+        self.settings_restart=bool(settings_restart)
+        if self.settings_restart:
+            if not natural_boot or command is not None or boot_profile!='direct-bootin':
+                raise ValueError('内部设置盘组合需要真实原生兼容启动')
+            self.persistent_storage=True
         self.storage_context=None
         self.storage_lease=None
         self.storage_instance=str(Path(storage_instance).absolute()) if storage_instance is not None else None
@@ -351,6 +340,9 @@ class VM:
                         log=self.log_path, run=self.run_dir)
 
     def start(self):
+        if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+            from single_ap_sockets import admit
+            admit()
         with self.lock:
             if self.thread and self.thread.is_alive():
                 raise ValueError('已有 VM 正在启动、运行或停止')
@@ -478,8 +470,7 @@ class VM:
                 if owned is not None:
                     if self.host_sd_context is not None and owned.poll() is None and not self.cancel.is_set():
                         raise RuntimeError('宿主磁盘尚未通过保存；保留VM与租约，须先验证后正常QMP关闭')
-                    (wait_functional_camera_owner if self.functional_camera or self.natural_boot else
-                     terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(owned)
+                    wait_functional_camera_owner(owned)
                 with self.lock:self._release_instance_lease(owned)
                 with self.lock:self._release_host_sd_lease(owned)
                 with self.lock:self._release_storage_lease(owned)
@@ -509,6 +500,17 @@ class VM:
             if self.cleanup_error:raise RuntimeError('VM清理失败：'+self.cleanup_error)
 
     def _run(self):
+        try:
+            if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+                from single_ap_sockets import admit
+                admit()
+        except Exception as error:
+            with self.lock:
+                try:self._release_instance_lease()
+                except Exception as release_error:self.cleanup_error='实例租约释放失败：'+str(release_error)
+                self.state='error';self.error=str(error);self.event('VM 错误：'+self.error)
+                self.shutdown_done.set()
+            return
         process = None
         monitor = None
         parent, child = socket.socketpair()
@@ -526,6 +528,20 @@ class VM:
             with self.lock:
                 self.log_path = name
             env = launcher.profile_environment(os.environ,natural_boot=self.natural_boot)
+            settings_restart=self.settings_restart
+            if settings_restart:
+                from settings_restart_profile import PROFILE as SETTINGS_RESTART_PROFILE, require_prepared_instance
+                if env.get('A7C2_SETTINGS_RESTART_PROFILE')!=SETTINGS_RESTART_PROFILE:
+                    raise ValueError('内部设置盘组合需要明确的设置重启配置')
+                if not self.storage_instance:
+                    raise ValueError('内部设置盘组合需要本任务独立实例路径')
+                require_prepared_instance(self.storage_instance)
+                if (self.usb_net or self.ram_enabled or env.get('A7C2_HOST_SD')
+                        or env.get('A7C2_DIRECTORY_SD') or env.get('A7C2_ORIGINAL_COLD')):
+                    raise ValueError('内部设置盘组合不支持USB网络、RAM恢复、宿主SD或原冷启动')
+                env['A7C2_SETTINGS_RESTART_PROFILE']=SETTINGS_RESTART_PROFILE
+            elif env.get('A7C2_FUNCTIONAL_CAMERA_MEDIA') and (self.usb_net or self.persistent_storage or self.ram_enabled):
+                raise ValueError('功能相机RAM卡模式不支持USB网络、内部单盘或RAM恢复组合')
             env['A7C2_BOOT_PROFILE']=self.boot_profile
             for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD',
                          'A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM','A7C2_RAM_QEMU'):
@@ -546,7 +562,11 @@ class VM:
             if self.persistent_storage:
                 if self.mock or not self.natural_boot:raise ValueError('内部单盘只支持真实原生启动')
                 from persistent_storage import ensure_instance,instance_lease,inherited_environment
-                instance=Path(self.storage_instance) if self.storage_instance else ensure_instance()
+                if settings_restart:
+                    # The task's own prepared instance only; the product default is never created or reused.
+                    instance=Path(self.storage_instance).absolute()
+                else:
+                    instance=Path(self.storage_instance) if self.storage_instance else ensure_instance()
                 self.storage_instance=str(instance)
                 if self.boot_profile=='original-init-cold':
                     # The cold launcher owns the sole lease through preparation, QMP exit and descendants.
@@ -565,7 +585,7 @@ class VM:
             # These are controller-derived capabilities, never inherited input.
             for name in ('A7C2_SETTINGS_PERSIST','A7C2_SETTINGS_RESTORE','A7C2_SETTINGS_RESTORE_SHA'):
                 env.pop(name,None)
-            if self.instance_lease is not None and not self.mock and self.natural_boot:
+            if self.instance_lease is not None and not self.mock and self.natural_boot and not settings_restart:
                 from settings_instance import load_for_boot
                 current=load_for_boot(self.instance_lease,SETTINGS_FIRMWARE_SHA)
                 self.settings_generation=current['generation']
@@ -604,10 +624,10 @@ class VM:
                 from usb_network import prepare_profile
                 env.pop('A7C2_USB_NET_SELFTEST', None)
                 env.update(prepare_profile(BASE))
+            if self.card_seed and not host_sd and not directory_sd:env['A7C2_SD_IMAGE']=str(self.card_seed)
             if env.get('A7C2_BACKUP_SYNC'):
                 from backup_profile import prepare_profile as prepare_backup_profile
                 env.update(prepare_backup_profile(BASE,env))
-            if self.card_seed and not host_sd and not directory_sd:env['A7C2_SD_IMAGE']=str(self.card_seed)
             if self.native_display is not None:
                 native_display_environment(env, self.native_display)
             env['MENU_CONTROL_FD'] = str(child.fileno())
@@ -818,8 +838,7 @@ class VM:
                         raise RuntimeError(cleanup_error)
                     if self.host_sd_context is not None and process.poll() is None and not self.cancel.is_set():
                         raise RuntimeError('宿主磁盘未完成保存；错误退出时保留VM与租约，不发送TERM')
-                    (wait_functional_camera_owner if self.functional_camera or self.natural_boot else
-                     terminate_host_disk_owner if self.host_sd_context is not None else terminate_owned)(process)
+                    wait_functional_camera_owner(process)
                     with self.lock:self._release_instance_lease(process)
                     with self.lock:self._release_host_sd_lease(process)
                     with self.lock:self._release_storage_lease(process)
@@ -961,6 +980,9 @@ def main():
     parser.add_argument('--port', type=int, default=0)
     parser.add_argument('--natural-boot',action='store_true',help='自然首设+R M2文件服务；不强制菜单')
     args = parser.parse_args()
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     vm = VM(natural_boot=args.natural_boot)
     server = Server(vm, args.port)
     url = server.origin + '/#' + server.token

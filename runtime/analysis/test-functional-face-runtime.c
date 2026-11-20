@@ -109,7 +109,7 @@ static int allocate(unsigned int queue, void **out, unsigned int bytes, unsigned
 static int release(unsigned int queue, void *p) {
     struct message *m = envelope(p);
     snapshot_callback();
-    assert(queue == (m->request ? FUNCTIONAL_FACE_DMM_CP : QUEUE));
+    assert(queue == (m->request == 2 ? UINT32_C(0x90060197) : m->request ? FUNCTIONAL_FACE_DMM_CP : QUEUE));
     if (m->request && request_failure) return -73;
     if (!m->request && reply_failure) return -74;
     if (m->request) ++request_frees; else ++reply_frees;
@@ -605,10 +605,79 @@ static void wire_test(void) {
     (void)operation(0x23, d.unit, d.handle, 0, 0);
     printf("WIRE fixed_mutations=%u exact40=1 free_source_low16=1\n", mutations);
 }
+static struct message *list_request(uint32_t handle, unsigned int count) {
+    struct message *m = new_message(); m->source = 0x80020002; m->size = 24; m->request = 2;
+    m->wire[0] = 2; m->wire[1] = 6; m->wire[2] = 0x27; m->wire[3] = 0x70;
+    put(m->wire + 4, 0x1db, 4); put(m->wire + 8, handle, 4); m->wire[12] = (unsigned char)count;
+    for (unsigned int i = 0; i < 8; ++i) m->wire[13 + i] = (unsigned char)(7 - i);
+    return m;
+}
+static int list_dispatch(struct message *m) {
+    int rc = 71; struct functional_face_runtime_caller c = caller(0x1db);
+    assert(functional_face_runtime_list_dispatch(0x90060197, m->wire, &io, 1, &c, &rc) == 1);
+    return rc;
+}
+static void list_test(const char *mode) {
+    setup(); struct functional_face_dmm_descriptor d = create(0x1db);
+    struct message *m = list_request(d.handle, 0);
+    assert(list_dispatch(m) == -ESTALE); destroy(m);
+    struct functional_face_runtime_ticket share = operation(0x21, 0x1db, d.handle, 0, 0);
+    if (!strcmp(mode, "list-invalid")) {
+        m = list_request(d.handle, 9); assert(list_dispatch(m) == -EPROTO); destroy(m);
+        m = list_request(d.handle, 1); m->wire[13] = 8; assert(list_dispatch(m) == -ERANGE); destroy(m);
+        m = list_request(d.handle, 0); m->source = 0x80020003; assert(list_dispatch(m) == -EPROTO); destroy(m);
+        m = list_request(d.handle, 0); m->size = 23; assert(list_dispatch(m) == -EPROTO); destroy(m);
+        m = list_request(d.handle + 1, 0); assert(list_dispatch(m) == -ESTALE); destroy(m);
+        operation(0x21, 0x1db, d.handle, 0, 0);
+        m = list_request(d.handle, 0); assert(list_dispatch(m) == -ENODATA); destroy(m);
+        assert(!functional_face_runtime_snapshot(&diagnostic));
+        assert(!diagnostic.list.generation && diagnostic.shares == 2 && !diagnostic.faults);
+        return;
+    }
+    if (!strcmp(mode, "list-fork")) {
+        LOCK(); pid_t child = fork(); assert(child >= 0);
+        if (!child) { alarm(3); m = list_request(d.handle, 0); assert(list_dispatch(m) == -ECHILD); _exit(0); }
+        int status; assert(waitpid(child, &status, 0) == child && WIFEXITED(status) && !WEXITSTATUS(status));
+        UNLOCK();
+    }
+    if (!strcmp(mode, "list-stale")) {
+        assert(!functional_face_dmm_consume_share(&share.actual.span));
+        assert(functional_face_dmm_consume_share(&share.actual.span) == -ESTALE);
+        m = list_request(d.handle, 0); assert(list_dispatch(m) == -ESTALE); destroy(m);
+        assert(!functional_face_runtime_snapshot(&diagnostic)); assert(diagnostic.faults && !diagnostic.list.generation);
+        return;
+    }
+    if (!strcmp(mode, "list-free-failure")) {
+        m = list_request(d.handle, 0); request_failure = 1; assert(list_dispatch(m) == -EIO);
+        int rc = 99; assert(functional_face_runtime_release(OWNER, 0x90060197, m->wire, NULL, release, &rc) == 1 && rc == -EIO);
+        assert(!functional_face_runtime_snapshot(&diagnostic));
+        assert(diagnostic.list.request == (uintptr_t)m->wire && diagnostic.list.release_result == -73 && diagnostic.retained == 1);
+        request_failure = 0; destroy(m); return;
+    }
+    for (unsigned int count = 0; count <= 8; ++count) {
+        if (count) operation(0x21, 0x1db, d.handle, 0, 0);
+        m = list_request(d.handle, count); assert(!list_dispatch(m));
+        assert(!functional_face_runtime_snapshot(&diagnostic));
+        const struct functional_face_runtime_list *l = &diagnostic.list;
+        assert(l->generation == count + 1 && l->retired == count + 1 && l->count == count && l->valid && l->gate);
+        assert(l->span.handle == d.handle && l->span.epoch == d.epoch && l->span.reference && l->span.bytes == 0xd100);
+        assert(l->shares_released == count && l->notify_pending == count + 1);
+        assert(diagnostic.shares == 1 && diagnostic.model.units[2].shares == 1 && !diagnostic.faults);
+        assert(!l->request && !l->release_result && l->payload[0] == 1 && get(l->payload + 4, 4) == d.handle);
+        assert(!l->known[1] && !l->known[2] && !l->known[3] && !l->known[9]);
+        for (unsigned int i = 0; i < 8; ++i) {
+            uint64_t actual = 0; memcpy(&actual, l->payload + 16 + i * 8, 8);
+            assert(actual == (i < count ? d.logical + (uint64_t)(7 - i) * 0x1a20 : 0));
+        }
+        assert(functional_face_dmm_consume_share(&d) == -ESTALE);
+    }
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     const char *mode = argv[1];
-    if (!strcmp(mode, "units")) units_test();
+    if (!strncmp(mode, "list-", 5)) list_test(mode);
+    else if (!strcmp(mode, "units")) units_test();
     else if (!strcmp(mode, "queued")) queued_test();
     else if (!strcmp(mode, "ticket") || !strcmp(mode, "receive-failure") ||
              !strcmp(mode, "reply-source") || !strcmp(mode, "reply-wire")) ticket_test(mode);

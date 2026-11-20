@@ -1,4 +1,886 @@
 {
+  "native_ap_cp_pair_v7_upm_bootinfo_20261112": {
+    "source_changes": {
+      "report/2026-11-11-cp-boot-progress/host-validation-rsp-v18.json": {
+        "before": null,
+        "after": "6ef066ac1260f452e7e711f26741d44edf16e165a5026dceb7c08aa2da7de31d"
+      },
+      "runtime/analysis/menu-observe.c": {
+        "before": "ef335d2a43e3eb2d70c0b2c82637b41a926a8c1f2e46c70fcfe6ac07c6c5cf75",
+        "after": "ac257f38dae81e59ec5442005662221733633420dc9701764c015845f9b21bae"
+      },
+      "runtime/analysis/scratch/verify_hdmi_edge.py": {
+        "before": "f04ec51869207005500faa2ef5d5d9df135098f1700f5c090a03f0c937e806ae",
+        "after": "cc4ee2510a799ccd33deb5492a202f370ba557d5c524663b8a31de5bfe1998f2"
+      }
+    },
+    "host_acceptance": {
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/host-validation-rsp-v18.json",
+      "receipt_sha256": "6ef066ac1260f452e7e711f26741d44edf16e165a5026dceb7c08aa2da7de31d",
+      "workers": 2,
+      "bridge_cp_tests": 1055,
+      "bridge_cp_passed": 1055,
+      "product_host_tests": 561,
+      "product_host_passed": 512,
+      "product_host_skipped": 49,
+      "failed": 0,
+      "new_rsp_tests": [
+        "test_cp_rsp_packet_size_respects_qemu_limit",
+        "test_cp_rsp_packet_size_rejects_invalid_negotiation",
+        "test_cp_rsp_uses_negotiated_limit_for_one_complete_64k_read"
+      ],
+      "qemu_started": false
+    },
+    "paired_qemu_v5": {
+      "status": "verified-blocker",
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/native-pair-v5-owner-readback.json",
+      "receipt_sha256": "b1ba0e58c7ea15e50730dc1254335d22ea522aff93cfa2fca089b2695704ce35",
+      "cp_cont_sent": false,
+      "full_boot_verified": false,
+      "pair_lease_released": false
+    },
+    "qemu_build_and_device_reuse": {
+      "binary_sha256": "a0242ea0b7e1b2ba7d3ad54426b18d1eee0ef8f239df424324abc89102cc217a",
+      "binary_bytes": 118405360,
+      "build_receipt": "native-build-v7-main-readback-v1.json",
+      "device_receipt": "native-device-actual-v8-main-readback-v1.json",
+      "device_groups": 10,
+      "reused_without_rebuild_or_replay": true,
+      "default_binary_replaced": false
+    },
+    "rsp_packet_change": {
+      "scope": "CP-only run-native-cp RSP subclass",
+      "shared_broker_unchanged": true,
+      "qemu_advertised_packet_bytes": 131104,
+      "full_loaded_input_sha_readback_retained": true,
+      "runtime_timing_improvement_verified": false
+    },
+    "test_fixture_reconciliation": {
+      "qmp_wrapper_ast_test_compiles_both_real_layers": true,
+      "controller_test_finds_guard_across_all_finally_statements": true
+    },
+    "boundaries": {
+      "full_boot_verified": false,
+      "original_ap_consumption_verified": false,
+      "original_cp_execution_verified": false,
+      "receiver_entry_observed": false,
+      "capture_verified": false,
+      "installation_verified": false,
+      "physical_compatible": false
+    }
+  },
+  "native_ap_cp_pair_v6_observer_bt_upm_20261112": {
+    "source_changes": {
+      "report/2026-11-11-cp-boot-progress/host-validation-rsp-v17.json": {
+        "before": null,
+        "after": "6e986fe7c4f4c5ae7f0ae677b6f0873531563da155167a2243f512a024327ec7"
+      },
+      "runtime/analysis/menu-observe.c": {
+        "before": "e2744ae3cf3124e87ab0234309eec302806a515560bbd57bf6d02a96ef106411",
+        "after": "ef335d2a43e3eb2d70c0b2c82637b41a926a8c1f2e46c70fcfe6ac07c6c5cf75"
+      },
+      "runtime/analysis/scratch/verify_hdmi_edge.py": {
+        "before": "8d12e755ee5725ab2eae3cf2cf3b08cfea932fc7923d1d429b986331f4e0c3c4",
+        "after": "f04ec51869207005500faa2ef5d5d9df135098f1700f5c090a03f0c937e806ae"
+      }
+    },
+    "host_acceptance": {
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/host-validation-rsp-v17.json",
+      "receipt_sha256": "6e986fe7c4f4c5ae7f0ae677b6f0873531563da155167a2243f512a024327ec7",
+      "workers": 2,
+      "bridge_cp_tests": 1055,
+      "bridge_cp_passed": 1055,
+      "product_host_tests": 561,
+      "product_host_passed": 512,
+      "product_host_skipped": 49,
+      "failed": 0,
+      "new_rsp_tests": [
+        "test_cp_rsp_packet_size_respects_qemu_limit",
+        "test_cp_rsp_packet_size_rejects_invalid_negotiation",
+        "test_cp_rsp_uses_negotiated_limit_for_one_complete_64k_read"
+      ],
+      "qemu_started": false
+    },
+    "paired_qemu_v5": {
+      "status": "verified-blocker",
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/native-pair-v5-owner-readback.json",
+      "receipt_sha256": "b1ba0e58c7ea15e50730dc1254335d22ea522aff93cfa2fca089b2695704ce35",
+      "cp_cont_sent": false,
+      "full_boot_verified": false,
+      "pair_lease_released": false
+    },
+    "qemu_build_and_device_reuse": {
+      "binary_sha256": "a0242ea0b7e1b2ba7d3ad54426b18d1eee0ef8f239df424324abc89102cc217a",
+      "binary_bytes": 118405360,
+      "build_receipt": "native-build-v7-main-readback-v1.json",
+      "device_receipt": "native-device-actual-v8-main-readback-v1.json",
+      "device_groups": 10,
+      "reused_without_rebuild_or_replay": true,
+      "default_binary_replaced": false
+    },
+    "rsp_packet_change": {
+      "scope": "CP-only run-native-cp RSP subclass",
+      "shared_broker_unchanged": true,
+      "qemu_advertised_packet_bytes": 131104,
+      "full_loaded_input_sha_readback_retained": true,
+      "runtime_timing_improvement_verified": false
+    },
+    "test_fixture_reconciliation": {
+      "qmp_wrapper_ast_test_compiles_both_real_layers": true,
+      "controller_test_finds_guard_across_all_finally_statements": true
+    },
+    "boundaries": {
+      "full_boot_verified": false,
+      "original_ap_consumption_verified": false,
+      "original_cp_execution_verified": false,
+      "receiver_entry_observed": false,
+      "capture_verified": false,
+      "installation_verified": false,
+      "physical_compatible": false
+    }
+  },
+  "native_ap_cp_pair_v5_owner_guard_rsp_readback_20261112": {
+    "source_changes": {
+      "report/2026-11-11-cp-boot-progress/README.md": {
+        "before": "16984a1269efa3446b3a6ce311c556a23bdd082689bc16a4380bc78a83c550ad",
+        "after": "660fdc3a5168adc6bed2daf3fcefba4c82f5e22479047e8048838e3e137b52b9"
+      },
+      "report/2026-11-11-cp-boot-progress/host-validation-rsp-v16.json": {
+        "before": null,
+        "after": "6114deacf044b4c2a9f34483ccd4caed8a0776d114ad2d4c36e23b23fc483575"
+      },
+      "report/2026-11-11-cp-boot-progress/native-pair-v5-owner-readback.json": {
+        "before": null,
+        "after": "b1ba0e58c7ea15e50730dc1254335d22ea522aff93cfa2fca089b2695704ce35"
+      },
+      "report/2026-11-11-cp-boot-progress/owner-lifecycle.md": {
+        "before": "e2ee986a2b8c52b48ca7fd7dcfc8195bb055f862134c19b35247dd7748357350",
+        "after": "6c05bc9e70c948df3ddc3b625c13fc245a936a05be4551d7a087df0fec411f9d"
+      },
+      "runtime/analysis/test_media_initial_write.py": {
+        "before": "def5918bad25fa4b31fba4cc859c0c131975edf335f955e90a8f9db34a3f5d3c",
+        "after": "7510c70ad9e3f1651ba019fabc0ce80eec5b2c3179b597d92bf8028344ec5650"
+      },
+      "runtime/analysis/test_menu_control.py": {
+        "before": "468c0293c4edafae46826172d7cad0e91fcfa96892a9418dd5713fd15b5cb512",
+        "after": "5921e6fb01da5fbc9e978283b7263650dce15c738bc0671fbc4a675796b33967"
+      },
+      "source/cp-boot/run-native-cp.py": {
+        "before": "fbe4eec8cc3446ecf573d39aaa2abb53c0d4aa991202fcc2bb500f44d8ff0d70",
+        "after": "b4a64911c4e95019ef2e81c721d23950d39f56cb526422ce914588d45d31838e"
+      },
+      "source/cp-boot/test_native_cp.py": {
+        "before": "e88ff162378de38982b484028290080504fe5a7d966eb3a1f11eec006601d855",
+        "after": "6e0205fc6da4792798457dc6613e3998b14aa87fc00b776b291921461500bf9d"
+      }
+    },
+    "host_acceptance": {
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/host-validation-rsp-v16.json",
+      "receipt_sha256": "6114deacf044b4c2a9f34483ccd4caed8a0776d114ad2d4c36e23b23fc483575",
+      "workers": 2,
+      "bridge_cp_tests": 1055,
+      "bridge_cp_passed": 1055,
+      "product_host_tests": 561,
+      "product_host_passed": 512,
+      "product_host_skipped": 49,
+      "failed": 0,
+      "new_rsp_tests": [
+        "test_cp_rsp_packet_size_respects_qemu_limit",
+        "test_cp_rsp_packet_size_rejects_invalid_negotiation",
+        "test_cp_rsp_uses_negotiated_limit_for_one_complete_64k_read"
+      ],
+      "qemu_started": false
+    },
+    "paired_qemu_v5": {
+      "status": "verified-blocker",
+      "receipt": "final/a7c2-qemu/report/2026-11-11-cp-boot-progress/native-pair-v5-owner-readback.json",
+      "receipt_sha256": "b1ba0e58c7ea15e50730dc1254335d22ea522aff93cfa2fca089b2695704ce35",
+      "cp_cont_sent": false,
+      "full_boot_verified": false,
+      "pair_lease_released": false
+    },
+    "qemu_build_and_device_reuse": {
+      "binary_sha256": "a0242ea0b7e1b2ba7d3ad54426b18d1eee0ef8f239df424324abc89102cc217a",
+      "binary_bytes": 118405360,
+      "build_receipt": "native-build-v7-main-readback-v1.json",
+      "device_receipt": "native-device-actual-v8-main-readback-v1.json",
+      "device_groups": 10,
+      "reused_without_rebuild_or_replay": true,
+      "default_binary_replaced": false
+    },
+    "rsp_packet_change": {
+      "scope": "CP-only run-native-cp RSP subclass",
+      "shared_broker_unchanged": true,
+      "qemu_advertised_packet_bytes": 131104,
+      "full_loaded_input_sha_readback_retained": true,
+      "runtime_timing_improvement_verified": false
+    },
+    "test_fixture_reconciliation": {
+      "qmp_wrapper_ast_test_compiles_both_real_layers": true,
+      "controller_test_finds_guard_across_all_finally_statements": true
+    },
+    "boundaries": {
+      "full_boot_verified": false,
+      "original_ap_consumption_verified": false,
+      "original_cp_execution_verified": false,
+      "receiver_entry_observed": false,
+      "capture_verified": false,
+      "installation_verified": false,
+      "physical_compatible": false
+    }
+  },
+  "native_ap_cp_owner_lifecycle_guard_20261111": {
+    "source_changes": {
+      "report/2026-11-11-cp-boot-progress/README.md": {
+        "before": "d0b0b340ff1c54353d5e2b889b1f674b0a5e0a0ce38a2fb93ffbcc4af643924d",
+        "after": "16984a1269efa3446b3a6ce311c556a23bdd082689bc16a4380bc78a83c550ad"
+      },
+      "report/2026-11-11-cp-boot-progress/host-validation.json": {
+        "before": null,
+        "after": "04a2c3c5b3a29d6d159f58f306dcfa8b38c7408826bcc435066f6cce44939c1e"
+      },
+      "report/2026-11-11-cp-boot-progress/owner-lifecycle.md": {
+        "before": null,
+        "after": "e2ee986a2b8c52b48ca7fd7dcfc8195bb055f862134c19b35247dd7748357350"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "before": "8ac3bc44d695d7cf31afd9f38c05a620973704620ca9763722abe293131f8600",
+        "after": "f6a98d4252dff6ae3189ddf3fed1bb3b9325283fcc1c627f51d5f80642e8747a"
+      },
+      "source/cp-boot/native-link.py": {
+        "before": "6d84336c2995a07a6159b3d64e2f02a2b78f75a6bcaf7b691e8d2a4b95c20118",
+        "after": "1cd22972b4a8789a4c6afbfb34baaa59c4260c409bfbb7119d39a2b7f90b5198"
+      },
+      "source/cp-boot/run-native-ap.py": {
+        "before": "cc0180f6d1287925386207f1518cc86bdfe601ef84f595a0d3c8848a3ef695f9",
+        "after": "8f4174669096ff11bba9d4e22cc2d25c4254174e3cc9a4044f06785777be190d"
+      },
+      "source/cp-boot/run-native-cp.py": {
+        "before": "98233a6f9d12b9d44ab9ef1f00c377488b7db08b3ea7cb232f94ae6b9d597d9d",
+        "after": "fbe4eec8cc3446ecf573d39aaa2abb53c0d4aa991202fcc2bb500f44d8ff0d70"
+      },
+      "source/cp-boot/test_native_ap.py": {
+        "before": "255c679954d94677d4eceac5a3d70d748d8a0c3ecb94ef777b5e5d726f924341",
+        "after": "f51a04d6631ca6417f46a485d9c7dd154c5b23a0e10a86c8e84dff86e4a048b4"
+      },
+      "source/cp-boot/test_native_cp.py": {
+        "before": "6084fff516d12c68574e9224a3eee7c6d8947b9c67f892ba90bff568fce4f350",
+        "after": "e88ff162378de38982b484028290080504fe5a7d966eb3a1f11eec006601d855"
+      },
+      "source/cp-boot/test_native_link.py": {
+        "before": "c1fb5d8e461674587159dc636d939acafe27d1c5112124e3226b710e650f0160",
+        "after": "b09bfaca9d90b8e464409ae9686dd8f3fb4c599cab156b4e8f6e15750b8c462b"
+      }
+    },
+    "host_acceptance": {
+      "receipt": "report/2026-11-11-cp-boot-progress/host-validation.json",
+      "workers": 2,
+      "passed": 336,
+      "failed": 0,
+      "qemu_started": false,
+      "original_pair_started": false
+    },
+    "build_device_reuse": {
+      "build_receipt": "analysis/scratch/cp-wait-20261111/native-build-v7-main-readback-v1.json",
+      "device_readback": "analysis/scratch/cp-wait-20261111/native-device-actual-v8-main-readback-v1.json",
+      "device_raw_result": "analysis/scratch/cp-wait-20261111/native-device-actual-v8/result.json",
+      "binary_sha256": "a0242ea0b7e1b2ba7d3ad54426b18d1eee0ef8f239df424324abc89102cc217a",
+      "binary_size": 118405360,
+      "build_source_pin_count": 66,
+      "build_source_inputs": 352,
+      "component_groups": 10,
+      "qtest_reused_without_replay": true,
+      "original_ap_or_cp_executed": false
+    },
+    "independent_review": {
+      "status": "no_blocking_F1_F3_defect",
+      "same_python_interpreter_required": true,
+      "coordinator_uses_same_sys_executable": true,
+      "blocking_lock_latency_documented": true,
+      "real_qmp_peer_and_pidfd_consumption_unverified": true
+    },
+    "owner_guard": {
+      "profile": "virtual-native-ap-cp-link-v1",
+      "claim_schema": "a7c2-native-ap-admission-v2",
+      "vm_owner_schema": "a7c2-native-ap-vm-owner-v1",
+      "claim_before_exec": true,
+      "qmp_peer_so_peercred": true,
+      "shared_quit_cont_flock": true,
+      "pidfds": [
+        "ap-probe-owner",
+        "qmp-peer-qemu"
+      ],
+      "ap_qmp_quit_host_verified": false,
+      "original_ap_cp_consumption_verified": false
+    },
+    "boundaries": {
+      "full_boot_verified": false,
+      "capture_verified": false,
+      "installation_verified": false,
+      "physical_compatible": false,
+      "original_ap_consumption_verified": false,
+      "original_cp_consumption_verified": false
+    }
+  },
+  "native_ap_local_output_latch_readback_20261111": {
+    "source_changes": {
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "before": "ae98b371e43777f5ac8e6cf9537aa7c880dbc90da97076fb695be1e1a621cd65",
+        "after": "d8c3f24a95740a1020516e856356be80ccacc020ff4b8ee5fcab9fdc4d0578b5"
+      },
+      "source/cp-boot/test_native_link.py": {
+        "before": "4ca7e344c8ce5df29aa4a56730d3eccfaa25c73f8515f0fabc1b591a7ac1ab73",
+        "after": "c1fb5d8e461674587159dc636d939acafe27d1c5112124e3226b710e650f0160"
+      },
+      "source/cp-boot/test_peripherals_stage.py": {
+        "before": "80730565ca2cb080442a13b7e88b797987d9149d5926aa57b15991916c791cfc",
+        "after": "3ac5d4d9b302643254917574f868dcb94c79bd32c0a0c61f609609873791fa42"
+      },
+      "source/cp-boot/native-notify-qemu.c": {
+        "before": "6eb9b43a53da03dd78a60e5d90a3a88f5986534c07c408ee5b4270cbbcc85ef4",
+        "after": "bc6bc23557ddb828c80f235cf8c487c5d486d9bdcf40f0ebfecd198482b19392"
+      },
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "b9ab0ae14eca05d1263353cabb69043e5c361949c5266b7a340c460f463ff45c",
+        "after": "cd492a1a54e066a725ff5247854bb10618531e7d3a304ac7d3fa923d37498958"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "6f435cb884b78af6221453bc850e31357aa57b295be7cc21cff12f78e0598ea0",
+        "after": "568fd99e3a964a00abc65ba24c7af7587deffbd3448a8b98f433383298983b79"
+      }
+    },
+    "receipt_schema": "a7c2-cp-peripherals-stage-v5",
+    "profile": "virtual-native-ap-gpio-output-readback-v1",
+    "default_off": true,
+    "only_side": "ap",
+    "only_port": 18,
+    "mask": "0x300",
+    "source": "same local bank WDATA latch",
+    "gate": "both selected pins DIR output and PORTSEL GPIO",
+    "unsupported_read_bits": "RAZ by functional profile; physical values unknown",
+    "peer_socket_or_CP_values_not_used": true,
+    "does_not_generate_irq_ready_ack": true,
+    "physical_pad_readback_verified": false,
+    "physical_compatible": false,
+    "v3_actual_failure_preserved": true,
+    "new_full_build_or_device_verified": false,
+    "original_ap_consumption_verified": false
+  },
+  "native_ap_fixed_transport_alias_and_owner_boundary_20261111": {
+    "source_changes": {
+      "source/cp-boot/test_native_ap.py": {
+        "before": "c6a174266c15dcdbb445bd5fdc21ca297a254c79c85d1f78c413fe8e8c0b4f63",
+        "after": "255c679954d94677d4eceac5a3d70d748d8a0c3ecb94ef777b5e5d726f924341"
+      },
+      "runtime/analysis/native_pcie_board.py": {
+        "before": null,
+        "after": "296a86d79ac6b076494c66a6ea3533889e5ca31d745ba3d7aaabbe969d0d9d8d"
+      },
+      "source/cp-boot/test_native_cp.py": {
+        "before": "70594f0776ef8449384729dbee654cd75bc0fcddc1d69d477c8f42ab42bf7ec5",
+        "after": "6084fff516d12c68574e9224a3eee7c6d8947b9c67f892ba90bff568fce4f350"
+      },
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "before": "bfe4aca780939102e40daa325b12ddc2181ca908c3d11a406bd644154e906a70",
+        "after": "ae98b371e43777f5ac8e6cf9537aa7c880dbc90da97076fb695be1e1a621cd65"
+      },
+      "runtime/analysis/qemu-kernel-probe.sh": {
+        "before": "66c5ff3ada3de3d1f3f38d78cf8c329f4ce4bdd2d62a06031800a20efdc8e6a4",
+        "after": "7d0be62d31939b6348cbfcd233b1004d11107904f51d4b2aeb5134fbc29fecd3"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "before": "3b7335623f8aecc9fbbfd58d5f714a410c46d0be217b433fcab04313448e7d83",
+        "after": "8ac3bc44d695d7cf31afd9f38c05a620973704620ca9763722abe293131f8600"
+      },
+      "source/cp-boot/run-native-cp.py": {
+        "before": "c14d88ff5941e2368a63ebbe85907406f7662e27e15934ba5fa3c675fef10e78",
+        "after": "98233a6f9d12b9d44ab9ef1f00c377488b7db08b3ea7cb232f94ae6b9d597d9d"
+      }
+    },
+    "native_only_aliases": [
+      {
+        "physical": "0xf7300000",
+        "virtual": "0xfffffffff7300000",
+        "page_bytes": 4096
+      },
+      {
+        "physical": "0xf7380000",
+        "virtual": "0xfffffffff7380000",
+        "page_bytes": 8192,
+        "device_register_bytes": 4608
+      }
+    ],
+    "bar_or_unimplemented_controller_alias_added": false,
+    "existing_gic_real_pa_preserved": true,
+    "original_kernel_or_module_changed": false,
+    "compiled_hardware_unchanged": true,
+    "reused_hardware_binary_sha256": "9846c66ab6f9f4cf5aa483ccfaec7f6b5a55e146c45186e548f7c53581763860",
+    "reused_device_receipt": "device7:10groups/26virtualKEYevents/wholeCPreset/normalowners",
+    "ap_owner_rechecked_before_cp_cont": true,
+    "ap_quit_marker_checked": true,
+    "owner_guard_creates_ready_or_ack": false,
+    "prior_v2_ap_rootfs_shell_serial_verified": true,
+    "prior_v2_original_ap_consumption_verified": false,
+    "new_original_ap_consumption_verified": false,
+    "full_boot_verified": false,
+    "capture_verified": false,
+    "physical_compatible": false
+  },
+  "native_key_input_external_reset_ownership_20261111": {
+    "source_changes": {
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "025e86c0c9b67fea9d88cf479027b4fba4959e81a690fc81223704b6be703c54",
+        "after": "b9ab0ae14eca05d1263353cabb69043e5c361949c5266b7a340c460f463ff45c"
+      },
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "before": "6f1c75737553bc088a99463bf57725d6e3076e0824a19b4956677dbbef790727",
+        "after": "bfe4aca780939102e40daa325b12ddc2181ca908c3d11a406bd644154e906a70"
+      },
+      "source/cp-boot/native-notify-qemu.c": {
+        "before": "035adc4dff50774cdada57d9fd81d6fd4a05fc3b696d0c32f64a31b8348210f7",
+        "after": "6eb9b43a53da03dd78a60e5d90a3a88f5986534c07c408ee5b4270cbbcc85ef4"
+      }
+    },
+    "root_cause": "Receiver reset erased still-driven external key snapshot after producer callbacks",
+    "fix": "Only producer callbacks set/clear key knownness and levels; receiver reset keeps external drive",
+    "no_constant_level_fallback": true,
+    "old_peer_gpio18_source_contract_unchanged": true,
+    "added_component_regression": "real F7 press then whole CP reset and all four key bank readbacks",
+    "v9_host_tests_passed": 298,
+    "v9_device_verified": false,
+    "v9_failed_cases": [
+      "gpio",
+      "keyboard",
+      "disconnect"
+    ],
+    "old_failure_retained": true,
+    "new_device_verified": false,
+    "full_boot_verified": false,
+    "physical_compatible": false
+  },
+  "native_ap_memory_and_real_virtual_key_source_20261111": {
+    "source_changes": {
+      "source/cp-boot/test_native_ap.py": {
+        "before": "fe46edfe4e077f72367ea8ee3bf17624d747ccf72b7c63952bf3e351a05bc2b3",
+        "after": "c6a174266c15dcdbb445bd5fdc21ca297a254c79c85d1f78c413fe8e8c0b4f63"
+      },
+      "source/cp-boot/test_peripherals_stage.py": {
+        "before": "cbe35fb06decdd426b48e1db01feb902fd6fe76cb185025ee8bb60a4ea42a3f4",
+        "after": "80730565ca2cb080442a13b7e88b797987d9149d5926aa57b15991916c791cfc"
+      },
+      "source/cp-boot/native-key-gpio-qemu.c": {
+        "before": null,
+        "after": "55d559ac8b95f1abd83759c6029b31257dd23c119c8014ca046afad5ed0504e7"
+      },
+      "source/cp-boot/test_native_cp.py": {
+        "before": "7ffbec8512bd9b926cc94e60e6064916f01c95b5c8457d5769a1f32c78cd4b59",
+        "after": "70594f0776ef8449384729dbee654cd75bc0fcddc1d69d477c8f42ab42bf7ec5"
+      },
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "8bf9bea9cc9607fba0539676d482cf7fafdc7109175e61e69c37a52cada1ba93",
+        "after": "025e86c0c9b67fea9d88cf479027b4fba4959e81a690fc81223704b6be703c54"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "02adce842182c50d0d16f650e112848a72b94d96328aa7b7cf58776db6902006",
+        "after": "6f435cb884b78af6221453bc850e31357aa57b295be7cc21cff12f78e0598ea0"
+      },
+      "source/cp-boot/native-qtest.py": {
+        "before": "d77803c6cb942fea25896ae28f4de1def36269d649fc8d4a2888df014d26ab73",
+        "after": "3555a3190f2bf2e3f9e2d32e933828f10ca6dd7e5737c96235238620c7a60750"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "before": "77fbe5cc4a4a863edb6d5386087e46835f47c2d5eae4524caf39f12907f7bcb9",
+        "after": "3b7335623f8aecc9fbbfd58d5f714a410c46d0be217b433fcab04313448e7d83"
+      },
+      "source/cp-boot/test_native_link.py": {
+        "before": "3a7c323d9fa797fc5bdd34364bb0f4bd1f7c7e989c78d6580c2325ea5f397c9e",
+        "after": "4ca7e344c8ce5df29aa4a56730d3eccfaa25c73f8515f0fabc1b591a7ac1ab73"
+      },
+      "runtime/analysis/qemu-kernel-probe.sh": {
+        "before": "c3e03932bda71bf2b4c0d63581238cd4447880e365ef89a401a5cf8bfe51fb77",
+        "after": "66c5ff3ada3de3d1f3f38d78cf8c329f4ce4bdd2d62a06031800a20efdc8e6a4"
+      },
+      "source/cp-boot/test_native_qtest.py": {
+        "before": "a4643b67185451bb03e59d26e8bf6f195572f2bba7189c636bb89cd9c7bd6787",
+        "after": "19fdf58965c40a0986c7754c6bceb68eef4ae488050d3d32e5ce9ad3288f56cd"
+      },
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "before": "2f83e4170905efa365f2b4ce772c3f470dfaf4eea33aad2ca79c5cf080999285",
+        "after": "6f1c75737553bc088a99463bf57725d6e3076e0824a19b4956677dbbef790727"
+      },
+      "source/cp-boot/native-notify-qemu.c": {
+        "before": "be2b07d179b01ff289f91cb4dccb145d6089995d57e7bb042288dc0e9505db24",
+        "after": "035adc4dff50774cdada57d9fd81d6fd4a05fc3b696d0c32f64a31b8348210f7"
+      },
+      "source/cp-boot/run-native-cp.py": {
+        "before": "55e8f095d799a4efca3d1096ac877f53ab169e652c728e7824700c68c8938584",
+        "after": "c14d88ff5941e2368a63ebbe85907406f7662e27e15934ba5fa3c675fef10e78"
+      },
+      "source/cp-boot/native-key-gpio-init.h": {
+        "before": null,
+        "after": "667a5a12aa6d3297647d8df602ae73290415066f77d4eba36cfb2306778fb9d9"
+      },
+      "source/cp-boot/native-link.py": {
+        "before": "e4005499ea53340d3e4e121202fff21d8c4698ae46d7cafd4fec9e18e191ab0d",
+        "after": "6d84336c2995a07a6159b3d64e2f02a2b78f75a6bcaf7b691e8d2a4b95c20118"
+      }
+    },
+    "receipt_schema": "a7c2-cp-peripherals-stage-v3",
+    "native_ap_linux_ddr_gib": 8,
+    "non_native_linux_ddr_gib": 6,
+    "ap_backing_gib": 24,
+    "ap_ddr_file_offset_gib": 15,
+    "native_shell_budget_seconds": 120,
+    "key_profile": "virtual-cp-key-gpio-v1",
+    "key_profile_default_off": true,
+    "virtual_switch_count": 13,
+    "virtual_polarity": "pressed-low released-high by explicit functional model",
+    "physical_key_identity_verified": false,
+    "physical_polarity_verified": false,
+    "official_initial_writes_verbatim": 18,
+    "original_nor_execution_verified": false,
+    "rsp_core_binding": "unique enumerated CPU numeric gdb_get_cpu_index, no PC guessing",
+    "qmp_final_reset_not_called_eof": true,
+    "old_failure_retained": true,
+    "original_ap_consumption_verified": false,
+    "new_device_verified": false,
+    "full_boot_verified": false,
+    "physical_compatible": false
+  },
+  "native_controller_address_space_and_batch_fixes_20261111": {
+    "source_changes": {
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "before": "05faa49b8c3fd81670525c02ab406583affbdab34e2b193ecb9ebf89c4fba441",
+        "after": "2f83e4170905efa365f2b4ce772c3f470dfaf4eea33aad2ca79c5cf080999285"
+      },
+      "source/cp-boot/scu-qemu.c": {
+        "before": "04138aa8d07fe29df971379f8768deb34801bd6c739c58a71719eb4d8ff7053e",
+        "after": "f63c936f9e6fdba63954f08b5082df303ccd7a63203bac1b7fb4344b98d536a6"
+      },
+      "source/cp-boot/test_peripherals_stage.py": {
+        "before": "c378e8ffff25955f16d599d006c99dd02bf1bca4ccd2bd2593e7677031642589",
+        "after": "cbe35fb06decdd426b48e1db01feb902fd6fe76cb185025ee8bb60a4ea42a3f4"
+      },
+      "source/cp-boot/test_native_device_check.py": {
+        "before": "2c48f1714590fe6e077bbbaf87f234f5e10c0182012691b5c97385204758c2d3",
+        "after": "7ed720415b93b537391da00fbf73736ae1554aa85b23847a4993797e6b98650c"
+      },
+      "source/cp-boot/check-notify-qemu.py": {
+        "before": "2002940b56e4b56523004f9ea680b4b288ce471f7e4d024583e5e87ed525389b",
+        "after": "c6d10114d965462ec1c9aea6f059bc1f675c6678486d9a64d2f89efd0020dd17"
+      },
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "e3a705d718622cdd336228cc3683a1d8b2392ba1c1d44e3e86961a82d40b569d",
+        "after": "8bf9bea9cc9607fba0539676d482cf7fafdc7109175e61e69c37a52cada1ba93"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "72ea3b0ff795e5b1775ef46f87eba42582fe5ae6ad68824123e0780d5a7f0646",
+        "after": "02adce842182c50d0d16f650e112848a72b94d96328aa7b7cf58776db6902006"
+      },
+      "source/cp-boot/test_native_link.py": {
+        "before": "8945ba0a1007f4ae0c4a25d8e3c3c40373c143db792d8d654f6a744a3579f000",
+        "after": "3a7c323d9fa797fc5bdd34364bb0f4bd1f7c7e989c78d6580c2325ea5f397c9e"
+      }
+    },
+    "receipt_schema": "a7c2-cp-peripherals-stage-v2",
+    "upstream_controller_sources_unchanged": true,
+    "scu_container_routes": "nine independent heap AddressSpaces; RCU destroy_free",
+    "all_independent_content_failures_collected": true,
+    "transport_faults_stop_run": true,
+    "pl330_execution_channels": [
+      0
+    ],
+    "pl011_txe_gating_supported": false,
+    "prior_device": "native-device-actual-v4: secure+GPIO8 pass; DW container read MEMTX_DECODE_ERROR",
+    "original_firmware_consumption": false,
+    "physical_compatible": false,
+    "new_device_verified": false
+  },
+  "native_component_secure_group_view_20261111": {
+    "profile": "virtual-native-component-gic-groups-v1",
+    "default_off": true,
+    "qtest_only": true,
+    "diagnostic_aperture_bytes": 64,
+    "forwarded_controller_offsets": "GICD_IGROUPR 0x80..0xbc only",
+    "pending_or_irq_synthesized": false,
+    "source_changes": {
+      "source/cp-boot/component-gic-groups-qemu.c": {
+        "before": null,
+        "after": "0ae3f20506a77995e95882a2878b16900e4e8d9a46e77cd695bbb1d60fe3a0fb"
+      },
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "d0203b754bbb646b0a8e1f056a00d09f677abe3659bd18fa4522c225ac3b401b",
+        "after": "e3a705d718622cdd336228cc3683a1d8b2392ba1c1d44e3e86961a82d40b569d"
+      },
+      "source/cp-boot/test_native_qtest.py": {
+        "before": "e0a02805a05be65524813af949857b5ef54fa4b4fded3fbc135d47bc4390f0c2",
+        "after": "a4643b67185451bb03e59d26e8bf6f195572f2bba7189c636bb89cd9c7bd6787"
+      },
+      "source/cp-boot/native-qtest.py": {
+        "before": "952acb135d0cad5ee607deaad0426f5d12bd3d206cdcf80f15ba3366555892ff",
+        "after": "d77803c6cb942fea25896ae28f4de1def36269d649fc8d4a2888df014d26ab73"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "e8345adc7a636e3e567c7df0c5c8ffec8f6cd7de4b25f5d84829aab830f620f5",
+        "after": "72ea3b0ff795e5b1775ef46f87eba42582fe5ae6ad68824123e0780d5a7f0646"
+      }
+    },
+    "original_firmware_path_enabled": false,
+    "prior_cases_preserved": [
+      "native-device-actual-v1",
+      "native-device-actual-v2",
+      "native-device-actual-v3"
+    ],
+    "new_device_verified": false,
+    "physical_compatible": false
+  },
+  "native_cp_component_cpu_mode_fix_20261111": {
+    "source_changes": {
+      "source/cp-boot/native-qtest.py": {
+        "before": "91e473fd587446b961ffba88dc8537fe422be88ad687ea56e5001e21e2c6a8dd",
+        "after": "952acb135d0cad5ee607deaad0426f5d12bd3d206cdcf80f15ba3366555892ff"
+      },
+      "source/cp-boot/test_native_qtest.py": {
+        "before": "045a80565ce0449da683ea4f8fa5fabdac590a7c5f20f516c0d755e9636e8fe7",
+        "after": "e0a02805a05be65524813af949857b5ef54fa4b4fded3fbc135d47bc4390f0c2"
+      }
+    },
+    "prior_case": "native-device-actual-v2/result.json",
+    "prior_device_verified": false,
+    "cause": "qtest acceleration disallows aarch64=off; firmware-free component CPU uses default A64 capabilities",
+    "original_rt_os_tcg_a32_path_unchanged": true,
+    "device_model_sources_changed": false,
+    "new_device_verified": false
+  },
+  "native_cp_component_qtest_context_fix_20261111": {
+    "source_changes": {
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "96f4aef75321eb0cfc0b5efbc3cb78e248e2724774eb20e965c2e13db767667d",
+        "after": "d0203b754bbb646b0a8e1f056a00d09f677abe3659bd18fa4522c225ac3b401b"
+      },
+      "source/cp-boot/native-qtest.py": {
+        "before": "9e96639224cb5598c98b268d8dbc10469912d204c75436e6a7b9a4ab84017785",
+        "after": "91e473fd587446b961ffba88dc8537fe422be88ad687ea56e5001e21e2c6a8dd"
+      },
+      "source/cp-boot/test_native_qtest.py": {
+        "before": "928c850c0b2d5f9d131d52cefcaa78a45c24a386ec9571820b93d4f8b7c2db80",
+        "after": "045a80565ce0449da683ea4f8fa5fabdac590a7c5f20f516c0d755e9636e8fe7"
+      }
+    },
+    "device_model_sources_changed": false,
+    "prior_case": "native-device-actual-v1/result.json",
+    "prior_ap_quit_rc": 0,
+    "prior_cp_crash_rc": -11,
+    "prior_device_verified": false,
+    "cause": "Stock SMP GIC get_current_cpu requires explicit qtest acceleration for non-vCPU debug MMIO",
+    "new_device_verified": false
+  },
+  "native_cp_qom_link_build_fix_20261111": {
+    "source_changes": {
+      "build-cp-native.sh": {
+        "before": "bf482b12a8ba36011920f3d955bf33bcddfd7d9deb477e24218571b785c7c667",
+        "after": "d727266b4522e8283befb8f35593c4b51a550e133bb84f1b8c04dd39d37073ca"
+      },
+      "source/cp-boot/native-link-ap.inc": {
+        "before": "46ee2f45aa8c66bbc27ea01c2015d34f98376588e7c7d57038ec6d98135ce5ec",
+        "after": "a5cd97ace88b57c270a87e9290cb2129af98319b6f5399c5a6cd6dd75f6ff401"
+      },
+      "source/cp-boot/native-link-board.h": {
+        "before": "a2f4f5db432d92977cd702b5a69a06fda62f7f9af842cc47b120b2522f875ec6",
+        "after": "2aec0f19275a14b9d0f26bbdaf742dd84bff152e43038689066c8bb213176480"
+      },
+      "source/cp-boot/native-link-cp.inc": {
+        "before": "8294fbab53a2757bb6d3b38be258372155f7186281d54b9672ea8ed579a9fac7",
+        "after": "70948090e1ac992b69e59a8982b49cb95c6568fb937bf651ba4ebf699851849e"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "cbe865ca4bd12b1249969ee6fdc9891e4540e5f9744873c5540ba919237741ea",
+        "after": "e8345adc7a636e3e567c7df0c5c8ffec8f6cd7de4b25f5d84829aab830f620f5"
+      }
+    },
+    "first_build": "source/build/cp-native-batch-v1",
+    "first_build_succeeded": false,
+    "cause": "QEMU11.1.2 has object_property_set_link, not qdev_prop_set_link",
+    "next_build_succeeded": false
+  },
+  "native_cp_test_fixture_fixes_20261111": {
+    "source_changes": {
+      "runtime/analysis/test_functional_camera_bridge.py": {
+        "before": "92a8ec81f9ee2bd99b7a80d2a48f1b4488c1fdfad57584a8b50e123129e1d25b",
+        "after": "51c43042d687b38e1204af93f2a76919808812c99d371d5fb4c7829c2b2c1980"
+      },
+      "tools/test_public_models_runner.py": {
+        "before": "36e0a838e4dcdcfa745e4e0be82a1d1246e2bfee98bd435b9f5ee024ffa2253b",
+        "after": "6275ab459e1738b3dd46164a4e65f59ec9443b734996e39a200d506747359178"
+      }
+    },
+    "production_sources_changed": false,
+    "validated": false
+  },
+  "native_cp_peripheral_batch_fixes_20261111": {
+    "parent_freeze": "native-batch-source-freeze-v1.json",
+    "source_changes": {
+      "runtime/analysis/test_functional_camera_bridge.py": {
+        "before": "4f357485263caa7f30e1bb2adcfeeeba3e9f8a7fc503eb30faaba6580351fa13",
+        "after": "92a8ec81f9ee2bd99b7a80d2a48f1b4488c1fdfad57584a8b50e123129e1d25b"
+      },
+      "source/cp-boot/check-native-qemu.py": {
+        "before": "67465332eeac3ed052fb5f850a0199269a755e7f0b79f302467fe512bd5f5f68",
+        "after": "96f4aef75321eb0cfc0b5efbc3cb78e248e2724774eb20e965c2e13db767667d"
+      },
+      "source/cp-boot/native-qtest.py": {
+        "before": "72af5240395cf212a47cac284252039ff534ed009163da6f59783afb3caee424",
+        "after": "9e96639224cb5598c98b268d8dbc10469912d204c75436e6a7b9a4ab84017785"
+      },
+      "source/cp-boot/run-native-cp.py": {
+        "before": "e50a36fb24de616e0b8230bd924244f842643437f22b1127697db953fb851560",
+        "after": "55e8f095d799a4efca3d1096ac877f53ab169e652c728e7824700c68c8938584"
+      },
+      "source/cp-boot/stage-peripherals.py": {
+        "before": "df34ba71feada3dc5b696d2005cdae894650ae85db980fdad152427aa373e9e5",
+        "after": "cbe865ca4bd12b1249969ee6fdc9891e4540e5f9744873c5540ba919237741ea"
+      },
+      "source/cp-boot/test_native_device_check.py": {
+        "before": null,
+        "after": "2c48f1714590fe6e077bbbaf87f234f5e10c0182012691b5c97385204758c2d3"
+      },
+      "source/cp-boot/test_native_link.py": {
+        "before": "1b6650ab6571b617de192aff6b4f405e433edb40b42fb801b9273f6cc2177b34",
+        "after": "8945ba0a1007f4ae0c4a25d8e3c3c40373c143db792d8d654f6a744a3579f000"
+      },
+      "source/cp-boot/test_native_qtest.py": {
+        "before": "362ac0e7ee7bb877eec35de652f31166e119a30647acd91c548bb136aa0cc0a7",
+        "after": "928c850c0b2d5f9d131d52cefcaa78a45c24a386ec9571820b93d4f8b7c2db80"
+      },
+      "tools/public-model-tests.json": {
+        "before": "c369bd18813193ff6870769a6a6f3eaa959088665ae51f20ea15d89d74a63f56",
+        "after": "6a9e7964c2011e984b068f319d4eaf5aa4121fcc25bb2cdfb88199967e7aa098"
+      }
+    },
+    "first_host_result": "native-central-host-1794399944646706430/result.json",
+    "first_public": {
+      "passed": 18067,
+      "failed": 5,
+      "errors": 78,
+      "skipped": 287,
+      "subtests": 22486
+    },
+    "regression_verified": false,
+    "device_qtest_verified": false,
+    "full_boot_verified": false,
+    "capture_verified": false
+  },
+  "native_cp_peripheral_batch_20261111": {
+    "maintenance": "Unique standalone product source/cp-boot and root offline builder; old runtime baselines preserved",
+    "profile": "virtual-native-ap-cp-link-v1",
+    "default_off": true,
+    "report": "source/cp-boot/BOOT-PERIPHERALS.md",
+    "source_complete": true,
+    "build_verified": false,
+    "host_verified": false,
+    "device_qtest_verified": false,
+    "original_cp_receiver_verified": false,
+    "original_ap_consumption_verified": false,
+    "full_boot_verified": false,
+    "installation_verified": false,
+    "capture_verified": false,
+    "physical_compatible": false,
+    "validation_workers": 2,
+    "fresh_parent_sha256": "1efa461744f73cea3199f2dd14cd0b361608c9d0760e1e4b99069e732b618a14",
+    "historical_parent_sha256": "79041461b7b834ef3c1610bb98eff521574d567c5f789d5eb7d62b65b7d67c1e",
+    "source_sha256": {
+      "build-cp-native.sh": "bf482b12a8ba36011920f3d955bf33bcddfd7d9deb477e24218571b785c7c667",
+      "runtime/analysis/qemu-kernel-probe.sh": "c3e03932bda71bf2b4c0d63581238cd4447880e365ef89a401a5cf8bfe51fb77",
+      "runtime/analysis/qemu-menu-probe.py": "77fbe5cc4a4a863edb6d5386087e46835f47c2d5eae4524caf39f12907f7bcb9",
+      "source/cp-boot/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+      "source/cp-boot/.pytest_cache/CACHEDIR.TAG": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+      "source/cp-boot/.pytest_cache/README.md": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+      "source/cp-boot/.pytest_cache/v/cache/nodeids": "cfffea1d853cc4684e053d27f2d49f562c3a45639978c7850f581b7e8707ea39",
+      "source/cp-boot/BACKUP.md": "c69de5bd9bbd8a8967b325b20c30eaff3c3e01c39df2835a9503fc29d870c8ab",
+      "source/cp-boot/BOOT-PERIPHERALS.md": "05faa49b8c3fd81670525c02ab406583affbdab34e2b193ecb9ebf89c4fba441",
+      "source/cp-boot/NOTIFY.md": "98c3da7ddcd80c55a3b05dd38a259c4314f5d1fc3f9f563c73e2e15f98fb86be",
+      "source/cp-boot/README.md": "890cf5b62b75b3a3a9c1699013788835d687ef3338dd862fe9c4ae8203d799fc",
+      "source/cp-boot/check-native-qemu.py": "67465332eeac3ed052fb5f850a0199269a755e7f0b79f302467fe512bd5f5f68",
+      "source/cp-boot/check-notify-qemu.py": "2002940b56e4b56523004f9ea680b4b288ce471f7e4d024583e5e87ed525389b",
+      "source/cp-boot/gpio18-qemu.c": "de466c5d0d908bf14baacaad2d7348f1b47a9a7d204ca0ef26ce23543d066873",
+      "source/cp-boot/gpio18.c": "026f8efa86d4c0259c33459c2f044653c0e2ffaea41bd942c2496114a27f3630",
+      "source/cp-boot/gpio18.h": "75edb140b20f73ca490d53ce2ad3d9d9cca9d1636e6540fee79596a3601832a1",
+      "source/cp-boot/native-edma-qemu.c": "a066647d3339694e060a7aa6f8e1031faacccc550351964f5b6084417b8d04a1",
+      "source/cp-boot/native-link-ap.inc": "46ee2f45aa8c66bbc27ea01c2015d34f98376588e7c7d57038ec6d98135ce5ec",
+      "source/cp-boot/native-link-board.h": "a2f4f5db432d92977cd702b5a69a06fda62f7f9af842cc47b120b2522f875ec6",
+      "source/cp-boot/native-link-cp.inc": "8294fbab53a2757bb6d3b38be258372155f7186281d54b9672ea8ed579a9fac7",
+      "source/cp-boot/native-link.py": "e4005499ea53340d3e4e121202fff21d8c4698ae46d7cafd4fec9e18e191ab0d",
+      "source/cp-boot/native-notify-qemu.c": "be2b07d179b01ff289f91cb4dccb145d6089995d57e7bb042288dc0e9505db24",
+      "source/cp-boot/native-peer-ram-qemu.c": "c0cb61927aa1ce39785843c1c9b44b03a55db82ebaf2fe84d117447920c73749",
+      "source/cp-boot/native-qtest.py": "72af5240395cf212a47cac284252039ff534ed009163da6f59783afb3caee424",
+      "source/cp-boot/notify-qemu.c": "a7f4031567c724700420259ac5bcc3170349ed5a15f5e55fcbca0dada03ecda4",
+      "source/cp-boot/notify.c": "6ec69708a31b84191f9b7c54c87566c69e16ae9fd8500e78de5fbf2244887db1",
+      "source/cp-boot/notify.h": "ae0ac8d7857a4c5c8939a58bb0049bc2502c4ed3f75a3e5ecddb9476e61e5a94",
+      "source/cp-boot/official-backup.py": "b54cb2fac84b0974d3f9354242618b9eebb3a54d905bb80f10e4c92ccd35ef8f",
+      "source/cp-boot/pl080-route-qemu.c": "40e09daf49b5490591f4c9deb264c69115e40c67c3a6332d8be11d2553b6dcb9",
+      "source/cp-boot/platform/README.md": "9cc528794c14792a50e2fbd54aa710b6987b8f24b4680d3adb5a762b0eb6705f",
+      "source/cp-boot/platform/cp-platform.patch": "84b5740d41e930f3fba64679b4a0365704067648477e963cccd3bd4f5fa72baa",
+      "source/cp-boot/platform/hw/dma/sony_cp_edma.c": "39f3b275a4514d5c01adc66fd9359933ee70b0424aacdf47c828f8cf3c3f06da",
+      "source/cp-boot/platform/hw/misc/sony_cp_edma_gate.c": "a76e7f93549abf15eb65cf4e3449b9daf3ce103eee127c2c8fc2cfed29984322",
+      "source/cp-boot/platform/hw/watchdog/sony_cxd_wdt.c": "6a1dcf61ecaf7a54d7a1c70ef9ee646665843879252ff653180a4f11843dbe44",
+      "source/cp-boot/platform/source-origins.json": "f210b6f0c3dfb689af4167340e36dc66285a1b42f8e4be2c247e8f8d2c9324fe",
+      "source/cp-boot/run-native-ap.py": "cc0180f6d1287925386207f1518cc86bdfe601ef84f595a0d3c8848a3ef695f9",
+      "source/cp-boot/run-native-cp.py": "e50a36fb24de616e0b8230bd924244f842643437f22b1127697db953fb851560",
+      "source/cp-boot/scu-qemu.c": "04138aa8d07fe29df971379f8768deb34801bd6c739c58a71719eb4d8ff7053e",
+      "source/cp-boot/scu.c": "b3582b495267a32c146f9687e2c1f09578d5a9dc202d8c6b892c9ac1e42d6cd3",
+      "source/cp-boot/scu.h": "40b3d06ddc8f28c07622703ef3ef5ddf0f462e0fe05b866e3cf38d51a9554d48",
+      "source/cp-boot/stage-notify.py": "508a3e84d699f656612fdaacf4df734bdf56048e88eb36c13edffc4a37aa580a",
+      "source/cp-boot/stage-peripherals.py": "df34ba71feada3dc5b696d2005cdae894650ae85db980fdad152427aa373e9e5",
+      "source/cp-boot/stage-platform.py": "93616ea171e74487141eafc425249a3ff6942a47f2c68f5fe9399259c1a5c865",
+      "source/cp-boot/stage.py": "652462c9aaa327f9bd46d141b7f6464de109eb4f7e7993d9e56168cd0b6257e6",
+      "source/cp-boot/test-gpio18.c": "0df28a10d3c829f46226be7604a51696ec2372c610d57e0c69fd3f0ef5ba924e",
+      "source/cp-boot/test-notify.c": "42ad7854edcedd79b1c733cedf27ef17d6de35049ec5a75f320b59b67af3bcd9",
+      "source/cp-boot/test-scu.c": "25b6dab8e3553f396b18351b46a833d19779faba2bcc29872b923de60606a0cc",
+      "source/cp-boot/test-tpu.c": "105d427f5f448870b03fea9058f02d35c08bec4b4ad82d78ff9b1bd0cface25d",
+      "source/cp-boot/test_gpio18.py": "22b9b3e2a3a8b8a1094a936eb5d1c87e5a163e001a093bb893c7aa06dd566689",
+      "source/cp-boot/test_native_ap.py": "fe46edfe4e077f72367ea8ee3bf17624d747ccf72b7c63952bf3e351a05bc2b3",
+      "source/cp-boot/test_native_cp.py": "7ffbec8512bd9b926cc94e60e6064916f01c95b5c8457d5769a1f32c78cd4b59",
+      "source/cp-boot/test_native_link.py": "1b6650ab6571b617de192aff6b4f405e433edb40b42fb801b9273f6cc2177b34",
+      "source/cp-boot/test_native_qtest.py": "362ac0e7ee7bb877eec35de652f31166e119a30647acd91c548bb136aa0cc0a7",
+      "source/cp-boot/test_notify.py": "402c033b01b140a330222a87ab09fcb501ace626ee726bea25f33a1bb747e4ac",
+      "source/cp-boot/test_notify_stage.py": "d51c50c489c22c3f6bc58e4b6460f4cc28a1f8e79dfb0adb4de983f714c314d1",
+      "source/cp-boot/test_official_backup.py": "fd1bea9c4c67bcf2e628e1013d7a4b368c584dac5ce19f548dd6e6d6ae1d0fd7",
+      "source/cp-boot/test_peripherals_stage.py": "c378e8ffff25955f16d599d006c99dd02bf1bca4ccd2bd2593e7677031642589",
+      "source/cp-boot/test_platform_port.py": "59c28537ddcaeac7196119ce54b57aa3b63759f8510b0d578910d56f6ecda6a0",
+      "source/cp-boot/test_scu.py": "a9b93fa2f56bd5eddcbd7f9419080fe2797b185fc64017b36a9819b20bb09a79",
+      "source/cp-boot/test_stage.py": "ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183",
+      "source/cp-boot/test_tpu.py": "d81ac6ef346389fd977dca0de814b797de9e125228ec51a93279d18338358254",
+      "source/cp-boot/tpu-qemu.c": "7c4882f8e811740747503bb99b1c5001db28b7adb403f51c5651731d254a089f",
+      "source/cp-boot/tpu.c": "11037e06bcffa5137aa0d55e7c46bf5a7d2aa2b8279778c18c01a1ceda66322d",
+      "source/cp-boot/tpu.h": "9ab09dc3a76178726c948525559d819db413623f7260ac57a7678fea74f4d6bc",
+      "tools/check-source.py": "de7d0629263acf0a1f4610eb8f867f24ad276b99a98faae1f5881ec81acfb348",
+      "tools/public-model-tests.json": "c369bd18813193ff6870769a6a6f3eaa959088665ae51f20ea15d89d74a63f56",
+      "tools/test-public-models.py": "431ece897e4dee02bf7859f1b28dba45f12438583abbc2e2c73a2e47bad3ab9b"
+    }
+  },
+  "official_cp_bk4_input_20261111": {
+    "maintenance": "direct source/cp-boot verbatim-record loader; explicit diagnostic CP RAM input only",
+    "profile": "virtual-official-cp-bk4-input-v1",
+    "default_off": true,
+    "report": "report/2026-11-11-cp-boot-progress/README.md",
+    "receipt": "report/2026-11-11-cp-boot-progress/backup-validation.json",
+    "host_tests": 45,
+    "host_subtests": 29,
+    "host_workers": 2,
+    "official_record_guest_full_readback_verified": true,
+    "original_cp_bk4_runtime_binding_verified": true,
+    "record_choice": "ed000, explicit functional-model choice",
+    "sony_loader_selection_verified": false,
+    "physical_alias_verified": false,
+    "physical_cp_ram_size_verified": false,
+    "original_ap_consumption_verified": false,
+    "full_boot_verified": false,
+    "source_sha256": {
+      "source/cp-boot/BACKUP.md": "c69de5bd9bbd8a8967b325b20c30eaff3c3e01c39df2835a9503fc29d870c8ab",
+      "source/cp-boot/official-backup.py": "b54cb2fac84b0974d3f9354242618b9eebb3a54d905bb80f10e4c92ccd35ef8f",
+      "source/cp-boot/test_official_backup.py": "fd1bea9c4c67bcf2e628e1013d7a4b368c584dac5ce19f548dd6e6d6ae1d0fd7"
+    }
+  },
   "ap_cp_gpio_lines_20261111": {
     "maintenance": "direct product source/cp-boot implementation; private diagnostic boards only, default off",
     "report": "report/2026-11-11-cp-boot-progress/README.md",
@@ -17931,5 +18813,38 @@
     "receiver_executed": false,
     "receiver_trace_evidence": "analysis/scratch/cp-progress-20261111/trace-300s/result.json",
     "gdbstub_disconnect_not_qemu_exit": true
+  },
+  "native_cp_source_inventory_reconciliation_20261111": {
+    "maintenance": "Current standalone product source inventory after generated-cache cleanup; prior freeze and origin records remain historical and unchanged",
+    "supersedes_source_inventory": "native_cp_peripheral_batch_20261111",
+    "source_count_before": 3214,
+    "source_count_after": 3210,
+    "generated_pytest_cache_removed": {
+      "source/cp-boot/.pytest_cache/.gitignore": "3ed731b65d06150c138e2dadb0be0697550888a6b47eb8c45ecc9adba8b8e9bd",
+      "source/cp-boot/.pytest_cache/CACHEDIR.TAG": "37dc88ef9a0abeddbe81053a6dd8fdfb13afb613045ea1eb4a5c815a74a3bde4",
+      "source/cp-boot/.pytest_cache/README.md": "73fd6fccdd802c419a6b2d983d6c3173b7da97558ac4b589edec2dfe443db9ad",
+      "source/cp-boot/.pytest_cache/v/cache/nodeids": "cfffea1d853cc4684e053d27f2d49f562c3a45639978c7850f581b7e8707ea39"
+    },
+    "working_tree_followups_after_v12_freeze": {
+      "source/cp-boot/BOOT-PERIPHERALS.md": {
+        "v12_freeze_sha256": "d8c3f24a95740a1020516e856356be80ccacc020ff4b8ee5fcab9fdc4d0578b5",
+        "current_sha256": "b4f3dea99f9420a3b9cb4103f7a307bdf95b0edd2b688551974cc6ffef4b355",
+        "attribution": "Already present in the working tree after freeze12; no authorship inferred"
+      },
+      "source/cp-boot/test_peripherals_stage.py": {
+        "v12_freeze_sha256": "3ac5d4d9b302643254917574f868dcb94c79bd32c0a0c61f609609873791fa42",
+        "current_sha256": "c88a75b5438ad9ad58403c532d9273830bb02b52a541f99723d16ce20290555a",
+        "attribution": "Already present in the working tree after freeze12; no authorship inferred"
+      }
+    },
+    "source_checksum_manifest_updated": true,
+    "generated_cache_paths_excluded_from_current_manifest": true,
+    "new_freeze_and_host_build_device_validation_pending": true,
+    "build_verified": false,
+    "host_verified": false,
+    "device_qtest_verified": false,
+    "full_boot_verified": false,
+    "original_ap_consumption_verified": false,
+    "physical_compatible": false
   }
 }

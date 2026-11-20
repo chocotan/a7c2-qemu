@@ -205,3 +205,170 @@ def test_console_rename_cannot_silently_rebind_transaction(tmp_path):
     with ConsoleWakeup(p) as wake:
         p.rename(tmp_path/'old.log'); p.write_bytes(b'other console')
         with pytest.raises(OSError, match='bound file'): wake.wait(1)
+
+
+@pytest.fixture
+def lcd_socket_route(tmp_path, monkeypatch):
+    """Synthetic transport only: no runtime gate, AF_UNIX endpoint or VM is opened."""
+    from contextlib import contextmanager
+    import stat
+    import struct
+    from unittest.mock import MagicMock
+    import continuous_lcd
+    import diagnostic_fs_socket_roots as fs
+    import single_ap_sockets as ap
+
+    run = tmp_path / 'files'; run.mkdir()
+    sockets = tmp_path / 'sockets'; sockets.mkdir()
+    calls, commands, frames = [], [], []
+    state = SimpleNamespace(roots=None, owner_ticks=1, peer_ticks=1,
+                            peer_pid=os.getpid(), peer_uid=os.geteuid(), endpoint_error=False)
+    owner = SimpleNamespace(pid=os.getpid(), poll=lambda: None)
+
+    class Roots:
+        def __init__(self):
+            self.sockets = sockets
+
+        def endpoint(self, path):
+            calls.append(('endpoint', path))
+            if state.endpoint_error:
+                raise ValueError('diagnostic endpoint inode changed')
+
+        @contextmanager
+        def connect_path(self, path):
+            self.endpoint(path)
+            yield '/proc/self/fd/123/lcd-qmp.sock'
+            self.endpoint(path)
+
+    state.short_roots = Roots()
+    monkeypatch.setattr(ap, 'roots_for_run', lambda run: state.roots)
+    monkeypatch.setattr(fs, 'process_identity', lambda pid: dict(
+        pid=pid, start_ticks=state.owner_ticks if pid == owner.pid else state.peer_ticks,
+        boot_id='synthetic-boot'))
+    original_lstat = Path.lstat
+    def lstat(path, *args, **kwargs):
+        if path in (run / 'lcd-qmp.sock', sockets / 'lcd-qmp.sock'):
+            return SimpleNamespace(st_mode=stat.S_IFSOCK | 0o600, st_uid=os.geteuid())
+        return original_lstat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'lstat', lstat)
+    monkeypatch.setattr(menu_live, 'connect_in_run', lambda sock, root, name:
+                        calls.append(('legacy-connect', root, name)))
+    sock = MagicMock()
+    sock.__enter__.return_value = sock
+    sock.connect.side_effect = lambda address: calls.append(('short-connect', address))
+    sock.getsockopt.side_effect = lambda *args: struct.pack(
+        '3i', state.peer_pid, state.peer_uid, os.getegid())
+    wire = MagicMock()
+    wire.__enter__.return_value = wire
+    wire.readline.side_effect = [b'{"QMP":{"version":{}}}\n', b'{"return":{}}\n', b'{"return":{}}\n']
+    wire.write.side_effect = lambda raw: commands.append(json.loads(raw))
+    sock.makefile.return_value = wire
+    monkeypatch.setattr(continuous_lcd.socket, 'socket', lambda *args: sock)
+
+    def build():
+        view = ContinuousLCD(run, owner, lambda *_: pytest.fail('unexpected publication'))
+        def frame(path):
+            frames.append(path)
+            view.cancel.set()
+        view._frame = frame
+        return view
+    return SimpleNamespace(state=state, run=run, sockets=sockets, calls=calls, commands=commands,
+                           frames=frames, sock=sock, wire=wire, build=build)
+
+
+def test_lcd_default_keeps_legacy_socket_timeout_and_file_root(lcd_socket_route):
+    h = lcd_socket_route
+    view = h.build(); view._run()
+    assert not view.error and view.roots is None
+    assert h.calls == [('legacy-connect', h.run, 'lcd-qmp.sock')]
+    h.sock.settimeout.assert_called_once_with(3)
+    h.sock.connect.assert_not_called()
+    assert h.frames == [h.run / 'lcd-continuous.ppm']
+    assert h.commands == [{'execute': 'qmp_capabilities'}, {'execute': 'screendump',
+                          'arguments': {'filename': '/out/lcd-continuous.ppm'}}]
+    assert json.loads((h.run / 'lcd-continuous-result.json').read_text())['error'] == ''
+
+
+def test_lcd_profile_routes_only_socket_through_validated_root(lcd_socket_route):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots
+    view = h.build(); view._run()
+    assert not view.error and view.roots is h.state.short_roots
+    assert all(call[0] != 'legacy-connect' for call in h.calls)
+    assert ('short-connect', '/proc/self/fd/123/lcd-qmp.sock') in h.calls
+    assert all(call[1] == h.sockets / 'lcd-qmp.sock'
+               for call in h.calls if call[0] == 'endpoint')
+    h.sock.settimeout.assert_called_once_with(3)
+    assert h.frames == [h.run / 'lcd-continuous.ppm']
+    assert h.commands[-1]['arguments'] == {'filename': '/out/lcd-continuous.ppm'}
+    assert (h.run / 'lcd-continuous-result.json').is_file()
+    assert not (h.sockets / 'lcd-continuous-result.json').exists()
+
+
+@pytest.mark.parametrize('short_route', [False, True])
+def test_lcd_both_routes_keep_peer_credential_rejection(lcd_socket_route, short_route):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots if short_route else None
+    h.state.peer_uid = os.geteuid() + 1
+    view = h.build(); view._run()
+    assert 'current VM owner descendant' in view.error
+    assert not h.commands and not h.frames
+
+
+@pytest.mark.parametrize('short_route', [False, True])
+def test_lcd_socket_timeout_is_error_without_retry(lcd_socket_route, short_route):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots if short_route else None
+    h.wire.readline.side_effect = socket.timeout('synthetic LCD timeout')
+    view = h.build(); view._run()
+    assert 'synthetic LCD timeout' in view.error
+    assert not h.commands and not h.frames
+    assert len([call for call in h.calls if call[0].endswith('connect')]) == 1
+    h.sock.settimeout.assert_called_once_with(3)
+
+
+def test_lcd_short_route_rejects_owner_generation_change(lcd_socket_route):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots
+    view = h.build(); h.state.owner_ticks += 1
+    view._run()
+    assert 'owner start identity changed' in view.error
+    assert not h.commands and not h.frames
+
+
+def test_lcd_short_route_rechecks_peer_generation_before_frame(lcd_socket_route, monkeypatch):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots
+    h.state.peer_pid = os.getpid() + 1000000
+    monkeypatch.setattr(ContinuousLCD, '_descendant', staticmethod(lambda *args: True))
+    def write(raw):
+        message = json.loads(raw); h.commands.append(message)
+        if message['execute'] == 'qmp_capabilities':
+            h.state.peer_ticks += 1
+    h.wire.write.side_effect = write
+    view = h.build(); view._run()
+    assert 'peer/owner identity changed' in view.error
+    assert h.commands == [{'execute': 'qmp_capabilities'}] and not h.frames
+
+
+def test_lcd_short_route_rejects_endpoint_change_before_connect(lcd_socket_route):
+    h = lcd_socket_route
+    h.state.roots = h.state.short_roots
+    view = h.build(); h.state.endpoint_error = True
+    view._run()
+    assert 'endpoint inode changed' in view.error
+    h.sock.connect.assert_not_called()
+    assert not h.commands and not h.frames
+
+
+def test_lcd_profile_cannot_bypass_fixed_owner_gate(tmp_path, monkeypatch):
+    import diagnostic_fs_socket_roots as fs
+    import single_ap_sockets as ap
+    monkeypatch.setenv(ap.PROFILE_ENV, ap.PROFILE)
+    monkeypatch.setenv(ap.ROOT_ENV, '/run/user/%d/lcd-not-allocated' % os.geteuid())
+    for key in ap.EXCLUDED_ROUTES:
+        monkeypatch.delenv(key, raising=False)
+    assert fs.FS_RUNTIME_BLOCKERS
+    with pytest.raises(RuntimeError, match='BLOCKED:'):
+        ContinuousLCD(tmp_path, SimpleNamespace(pid=os.getpid()), lambda *_: None)
+    assert not (tmp_path / 'lcd-continuous-result.json').exists()

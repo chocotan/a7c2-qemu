@@ -139,7 +139,8 @@ int functional_face_runtime_snapshot(struct functional_face_runtime_snapshot *ou
     ++state.snapshot_id;
     memcpy(out, &state, sizeof *out);
     out->owner_pid = getpid();
-    out->live_creators = out->opens = out->shares = out->tickets = out->retained = 0;
+    out->live_creators = out->opens = out->shares = out->tickets = 0;
+    out->retained = state.list.request && state.list.release_result ? 1 : 0;
     for (unsigned int i = 0; i < FUNCTIONAL_FACE_DMM_UNITS; ++i) {
         out->live_creators += out->units[i].live_creator;
         for (unsigned int j = 0; j < FUNCTIONAL_FACE_RUNTIME_REFERENCES; ++j) {
@@ -189,11 +190,107 @@ int functional_face_runtime_prepare(int explicit_enabled, uint64_t owner,
     state.preparing = 0;
     if (!rc) {
         state.enabled = 1; state.producer_owner = owner; state.io_identity = *io; recorder = record;
+        /* Virtual constructor/start: CP2ba304 gate0 -> CP7ea460 gate1. */
+        state.list.gate = 1;
         for (unsigned int i = 0; i < FUNCTIONAL_FACE_RUNTIME_TRANSACTIONS; ++i) selected_reference[i] = -1;
     } else ++state.faults;
     UNLOCK();
     emit(rc ? "FUNCTIONAL_FACE_DMM_FAULT" : "FUNCTIONAL_FACE_DMM_PREPARED");
     return rc;
+}
+
+int functional_face_runtime_list_dispatch(unsigned int destination, void *request,
+    const struct full_imaging_io *io, int enabled,
+    const struct functional_face_runtime_caller *caller, int *result) {
+    if (destination != UINT32_C(0x90060197) || enabled != 1 || !caller ||
+        caller->trust == FUNCTIONAL_FACE_RUNTIME_UNTRUSTED || !result || !request ||
+        !io_valid(io)) return 0;
+    int rc = process_guard();
+    if (rc) { *result = rc; return 1; }
+    unsigned int bytes = io->size(request);
+    if (bytes < 2 || ((unsigned char *)request)[0] != 2 || ((unsigned char *)request)[1] != 6) return 0;
+    if (caller->trust != FUNCTIONAL_FACE_RUNTIME_ACCEPTED || caller->unit != 0x1db ||
+        bytes != 24 || io->source(request) != UINT32_C(0x80020002)) { *result = -EPROTO; return 1; }
+    unsigned char wire[24]; memcpy(wire, request, sizeof wire);
+    unsigned int count = wire[12];
+    if (get(wire + 4, 4) != 0x1db || count > 8) { *result = -EPROTO; return 1; }
+    for (unsigned int i = 0; i < count; ++i)
+        if (wire[13 + i] >= 8) { *result = -ERANGE; return 1; }
+    LOCK();
+    rc = owner_locked(caller->producer_owner);
+    if (!rc && !io_equal(io, &state.io_identity)) rc = -EPERM;
+    if (!rc && (state.busy || state.preparing || state.list.request)) rc = -EBUSY;
+    if (!rc && (state.list.generation == UINT32_MAX || state.list.notify_pending == UINT32_MAX)) rc = -EOVERFLOW;
+    struct functional_face_runtime_unit *u = &state.units[2];
+    int selected = -1, previous = -1;
+    for (unsigned int i = 0; !rc && i < FUNCTIONAL_FACE_RUNTIME_REFERENCES; ++i) {
+        const struct functional_face_runtime_reference *ref = &u->references[i];
+        if (state.list.valid && ref->live && ref->pending && same_span(&ref->span, &state.list.span)) previous = (int)i;
+        if (!ref->live || ref->pending || ref->kind != 0x21 || ref->sender_tid != THREAD_ID() ||
+            ref->span.handle != get(wire + 8, 4)) continue;
+        if (selected >= 0) rc = -ENODATA;
+        else selected = (int)i;
+    }
+    if (!rc && (selected < 0 || !u->live_creator || u->retired ||
+        (state.list.valid && previous < 0))) rc = -ESTALE;
+    struct functional_face_dmm_descriptor span = {0}, old = state.list.span;
+    unsigned int gate = state.list.gate;
+    if (!rc) {
+        const struct functional_face_runtime_reference *ref = &u->references[selected];
+        span = ref->span;
+        if (span.unit != 0x1db || span.bytes != 0xd100 || !span.reference ||
+            !same_span(&span, &ref->receipt.actual.span) || !ref->receipt.actual.nonce ||
+            ref->receipt.producer_owner != caller->producer_owner) rc = -ESTALE;
+    }
+    if (!rc) { state.busy = 1; u->references[selected].pending = 1; }
+    UNLOCK();
+    if (rc) { *result = rc; return 1; }
+    struct functional_face_dmm_borrow borrow;
+    struct functional_face_dmm_readback readback;
+    rc = functional_face_dmm_borrowed_span(&span, 0, span.bytes, FUNCTIONAL_FACE_DMM_READ, &borrow);
+    if (!rc) rc = functional_face_dmm_release_borrow(&borrow, &readback);
+    if (!rc && !gate) rc = functional_face_dmm_consume_share(&span);
+    if (!rc && gate && previous >= 0) rc = functional_face_dmm_consume_share(&old);
+    LOCK();
+    if (rc) {
+        /* A failed backing/lease check is retained for evidence, never bypassed. */
+        ++state.faults; state.busy = 0;
+        UNLOCK(); *result = rc; emit("FUNCTIONAL_FACE_DMM_LIST_FAULT"); return 1;
+    }
+    if (previous >= 0 && gate) {
+        memset(&u->references[previous], 0, sizeof u->references[previous]);
+        ++state.list.shares_released;
+    }
+    if (!gate) {
+        memset(&u->references[selected], 0, sizeof u->references[selected]);
+        ++state.list.shares_released;
+    } else {
+        state.list.span = span; state.list.valid = 1; state.list.count = count;
+        memset(state.list.payload, 0, sizeof state.list.payload);
+        memset(state.list.known, 0, sizeof state.list.known);
+        state.list.payload[0] = 1; state.list.known[0] = 1;
+        memcpy(state.list.payload + 4, wire + 8, 4); memset(state.list.known + 4, 1, 4);
+        state.list.payload[8] = (unsigned char)count; state.list.known[8] = 1;
+        memset(state.list.known + 16, 1, 64);
+        for (unsigned int i = 0; i < count; ++i) {
+            uint64_t pointer = span.logical + (uint64_t)wire[13 + i] * 0x1a20;
+            for (unsigned int j = 0; j < 8; ++j) state.list.payload[16 + i * 8 + j] = (unsigned char)(pointer >> (8 * j));
+        }
+        ++state.list.notify_pending;
+    }
+    memcpy(state.list.wire, wire, sizeof wire); ++state.list.generation;
+    state.list.request = (uintptr_t)request;
+    UNLOCK();
+    int freed = io->release(destination, request);
+    LOCK();
+    state.list.release_result = freed;
+    if (freed) ++state.faults;
+    else { state.list.request = 0; ++state.list.retired; }
+    state.busy = 0;
+    UNLOCK();
+    emit(freed ? "FUNCTIONAL_FACE_DMM_LIST_FAULT" : "FUNCTIONAL_FACE_DMM_LIST_ACCEPT");
+    *result = freed ? -EIO : 0;
+    return 1;
 }
 
 /* Only allocation and release need adaptation: every original IO argument and
@@ -412,6 +509,7 @@ int functional_face_runtime_release(uint64_t owner, unsigned int queue, void *me
     if (!message || !result) return 0;
     LOCK();
     int slot = find_reply_locked(message);
+    if (state.list.request == (uintptr_t)message) { UNLOCK(); *result = -EIO; return 1; }
     if (slot < 0) {
         for (unsigned int i = 0; i < FUNCTIONAL_FACE_RUNTIME_TRANSACTIONS; ++i) {
             const struct functional_face_runtime_transaction *held = &state.transactions[i];

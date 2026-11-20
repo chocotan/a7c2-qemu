@@ -1,10 +1,71 @@
+import ast
+from contextlib import contextmanager
 import hashlib
+import inspect
+import json
+import os
 from pathlib import Path
 import stat
 import subprocess
 
 import pytest
 import original_cold_boot as cold
+
+
+def test_cold_audit_uses_verified_private_libc(tmp_path,monkeypatch):
+    import sony_usb_device as usb
+    private=tmp_path/'private';private.mkdir()
+    payload=tmp_path/'payload';payload.mkdir()
+    checked=[];calls=[];inputs=(private,{},[],'synthetic-receipt-sha')
+    monkeypatch.setattr(usb,'verify_private_libraries',lambda value: checked.append(value))
+    @contextmanager
+    def sealed(value):
+        assert value is inputs
+        yield ['/proc/self/fd/40','/proc/self/fd/41','/proc/self/fd/42','/proc/self/fd/43'],(40,41,42,43)
+    monkeypatch.setattr(usb,'sealed_link_libraries',sealed)
+    def compile_audit(command,log,*,pass_fds,environment):
+        calls.append((command,log,pass_fds,environment));(payload/'audit').write_bytes(b'synthetic audit')
+    monkeypatch.setattr(cold,'_checked',compile_audit)
+    audit=cold.build_audit(payload,tmp_path,inputs)
+    assert checked==[inputs,inputs,inputs] and audit==payload/'audit'
+    assert calls[0][3]['TMPDIR']=='/proc/self/fd/'+str(calls[0][2][4])
+    assert '/proc/self/fd/40' in calls[0][0] and calls[0][2][:4]==(40,41,42,43) and len(calls[0][2])==5
+    assert str(cold.ANALYSIS/'menu-root/lib/libc-2.25.so') not in calls[0][0]
+    assert stat.S_IMODE(audit.stat().st_mode)==0o755
+
+
+def test_cold_prepare_shares_one_private_input():
+    tree=ast.parse(inspect.getsource(cold.prepare))
+    calls=[node for node in ast.walk(tree) if isinstance(node,ast.Call)]
+    selected=lambda name:[node for node in calls if isinstance(node.func,ast.Name) and node.func.id==name]
+    assert len(selected('prepare_private_libraries'))==1
+    audit,=selected('build_audit');observer,=selected('prepare_observer')
+    assert isinstance(audit.args[2],ast.Name) and audit.args[2].id=='private_inputs'
+    assert any(arg.arg=='private_inputs' and isinstance(arg.value,ast.Name) and arg.value.id=='private_inputs'
+               for arg in observer.keywords)
+
+
+def test_cold_audit_rejects_private_library_mutation(tmp_path,monkeypatch):
+    private=tmp_path/'private';private.mkdir(mode=0o700)
+    library=private/'lib';library.mkdir(mode=0o700);rows={};paths=[]
+    for name in ('libc-2.25.so','libdl-2.25.so','libpthread-2.25.so','ld-2.25.so'):
+        path=library/name;path.write_bytes(name.encode());path.chmod(0o600);paths.append(path)
+        rows['lib/'+name]={'sha256':hashlib.sha256(name.encode()).hexdigest()}
+    receipt={'schema':'a7c2-observer-private-libraries-v1','physical_compatible':False,
+             'base_initramfs_sha256':'a'*64,'libraries':rows}
+    proof=private/'library-inputs.json';proof.write_text(json.dumps(receipt));proof.chmod(0o600)
+    inputs=(private,receipt,paths,hashlib.sha256(proof.read_bytes()).hexdigest())
+    payload=tmp_path/'payload';payload.mkdir(mode=0o700)
+    observed=[]
+    def compile_audit(_command,_log,*,pass_fds,environment):
+        assert len(pass_fds)==5 and environment['TMPDIR']=='/proc/self/fd/'+str(pass_fds[-1]);observed.extend(pass_fds)
+        paths[0].write_bytes(b'changed');(payload/'audit').write_bytes(b'synthetic audit')
+    monkeypatch.setattr(cold,'_checked',compile_audit)
+    with pytest.raises(ValueError,match='private library changed'):
+        cold.build_audit(payload,tmp_path,inputs)
+    assert len(observed)==5
+    for fd in observed:
+        with pytest.raises(OSError):os.fstat(fd)
 
 
 @pytest.mark.parametrize('damage',['none','missing-pivot','wrong-order','release-failed','marker-only'])
@@ -116,6 +177,26 @@ def test_fonts_are_reused_only_after_full_digest_readback(tmp_path):
     shim=(cold.SOURCE/'insmod.sh').read_text()
     assert shim.index('init2-attempted')<shim.index('mount --bind /usr/bin/bootin.elf')
     assert shim.index('PRODUCT_COLD_ORIGINAL_BOOTIN_IDENTITY_FAILED')<shim.index('mount --bind /usr/bin/bootin.elf')
+
+
+@pytest.mark.parametrize('kind',['missing','profile','receipt','ee-header'])
+def test_msc_cli_rejects_incomplete_profile_before_resources(tmp_path,monkeypatch,kind):
+    import runpy,sys,sony_usb_device as usb
+    api=runpy.run_path(str(cold.ANALYSIS.parents[1]/'tools/run-original-cold.py'))
+    main=api['main'];scope=main.__globals__
+    monkeypatch.setitem(scope,'ANALYSIS',tmp_path)
+    monkeypatch.setenv('A7C2_SONY_USB_DEVICE','bad' if kind=='profile' else usb.PROFILE)
+    monkeypatch.delenv('A7C2_USB_EE_NORMAL_COLD',raising=False)
+    monkeypatch.delenv('A7C2_USB_EE_NORMAL_COLD_INPUT',raising=False)
+    if kind=='missing':monkeypatch.delenv('A7C2_USB_DEVICE_BUILD',raising=False)
+    else:monkeypatch.setenv('A7C2_USB_DEVICE_BUILD',str(tmp_path/'invalid.json'))
+    if kind=='ee-header':
+        monkeypatch.setattr(usb,'candidate',lambda _path:None)
+        monkeypatch.setenv('A7C2_USB_EE_NORMAL_COLD','1')
+        monkeypatch.setenv('A7C2_USB_EE_NORMAL_COLD_INPUT',str(tmp_path/'missing.h'))
+    monkeypatch.setattr(sys,'argv',['run-original-cold','--new-instance','--usb-msc','--output',str(tmp_path/'out')])
+    with pytest.raises(ValueError):main()
+    assert not (tmp_path/'out').exists() and not (tmp_path/'.menu-probe.lock').exists()
 
 
 def test_new_cold_cli_instance_creation_and_busy_lock_guard(tmp_path,monkeypatch):

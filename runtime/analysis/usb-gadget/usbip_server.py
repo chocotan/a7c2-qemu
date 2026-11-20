@@ -98,9 +98,25 @@ class Context:
     lease: str
     vm_pid: int
     run_id: str
+    socket_roots: object = None
 
     @classmethod
-    def create(cls, run_dir, qmp_path, backend_path, lease, vm_pid, run_id=None):
+    def create(cls, run_dir, qmp_path, backend_path, lease, vm_pid, run_id=None, *,
+               socket_root=None, socket_profile=None, socket_binding=None):
+        # Standalone bridge children need the same guarded admission as UI consumers.
+        analysis = str(Path(__file__).resolve().parent.parent)
+        if analysis not in sys.path:
+            sys.path.insert(0, analysis)
+        from single_ap_sockets import roots_for_run
+        roots = roots_for_run(run_dir)
+        declarations = (socket_root, socket_profile, socket_binding)
+        if roots is None:
+            if any(value is not None for value in declarations):
+                raise Blocked('socket declarations require an admitted run binding')
+        elif (any(value is None for value in declarations) or
+              (str(socket_root), socket_profile, socket_binding) !=
+              (str(roots.sockets), roots.binding()['profile'], roots.binding())):
+            raise Blocked('diagnostic F/S declarations differ from the bound run')
         run = Path(run_dir).resolve(strict=True)
         info = run.stat()
         if not run.is_dir() or info.st_uid != os.getuid() or info.st_mode & 0o022:
@@ -109,9 +125,15 @@ class Context:
         for path in (qmp_path, backend_path):
             path = Path(path).absolute()
             resolved = path.resolve()
-            if resolved.parent != run or path.is_symlink():
+            if roots is not None:
+                roots.child(path)
+                if path != resolved:
+                    raise Blocked('diagnostic endpoint path is not canonical')
+            elif resolved.parent != run or path.is_symlink():
                 raise Blocked('QMP/backend must be direct, nonsymlink children of this run')
             paths.append(resolved)
+        if roots is not None and paths[0] == paths[1]:
+            raise Blocked('diagnostic QMP/backend endpoints must differ')
         if (not isinstance(lease, str) or not 32 <= len(lease) <= 128 or
                 not lease.isascii() or any(ord(c) < 33 or ord(c) > 126 for c in lease)):
             raise Blocked('lease must be 32..128 printable ASCII characters')
@@ -119,9 +141,34 @@ class Context:
         name = run.name if run_id is None else run_id
         if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,96}', name):
             raise Blocked('invalid run_id')
-        return cls(run, paths[0], paths[1], lease, vm_pid, name)
+        return cls(run, paths[0], paths[1], lease, vm_pid, name, roots)
+
+    def binding_fields(self, *, endpoints=False):
+        if self.socket_roots is None:
+            return {}
+        result = {'socket_binding': self.socket_roots.binding()}
+        if endpoints:
+            result['socket_endpoints'] = {str(path): self.socket_roots.endpoint(path)
+                                          for path in (self.qmp_path, self.backend_path)}
+        return result
+
+    def context_fields(self):
+        result = dict(run_id=self.run_id, qmp_path=str(self.qmp_path),
+                      backend_path=str(self.backend_path), lease=self.lease, vm_pid=self.vm_pid)
+        if self.socket_roots is not None:
+            binding = self.socket_roots.binding()
+            result.update(socket_root=str(self.socket_roots.sockets),
+                          socket_profile=binding['profile'], socket_binding=binding)
+        return result
+
+    def connection_path(self, path, *, private=True):
+        if self.socket_roots is None:
+            return unix_path(path, private=private)
+        return self.socket_roots.connect_path(path)
 
     def identity(self):
+        # F/S binding is host-side metadata, not part of the original bridge ABI.
+        self.binding_fields()
         return {'run_id': self.run_id, 'lease': self.lease,
                 'qmp_path': str(self.qmp_path), 'vm_pid': self.vm_pid}
 
@@ -172,7 +219,7 @@ class Bridge:
         check_unix(context.backend_path)
         writer = None
         try:
-            with unix_path(context.backend_path) as path:
+            with context.connection_path(context.backend_path) as path:
                 reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(path), 3)
         except BaseException:
             if writer is not None:
@@ -336,6 +383,8 @@ class GuestDevice:
             if offset + 2 > len(raw) or raw[offset] < 2 or offset + raw[offset] > len(raw):
                 raise ProtocolError('malformed configuration segment')
             segment = raw[offset:offset + raw[offset]]
+            if segment[1] == 2 and offset != 18:
+                raise ProtocolError('nested configuration descriptor')
             if segment[1] == 4:
                 if len(segment) < 9:
                     raise ProtocolError('short interface descriptor')
@@ -353,6 +402,7 @@ class GuestDevice:
                 endpoints.add((int(bool(segment[2] & 0x80)), segment[2] & 15))
             offset += len(segment)
         if (len(interfaces) != raw[22] or sorted(interfaces) != list(range(raw[22])) or
+                any(number not in interfaces for number, _ in expected_counts) or
                 counts != expected_counts):
             raise ProtocolError('interface/endpoint count mismatch')
         return cls(dict(metadata), raw, tuple(interfaces[i] for i in sorted(interfaces)), frozenset(endpoints))
@@ -617,7 +667,12 @@ def write_owned_json(path, record):
 
 
 async def serve(args):
-    context = Context.create(args.run_dir, args.qmp, args.backend, args.lease, args.vm_pid, args.run_id)
+    binding = json.loads(args.socket_binding, object_pairs_hook=_object) if args.socket_binding is not None else None
+    if args.socket_binding is not None and not isinstance(binding, dict):
+        raise Blocked('socket binding must be an object')
+    context = Context.create(args.run_dir, args.qmp, args.backend, args.lease, args.vm_pid, args.run_id,
+                             socket_root=args.socket_root, socket_profile=args.socket_profile,
+                             socket_binding=binding)
     lock = os.open(context.run_dir / 'usb-server.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     server = None
     try:
@@ -628,7 +683,8 @@ async def serve(args):
         server = await UsbIpServer(context, port=args.port).start()
         ready = context.run_dir / 'usb-server.json'
         write_owned_json(ready, {'run_id': context.run_id, 'lease_id': context.lease_id,
-                                'pid': os.getpid(), 'port': server.port, 'host': server.host})
+                                'pid': os.getpid(), 'port': server.port, 'host': server.host,
+                                **context.binding_fields(endpoints=True)})
         print(json.dumps({'listening': True, 'host': server.host, 'port': server.port,
                           'guest_enumeration_verified': False}), flush=True)
         stop = asyncio.Event()
@@ -648,6 +704,9 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--vm-pid', required=True, type=int)
     parser.add_argument('--run-id')
+    parser.add_argument('--socket-root')
+    parser.add_argument('--socket-profile')
+    parser.add_argument('--socket-binding')
     parser.add_argument('--port', type=int, default=0)
     args = parser.parse_args()
     try:

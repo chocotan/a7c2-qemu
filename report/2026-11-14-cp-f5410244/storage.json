@@ -1,0 +1,45 @@
+{
+  "owner": "isolated-cp-f5410244-static-attribution",
+  "static_only": true,
+  "products_modified": false,
+  "tests_qemu_sockets_devices_started": 0,
+  "new_image_bytes": 0,
+  "reclaimed_bytes": 0,
+  "reclamation_executed": false,
+  "generated_allocated_bytes": null,
+  "filesystem_available_bytes": null,
+  "measurement_status": "blocked-by-delegated-turn-limit; no allocation or free-space figure claimed",
+  "planned_peak_bytes_upper_bound": 1048576,
+  "retained": [
+    {
+      "path": "scratch/cp-f5410244-attribution-20261114",
+      "purpose": "Small static analysis scripts, original instruction windows, SHA pins and finite xref candidates",
+      "allocated_bytes": null,
+      "known_generated_evidence_logical_bytes": 49108,
+      "known_generated_evidence_note": "Only initial ASM/JSON=16244, followup ASM/JSON=19381, named ASM/JSON=13483; excludes scripts and xref files, not an allocation total",
+      "next_consumer": "parent session evidence review",
+      "retention_reason": "Original-byte attribution and reproduction materials; two analysis failures documented in report",
+      "reclaim_condition": "parent accepts evidence and archives per project policy; no deletion authorized or performed"
+    },
+    {
+      "path": "final/a7c2-qemu/report/2026-11-14-cp-f5410244/README.md",
+      "purpose": "Static attribution report",
+      "allocated_bytes": null,
+      "next_consumer": "parent integration and review",
+      "retention_reason": "Evidence-to-finding record including runtime unknowns",
+      "reclaim_condition": "permanent report unless explicitly superseded under project policy"
+    }
+  ],
+  "protected_input": {
+    "path": "analysis/system/cpapp-b.bin",
+    "size": 18090880,
+    "sha256": "f5a477588698ef965748903b8959a39ce4f59ffd4aee4d4234ef1670f56a1428",
+    "copied": false,
+    "modified": false
+  },
+  "outstanding": [
+    "collect_tables.py remains failed candidate due wrong string VA; no tables-and-kernel.json result exists",
+    "Read back report/storage and record final allocated bytes/free space in parent session",
+    "Preserve rc1 collector failures in parent tool/session receipt; no complete standalone stderr file created"
+  ]
+}

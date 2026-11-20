@@ -24,7 +24,7 @@ class UdateDistribution(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             environment = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:abort_on_error=1',
                                UBSAN_OPTIONS='halt_on_error=1')
-            cases = ['normal', 'unsupported', *map(str, range(1, 16)),
+            cases = ['normal', 'unsupported', 'reasons', 'reason-failures', *map(str, range(1, 16)),
                      'original-retry', 'busy', 'fork', 'fork-release']
             for case in cases:
                 with self.subTest(case=case):

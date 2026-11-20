@@ -21,6 +21,9 @@ import threading
 import time
 
 import functional_face_source_snapshot as source_snapshot
+import capture_socket_roots as capture_sockets
+import diagnostic_fs_socket_roots as diagnostic_fs
+import single_ap_sockets
 
 BASE = Path(__file__).resolve().parent
 RUNS = BASE / 'menu-runs'
@@ -370,14 +373,52 @@ def process_identity(pid):
     return dict(pid=pid, starttime=int(fields[19]), ppid=int(fields[1]), exe=os.readlink(proc / 'exe'))
 
 
-def checked_socket(root, path, qemu_pid):
+def endpoint_roots(run, *, socket_root=None, socket_profile=None, socket_binding=None):
+    """Only an explicit complete F/S contract may move debugger endpoints."""
+    if all(value is None for value in (socket_root, socket_profile, socket_binding)):
+        binding = Path(run) / 'single-ap-socket-binding.json'
+        require(not binding.exists() and not binding.is_symlink(),
+                'Functional camera requires explicit F/S parameters for this single AP run')
+        capture = Path(run) / capture_sockets.BINDING_NAME
+        require(not capture.exists() and not capture.is_symlink(),
+                'Functional camera cannot fall back from a bound capture socket route')
+        return None
+    if socket_profile == capture_sockets.PROFILE:
+        roots = capture_sockets.CaptureSocketRoots.open(run, socket_binding)
+        require(socket_root == str(roots.sockets), 'Capture socket root differs from binding')
+        return roots
+    require(socket_root is not None and socket_profile == diagnostic_fs.DIAGNOSTIC_FS_PROFILE and
+            type(socket_binding) is dict, 'Functional camera requires complete explicit F/S parameters')
+    diagnostic_fs.require_runtime_ready()
+    roots = diagnostic_fs.DiagnosticRoots(Path(run), Path(socket_root), socket_profile)
+    require(roots.binding() == socket_binding, 'Functional camera F/S binding differs from producer')
+    require(single_ap_sockets.read_binding(run) == socket_binding,
+            'Functional camera F/S binding differs from producer receipt')
+    return roots
+
+
+def endpoint_options(roots):
+    if roots is None:
+        return {}
+    binding = roots.binding()
+    return dict(socket_root=str(roots.sockets), socket_profile=binding['profile'], socket_binding=binding)
+
+
+def checked_socket(root, path, qemu_pid, *, socket_roots=None):
     path = Path(path).absolute()
-    require(path.parent == root and path.resolve() == path, 'Socket must be a nonsymlink direct run child')
+    directory = root if socket_roots is None else socket_roots.sockets
+    require(path.parent == directory and path.resolve() == path, 'Socket must be a nonsymlink direct endpoint-root child')
+    if socket_roots is not None:
+        if not isinstance(socket_roots, capture_sockets.CaptureSocketRoots):
+            diagnostic_fs.require_runtime_ready()
+        require(socket_roots.files == root, 'Socket F differs from this run')
+        socket_roots.endpoint(path)
     info = path.lstat()
     require(stat.S_ISSOCK(info.st_mode) and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o600,
             'Socket must be owned and mode 0600')
     proc = Path('/proc') / str(qemu_pid)
-    names = (str(path), '/out/' + path.name)
+    mount = '/out' if socket_roots is None else '/sockets'
+    names = (str(path), mount + '/' + path.name)
     rows = [line.split() for line in (proc / 'net/unix').read_text().splitlines()[1:]]
     matches = [row for row in rows if len(row) == 8 and row[7] in names and
                int(row[3], 16) & 0x10000 and row[4] == '0001' and row[5] == '01']
@@ -392,10 +433,13 @@ def checked_socket(root, path, qemu_pid):
     # A preceding debugger must finish before this client is allowed to connect.
     require(not any(len(row) == 8 and row[7] in names and row[5] == '03' for row in rows),
             'Unix endpoint already has a connected client')
-    if matches[0][7].startswith('/out/'):
-        mounted = (proc / 'root/out').stat()
-        run_info = root.stat()
-        require((mounted.st_dev, mounted.st_ino) == (run_info.st_dev, run_info.st_ino), 'QEMU /out is a different run')
+    if matches[0][7].startswith(mount + '/'):
+        mounted = (proc / ('root' + mount)).stat()
+        run_info = directory.stat()
+        require((mounted.st_dev, mounted.st_ino) == (run_info.st_dev, run_info.st_ino),
+                'QEMU endpoint mount is a different directory')
+    if socket_roots is not None:
+        socket_roots.endpoint(path)
     return dict(path=str(path), device=info.st_dev, inode=info.st_ino, listener_inode=int(matches[0][6]))
 
 
@@ -416,8 +460,10 @@ def file_digest_fd(fd):
     return digest.hexdigest(), identity(after)
 
 
-def owned_config(run, owner_pid, qemu_pid, qemu_sha256, gdb_socket, qmp_socket):
+def owned_config(run, owner_pid, qemu_pid, qemu_sha256, gdb_socket, qmp_socket, *,
+                 socket_root=None, socket_profile=None, socket_binding=None):
     root, run_identity = validate_run(run)
+    roots = endpoint_roots(root, socket_root=socket_root, socket_profile=socket_profile, socket_binding=socket_binding)
     require(isinstance(qemu_sha256, str) and re.fullmatch('[0-9a-f]{64}', qemu_sha256), 'Explicit accepted QEMU SHA256 required')
     owner, qemu = process_identity(owner_pid), process_identity(qemu_pid)
     require(Path(qemu['exe']).name == 'qemu-system-aarch64', 'Actual executable is not qemu-system-aarch64')
@@ -435,16 +481,19 @@ def owned_config(run, owner_pid, qemu_pid, qemu_sha256, gdb_socket, qmp_socket):
     finally:
         os.close(fd)
     require(actual_sha == qemu_sha256, 'Running QEMU executable SHA256 differs from accepted build')
-    gdb = checked_socket(root, gdb_socket, qemu_pid)
-    qmp = checked_socket(root, qmp_socket, qemu_pid)
+    options = {} if roots is None else dict(socket_roots=roots)
+    gdb = checked_socket(root, gdb_socket, qemu_pid, **options)
+    qmp = checked_socket(root, qmp_socket, qemu_pid, **options)
     require(gdb['inode'] != qmp['inode'], 'GDB and QMP must be separate sockets')
     return dict(run=str(root), run_identity=run_identity, owner=owner, qemu=qemu,
-                qemu_sha256=actual_sha, exe_identity=exe_identity, gdb=gdb, qmp=qmp)
+                qemu_sha256=actual_sha, exe_identity=exe_identity, gdb=gdb, qmp=qmp, **endpoint_options(roots))
 
 
 def revalidate(config):
     root, identity = validate_run(config['run'])
     require(identity == tuple(config['run_identity']), 'Run directory replaced')
+    roots = endpoint_roots(root, **{key: config[key] for key in
+        ('socket_root', 'socket_profile', 'socket_binding') if key in config})
     for key in ('owner', 'qemu'):
         require(process_identity(config[key]['pid']) == config[key], 'Bound process identity changed')
     st = Path(f"/proc/{config['qemu']['pid']}/exe").stat()
@@ -452,15 +501,25 @@ def revalidate(config):
             'Running QEMU executable identity changed')
     for key in ('gdb', 'qmp'):
         bound = config[key]
+        require(Path(bound['path']).parent == (root if roots is None else roots.sockets),
+                'Bound socket is outside endpoint root')
+        if roots is not None:
+            roots.endpoint(Path(bound['path']))
         st = Path(bound['path']).lstat()
         require(stat.S_ISSOCK(st.st_mode) and stat.S_IMODE(st.st_mode) == 0o600 and st.st_uid == os.getuid() and
                 (st.st_dev, st.st_ino) == (bound['device'], bound['inode']), 'Bound Unix socket replaced')
     return root
 
 
-def connect_unix(stream, path):
+def connect_unix(stream, path, *, socket_roots=None):
     path = Path(path)
     require(path.is_absolute(), 'Unix endpoint must be absolute')
+    if socket_roots is not None:
+        if not isinstance(socket_roots, capture_sockets.CaptureSocketRoots):
+            diagnostic_fs.require_runtime_ready()
+        with socket_roots.connect_path(path) as address:
+            stream.connect(address)
+        return
     directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
     try:
         address = f'/proc/self/fd/{directory}/{path.name}'
@@ -472,7 +531,7 @@ def connect_unix(stream, path):
 
 class RSP:
     """Bounded synchronous Unix RSP; only supported/physical-mode/memory/detach commands."""
-    def __init__(self, path, timeout=2.0, *, expected_pid=None):
+    def __init__(self, path, timeout=2.0, *, expected_pid=None, socket_roots=None):
         self.timeout = timeout
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(timeout)
@@ -480,7 +539,7 @@ class RSP:
         self.packet_size = 1024
         self.window_deadline = None
         try:
-            connect_unix(self.socket, path)
+            connect_unix(self.socket, path, socket_roots=socket_roots)
             if expected_pid is not None:
                 peer_pid, peer_uid, _ = struct.unpack('3i', self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
                 require(peer_pid == expected_pid and peer_uid == os.getuid(), 'RSP peer process differs from bound QEMU')
@@ -601,13 +660,14 @@ class RSP:
 
 
 class QMP:
-    def __init__(self, path, timeout=2.0, *, expected_pid=None):
+    def __init__(self, path, timeout=2.0, *, expected_pid=None, socket_roots=None):
         self.timeout, self.serial = timeout, 0
+        self.desynchronized = False
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(timeout)
         self.buffer = bytearray()
         try:
-            connect_unix(self.socket, path)
+            connect_unix(self.socket, path, socket_roots=socket_roots)
             if expected_pid is not None:
                 peer_pid, peer_uid, _ = struct.unpack('3i', self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
                 require(peer_pid == expected_pid and peer_uid == os.getuid(), 'QMP peer process differs from bound QEMU')
@@ -647,21 +707,32 @@ class QMP:
                     int(match[2], 16) + int(match[1]) <= 2**64, 'Unapproved HMP command/span')
         else:
             require(arguments is None, 'Unexpected QMP arguments')
+        require(not self.desynchronized, 'Broker QMP stream desynchronized')
         self.serial += 1
         serial = self.serial
         message = dict(execute=command, id=serial)
         if arguments is not None:
             message['arguments'] = arguments
-        self.socket.sendall(json.dumps(message).encode('ascii') + b'\n')
+        request = json.dumps(message).encode('ascii') + b'\n'
         deadline = time.monotonic() + self.timeout
-        for _ in range(256):
-            value = self._line(deadline)
-            if 'event' in value:
-                continue
-            require(value.get('id') == serial and 'return' in value and 'error' not in value,
-                    'QMP command failed/mismatched: ' + repr(value)[:2048])
-            return value['return']
-        raise ValueError('QMP event flood')
+        try:
+            self.socket.settimeout(self.timeout)
+            self.socket.sendall(request)
+            for _ in range(256):
+                value = self._line(deadline)
+                if 'event' in value and not {'id', 'return', 'error'}.intersection(value):
+                    continue
+                require(type(value.get('id')) is int and value['id'] == serial and
+                        (('return' in value) != ('error' in value)) and 'event' not in value,
+                        'QMP response envelope or ID differs: ' + repr(value)[:2048])
+                break
+            else:
+                raise ValueError('QMP event flood')
+        except BaseException:
+            self.desynchronized = True
+            raise
+        require('return' in value, 'QMP command failed: ' + repr(value)[:2048])
+        return value['return']
 
     def status(self):
         value = self.execute('query-status')
@@ -1109,12 +1180,15 @@ class Core:
 class Broker:
     def __init__(self, run, owner_pid, mailbox, library, *, qemu_pid, qemu_sha256,
                  library_sha256, gdb_socket, qmp_socket, coordination_lock,
-                 debugger_quiesced, resume_allowed, seconds=300.0, io_timeout=2.0):
+                 debugger_quiesced, resume_allowed, seconds=300.0, io_timeout=2.0,
+                 socket_root=None, socket_profile=None, socket_binding=None):
         require(debugger_quiesced is True, 'Parent must finish the old debugger shutdown first')
         require(hasattr(coordination_lock, 'acquire') and hasattr(coordination_lock, 'release') and callable(resume_allowed),
                 'Parent stop/resume coordination lock and resume_allowed callback required')
         require(0 < seconds <= 3600 and 0.05 <= io_timeout <= 5.0, 'Invalid broker phase/I/O deadline')
-        self.config = owned_config(run, owner_pid, qemu_pid, qemu_sha256, gdb_socket, qmp_socket)
+        options = {} if all(value is None for value in (socket_root, socket_profile, socket_binding)) else dict(
+            socket_root=socket_root, socket_profile=socket_profile, socket_binding=socket_binding)
+        self.config = owned_config(run, owner_pid, qemu_pid, qemu_sha256, gdb_socket, qmp_socket, **options)
         self.mailbox = validate_mailbox(mailbox)
         self.root = Path(self.config['run'])
         self.lock, self.resume_allowed = coordination_lock, resume_allowed
@@ -1672,12 +1746,15 @@ class Broker:
         try:
             with self.coordinated():
                 revalidate(self.config)
-                self.qmp = QMP(self.config['qmp']['path'], self.io_timeout, expected_pid=self.config['qemu']['pid'])
+                roots = endpoint_roots(self.root, **{key: self.config[key] for key in
+                    ('socket_root', 'socket_profile', 'socket_binding') if key in self.config})
+                options = {} if roots is None else dict(socket_roots=roots)
+                self.qmp = QMP(self.config['qmp']['path'], self.io_timeout, expected_pid=self.config['qemu']['pid'], **options)
                 prior = self.qmp.status()
                 if prior['running']:
                     self.qmp.execute('stop')
                 try:
-                    self.rsp = RSP(self.config['gdb']['path'], self.io_timeout, expected_pid=self.config['qemu']['pid'])
+                    self.rsp = RSP(self.config['gdb']['path'], self.io_timeout, expected_pid=self.config['qemu']['pid'], **options)
                     connected = True
                     self.phys_restored = False
                     self.rsp.mode(False)

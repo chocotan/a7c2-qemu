@@ -35,6 +35,15 @@ static void event(const struct full_imaging_io *io,const char *tag,const char *t
 static int reject(const struct full_imaging_io *io,int *result,const char *why) {
     event(io,"FULL_VDF_UNSUPPORTED ",why);*result=-1021;return 1;
 }
+/* Same refusal, but preserves the refused message bytes as read-only evidence. */
+static int reject_raw(const struct full_imaging_io *io,int *result,const char *why,
+                      const unsigned char *raw,unsigned int bytes) {
+    char line[160];unsigned int show=bytes>22?22:bytes;
+    char hex[48]={0};const char *n="0123456789abcdef";
+    for(unsigned int i=0;i<show;i++){hex[i*2]=n[raw[i]>>4];hex[i*2+1]=n[raw[i]&15];}
+    snprintf(line,sizeof line,"%s raw_bytes=%u raw=%s",why,bytes,hex);
+    event(io,"FULL_VDF_UNSUPPORTED ",line);*result=-1021;return 1;
+}
 /* Called with mutex held, including the real free, so reused pool addresses
  * cannot acquire a new lease before the old one is cleared. */
 static int cleanup(const struct full_imaging_io *io,unsigned int dst,void *p,const char *phase) {
@@ -165,6 +174,76 @@ static int panel_resolution(void *request,const struct full_imaging_io *io,int *
              syscall(SYS_gettid),size,service_status,raw_status,state.panel_shadow[2],state.panel_shadow[0x3c],
              state.panel_shadow[0x3d],state.panel_valid[1],state.panel_size[1],reply,serial,freed);
     event(io,freed?"FULL_VDF_FAULT ":"FULL_VDF_PANEL_COMMIT ",line);
+    pthread_mutex_unlock(&mutex);*result=0;return 1;
+}
+
+int full_vdf_panel_out_dispatch(unsigned int destination,void *request,
+    const struct full_imaging_io *io,int (*read_outputs)(unsigned int *,unsigned int *),
+    int enabled,int *result) {
+    if(enabled!=1 || destination!=FULL_VDF_INPUT || !request || !io || !io->size || !result)return 0;
+    const unsigned char *in=request;unsigned int bytes=io->size(request);
+    if(bytes<4 || u16(in)!=0x200d || u16(in+2)!=0x118)return 0;
+    /* shortcut: no-change LCD-on/EVF-off boot configuration, plus the exact
+     * shutdown variant observed in run 0c34 (raw 0d2018011600018003 00..00 0200):
+     * payload {3,0,...,0,2}. Other modes still need real branch setters. */
+    static const unsigned char payload[14]={3,1,0,0,0,0,0,0,0,0,0,0,1,0};
+    static const unsigned char shutdown_payload[14]={3,0,0,0,0,0,0,0,0,0,0,0,2,0};
+    int lcd_on_variant = bytes==22 && u16(in+4)==22 && u16(in+6)==0x8001 &&
+                         !memcmp(in+8,payload,14);
+    int lcd_off_variant = bytes==22 && u16(in+4)==22 && u16(in+6)==0x8001 &&
+                          !memcmp(in+8,shutdown_payload,14);
+    if((!lcd_on_variant && !lcd_off_variant) ||
+       !read_outputs || !io->source || !io->allocate || !io->set_source || !io->send || !io->release)
+        return reject_raw(io,result,"panel-out-only-nochange-boot-subset",in,bytes);
+    unsigned int dst=io->source(request),lcd=0,evf=0;
+    if((dst>>28)!=8 || !(dst&0x0fffffff) || dst==0x81b40549u)
+        return reject_raw(io,result,"panel-out-only-dynamic-ap-source",in,bytes);
+    if(read_outputs(&lcd,&evf) || lcd!=1 || evf!=0)
+        return reject_raw(io,result,"panel-out-output-consumer-not-ready-or-change-required",in,bytes);
+    unsigned char saved[22];memcpy(saved,in,22);
+    pthread_mutex_lock(&mutex);
+    if(state.faults || state.panel_pending) {
+        pthread_mutex_unlock(&mutex);return reject(io,result,"panel-out-busy-or-fault");
+    }
+    state.panel_pending=1;state.panel_caller=dst;
+    pthread_mutex_unlock(&mutex);
+    void *reply=NULL;int rc=io->allocate(dst,&reply,12,1);
+    pthread_mutex_lock(&mutex);struct lease *slot=NULL;int alias=reply==request;
+    for(unsigned int i=0;i<8;i++) {
+        if(reply && replies[i].pointer==reply)alias=1;
+        if(!replies[i].pointer && !slot)slot=&replies[i];
+    }
+    if(alias) {state.faults++;rc=-1021;}
+    if(!rc && (!reply || !slot || state.faults || io->size(reply)!=12))rc=-1021;
+    if(!rc && (io->size(request)!=22 || io->source(request)!=dst || memcmp(request,saved,22) ||
+       read_outputs(&lcd,&evf) || lcd!=1 || evf!=0))rc=-1021;
+    if(rc) {
+        if(reply && !alias)cleanup(io,dst,reply,"panel-out-before-send");
+        state.panel_pending=state.panel_caller=0;
+        pthread_mutex_unlock(&mutex);*result=rc;return 1;
+    }
+    unsigned char *out=reply;
+    static const unsigned char header[12]={0x0d,0x20,0x18,0x11,12,0,1,0x80,0,0,0,0};
+    memcpy(out,header,12);io->set_source(reply,FULL_VDF_INPUT);
+    unsigned long long serial=++state.next_lease;
+    *slot=(struct lease){reply,dst,0,serial,syscall(SYS_gettid),12,0x118};state.live_replies++;
+    rc=io->send(dst,reply);
+    if(rc) {
+        memset(slot,0,sizeof *slot);state.live_replies--;
+        cleanup(io,dst,reply,"panel-out-send-error");
+        state.panel_pending=state.panel_caller=0;
+        pthread_mutex_unlock(&mutex);*result=rc;return 1;
+    }
+    state.queued++;state.panel_out_nochange++;state.panel_out_applied_mask=lcd_on_variant?3:0;
+    int freed=io->release(FULL_VDF_INPUT,request);
+    if(freed) {state.faults++;state.retained_request=request;}else state.request_freed++;
+    state.panel_pending=state.panel_caller=0;
+    char line[700];snprintf(line,sizeof line,
+        "tid=%ld source=%#x destination=%#x generation=%llu selector=3 variant=%s lcd_readback=%u evf_readback=%u lcd_nochange=%d evf_nochange=1 pending_mask=0 applied_mask=%d reply=%p lease=%llu reply_bytes=12 reply_raw=0d2018110c00018000000000 reply_source=%#x request_free_rc=%d original_CP=0 hardware_applied=0 pixels_verified=0 capture_verified=0",
+        syscall(SYS_gettid),dst,FULL_VDF_INPUT,state.panel_out_nochange,
+        lcd_on_variant?"nochange-lcd-on":"shutdown-lcd-off",lcd,evf,lcd_on_variant?1:0,
+        lcd_on_variant?3:0,reply,serial,FULL_VDF_INPUT,freed);
+    event(io,freed?"FULL_VDF_FAULT ":(lcd_on_variant?"FULL_VDF_PANEL_OUT_NOCHANGE ":"FULL_VDF_PANEL_OUT_OFF "),line);
     pthread_mutex_unlock(&mutex);*result=0;return 1;
 }
 

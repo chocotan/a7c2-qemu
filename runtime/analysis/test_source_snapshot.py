@@ -60,7 +60,7 @@ class SourceSnapshot(unittest.TestCase):
             Path(__file__).parent / 'scratch/verify_hdmi_edge.py')
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
-        reviewed = helper.PRODUCT_DEVELOPMENT_20261108_SOURCES
+        reviewed = helper.ISOLATED_OBSERVER_CONCURRENCY_SOURCES
         original = {name: (helper.BASE / name).read_bytes() for name in reviewed}
         self.assertEqual({name: hashlib.sha256(data).hexdigest() for name, data in original.items()}, reviewed)
         with tempfile.TemporaryDirectory(prefix='native-snapshot-qr5-test-') as temp:
@@ -96,19 +96,20 @@ class SourceSnapshot(unittest.TestCase):
                     archived[path] = dict(sha256=hashlib.sha256(data).hexdigest())
                     self.assertEqual(archived[path]['sha256'], entry['sha256'])
             helper.BASE = native
-            self.assertEqual(helper._condition_source_set(proof['sources']), reviewed)
-            self.assertEqual(helper._condition_source_set(archived), reviewed)
+            for evidence in (proof['sources'], archived):
+                with self.assertRaisesRegex(ValueError, 'unreviewed condition ledger/hook source set'):
+                    helper._condition_source_set(evidence)
             for name in ('functional_camera_broker.py', 'backup_profile.py'):
                 path = str(native / name)
                 with self.subTest(member=name, damage='missing'):
                     missing = dict(archived)
                     del missing[path]
-                    with self.assertRaisesRegex(ValueError, 'missing YVO BB-timecode preset condition source member'):
+                    with self.assertRaisesRegex(ValueError, 'unreviewed condition ledger/hook source set'):
                         helper._condition_source_set(missing)
                 with self.subTest(member=name, damage='changed'):
                     changed = dict(archived)
                     changed[path] = dict(sha256='0' * 64)
-                    with self.assertRaisesRegex(ValueError, 'unreviewed YVO BB-timecode preset condition source tuple'):
+                    with self.assertRaisesRegex(ValueError, 'unreviewed condition ledger/hook source set'):
                         helper._condition_source_set(changed)
 
     def test_required_runtime_contracts_are_not_omitted_or_followed_as_symlinks(self):

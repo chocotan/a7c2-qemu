@@ -374,6 +374,25 @@ int functional_face_dmm_shutdown(void) {
     return rc;
 }
 
+int functional_face_dmm_consume_share(const struct functional_face_dmm_descriptor *binding) {
+    int rc = begin();
+    if (rc) return rc;
+    int index = binding_unit(binding);
+    if (index < 0) rc = index;
+    else {
+        struct unit *u = &units[index];
+        struct reference *ref = find_reference(u, binding->reference);
+        if (!ref || ref->kind != 0x21) rc = -ESTALE;
+        else if (unit_transport_busy((unsigned int)index, NULL)) rc = -EBUSY;
+        else {
+            rc = registry.validate_span(registry.context, &u->state.span);
+            if (!rc) { --u->state.shares; memset(ref, 0, sizeof *ref); }
+        }
+    }
+    end();
+    return rc;
+}
+
 int functional_face_dmm_dispatch(unsigned int destination, void *request,
     const struct full_imaging_io *io, int enabled,
     const struct functional_face_dmm_descriptor *binding, int *result) {

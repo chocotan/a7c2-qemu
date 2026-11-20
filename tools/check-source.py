@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import runpy
 from pathlib import Path
 import subprocess
 import tarfile
@@ -60,11 +61,20 @@ def check():
     pins = {'dma_delta_sha256': digest(hardware.DMA / 'qemu-dma330.patch'), 'atu_source_sha256': {n: digest(hardware.ATU / 'hardware' / n) for n in hardware.ATU_FILES}, 'model_source_sha256': {n: digest(hardware.HERE / 'hardware' / n) for n in hardware.MODEL_FILES}, 'board_source_sha256': {n: digest(hardware.HERE / 'hardware' / n) for n in hardware.FRAGMENTS}, 'atu_board_sha256': digest(hardware.ATU / 'hardware/virt-atu.inc')}
     if not pins['dma_delta_sha256'] == origin['delta_patch_sha256']:
         raise ValueError('Source integrity check failed')
+    cp_root=source/'cp-boot'
+    cp_platform=runpy.run_path(str(cp_root/'stage-platform.py'))
+    cp_gpio=runpy.run_path(str(cp_root/'stage.py'))
+    cp_notify=runpy.run_path(str(cp_root/'stage-notify.py'))
+    cp_peripherals=runpy.run_path(str(cp_root/'stage-peripherals.py'))
+    cp_origin,_,_,_=cp_platform['recipe']()
+    cp_names=set(cp_origin['unchanged_inputs'])|{name for name,row in cp_origin['sources'].items() if row['operation']=='patch'}
+    cp_names.update(cp_gpio['BASES']);cp_names.update(cp_notify['BASES']);cp_names.update(cp_peripherals['BASES']);cp_names.update(cp_peripherals['UPSTREAM'])
+    cp_names.discard('hw/gpio/notify-qemu.c')
     temporary = Path(os.environ['TMPDIR']) if os.environ.get('TMPDIR') not in (None, '', '/tmp') else ROOT / 'validation/tmp'
     temporary.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='patch-check-', dir=temporary) as work:
         tree = Path(work)
-        names = set(origin['source_files']) | {'hw/misc/meson.build'}
+        names = set(origin['source_files']) | {'hw/misc/meson.build'} | cp_names
         for manifest, _ in stages:
             names.update(manifest['source_files'])
         with tarfile.open(archive) as tar:
@@ -93,6 +103,20 @@ def check():
                 if not digest(tree / name) == record['after']:
                     raise ValueError(f'{patch} after identity: {name}')
             print('PATCH_BEFORE_AFTER_IDENTITIES_PASS', patch, len(manifest['source_files']))
+            if patch=='qemu-sony-native.patch':
+                cp_tree=tree/'cp-source-check'
+                for name in cp_names:
+                    original=tree/name
+                    if not original.is_file():raise ValueError('Missing CP platform input: '+name)
+                    target=cp_tree/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(original.read_bytes())
+                cp_platform['stage'](cp_tree)
+                cp_gpio['stage'](cp_tree);parent=cp_notify['stage'](cp_tree)
+                child=cp_peripherals['stage'](cp_tree)
+                inherited={name:sha for name,sha in {**parent['inherited_sources'],**parent['outputs'],**cp_peripherals['UPSTREAM']}.items() if name not in cp_peripherals['BASES']}
+                cp_peripherals['validate_receipt'](child,inherited)
+                for name,sha in {**child['inherited_sources'],**child['outputs']}.items():
+                    if digest(cp_tree/name)!=sha:raise ValueError('CP platform staged source drift: '+name)
+                print('CP_PLATFORM_AND_ALL_PERIPHERAL_STAGE_SOURCE_PINS_PASS',len(child['outputs']))
         receipt = hardware.stage(tree, apply_dma=True)
         for key, expected in pins.items():
             if not receipt[key] == expected:

@@ -32,14 +32,14 @@ void functional_jpeg_test_unlock_owner(void);
 static const char *scenario;
 static unsigned char object_store[0x30], *object=object_store, manager[0x20], control[0x80];
 static uint8_t comp_object[0x28], config_copy[0x78], config_store[0x78], *native_config=config_store;
-static uintptr_t control_vtable[22];
+static uintptr_t control_vtable[23];
 static uint8_t dmm_completion[32], previous_ack[16];
 static int main_kind, comp_execs, entry_origin=1, reentries, comp_notes, config_notes, unreadable_entry;
 static uint8_t selector, quality_code;
 static uint8_t *arena;
 static struct fcam_model *model;
 static int native_execs, native_responses, requests_freed, release_count, borrow_count;
-static _Atomic int record_calls, readback_notes, original_notes, native_done_notes;
+static _Atomic int record_calls, readback_notes, original_notes, native_done_notes, size_rejection_notes;
 static _Atomic int lease_notes, received_notes, freed_notes, rescmd_notes, serialized_writes;
 static uintptr_t reply_addresses[2];
 static char receipt_text[32768];
@@ -109,6 +109,23 @@ int capture_jpeg_input_release(struct capture_jpeg_input *input) {
 static uint8_t *last_model_output;
 static size_t last_model_bytes;
 struct message { uint32_t source, bytes; uint8_t data[104]; struct message *next; };
+static _Thread_local uintptr_t pfn_packet;
+static _Thread_local unsigned pfn_reads;
+ssize_t __real_pread(int fd, void *out, size_t bytes, off_t offset);
+ssize_t __wrap_pread(int fd, void *out, size_t bytes, off_t offset) {
+    if (pfn_packet && (uintptr_t)offset==pfn_packet && (bytes==104 || bytes==40)) {
+        ++pfn_reads;errno=EIO;return -1;
+    }
+    return __real_pread(fd,out,bytes,offset);
+}
+static void pfn_begin(const void *packet) {
+    if(getenv("FJPEG_PFN_PACKET_TEST"))pfn_packet=(uintptr_t)packet;
+    pfn_reads=0;
+}
+static void pfn_end(void) {
+    if(pfn_packet && pfn_reads!=1)abort();
+    pfn_packet=0;
+}
 static struct message *queue_first, *queue_last;
 static struct full_imaging_io fixture_io;
 
@@ -176,7 +193,9 @@ static uint32_t sdk_exec(void *p, const uint8_t *trigger) {
     if(!strcmp(scenario,"length")) { put32(body+0x34,65);put32(body+0x3c,1); }
     memcpy(actual_request,message->data,sizeof actual_request);producer_tid=syscall(SYS_gettid);
     int result=37;
+    pfn_begin(message->data);
     int handled=functional_jpeg_codec_dispatch(FUNCTIONAL_JPEG_CODEC_SID,message->data,&fixture_io,&result);
+    pfn_end();
     assert(handled);
     if(result)free(message);
     errno=EINTR;
@@ -341,6 +360,13 @@ static void record_metadata(const char *tag,const char *text) {
     assert(!functional_jpeg_codec_snapshot(&snapshot));++record_calls;
     assert(strlen(text)<1024 && !strstr(text,"operation=receipt-format-error"));
     assert(strstr(text,"physical_asic_compatible=0 capture_verified=0"));
+    if(!strcmp(scenario,"main-request-size") && strstr(text,"operation=request-rejected ")){
+        uint8_t prefix[32];jpeg_hex(text,"prefix_hex",prefix,sizeof prefix);
+        if(strtoll(jpeg_field(text,"rc"),NULL,0)!=-EMSGSIZE ||
+           jpeg_number(text,"expected_bytes",0)!=104 || jpeg_number(text,"reported_bytes",0)!=103 ||
+           jpeg_number(text,"packet_read_rc",0)!=0 || memcmp(prefix,actual_request,sizeof prefix))abort();
+        ++size_rejection_notes;
+    }
     if(getenv("FJPEG_HOST_RECEIPTS")){
         pthread_mutex_lock(&fixture_lock);
         int n=snprintf(receipt_text+receipt_bytes,sizeof receipt_text-receipt_bytes,"%s%s\n",tag,text);
@@ -516,7 +542,9 @@ static uint32_t consume_packet(int observe,int mutate_source,int mutate_body) {
     memcpy(received_bodies[completion],p->data+24,16);receiver_tids[completion]=syscall(SYS_gettid);
     uintptr_t address=(uintptr_t)p->data;reply_addresses[completion]=address;
     if(observe) {
+        pfn_begin(p->data);
         int rc=functional_jpeg_codec_observe_received(TEST_QID,p->data,&fixture_io);
+        pfn_end();
         assert(rc==(mutate_source?0:mutate_body || (completion && !strcmp(scenario,"main-no-comp"))?-EPROTO:1));
         if(!strcmp(scenario,"duplicate"))
             assert(functional_jpeg_codec_observe_received(TEST_QID,p->data,&fixture_io)==-EPROTO);
@@ -601,7 +629,7 @@ static int test_main_sequence(void){
     put32(config_store+config_offset,TEST_HANDLE);put32(config_store+config_offset+4,64);
     put32(config_store+config_offset+8,requested_capacity);memcpy(config_copy,config_store,sizeof config_copy);
     void (*getter)(void)=(void (*)(void))sdk_get_pointer;
-    memcpy(&control_vtable[21],&getter,sizeof getter);store64(control,(uintptr_t)control_vtable);
+    memcpy(&control_vtable[22],&getter,sizeof getter);store64(control,(uintptr_t)control_vtable);
     if(!strcmp(scenario,"main-off")){
         assert(fixture_main_entry(object,dmm_completion)==0x12345678 && errno==EINTR);
         uint8_t body[16]={0};assert(!fixture_main_response(object,body,0x8310));
@@ -614,6 +642,8 @@ static int test_main_sequence(void){
     assert(mapped!=MAP_FAILED && (uintptr_t)mapped<=UINT32_MAX-ARENA_SIZE);arena=mapped;memset(arena,0xa5,ARENA_SIZE);
     assert(!functional_jpeg_codec_enable(record_metadata));
     errno=EDOM;
+    assert(!functional_jpeg_codec_observe_received(TEST_QID,(void *)1,(void *)1));
+    assert(errno==EDOM);
     assert(functional_jpeg_codec_observe_freed(TEST_QID,(void *)1,0)==0 && errno==EDOM);
     void *object_mapping=NULL,*trigger_mapping=NULL,*config_mapping=NULL;
     size_t page=(size_t)sysconf(_SC_PAGESIZE);
@@ -677,6 +707,7 @@ static int test_main_sequence(void){
             assert(errno==EFAULT && !native_execs && !borrow_count && !release_count);
         }else if(!strcmp(scenario,"main-dmm-failed"))assert(errno==EDOM && native_execs==1 && !borrow_count);
         assert(!requests_freed && !bridge_stills && !send_calls && !serialized_writes);
+        if(!strcmp(scenario,"main-request-size") && size_rejection_notes!=1)abort();
         struct functional_jpeg_codec_snapshot s;assert(!functional_jpeg_codec_snapshot(&s));
         if(!strcmp(scenario,"main-request-release")){
             assert(s.pending && s.last_release_error==-91 && lease_token && borrow_count==1);
@@ -694,6 +725,9 @@ static int test_main_sequence(void){
     if(!strcmp(scenario,"main-send"))send_failure=1;
     if(!strcmp(scenario,"main-send-done"))send_failure=2;
     assert(!fixture_main_entry(object,dmm_completion));
+    errno=EDOM;
+    assert(!functional_jpeg_codec_observe_received(TEST_QID+1,(void *)1,(void *)1));
+    assert(errno==EDOM);
     if(!strcmp(scenario,"main-before-ack")){
         assert(fixture_comp_entry(comp_object,previous_ack)==0x201 && !comp_execs);goto retained;
     }
@@ -736,11 +770,18 @@ static int test_main_sequence(void){
     }
     if(!strcmp(scenario,"main-config-alias"))native_config=arena+64;
     if(!strcmp(scenario,"main-config-fields"))put32(config_store+config_offset,TEST_HANDLE+1);
+    if(!strcmp(scenario,"main-config-getter-slot")){
+        memcpy(&control_vtable[21],&getter,sizeof getter);control_vtable[22]=0;
+    }
     int bad_comp=!strncmp(scenario,"main-comp-",10) && strcmp(scenario,"main-comp-duplicate") &&
         strcmp(scenario,"main-comp-fields-after");
     bad_comp=bad_comp || !strncmp(scenario,"main-config-",12) || !strcmp(scenario,"main-previous");
     assert(fixture_comp_entry(comp_object,!strcmp(scenario,"main-previous")?bad_previous:previous_ack)==(bad_comp?0x201:0));
-    if(bad_comp){assert(!comp_execs);goto retained;}
+    if(bad_comp){
+        assert(!comp_execs);
+        if(!strcmp(scenario,"main-config-getter-slot"))assert(errno==ELIBBAD);
+        goto retained;
+    }
     assert(comp_execs==1 && comp_notes==1 && lease_token && !release_count);
     if(!strcmp(scenario,"main-comp-duplicate"))assert(fixture_comp_entry(comp_object,previous_ack)==0x201 && comp_execs==1);
     if(send_failure==2)goto retained;

@@ -95,7 +95,8 @@ def guard(event, args):
     for word in commands:
         name = Path(word).name
         if name.startswith('qemu-') or name in ('bwrap', 'start.sh', 'run-menu-probe.sh',
-                                               'start-menu.py', 'build-qemu.sh'):
+                                               'start-menu.py', 'build-qemu.sh', 'build-cp-native.sh',
+                                               'run-native-ap.py', 'run-native-cp.py', 'check-native-qemu.py'):
             raise RuntimeError('Public model tests forbid VM execution: ' + name)
 
 

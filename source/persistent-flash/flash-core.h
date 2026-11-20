@@ -32,6 +32,7 @@ struct a7pf {
     a7pf_dma_fn dma;
     void *dma_opaque;
     struct a7pf_io io;
+    bool writeback;
     uint8_t bounce[A7PF_MAX_IO];
 };
 int a7pf_open_regular(const char *path, int flags);

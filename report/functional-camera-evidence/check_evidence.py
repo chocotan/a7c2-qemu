@@ -9,7 +9,9 @@ compressed-content, original MPR/Fsys, SD readback and independent decode joins.
 Physical ASIC and original CP/RTOS compatibility are separate, unverified claims.
 """
 import argparse
+import builtins
 import errno
+import importlib.util
 import hashlib
 import io
 import json
@@ -19,14 +21,18 @@ from pathlib import Path
 import re
 import stat
 import struct
+import sys
 import tarfile
 import types
 
 NATIVE = Path(__file__).resolve().parents[2]
 RUNTIME = NATIVE / 'runtime/analysis'
 PROFILE = 'virtual-functional-camera-v1'
+JPEG_RAW_SCOPE = 'jpeg-only-raw-1gib-v1'
 QEMU_SHA256 = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
 READONLY_SCOPE_QEMU_SHA256 = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
+OWNED_RAM_QEMU_SHA256 = 'b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad'
+OWNED_INITRD_WINDOW = 0x580000000 - 0x504000000
 MAX_FILE = 256 * 1024**2
 MAX_LOG = 64 * 1024**2
 MAX_EVENTS = 100000
@@ -298,11 +304,55 @@ PUBLIC_LIBRARIES = {
 }
 
 
-def source_module(path):
-    module = types.ModuleType('_functional_evidence_' + path.stem.replace('-', '_'))
-    module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
-    return module
+def source_module(path, *, sources=None):
+    if sources is None:
+        module = types.ModuleType('_functional_evidence_' + path.stem.replace('-', '_'))
+        module.__file__ = str(path)
+        exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+        return module
+
+    # All repository imports consume the verified bytes, including legacy get_source loaders.
+    bound, modules = dict(sources), {}
+    def content(location):
+        key = str(location)
+        if key not in bound or type(bound[key]) is not bytes:
+            raise ValueError('unbound evidence source dependency: ' + key)
+        return bound[key]
+    def new_module(location, name):
+        key = str(location)
+        content(key)
+        if key not in modules:
+            module = types.ModuleType(name)
+            module.__file__ = key
+            module.__dict__.update(_source_module=load,
+                __builtins__=dict(vars(builtins), __import__=source_import))
+            modules[key] = module
+        return modules[key]
+    def execute(module, location):
+        exec(compile(content(location), str(location), 'exec'), module.__dict__)
+    def source_spec(name, location):
+        raw = content(location)
+        loader = types.SimpleNamespace(
+            get_source=lambda _name: importlib.util.decode_source(raw),
+            exec_module=lambda module: execute(module, location))
+        return types.SimpleNamespace(name=name, origin=str(location), loader=loader)
+    proxy = types.SimpleNamespace(util=types.SimpleNamespace(
+        spec_from_file_location=source_spec,
+        module_from_spec=lambda spec: new_module(spec.origin, spec.name)))
+    def source_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == 'importlib.util' and level == 0:
+            return proxy.util if fromlist else proxy
+        if level or name.partition('.')[0] not in sys.stdlib_module_names:
+            raise ValueError('unsupported evidence source import: ' + name)
+        return builtins.__import__(name, globals, locals, fromlist, level)
+    def load(location):
+        key = str(location)
+        if key in modules:
+            return modules[key]
+        module = new_module(location, '_functional_evidence_' + Path(location).stem.replace('-', '_'))
+        execute(module, location)
+        return module
+    return load(path)
 
 
 # Fixed repository reader, not a caller-selected plugin. It imports only stdlib.
@@ -1063,7 +1113,7 @@ def check_background_start(run, manifest, rows, transport=None):
     return result
 
 
-def check_profile(manifest):
+def check_profile(manifest, jpeg_only_raw_1gib=False):
     expected = {
         'profile': PROFILE, 'abi_version': 1,
         'hardware_policy': 'explicit-software-model-not-Sony-physical-ASIC',
@@ -1120,10 +1170,15 @@ def check_profile(manifest):
         key = 'functional_camera_' + key
         require(key in manifest and key in backup and typed_equal(manifest[key], value) and
                 typed_equal(backup[key], value), 'typed functional profile drift: ' + key)
-    require(manifest.get('directory_sd_profile') == 'directory-vvfat-256gb-v1' and
-            type(manifest.get('rm_file_image_bytes')) is int and
-            manifest['rm_file_image_bytes'] == writeback.CARD_BYTES,
-            'functional capture requires the explicit 256GB directory SD')
+    if jpeg_only_raw_1gib:
+        require(manifest.get('directory_sd_profile') is None and
+                type(manifest.get('rm_file_image_bytes')) is int and manifest['rm_file_image_bytes'] == 1024**3,
+                'explicit JPEG-only capture requires the raw 1GiB SD profile')
+    else:
+        require(manifest.get('directory_sd_profile') == 'directory-vvfat-256gb-v1' and
+                type(manifest.get('rm_file_image_bytes')) is int and
+                manifest['rm_file_image_bytes'] == writeback.CARD_BYTES,
+                'functional capture requires the explicit 256GB directory SD')
     return {'verified': True, 'profile': PROFILE, 'image_bus': expected['image_bus'],
             'physical_asic_compatibility_verified': False, 'original_CP_executed': False}
 
@@ -1189,15 +1244,85 @@ def check_readonly_scope_observer(manifest, qemu_sha256, frozen=None):
                 f'readonly scope v{version} receipt schema binding differs')
 
 
+def isolated_observer(manifest):
+    entry = manifest.get('p4_identity', {}).get('isolated_observer')
+    if entry is None:
+        return None
+    require(type(entry) is dict and set(entry) == {'schema', 'path', 'build_receipt_sha256'} and
+            entry['schema'] == 'a7c2-p4-isolated-observer-v1', 'Invalid isolated observer identity')
+    observer = writeback.absolute_path(entry['path'])
+    require(observer.name == 'menu-observe.so' and observer.parent.parent == NATIVE / 'source/build',
+            'Isolated observer must be a build-owned child')
+    files = manifest['files']
+    expected = manifest['p4_identity']['observer_sha256']
+    receipt_path = observer.parent / 'diagnostic-build.json'
+    require(files.get(str(observer)) == expected and files.get(str(receipt_path)) == entry['build_receipt_sha256'],
+            'Isolated observer and receipt were not indexed at launch')
+    raw = read_absolute(receipt_path, writeback.MAX_JSON)
+    digest_binding(raw, entry['build_receipt_sha256'], 'launch observer build receipt')
+    receipt = object_json(raw)
+    require(receipt.get('schema') == 'a7c2-isolated-observer-build-v2' and receipt.get('observer_only') is True and
+            receipt.get('original_runtime_untouched') is True and receipt.get('physical_compatible') is False and
+            receipt.get('observer_sha256') == expected, 'Isolated observer receipt scope differs')
+    digest_binding(read_absolute(observer), expected, 'actual isolated observer')
+    return observer, receipt
+
+
+def selected_archive_extent(manifest):
+    if manifest.get('p4_identity', {}).get('isolated_observer') is None:
+        return 1024**3, None
+    image = manifest['p4_identity']['initramfs']
+    size = image['identity']['bytes']
+    require(type(size) is int and 0 < size <= OWNED_INITRD_WINDOW and
+            image['path'] == manifest['probe_args']['initramfs_file'] and
+            image['sha256'] == manifest['p4_identity']['consumer_at_manifest']['initramfs_sha256'],
+            'Selected archive extent or launch digest differs')
+    return size, size
+
+
 def check_qemu_files(manifest, frozen=None):
     backup, files = manifest['backup_transport'], manifest['files']
     selected = backup.get('binary_sha256')
-    require(selected in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256) and files.get(backup.get('binary')) == selected,
+    owned = manifest.get('p4_identity', {}).get('isolated_observer') is not None and selected == OWNED_RAM_QEMU_SHA256
+    if owned:
+        isolated_observer(manifest)
+        require(manifest['functional_camera_runtime']['artifact']['qemu_sha256'] == selected and
+                manifest['p4_identity']['consumer_at_manifest']['actual_qemu_sha256'] == selected,
+                'Owned RAM executable differs from live runner and consumer')
+    require((owned or selected in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256)) and files.get(backup.get('binary')) == selected,
             'manifest QEMU differs from accepted unchanged executable or exact readonly candidate')
     digest_binding(read_absolute(backup['binary']), selected, 'actual accepted QEMU')
     if selected == READONLY_SCOPE_QEMU_SHA256 or manifest.get('readonly_scope_observer') is not None:
         check_readonly_scope_observer(manifest, selected, frozen)
     return selected
+
+
+def selected_model_base(manifest):
+    identity = manifest.get('p4_identity', {})
+    entry = identity.get('isolated_model')
+    if entry is None:
+        return RUNTIME
+    require(identity.get('isolated_observer') is not None and type(entry) is dict and
+            set(entry) == {'schema', 'base'} and entry['schema'] == 'a7c2-p4-isolated-model-v1',
+            'Invalid isolated model identity')
+    base = writeback.absolute_path(entry['base'])
+    scratch = NATIVE.parents[1] / 'scratch'
+    require(base.is_relative_to(scratch) and len(base.parts) == len(scratch.parts) + 4 and
+            base.parts[-3:] == ('model-tree', 'runtime', 'analysis'), 'Isolated model must be in the local candidate tree')
+    base = writeback.directory(base)
+    artifact = manifest['functional_camera_runtime']['artifact']
+    files = manifest['files']
+    for key, name in (('library', 'functional-camera-model.so'), ('build_receipt', 'functional-camera-model-build.json')):
+        path = str(base / name)
+        expected = artifact.get(key + '_sha256')
+        require(type(expected) is str and re.fullmatch('[0-9a-f]{64}', expected) and
+                artifact.get(key) == path and files.get(path) == expected,
+                'Isolated model file was not indexed at launch: ' + name)
+    archive_path = artifact.get('source_archive')
+    archive_sha = artifact.get('source_archive_sha256')
+    require(type(archive_path) is str and type(archive_sha) is str and re.fullmatch('[0-9a-f]{64}', archive_sha) and
+            files.get(archive_path) == archive_sha, 'Isolated model source archive was not indexed at launch')
+    return base
 
 
 def check_batch(run, batch, manifest):
@@ -1241,7 +1366,11 @@ def check_batch(run, batch, manifest):
             type(media.get('returncode')) is int and media['returncode'] == 0 and
             marker in media.get('stdout', '') and media.get('bind_now') is True,
             'both actual original-libc observer/media ABI executions required')
+    isolated = isolated_observer(manifest)
     build_raw = read(run, 'observer-build-inputs.json', writeback.MAX_JSON)
+    if isolated is not None:
+        _, isolated_receipt = isolated
+        digest_binding(build_raw, isolated_receipt.get('source_receipt_sha256'), 'isolated build source receipt')
     build = object_json(build_raw)
     require(typed_equal(build, manifest.get('compiled_observer')) and
             manifest.get('selected_observer_matches_build') is True, 'same-run observer build mismatch')
@@ -1271,8 +1400,16 @@ def check_batch(run, batch, manifest):
                     'simulation/file-media-config.so': abi['media_preload_sha256']})
     for name, digest in expected.items():
         require(selected.get(name) == digest, 'selected public original/observer differs: ' + name)
-        digest_binding(read(RUNTIME / 'menu-root', name), digest, 'current guest asset ' + name)
-    digest_binding(read(RUNTIME, 'menu-observe.so'), abi['observer_sha256'], 'current observer')
+        if isolated is None or name != 'simulation/menu-observe.so':
+            digest_binding(read(RUNTIME / 'menu-root', name), digest, 'current guest asset ' + name)
+    if isolated is None:
+        digest_binding(read(RUNTIME, 'menu-observe.so'), abi['observer_sha256'], 'current observer')
+    else:
+        observer, isolated_receipt = isolated
+        require(isolated_receipt['observer_sha256'] == abi['observer_sha256'] and
+                isolated_receipt['source_archive_sha256'] == abi['source_archive_sha256'] and
+                abi.get('actual_input_assets', {}).get(str(observer), {}).get('sha256') == abi['observer_sha256'],
+                'ABI did not consume the exact isolated observer')
     host_index_omissions = []
     for name, digest in groups['host'].items():
         if name in files:
@@ -1302,10 +1439,15 @@ def check_batch(run, batch, manifest):
     require(library[:7] == b'\x7fELF\x02\x01\x01' and len(library) >= 64 and
             struct.unpack_from('<H', library, 16)[0] == 3 and
             struct.unpack_from('<H', library, 18)[0] in (62, 183), 'model is not a supported host ELF64 shared library')
+    model_base = selected_model_base(manifest)
     for name in ('functional-camera-model.so', 'functional-camera-model-build.json'):
-        require(read(RUNTIME, name) == raw[name], 'published runtime model/build differs from batch: ' + name)
-    work = NATIVE / writeback.relative_path(model['work'])
-    require(work.parent == RUNTIME / 'scratch' and work.name.startswith('functional-model-build-'), 'untrusted model work')
+        require(read(model_base, name) == raw[name], 'Selected runtime model/build differs from batch: ' + name)
+    work = model_base.parents[1] / writeback.relative_path(model['work'])
+    require(work.parent == model_base / 'scratch' and work.name.startswith('functional-model-build-'), 'untrusted model work')
+    if model_base != RUNTIME:
+        source_archive = work / 'functional-model-sources.tar.gz'
+        require(manifest['functional_camera_runtime']['artifact']['source_archive'] == str(source_archive) and
+                read(work, source_archive.name) == raw[source_archive.name], 'Isolated model archive changed after launch')
     compile_raw = read(work, 'compile.json', writeback.MAX_JSON)
     digest_binding(compile_raw, model['compile_receipt_sha256'], 'actual model compile receipt')
     compiled = object_json(compile_raw)
@@ -1320,8 +1462,10 @@ def check_batch(run, batch, manifest):
     needed(image_path.exists(), 'selected-initramfs.cpio: retain complete same-run selected image')
     source = manifest.get('probe_args', {}).get('initramfs_file') or str(RUNTIME / 'menu-initramfs.cpio')
     # Hash and parse the same private snapshot, never a second live image path.
-    with writeback.open_file(run, image_path.name, 1024**3) as stream, writeback.tempfile.TemporaryFile() as snapshot:
+    limit, extent = selected_archive_extent(manifest)
+    with writeback.open_file(run, image_path.name, limit) as stream, writeback.tempfile.TemporaryFile() as snapshot:
         before = os.fstat(stream.fileno())
+        require(extent is None or before.st_size == extent, 'Selected archive size differs from live binding')
         space = os.fstatvfs(snapshot.fileno())
         require(space.f_bavail * space.f_frsize >= before.st_size + 1024**2, 'insufficient initramfs snapshot space')
         digest, count = hashlib.sha256(), 0
@@ -3867,7 +4011,9 @@ def mailbox_header(row, mailbox):
 
 
 def check_transport(run, manifest, rows, events, build):
-    require(build.get('qemu_sha256') in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256),
+    selected = build.get('qemu_sha256')
+    require(selected in (QEMU_SHA256, READONLY_SCOPE_QEMU_SHA256) or
+            (selected == OWNED_RAM_QEMU_SHA256 and check_qemu_files(manifest) == selected),
             'transport QEMU is not an admitted batch executable')
     runner = json_file(run, 'functional-camera-runner.json')
     require(runner.get('schema') == 'functional-camera-runner-v1' and runner.get('profile') == PROFILE and
@@ -3884,7 +4030,7 @@ def check_transport(run, manifest, rows, events, build):
     for key, expected in (('library_sha256', build['model_sha256']), ('build_receipt_sha256', build['model_build_sha256']),
                           ('source_archive_sha256', build['model_source_archive_sha256']), ('qemu_sha256', build['qemu_sha256'])):
         require(artifact.get(key) == expected, 'runner artifact differs from frozen batch: ' + key)
-    require(artifact.get('library') == str(RUNTIME / 'functional-camera-model.so') and
+    require(artifact.get('library') == str(selected_model_base(manifest) / 'functional-camera-model.so') and
             artifact.get('abi_header_sha256') == manifest.get('files', {}).get(str(RUNTIME / 'functional-camera-abi.h')) and
             type(artifact.get('abi')) is dict and artifact['abi'].get('version') == 1 and
             artifact['abi'].get('entry_points') == ['fcam_model_create', 'fcam_model_destroy', 'fcam_model_request'],
@@ -6281,10 +6427,14 @@ def check_frames(run, transport, *, require_media=True, require_codecs=None):
             'jobs': jobs, 'last_counts': counts, 'last_frame_generation': generation}
 
 
-def stored_bytes(storage, item):
+def stored_bytes(storage, item, *, raw_reader=None):
     require(item.get('writeback_verified') is True and item.get('independent_decoded') is True and
             storage.get('writeback_verified') is True and storage.get('independent_decoded') is True,
             'original Fsys completion/readback and both independent decoders required')
+    if storage.get('exports', {}).get('storage_kind') == 'raw-1gib':
+        needed(raw_reader is not None, 'raw storage requires the same verified source-bound reader')
+        run = writeback.directory(storage['exports']['run_directory'])
+        return raw_reader.stored_media_bytes(run, storage, item)
     host = writeback.directory(storage['exports']['host_directory'])
     raw = read(host, item['path'], writeback.MAX_SOURCE)
     require(len(raw) == item['bytes'] and sha(raw) == item['sha256'] and f'{fnv(raw):016x}' == item['fnv1a64'],
@@ -6354,7 +6504,7 @@ def check_retained_jpeg_input(run, job, tx, transport, body, selector):
                 source_geometry=(width, height), source_capture_first=source['first'])
 
 
-def check_jpeg(rows, transport, storage, run=None):
+def check_jpeg(rows, transport, storage, run=None, *, raw_reader=None):
     jobs = {}
     for row in rows:
         if row['tag'] != 'FUNCTIONAL_JPEG_CODEC':
@@ -6566,7 +6716,7 @@ def check_jpeg(rows, transport, storage, run=None):
         for item in storage.get('items', []):
             if item.get('decode', {}).get('format') != 'JPEG' or not item.get('writeback_verified') or not item.get('independent_decoded'):
                 continue
-            exported = stored_bytes(storage, item)
+            exported = stored_bytes(storage, item, raw_reader=raw_reader)
             if main and selector == 1:
                 try:
                     thumb = exif_thumbnail(exported)
@@ -7012,12 +7162,140 @@ def check_graph(run, batch, sources):
     return proof
 
 
+def check_raw_sources(sources, *, source_bytes=None):
+    paths = (NATIVE / 'report/native-card-write/check_raw_writeback.py',
+             NATIVE / 'report/native-card-write/check_writeback.py',
+             NATIVE / 'report/capture-evidence/check_evidence.py',
+             NATIVE / 'report/native-card-write/test_raw_writeback.py',
+             RUNTIME / 'sd_transport.py', RUNTIME / 'sd_flush_barrier.py',
+             RUNTIME / 'functional-capture.c', NATIVE / 'report/functional-capture-output/capture-save.c')
+    for path in paths:
+        needed(str(path) in sources, 'inputs.json: freeze JPEG/raw dependency ' + str(path))
+        raw = read_absolute(path, 16 * 1024**2)
+        digest_binding(raw, sources[str(path)], 'JPEG/raw current source')
+        if source_bytes is not None:
+            source_bytes[str(path)] = raw
+    return {'verified': True, 'sources': [str(path) for path in paths]}
+
+
+def check_jpeg_frames(run, transport):
+    proof = check_frames(run, transport, require_media=False)
+    needed(all(any(job['opcode'] == op for job in proof['jobs']) for op in (17, 18, 19)),
+           'JPEG/raw requires actual retained FRAME_CAPTURE/STILL/RELEASE jobs')
+    return proof
+
+
+def check_natural_jpeg_raw(run, rows, transport, storage, jpeg):
+    """One natural 4038 -> retained RGB -> native JPEG -> MPR/Fsys -> two raw exports."""
+    records = [row for row in rows if row['tag'].startswith('FUNCTIONAL_CAMERA_CAPTURE')]
+    needed(records, 'natural4038: original FUNCTIONAL_CAMERA_CAPTURE receipts')
+    keys = set(('operation rc pid job phase request_fnv cookie frame_token model_instance request_freed '
+                'encoded frame_released notification_consumed write_verified resources_released write_token '
+                'write_bytes write_fnv policy original_AP_saved capture_verified physical_ASIC_verified').split())
+    by_operation = {}
+    for row in records:
+        f = row['fields']
+        require(row['tag'] == 'FUNCTIONAL_CAMERA_CAPTURE' and 'diagnostic' not in row and set(f) == keys and
+                f['rc'] == '0' and f['policy'] == 'original-consumer-natural4038-software-jpeg-v1' and
+                all(f[key] == '0' for key in ('original_AP_saved', 'capture_verified', 'physical_ASIC_verified')) and
+                f['request_freed'] == '1' and number(f['pid']) == transport['pid'],
+                'natural4038 receipt failed, changed owner/policy or promoted scope')
+        for key in ('request_fnv', 'write_fnv'):
+            require(re.fullmatch('[0-9a-f]{16}', f[key]), 'natural4038 noncanonical content digest')
+        for key in ('encoded', 'frame_released', 'write_verified', 'resources_released'):
+            require(f[key] in ('0', '1'), 'natural4038 invalid state flag')
+        require(number(f['notification_consumed']) <= 3 and number(f['phase']) <= 5,
+                'natural4038 fault or invalid notification count')
+        by_operation.setdefault(f['operation'], []).append(row)
+    singleton = ('natural-request-owned', 'notifications-queued-unsaved', 'notifications-consumed-unsaved',
+                 'write-source-matched', 'write-retired')
+    needed(set(by_operation) == set(singleton) | {'write-lifecycle'} and
+           all(len(by_operation[op]) == 1 for op in singleton),
+           'natural4038 incomplete, repeated or unknown job lifecycle')
+    owned, queued, consumed, matched, retired = (by_operation[op][0] for op in singleton)
+    first, last = owned['fields'], retired['fields']
+    require(records[0] is owned and records[-1] is retired and number(first['job']) > 0 and first['phase'] == '1' and
+            all(number(first[key]) == 0 for key in ('frame_token', 'model_instance', 'encoded', 'frame_released',
+                'write_verified', 'resources_released', 'write_token', 'write_bytes', 'notification_consumed')),
+            'natural4038 requires one isolated original job')
+    identity = ('pid', 'job', 'request_fnv', 'cookie', 'policy')
+    token, instance = number(last['frame_token']), number(last['model_instance'])
+    require(token > 0 and instance == transport['model_instance'] and
+            all(all(row['fields'][key] == first[key] for key in identity) for row in records) and
+            all(number(row['fields']['frame_token']) == token and number(row['fields']['model_instance']) == instance and
+                row['fields']['encoded'] == row['fields']['frame_released'] == '1' for row in records[1:]),
+            'natural4038 crossed job, frame token or model instance')
+    require(queued['line'] < consumed['line'] < retired['line'] and
+            consumed['fields']['notification_consumed'] == last['notification_consumed'] == '3' and
+            last['write_verified'] == last['resources_released'] == '1' and number(last['write_token']) > 0 and
+            matched['line'] < min(row['line'] for row in by_operation['write-lifecycle']) and
+            all(row['line'] < retired['line'] and all(row['fields'][key] == last[key] for key in
+                ('write_token', 'write_bytes', 'write_fnv')) for row in by_operation['write-lifecycle']),
+            'natural4038 original write, notifications or resource retirement incomplete')
+    needed(jpeg.get('capture_verified') is True and jpeg.get('jobs') and storage.get('writeback_verified') is True and
+           storage.get('independent_decoded') is True and len(storage.get('items', [])) == 1,
+           'natural4038 actual native JPEG and raw writeback/decode joins required')
+    primary = [job for job in jpeg['jobs'] if job['kind'] == 'main' and job['selector'] == 0]
+    require(len(primary) == 1 and all(job['kind'] == 'main' and job['selector'] in (0, 1) for job in jpeg['jobs']),
+            'natural4038 requires one original Main JPEG with retained input')
+    source_first = None
+    for job in jpeg['jobs']:
+        bound = job.get('retained_input_identity')
+        needed(bound, 'natural4038 JPEG lacks original retained RGB input binding')
+        require(bound['frame_token'] == token and bound['model_instance'] == instance and
+                (source_first is None or source_first == bound['source_capture_first']),
+                'natural4038 JPEG borrowed a different frame or request')
+        source_first = bound['source_capture_first']
+    sources = [tx for tx in transport['transfers'] if tx['opcode'] == 17]
+    require(len(sources) == 1 and sources[0]['first'] == source_first,
+            'natural4038 missing or ambiguous same-round capture transfer')
+    source = sources[0]
+    original = payload_read(run, source['request_payload'])
+    require(len(original) == 16 and original[:4] == b'\x05\x00\x38\x40' and
+            int(first['request_fnv'], 16) == source['origin']['fnv1a64'] == fnv(original) and
+            number(first['cookie']) == struct.unpack_from('<I', original, 4)[0] and
+            owned['line'] < source['line'] < primary[0]['bridge']['line'] < retired['line'],
+            'natural4038 original bytes/cookie or same-round ordering differs')
+    item = storage['items'][0]
+    require(storage.get('console_sha256') == sha(read(run, 'console.log', MAX_LOG)) and
+            storage.get('exports', {}).get('pid') == transport['pid'] and
+            storage['exports'].get('storage_kind') == 'raw-1gib' and item['pid'] == transport['pid'] and
+            item['token'] == number(last['write_token']) == number(matched['fields']['write_token']) and
+            item['bytes'] == number(last['write_bytes']) and item['fnv1a64'] == last['write_fnv'] and
+            all(job['path'] == item['path'] for job in jpeg['jobs']) and
+            item.get('original_fsys_lifecycle_verified') is True and item.get('native_readback_verified') is True and
+            item.get('two_raw_exports_match') is True and item.get('decode', {}).get('format') == 'JPEG',
+            'natural4038 native MPR/Fsys write/readback or raw export belongs to another capture')
+    raw_lines = [line.removesuffix(b'\r') for line in read(run, 'console.log', MAX_LOG).split(b'\n')]
+    previous, native_lines = 0, [row['line'] for row in item['native_readbacks']]
+    flush_lines = []
+    for sequence in storage['export_sequences']:
+        marker = f'SD_FSYS_FLUSH seq={sequence} '.encode('ascii')
+        matches = [(i, line) for i, line in enumerate(raw_lines, 1) if line.startswith(marker)]
+        expected = marker + f'pid={transport["pid"]} drive={ord(storage["exports"]["drive"])} rc=0'.encode('ascii')
+        needed(matches, 'natural4038 raw export lacks original same-console Fsys flush sequence')
+        first_flush = min(i for i, _ in matches)
+        require(all(line == expected for _, line in matches) and first_flush > previous and
+                any(previous < line < first_flush for line in native_lines),
+                'natural4038 export flush owner/drive/order differs from original Fsys readback')
+        previous = max(i for i, _ in matches)
+        flush_lines.append([i for i, _ in matches])
+    require(max(native_lines) < min(flush_lines[-1]), 'natural4038 readback occurred after the final raw export flush')
+    return dict(verified=True, jpeg_capture_verified=True, capture_verified=False,
+                original_request_fnv1a64=first['request_fnv'], frame_token=token, model_instance=instance,
+                original_Fsys_write_token=item['token'], path=item['path'], sha256=item['sha256'],
+                export_sequences=storage['export_sequences'], flush_console_lines=flush_lines,
+                physical_asic_compatibility_verified=False, original_CP_executed=False)
+
+
 def finish_verdict(result, manifest):
     """Acceptance has one gate; HOST_TEST replay can exercise joins, never native acceptance."""
     evidence = result['evidence']
-    global_stages = ('profile', 'batch', 'transport', 'CMOS_encoder', 'graph')
+    jpeg_raw = result.get('acceptance_scope') == JPEG_RAW_SCOPE
+    global_stages = ('profile', 'batch', 'transport', 'CMOS_encoder') + (
+        ('natural4038_raw_join', 'raw_source_closure', 'final_immutability') if jpeg_raw else ('graph',))
     common = all(evidence.get(name, {}).get('verified') is True for name in global_stages)
-    for kind in ('JPEG', 'MP4'):
+    for kind in ('JPEG',) if jpeg_raw else ('JPEG', 'MP4'):
         product = result['products'][kind]
         product['capture_verified'] = bool(common and not result['missing'] and
             evidence.get(kind + '_causality', {}).get('capture_verified') is True and
@@ -7029,17 +7307,25 @@ def finish_verdict(result, manifest):
         for product in result['products'].values():
             product['capture_verified'] = False
     result['capture_verified'] = all(product['capture_verified'] for product in result['products'].values())
+    if jpeg_raw:
+        result['jpeg_capture_verified'] = result['capture_verified']
+        result['capture_verified'] = result['full_camera_verified'] = False
+        result['verdict'] = 'JPEG_ONLY_PASS' if result['jpeg_capture_verified'] else 'SOURCE/TRACE_MISSING' if result['missing'] and all(
+            item['code'] in ('SOURCE_MISSING', 'TRACE_MISSING') for item in result['missing']) else 'FAIL'
+        return result
     result['verdict'] = 'PASS' if result['capture_verified'] else 'SOURCE/TRACE_MISSING' if result['missing'] and all(
         item['code'] in ('SOURCE_MISSING', 'TRACE_MISSING') for item in result['missing']) else 'FAIL'
     return result
 
 
-def evaluate(run, batch):
+def evaluate(run, batch, *, jpeg_only_raw_1gib=False, first_sequence=None, second_sequence=None):
     """Inspect completed local evidence; return a verdict without modifying the run.
 
     Missing or malformed evidence never raises capture_verified. Individual stage
     successes survive later failures; stage success is not product acceptance.
-    Both products require complete original causality and independent decode.
+    Both products require complete original causality and independent decode by default.
+    Explicit JPEG/raw scope checks one natural retained-frame capture and two 1GiB
+    exports; it sets jpeg_capture_verified only, never full capture or graph PASS.
     """
     result = {'schema': 'functional-camera-evidence-v1', 'profile': PROFILE, 'verdict': 'FAIL',
               'capture_verified': False, 'physical_asic_compatibility_verified': False,
@@ -7047,13 +7333,16 @@ def evaluate(run, batch):
               'original_RTOS_verified': False, 'evidence_scope': 'plaintext consistency, not cryptographic attestation',
               'evidence': {}, 'missing': [], 'products': {
                   'JPEG': {'capture_verified': False}, 'MP4': {'capture_verified': False}}}
-    def stage(name, function, *args):
+    if jpeg_only_raw_1gib:
+        result.update(acceptance_scope=JPEG_RAW_SCOPE, jpeg_capture_verified=False,
+                      full_camera_verified=False, full_graph_verified=False, products={'JPEG': {'capture_verified': False}})
+    def stage(name, function, *args, **kwargs):
         try:
-            value = function(*args)
+            value = function(*args, **kwargs)
             result['evidence'][name] = value
             return value
         except (OSError, ValueError, TypeError, KeyError, AttributeError, IndexError,
-                OverflowError, struct.error, tarfile.TarError) as error:
+                OverflowError, SyntaxError, ImportError, struct.error, tarfile.TarError) as error:
             code = 'TRACE_MISSING' if isinstance(error, (MissingEvidence, FileNotFoundError)) else 'EVIDENCE_INVALID'
             result['missing'].append({'code': code, 'stage': name, 'detail': f'{type(error).__name__}: {error}'})
             result['evidence'][name] = {'verified': False}
@@ -7067,6 +7356,16 @@ def evaluate(run, batch):
                 result['evidence'][name].update(ou_crank_control_rejected=error.event,
                     capture_verified=False, physical_asic_compatibility_verified=False)
             return None
+    def options():
+        require(type(jpeg_only_raw_1gib) is bool, 'JPEG-only raw scope must be an explicit boolean')
+        require(jpeg_only_raw_1gib or first_sequence is None and second_sequence is None,
+                'raw export sequences require explicit JPEG-only raw scope')
+        if jpeg_only_raw_1gib:
+            require(type(first_sequence) is int and type(second_sequence) is int and
+                    0 < first_sequence < second_sequence < 2**64, 'two increasing raw export sequences required')
+        return {'verified': True}
+    if stage('options', options) is None:
+        return result
     run = stage('run', writeback.directory, run)
     if run is None:
         result['verdict'] = 'SOURCE/TRACE_MISSING' if all(item['code'] == 'TRACE_MISSING' for item in result['missing']) else 'FAIL'
@@ -7085,7 +7384,7 @@ def evaluate(run, batch):
         result['evidence']['console'] = {'sha256': sha(raw), 'bytes': len(raw)}
     if events_raw is not None:
         result['evidence']['broker_jsonl'] = {'sha256': sha(events_raw), 'bytes': len(events_raw)}
-    profile = stage('profile', check_profile, manifest) if manifest is not None else None
+    profile = stage('profile', check_profile, manifest, jpeg_only_raw_1gib) if manifest is not None else None
     if rows is not None and manifest is not None and any(row['tag'].startswith('FUNCTIONAL_LAYOUT_STAGE') for row in rows):
         stage('startup_layout_stage', check_layout_stage, run, manifest, rows)
     if rows is not None and manifest is not None and any(row['tag'].startswith('FUNCTIONAL_BACKGROUND_START_') for row in rows):
@@ -7098,7 +7397,18 @@ def evaluate(run, batch):
         result['evidence']['batch'] = build
     else:
         build, sources = None, {}
-    storage = stage('writeback', writeback.inspect, run)
+    raw_reader = None
+    def raw_source_closure():
+        nonlocal raw_reader
+        bound = {}
+        proof = check_raw_sources(sources, source_bytes=bound)
+        raw_reader = source_module(NATIVE / 'report/native-card-write/check_raw_writeback.py', sources=bound)
+        return proof
+    if jpeg_only_raw_1gib:
+        stage('raw_source_closure', raw_source_closure)
+    storage = (stage('writeback', raw_reader.inspect, run, first_sequence, second_sequence, jpeg_only=True)
+               if jpeg_only_raw_1gib and raw_reader is not None else
+               None if jpeg_only_raw_1gib else stage('writeback', writeback.inspect, run))
     if storage is not None:
         for kind in result['products']:
             items = [item for item in storage.get('items', []) if item.get('decode', {}).get('format') == kind]
@@ -7162,16 +7472,19 @@ def evaluate(run, batch):
         if storage and storage.get('exports', {}).get('pid') != transport['pid']:
             result['missing'].append({'code': 'EVIDENCE_INVALID', 'stage': 'storage_owner',
                                       'detail': 'original Fsys flush/write PID differs from actual guest mailbox owner'})
-        frames = stage('CMOS_encoder', check_frames, run, transport)
-        jpeg = stage('JPEG_causality', check_jpeg, rows, transport, storage or {}, run)
-        video = stage('MP4_causality', check_video, rows, transport, storage or {}, run)
+        frames = stage('CMOS_encoder', check_jpeg_frames if jpeg_only_raw_1gib else check_frames, run, transport)
+        jpeg = (stage('JPEG_causality', check_jpeg, rows, transport, storage or {}, run, raw_reader=raw_reader)
+                if jpeg_only_raw_1gib else stage('JPEG_causality', check_jpeg, rows, transport, storage or {}, run))
+        video = None if jpeg_only_raw_1gib else stage('MP4_causality', check_video, rows, transport, storage or {}, run)
+        if jpeg_only_raw_1gib:
+            stage('natural4038_raw_join', check_natural_jpeg_raw, run, rows, transport, storage or {}, jpeg or {})
         if frames is not None:
-            result['products']['JPEG']['CMOS_encoder_verified'] = True
-            result['products']['MP4']['CMOS_encoder_verified'] = True
-        for kind, proof in (('JPEG', jpeg), ('MP4', video)):
+            for product in result['products'].values():
+                product['CMOS_encoder_verified'] = True
+        for kind, proof in (('JPEG', jpeg),) if jpeg_only_raw_1gib else (('JPEG', jpeg), ('MP4', video)):
             result['products'][kind]['original_request_and_compressed_content_verified'] = bool(
                 proof and proof.get('capture_verified') is True)
-    graph = stage('graph', check_graph, run, batch, sources) if build is not None else None
+    graph = stage('graph', check_graph, run, batch, sources) if build is not None and not jpeg_only_raw_1gib else None
     if graph is not None:
         graph['verified'] = graph.get('graph_verified') is True and graph.get('all_13_graph_edges_complete') is True
         if not graph['verified']:
@@ -7204,6 +7517,10 @@ def evaluate(run, batch):
                               ('functional-camera-model-build.json', 'functional_model_build_receipt_sha256'),
                               ('functional-model-sources.tar.gz', 'functional_model_source_archive_sha256')):
                 digest_binding(read(root, name), ready.get(key), 'final frozen ' + name)
+        if jpeg_only_raw_1gib:
+            needed(raw_reader is not None and storage and storage.get('writeback_verified') is True,
+                   'final raw storage proof unavailable')
+            raw_reader.check_unchanged(run, storage)
         for name, digest in sources.items():
             digest_binding(read_absolute(Path(name), 16 * 1024**2), digest, 'final current frozen source')
         return {'verified': True}
@@ -7216,8 +7533,12 @@ def main():
     parser.add_argument('run', help='absolute completed owned run directory')
     parser.add_argument('batch', help='absolute frozen unified batch directory or ready.json')
     parser.add_argument('--output', type=Path, help='optional new JSON directly beside this checker, outside run/batch')
+    parser.add_argument('--jpeg-only-raw-1gib', action='store_true', help='explicit single-JPEG scope; never full-camera PASS')
+    parser.add_argument('--first-sequence', type=int, help='first completed raw export sequence')
+    parser.add_argument('--second-sequence', type=int, help='second completed raw export sequence')
     args = parser.parse_args()
-    result = evaluate(args.run, args.batch)
+    result = evaluate(args.run, args.batch, jpeg_only_raw_1gib=args.jpeg_only_raw_1gib,
+                      first_sequence=args.first_sequence, second_sequence=args.second_sequence)
     text = json.dumps(result, indent=2, ensure_ascii=True) + '\n'
     if args.output is None:
         print(text, end='')
@@ -7229,7 +7550,7 @@ def main():
                 not target.is_relative_to(writeback.absolute_path(args.batch)), 'output must be outside evidence inputs')
         with target.open('x', encoding='ascii') as stream:
             stream.write(text)
-    return 0 if result['capture_verified'] else 1
+    return 0 if (result.get('jpeg_capture_verified') if args.jpeg_only_raw_1gib else result['capture_verified']) else 1
 
 
 if __name__ == '__main__':

@@ -146,14 +146,16 @@ def builds(tmp_path_factory):
         executable = directory / mode
         subprocess.run(cc + STRICT + options + ["-DFJPEG_HOST_TEST", "-I" + str(REPORT / "functional-capture-input"),
                        str(HERE / "functional-jpeg-codec.c"), str(HERE / "test-functional-jpeg-codec.c")] +
-                       list(map(str, dependencies)) + libraries + ["-pthread", "-ldl", "-lm", "-o", str(executable)],
+                       list(map(str, dependencies)) + libraries + ["-Wl,--wrap=pread", "-pthread", "-ldl", "-lm", "-o", str(executable)],
                        check=True, capture_output=True, timeout=90)
         result[mode] = executable
     return result
 
 
-def run(builds, mode, scenario):
+def run(builds, mode, scenario, *, pfn_packets=False):
     environment = dict(ENV)
+    if pfn_packets:
+        environment['FJPEG_PFN_PACKET_TEST'] = '1'
     if 'free-reuse' in scenario:
         environment['ASAN_OPTIONS'] += ':quarantine_size_mb=0:thread_local_quarantine_size_kb=0'
     process = subprocess.run([str(builds[mode]), scenario], capture_output=True, env=environment, timeout=60)
@@ -182,8 +184,9 @@ def decoded(data):
 
 
 @pytest.mark.parametrize('mode', ['normal', 'sanitized'])
-def test_original_main_thm_done_collects_owned_output_once(builds, mode):
-    records = blobs(run(builds, mode, 'main-retained-pair'))
+@pytest.mark.parametrize('pfn_packets', [False, True], ids=['ordinary', 'pfn-uipc'])
+def test_original_main_thm_done_collects_owned_output_once(builds, mode, pfn_packets):
+    records = blobs(run(builds, mode, 'main-retained-pair', pfn_packets=pfn_packets))
     assert records['COLLECTED_MAIN_NO_SOI'] == records['MODEL_JPEG'][2:]
     main = decoded(b'\xff\xd8' + records['COLLECTED_MAIN_NO_SOI'])
     thumb = decoded(records['COLLECTED_THUMB'])
@@ -399,7 +402,7 @@ def test_main_preconditions_original_abi_and_no_frame_on_refusal(builds, mode, s
 @pytest.mark.parametrize("scenario", [
     "main-before-ack", "main-no-comp", "main-comp-vptr", "main-comp-selector", "main-comp-caller",
     "main-comp-context", "main-comp-manager", "main-comp-control", "main-previous", "main-previous-copy",
-    "main-config-readonly", "main-config-alias", "main-config-fields", "main-comp-fields-after",
+    "main-config-readonly", "main-config-alias", "main-config-fields", "main-config-getter-slot", "main-comp-fields-after",
     "main-ack-source", "main-ack-body", "main-unobserved", "main-callback",
     "main-done-source", "main-done-body", "main-wrong-object", "main-send", "main-send-done", "main-release",
     "main-native-length", "main-free-none", "main-free-fail", "main-free-tid", "main-free-destination",

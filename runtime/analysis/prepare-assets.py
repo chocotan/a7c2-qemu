@@ -28,6 +28,7 @@ HEADER_SHA = 'ee176eb36cadf11d0f9d02f0829121352fa9d5804932a33831764618c23e8c5e'
 IMDB_SHA = '14f3cd439bf27a6878b97d155c3cd97cc534a57395f922aed56e59a5b8b32f31'
 PATCH_SHA = '0ebba8dd2fefad4684419d1111a56c659c7fd04473c04da39e6f2e7d8ac0facf'
 MSC_IMDB_SHA = '5af281a4605cfd8e4b01bc1eb0d770438c4212cd7e193a6f5849e8697e5b8777'
+USB_BUSPOWER_IMDB_SHA = '832d329f3e8c85ec4e09b8b4b4cffebb5a10e0af33a930c15f6c5eefe4cc0959'
 USB_MSC_INIT = {'libInfraUsbCmn.so', 'libUsbControl.so'}
 FAT_SHA = '535d8f0570a4e56e04e71c400863ed39bbd735c85a9aa8e32748a136968d495c'
 DAT4_SHA = 'a12871fee210fb8619291eaea194581cbd2531e4b23759d225f6806923f63222'
@@ -187,6 +188,25 @@ def usb_msc_imdb(data):
         raise ValueError('MSC IMDB exact transformation mismatch')
     return bytes(out)
 
+
+
+def usb_buspower_imdb(data):
+    """Source candidate: MSC plus only UsbBusPower low three original bits."""
+    base = usb_msc_imdb(data)
+    elf, out = ELF(base), bytearray(base)
+    va = 0x1e738
+    if (elf.cstr(elf.number(va + 16, '<Q')) != 'libUsbBusPower.so' or
+            elf.number(va + 8, '<I') != 0xffffffb8 or
+            elf.cstr(elf.number(0x1e858 + 16, '<Q')) != 'libBusPower.so' or
+            elf.number(0x1e858 + 8, '<I') != 0xffffff98):
+        raise ValueError('UsbBusPower exact entry/mask differs')
+    offset = elf.offset(va + 8, 4)
+    struct.pack_into('<I', out, offset, 0xffffffbf)
+    if (bytes(out[:offset]) != base[:offset] or
+            bytes(out[offset + 4:]) != base[offset + 4:] or
+            sha(out) != USB_BUSPOWER_IMDB_SHA):
+        raise ValueError('UsbBusPower exact transformation differs')
+    return bytes(out)
 
 def extract_fat(data, destination):
     seen, total = set(), 0

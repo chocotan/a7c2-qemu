@@ -325,6 +325,7 @@ def parameter_main_executable(tmp_path_factory):
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include "device-models/functional-camera-control.h"
@@ -413,6 +414,9 @@ static int cp302c_no_transition_predecessors_ready(void){assert(0);return 0;}
 static int functional_cp_zoom_prepare(void){assert(0);return -ENOTSUP;}
 static int functional_cp_zoom_reserve_resources(void){assert(0);return -ENOTSUP;}
 static void functional_cp_zoom_release_resources(void){assert(0);}
+static int native_cp_background_dispatch(unsigned int id,void *p,const struct full_imaging_io *io,int enabled,int *result){
+ (void)id;(void)p;(void)io;(void)enabled;(void)result;assert(!"background zoom is outside this parameter fixture");return 0;
+}
 int functional_background_start_dispatch(unsigned int id,void *p,const struct full_imaging_io *io,
  const struct native_cp_state_publication_guard *guard,int enabled,int *result){
  (void)id;(void)p;(void)io;(void)guard;(void)enabled;(void)result;assert(0);return 0;

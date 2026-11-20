@@ -168,6 +168,7 @@ def test_strict_standalone_module_compiles(tmp_path):
     names = {line.split()[-1] for line in symbols.splitlines()}
     assert {name for name in names if name.startswith("functional_face_dmm_")} == {
         "functional_face_dmm_enable", "functional_face_dmm_snapshot", "functional_face_dmm_shutdown",
+        "functional_face_dmm_consume_share",
         "functional_face_dmm_dispatch", "functional_face_dmm_receive", "functional_face_dmm_release_reply",
         "functional_face_dmm_borrowed_span", "functional_face_dmm_write", "functional_face_dmm_read",
         "functional_face_dmm_release_borrow",

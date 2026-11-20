@@ -69,8 +69,9 @@ def commands(console):
         parts = [f'if /bin/busybox grep -q /usr/lib/appFw.so {root}/maps 2>/dev/null; then',
                  f'echo GATE_TID={task}']
         for label, address, _note in chunk:
+            width = 1 if label == 'CAPTURE_INHIBIT_BYTE' else 4
             parts += [f'echo {label}_BEGIN',
-                      f'/simulation/menu-readmem {root}/mem {address:#x} 4 appFw.so',
+                      f'/simulation/menu-readmem {root}/mem {address:#x} {width} appFw.so',
                       f'echo {label}_RC=$?']
         parts += ['else echo GATE_MAPPING_UNAVAILABLE', 'fi', 'true']
         out.append('\n'.join(parts))
@@ -85,6 +86,7 @@ def parse(parts):
         text = bytes(parts).decode('ascii', errors='replace')
     result = {'scope': 'original capture-gate cells, read only',
               'capture_verified': False, 'reads': []}
+    identities = set()
     for label, address, note in GATE_CELLS:
         matches = re.findall(r'^'+label+r'_BEGIN\r?\n(.*?)^'+label+r'_RC=(\d+)\r?\n',
                              text, re.S | re.M)
@@ -92,9 +94,22 @@ def parse(parts):
             raise ValueError('Missing/ambiguous gate read: '+label)
         raw, rc = matches[0]
         value = None
-        found = re.search(r'^[0-9a-fA-F]+:\s*((?:[0-9a-fA-F]{2} ){3}[0-9a-fA-F]{2})', raw, re.M)
-        if found:
-            value = int.from_bytes(bytes.fromhex(found[1].replace(' ', '')), 'little')
+        if int(rc) == 0:
+            headers = re.findall(r'^READMEM /proc/(\d+)/mem address=([0-9a-fA-F]+) bytes=(\d+)\r?$', raw, re.M)
+            rows = re.findall(r'^([0-9a-fA-F]+):((?: [0-9a-fA-F]{2})+)\r?$', raw, re.M)
+            if len(headers) != 1 or len(rows) != 1:
+                raise ValueError('Missing/ambiguous successful gate payload: '+label)
+            pid, actual_address, actual_width = (int(headers[0][0]), int(headers[0][1], 16), int(headers[0][2]))
+            row_address, data = int(rows[0][0], 16), bytes.fromhex(rows[0][1])
+            width = 1 if label == 'CAPTURE_INHIBIT_BYTE' else 4
+            # Historical byte-cell probes read four bytes; only the first belongs to this cell.
+            if not 0 < pid <= 0x7fffffff or actual_address != row_address or actual_address < address or \
+                    actual_width != len(data) or actual_width not in ({1, 4} if width == 1 else {4}):
+                raise ValueError('Invalid gate payload identity/width: '+label)
+            identities.add((pid, actual_address-address))
+            value = int.from_bytes(data[:width], 'little')
         result['reads'].append({'label': label, 'elf_va': hex(address), 'note': note,
                                 'returncode': int(rc), 'value': value})
+    if len(identities) > 1:
+        raise ValueError('Gate reads do not share one process and AppFw load bias')
     return result

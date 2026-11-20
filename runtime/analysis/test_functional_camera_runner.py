@@ -18,6 +18,8 @@ import unittest
 from unittest import mock
 
 import functional_camera_runner as runner
+import menu_live
+from menu_live import guard_live_owner, qmp_transaction
 from scope_observer_profile import record_exit as record_scope_exit
 
 HERE = Path(__file__).resolve().parent
@@ -209,6 +211,16 @@ class ArtifactTests(unittest.TestCase):
         with mock.patch.object(runner, 'QEMU_SHA256', '0' * 64), self.assertRaisesRegex(ValueError, 'unchanged QEMU'):
             runner.validate_artifact(self.fixture.base, self.fixture.qemu)
 
+    def test_writeback_flush_candidate_requires_exact_env_and_sha(self):
+        actual = runner.digest(self.fixture.qemu.read_bytes())
+        with mock.patch.object(runner, 'WRITEBACK_FLUSH_QEMU_SHA256', actual), \
+                mock.patch.dict(runner.os.environ, {'QEMU_A7PF_WRITEBACK_FLUSH': '1'}):
+            accepted = runner.validate_artifact(self.fixture.base, self.fixture.qemu)
+            self.assertEqual(accepted['qemu_sha256'], actual)
+            with mock.patch.object(runner, 'WRITEBACK_FLUSH_QEMU_SHA256', '0' * 64), \
+                    self.assertRaisesRegex(ValueError, 'Writeback-flush profile'):
+                runner.validate_artifact(self.fixture.base, self.fixture.qemu)
+
     def test_scope_candidate_needs_explicit_receipt_and_reports_actual_hash(self):
         actual = runner.digest(self.fixture.qemu.read_bytes())
         receipt = self.fixture.root / 'reviewed-scope-build.json'
@@ -370,6 +382,11 @@ class LifecycleTests(unittest.TestCase):
         self.instance = runner.FunctionalCameraRunner(self.run, self.artifact)
         self.proc = mock.Mock(pid=456,returncode=None)
         self.proc.poll.return_value = None
+        # A real Popen carries none of the transport boundary attributes.
+        self.proc._menu_qmp_desynchronized = False
+        self.proc._menu_serial_desynchronized = False
+        self.proc._menu_qmp_request_id = None
+        self.proc._menu_qmp_last_raw = None
 
     def broker(self, cleanup=None):
         result = mock.Mock(start_error=None)
@@ -790,10 +807,14 @@ class LifecycleTests(unittest.TestCase):
         outer = next(node for node in tree.body if isinstance(node, ast.With) and
                      any(isinstance(item.optional_vars, ast.Name) and item.optional_vars.id == 'console'
                          for item in node.items))
-        shutdown = next(node for node in outer.body if isinstance(node, ast.Try))
+        # The outer with holds a first try that only guards the live owner; the shutdown try is the one
+        # whose body opens the QMP channel.
+        shutdown = next(node for node in outer.body if isinstance(node, ast.Try) and
+                        any(isinstance(child, ast.With) for child in node.body))
         channel = next(node for node in shutdown.body if isinstance(node, ast.With))
         stream_block = next(node for node in channel.body if isinstance(node, ast.With))
         function = next(node for node in stream_block.body if isinstance(node, ast.FunctionDef) and node.name == 'qmp')
+        unlocked = next(node for node in stream_block.body if isinstance(node, ast.FunctionDef) and node.name == 'qmp_unlocked')
         attempted = next(node for node in outer.body if isinstance(node, ast.Assign) and
                          any(isinstance(target, ast.Name) and target.id == 'qmp_quit_attempted' for target in node.targets))
         events = []
@@ -801,16 +822,22 @@ class LifecycleTests(unittest.TestCase):
         class Stream:
             closed = False
             error = None
+            request = None
             def __enter__(self): return self
             def __exit__(self, *_):
                 self.closed = True
                 events.append('stream-close')
             def write(self, raw):
-                events.append(('write', json.loads(raw)))
+                self.request = json.loads(raw)
+                # The transport request id is not part of the admitted command event.
+                events.append(('write', {key: value for key, value in self.request.items() if key != 'id'}))
                 if self.closed: raise ValueError('write to closed file')
                 if self.error is not None: raise self.error
+                return len(raw)
             def flush(self): events.append('flush')
-            def readline(self): events.append('ack'); return b'{"return":{}}'
+            def readline(self, *_args):
+                events.append('ack')
+                return (json.dumps({'return': {}, 'id': self.request['id']}) + '\n').encode()
 
         stream = Stream()
         sock = mock.MagicMock()
@@ -832,14 +859,26 @@ class LifecycleTests(unittest.TestCase):
         image = self.run / 'HOST_TEST-initramfs'
         image.write_bytes(b'HOST_TEST synthetic initramfs identity')
         boot_receipt = begin(self.run, image, ['HOST_TEST lifecycle only'])
+        # Real owner retention blocks until the VM exits; this fixture has no VM, so record the intent and
+        # leave the blocking loop to test_serial_command_boundary.py. The finalizer also imports the name
+        # from menu_live locally, so the module attribute is patched for the same reason.
+        def retain_running_owner(proc, run, cause=None, *, reason):
+            self.assertIs(proc, self.proc)
+            self.assertIn(reason, ('qmp-exit', 'serial-boundary'))
+            return False
+        retaining = mock.patch.object(menu_live, 'retain_running_owner', retain_running_owner)
+        retaining.start()
+        self.addCleanup(retaining.stop)
         scope = dict(boot_receipt=boot_receipt, finish_boot_receipt=finish,
                      functional_camera=self.instance, early_media_watch=None, proc=self.proc,
+                     native_pair=None, native_vm_owner=None,
                      out=self.run, stream=stream, json=json, sys=sys, subprocess=subprocess, os=os,time=__import__('time'),
                      manifest={'files': {}}, sha256_file=lambda path: runner.digest(path.read_bytes()),
                      nullcontext=nullcontext, ExitStack=ExitStack, socket=sockets, live_fd=True,
                      host_sd_fd=None, directory_sd_fd=40, host_sd_export_verified=[True],
+                     qmp_transaction=qmp_transaction, retain_running_owner=retain_running_owner,
                      scope_observer=None, writer_observer=None, record_scope_exit=record_scope_exit)
-        exec(compile(ast.Module(body=[attempted, function], type_ignores=[]), '<actual-qmp>', 'exec'), scope)
+        exec(compile(ast.Module(body=[attempted, unlocked, function], type_ignores=[]), '<actual-qmp>', 'exec'), scope)
         # Keep the real resource contexts and finalizer; replace only launch/boot/live work.
         stream_block.body = ast.parse(body).body
         channel.body = [stream_block]
@@ -926,7 +965,7 @@ class LifecycleTests(unittest.TestCase):
         self.proc.wait.side_effect = subprocess.TimeoutExpired('HOST_TEST owned wrapper', 5)
         with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
                 mock.patch.object(runner.signal, 'signal', return_value=None):
-            with self.assertRaisesRegex(RuntimeError, 'still running'):
+            with self.assertRaisesRegex(RuntimeError, 'exit was unconfirmed'):
                 exec(program, scope)
         self.assertIsNone(self.proc.poll())
         self.assertFalse((self.run / 'readonly-scope-exit.json').exists())
@@ -1043,7 +1082,7 @@ class LifecycleTests(unittest.TestCase):
         self.proc.wait.side_effect = subprocess.TimeoutExpired('host fake owner', 5)
         with mock.patch.object(runner.transport, 'read_receipts', return_value=self.receipts()), \
                 mock.patch.object(runner.signal, 'signal', return_value=None):
-            with self.assertRaisesRegex(RuntimeError, 'still running'):
+            with self.assertRaisesRegex(RuntimeError, 'exit was unconfirmed'):
                 exec(program, scope)
             with self.assertRaisesRegex(RuntimeError, 'already attempted'):
                 scope['qmp']('quit')
@@ -1553,15 +1592,18 @@ finally:instance.guard_shutdown(child,sys.exc_info()[1])
         tree = ast.parse((HERE / 'qemu-menu-probe.py').read_text())
         block = next(node.finalbody for node in ast.walk(tree) if isinstance(node, ast.Try) and node.finalbody
             and any(isinstance(call, ast.Call) and ast.unparse(call.func) == 'functional_camera.guard_shutdown'
-                    for call in ast.walk(node.finalbody[0]))
+                    for item in node.finalbody for call in ast.walk(item))
             and any(isinstance(call, ast.Call) and ast.unparse(call.func) == 'qmp'
                     and call.args and isinstance(call.args[0],ast.Constant) and call.args[0].value=='quit'
                     for item in node.finalbody for call in ast.walk(item)))
         self.broker({**SAFE, 'safe_to_close': False, 'errors': ['encoder owns memory']})
         early = mock.Mock()
+        # The finalizer reads the live-owner contract directly; model a wait that observes exit.
+        self.proc.wait.side_effect = lambda *args, **kwargs: setattr(self.proc.poll, 'return_value', 0)
         scope = {'functional_camera': self.instance, 'proc': self.proc, 'sys': __import__('sys'),
                  'early_media_watch': early, 'host_sd_fd': None, 'directory_sd_fd': 40,
                  'host_sd_export_verified': [False], 'out': self.run, 'subprocess': __import__('subprocess'),
+                 'guard_live_owner': guard_live_owner,
                  'scope_observer': None, 'writer_observer': None, 'record_scope_exit': record_scope_exit}
         with mock.patch.object(runner.signal, 'signal', return_value=None), self.assertRaises(runner.UnsafeCameraClose):
             exec(compile(ast.Module(body=block, type_ignores=[]), '<actual-finally-guard>', 'exec'), scope)

@@ -15,7 +15,7 @@ def test_prior_sequence_is_recovered_before_another_flush(tmp_path,failures):
     namespace=dict(out=tmp_path,manifest={'rm_file_image_bytes':512},virtual_hci=False,early_media_watch=None,request_queue_gdb=False,os=SimpleNamespace(environ={}),
                    pending_sd_sequence=[None],last_sd_export_sha=[None],
                    directory_sd_fd=None,host_sd_fd=None,sd_sparse=False,host_sd_export_verified=[False],
-                   functional_camera=None,time=SimpleNamespace(monotonic_ns=iter((1000,2000)).__next__))
+                   functional_camera=None,native_pair=None,time=SimpleNamespace(monotonic_ns=iter((1000,2000)).__next__))
     exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),namespace)
     (tmp_path/'SD').mkdir()
     stopped=[];flushes=[];cancellations=[];reports=[]
@@ -56,7 +56,7 @@ def test_final_report_failure_keeps_written_digest_but_not_a_pending_owner(tmp_p
     namespace=dict(out=tmp_path,manifest={'rm_file_image_bytes':512},virtual_hci=False,early_media_watch=None,request_queue_gdb=False,os=SimpleNamespace(environ={}),
                    pending_sd_sequence=[None],last_sd_export_sha=[None],
                    directory_sd_fd=None,host_sd_fd=None,sd_sparse=False,host_sd_export_verified=[False],
-                   functional_camera=None,time=SimpleNamespace(monotonic_ns=lambda:1000))
+                   functional_camera=None,native_pair=None,time=SimpleNamespace(monotonic_ns=lambda:1000))
     exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),namespace)
     (tmp_path/'SD').mkdir()
     with patch('sd_transport.export_card',return_value={'ok':True,'sha256':'b'*64,'card_published':True}),\
@@ -80,7 +80,7 @@ def test_debug_CPU_resume_precedes_old_sequence_recovery_and_new_flush(tmp_path,
             running[0]=True;return {'return':{}}
         return {'return':{'running':running[0],'status':'running' if running[0] else 'debug'}}
     namespace=dict(out=tmp_path,manifest={'rm_file_image_bytes':512},virtual_hci=False,early_media_watch=None,request_queue_gdb=True,
-                   functional_camera=None,qmp=qmp,json=json,os=SimpleNamespace(environ={}),pending_sd_sequence=[77],last_sd_export_sha=[None],
+                   functional_camera=None,native_pair=None,qmp=qmp,json=json,os=SimpleNamespace(environ={}),pending_sd_sequence=[77],last_sd_export_sha=[None],
                    directory_sd_fd=None,host_sd_fd=None,sd_sparse=False,host_sd_export_verified=[False],
                    time=SimpleNamespace(monotonic_ns=lambda:1000))
     exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),namespace)
@@ -112,7 +112,7 @@ def test_observed_UI_branch_captures_bound_process_workers_not_only_UI(tmp_path)
     commands=[]
     def serial(proc,out,command,**kwargs):commands.append(command);return b'POWER_THREAD 333 worker\n'
     namespace=dict(out=tmp_path,manifest={'rm_file_image_bytes':512},virtual_hci=False,early_media_watch=None,request_queue_gdb=False,
-                   functional_camera=None,os=SimpleNamespace(environ={'A7C2_CAPTURE_POWER_STACK':'1'}),re=re,serial_command=serial,proc=object(),
+                   functional_camera=None,native_pair=None,os=SimpleNamespace(environ={'A7C2_CAPTURE_POWER_STACK':'1'}),re=re,serial_command=serial,proc=object(),
                    pending_sd_sequence=[None],last_sd_export_sha=[None],time=SimpleNamespace(monotonic_ns=lambda:1000),
                    directory_sd_fd=None,host_sd_fd=None,sd_sparse=False,host_sd_export_verified=[False])
     exec(compile(ast.Module(body=[function],type_ignores=[]),str(path),'exec'),namespace)

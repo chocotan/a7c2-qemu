@@ -106,7 +106,9 @@ def test_actual_qmp_quit_guard_runs_before_wire_even_startup_exception(tmp_path)
     import ast
     source = Path(initial.__file__).parent/'qemu-menu-probe.py'
     tree = ast.parse(source.read_text())
-    fn = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == 'qmp')
+    functions = {node.name: node for node in ast.walk(tree)
+                 if isinstance(node, ast.FunctionDef) and node.name in ('qmp_unlocked', 'qmp')}
+    unlocked, fn = functions['qmp_unlocked'], functions['qmp']
     events = []
     # Replace the import with a controlled binding but execute the real body.
     # Guard blocks/fails: no quit JSON may be written or flushed.
@@ -121,7 +123,7 @@ def test_actual_qmp_quit_guard_runs_before_wire_even_startup_exception(tmp_path)
     from contextlib import nullcontext
     scope = dict(early_media_watch=object(), proc=object(), out=tmp_path,
                  stream=Stream(), json=json, functional_camera=None, nullcontext=nullcontext,
-                 host_sd_fd=None, directory_sd_fd=None, host_sd_export_verified=[False])
+                 native_pair=None, host_sd_fd=None, directory_sd_fd=None, host_sd_export_verified=[False])
     import media_initial_write
     original = media_initial_write.guard_shutdown
     def retain(*args):
@@ -129,7 +131,7 @@ def test_actual_qmp_quit_guard_runs_before_wire_even_startup_exception(tmp_path)
         raise RuntimeError('retained for test')
     try:
         media_initial_write.guard_shutdown = retain
-        exec(compile(ast.fix_missing_locations(ast.Module(body=[fn],type_ignores=[])),str(source),'exec'),scope)
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[unlocked,fn],type_ignores=[])),str(source),'exec'),scope)
         with pytest.raises(RuntimeError, match='retained'):
             scope['qmp']('quit')
         assert events == ['guard']

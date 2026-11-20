@@ -1,7 +1,10 @@
 """Original UPM observer; only optional dedicated receipt transport writes.
 
 Host API: start(run, owner_pid, {'upm': T, 'osal_uipc': O}, mailbox=None,
-                scope_build_receipt=None).
+                scope_build_receipt=None, *, socket_root=None,
+                socket_profile=None, socket_binding=None).
+Explicit F/S parameters reuse the functional-camera broker contract; the new
+single AP runtime profile remains unconditionally blocked. Logs stay in F.
 Optional mailbox={'phys': actual_pagemap_page_pa, 'nonce': u64, 'pid': AP_pid}
 uses the frozen device-models/hdmi-upm-receipt.h ABI (256 bytes). Only this
 explicit transport permits writes: armed status, verified receipt, commit status.
@@ -22,6 +25,7 @@ Module bases must come from actual guest module sections/kallsyms before the
 original application starts. In particular OSAL may be built in: no guessed base.
 The OSAL bridge ABI is w0=destination, x1=U, x2=fd context, NOT x0=U.
 """
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -38,14 +42,20 @@ import time
 BASE = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE))
 import scope_observer_profile
+import functional_camera_broker as socket_transport
 
 RUNS = BASE / 'menu-runs'
 SOCKET = 'hdmi-upm-gdb.sock'
+QMP_SOCKET = 'hdmi-upm-control.sock'
+SOCKET_FIELDS = ('socket_root', 'socket_profile', 'socket_binding')
 PREFIX = 'hdmi-upm-watch'
 LIMIT = 64
 SECONDS = 120
 QEMU_SHA = 'a0d1bdd8a9aad822efe47f740a104972cac6ec1875265e8174b25349f54fee02'
 READONLY_SCOPE_QEMU_SHA = '4e85c70ba38774e9439562a7178a65bdbe6b660fdf8dd6bd4ece686fb707a4d4'
+# Same inherited-FD build admitted by functional_camera_runner; retain exact executable checking.
+RAM_CARD_QEMU_SHA = 'b36998138a65b1bd2645ca24bf0dde0c0801d868d1291ec6f9e83ff707d64bad'
+WRITEBACK_FLUSH_QEMU_SHA = 'df6144a095f8cfbde49c454a9872129811ee9c831051417639e7129a4ddeb4b9'
 QUEUE = 0x80920572
 SOURCE = 0x909a015a
 MESSAGE = 0x00920117
@@ -66,7 +76,11 @@ POINTS = {'task_entry': ('upm', 0xe0), 'receive_call': ('upm', 0x104),
 CALLS = {'receive_call': ('osal_uipc', 0x4198), 'send': ('osal_uipc', 0x3bf8),
          'branch': ('upm', 0x10ce8), 'vpool': ('osal_uipc', 0x6bb8),
          'vpool_fallback': ('osal_uipc', 0x6bb8), 'fblock': ('osal_uipc', 0x67f0)}
-REGS = ('pc', 'sp', 'sp_el0') + tuple('x' + str(n) for n in range(31))
+# QEMU's aarch64 gdbstub exposes x0-x30, sp, pc, cpsr and the TLS (TPIDR_EL0)
+# coprocessor only; SP_EL0/TTBR0_EL1 are not registers this stub can read.
+REGS = ('pc', 'sp', 'cpsr', 'tpidr') + tuple('x' + str(n) for n in range(31))
+PAGE_OFFSET = 0xffffffc000000000
+THREAD_SIZE = 0x4000
 
 
 def require(condition, message):
@@ -76,6 +90,45 @@ def require(condition, message):
 
 def kernel(value):
     return type(value) is int and 0xffffff8000000000 <= value < 0xfffffffffffff000
+
+
+def kernel_read(inferior, address, size):
+    require(kernel(address) and type(size) is int and 0 < size <= 4096 and address + size < 2**64,
+            'Invalid actual kernel read')
+    raw = bytes(inferior.read_memory(address, size))
+    require(len(raw) == size, 'Short actual kernel read')
+    return raw
+
+
+def per_cpu_current(inferior, symbols, cpu):
+    """Actual arm64 current task from per-cpu __entry_task (entry.S keeps it for this CPU)."""
+    require(type(symbols) is dict and set(symbols) == {'__entry_task', '__per_cpu_offset'} and
+            all(kernel(value) for value in symbols.values()), 'Actual per-cpu current-task symbols unavailable')
+    require(type(cpu) is int and 0 <= cpu < 64, 'Invalid actual vCPU index')
+    base = int.from_bytes(kernel_read(inferior, symbols['__per_cpu_offset'] + 8 * cpu, 8), 'little')
+    task = int.from_bytes(kernel_read(inferior, (symbols['__entry_task'] + base) & (2**64 - 1), 8), 'little')
+    require(kernel(task), 'Actual per-cpu __entry_task is not a kernel task pointer')
+    return task
+
+
+def task_mm_pgd(inferior, task, abi):
+    require(kernel(task) and type(abi) is dict and set(abi) == {'task_mm', 'mm_pgd'} and
+            all(type(value) is int and 0 < value < 4096 for value in abi.values()),
+            'Invalid actual task/mm ABI binding')
+    mm = int.from_bytes(kernel_read(inferior, task + abi['task_mm'], 8), 'little')
+    require(kernel(mm), 'Actual task->mm is not a kernel pointer')
+    pgd = int.from_bytes(kernel_read(inferior, mm + abi['mm_pgd'], 8), 'little')
+    require(kernel(pgd), 'Actual mm->pgd is not a kernel pointer')
+    return mm, pgd
+
+
+def derived_ttbr0(pgd, memstart):
+    """TTBR0_EL1 for a task: mm->pgd's physical address plus memstart_addr (never a register read)."""
+    require(kernel(pgd) and type(memstart) is int and 0 < memstart < 2**48,
+            'Invalid actual mm->pgd/memstart_addr')
+    value = pgd - PAGE_OFFSET + memstart
+    require(0 < value < 2**48 and not value & 0xfff, 'Invalid derived TTBR0_EL1')
+    return value
 
 
 def mailbox_header(config):
@@ -208,11 +261,15 @@ def parse_json(raw):
 
 
 def publish_json(root, name, data):
-    temporary = root / (name + '.tmp')
-    with temporary.open('x', encoding='ascii') as output:
-        output.write(json.dumps(data))
-    os.link(temporary, root / name, follow_symlinks=False)
-    temporary.unlink()
+    # Unique temp name per call: two publishers (yield handover phases, acks)
+    # must never collide on a fixed '.tmp' path.
+    temporary = root / (name + f'.{os.getpid():x}.{threading.get_ident():x}.{os.urandom(8).hex()}.tmp')
+    try:
+        with temporary.open('x', encoding='ascii') as output:
+            output.write(json.dumps(data))
+        os.link(temporary, root / name, follow_symlinks=False)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def checked_read(path, limit, owner=True):
@@ -262,6 +319,9 @@ def read_result(config):
     result = parse_json(checked_read(Path(config['run']) / (PREFIX + '-result.json'),
                                      32 * 1024 if gate2 else 16 * 1024))
     require(type(result) is dict, 'Watcher result must be a JSON object')
+    if 'socket_root' in config:
+        require(result.get('endpoint_binding') == endpoint_binding(config),
+                'Watcher result endpoint/process generation differs from current configuration')
     if gate2:
         require(result.get('readonly_scope_observer') == scope and
                 result.get('running_QEMU_sha256') == config.get('running_QEMU_sha256'),
@@ -353,14 +413,70 @@ def scope_binding(root, receipt_value, running_qemu_sha256):
     return bound
 
 
-def owned_config(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
+def model17c_binding(binding, mailbox):
+    """Explicit startup-owner input; task/mm/pgd/memstart captured from this stopped AP."""
+    if binding is None:
+        return None
+    import model17c_runtime_observer as model17c
+    require(type(binding) is dict and set(binding) ==
+            {'profile', 'pid', 'base', 'ttbr0', 'maps', 'inline_profile',
+             'task', 'mm', 'pgd', 'memstart', 'cpu', 'symbols', 'abi'},
+            'Exact model17c binding required')
+    require(binding['profile'] == binding['inline_profile'] == model17c.PROFILE,
+            'model17c profile/inline exclusion differs')
+    # With a mailbox the binding is identity-only: gdb_main refuses the model17c
+    # observer install, the per-cpu symbols only label UPM events with the task.
+    require(type(binding['pid']) is int and binding['pid'] > 1 and
+            type(binding['base']) is int and 0 < binding['base'] < 0x800000000000 and
+            not binding['base'] & 4095 and type(binding['maps']) is str and
+            len(binding['maps'].encode()) <= 8192, 'Invalid actual AP identity')
+    require(all(kernel(binding[name]) for name in ('task', 'mm', 'pgd')) and
+            type(binding['memstart']) is int and 0 < binding['memstart'] < 2**48 and
+            type(binding['cpu']) is int and 0 <= binding['cpu'] < 64 and
+            derived_ttbr0(binding['pgd'], binding['memstart']) == binding['ttbr0'],
+            'Invalid actual AP task/address-space binding')
+    require(type(binding['symbols']) is dict and set(binding['symbols']) == {'__entry_task', '__per_cpu_offset'} and
+            all(kernel(value) for value in binding['symbols'].values()),
+            'Invalid actual per-cpu current-task symbols')
+    require(binding['abi'] == {'task_mm': 0x2d8, 'mm_pgd': 0x40},
+            'Kernel task/mm ABI differs from H')
+    rows = [line.split() for line in binding['maps'].splitlines()]
+    app = [row for row in rows if len(row) == 6 and row[5] == '/usr/lib/appFw.so']
+    require(app and any(int(row[2], 16) == 0 and int(row[0].split('-')[0], 16) == binding['base']
+                        for row in app), 'Actual appFw maps/load bias differs')
+    require(all('w' not in row[1] for row in app if 'x' in row[1]) and
+            any('x' in row[1] and int(row[0].split('-')[0], 16) <= binding['base'] + 0x209ec38 <
+                int(row[0].split('-')[1], 16) for row in app), 'Original startup gate not executable')
+    asset = checked_read(BASE / 'menu-root/usr/lib/appFw.so', 128 * 1024 * 1024, owner=False)
+    require(hashlib.sha256(asset).hexdigest() == model17c.ASSET_SHA256, 'Actual appFw asset SHA differs')
+    return dict(binding, asset_sha256=model17c.ASSET_SHA256,
+                maps_sha256=hashlib.sha256(binding['maps'].encode()).hexdigest())
+
+
+def model17c_handoff(result):
+    """A detach may resume the guest: never recover or hand off a failed profile."""
+    if result.get('model17c_runtime') is not None:
+        require(not result.get('error') and not result.get('must_remain_stopped') and
+                result.get('model17c_cleanup') == dict(deleted=True, pending=0) and
+                not result.get('breakpoint_cleanup_error') and result.get('detached') is True,
+                'model17c observation/cleanup blocked debugger handoff')
+
+
+def owned_config(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None, *,
+                 socket_root=None, socket_profile=None, socket_binding=None, model17c_runtime=None,
+                 seconds=None):
     root, info = validate_run(run)
+    roots = socket_transport.endpoint_roots(root, socket_root=socket_root,
+        socket_profile=socket_profile, socket_binding=socket_binding)
+    endpoint_root = root if roots is None else roots.sockets
+    endpoint_mount = '/out' if roots is None else '/sockets'
     ctx = context(module_texts)
+    model17c = model17c_binding(model17c_runtime, mailbox)
     if mailbox is not None:
         mailbox_header(mailbox)
     original_opcodes(module_texts)
     owner = process_identity(owner_pid)
-    sock = (root / SOCKET).lstat()
+    sock = (endpoint_root / SOCKET).lstat()
     require(stat.S_ISSOCK(sock.st_mode) and sock.st_uid == os.getuid() and not sock.st_mode & 0o022,
             'Not an owned private Unix GDB socket (chmod 0600 before start)')
     candidates = []
@@ -373,14 +489,21 @@ def owned_config(run, owner_pid, module_texts, mailbox=None, scope_build_receipt
                 continue
             args = [v.decode('utf-8', 'strict') for v in candidate['cmdline']]
             sockets = [args[i + 1].split(',')[0] for i, arg in enumerate(args[:-1]) if arg == '-gdb']
-            if sockets and sockets not in (['unix:' + str(root / SOCKET)], ['unix:/out/' + SOCKET]):
+            if sockets and sockets not in (['unix:' + str(endpoint_root / SOCKET)],
+                                           ['unix:' + endpoint_mount + '/' + SOCKET]):
                 continue
             mounted = (entry / 'root/out').stat()
             if (mounted.st_dev, mounted.st_ino) != (info.st_dev, info.st_ino):
                 continue
+            if roots is not None:
+                socket_mount = (entry / 'root/sockets').stat()
+                endpoint_info = endpoint_root.stat()
+                if (socket_mount.st_dev, socket_mount.st_ino) != (endpoint_info.st_dev, endpoint_info.st_ino):
+                    continue
             # QEMU lives in bwrap's network namespace, not the host's.
             matches = [line.split()[6] for line in (entry / 'net/unix').read_text().splitlines()[1:]
-                       if len(line.split()) == 8 and line.split()[7] in (str(root / SOCKET), '/out/' + SOCKET) and
+                       if len(line.split()) == 8 and line.split()[7] in
+                       (str(endpoint_root / SOCKET), endpoint_mount + '/' + SOCKET) and
                        int(line.split()[3], 16) & 0x10000 and line.split()[4] == '0001']
             if len(matches) != 1:
                 continue
@@ -413,22 +536,85 @@ def owned_config(run, owner_pid, module_texts, mailbox=None, scope_build_receipt
     require(stat.S_ISREG(executable.st_mode) and executable.st_uid == os.getuid() and
             not executable.st_mode & 0o022, 'Untrusted actual running QEMU executable')
     actual_qemu_sha256 = hashlib.sha256(exe.read_bytes()).hexdigest()
-    expected_qemu_sha256 = QEMU_SHA if scope_build_receipt is None else READONLY_SCOPE_QEMU_SHA
-    require(actual_qemu_sha256 == expected_qemu_sha256, 'Untrusted actual running QEMU executable')
+    if scope_build_receipt is not None:
+        expected_qemu_sha256 = (READONLY_SCOPE_QEMU_SHA,)
+    elif os.environ.get('QEMU_A7PF_WRITEBACK_FLUSH') == '1':
+        expected_qemu_sha256 = (WRITEBACK_FLUSH_QEMU_SHA,)
+    else:
+        expected_qemu_sha256 = (QEMU_SHA, RAM_CARD_QEMU_SHA)
+    require(actual_qemu_sha256 in expected_qemu_sha256, 'Untrusted actual running QEMU executable')
     scope = None if scope_build_receipt is None else scope_binding(root, scope_build_receipt, actual_qemu_sha256)
+    endpoints = {}
+    if roots is not None:
+        gdb_endpoint = socket_transport.checked_socket(root, endpoint_root / SOCKET, qemu['pid'], socket_roots=roots)
+        qmp_endpoint = socket_transport.checked_socket(root, endpoint_root / QMP_SOCKET, qemu['pid'], socket_roots=roots)
+        require(gdb_endpoint['inode'] != qmp_endpoint['inode'], 'HDMI GDB and QMP endpoints must differ')
+        peer = socket_transport.QMP(qmp_endpoint['path'], timeout=2.0, expected_pid=qemu['pid'], socket_roots=roots)
+        try:
+            peer.status()
+        finally:
+            peer.close()
+        require(process_identity(qemu['pid']) == qemu and process_identity(owner_pid) == owner,
+                'HDMI owner/QEMU generation changed during QMP peer check')
+        require(socket_transport.checked_socket(root, endpoint_root / SOCKET, qemu['pid'], socket_roots=roots) == gdb_endpoint and
+                socket_transport.checked_socket(root, endpoint_root / QMP_SOCKET, qemu['pid'], socket_roots=roots) == qmp_endpoint,
+                'HDMI listener changed during QMP peer check')
+        endpoints = dict(gdb_endpoint=gdb_endpoint, qmp_endpoint=qmp_endpoint,
+                         **socket_transport.endpoint_options(roots))
     return dict(running_QEMU_sha256=actual_qemu_sha256, run=str(root), run_device=info.st_dev, run_inode=info.st_ino,
                 scope_build_receipt=None if scope is None else scope['build_receipt'], readonly_scope_observer=scope,
                 socket_device=sock.st_dev, socket_inode=sock.st_ino,
                 owner_pid=owner_pid, owner_starttime=owner['starttime'], owner_exe=owner['exe'],
                 qemu_pid=qemu['pid'], qemu_starttime=qemu['starttime'], qemu_exe=qemu['exe'],
-                context=ctx, mailbox=mailbox, limit=LIMIT, seconds=SECONDS)
+                context=ctx, mailbox=mailbox, limit=LIMIT, seconds=SECONDS if seconds is None else seconds,
+                **({} if model17c is None else {'model17c_runtime': model17c}), **endpoints)
 
 
 def revalidate(config):
+    model17c = config.get('model17c_runtime')
+    options = {} if model17c is None else {'model17c_runtime': {
+        key: value for key, value in model17c.items() if key not in ('asset_sha256', 'maps_sha256')}}
     actual = owned_config(config['run'], config['owner_pid'], config['context']['module_texts'],
-                          config.get('mailbox'), config.get('scope_build_receipt'))
+                          config.get('mailbox'), config.get('scope_build_receipt'),
+                          seconds=config.get('seconds'),
+                          **{key: config[key] for key in SOCKET_FIELDS if key in config}, **options)
     require(actual == config, 'Run/process/socket/module binding changed')
     return actual
+
+
+def endpoint_binding(config):
+    return {key: config[key] for key in (*SOCKET_FIELDS, 'gdb_endpoint', 'qmp_endpoint',
+            'owner_pid', 'owner_starttime', 'owner_exe', 'qemu_pid', 'qemu_starttime', 'qemu_exe')}
+
+
+@contextmanager
+def debugger_endpoint(config):
+    roots = socket_transport.endpoint_roots(config['run'],
+        **{key: config[key] for key in SOCKET_FIELDS if key in config})
+    if roots is None:
+        yield SOCKET
+    else:
+        for kind in ('owner', 'qemu'):
+            live = process_identity(config[kind + '_pid'])
+            require(live['starttime'] == config[kind + '_starttime'] and live['exe'] == config[kind + '_exe'],
+                    'HDMI process generation changed before debugger attach')
+        bound = config['gdb_endpoint']
+        actual = socket_transport.checked_socket(Path(config['run']), Path(bound['path']),
+                                                 config['qemu_pid'], socket_roots=roots)
+        require(actual == bound, 'HDMI debugger listener binding changed before attach')
+        with roots.connect_path(Path(bound['path'])) as address:
+            yield address
+
+
+def gdb_recover(config):
+    """Called inside recovery GDB; its pinned directory FD must live through attach."""
+    import gdb
+    revalidate(config)
+    require(config.get('model17c_runtime') is None, 'model17c recovery detach refused')
+    with debugger_endpoint(config) as address:
+        gdb.execute('target remote ' + address, to_string=True)
+    gdb.execute('detach', to_string=True)
+    print('HDMI_UPM_DETACHED')
 
 
 def memory(event, name, address, size):
@@ -488,17 +674,21 @@ class Correlator:
         pc = self.context['module_texts'][module] + offset
         require(regs['pc'] == pc and memory(event, 'opcode', pc, len(self.opcodes[kind])) == self.opcodes[kind],
                 'Original runtime opcode/PC differs')
-        task = regs['sp_el0']
-        require(kernel(task), 'sp_el0 is not a kernel task')
-        tid = int.from_bytes(memory(event, 'task_pid', task + 0x388, 4), 'little', signed=True)
-        require(0 < tid < 2**31 and event.get('kernel_tid') == tid, 'Kernel task PID evidence differs')
-        key = (task, tid)
+        task = event.get('kernel_task')
+        key = None
+        if task is not None:
+            require(kernel(task), 'Actual per-cpu current kernel task missing')
+            tid = int.from_bytes(memory(event, 'task_pid', task + 0x388, 4), 'little', signed=True)
+            require(0 < tid < 2**31 and event.get('kernel_tid') == tid, 'Kernel task PID evidence differs')
+            key = (task, tid)
         if kind in ('task_entry', 'receive_call'):
             if kind == 'receive_call':
                 require(regs['x0'] & 0xffffffff == QUEUE and regs['x1'] == regs['x29'] + 32,
                         'Wrong original receive arguments')
             return
         if kind == 'bridge':
+            require(task is not None,
+                    'Identity-less bridge observation cannot prove a lease lifetime')
             require(len(self.leases) < 2 and key not in self.bridges and regs['x0'] & 0xffffffff == QUEUE,
                     'Repeated bridge or wrong destination')
             u, ctx = regs['x1'], regs['x2']
@@ -638,12 +828,17 @@ def read_receipts(run):
     require(config['run'] == str(root) and config['limit'] == LIMIT and
             config['run_device'] == info.st_dev and config['run_inode'] == info.st_ino,
             'Receipt run/config differs')
-    raw = checked_read(root / (PREFIX + '-events.jsonl'), 1024 * 1024)
+    raw = checked_read(root / (PREFIX + '-events.jsonl'),
+                       (4 if config.get('model17c_runtime') is not None else 1) * 1024 * 1024)
     require(not raw or raw.endswith(b'\n'), 'Incomplete published event line')
     tracker = Correlator(config['context']['module_texts'], config.get('mailbox'))
     require(config['context'] == tracker.context, 'Receipt module context differs')
     for line in raw.splitlines():
-        tracker.feed(parse_json(line))
+        event = parse_json(line)
+        if config.get('model17c_runtime') is not None and event.get('kind') in (
+                'model17c_runtime_observation', 'model17c_setter_filtered', 'model17c_observer_error'):
+            continue
+        tracker.feed(event)
     return tracker.receipts
 
 
@@ -661,40 +856,76 @@ def ack_receipt(run, bridge_seq):
 
 
 class Watch:
-    def __init__(self, run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
-        self.config = owned_config(run, owner_pid, module_texts, mailbox, scope_build_receipt)
+    def __init__(self, run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None, *,
+                 socket_root=None, socket_profile=None, socket_binding=None, model17c_runtime=None,
+                 model17c_startup=None, seconds=None):
+        options = {} if all(value is None for value in (socket_root, socket_profile, socket_binding)) else dict(
+            socket_root=socket_root, socket_profile=socket_profile, socket_binding=socket_binding)
+        if model17c_runtime is not None:
+            options['model17c_runtime'] = model17c_runtime
+        require(model17c_startup is None or (model17c_runtime is None and mailbox is None and
+                model17c_startup.get('profile') == 'virtual-model17c-runtime-ro-v1'),
+                'Early model17c requires exclusive read-only startup')
+        self.model17c_startup = model17c_startup
+        # Both halves of model17c use a long window: the early process exits at
+        # handoff; its fresh runtime successor observes the full capture chain.
+        # An explicit seconds (post-yield mailbox watch) wins over the defaults.
+        window = 2700 if model17c_startup is not None or model17c_runtime is not None else None
+        if seconds is not None:
+            window = seconds
+        self.config = owned_config(run, owner_pid, module_texts, mailbox, scope_build_receipt,
+                                   seconds=window, **options)
         self.run = Path(self.config['run'])
         self.process = self.log = None
         self.cleanup = None
         executable = shutil.which('gdb')
         require(executable is not None, 'Installed AArch64 GDB required')
         self.executable = executable
-        config_path = self.run / (PREFIX + '-config.json')
+        config_path = self.run / (('model17c-startup' if model17c_startup is not None else PREFIX) + '-config.json')
         config_raw = json.dumps(self.config).encode('ascii')
         with config_path.open('xb') as output:
             output.write(config_raw)
         config_sha256 = hashlib.sha256(config_raw).hexdigest()
-        script = self.run / (PREFIX + '.gdb')
+        process_prefix = 'model17c-runtime' if model17c_runtime is not None and mailbox is None else PREFIX
+        script = self.run / (process_prefix + '.gdb')
+        # Heartbeat is diagnostic only. A previous 180-second self-SIGSEGV
+        # watchdog confused a healthy remote `continue`/poll with a deadlock;
+        # bounded startup, the observation window and the outer owner watchdog
+        # provide lifecycle enforcement without killing an idle guest.
+        watchdog_py = (
+            'import pathlib\n'
+            f'_hb = pathlib.Path({str(self.run)!r}) / "watch-heartbeat.json"\n'
+            '_hb.write_text("{\\"phase\\": \\"script-start\\"}\\n")\n')
+        runtime_mode = ', detached_handoff=True' if model17c_runtime is not None and mailbox is None else ''
         code = ('set pagination off\nset confirm off\nset architecture aarch64\nset language c\n'
                 'set remotetimeout 4\npython\nimport importlib.util, sys\n'
-                f'sys.path.insert(0, {str(BASE)!r})\n'
+                f'sys.path.insert(0, {str(BASE)!r})\n' + watchdog_py +
                 f's=importlib.util.spec_from_file_location("hdmi_upm_watch", {str(Path(__file__).resolve())!r})\n'
-                'm=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n'
-                f'm.gdb_main({str(config_path)!r}, config_sha256={config_sha256!r})\nend\n')
+                'm=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n' +
+                (f'm.gdb_main({str(config_path)!r}, config_sha256={config_sha256!r}{runtime_mode})\n'
+                 if model17c_startup is None else
+                 'import model17c_startup as early\n' +
+                 f'early.gdb_main({str(config_path)!r}, {model17c_startup!r}, {config_sha256!r})\n') + 'end\n')
         with script.open('x', encoding='ascii') as output:
             output.write(code)
         try:
             revalidate(self.config)
-            self.log = (self.run / (PREFIX + '-gdb.log')).open('xb')
+            self.log = (self.run / (process_prefix + '-gdb.log')).open('xb')
             self.process = subprocess.Popen([executable, '-q', '-nx', '-nh', '-batch', '-x', str(script)],
                                             cwd=self.run, stdout=self.log, stderr=subprocess.STDOUT,
                                             start_new_session=True)
-            deadline = time.monotonic() + 12
-            ready = self.run / (PREFIX + '-ready.json')
+            deadline = time.monotonic() + (60 if model17c_runtime is not None else 12)
+            ready = self.run / ('model17c-startup-armed.json' if model17c_startup is not None else PREFIX + '-ready.json')
             while time.monotonic() < deadline:
+                require(not (self.run / 'model17c-startup-error.json').exists(), 'Early model17c failed; stopped owner retained')
                 if ready.exists():
                     data = parse_json(checked_read(ready, 16384))
-                    require(data == dict(connected=True, armed=True, context=self.config['context']), 'Unverified observer readiness')
+                    if model17c_startup is None:
+                        require(data == dict(connected=True, armed=True, context=self.config['context']), 'Unverified observer readiness')
+                    else:
+                        require(data.get('armed') is True and data.get('startup') == model17c_startup and
+                                data.get('owner_pid') == self.config['owner_pid'] and
+                                data.get('qemu_pid') == self.config['qemu_pid'], 'Unverified early breakpoint readiness')
                     if self.process.poll() is not None:
                         result = read_result(self.config)
                         require(not result.get('error') and result.get('detached') is True,
@@ -702,7 +933,7 @@ class Watch:
                     return
                 require(self.process.poll() is None, 'HDMI debugger exited; inspect its GDB log')
                 time.sleep(.05)
-            raise TimeoutError('HDMI kernel observer did not arm within 12 seconds')
+            raise TimeoutError('HDMI kernel observer did not arm within its bounded readiness window')
         except BaseException as error:
             try:
                 cleanup = self.stop()
@@ -717,11 +948,33 @@ class Watch:
         if self.cleanup and self.cleanup['safe_to_close']:
             return self.cleanup
         errors = []
+        if getattr(self, 'model17c_startup', None) is not None:
+            if self.process is not None and self.process.poll() is None:
+                self.cleanup = dict(debugger_stopped=False, detached=False, safe_to_close=False,
+                                    errors=['Early model17c owner retained; signals/reconnect refused'])
+                return self.cleanup
+            final_path = self.run / (PREFIX + '-config.json')
+            if not final_path.exists():
+                self.cleanup = dict(debugger_stopped=True, detached=False, safe_to_close=False,
+                                    errors=['Early model17c final binding missing; reconnect refused'])
+                return self.cleanup
+            self.config = read_config(final_path)
+            require(self.config.get('model17c_runtime') is not None, 'Early model17c final binding missing')
+        if getattr(self, 'config', {}).get('model17c_runtime') is not None and self.config.get('mailbox') is None and self.process is not None and self.process.poll() is None:
+            result_path = self.run / (PREFIX + '-result.json')
+            if result_path.exists():
+                self.cleanup = dict(debugger_stopped=False, detached=False, safe_to_close=False,
+                                    errors=['model17c GDB retains the stopped failure; manual review required'])
+                return self.cleanup
         if self.process is not None and self.process.poll() is None:
             self.process.send_signal(signal.SIGINT)
             try:
                 self.process.wait(timeout=6)
             except subprocess.TimeoutExpired:
+                if getattr(self, 'config', {}).get('model17c_runtime') is not None and self.config.get('mailbox') is None:
+                    self.cleanup = dict(debugger_stopped=False, detached=False, safe_to_close=False,
+                                        errors=['model17c GDB retained; no TERM or recovery detach permitted'])
+                    return self.cleanup
                 self.process.terminate()
                 try:
                     self.process.wait(timeout=2)
@@ -733,23 +986,42 @@ class Watch:
         if self.process is not None:
             try:
                 result = read_result(self.config)
+                if self.config.get('mailbox') is None:
+                    model17c_handoff(result)
                 detached = result.get('detached') is True
             except (OSError, ValueError) as error:
                 errors.append(str(error))
-            if not detached:
+            if not detached and self.config.get('model17c_runtime') is not None and self.config.get('mailbox') is None:
+                errors.append('model17c failed/missing result; recovery detach would resume guest and is refused')
+            if not detached and self.config.get('model17c_runtime') is None:
                 try:
                     revalidate(self.config)
                     # Reconnect only after the old GDB exited; remote detach resumes QEMU.
+                    commands = ['-ex', 'target remote ' + SOCKET,
+                                '-ex', 'python import gdb; gdb.execute("detach"); print("HDMI_UPM_DETACHED")']
+                    if 'socket_root' in self.config:
+                        commands = ['-ex', 'python import sys; sys.path.insert(0, ' + repr(str(BASE)) +
+                                    '); import hdmi_upm_watch as m; m.gdb_recover(' + repr(self.config) + ')']
                     result = subprocess.run([self.executable, '-q', '-nx', '-nh', '-batch',
                                              '-ex', 'set confirm off', '-ex', 'set remotetimeout 4',
                                              '-ex', 'set may-write-memory off', '-ex', 'set may-write-registers off',
-                                             '-ex', 'target remote ' + SOCKET,
-                                             '-ex', 'python import gdb; gdb.execute("detach"); print("HDMI_UPM_DETACHED")'],
+                                             *commands],
                                             cwd=self.run, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=10, check=False)
+                    if 'socket_root' in self.config:
+                        with (self.run / (PREFIX + '-detach-gdb.log')).open('xb') as output:
+                            output.write(result.stdout)
                     detached = result.returncode == 0 and b'HDMI_UPM_DETACHED' in result.stdout
                     if not detached:
                         errors.append(result.stdout.decode(errors='replace')[-2048:])
-                except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+                except subprocess.TimeoutExpired as error:
+                    if 'socket_root' in self.config:
+                        try:
+                            with (self.run / (PREFIX + '-detach-gdb.log')).open('xb') as output:
+                                output.write(error.output or b'')
+                        except OSError as log_error:
+                            errors.append(str(log_error))
+                    errors.append(str(error))
+                except (OSError, ValueError) as error:
                     errors.append(str(error))
         if self.log is not None:
             self.log.close()
@@ -759,28 +1031,81 @@ class Watch:
         return self.cleanup
 
 
-def start(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None):
-    return Watch(run, owner_pid, module_texts, mailbox, scope_build_receipt)
+def start(run, owner_pid, module_texts, mailbox=None, scope_build_receipt=None, *,
+          socket_root=None, socket_profile=None, socket_binding=None, model17c_runtime=None,
+          model17c_startup=None, seconds=None):
+    options = {} if all(value is None for value in (socket_root, socket_profile, socket_binding)) else dict(
+        socket_root=socket_root, socket_profile=socket_profile, socket_binding=socket_binding)
+    if model17c_runtime is not None:
+        options['model17c_runtime'] = model17c_runtime
+    if model17c_startup is not None:
+        options['model17c_startup'] = model17c_startup
+    if seconds is not None:
+        options['seconds'] = seconds
+    return Watch(run, owner_pid, module_texts, mailbox, scope_build_receipt, **options)
 
 
-def gdb_main(config_path, config_sha256=None):
+def retain_model17c_stop():
+    """Keep the sole GDB connection alive: batch exit/detach could resume QEMU."""
+    while True:
+        try:
+            threading.Event().wait(30)
+        except KeyboardInterrupt:
+            pass
+
+
+def gdb_main(config_path, config_sha256=None, *, already_attached=False, detached_handoff=False):
+    def _beat(phase, extra=None):
+        import time as _t
+        record = dict(phase=phase, ts=_t.strftime('%H:%M:%S'), monotonic=round(_t.monotonic(), 1))
+        if extra is not None:
+            record['detail'] = str(extra)[:80]
+        try:
+            import json as _j
+            (root / 'watch-heartbeat.json').write_text(_j.dumps(record) + '\n')
+        except Exception:
+            pass
     import gdb
     config = read_config(config_path, config_sha256=config_sha256)
-    revalidate(config)
     root = Path(config['run'])
+    if already_attached:
+        import model17c_startup
+        require(config.get('model17c_runtime') is not None, 'Same-owner model17c binding required')
+        model17c_startup.revalidate_attached(config)
+    else:
+        revalidate(config)
+    require(not (already_attached and detached_handoff), 'Ambiguous model17c debugger handoff mode')
+    if detached_handoff:
+        binding = config.get('model17c_runtime')
+        require(binding is not None and config.get('mailbox') is None,
+                'Detached model17c handoff requires its exact runtime binding')
+        early = parse_json(checked_read(root / 'model17c-startup-result.json', 16 * 1024))
+        binding_sha = hashlib.sha256(json.dumps(binding, sort_keys=True).encode('ascii')).hexdigest()
+        require(early == dict(schema='a7c2-model17c-startup-detached-v1', detached=True,
+                              separate_process_handoff=True, early_breakpoints_remaining=[],
+                              runtime_binding_sha256=binding_sha),
+                'Detached model17c handoff lacks the early process receipt')
     tracker = Correlator(config['context']['module_texts'], config.get('mailbox'))
     result = dict(connected=False, armed=False, detached=False,
                   running_QEMU_sha256=config.get('running_QEMU_sha256'),
                   readonly_scope_observer=config.get('readonly_scope_observer'),
                   observations_only=config.get('mailbox') is None,
                   dedicated_receipt_transport=config.get('mailbox') is not None, events=0)
+    if 'socket_root' in config:
+        result['endpoint_binding'] = endpoint_binding(config)
+    model_binding = config.get('model17c_runtime')
+    model_observer, model_breakpoints = None, []
+    if model_binding is not None:
+        result['model17c_runtime'] = model_binding
     breakpoints, stops = {}, []
     done = threading.Event()
     events = None
     attached = False
 
     def watchdog():
-        deadline = time.monotonic() + SECONDS
+        # owned_config always supplies seconds; the default only keeps older
+        # synthetic gdb_main fixtures on the historical observation window.
+        deadline = time.monotonic() + config.get('seconds', SECONDS)
         while not done.wait(.2):
             try:
                 owner = process_identity(config['owner_pid'])
@@ -788,12 +1113,35 @@ def gdb_main(config_path, config_sha256=None):
             except (OSError, ValueError):
                 live = False
             if not live or time.monotonic() >= deadline:
+                result['watchdog_reason'] = 'owner-lost' if not live else 'observation-window-ended'
+                if model_binding is not None and not live:
+                    result['must_remain_stopped'] = True
                 os.kill(os.getpid(), signal.SIGINT)
                 return
 
     def stopped(event):
         stops.append(dict(numbers=[bp.number for bp in (getattr(event, 'breakpoints', None) or ())],
                           signal=getattr(event, 'stop_signal', None)))
+
+    def emit_model(event):
+        def read_error(value):
+            if isinstance(value, dict):
+                return 'error' in value or any(read_error(v) for v in value.values())
+            return False
+        failed = event.get('must_remain_stopped') or read_error(event)
+        if failed:
+            result['must_remain_stopped'] = True
+        try:
+            events.write(json.dumps(event, separators=(',', ':')) + '\n')
+            events.flush()
+        except BaseException as error:
+            result['must_remain_stopped'] = True
+            result['error'] = 'model17c event output failed: ' + str(error)
+            if event['kind'] != 'model17c_observer_error':
+                raise
+        result['model17c_events'] = result.get('model17c_events', 0) + 1
+        if failed and event['kind'] != 'model17c_observer_error':
+            raise ValueError('model17c observation contains failed reads')
 
     def emit(event):
         event.update(seq=tracker.sequence + 1, context=tracker.context)
@@ -821,13 +1169,76 @@ def gdb_main(config_path, config_sha256=None):
 
     try:
         events = (root / (PREFIX + '-events.jsonl')).open('x', encoding='ascii')
+        _beat('events-open')
         gdb.execute('set may-write-memory off', to_string=True)
         gdb.execute('set may-write-registers off', to_string=True)
         attached = True  # Even a partly failed connection must take the detach path.
-        gdb.execute('target remote ' + SOCKET, to_string=True)
+        if already_attached:
+            require(model_binding is not None and gdb.selected_inferior().connection is not None,
+                    'Same-owner model17c remote connection required')
+        else:
+            with debugger_endpoint(config) as address:
+                gdb.execute('target remote ' + address, to_string=True)
         result['connected'] = True
+        _beat('connected')
         gdb.events.stop.connect(stopped)
         inferior = gdb.selected_inferior()
+        if detached_handoff and model_binding is not None:
+            # A fresh remote stop can be any Linux task. Reading appFw's virtual
+            # pages is only valid while the selected vCPU runs the bound AP mm.
+            # Reattach with a hard bound until that exact address space is live.
+            for attach_attempt in range(1, 33):
+                result['attach_attempts'] = attach_attempt
+                cpu = gdb.selected_thread().num - 1
+                matched = False
+                try:
+                    if cpu == model_binding['cpu']:
+                        task = per_cpu_current(inferior, model_binding['symbols'], cpu)
+                        mm, pgd = task_mm_pgd(inferior, task, model_binding['abi'])
+                        matched = (mm == model_binding['mm'] and pgd == model_binding['pgd'] and
+                                   derived_ttbr0(pgd, model_binding['memstart']) == model_binding['ttbr0'])
+                except (ValueError, MemoryError):
+                    matched = False
+                if matched:
+                    result['attach_address_space_verified'] = True
+                    _beat('attach-address-space-match', attach_attempt)
+                    break
+                gdb.execute('detach', to_string=True)
+                attached = False
+                if attach_attempt == 32:
+                    raise ValueError('Bound AP address space was not current within 32 debugger attaches')
+                time.sleep(.05)
+                with debugger_endpoint(config) as address:
+                    gdb.execute('target remote ' + address, to_string=True)
+                attached = True
+                inferior = gdb.selected_inferior()
+        _beat('pre-install', 'binding=%s' % (model_binding is not None))
+        if model_binding is not None and config.get('mailbox') is None:
+            import model17c_runtime_observer as model17c
+            frame = gdb.selected_frame()
+            for name in ('pc', 'sp', 'cpsr', 'tpidr'):
+                try:
+                    int(frame.read_register(name))
+                except BaseException as error:
+                    raise ValueError('register ' + name + ': ' + str(error)) from error
+            cpu = gdb.selected_thread().num - 1
+            require(cpu == model_binding['cpu'], 'Selected vCPU differs from the bound model17c CPU')
+            if not detached_handoff:
+                task = per_cpu_current(inferior, model_binding['symbols'], cpu)
+                mm, pgd = task_mm_pgd(inferior, task, model_binding['abi'])
+                require(task == model_binding['task'] and mm == model_binding['mm'] and
+                        pgd == model_binding['pgd'] and
+                        derived_ttbr0(pgd, model_binding['memstart']) == model_binding['ttbr0'],
+                        'model17c requires the actual bound AP task/address space')
+                require(int(frame.read_register('pc')) == model_binding['base'] + 0x209ec38 and
+                        int(frame.read_register('cpsr')) & 15 == 0,
+                        'model17c requires the actual AP pre-gate EL0 stop')
+            pins = parse_json(checked_read(BASE / 'model17c_runtime_pins.json', 32 * 1024, owner=False))
+            model_observer, model_breakpoints = model17c.install(
+                gdb, model_binding['base'], pins, emit_model, profile=model_binding['profile'],
+                asset_sha256=model_binding['asset_sha256'], task=model_binding['task'],
+                mm=model_binding['mm'], pgd=model_binding['pgd'], symbols=model_binding['symbols'],
+                abi=model_binding['abi'], cpu=cpu)
         for kind, (module, offset) in POINTS.items():
             pc = tracker.context['module_texts'][module] + offset
             actual_opcode = bytes(inferior.read_memory(pc, len(tracker.opcodes[kind])))
@@ -840,43 +1251,58 @@ def gdb_main(config_path, config_sha256=None):
             breakpoints[bp.number] = (bp, kind)
             require(bp.type == gdb.BP_HARDWARE_BREAKPOINT, 'Software breakpoint fallback refused')
         def select_breakpoints():
+            active_stages = {'load': 'receive', 'consumer': 'load', 'branch': 'consumer',
+                             'handled': 'branch', 'free_entry': 'handled',
+                             'vpool': 'free_entry', 'vpool_fallback': 'free_entry', 'fblock': 'free_entry',
+                             'free_return': 'allocator'}
             for bp, kind in breakpoints.values():
                 clauses = []
-                if kind == 'bridge' and len(tracker.leases) < 2:
-                    clauses = [f'(($x0 & 0xffffffff) == {QUEUE} && $x1 >= 24 && $x1 < 0x800000000000 && '
-                               f'*(unsigned int*)$x1 == {MESSAGE} && *(unsigned int*)($x1-8) == 16 && '
-                               f'*(unsigned int*)($x1-12) == {SOURCE})']
+                if kind == 'bridge':
+                    if len(tracker.leases) < 2:
+                        clauses = [f'(($x0 & 0xffffffff) == {QUEUE} && $x1 >= 24 && $x1 < 0x800000000000 && '
+                                   f'*(unsigned int*)$x1 == {MESSAGE} && *(unsigned int*)($x1-8) == 16 && '
+                                   f'*(unsigned int*)($x1-12) == {SOURCE})']
                 elif kind == 'send':
-                    clauses = [f'($sp_el0 == {p["producer_task"]} && $x1 == {p["k"]})'
-                               for p in tracker.bridges.values()]
+                    clauses = [f'($x1 == {p["k"]})' for p in tracker.bridges.values()]
                 elif kind == 'receive':
                     clauses = [f'(($x0 & 0xffffffff) == 0 && *(unsigned long long*)($x29+32) == {p["k"]})'
                                for p in tracker.leases if p['stage'] == 'sent']
                 else:
                     for p in tracker.active.values():
-                        binding = f'$sp_el0 == {p["task"]}'
+                        if p['stage'] != active_stages[kind]:
+                            continue
+                        # SP_EL0 is not exposed by this gdbstub; task identity is checked after the stop.
+                        binding = []
                         if kind == 'consumer':
-                            binding += f' && $x0 == {p["k"]}'
+                            binding.append(f'$x0 == {p["k"]}')
                         elif kind == 'branch':
-                            binding += f' && $x19 == {p["k"]}'
+                            binding.append(f'$x19 == {p["k"]}')
                         elif kind == 'free_entry':
-                            binding += f' && $x30 == {tracker.context["module_texts"]["upm"] + 0x14c}'
+                            binding.append(f'$x30 == {tracker.context["module_texts"]["upm"] + 0x14c}')
                         elif kind in ('vpool', 'vpool_fallback', 'fblock'):
                             if p['stage'] != 'free_entry':
                                 continue
-                            binding += f' && $x29 == {p["frame"] - 16}'
+                            binding.append(f'$x29 == {p["frame"] - 16}')
                         else:
-                            binding += f' && $x29 == {p["frame"]}'
-                        clauses.append('(' + binding + ')')
+                            binding.append(f'$x29 == {p["frame"]}')
+                        clauses.append('(' + ' && '.join(binding) + ')')
                 bp.enabled = bool(clauses)
                 if clauses:
                     bp.condition = ' || '.join(clauses)
         select_breakpoints()
         # Force remote hardware insertion before publishing readiness.
         gdb.execute('set breakpoint always-inserted on', to_string=True)
+        if model_observer is not None:
+            require(all(bp.is_valid() and not bp.pending and bp.enabled and
+                        bp.type == gdb.BP_HARDWARE_BREAKPOINT for bp in model_breakpoints),
+                    'model17c hardware insertion/pending verification failed')
+            require(not gdb.parameter('may-write-memory') and not gdb.parameter('may-write-registers'),
+                    'model17c read-only policy changed')
+            result['model17c_installed'] = len(model_breakpoints)
         if config.get('mailbox') is not None:
             physical_mailbox(gdb, inferior, config['mailbox'], 'arm')
         result['armed'] = True
+        _beat('armed', 'model17c_installed=%s' % result.get('model17c_installed'))
         publish_json(root, PREFIX + '-ready.json', dict(connected=True, armed=True, context=tracker.context))
         threading.Thread(target=watchdog, daemon=True).start()
         for _ in range(LIMIT):
@@ -884,22 +1310,35 @@ def gdb_main(config_path, config_sha256=None):
                 break
             select_breakpoints()
             stops.clear()
+            require(not result.get('must_remain_stopped'), 'model17c observation failed; continue refused')
             gdb.execute('continue', to_string=True)
+            require(not result.get('must_remain_stopped'), 'model17c observation failed; continue refused')
             if any(e['signal'] == 'SIGINT' for e in stops):
                 raise KeyboardInterrupt()
             numbers = {n for e in stops for n in e['numbers']} & breakpoints.keys()
             require(len(numbers) == 1, 'Unexpected original-kernel stop: ' + str(stops))
+            _beat('stop', kind)
             kind = breakpoints[next(iter(numbers))][1]
             regs = {}
             for name in REGS:
                 try:
                     value = gdb.parse_and_eval('$' + name)
-                    regs[name] = int(value) & 0xffffffffffffffff
-                except Exception:
-                    if name != 'sp_el0':
-                        raise
-                    regs[name] = int(gdb.parse_and_eval('$SP_EL0')) & 0xffffffffffffffff
-            event = dict(kind=kind, registers=regs, memory={}, gdb_vcpu_thread=gdb.selected_thread().num)
+                except BaseException as error:
+                    raise ValueError('register ' + name + ': ' + str(error)) from error
+                regs[name] = int(value) & 0xffffffffffffffff
+            if model_binding is not None:
+                cpu = gdb.selected_thread().num - 1
+                require(cpu == model_binding['cpu'], 'Selected vCPU differs from the bound model17c CPU')
+                event = dict(kind=kind, registers=regs, memory={}, gdb_vcpu_thread=gdb.selected_thread().num,
+                             kernel_task=per_cpu_current(inferior, model_binding['symbols'], cpu))
+            else:
+                # Mailbox/scope-only mode has no model17c binding; kernel-task
+                # enrichment needs per-cpu symbols that this gdbstub does not
+                # expose (sp_el0), so skip it instead of failing the watch.
+                event = dict(kind=kind, registers=regs, memory={}, gdb_vcpu_thread=gdb.selected_thread().num)
+            if regs['cpsr'] & 15 == 0:
+                # EL0t: GDB register 31 is SP_EL0, the actual user stack pointer.
+                event['user_sp'] = regs['sp']
             result['last_observation'] = event  # Preserve partial raw reads if validation fails.
 
             def read(name, address, size):
@@ -909,10 +1348,12 @@ def gdb_main(config_path, config_sha256=None):
 
             pc = regs['pc']
             read('opcode', pc, len(tracker.opcodes[kind]))
-            require(kernel(regs['sp_el0']), 'Cannot read actual current kernel task')
-            event['kernel_tid'] = int.from_bytes(read('task_pid', regs['sp_el0'] + 0x388, 4), 'little', signed=True)
-            key = (regs['sp_el0'], event['kernel_tid'])
-            lease = tracker.active.get(key)
+            if model_binding is not None:
+                event['kernel_tid'] = int.from_bytes(read('task_pid', event['kernel_task'] + 0x388, 4), 'little', signed=True)
+                key = (event['kernel_task'], event['kernel_tid'])
+                lease = tracker.active.get(key)
+            else:
+                key, lease = None, None
             k = None
             if kind in ('task_entry', 'receive_call'):
                 # Boot worker setup is optional; selected lifetime evidence begins at the bridge.
@@ -931,8 +1372,8 @@ def gdb_main(config_path, config_sha256=None):
                 kbase = int.from_bytes(read('kernel_pool', literal + 64, 8), 'little')
                 require(24 <= u - userbase < 0x200000 and kernel(kbase), 'Actual U/K mapping out of bounds')
                 k = kbase + u - userbase
-                if config.get('mailbox') is not None:
-                    read('task_tgid', regs['sp_el0'] + 0x38c, 4)
+                if config.get('mailbox') is not None and model_binding is not None:
+                    read('task_tgid', event['kernel_task'] + 0x38c, 4)
                     raw_mailbox = physical_mailbox(gdb, inferior, config['mailbox'])
                     event['memory']['mailbox_record'] = dict(address=config['mailbox']['phys'], hex=raw_mailbox.hex())
             elif kind == 'send':
@@ -974,18 +1415,31 @@ def gdb_main(config_path, config_sha256=None):
         result['interrupted'] = True
     except BaseException as error:
         result['error'] = type(error).__name__ + ': ' + str(error)
+        if model_binding is not None:
+            result['must_remain_stopped'] = True
     finally:
         done.set()
         try:
             gdb.events.stop.disconnect(stopped)
         except Exception:
             pass
-        for bp, _ in breakpoints.values():
+        for bp in [bp for bp, _ in breakpoints.values()] + model_breakpoints:
             try:
                 bp.delete()
+                if model_binding is not None:
+                    require(not bp.is_valid(), 'Owned breakpoint remained valid after delete')
             except Exception as error:
                 result['breakpoint_cleanup_error'] = str(error)
-        if attached:
+                if model_binding is not None:
+                    result['must_remain_stopped'] = True
+        if model_observer is not None:
+            result['model17c_cleanup'] = dict(deleted=not result.get('breakpoint_cleanup_error'),
+                                               pending=len(model_observer.pending))
+            result['model17c_counts'] = model_observer.counts
+            if model_observer.pending:
+                result['must_remain_stopped'] = True
+                result['error'] = result.get('error', 'model17c pending setter frame at window end')
+        if attached and not result.get('must_remain_stopped'):
             try:
                 gdb.execute('detach', to_string=True)
                 result['detached'] = True
@@ -995,3 +1449,5 @@ def gdb_main(config_path, config_sha256=None):
             events.close()
         with (root / (PREFIX + '-result.json')).open('x') as output:
             json.dump(result, output, indent=2)
+        if result.get('must_remain_stopped') or (model_binding is not None and attached and not result['detached']):
+            retain_model17c_stop()

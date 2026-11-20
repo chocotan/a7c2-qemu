@@ -1,6 +1,5 @@
 import fcntl
 import os
-import signal
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -46,12 +45,12 @@ def test_cleanup_guard_never_clears_retained_context(cleanup_error):
     assert vm.cleanup_error==cleanup_error and not vm.status()['can_start']
 
 
-def test_host_owner_timeout_sends_term_never_kill():
+def test_host_owner_timeout_never_sends_signals():
     process=SimpleNamespace(pid=12345,wait=lambda timeout:(_ for _ in ()).throw(
         subprocess.TimeoutExpired('owned process',timeout)))
     with patch('menu_control.os.killpg') as send:
         with pytest.raises(subprocess.TimeoutExpired):terminate_host_disk_owner(process)
-    send.assert_called_once_with(process.pid,signal.SIGTERM)
+    send.assert_not_called()
 
 
 def test_retry_cleanup_does_not_term_unflushed_live_host_disk():

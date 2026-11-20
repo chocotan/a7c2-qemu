@@ -10,6 +10,7 @@ from initramfs_identity import verify_image
 
 CHUNK = 1024 * 1024
 SPACE_RESERVE = 1024 * 1024
+SPACE_CHECK_INTERVAL = 64 * 1024**2
 
 
 def _signature(info):
@@ -96,7 +97,7 @@ def _entries(stream, size):
         stream.seek(end)
 
 
-def _copy(stream, output, length, digest=None):
+def _copy(stream, output, length, digest=None, guard=None):
     while length:
         data = stream.read(min(length, CHUNK))
         if not data:
@@ -106,6 +107,8 @@ def _copy(stream, output, length, digest=None):
         if digest is not None:
             digest.update(data)
         length -= len(data)
+        if guard is not None:
+            guard()
 
 
 def _record_size(name, length):
@@ -128,13 +131,15 @@ def _space(parent, required):
         raise OSError('Insufficient or unknown output space (includes 1 MiB reserve)')
 
 
-def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
+def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio, *, space_floor=0):
     """Return a JSON-safe manifest after verified, atomic, no-clobber publication.
 
     Empty directories are ignored. Replacements keep base mode/uid/gid; additions
     use source rwx bits (no special bits), uid/gid 0, and new parents use 0755.
     Requires Linux O_NOFOLLOW/dir_fd, a raw 070701 image and sibling hard links.
     """
+    if type(space_floor) is not int or space_floor < 0:
+        raise ValueError('Invalid extra output space floor')
     with ExitStack() as stack:
         base, base_parent, base_name, base_anchors = _parent(stack, base_cpio)
         source, source_parent, source_name, source_anchors = _parent(stack, overwrite_dir)
@@ -184,7 +189,7 @@ def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
                 required += _record_size(raw_name, info.st_size) - (record[4] - record[2])
             else:
                 required += _record_size(name, info.st_size)
-        _space(out_parent, required)
+        _space(out_parent, required + space_floor)
         temporary = '.' + out_name + '.' + secrets.token_hex(12) + '.partial'
         temporary_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                                0o600, dir_fd=out_parent)
@@ -194,6 +199,12 @@ def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
                     'empty_directories': 'ignored', 'created_directories': sorted(new_dirs), 'entries': []}
         try:
             with os.fdopen(temporary_fd, 'wb') as target:
+                last_guard = [0]
+                def guard_space():
+                    position = target.tell()
+                    if position - last_guard[0] >= SPACE_CHECK_INTERVAL:
+                        _space(out_parent, max(0, required-position) + space_floor)
+                        last_guard[0] = position
                 base_hash = hashlib.sha256()
                 image.seek(0)
                 _copy(image, None, before.st_size, base_hash)
@@ -208,14 +219,16 @@ def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
                         fields = list(fields)
                         fields[6] = info.st_size
                         _write_header(target, fields, archive_name)
+                        guard_space()
                         digest = hashlib.sha256()
                         with os.fdopen(os.dup(descriptor), 'rb') as content:
-                            _copy(content, target, info.st_size, digest)
+                            _copy(content, target, info.st_size, digest, guard_space)
                             if content.read(1):
                                 raise ValueError('Overwrite source grew: ' + name)
                         if _signature(os.fstat(descriptor)) != _signature(info):
                             raise ValueError('Overwrite source changed while reading: ' + name)
                     target.write(b'\0' * ((-target.tell()) % 4))
+                    guard_space()
                     manifest['entries'].append({'path': name, 'action': 'replace' if old_sha else 'add',
                         'source_class': 'user_overwrite', 'source': str(source / name),
                         'old_sha256': old_sha, 'new_sha256': digest.hexdigest(), 'size': info.st_size,
@@ -226,6 +239,7 @@ def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
                 for name in sorted(new_dirs, key=lambda n: (n.count('/'), n)):
                     inode += 1
                     _write_header(target, [inode, stat.S_IFDIR | 0o755, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0], name)
+                    guard_space()
                 for name, fields, start, data, end, raw_header in records[:-1]:
                     if name in files:
                         digest = hashlib.sha256()
@@ -234,14 +248,14 @@ def build_overlay_initramfs(base_cpio, overwrite_dir, output_cpio):
                         write_source(name, fields, raw_header[110:-1].decode('utf-8'), digest.hexdigest())
                     else:
                         image.seek(start)
-                        _copy(image, target, end - start)
+                        _copy(image, target, end - start, guard=guard_space)
                 for name in sorted(files.keys() - entries.keys()):
                     inode += 1
                     info = files[name][2]
                     fields = [inode, stat.S_IFREG | (info.st_mode & 0o777), 0, 0, 1, 0, info.st_size, 0, 0, 0, 0, 0, 0]
                     write_source(name, fields, name)
                 image.seek(records[-1][2])
-                _copy(image, target, before.st_size - records[-1][2])
+                _copy(image, target, before.st_size - records[-1][2], guard=guard_space)
                 if target.tell() != required:
                     raise ValueError('Derived image size differs from plan')
                 target.flush()

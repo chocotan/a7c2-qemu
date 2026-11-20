@@ -395,7 +395,8 @@ term_guard = next(node for node in probe.body if isinstance(node, ast.If) and
     any(isinstance(item, ast.FunctionDef) and item.name=='stop_live' for item in node.body))
 exec(compile(ast.Module(body=[term_guard], type_ignores=[]), '<actual-launcher-term>', 'exec'))
 finalbody = next(node.finalbody for node in ast.walk(probe) if isinstance(node, ast.Try) and node.finalbody and
-    any(isinstance(call, ast.Call) and ast.unparse(call.func)=='functional_camera.guard_shutdown' for call in ast.walk(node.finalbody[0])) and
+    any(isinstance(call, ast.Call) and ast.unparse(call.func)=='functional_camera.guard_shutdown'
+        for item in node.finalbody for call in ast.walk(item)) and
     any(isinstance(call, ast.Call) and ast.unparse(call.func)=='finish_boot_receipt' for item in node.finalbody for call in ast.walk(item)))
 def qmp(name):
     assert name=='quit' and instance.closed and instance.cleanup['safe_to_close']

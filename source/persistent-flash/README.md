@@ -18,6 +18,16 @@ python3 source/persistent-flash/build.py \
 
 输出目录必须是新目录。构建检查 AArch64 ET_REL、原 vermagic、768B/64字节对齐的模块布局和39个原内核符号；编译通过不等于原guest加载通过。只以产品内部源资产重建的候选初版与已验驱动相比，除build-id外运行ALLOC区段和103项语义重定位完全一致；后续按原 Linux brd 语义补齐写前/读后 `flush_dcache_page`，预期符号明确新增这一原内核导出，不再将新版本称为初版字节一致。原guest组件证据另行保存。
 
+`kernel-types.c` 与 `build-kernel-types.py` 生成 model17c GDB owner 使用的独立内核类型载体；模块本身不能当类型来源，它的构建带内核精简调试标志，头文件里定义的 `struct task_struct` 等不会被写入 DWARF。载体复用同一 `abi-manifest.json` 和同一 cross GCC 参数，只是去掉 `-femit-struct-debug-baseonly`，只保留类型，不加载、不链接进 guest：
+
+```bash
+python3 source/persistent-flash/build-kernel-types.py \
+  --source source/persistent-flash \
+  --output runtime/analysis/persistent-flash-types/build-$(sha256sum source/persistent-flash/abi-manifest.json | cut -c1-16)
+```
+
+输出目录必须是新目录。构建核对406个头文件摘要、AArch64 ET_REL、`task_struct` 的 `pid`/`tgid` 偏移须为 0x388/0x38c，以及 `mm_struct`/`vm_area_struct`/`file`/`dentry`/`inode`/`super_block`/`fs_struct`/`path`/`qstr` 全部字段都在 DWARF 中。`include/linux/fs_struct.h` 不在406头依赖子集内，`kernel-types.c` 按原 Sony 4.9.337 源码逐字复制该结构定义。
+
 `tools/check-persistent-native.py` 用本产品BODYDATA导入的原内核、模块与QEMU，在独立4MiB虚拟盘做实际1MiB写入/读回、原guest SHA、主机整盘比对和正常QMP退出。它是短组件验收，不是原AP冷启动、完整相机容量、Sony物理eMMC、完整固件更新或拍摄写卡的验收。
 
 这组代码随产品构建维护，未接入或未通过的启动/迁移能力不能因设备被编入而标为完成。原始固件、设备私有设置、虚拟盘和生成的模块/QEMU二进制不随源码发布。

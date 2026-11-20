@@ -30,6 +30,8 @@ static ssize_t broken_read(int fd,void *p,size_t n,off_t o)
 static ssize_t broken_write(int fd,const void *p,size_t n,off_t o)
 { if (fault==1) return n-1; errno=ENOSPC; (void)fd;(void)p;(void)o;return -1; }
 static int broken_sync(int fd) { (void)fd;errno=EIO;return -1; }
+static int sync_calls;
+static int counting_sync(int fd) { (void)fd;sync_calls++;return 0; }
 static void op(struct a7pf *s,unsigned int op,int expected)
 {
     a7pf_write_reg(s,0x14,op);
@@ -39,8 +41,12 @@ static void op(struct a7pf *s,unsigned int op,int expected)
 }
 int main(void)
 {
-    char directory[]="/tmp/a7pf-core-XXXXXX";assert(mkdtemp(directory));
-    char disk[512],geom[512],link[512],other[512];
+    char directory[512];
+    const char *tmpdir=getenv("TMPDIR");if(!tmpdir)tmpdir="/tmp";
+    int dirlen=snprintf(directory,sizeof(directory),"%s/a7pf-core-XXXXXX",tmpdir);
+    if(dirlen<0 || dirlen>=480) return 2;
+    assert(mkdtemp(directory));
+    char disk[1024],geom[1024],link[1024],other[1024];
     snprintf(disk,sizeof(disk),"%s/disk",directory);snprintf(geom,sizeof(geom),"%s/geom",directory);
     snprintf(link,sizeof(link),"%s/link",directory);snprintf(other,sizeof(other),"%s/other",directory);
     int fd=open(disk,O_CREAT|O_EXCL|O_RDWR,0600),gf=open(geom,O_CREAT|O_EXCL|O_RDWR,0600);
@@ -87,6 +93,14 @@ int main(void)
     assert(!chmod(disk,0620));assert(a7pf_open_regular(disk,O_RDWR)<0);assert(!chmod(disk,0600));
     assert(!unlink(link));assert(!linkat(AT_FDCWD,disk,AT_FDCWD,link,0));
     assert(a7pf_open_regular(disk,O_RDWR)<0);assert(!unlink(link));
+    /* Explicit writeback skips WRITE sync only; FLUSH and default semantics remain. */
+    assert(!a7pf_init(&s,fd,gf,st.st_dev,st.st_ino,dma,NULL));
+    sync_calls=0;s.io.sync=counting_sync;s.writeback=true;
+    a7pf_write_reg(&s,0x10,7);a7pf_write_reg(&s,0x18,255);a7pf_write_reg(&s,0x20,1);
+    a7pf_write_reg(&s,0x24,0x40000000);a7pf_write_reg(&s,0x28,0);
+    op(&s,3,0);assert(sync_calls==0);op(&s,4,0);assert(sync_calls==1);
+    s.writeback=false;op(&s,3,0);assert(sync_calls==2);s.io=good;
+    a7pf_close(&s);
     /* Corrupt the slice geometry: overlaps must be rejected, never ACKed. */
     put64(wire+56,65536);assert(pwrite(gf,wire,sizeof(wire),0)==sizeof(wire));
     assert(a7pf_init(&s,fd,gf,st.st_dev,st.st_ino,dma,NULL)==EINVAL);

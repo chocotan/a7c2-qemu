@@ -1,4 +1,4 @@
-# UDATE reason-1 分发边界与虚拟 round-trip
+# UDATE reason 分发边界与虚拟 round-trip
 
 ## 结论范围
 
@@ -72,7 +72,7 @@ current=`0x83` 与此前一致。采样只读 `/proc`，没有SIGSTOP、ptrace�
    - `+0x20` timezone；
 4. 分发端再次读取timer并计算 `(after-before)>>1`；
 5. 更新分发端独立date/timezone/elapsed；
-6. 最后发送type4，唤醒原发送端。
+6. reason 为 4 时直接返回；其它 reason 发送 type4，并把原 reason 写入 body `+0x28`。
 
 **type4不是对type1的空ACK。** 它位于真实查询、响应验证和接收端状态更新之后。原
 `udate_distribution_done_notified` 从接收到的source的bit28..30选择目标；本地虚拟投递因此
@@ -95,7 +95,7 @@ current=`0x83` 与此前一致。采样只读 `/proc`，没有SIGSTOP、ptrace�
 因新增launcher提前使用未初始化 `base` 而退出，仍不是协议或拍摄负面结果；该错误已修复并有
 启动前回归。
 
-模型只接管destination `0x909005c5`、source/base `0x809005c5`、44字节、type1/reason1且
+模型只接管destination `0x909005c5`、source/base `0x809005c5`、44字节、type1/reason 1–5且
 **body `+8==0`（异步）** 的已分析请求。自然reason1由 `udate_distribution_send_ready`
 以sync=0发出；body `+8!=0` 的同步请求需要另一条同步回复协议，直接delegated，不能接管后
 让原发送方等待其 `+0x0c` 队列。其它目标、类型、reason、尺寸或源地址记录有界
@@ -112,8 +112,10 @@ current=`0x83` 与此前一致。采样只读 `/proc`，没有SIGSTOP、ptrace�
 4. 以5000ms上限等原AP分发线程的type2响应；
 5. 验证尺寸、type、**32位status**、date和timezone，消费原响应并释放动态queue；
 6. 再取timer-after，保存**虚拟远端**的date/timezone/elapsed；
-7. 最后经原OSAL发送type4/reason1，并以target1作为接收侧通知source；
+7. reason 4 跳过 type4；reason 1/2/3/5 经原 OSAL 发送 type4，保留原 reason，并以 target1 作为接收侧通知 source；
 8. 正常释放原type1请求；失败时保留并锁存fault，不做不安全的强制unwind，后续请求拒绝。
+
+reason 4 的静态依据是原 handler `0x1a64` 比较 reason 与 4，随后跳至 `0x1abc`，跳过 type4 分配与发送。模型允许的 1–5 是保守范围；原 handler 本身没有此范围检查。reason 2/3/5 目前只有通用 handler 的静态证据，没有已核动态生产者。未知 reason 仍拒绝并保留调用者所有权。
 
 错误、超时、无效响应、busy、fork以及done发送前的资源失败均不发送正常完成。type2已发送但
 响应未完成时，动态queue保留，防止迟到回复进入已释放queue。所有fault都会锁存，拒绝后续伪装成
@@ -215,3 +217,11 @@ SIGINT做无数据清理，未宣称保存成功。QEMU、父进程、GTK和Xvfb
 调查/实现；不得用通用ACK替代。直接请求、CP `0x1146` 回复和F02F未知项见
 `report/touch-panel-frontier.md`。UDATE kernel集成与round-trip已通过本run，但自然启动、
 clock全量完成、EE、liveview、照片和录像仍未验收。
+
+## 2026-11-15 reason 扩展与第三十跑
+
+独立审查修正了 candidate1 的 P1：type4 `+0x28` 不能把 reason 2/3/5 固定写成 1，必须原样回传。candidate2 已修正两套实现和通知载荷测试；两个线程验证两组：native 23 案例、kernel 17 案例及模块构建/ABI。常规产品测试也接入新增 reason 矩阵，回归为 9 项、94 个子测试通过。
+
+集成仅改变 CPIO 的 `simulation/sony_udate_distribution.ko`，成员集合及权限保持。新模块 SHA-256 为 `837342f6dd72361cee3e4dd1ffedbff1a7f4951e1f628defb37359c17a6334ec`。run `169a` 中实际观察到 reason4 请求、查询、响应和 ACK：`faults=0 request_retained=0 done_sent=0`，无 reason4 UNHANDLED。其后仍触发 `lib_assert.cpp:46 notify_model_system_error()`，调用函数为 `model::sequence_boot::run_i()`；candidate29 也已有同一断言，不能把此前 reason4 的拒绝当作已证实根因。
+
+本轮未达 ENTER_REC_STILL、三条 Imaging commit、mailbox 或快门。原 CP、Sony loader/WBI 恢复与照片写卡仍未验证。QMP quit 后 QEMU 返回 0，owner 正常收尾，租约保持至进程退出，无信号。原始日志、精确行号、被动状态及 ulogio 保留在项目 `scratch/a7c2-capture-p1-runtime-20261115-candidate30/`；集成、恢复映射和空间账本在 `scratch/a7c2-udate-reasons-integration-20261115/`。下一调查应追 `sequence_boot::run_i` 的系统错误来源；前置 UIPC -1020 与 UPM `previous=0x40000400` 仅为线索。

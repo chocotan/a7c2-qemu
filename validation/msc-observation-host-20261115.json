@@ -1,0 +1,24 @@
+{
+  "schema": "a7c2-msc-observation-host-validation-v1",
+  "status": "passed-scoped-host-only",
+  "workers": 2,
+  "groups": [
+    {"name": "msc-observation", "tests": 13, "passed": 13, "failed": 0, "skipped": 0},
+    {"name": "observer-build", "tests": 3, "passed": 3, "failed": 0, "skipped": 0}
+  ],
+  "scope": "Original MSC submission remains unobserved; bounded loader enter/return observation, errno and return preservation, and observer host cross-builds",
+  "public_sources_sha256": {
+    "runtime/analysis/usb_msc.py": "96e482e88e390211801f1490b3a1dcaf6ef8285f038fb389b919c3ba72766395",
+    "runtime/analysis/test_usb_msc.py": "21df49e6d784970d5ce39990308b88605f713aa44caffdcb25cd899fc8aeee44",
+    "runtime/analysis/test_sony_usb_device.py": "2dc0991f3f36decd92717c7f35c530204e41e4c136916878fc252f9620d09ead",
+    "source/usb-device/usb-start-observe.c": "e043699f744bb57858c53d06b5bf04e8bed3cd0a1babbfd8aa13bd55eb6fcf00",
+    "runtime/analysis/sony_usb_device.py": "dd53212bd7bad80e4aea68ac71fcf8c52fde782a279b62c601bda9bb70b2dde5"
+  },
+  "limitations": ["Actual log output is subject to the shared log budget; enter and return are not guaranteed to be observed together.", "Concurrency saturation was reviewed but not dynamically tested.", "These tests do not execute the original AP or prove MSC request submission, USB enumeration, or storage readback."],
+  "qemu_started": false,
+  "physical_devices_used": false,
+  "msc_host_enumerated": false,
+  "msc_storage_readback_verified": false,
+  "installation_verified": false,
+  "capture_verified": false
+}

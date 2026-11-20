@@ -416,6 +416,59 @@ void full_imaging_functional_observe_receive(unsigned destination,void *message,
         observed.command==0x3020?"flash_lock_available":"position_available");
         observed.io.record(observed.command==0x414d?"FUNCTIONAL_CAMERA_LENS_POSITION_REPLY_RECEIVED ":observed.command==0x403f?"FUNCTIONAL_CAMERA_FOCUS_MAGNIFICATION_REPLY_RECEIVED ":"FUNCTIONAL_CAMERA_FELOCK_REPLY_RECEIVED ",line);}}
 }
+static int functional_still_unlock(void *message,const struct full_imaging_io *io,int *result){
+    const unsigned char *p=message;
+    if(!io->release || !io->source){*result=-EINVAL;return 1;}
+    if(io->size(message)!=16 || io->source(message)!=FULL_IMAGING_AP || p[0]!=5 || p[1] ||
+       p[8]>=23 || !((0x007e621cu>>p[8])&1) || p[9] || p[10] || p[11]){
+        *result=-ENOTSUP;return 1;
+    }
+    unsigned selector=p[8],token=u32(p+4);
+    uintptr_t address=(uintptr_t)message;
+    pthread_mutex_lock(&mutex);
+    int alias=0;
+    for(unsigned i=0;i<8;++i)if(replies[i].pointer){
+        uintptr_t live=(uintptr_t)replies[i].pointer;
+        alias|=address<=live?live-address<16:address-live<replies[i].bytes;
+    }
+    if(!state.functional_enabled || state.functional_busy || state.faults || state.active_capture ||
+       (selector==0x13 && state.pending_still_13) || alias){
+        pthread_mutex_unlock(&mutex);*result=-EBUSY;return 1;
+    }
+    state.functional_busy=1;
+    unsigned before=state.still_active[selector],old_token=state.still_token[selector];
+    unsigned af_before=state.af_selector,gate_before=state.af_gate;
+    int write_slot=selector!=9 && !((selector==2 || selector==0x14) && state.control_latch);
+    /* Virtual intent uses the functional interlock/capture owner; no legacy dispatch or CP completion. */
+    struct full_imaging_io intent_io=*io;intent_io.record=NULL;
+    if(write_slot){
+        state.still_active[selector]=0;state.still_token[selector]=token;
+        if(!state.arbiter_disabled)arbitrate_still(&intent_io);
+    }else if(selector==9 && state.focus_latch_09==1){
+        focus_control(&intent_io,0x3024,0,9);state.focus_latch_09=0;
+    }
+    focus_control(&intent_io,0x3031,0,selector);++state.still_unlocks;
+    state.functional_still_pending_free=address;
+    unsigned after=state.still_active[selector],saved_token=state.still_token[selector];
+    unsigned af_after=state.af_selector,gate_after=state.af_gate,requested=state.requested,eff=effective();
+    unsigned long long controls=state.focus_controls;
+    pthread_mutex_unlock(&mutex);
+    int freed=io->release(FULL_IMAGING_CP,message);
+    pthread_mutex_lock(&mutex);
+    state.functional_still_free_rc=freed;
+    if(freed)++state.faults;else state.functional_still_pending_free=0;
+    state.functional_busy=0;
+    pthread_mutex_unlock(&mutex);
+    if(io->record){char line[700];
+        snprintf(line,sizeof line,
+            "pid=%d tid=%ld source=%#x destination=%#x cmd=0x4037 token=%#x selector=%#x request_bytes=16 request=%#llx active_before=%u active_after=%u old_token=%#x saved_token=%#x af_before=%u af_after=%u gate_before=%u gate_after=%u requested=%#x effective=%#x controls=%llu slot_written=%u ap_reply=none request_free_rc=%d request_retained=%u policy=%s focus_control=virtual-intent CP_D012_verified=0 physical_ASIC_verified=0 capture_verified=0",
+            getpid(),syscall(SYS_gettid),FULL_IMAGING_AP,FULL_IMAGING_CP,token,selector,
+            (unsigned long long)address,before,after,old_token,saved_token,af_before,af_after,
+            gate_before,gate_after,requested,eff,controls,write_slot,freed,freed!=0,FULL_IMAGING_STILL_UNLOCK_POLICY);
+        io->record(freed?"FUNCTIONAL_CAMERA_STILL_UNLOCK_FAULT ":"FUNCTIONAL_CAMERA_STILL_UNLOCK ",line);
+    }
+    *result=0;return 1; /* Applied: ownership transferred even if receiver-side free failed. */
+}
 int full_imaging_functional_dispatch(unsigned destination,void *message,const struct full_imaging_io *io,int *result){
     if((destination!=FULL_IMAGING_CP && destination!=FULL_IMAGING_LENS_POSITION_CP) ||
        !message || !io || !io->size || io->size(message)<4)return 0;
@@ -425,9 +478,11 @@ int full_imaging_functional_dispatch(unsigned destination,void *message,const st
     int focus_query=command==0x403e && destination==FULL_IMAGING_CP;
     int felock=command==0x3020 && destination==FULL_IMAGING_FELOCK_CP;
     int unavailable=lens_position || focus_magnification || focus_query || felock;
-    if(!unavailable && (destination!=FULL_IMAGING_CP || (command!=0x403d && command!=0x4040)))return 0;
+    int still_unlocking=command==0x4037 && destination==FULL_IMAGING_CP;
+    if(!unavailable && !still_unlocking && (destination!=FULL_IMAGING_CP || (command!=0x403d && command!=0x4040)))return 0;
     if(!result)return 0;
     int rc=functional_guard();if(rc){*result=rc;return 1;}
+    if(still_unlocking)return functional_still_unlock(message,io,result);
     if(!io->allocate || !io->release || !io->set_source || !io->send || !io->source){*result=-EINVAL;return 1;}
     int setting=command==0x403d;unsigned bytes=lens_position?8u:focus_magnification || setting?16u:12u;
     if(io->size(message)!=bytes || io->source(message)!=FULL_IMAGING_AP || p[0]!=(felock?0:5) || p[1]){*result=-ENOTSUP;return 1;}

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import os
@@ -7,6 +8,13 @@ from types import SimpleNamespace
 
 import pytest
 import persistent_storage as storage
+
+
+def test_writeback_flush_is_explicitly_forwarded_through_clearenv():
+    script=(Path(storage.__file__).parent/'qemu-kernel-probe.sh').read_text()
+    assert 'if [[ -n "${QEMU_A7PF_WRITEBACK_FLUSH:-}" ]]' in script
+    assert 'Invalid writeback-flush profile' in script
+    assert 'persistent_environment+=(--setenv QEMU_A7PF_WRITEBACK_FLUSH 1)' in script
 
 
 def test_persistent_selection_requires_an_existing_restorable_usr_file(tmp_path,monkeypatch):
@@ -29,16 +37,33 @@ def test_inherited_descriptor_exact_identity_and_regular_file(tmp_path):
     disk=tmp_path/'camera.emmc';disk.write_bytes(b'virtual disk')
     fd=os.open(disk,os.O_RDWR)
     try:
+        lock=storage.disk._DiskLock(fcntl.F_WRLCK,os.SEEK_SET,0,1,0)
+        fcntl.fcntl(fd,fcntl.F_OFD_SETLK,bytes(lock))
         info=os.fstat(fd);env=dict(A7C2_STORAGE_PROFILE=storage.PROFILE,A7C2_EMMC_INSTANCE=str(tmp_path),A7C2_EMMC_FD=str(fd),A7C2_EMMC_DEV=str(info.st_dev),A7C2_EMMC_INO=str(info.st_ino))
         assert storage.inherited_fd(env)==fd
+        marker=tmp_path/'owner-quarantine.json';marker.write_bytes(b'partial')
+        with pytest.raises(RuntimeError,match='unfinished quarantine marker'):storage.inherited_fd(env)
+        assert marker.read_bytes()==b'partial'
+        marker.unlink()
         for change in (dict(A7C2_STORAGE_PROFILE='wrong'),dict(A7C2_EMMC_INO=str(info.st_ino+1)),dict(A7C2_EMMC_FD='0'),dict(A7C2_EMMC_FD='1e9')):
             with pytest.raises(ValueError):storage.inherited_fd(dict(env,**change))
+    finally:os.close(fd)
+    fd=os.open(disk,os.O_RDWR)
+    try:
+        info=os.fstat(fd)
+        with pytest.raises(RuntimeError,match='disk OFD'):
+            storage.inherited_fd(dict(env,A7C2_EMMC_FD=str(fd),A7C2_EMMC_DEV=str(info.st_dev),A7C2_EMMC_INO=str(info.st_ino)))
     finally:os.close(fd)
     fd=os.open('/dev/null',os.O_RDONLY)
     try:
         info=os.fstat(fd)
         with pytest.raises(ValueError):storage.inherited_fd(dict(env,A7C2_EMMC_FD=str(fd),A7C2_EMMC_DEV=str(info.st_dev),A7C2_EMMC_INO=str(info.st_ino)))
     finally:os.close(fd)
+
+
+def test_persistent_shell_preflight_precedes_output_creation():
+    script=(storage.ANALYSIS/'qemu-kernel-probe.sh').read_text()
+    assert script.index('PERSISTENT_PREFLIGHT')<script.index('mkdir -p "$output_dir"')
 
 
 def test_missing_profile_never_enables_storage():

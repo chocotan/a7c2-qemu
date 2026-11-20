@@ -89,6 +89,7 @@ static int valid_timezone_half(unsigned int raw) {
 static int valid_timezone(const unsigned char *p) {
     return valid_timezone_half(u16(p)) && valid_timezone_half(u16(p+2)) && u16(p+4)==0;
 }
+static int valid_reason(unsigned int reason) { return reason >= 1 && reason <= 5; }
 int native_udate_distribution_release(unsigned int id,void *message,
     int (*release)(unsigned int,void *),void (*record)(const char *,const char *),int *result) {
     if (!message || !release || !result || !atomic_load(&owner_pid)) return 0;
@@ -136,7 +137,7 @@ int native_udate_distribution_dispatch(unsigned int destination,void *request,
     unsigned int observed_sync=size>=12?u32(body+8):0;
     unsigned int observed_reason=size>=0x2a?u16(body+0x28):0;
     if (size!=NATIVE_UDATE_DISTRIBUTION_MESSAGE_BYTES || observed_type!=1 || observed_sync!=0 ||
-        observed_reason!=1 || source!=NATIVE_UDATE_DISTRIBUTION_SID) {
+        !valid_reason(observed_reason) || source!=NATIVE_UDATE_DISTRIBUTION_SID) {
         static _Atomic unsigned int unhandled;
         unsigned int n=atomic_fetch_add(&unhandled,1);
         if (n<16 && io->record) {
@@ -154,8 +155,8 @@ int native_udate_distribution_dispatch(unsigned int destination,void *request,
     if (atomic_exchange(&busy,1)) return fail(io,result,"busy",-1021);
     if (atomic_load(&faults)) { atomic_store(&busy,0);return fail(io,result,"latched-fault",-1021); }
     if (io->record) {
-        char line[240];snprintf(line,sizeof line,"tid=%ld destination=%#x source=%#x bytes=%u reason=1",
-            syscall(SYS_gettid),destination,source,size);
+        char line[240];snprintf(line,sizeof line,"tid=%ld destination=%#x source=%#x bytes=%u reason=%u",
+            syscall(SYS_gettid),destination,source,size,observed_reason);
         io->record("NATIVE_UDATE_REQUEST ",line);
     }
     void *query=NULL,*reply=NULL,*done=NULL;
@@ -206,7 +207,7 @@ int native_udate_distribution_dispatch(unsigned int destination,void *request,
     }
     pthread_mutex_lock(&state_mutex);
     memcpy(state.date,response+0x10,16);memcpy(state.timezone,response+0x20,8);
-    state.reason=1;state.timer_before=before;state.timer_after=after;
+    state.reason=(unsigned short)observed_reason;state.timer_before=before;state.timer_after=after;
     state.elapsed=(after-before)>>1;state.generation++;state.valid=1;state.done_sent=0;
     unsigned long long generation=state.generation;
     pthread_mutex_unlock(&state_mutex);
@@ -218,10 +219,29 @@ int native_udate_distribution_dispatch(unsigned int destination,void *request,
             (short)u16(response+0x20),(short)u16(response+0x22),(after-before)>>1);
         io->record("NATIVE_UDATE_RESPONSE ",line);
     }
+    /* The original handler's reason-4 path updates its distribution clock,
+     * then returns without emitting the type4 completion message. */
+    if (observed_reason == 4) {
+        rc=io->release(destination,request);
+        if (rc) {
+            pthread_mutex_lock(&state_mutex);retained_request=request;retained_id=destination;pthread_mutex_unlock(&state_mutex);
+            atomic_fetch_add(&faults,1);
+        }
+        atomic_store(&busy,0);
+        if (io->record) {
+            char line[360];snprintf(line,sizeof line,
+                "tid=%ld generation=%llu reason=4 timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%d faults=%u request_retained=%u done_sent=0 virtual_completion=1",
+                syscall(SYS_gettid),generation,before,after,(after-before)>>1,rc,
+                atomic_load(&faults),rc!=0);
+            io->record("NATIVE_UDATE_ACK ",line);
+        }
+        *result=0;return 1;
+    }
+
     stage="done-allocate";
     rc=io->allocate(source,&done,44,1);
     if (rc || !done) goto cleanup;
-    memset(done,0,44);put32(done,4);put16((unsigned char *)done+0x28,1);
+    memset(done,0,44);put32(done,4);put16((unsigned char *)done+0x28,observed_reason);
     /* Emulate the source identity visible after the target1 inter-chip
      * receive: done_notified() extracts bits 28..30 to select its semaphore. */
     io->set_source(done,destination);
@@ -238,8 +258,8 @@ int native_udate_distribution_dispatch(unsigned int destination,void *request,
     atomic_store(&busy,0);
     if (io->record) {
         char line[420];snprintf(line,sizeof line,
-            "tid=%ld generation=%llu reason=1 target=1 done_source=%#x timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%d faults=%u request_retained=%u done_sent=1 virtual_completion=1 hardware_ready=0 camera_capture_verified=0",
-            syscall(SYS_gettid),generation,destination,before,after,(after-before)>>1,rc,
+            "tid=%ld generation=%llu reason=%u target=1 done_source=%#x timer_before=%llu timer_after=%llu elapsed=%llu request_free_rc=%d faults=%u request_retained=%u done_sent=1 virtual_completion=1 hardware_ready=0 camera_capture_verified=0",
+            syscall(SYS_gettid),generation,observed_reason,destination,before,after,(after-before)>>1,rc,
             atomic_load(&faults),rc!=0);
         io->record("NATIVE_UDATE_DONE ",line);
     }

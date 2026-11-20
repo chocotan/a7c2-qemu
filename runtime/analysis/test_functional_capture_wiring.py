@@ -16,6 +16,7 @@ def capture_wiring_binary(tmp_path_factory):
     sent = sent[:sent.index('    if(cp302c_no_transition_enabled')]
     sent += '    return 919;\n}\n'
     snippets = '\n'.join(function(source, name) for name in (
+        'same_name', 'upm_diagnostic_match', 'upm_diagnostic_enabled',
         'functional_capture_reserve_resources', 'functional_capture_predecessors_ready'))
     code = r'''
 #define _GNU_SOURCE
@@ -70,7 +71,7 @@ static void defaults(void){
  imaging.functional_enabled=1;imaging.functional_owner_pid=getpid();
  imaging.requested=imaging.effective=FULL_IMAGING_POWER_ON_INHIBIT;
 }
-int main(int argc,char **argv){assert(argc==2);int mode=atoi(argv[1]);defaults();
+int main(int argc,char **argv){assert(argc==2);assert(!setenv("MENU_OBSERVE_SELFTEST","1",1));int mode=atoi(argv[1]);defaults();
  if(mode<5 || mode==19){selected=mode;functional_camera_enabled=mode!=4;uint8_t saved[16];memcpy(saved,message,16);
   int result=osal_snd_msg(27,message);assert(result==(mode==1?-17:mode==2?-5:mode==3 || mode==19?0:919));
   assert(audits==1 && !memcmp(saved,message,16) && position==(mode==4?0:mode==1?1:mode==2?2:mode==3?3:4));

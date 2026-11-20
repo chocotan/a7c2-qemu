@@ -143,7 +143,8 @@ def test_actual_run_manifest_indexes_directory_lease_and_commit_parser_sources(t
         (tmp_path / name).write_bytes(('HOST_TEST dependency ' + name).encode())
     loop = copy.deepcopy(loops[0])
     loop.iter.elts = nodes
-    scope = dict(base=tmp_path, manifest=manifest, sha256_file=lambda path: hashlib.sha256(path.read_bytes()).hexdigest())
+    scope = dict(base=tmp_path, manifest=manifest, isolated_observer_proof=None,
+                 sha256_file=lambda path: hashlib.sha256(path.read_bytes()).hexdigest())
     exec(compile(ast.Module(body=[loop], type_ignores=[]), str(source), 'exec'), scope)
     assert manifest['files'] == {str(tmp_path / name): scope['sha256_file'](tmp_path / name) for name in required}
 
@@ -157,6 +158,7 @@ def test_actual_central_quit_checks_host_disk_before_writing_wire(tmp_path, monk
     source=Path(__file__).with_name('qemu-menu-probe.py')
     tree=ast.parse(source.read_text())
     function=next(node for node in ast.walk(tree) if isinstance(node,ast.FunctionDef) and node.name=='qmp')
+    unlocked=next(node for node in ast.walk(tree) if isinstance(node,ast.FunctionDef) and node.name=='qmp_unlocked')
     for backing in ('raw','directory'):
         for mode in ('unsaved','verified','exited-during-retention'):
             events=[]
@@ -179,11 +181,12 @@ def test_actual_central_quit_checks_host_disk_before_writing_wire(tmp_path, monk
                 raise RuntimeError('retained unsaved host disk')
             monkeypatch.setattr(host_sd_guard,'guard_shutdown',guard)
             scope=dict(functional_camera=Camera(),nullcontext=nullcontext,early_media_watch=None,
+                       native_pair=None,native_vm_owner=None,
                        proc=proc,out=tmp_path,stream=Stream(),json=json,time=__import__('time'),
                        host_sd_fd=40 if backing=='raw' else None,
                        directory_sd_fd=41 if backing=='directory' else None,
                        host_sd_export_verified=[mode=='verified'],qmp_quit_attempted=[False])
-            exec(compile(ast.Module(body=[function],type_ignores=[]),str(source),'exec'),scope)
+            exec(compile(ast.Module(body=[unlocked,function],type_ignores=[]),str(source),'exec'),scope)
             if mode=='verified':
                 assert scope['qmp']('quit')=={'return':{}}
                 assert events==[('broker','quit'),('disk',True),('wire',{'execute':'quit'}),('flush',)]

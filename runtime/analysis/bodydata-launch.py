@@ -266,6 +266,9 @@ def main(argv=None):
     parser.add_argument('--persistent-storage',action='store_true',help='enable a persistent internal disk on the direct-bootin route; required by original-init-cold')
     args = parser.parse_args(argv)
     try:
+        if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+            from single_ap_sockets import admit
+            admit()
         if not args.prepare_only and safe_path(args.runtime_analysis).parent != safe_path(args.runtime):
             raise ValueError('Native entry uses its adjacent runtime; runtime-analysis must be RUNTIME/analysis')
         package = discover(args.bodydata)

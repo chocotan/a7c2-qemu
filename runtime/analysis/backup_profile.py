@@ -1,9 +1,17 @@
 """Explicit native Backup fixture/profile; no CP execution or capture claim."""
+from contextlib import ExitStack, contextmanager
+import fcntl
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import secrets
 import shlex
+import stat
+import uuid
+
+from sd_transport import directory, regular, digest_fd, identity
 
 PROFILE = 'virtual-primary-v1'
 SEED_SHA = '3dab4f0d6b7790f4a7798034b57f43bfe3255c39dc6da2897fc288b3a218fe47'
@@ -33,6 +41,8 @@ FULL_CP_EE_DIAGNOSTIC_PROFILE = 'diagnostic-cp-ee-controls-v1'
 FULL_CP_MOVIE_FORMAT_DIAGNOSTIC_PROFILE = 'diagnostic-cp-movie-format-v1'
 FULL_CP_OWNED_STATE_PROFILE = 'virtual-cp-owned-state-v1'
 FUNCTIONAL_CAMERA_PROFILE = 'virtual-functional-camera-v1'
+FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE = 'direct-bootin-ram-card-1g-v1'
+FUNCTIONAL_CAMERA_RAM_BYTES = 1024**3
 ADF_CONFLICTS = (
     'MENU_YC_INJECT','MENU_YC_UNCOMPRESSED','MENU_YC_INPUT_RAW','MENU_YC_INPUT_PNG',
     'MENU_PIPELINE_ENDPOINT','MENU_PIPELINE_VIRT','MENU_BB_READY_INJECT','MENU_BB_READY_LATE',
@@ -1097,7 +1107,587 @@ def validate_build(native, build):
     return build,binary,receipt
 
 
-def prepare_profile(native, env):
+def validate_functional_camera_media(env):
+    """Validate intent only; prepare_profile must bind real files before admission."""
+    media = env.get('A7C2_FUNCTIONAL_CAMERA_MEDIA', '')
+    if media not in ('', FUNCTIONAL_CAMERA_RAM_MEDIA_CANDIDATE):
+        raise ValueError('A7C2_FUNCTIONAL_CAMERA_MEDIA must be direct-bootin-ram-card-1g-v1 or unset')
+    if env.get('MENU_FUNCTIONAL_CAMERA_MEDIA'):
+        raise ValueError('MENU_FUNCTIONAL_CAMERA_MEDIA is not a supported guest override')
+    if media:
+        if (env.get('A7C2_FUNCTIONAL_CAMERA') != FUNCTIONAL_CAMERA_PROFILE or
+                env.get('A7C2_CP_CAPTURE_FORMAT') != FULL_CP_OWNED_STATE_PROFILE or
+                env.get('A7C2_BACKUP_SYNC') != PROFILE or not env.get('A7C2_BACKUP_BUILD') or
+                env.get('A7C2_BOOT_PROFILE', 'direct-bootin') != 'direct-bootin' or
+                env.get('SEED_BACKUP', 'alllang') != 'alllang'):
+            raise ValueError('Functional camera RAM-card requires direct-bootin, public ALLLANG, explicit Backup build and owned-state functional chain')
+        combined = env.get('A7C2_SETTINGS_RESTART_PROFILE') == 'functional-ram-card-independent-internal-v1'
+        conflicts = (*BB_MODE_CONFLICTS, 'A7C2_DIRECTORY_SD', 'A7C2_DIRECTORY_SD_PROFILE',
+                     'A7C2_DIRECTORY_SD_FD', 'A7C2_HOST_SD', 'A7C2_HOST_SD_FD',
+                     'A7C2_SD_SPARSE', 'A7C2_SD_HOTPLUG', 'MENU_USB_NET',
+                     'A7C2_USB_NET', 'QEMU_SONY_USB_NET', 'A7C2_USB_NET_SELFTEST',
+                     'QEMU_NATIVE_AP_CP_LINK', 'QEMU_NATIVE_LINK_DIR',
+                     'MENU_KERNEL_SCRIPT', 'MENU_DTB',
+                     *(() if combined else ('QEMU_SYSTEM_DIR', 'QEMU_SYSTEM_BINARY')),
+                     'A7C2_RAM_WINDOW', 'A7C2_RAM_RESTORE_STREAM')
+        if any(env.get(name) for name in conflicts):
+            raise ValueError('Functional camera RAM-card conflicts with other media, launch overrides, RAM restore or diagnostic modes')
+    return media or None
+
+
+def _bound_profile_input(path, *, retain=False, expected_bytes=None, single_link=False):
+    """Read/hash an owned regular input through one descriptor, preserving its identity."""
+    path = Path(path)
+    if not path.is_absolute():
+        raise ValueError('Functional camera inputs require absolute source paths')
+    with directory(path.parent) as parent:
+        fd = regular(parent, path.name)
+        try:
+            before = os.fstat(fd)
+            if expected_bytes is not None and before.st_size != expected_bytes:
+                raise ValueError(f'Functional camera input size differs: expected {expected_bytes} bytes')
+            if single_link and (before.st_nlink != 1 or before.st_mode & 0o022):
+                raise ValueError('Functional camera card seed requires one link and private write permissions')
+            raw = None
+            if retain:
+                with os.fdopen(os.dup(fd), 'rb') as stream:
+                    raw = stream.read()
+                digest = hashlib.sha256(raw).hexdigest()
+            else:
+                digest = digest_fd(fd)
+            if identity(before) != identity(os.fstat(fd)):
+                raise ValueError('Functional camera profile input changed while reading')
+            proof = {'path': str(path), 'bytes': before.st_size,
+                     'sha256': digest, 'identity': list(identity(before))}
+            return proof, raw
+        finally:
+            os.close(fd)
+
+
+# Admission: scratch/a7c2-ram-dir-unblock-20261115-candidate1/trusted-execution-contract.md.
+# Requires an isolated single-user owner; hostile same-UID replacement is outside that contract.
+_RAM_DIRECTORY_CREATION_BLOCKED = None
+_RAM_DIRECTORY_CREATION_CANDIDATE = 'private-random128-fd-directory-v1'
+
+
+class _RamProfileOutput:
+    """Descriptor-bound derivation retained through the caller's explicit lease."""
+
+    @staticmethod
+    def _create_directory(parent_fd, *, candidate=None):
+        if candidate not in (None, _RAM_DIRECTORY_CREATION_CANDIDATE):
+            raise ValueError('Functional camera directory creation candidate differs')
+        if _RAM_DIRECTORY_CREATION_BLOCKED is not None and candidate is None:
+            raise ValueError(_RAM_DIRECTORY_CREATION_BLOCKED)
+        parent = os.fstat(parent_fd)
+        if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != os.geteuid() or
+                stat.S_IMODE(parent.st_mode) != 0o700):
+            raise ValueError('Functional camera creation parent requires owned 0700 directory FD')
+        for attempt in range(8):
+            name = 'profile-' + secrets.token_hex(16)
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise ValueError('Functional camera directory creation exhausted collision retries')
+        # shortcut: mkdir has no returned FD; a same-UID swap before this stat is undetectable,
+        # require an isolated creation owner if hostile same-UID writers enter the threat model.
+        created = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     dir_fd=parent_fd)
+        try:
+            named = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            held = os.fstat(fd)
+            if (not stat.S_ISDIR(held.st_mode) or held.st_uid != os.geteuid() or
+                    stat.S_IMODE(held.st_mode) != 0o700 or
+                    (created.st_dev, created.st_ino, created.st_mode, created.st_uid) !=
+                    (held.st_dev, held.st_ino, held.st_mode, held.st_uid) or
+                    (named.st_dev, named.st_ino, named.st_mode, named.st_uid) !=
+                    (held.st_dev, held.st_ino, held.st_mode, held.st_uid) or os.listdir(fd)):
+                raise ValueError('Functional camera newly opened directory identity differs')
+            checked_parent = os.fstat(parent_fd)
+            if ((checked_parent.st_dev, checked_parent.st_ino, checked_parent.st_mode, checked_parent.st_uid) !=
+                    (parent.st_dev, parent.st_ino, parent.st_mode, parent.st_uid)):
+                raise ValueError('Functional camera creation parent changed')
+            os.fsync(parent_fd)
+            return name, fd
+        except BaseException:
+            os.close(fd)
+            # Unknown/rebound directories are evidence, never removed by path.
+            raise
+
+    @staticmethod
+    def consumer_environment(output=None, environment=None, owner=None):
+        if (not isinstance(owner, _RamProfileLease) or not owner.active or
+                not isinstance(output, _RamProfileOutput) or type(environment) is not dict):
+            raise ValueError('Functional camera consumer handoff refused: no caller-held exact FD binding')
+        return owner.adopt(output, environment)
+
+    def __init__(self, stack, parent):
+        self.parent = Path(parent).absolute()
+        with directory(self.parent.parent) as ancestor:
+            try:
+                os.mkdir(self.parent.name, mode=0o700, dir_fd=ancestor)
+            except FileExistsError:
+                pass
+            self.parent_fd = os.open(self.parent.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                                     dir_fd=ancestor)
+        stack.callback(os.close, self.parent_fd)
+        held_parent = os.fstat(self.parent_fd)
+        if held_parent.st_uid != os.geteuid() or held_parent.st_mode & 0o022:
+            raise ValueError('Functional camera output parent requires private write permissions')
+        self.parent_identity = (held_parent.st_dev, held_parent.st_ino, held_parent.st_mode, held_parent.st_uid)
+        created_name, self.fd = self._create_directory(self.parent_fd)
+        self.output = self.parent / created_name
+        stack.callback(os.close, self.fd)
+        held = os.fstat(self.fd)
+        self.directory_identity = (held.st_dev, held.st_ino, held.st_mode, held.st_uid)
+        self.pinned = Path(f'/proc/self/fd/{self.fd}')
+        self.files = {}
+        self.stack = stack
+        self.sparse = None
+        self.check()
+
+    def _name(self, path):
+        path = Path(path)
+        if path.parent != self.pinned or path.name not in (
+                'source-board.dtb', 'official-board.dtb', 'board-ram-backup.dtb',
+                'iomap-board-proof.json'):
+            raise ValueError('Functional camera iomap path escaped fixed output directory')
+        return path.name
+
+    def write(self, name, raw):
+        fd = regular(self.fd, name, os.O_RDWR | os.O_CREAT | os.O_EXCL)
+        self.stack.callback(os.close, fd)
+        with os.fdopen(os.dup(fd), 'wb') as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        expected = hashlib.sha256(raw).hexdigest()
+        before = identity(os.fstat(fd))
+        if os.fstat(fd).st_size != len(raw) or digest_fd(fd) != expected:
+            raise ValueError('Functional camera derived file readback differs')
+        if identity(os.fstat(fd)) != before:
+            raise ValueError('Functional camera derived file identity changed')
+        self.files[name] = (fd, before, expected)
+        self.read(name)
+        return len(raw)
+
+    def copy_seed(self, source_proof, *, parallel_peak_bytes=None):
+        """Copy a fully bound input; both source and independent clone are read back."""
+        from functional_ram_initramfs import fat16
+        from sd_transport import check_space, FREE_SPACE_FLOOR
+        import sparse_seed
+
+        if type(parallel_peak_bytes) is not int or parallel_peak_bytes < 0:
+            raise ValueError('Functional RAM seed requires declared parallel peak bytes, including zero')
+        peak = FUNCTIONAL_CAMERA_RAM_BYTES + sparse_seed.MAX_DATA + 32 * 1024**2 + parallel_peak_bytes
+        check_space(self.fd, FREE_SPACE_FLOOR + peak)
+        storage = dict(owner=dict(uid=os.geteuid(), pid=os.getpid()),
+                       purpose='Independent functional RAM-card seed and lossless sparse packaging',
+                       peak_new_bytes=peak, parallel_peak_bytes=parallel_peak_bytes,
+                       reserve_bytes=FREE_SPACE_FLOOR,
+                       available_before=os.fstatvfs(self.fd).f_bavail * os.fstatvfs(self.fd).f_frsize,
+                       retained_reason='Unconsumed candidate or original derivation failure',
+                       next_consumer='FD-bound functional RAM-card owner after all admission gates pass',
+                       reclaim_when='Owner confirms consumer exit and no references; preserve any unique failure evidence',
+                       reclaimed_bytes=0, state='creating', fsck_verified=False,
+                       guest_consumption_verified=False, capture_verified=False)
+        self.write('storage-initial.json', (json.dumps(storage, indent=2) + '\n').encode())
+        original = None
+        try:
+            source_path = Path(source_proof['path'])
+            if not source_path.is_absolute() or '..' in source_path.parts:
+                raise ValueError('Functional camera RAM seed requires an absolute source without traversal')
+            with directory(source_path.parent) as source_parent:
+                source_fd = regular(source_parent, source_path.name)
+                try:
+                    before = os.fstat(source_fd)
+                    if (before.st_size != FUNCTIONAL_CAMERA_RAM_BYTES or before.st_nlink != 1 or
+                            before.st_mode & 0o022 or list(identity(before)) != source_proof['identity'] or
+                            digest_fd(source_fd) != source_proof['sha256']):
+                        raise ValueError('Functional camera RAM seed identity changed before copy')
+                    fcntl.flock(source_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                    source_fat = fat16(source_fd, before.st_size)
+                    name = 'media-camera.fat'
+                    writer = regular(self.fd, name, os.O_RDWR | os.O_CREAT | os.O_EXCL)
+                    self.stack.callback(os.close, writer)
+                    os.fchmod(writer, 0o600)
+                    os.ftruncate(writer, FUNCTIONAL_CAMERA_RAM_BYTES)
+                    for offset in range(0, FUNCTIONAL_CAMERA_RAM_BYTES, 4 * 1024**2):
+                        check_space(self.fd, FREE_SPACE_FLOOR + peak - offset)
+                        count = min(4 * 1024**2, FUNCTIONAL_CAMERA_RAM_BYTES - offset)
+                        raw = os.pread(source_fd, count, offset)
+                        if len(raw) != count:
+                            raise ValueError('Functional camera RAM seed truncated during copy')
+                        if any(raw) and os.pwrite(writer, raw, offset) != count:
+                            raise OSError('Short functional RAM-card clone write')
+                    os.fsync(writer)
+                    held = os.fstat(writer)
+                    if (held.st_nlink != 1 or stat.S_IMODE(held.st_mode) != 0o600 or
+                            identity(before) != identity(os.fstat(source_fd)) or
+                            before.st_mode != os.fstat(source_fd).st_mode or
+                            before.st_nlink != os.fstat(source_fd).st_nlink or
+                            identity(before) != identity(os.stat(source_path.name, dir_fd=source_parent,
+                                                               follow_symlinks=False)) or
+                            digest_fd(source_fd) != source_proof['sha256'] or
+                            digest_fd(writer) != source_proof['sha256'] or
+                            fat16(writer, held.st_size) != source_fat):
+                        raise ValueError('Functional camera RAM seed source/clone readback differs')
+                    readonly = regular(self.fd, name)
+                    self.stack.callback(os.close, readonly)
+                    if identity(os.fstat(readonly)) != identity(held):
+                        raise ValueError('Functional camera RAM seed clone rebound')
+                    # Linux flock follows the inherited open-file description, like the disk lease.
+                    fcntl.flock(readonly, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    self.files[name] = (readonly, identity(held), source_proof['sha256'])
+                    self.read(name, retain=False)
+                finally:
+                    os.close(source_fd)
+            packaged = sparse_seed.build(self.output / name, self.pinned / 'ram-card-sparse',
+                                         source_fd=readonly)
+            if (packaged['sha256'] != source_proof['sha256'] or
+                    packaged['bytes'] != FUNCTIONAL_CAMERA_RAM_BYTES or
+                    packaged.get('representation_only') is not True or packaged.get('physical_device') is not False):
+                raise ValueError('Functional camera sparse seed identity differs')
+            sparse_fd = os.open('ram-card-sparse', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                                os.O_CLOEXEC, dir_fd=self.fd)
+            self.stack.callback(os.close, sparse_fd)
+            expected = {row['file']: (row['length'], row['sha256']) for row in packaged['chunks']}
+            metadata_bytes = {
+                'manifest.json': (json.dumps(packaged, indent=2) + '\n').encode(),
+                'identity.txt': f"{packaged['bytes']} {packaged['sha256']}\n".encode('ascii'),
+                'chunks.txt': ''.join(f"{row['offset']} {row['length']} {row['file']} {row['sha256']}\n"
+                                      for row in packaged['chunks']).encode('ascii'),
+                'zero.bin': bytes(sparse_seed.BLOCK),
+            }
+            expected.update({filename: (len(raw), hashlib.sha256(raw).hexdigest())
+                             for filename, raw in metadata_bytes.items()})
+            self.sparse = dict(fd=sparse_fd, directory=(os.fstat(sparse_fd).st_dev, os.fstat(sparse_fd).st_ino),
+                               files=expected)
+            self.check()
+            os.fsync(sparse_fd)
+            os.fsync(self.fd)
+            storage.update(state='seed-and-sparse-readback-verified', fat16=source_fat,
+                           seed_sha256=source_proof['sha256'],
+                           sparse_manifest_sha256=expected['manifest.json'][1])
+            return dict(path=str(self.output / name), bytes=FUNCTIONAL_CAMERA_RAM_BYTES,
+                        sha256=source_proof['sha256'], identity=list(self.files[name][1])), dict(
+                            path=str(self.output / 'ram-card-sparse'),
+                            manifest_sha256=expected['manifest.json'][1],
+                            bytes=packaged['bytes'], data_bytes=packaged['data_bytes'],
+                            source_sha256=packaged['sha256'], representation_only=True,
+                            fsck_verified=False, guest_consumption_verified=False)
+        except BaseException as error:
+            original = error
+            storage.update(state='failed', error=f'{type(error).__name__}: {error}')
+            raise
+        finally:
+            try:
+                files = []
+                for filename in os.listdir(self.fd):
+                    info = os.stat(filename, dir_fd=self.fd, follow_symlinks=False)
+                    files.append(dict(path=filename, bytes=info.st_size,
+                                      allocated_bytes=info.st_blocks * 512,
+                                      device=info.st_dev, inode=info.st_ino))
+                    if filename == 'ram-card-sparse':
+                        sparse_fd = os.open(filename, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                                            os.O_CLOEXEC, dir_fd=self.fd)
+                        try:
+                            for chunk in os.listdir(sparse_fd):
+                                child = os.stat(chunk, dir_fd=sparse_fd, follow_symlinks=False)
+                                files.append(dict(path=filename + '/' + chunk, bytes=child.st_size,
+                                                  allocated_bytes=child.st_blocks * 512,
+                                                  device=child.st_dev, inode=child.st_ino))
+                        finally:
+                            os.close(sparse_fd)
+                storage.update(files=files, allocated_bytes=sum(item['allocated_bytes'] for item in files),
+                               accounting='storage.json and later profile-derived files excluded',
+                               available_after=os.fstatvfs(self.fd).f_bavail * os.fstatvfs(self.fd).f_frsize)
+                self.write('storage.json', (json.dumps(storage, indent=2) + '\n').encode())
+            except BaseException as storage_error:
+                if original is not None:
+                    original.add_note('RAM-card storage receipt failed: ' + str(storage_error))
+                else:
+                    raise
+
+    def read(self, name, *, retain=True):
+        fd, expected_identity, expected_digest = self.files[name]
+        observed = regular(self.fd, name)
+        try:
+            before = os.fstat(observed)
+            if (identity(before) != expected_identity or
+                    identity(os.fstat(fd)) != expected_identity or
+                    before.st_mode & 0o022):
+                raise ValueError('Functional camera derived file identity changed')
+            raw = None
+            if retain:
+                with os.fdopen(os.dup(observed), 'rb') as stream:
+                    raw = stream.read()
+                observed_digest = hashlib.sha256(raw).hexdigest()
+            else:
+                observed_digest = digest_fd(observed)
+            if (observed_digest != expected_digest or
+                    identity(os.fstat(observed)) != expected_identity or
+                    identity(os.stat(name, dir_fd=self.fd, follow_symlinks=False)) != expected_identity):
+                raise ValueError('Functional camera derived file readback differs')
+            return raw
+        finally:
+            os.close(observed)
+
+    def iomap_path(self, value):
+        owner = self
+
+        class FixedPath(type(Path())):
+            def open(self, *args, **kwargs):
+                raise ValueError('Functional camera iomap requires checked fixed-directory I/O')
+
+            def read_bytes(self):
+                return owner.read(owner._name(self))
+
+            def write_bytes(self, raw):
+                return owner.write(owner._name(self), raw)
+
+            def write_text(self, text, encoding=None, errors=None, newline=None):
+                if newline is not None:
+                    raise ValueError('Functional camera iomap newline override refused')
+                owner.write(owner._name(self), text.encode(encoding or 'utf-8', errors or 'strict'))
+                return len(text)
+
+            def exists(self):
+                name = owner._name(self)
+                try:
+                    os.stat(name, dir_fd=owner.fd, follow_symlinks=False)
+                    return True
+                except FileNotFoundError:
+                    return False
+
+        self._name(value)
+        return FixedPath(value)
+
+    def check(self):
+        # Names are checked only for rebinding; file I/O remains relative to the held FD.
+        with directory(self.parent) as public_parent:
+            for parent_fd in (public_parent, self.parent_fd):
+                parent = os.fstat(parent_fd)
+                if ((parent.st_dev, parent.st_ino, parent.st_mode, parent.st_uid) != self.parent_identity):
+                    raise ValueError('Functional camera output parent changed')
+            named = os.stat(self.output.name, dir_fd=public_parent, follow_symlinks=False)
+            held = os.fstat(self.fd)
+            if ((named.st_dev, named.st_ino, named.st_mode, named.st_uid) != self.directory_identity or
+                    (held.st_dev, held.st_ino, held.st_mode, held.st_uid) != self.directory_identity):
+                raise ValueError('Functional camera output directory changed')
+            for name in self.files:
+                self.read(name, retain=False)
+            if self.sparse is not None:
+                sparse = self.sparse
+                held = os.fstat(sparse['fd'])
+                named = os.stat('ram-card-sparse', dir_fd=self.fd, follow_symlinks=False)
+                if (not stat.S_ISDIR(named.st_mode) or named.st_uid != os.geteuid() or
+                        stat.S_IMODE(named.st_mode) != 0o700 or
+                        (held.st_dev, held.st_ino) != sparse['directory'] or
+                        (named.st_dev, named.st_ino) != sparse['directory'] or
+                        set(os.listdir(sparse['fd'])) != set(sparse['files'])):
+                    raise ValueError('Functional camera sparse directory identity changed')
+                for name, (size, expected) in sparse['files'].items():
+                    observed = regular(sparse['fd'], name)
+                    try:
+                        before = os.fstat(observed)
+                        if (before.st_size != size or before.st_nlink != 1 or before.st_mode & 0o022 or
+                                digest_fd(observed) != expected or
+                                identity(before) != identity(os.fstat(observed)) or
+                                identity(before) != identity(os.stat(name, dir_fd=sparse['fd'], follow_symlinks=False))):
+                            raise ValueError('Functional camera sparse seed file changed')
+                    finally:
+                        os.close(observed)
+
+    def publish(self, text):
+        pending = '.backup-profile.pending.json'
+        name = 'backup-profile.json'
+        self.write(pending, text.encode('utf-8'))
+        self.check()
+        fd, _, digest = self.files[pending]
+        try:
+            os.link(f'/proc/self/fd/{fd}', name, dst_dir_fd=self.fd, follow_symlinks=True)
+            current = identity(os.fstat(fd))
+            self.files[pending] = self.files[name] = (fd, current, digest)
+            os.fsync(self.fd)
+            self.check()
+        except BaseException:
+            try:
+                named = os.stat(name, dir_fd=self.fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                held = os.fstat(fd)
+                if (named.st_dev, named.st_ino) == (held.st_dev, held.st_ino):
+                    os.unlink(name, dir_fd=self.fd)
+            raise
+
+
+class _RamProfileLease:
+    """The caller retains this owner until all consumers have actually exited."""
+
+    def __init__(self, stack, parallel_peak_bytes):
+        self.stack = stack
+        self.parallel_peak_bytes = parallel_peak_bytes
+        self.active = True
+        self.output = None
+        self.binding = None
+        self.public_fds = []
+        self.cleanup_errors = []
+
+    def _close_public_fds(self, exc_type, original, traceback):
+        # Private anchors remain locked until all public numbers have been checked.
+        for fd, anchor, stamp in self.public_fds:
+            try:
+                if identity(os.fstat(anchor)) != stamp:
+                    raise ValueError('Private anchor identity changed')
+                fcntl.flock(anchor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                if identity(os.fstat(fd)) != stamp:
+                    raise ValueError('FD identity changed')
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BaseException as error:
+                self.cleanup_errors.append(
+                    f'RAM-card public FD {fd} cleanup refused; number left untouched: '
+                    f'{type(error).__name__}: {error}')
+                continue
+            try:
+                os.close(fd)
+            except BaseException as error:
+                self.cleanup_errors.append(
+                    f'RAM-card public FD {fd} close failed: {type(error).__name__}: {error}')
+        if self.cleanup_errors:
+            if original is not None:
+                for error in self.cleanup_errors:
+                    original.add_note(error)
+            else:
+                raise ValueError('\n'.join(self.cleanup_errors))
+        return False
+
+    def adopt(self, output, environment):
+        if self.output is not None or 'media-camera.fat' not in output.files or output.sparse is None:
+            raise ValueError('Functional camera lease requires a single verified independent RAM seed')
+        seed = output.files['media-camera.fat'][0]
+        receipt = regular(output.fd, 'backup-profile.json')
+        output.stack.callback(os.close, receipt)
+        # Only duplicates are exposed. Original producer FDs are private anchors,
+        # so their ordinary ExitStack callbacks can never close a reused public FD.
+        output.stack.push(self._close_public_fds)
+        for anchor in (seed, output.fd, receipt):
+            fcntl.flock(anchor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            stamp = identity(os.fstat(anchor))
+            fd = os.dup(anchor)
+            self.public_fds.append((fd, anchor, stamp))
+        triple = tuple(fd for fd, _, _ in self.public_fds)
+        env = dict(environment)
+        env.update(A7C2_RAM_CARD_SEED_FD=str(triple[0]), A7C2_RAM_CARD_DIRECTORY_FD=str(triple[1]),
+                   A7C2_RAM_CARD_RECEIPT_FD=str(triple[2]))
+        self.output = output
+        self.triple = triple
+        self.environment = tuple(sorted(env.items()))
+        self.binding = dict(fd=triple[0], dir_fd=triple[1], receipt_fd=triple[2],
+                            pass_fds=triple, environment=env, verify=self.verify,
+                            cleanup_errors=self.cleanup_errors,
+                            host_fd_binding_verified=True, consumer_endpoint_verified=False,
+                            guest_consumption_verified=False, capture_verified=False)
+        self.verify()
+        # Do not close producer FDs when prepare_profile's local ExitStack exits.
+        self.stack.enter_context(output.stack.pop_all())
+        return self.binding
+
+    def verify(self):
+        if not self.active or self.output is None or self.binding is None:
+            raise ValueError('Functional camera consumer lease is closed or unbound')
+        if (tuple(sorted(self.binding['environment'].items())) != self.environment or
+                (self.binding['fd'], self.binding['dir_fd'], self.binding['receipt_fd']) != self.triple or
+                self.binding['pass_fds'] != self.triple):
+            raise ValueError('Functional camera FD/environment handoff changed')
+        for fd, anchor, stamp in self.public_fds:
+            if identity(os.fstat(anchor)) != stamp:
+                raise ValueError('Functional camera private anchor identity changed')
+            fcntl.flock(anchor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if identity(os.fstat(fd)) != stamp:
+                raise ValueError('Functional camera inherited FD identity changed')
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        seed, _, receipt = self.triple
+        for fd in (seed, receipt):
+            if fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY:
+                raise ValueError('Functional camera consumer input FD is not read-only')
+        info = os.fstat(seed)
+        if (info.st_size != FUNCTIONAL_CAMERA_RAM_BYTES or info.st_nlink != 1 or
+                stat.S_IMODE(info.st_mode) != 0o600):
+            raise ValueError('Functional camera consumer seed permissions/capacity changed')
+        self.output.check()
+        receipt_before = identity(os.fstat(receipt))
+        digest = hashlib.sha256()
+        offset = 0
+        while True:
+            raw = os.pread(receipt, 1024**2, offset)
+            if not raw:
+                break
+            digest.update(raw)
+            offset += len(raw)
+        if (digest.hexdigest() != self.output.files['backup-profile.json'][2] or
+                identity(os.fstat(receipt)) != receipt_before or
+                receipt_before != self.output.files['backup-profile.json'][1]):
+            raise ValueError('Functional camera receipt FD readback differs')
+        return dict(host_fd_binding_verified=True, consumer_endpoint_verified=False,
+                    guest_consumption_verified=False, capture_verified=False)
+
+
+@contextmanager
+def ram_profile_lease(native, env, output_parent=None, *, parallel_peak_bytes=None, model_base=None):
+    """Yield environment + pass_fds; owner must retain this through consumer exit.
+
+    This prepares host inputs only; top-level probe and guest acceptance stay gated.
+    Pass the triple unchanged with Popen(pass_fds=...). Host consumers must not
+    reopen original paths; after verification, bwrap may bind those exact FD inodes
+    as read-only sandbox paths. Consumers must not close/unlock borrowed FDs.
+    """
+    if not validate_functional_camera_media(env):
+        raise ValueError('Functional camera RAM lease requires explicit RAM media intent')
+    if type(parallel_peak_bytes) is not int or parallel_peak_bytes < 0:
+        raise ValueError('Functional RAM lease requires declared parallel peak bytes, including zero')
+    native = Path(native)
+    if (not native.is_absolute() or '..' in native.parts or native.resolve() != native or
+            len(native.parents) < 2):
+        raise ValueError('Functional RAM lease requires an absolute product runtime without symlinks')
+    product = native.parents[1]
+    parent = Path(output_parent) if output_parent is not None else native / 'functional-camera-profiles'
+    seed = Path(env.get('A7C2_SD_IMAGE') or native / 'menu-root/simulation/media-camera.fat')
+    if product == Path('/') or any(not path.is_absolute() or '..' in path.parts or
+                                   path == product or not path.is_relative_to(product)
+                                   for path in (parent, seed)):
+        raise ValueError('Functional RAM-card seed and output must stay inside this product')
+    with ExitStack() as stack:
+        owner = _RamProfileLease(stack, parallel_peak_bytes)
+        try:
+            model_options = {} if model_base is None else {'_model_base': model_base}
+            binding = prepare_profile(native, env, output_parent, _consumer_owner=owner, **model_options)
+            yield binding
+        except BaseException as error:
+            if owner.output is not None:
+                try:
+                    owner.verify()
+                except BaseException as check_error:
+                    error.add_note('RAM-card lease final verification failed: ' + str(check_error))
+            raise
+        else:
+            owner.verify()
+        finally:
+            owner.active = False
+
+
+def prepare_profile(native, env, output_parent=None, *, _consumer_owner=None, _model_base=None):
+    ram_media = validate_functional_camera_media(env)
+    if _model_base is not None and _consumer_owner is None:
+        raise ValueError('Alternate model requires a live RAM-card lease')
+    if _consumer_owner is not None and (not ram_media or
+            not isinstance(_consumer_owner, _RamProfileLease) or not _consumer_owner.active):
+        raise ValueError('Functional camera consumer handoff requires a live RAM-card lease')
     native=Path(native).resolve()
     dfs=env.get('MENU_DFS_SELECTOR','')
     if dfs not in ('','virtual-selector-v1') or (dfs and env.get('MENU_TCIN_DETECT')!='virtual-inactive-v1'):
@@ -1123,7 +1713,7 @@ def prepare_profile(native, env):
     bb_set_mode=env.get('MENU_BB_SET_MODE','')
     if bb_set_mode not in ('',BB_SET_MODE_PROFILE) or (bb_set_mode and (
             env.get('A7C2_BB_SET_MODE')!=BB_SET_MODE_PROFILE or
-            env.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1' or
+            (not ram_media and env.get('A7C2_DIRECTORY_SD_PROFILE')!='directory-vvfat-256gb-v1') or
             adf_output!=OUTPUT_PROFILE or adf_input!=INPUT_PROFILE or adf!=ADF_PROFILE or
             vef!='virtual-nomem-v1' or dfs!='virtual-selector-v1' or
             env.get('MENU_TCIN_DETECT')!='virtual-inactive-v1' or
@@ -1221,74 +1811,176 @@ def prepare_profile(native, env):
             (functional_camera and cp_capture_format != FULL_CP_OWNED_STATE_PROFILE)):
         raise ValueError('Functional camera requires the exact paired profile and owned-state full-connection predecessor')
     required={'A7C2_BACKUP_SYNC':PROFILE,'MENU_CP_BACKGROUND':'virtual-mode3-cold-v1',
-              'MENU_UDATE_DISTRIBUTION':'virtual-roundtrip-v1','MENU_TOUCH_PANEL':'virtual-config-v1',
-              'A7C2_DIRECTORY_SD_PROFILE':'directory-vvfat-256gb-v1'}
+              'MENU_UDATE_DISTRIBUTION':'virtual-roundtrip-v1','MENU_TOUCH_PANEL':'virtual-config-v1'}
+    if not ram_media:
+        required['A7C2_DIRECTORY_SD_PROFILE']='directory-vvfat-256gb-v1'
     if any(env.get(k)!=v for k,v in required.items()):
         raise ValueError('Backup requires the complete natural CP3007/UDATE/touch/directory profile')
     if (env.get('A7C2_NATURAL_IMAGING_PROFILE') or env.get('MENU_VPANEL')=='1' or
             env.get('MENU_PCIDMA_XFER')=='1' or env.get('QEMU_CPU_COUNT','1')!='1'):
         raise ValueError('Backup profile conflicts with imaging, diagnostic pattern DMA or SMP2')
     build,binary,receipt=validate_build(native,env.get('A7C2_BACKUP_BUILD',''))
+    if ram_media:
+        from functional_camera_runner import validate_artifact
+        validate_artifact(native if _model_base is None else _model_base, binary,
+                          scope_build_receipt=env.get('A7C2_SCOPE_OBSERVER_BUILD') or None)
     seed=native/'menu-root/seed-backup.bin'
-    with seed.open('rb') as stream: data=stream.read(2390265)
+    if ram_media:
+        source_backup_seed, data = _bound_profile_input(seed, retain=True, expected_bytes=2390264)
+    else:
+        with seed.open('rb') as stream: data=stream.read(2390265)
     if len(data)!=2390264 or hashlib.sha256(data).hexdigest()!=SEED_SHA:
         raise ValueError('Backup fixture source is not the pinned official ALLLANG seed')
     primary=data[0xed000:]
     if len(primary)!=PRIMARY_BYTES or hashlib.sha256(primary).hexdigest()!=PRIMARY_SHA:
         raise ValueError('Public Backup primary projection differs')
-    source=Path(env['MENU_KERNEL_SCRIPT'])
-    script=source.read_text()
+    source = native/'qemu-kernel-probe.sh' if ram_media else Path(env['MENU_KERNEL_SCRIPT'])
+    official=native/'unpacked/firmware.tar_unpacked/0800_appli/setting/cxd90057.dtb'
+    media_fields = {}
+    if ram_media:
+        media_seed, _ = _bound_profile_input(
+            env.get('A7C2_SD_IMAGE') or native/'menu-root/simulation/media-camera.fat',
+            expected_bytes=FUNCTIONAL_CAMERA_RAM_BYTES, single_link=True)
+        source_script, script_raw = _bound_profile_input(source, retain=True)
+        source_board, board_raw = _bound_profile_input(native/'qemu-virt-board/virt-packed.dtb', retain=True)
+        official_board, official_raw = _bound_profile_input(official, retain=True)
+        source_binary, _ = _bound_profile_input(binary)
+        if source_binary['sha256'] != receipt['binary_sha256']:
+            raise ValueError('Functional camera QEMU binary changed after build validation')
+        script = script_raw.decode('utf-8')
+        anchor = 'project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"'
+        if script.count(anchor) != 1:
+            raise ValueError('Functional camera baseline launcher root anchor changed')
+        script = script.replace(anchor, 'project_dir=' + shlex.quote(str(native.parent)), 1)
+        media_fields = {'schema':'a7c2-functional-camera-ram-media-v1',
+                        'physical_compatible':False,'media_profile': ram_media, 'media_seed_source': media_seed['path'],
+                        'media_seed_bytes': media_seed['bytes'], 'media_seed_sha256': media_seed['sha256'],
+                        'media_seed_identity': media_seed['identity'],
+                        'source_backup_seed': source_backup_seed,
+                        'source_script': source_script, 'source_board': source_board,
+                        'official_board': official_board, 'source_binary': source_binary,
+                        'consumer_handoff': 'refused-path-only-no-caller-held-fds',
+                        'consumer_binding_verified': False,
+                        'usb_ethernet_added': False, 'directory_sd_added': False}
+    else:
+        script=source.read_text()
     bind='    --bind "$output_dir" /out \\\n'
     gates='    "${timer_environment[@]}" \\\n'
     if script.count(bind)!=1 or script.count(gates)!=1:
         raise ValueError('Backup profile launcher anchors changed')
-    output=source.parent
-    fixture=output/'backup-primary.bin'
-    with fixture.open('xb') as stream: stream.write(primary)
-    if sha(fixture)!=PRIMARY_SHA: raise ValueError('Backup fixture writeback differs')
-    script=script.replace(bind,bind+'    --ro-bind '+shlex.quote(str(fixture))+' /backup-primary.bin \\\n',1)
-    flags=('QEMU_SONY_PCIE_PEER_TEST','QEMU_SONY_PCIE_SCU_TEST','QEMU_SONY_CCF_TEST',
-           'QEMU_SONY_PHY_INIT_TEST','QEMU_SONY_BACKUP_TEST','QEMU_SONY_DMA330')
-    if dfs:flags+=('QEMU_SONY_DFS_TEST',)
-    script=script.replace(gates,gates+''.join('    --setenv '+flag+' 1 \\\n' for flag in flags)+
-                          '    --setenv QEMU_SONY_BACKUP_FILE /backup-primary.bin \\\n',1)
-    board=output/'board-usb-backup.dtb'
-    iomap=load_module('backup_iomap_board',native.parents[1]/'report/virtual-pcidma/iomap_board.py')
-    official=native/'unpacked/firmware.tar_unpacked/0800_appli/setting/cxd90057.dtb'
-    iomap.prepare(env['MENU_DTB'],board,official,all_pcie_wrappers=True,
-                  ccf_provider=True,phy_upload=True,dma_window=True,backup_control=True)
-    launcher=output/'kernel-directory-backup.sh'
-    with launcher.open('x') as stream: stream.write(script)
-    proof={'profile':PROFILE,'binary':str(binary),'binary_sha256':receipt['binary_sha256'],
-           'source_seed_sha256':SEED_SHA,'fixture_sha256':PRIMARY_SHA,'fixture_bytes':PRIMARY_BYTES,
-           'fixture':str(fixture),'derived_script_sha256':sha(launcher),'derived_board_sha256':sha(board),
-           'hardware_flags':list(flags),'dfs_selector_profile':dfs or None,
-           'vef_path_profile':vef or None,
-           **adf_proc_profile_fields(adf),
-           **adf_set_input_profile_fields(adf_input),
-           **adf_set_output_profile_fields(adf_output),
-           **bb_set_mode_profile_fields(bb_set_mode),
-           **imaging_pin_connection_profile_fields(imaging_connect),
-           **imaging_control_connection_profile_fields(imaging_control_connect),
-           **imaging_adf_connection_profile_fields(imaging_adf_connect),
-           **infrabb_vef_connection_profile_fields(infrabb_vef_connect),
-           **infrabb_vef_control_connection_profile_fields(infrabb_vef_control_connect),
-           **vef_pinmem_input_connection_profile_fields(vef_pinmem_input_connect),
-           **vef_pinmem_control_connection_profile_fields(vef_pinmem_control_connect),
-           **pinmem_peer_connections_profile_fields(pinmem_peers),
-           **pinmem_hdmi_video_connection_profile_fields(pinmem_hdmi_video_connect),
-           **pinmem_osd_connection_profile_fields(pinmem_osd_connect),
-           **adf_hdmi_audio_connection_profile_fields(adf_hdmi_audio_connect),
-           **cp302c_no_transition_profile_fields(cp302c_no_transition),
-           **cp302c_diagnostic_profile_fields(cp302c_diagnostic),
-           **cp_notification_control_profile_fields(cp_notification_control),
-           **cp_capture_format_profile_fields(cp_capture_format),
-           **functional_camera_profile_fields(functional_camera),
-           'dfs_actual_clock_changes':False,
-           'initial_source':'conditional public second BK4, unmodified',
-           'original_bootloader_executed':False,'original_cp_executed':False,'capture_verified':False}
-    (output/'backup-profile.json').write_text(json.dumps(proof,indent=2)+'\n')
-    return {'MENU_KERNEL_SCRIPT':str(launcher),'MENU_DTB':str(board),
-            'QEMU_SYSTEM_DIR':str(binary.parent),'QEMU_SYSTEM_BINARY':binary.name,
-            'QEMU_SONY_PCIDMA':'1','MENU_BACKUP_SYNC':PROFILE,
-            'MENU_BACKUP_PROFILE_RECEIPT':str(output/'backup-profile.json'),'SEED_BACKUP':'alllang'}
+    with ExitStack() as stack:
+        output_guard = None
+        if ram_media:
+            parent = Path(output_parent) if output_parent is not None else native/'functional-camera-profiles'
+            output_guard = _RamProfileOutput(stack, parent)
+            output = output_guard.output
+            if _consumer_owner is not None:
+                cloned_seed, sparse_proof = output_guard.copy_seed(
+                    media_seed, parallel_peak_bytes=_consumer_owner.parallel_peak_bytes)
+                media_fields.update(media_seed_origin=media_seed,
+                                    media_seed_source=cloned_seed['path'],
+                                    media_seed_bytes=cloned_seed['bytes'],
+                                    media_seed_sha256=cloned_seed['sha256'],
+                                    media_seed_identity=cloned_seed['identity'],
+                                    sparse_seed=sparse_proof,
+                                    consumer_handoff='caller-held-fd-lease-v1')
+            board_source = output_guard.pinned/'source-board.dtb'
+            official = output_guard.pinned/'official-board.dtb'
+            output_guard.write(board_source.name, board_raw)
+            output_guard.write(official.name, official_raw)
+        else:
+            output=source.parent
+            board_source=Path(env['MENU_DTB'])
+        fixture=output/'backup-primary.bin'
+        if ram_media:
+            output_guard.write(fixture.name, primary)
+            if output_guard.files[fixture.name][2] != PRIMARY_SHA:
+                raise ValueError('Backup fixture writeback differs')
+        else:
+            with fixture.open('xb') as stream: stream.write(primary)
+            if sha(fixture)!=PRIMARY_SHA: raise ValueError('Backup fixture writeback differs')
+        script=script.replace(bind,bind+'    --ro-bind '+shlex.quote(str(fixture))+' /backup-primary.bin \\\n',1)
+        flags=('QEMU_SONY_PCIE_PEER_TEST','QEMU_SONY_PCIE_SCU_TEST','QEMU_SONY_CCF_TEST',
+               'QEMU_SONY_PHY_INIT_TEST','QEMU_SONY_BACKUP_TEST','QEMU_SONY_DMA330')
+        if dfs:flags+=('QEMU_SONY_DFS_TEST',)
+        script=script.replace(gates,gates+''.join('    --setenv '+flag+' 1 \\\n' for flag in flags)+
+                              '    --setenv QEMU_SONY_BACKUP_FILE /backup-primary.bin \\\n',1)
+        board=output/('board-ram-backup.dtb' if ram_media else 'board-usb-backup.dtb')
+        iomap=load_module('backup_iomap_board',native.parents[1]/'report/virtual-pcidma/iomap_board.py')
+        if ram_media:
+            # iomap uses Path.write_bytes/write_text; constrain those writes too.
+            original_path = iomap.Path
+            iomap.Path = output_guard.iomap_path
+            try:
+                derived = iomap.prepare(board_source, output_guard.pinned/board.name, official,
+                                        all_pcie_wrappers=True, ccf_provider=True, phy_upload=True,
+                                        dma_window=True, backup_control=True)
+            finally:
+                iomap.Path = original_path
+            if derived is None or str(derived) != str(output_guard.pinned/board.name):
+                raise ValueError('Functional camera iomap returned an unexpected output path')
+            output_guard.read(board.name)
+            output_guard.read('iomap-board-proof.json')
+        else:
+            iomap.prepare(board_source,board,official,all_pcie_wrappers=True,
+                          ccf_provider=True,phy_upload=True,dma_window=True,backup_control=True)
+        launcher=output/('kernel-ram-backup.sh' if ram_media else 'kernel-directory-backup.sh')
+        if ram_media:
+            output_guard.write(launcher.name, script.encode('utf-8'))
+            script_sha = output_guard.files[launcher.name][2]
+            board_sha = output_guard.files[board.name][2]
+        else:
+            with launcher.open('x') as stream: stream.write(script)
+            if launcher.read_text() != script:
+                raise ValueError('Backup profile launcher writeback differs')
+            script_sha, board_sha = sha(launcher), sha(board)
+        proof={'profile':PROFILE,'binary':str(binary),'binary_sha256':receipt['binary_sha256'],
+               'source_seed_sha256':SEED_SHA,'fixture_sha256':PRIMARY_SHA,'fixture_bytes':PRIMARY_BYTES,
+               **media_fields,
+               'fixture':str(fixture),'derived_script_sha256':script_sha,'derived_board_sha256':board_sha,
+               'hardware_flags':list(flags),'dfs_selector_profile':dfs or None,
+               'vef_path_profile':vef or None,
+               **adf_proc_profile_fields(adf),
+               **adf_set_input_profile_fields(adf_input),
+               **adf_set_output_profile_fields(adf_output),
+               **bb_set_mode_profile_fields(bb_set_mode),
+               **imaging_pin_connection_profile_fields(imaging_connect),
+               **imaging_control_connection_profile_fields(imaging_control_connect),
+               **imaging_adf_connection_profile_fields(imaging_adf_connect),
+               **infrabb_vef_connection_profile_fields(infrabb_vef_connect),
+               **infrabb_vef_control_connection_profile_fields(infrabb_vef_control_connect),
+               **vef_pinmem_input_connection_profile_fields(vef_pinmem_input_connect),
+               **vef_pinmem_control_connection_profile_fields(vef_pinmem_control_connect),
+               **pinmem_peer_connections_profile_fields(pinmem_peers),
+               **pinmem_hdmi_video_connection_profile_fields(pinmem_hdmi_video_connect),
+               **pinmem_osd_connection_profile_fields(pinmem_osd_connect),
+               **adf_hdmi_audio_connection_profile_fields(adf_hdmi_audio_connect),
+               **cp302c_no_transition_profile_fields(cp302c_no_transition),
+               **cp302c_diagnostic_profile_fields(cp302c_diagnostic),
+               **cp_notification_control_profile_fields(cp_notification_control),
+               **cp_capture_format_profile_fields(cp_capture_format),
+               **functional_camera_profile_fields(functional_camera),
+               'dfs_actual_clock_changes':False,
+               'initial_source':'conditional public second BK4, unmodified',
+               'original_bootloader_executed':False,'original_cp_executed':False,'capture_verified':False}
+        if ram_media:
+            for source_input in (media_seed, source_backup_seed, source_script, source_board, official_board, source_binary):
+                current, _ = _bound_profile_input(source_input['path'])
+                if current != source_input:
+                    raise ValueError('Functional camera profile source changed during derivation')
+        receipt_path = output/'backup-profile.json'
+        receipt_text = json.dumps(proof,indent=2)+'\n'
+        result = {'MENU_KERNEL_SCRIPT':str(launcher),'MENU_DTB':str(board),
+                  'QEMU_SYSTEM_DIR':str(binary.parent),'QEMU_SYSTEM_BINARY':binary.name,
+                  'QEMU_SONY_PCIDMA':'1','MENU_BACKUP_SYNC':PROFILE,
+                  'MENU_BACKUP_PROFILE_RECEIPT':str(receipt_path),'SEED_BACKUP':'alllang'}
+        if ram_media:
+            result['A7C2_SD_IMAGE'] = media_fields['media_seed_source']
+            output_guard.publish(receipt_text)
+            return output_guard.consumer_environment(output_guard, result, _consumer_owner)
+        else:
+            with receipt_path.open('x') as stream:
+                stream.write(receipt_text)
+            if receipt_path.read_text() != receipt_text:
+                raise ValueError('Backup profile receipt writeback differs')
+        return result

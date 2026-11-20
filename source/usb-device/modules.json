@@ -1,0 +1,32 @@
+{
+  "schema": "a7c2-usb-buspower-readonly-module-source-v1",
+  "default_enabled": false,
+  "scope": "isolated original-cold USB-MSC guest only",
+  "guest_target": "/usr/kmod",
+  "source_files_copied_now": false,
+  "modules": [
+    {
+      "name": "usbg_buspower",
+      "file": "usbg_buspower.ko",
+      "source": "final/a7c2-qemu/runtime/analysis/menu-root/usr/kmod/usbg_buspower.ko",
+      "sha256": "dd0681bf59ea4132db498afdd236188235dafb640adcc5c0d822c96359889232"
+    },
+    {
+      "name": "usb_beets",
+      "file": "usb_beets.ko",
+      "source": "final/a7c2-qemu/runtime/analysis/menu-root/usr/kmod/usb_beets.ko",
+      "sha256": "2988e06ad49cd9c56c1b6ee9563f58b1cb03a003bf9767e287defb4d3d482c60"
+    },
+    {
+      "name": "usb_buspwr",
+      "file": "usb_buspwr.ko",
+      "source": "final/a7c2-qemu/runtime/analysis/menu-root/usr/kmod/usb_buspwr.ko",
+      "sha256": "fcf9efaf116a76ca4bcebff829c111ebf3c77929e4bfae3a9b277b24bdd00c41"
+    }
+  ],
+  "other_files_or_symlinks_allowed": false,
+  "other_ic_fallback_allowed": false,
+  "libBusPower_imdb_enabled": false,
+  "MENU_BUSPOWER": "existing unique initialization only",
+  "runtime_verified": false
+}

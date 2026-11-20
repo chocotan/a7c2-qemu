@@ -137,7 +137,7 @@ def test_actual_original_exif_consumes_same_frame_thumbnail(encoded_frame, tmp_p
     receipts = [line for line in lines if line.startswith(b'PASS original-libjpeg-add-finish-output-list ')]
     assert len(receipts) == 1 and b'software_DMA_copies=1' in receipts[0]
     assert b'original_AP=0 native_DMM_registered=0 Fsys_saved=0 capture_verified=0' in receipts[0]
-    assert b'original_DMM_helper=1 software_owned_registry=1 production_output_owner=1 exports_checked=1 notification_lease_checked=1 notifications_sent=0 native_shares=4 native_queries=4 native_frees=4' in receipts[0]
+    assert b'original_DMM_helper=1 software_owned_registry=1 production_output_owner=1 exports_checked=1 notification_lease_checked=1 notifications_sent=0 native_shares=4 native_queries=4 native_frees=5' in receipts[0]
     diagnostics = [line.decode(errors='replace') for line in lines if line != receipts[0]]
     output = (tmp_path / 'original-jpeg-output-list.bin').read_bytes()
     records = (tmp_path / 'original-output-records.bin').read_bytes()

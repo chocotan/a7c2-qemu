@@ -83,7 +83,7 @@ Main 的 `+10` 是 manager，`+18` 是 control，`+c` 是 context，`+20` 是 se
 
 Main ACK 的真正原 Res 无论 status 均返回 0，永远非 terminal，因此保留当前 generation/token 的输出 lease。不同对象 MainComp 只有在同次实际 ACK 已观察并由原 Main Res 消费后才能关联：要求原 controller 的 `13b7e0` 返回 PC、同一 receiver PID/TID、完整原 ACK 16B、原 controller 保留并继续传入的同一 ACK 参数地址、不同对象，以及匹配的原 manager/control/context/selector。直接或过期 MainComp、缺 ACK/Exec、重入、foreign PID、错误 vptr/字段/收据全部拒绝。
 
-MainComp 原 Exec 必须实际运行。原 ParameterControl `GetValue(pointer)@a46e4/c4` 完整函数有 runtime pin，control 的虚表 `+a8` 必须确实指向它；读取原 key1048 只用于核对当前 writable `Cprime` 与该请求的 unit/position/capacity，并验证读写权限与 alias。key1047 是独立 120B 稳定 copy，不能与 key1048 pointer 当作同一 storage。DONE 先通过真实 original receive 的逐字节校验，再由真正原 MainComp Res 写回长度；adapter 只读回比对、不代写该字段。只有原 DONE 的正确返回值与实际原长度写回均成立后才退租。错误编码也必须排入真实 ERROR DONE，使原 MainComp 清零对应长度并返回 `201`；不会因错误 ACK 的原返回 0 而挂住或伪造成功。发送、原请求 free 或 lease release 失败均保留相应所有权并阻止 clean shutdown/reuse。
+MainComp 原 Exec 必须实际运行。原 ParameterControl `GetValue(pointer)@a46e4/c4` 完整函数有 runtime pin，control 的虚表 `+b0` 必须确实指向它（地址点 `0x1a8020`，指针 getter 重定位 `0x1a80d0`；`+a8` 是独立 `GetValue(uint64&)@a4654` 重载）；读取原 key1048 只用于核对当前 writable `Cprime` 与该请求的 unit/position/capacity，并验证读写权限与 alias。key1047 是独立 120B 稳定 copy，不能与 key1048 pointer 当作同一 storage。DONE 先通过真实 original receive 的逐字节校验，再由真正原 MainComp Res 写回长度；adapter 只读回比对、不代写该字段。只有原 DONE 的正确返回值与实际原长度写回均成立后才退租。错误编码也必须排入真实 ERROR DONE，使原 MainComp 清零对应长度并返回 `201`；不会因错误 ACK 的原返回 0 而挂住或伪造成功。发送、原请求 free 或 lease release 失败均保留相应所有权并阻止 clean shutdown/reuse。
 
 当前 provider 在原注册节点中明确声明 identity IOVA，故保留其已有 `virtual_base == iova_base` contract 检查；额外核对 CPU `lease.address == virtual_base + offset`、实际 mapping/RW、精确 extent、token/generation 与输出 alias。所有 CPU 访问仍只使用 provider 的 CPU lease.address；不主机解引用独立 IOVA，也没有把原输入 P/V 两个地址域合并。
 

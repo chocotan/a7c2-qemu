@@ -142,7 +142,7 @@ static int execute(struct a7pf *s, uint32_t op)
         if (err) return err;
         n=s->io.write(s->fd, s->bounce, bytes, offset);
         if (n!=(ssize_t)bytes) return n<0 ? errno : EIO;
-        if (s->io.sync(s->fd)) return errno;
+        if (!s->writeback && s->io.sync(s->fd)) return errno;
     } else {
         n=s->io.read(s->fd, s->bounce, bytes, offset);
         if (n!=(ssize_t)bytes) return n<0 ? errno : EIO;

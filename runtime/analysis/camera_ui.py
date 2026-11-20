@@ -478,7 +478,7 @@ class CameraUI:
             button.get_accessible().set_name(title)
             self.development_buttons[action]=button;row.pack_start(button,False,False,0)
         box.pack_start(row,False,False,0)
-        box.pack_start(label('BODYDATA 系统更新 · 本轮暂缓，不执行完整更新验收','hint',wrap=True),False,False,0)
+        box.pack_start(label('BODYDATA 系统更新 · 原系统安装尚未接入','hint',wrap=True),False,False,0)
         self.development_status=label('选择文件前先 OFF 并等待保存结束。','hint',wrap=True)
         self.development_status.get_accessible().set_role(Atk.Role.STATUSBAR)
         box.pack_start(self.development_status,False,False,0)
@@ -1138,6 +1138,9 @@ class CameraUI:
 
 
 def main(autostart=True):
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     # The production entry point needs only this VM construction and this window.
     if not Gtk.init_check()[0]:
         print('GTK display initialization failed',file=sys.stderr)
@@ -1151,7 +1154,8 @@ def main(autostart=True):
     boot_profile=os.environ.get('A7C2_BOOT_PROFILE','original-init-cold')
     vm = VM(native_display='none', natural_boot=True,boot_profile=boot_profile,
             usb_net=boot_profile=='direct-bootin' and not bool(os.environ.get('A7C2_PREVIEW_PNG') or
-                             os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1'), instance=instance,
+                             os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1' or
+                             os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA')), instance=instance,
             persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE')=='1')
     ui = CameraUI(vm)
     def interrupted(*_):

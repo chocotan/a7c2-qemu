@@ -267,10 +267,10 @@ JKY_CP_MOVIE_FORMAT_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20
 EHG_CP_OU_CRANK_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'f5c3dbe9c84e0aea94f6d59c46eaf17294d211021d64b5aae39d523759328cef', 'menu-observe.c': '7e5ac74b26a37b69e61dd02ce6d2ecbdcd68327f92e40bec907953793f9d7ab4', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': '33e0ce4dbfdf04ee5221f0964950b6df8780dc0ff5d56792c072c956d437cc06'}
 
 
-MOF_BB_TIMECODE_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': '38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f', 'menu-observe.c': 'ad3c3664719d7a5691899d180079e1c825acd50e2c6d1cb186bb9681e0ffd251', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': '8908d3b1d7fc022fa2d01e90ae9eff21ddd8f5003d244d3b1ab9f00e555cfc96', 'device-models/bb-timecode-control.c': 'e1f5f01dde35c50abc3e6953d67d80a206ffead5f16d7c158d7ceca66003643f', 'device-models/bb-timecode-control.h': '643c9042bca243784fae8cf66c60b7d10b36f57498d2775431558f94034d3ae5'}
+MOF_BB_TIMECODE_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'd8a80b4e6bdc4eb89b85184a8a38284d485c2c7d86b619a65e4e4dd5d6f7cefe', 'menu-observe.c': 'ad3c3664719d7a5691899d180079e1c825acd50e2c6d1cb186bb9681e0ffd251', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': '8908d3b1d7fc022fa2d01e90ae9eff21ddd8f5003d244d3b1ab9f00e555cfc96', 'device-models/bb-timecode-control.c': 'e1f5f01dde35c50abc3e6953d67d80a206ffead5f16d7c158d7ceca66003643f', 'device-models/bb-timecode-control.h': '643c9042bca243784fae8cf66c60b7d10b36f57498d2775431558f94034d3ae5'}
 
 
-YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': '38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f', 'menu-observe.c': '4899afd97aaea06b272a3ec3927b92d2ab482ca9b42a04769cafbe7bac0541e4', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3'}
+YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': 'd8a80b4e6bdc4eb89b85184a8a38284d485c2c7d86b619a65e4e4dd5d6f7cefe', 'menu-observe.c': '4899afd97aaea06b272a3ec3927b92d2ab482ca9b42a04769cafbe7bac0541e4', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3'}
 
 
 def require(value, reason):
@@ -278,18 +278,48 @@ def require(value, reason):
         raise ValueError('HDMI11: ' + str(reason))
 
 
-PRODUCT_DEVELOPMENT_20261108_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': '38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f', 'menu-observe.c': 'e2744ae3cf3124e87ab0234309eec302806a515560bbd57bf6d02a96ef106411', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3', 'observer-process-scope.h': 'd4d96df4991d0518ddff58705cde989855c2717b7e7d2f1b11ea55188a1cf97b'}
+PRODUCT_DEVELOPMENT_20261108_SOURCES = {'device-models/hdmi-video-state.c': '20c4ff7cd1eca684748ab3f16c55d990dbdd3fa51fe7c85fae6399c99bef32a2', 'device-models/hdmi-video-state.h': 'ae0b6d9beebca768954440a1b86e62bc336d16ccad3c45c1348b2ba03afcd722', 'build-observers.sh': '38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f', 'menu-observe.c': '31949f1873847cde5be006efb7302b5794805ae7047dcc20c1f09a40beb6a9a0', 'device-models/functional-camera-control.c': '0ff483dff256d90a6c359022f1bf9b341df1500813020327e7b87ee3d14a0361', 'device-models/functional-camera-control.h': 'e09b1cd0cbb196d27f29ede7966f02f835e543ebf83eb99cbf9de3648f780826', 'functional-camera-bridge.c': '5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310', 'functional-camera-bridge.h': '3b0e8a4139597562eb2258eace9a4618121964516608713cc1d8009c7426ec9d', 'functional-camera-abi.h': '587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77', 'functional_camera_broker.py': '8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39', 'backup_profile.py': 'b3ecae92a27b9b26508dbd6f16e09af75ff72f05356148a570c166bb5b75dd5f', 'device-models/bb-timecode-control.c': '86d43948fc354599a8d215889844c73733df7c21a9b66cc55f4790958c11f1f6', 'device-models/bb-timecode-control.h': '543bcce45e95a298938c2f7867a7122617b8e60c1d8c40ea399bcb09177307d3', 'observer-process-scope.h': 'd4d96df4991d0518ddff58705cde989855c2717b7e7d2f1b11ea55188a1cf97b'}
+
+
+ISOLATED_OBSERVER_FORMATFIX_SOURCES = {
+    **PRODUCT_DEVELOPMENT_20261108_SOURCES,
+    'menu-observe.c': 'b69dc44e36188b382c19a95e0fb9a74d3d842fad15a7a64a8ae21309f4bcbb59',
+}
+
+
+ISOLATED_OBSERVER_AUDITFIRST_SOURCES = {
+    **ISOLATED_OBSERVER_FORMATFIX_SOURCES,
+    'menu-observe.c': '32b50b7731121f7d45e61d94c5967c6867bd521294a4466148e81bc2528a354b',
+}
+
+
+ISOLATED_OBSERVER_BT_BOUNDARY_SOURCES = {
+    **ISOLATED_OBSERVER_AUDITFIRST_SOURCES,
+    'menu-observe.c': 'adf2cd78ec4c866330730450fd3bde1e7e5025296a009a35b8aef710c7c38c90',
+}
+
+
+ISOLATED_OBSERVER_BT_COMPILEFIX_SOURCES = {
+    **ISOLATED_OBSERVER_BT_BOUNDARY_SOURCES,
+    'menu-observe.c': 'ce8ce9c482036ce377108bdb103d637cc5d61e2f4c6f369a337f5e56c5f6aca1',
+}
+
+
+ISOLATED_OBSERVER_CONCURRENCY_SOURCES = {
+    **ISOLATED_OBSERVER_BT_COMPILEFIX_SOURCES,
+    'menu-observe.c': '3b109a2a3dd17f81dc554a75e3f808def87d8ed253cd3a84183c5c6628be5750',
+}
 
 
 def _condition_source_set(sources):
-    current=PRODUCT_DEVELOPMENT_20261108_SOURCES
     row=sources.get(str((BASE/'menu-observe.c').resolve()),{})
-    if row.get('sha256')==current['menu-observe.c']:
-        require(all(str((BASE/name).resolve()) in sources for name in current),
-                'missing YVO BB-timecode preset condition source member in product development tuple')
-        selected={name:sources[str((BASE/name).resolve())]['sha256'] for name in current}
-        require(selected==current,'unreviewed YVO BB-timecode preset condition source tuple in product development')
-        return selected
+    for current in (PRODUCT_DEVELOPMENT_20261108_SOURCES,):
+        if row.get('sha256')==current['menu-observe.c']:
+            require(all(str((BASE/name).resolve()) in sources for name in current),
+                    'missing YVO BB-timecode preset condition source member in product development tuple')
+            selected={name:sources[str((BASE/name).resolve())]['sha256'] for name in current}
+            require(selected==current,'unreviewed YVO BB-timecode preset condition source tuple in product development')
+            return selected
     selected = {name: sources[str(BASE / name)]['sha256'] for name in CONDITION_LEDGER_SOURCES}
     if selected['menu-observe.c'] == YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES['menu-observe.c']:
         require(all(str((BASE / name).resolve()) in sources for name in YVO_BB_TIMECODE_PRESET_CONDITION_SOURCES),

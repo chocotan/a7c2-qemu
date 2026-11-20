@@ -37,6 +37,7 @@
 #include "device-models/audio-device.h"
 #include "osdpin-registry.h"
 #include "dig-level-device.h"
+#include "cp-periodic-service.h"
 #include "dmm-unit-config.h"
 #include "rm-file-device.h"
 #include "power-notice.h"
@@ -111,6 +112,7 @@ extern int sscanf(const char *, const char *, ...);
 extern void *mmap(void *, size_t, int, int, int, unsigned long);
 extern int munmap(void *, size_t);
 extern int mprotect(void *, size_t, int);
+extern char *strchr(const char *, int);
 static unsigned char *memory_log;
 static void *(*real_dlsym)(void *, const char *);
 static void *(*real_dlopen)(const char *, int);
@@ -239,7 +241,10 @@ static int (*real_reg_sync)(unsigned int, void **, void *, unsigned long);
 static int (*real_reg_async)(unsigned int, void **, void *, unsigned long);
 static int (*real_unreg_async)(unsigned int,void *);
 static int rm_file_enabled;
+static int observed_send_msg(unsigned int, void *);
+static void ensure_real_send_msg(void);
 static int (*real_send_msg)(unsigned int, void *);
+static int (*real_send_msg_raw)(unsigned int, void *);
 static int (*real_send_sync)(unsigned int, void *);
 static int (*real_send_sync_direct)(unsigned int, void *);
 static int (*real_stat_msgq)(unsigned int,void *);
@@ -397,6 +402,7 @@ static void load_crypt_library(void) {
 }
 static void install_option_probes(void);
 static void install_honest_route_hook(void);
+static void patch_bt_null_load(void);
 static unsigned long find_library_base(const char *);
 extern unsigned long observe_appfw_base;
 static void install_sync_msg_probe(unsigned long);
@@ -485,9 +491,39 @@ static int honest_snd_dispatch(unsigned int id, void *message) {
         }
         return -1021;
     }
-    if (!real_send_msg) real_send_msg = real_dlsym((void *)-1, "osal_snd_msg");
+    ensure_real_send_msg();
     if (!real_send_msg) return -1021;
     return real_send_msg(id, message);
+}
+static void ensure_real_send_msg(void) {
+    if (!real_send_msg_raw) real_send_msg_raw = real_dlsym((void *)-1, "osal_snd_msg");
+    real_send_msg = real_send_msg_raw ? observed_send_msg : 0;
+}
+/* Bounded attribution for the 0x803e dynamic reply family. This wrapper does
+   not alter ownership, payload, destination or the real send result. */
+static int observed_send_msg(unsigned int id, void *message) {
+    static unsigned int dynamic_reply_seen;
+    unsigned int size;
+    if (!real_send_msg_raw) return -1021;
+    size = (real_msg_size && message) ? real_msg_size(message) : 0;
+    if ((id & 0xffff8000U) == 0x803e0000U && dynamic_reply_seen < 32) {
+        unsigned int i, source = (real_get_source && message) ? real_get_source(message) : 0;
+        const unsigned char *body = message;
+        char prefix[33], text[320];
+        int rc;
+        ++dynamic_reply_seen;
+        for (i = 0; i < 16; ++i)
+            snprintf(prefix + i * 2, 3, "%02x", body && i < size ? body[i] : 0);
+        prefix[32] = 0;
+        rc = real_send_msg_raw(id, message);
+        snprintf(text, sizeof text,
+                 "n=%u tid=%ld destination=%#x source=%#x bytes=%u caller=%p rc=%d raw=%s",
+                 dynamic_reply_seen, syscall(178), id, source, size,
+                 __builtin_return_address(0), rc, prefix);
+        record("DYNAMIC_803E_SEND ", text);
+        return rc;
+    }
+    return real_send_msg_raw(id, message);
 }
 /* infra_wrapper_bb::detail::send_and_wait_cmp_i (appFw 0x34e56e4) requires its osal_snd_msg to
    succeed; a failure logs "assert at infra_wrapper_bb_ipsx_sp_pp_branch.cpp:906" and aborts
@@ -531,7 +567,30 @@ static void pipeline_endpoint_callback(void *argument, void *message) {
                  size >= 16 ? words[3] : 0, size >= 20 ? words[4] : 0, size >= 24 ? words[5] : 0);
         record("PIPELINE_REQ ", text);
     }
+    /* c178: the capture path needs send_ignore_response_i (type13/opcode 0x14e, im.elf
+     * infra_wrapper_bb:964) to 0x92840747 to SUCCEED; "ignore response" wants no reply.
+     * c152 regression came from echoing boot sends, so nothing else is answered anymore:
+     * waiters keep hanging exactly like the measured original run_i behavior. */
+    {
+        unsigned int word0 = size >= 4 ? words[0] : 0;
+        unsigned int type = word0 & 0xff;
+        unsigned int opcode = (word0 >> 16) & 0xffff;
+        if (type == 13 && opcode == 0x14e) {
+            char text[160];
+            snprintf(text, sizeof text, "n=%u tid=%ld src=%#x bytes=%u consumed_no_reply",
+                     pipeline_requests, syscall(178), source, size);
+            record("PIPELINE_IGNORE_ACCEPT ", text);
+            return;
+        }
+    }
     if (!source || !size) { ++pipeline_failures; record("PIPELINE_NO_REPLY ", "no source id or empty request"); return; }
+    {   /* No echo for non-0x14e traffic (c152): consume silently, waiters hang as originally. */
+        char text[128];
+        snprintf(text, sizeof text, "n=%u tid=%ld src=%#x bytes=%u consumed_silent_no_reply",
+                 pipeline_requests, syscall(178), source, size);
+        record("PIPELINE_SILENT_CONSUME ", text);
+        return;
+    }
     void *reply = 0;
     if (real_allocate_msg(source, &reply, size, 1) || !reply) {
         ++pipeline_failures;
@@ -737,8 +796,47 @@ static void log_option_install_ready(const char *);
 static void install_osd_observers(void *);
 static void install_frame_observers(unsigned long);
 static unsigned long (*real_notify_draw)(void *), (*real_draw_framebuffer)(void *);
+/* Use the kernel's base-0 numbers; unsupported memparse suffixes fail closed. */
+static int dmm_lut_number(const char **cursor, const char *end, unsigned long long *value) {
+    const char *p = *cursor;
+    if (p == end || *p < '0' || *p > '9') return 0;
+    char *next;
+    *__errno_location() = 0;
+    unsigned long number = strtoul(p, &next, 0);
+    if (*__errno_location() || next == p || next > end) return 0;
+    *value = number;
+    *cursor = next;
+    return 1;
+}
+/* Only one exact reservation may own the LUT backing; reject overlapping aliases. */
+static int dmm_lut_reserved(const char *arguments) {
+    unsigned int owners = 0;
+    const char *p = arguments;
+    while (*p) {
+        while (*p == ' ' || *p == '\t' || *p == '\n') ++p;
+        const char *end = p;
+        while (*end && *end != ' ' && *end != '\t' && *end != '\n') ++end;
+        size_t length = end - p;
+        int owns = (length == sizeof DMM_LUT_RESERVATION - 1 && !memcmp(p, DMM_LUT_RESERVATION, length)) ||
+                   (length == sizeof DMM_LUT_COMBINED_RESERVATION - 1 && !memcmp(p, DMM_LUT_COMBINED_RESERVATION, length));
+        if (owns) ++owners;
+        else if (length >= 7 && !memcmp(p, "memrsv=", 7)) {
+            unsigned long long bytes = 0, address = 0;
+            const char *number = p + 7;
+            if (!dmm_lut_number(&number, end, &bytes) || number == end || *number++ != '@' ||
+                !dmm_lut_number(&number, end, &address) || !bytes || bytes > ~0ULL - address) return 0;
+            if (number != end && (end - number != 3 ||
+                (memcmp(number, ":uc", 3) && memcmp(number, ":ex", 3)))) return 0;
+            if (address < DMM_LUT_PHYSICAL + DMM_LUT_MAP_SIZE &&
+                address + bytes > DMM_LUT_PHYSICAL) return 0;
+        }
+        p = end;
+    }
+    return owners == 1;
+}
 static int headless_osd_enabled;
 static void start_headless_osd(void);
+static int headless_panel_outputs_readback(unsigned int *, unsigned int *);
 static void install_sync_direct_probe(unsigned long);
 static void install_async_send_probe(unsigned long);
 int observe_gpe_fill(int, int, unsigned int *, const void *)
@@ -773,7 +871,7 @@ static void initialize(void) {
     real_unreg_async = real_dlsym((void *)-1,"osal_unreg_msg_queue_cb");
     const char *rm_mode=getenv("MENU_RM_FILE");
     rm_file_enabled=rm_mode && rm_mode[0]=='1' && !rm_mode[1];
-    real_send_msg = real_dlsym((void *)-1, "osal_snd_msg");
+    ensure_real_send_msg();
     real_send_sync = real_dlsym((void *)-1, "osal_snd_sync_msg");
     real_send_sync_direct = real_dlsym((void *)-1, "osal_snd_sync_direct");
     real_stat_msgq = real_dlsym((void *)-1,"osal_stat_msgq");
@@ -1225,6 +1323,13 @@ static void initialize(void) {
             close(fd);
         }
         record("DMM_SERVICE_INIT ", dmm.memory ? "pool=0x41e000000 CP=0x1e000000 slots=2 size=0x80000" : "pool unavailable");
+        fd = dmm.memory && dmm_lut_reserved(arguments) ? open("/dev/mem", 2) : -1;
+        if (fd >= 0) {
+            void *area = mmap(0, DMM_LUT_MAP_SIZE, 3, 1, fd, DMM_LUT_PHYSICAL);
+            if (area != (void *)-1) { dmm.lut_memory = area; dmm.lut_physical = DMM_LUT_PHYSICAL; }
+            close(fd);
+        }
+        record("DMM_LUT_INIT ", dmm.lut_memory ? "unit=0x62a pool=0x41d020000 CP=0x1d020000 slots=1 bytes=0xbca0 original_cp_executed=0" : "pool unavailable");
     }
     int command = open("/proc/self/cmdline", 0);
     if (command >= 0) {
@@ -1247,16 +1352,16 @@ static void record(const char *prefix, const char *name) {
             "FULL_OSDPIN_",
             "FULL_AUDIO_", "FULL_BB_SET_MODE_", "FULL_BB_MODE_",
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
-            "FULL_DIG_LEVEL_",
+            "FULL_DIG_LEVEL_", "FULL_CP_PERIODIC_",
             "FULL_DMM_UNIT_",
-            "NATIVE_CP_BACKGROUND_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_FOCUS_RESET_MODEL ", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM", "FUNCTIONAL_CP_PARAMETER_BANK_", "FUNCTIONAL_CP_CRANK_CONTROL_", "FUNCTIONAL_CP_MOVIE_FORMAT_", "FUNCTIONAL_CP_OU_CRANK_CONTROL_", "FUNCTIONAL_BB_TIMECODE_", "NATIVE_BB_TIMECODE_INPUT_AUDIT ",
+            "NATIVE_CP_BACKGROUND_", "NATIVE_CP_FACE_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_FOCUS_RESET_MODEL ", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM", "FUNCTIONAL_CP_PARAMETER_BANK_", "FUNCTIONAL_CP_CRANK_CONTROL_", "FUNCTIONAL_CP_MOVIE_FORMAT_", "FUNCTIONAL_CP_OU_CRANK_CONTROL_", "FUNCTIONAL_BB_TIMECODE_", "NATIVE_BB_TIMECODE_INPUT_AUDIT ",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
             "GUI_PROPERTY_",
             "GUI_MODEL_",
             "BT_ERROR_",
             "POWER_", "SHUTDOWN_", "SD_ACK_",
-            "INPUT_EVENT32 ",
+            "INPUT_EVENT32 ", "CAPTURE_INHIBIT_SOURCE ", "EE_TRANSITION_TRACE ",
             "SHUTTER_ROUTE", "SHUTTER_DETAIL_", "SHUTTER_DISPATCH ", "SHUTTER_TARGET ", "SHUTTER_HANDLER ", "SHUTTER_FLOW ", "SHUTTER_API ", "SHUTTER_MODE ", "SYSTEM_MODE ", "EE_SEQUENCE ", "SEQUENCE_QUEUE ", "SEQUENCE_CREATE ", "MODE_FACTORY ", "MODE_DEPENDENCY ", "MODE_WORKER ", "MODE_SCHEDULE ", "CLOCK_SEQUENCE ",
             "LIVEVIEW_",
             "JPEG_",
@@ -1265,7 +1370,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_DRAWINFO_",
             "FULL_PIN_",
             "SEQ_FINISH_LIMIT ", "HDMI_PHOTO_REQUEST ", "HDMI_PHOTO_SERVICE ", "PIN_HDMI_SERVICE ", "PIN_QUERY ", "PIN_CONTROL_REQUEST ", "FULL_INFRABB_", "FULL_INFRAIMAGING_", "FULL_IMAGING_PIN_CONNECT_", "FULL_IMAGING_CONTROL_CONNECT_", "FULL_IMAGING_ADF_CONNECT_", "FULL_INFRABB_VEF_CONNECT_", "FULL_INFRABB_VEF_FORWARD_", "FULL_INFRABB_VEF_CONTROL_CONNECT_", "FULL_VEF_PINMEM_INPUT_CONNECT_", "FULL_VEF_", "FULL_PINMEM_", "FULL_SCALAR_", "FULL_ADF_",
-            "FULL_HDMI_", "FULL_VDF_", "PIPELINE_REQ ", "PIPELINE_REPLY ", "PIPELINE_VREQ ", "PIPELINE_VREPLY ", "PIPELINE_VFAIL ", "PIPELINE_ARM ", "PIPELINE_ARM_FAILED ", "PIPELINE_FAILED ", "PIPELINE_NO_REPLY ", "APPLOG ", "APPFW_LOG ", "DATE_ADD_CALL ", "OPT_WORKER_ENTER ", "OPT_SEND_ENTER ", "OPT_READY ", "ASSERT_CALLER ", "NULL_OBJ_SITE ", "BOOT_FACTOR_BRANCH ", "BOOT_POST_EE ", "HONEST_HOOK ", "HONEST_HOOK_FAILED ", "HONEST_ROUTE ", "HONEST_ROUTE_SYNC ", "REG_747 ", "SHOOTING_ENTER ", "RUN_I_RET ", "RUN_I_GATE ", "MODE_TRANSITION ", "ENTER_REC_STILL ", "UPM_MODEL_ERROR ", "BOOT_FATAL_409 ", "BOOT_FATAL_COMMON ", "RETURN_HANDLE ", "SEQ4BD_CREATE ", "SEQ4BD_STAGE ", "SEQ4BD_MADE ", "KEY_INJECT ", "OBJ_DISPATCH ", "BOOT_FULFIL ", "SYNC_CALL ", "SYNC_MSG ", "AVBBC ", "BUSPOWER ", "CRYPT_LIB ", "CP_TIME_SERVICE ", "CP_RELEASE_SERVICE ", "XFer_REQ ", "ASYNC_SEND ", "SEQ_BOOT_RUN_ENTER ", "SEQ_QUEUE_LOOP ", "SEQ_DEP_WAIT ", "SEQ_DEQUEUE ", "BOOT_SEQ_STEP ", "SEQ_FACTORY ", "SEQ_BOOT_CTOR ", "SEQ_FINISH ", "POOL_WORKER ", "ENTRY_PROBE_", "SYNC_DIRECT ", "MENU_CONTROLLER_SEEN ", "MENU_CTOR_PROBE", "BUILD2_", "MENU_INIT_SKIPPED ", "MODE_SENTINELS", "MODE_SLOT ", "MODE_SLOT4 ", "POINTER_SCAN ", "MODE_ACTIVATE", "FORCE_OPEN_", "FORCE_OPEN_FIELDS ", "FORCE_OPEN_SKIPPED ", "OBSERVER_READY ", "FORCE_SET_ENTER ", "MENU_BUILD_", "MENU_OPEN_", "MENU_INIT_", "MENU_APPLY_", "MANAGER_", "FORCE_SET_BEGIN ", "FORCE_SET ", "CREATE_SCREEN_", "VIEW_SLOT_CALLED ", "FACTORY_CALL ", "CTOR_", "BLIT", "OPEN_SET", "SCREEN_REGISTRY", "OSD_", "FRAME_", "VIEW_CONTENT", "RESOURCE_", "GPE_RGBA_" };
+            "FULL_HDMI_", "FULL_VDF_", "PIPELINE_REQ ", "PIPELINE_REPLY ", "PIPELINE_VREQ ", "PIPELINE_VREPLY ", "PIPELINE_VFAIL ", "PIPELINE_ARM ", "PIPELINE_ARM_FAILED ", "PIPELINE_FAILED ", "PIPELINE_NO_REPLY ", "APPLOG ", "APPFW_LOG ", "DATE_ADD_CALL ", "OPT_WORKER_ENTER ", "OPT_SEND_ENTER ", "OPT_READY ", "ASSERT_CALLER ", "NULL_OBJ_SITE ", "BOOT_FACTOR_BRANCH ", "BOOT_POST_EE ", "HONEST_HOOK ", "HONEST_HOOK_FAILED ", "HONEST_ROUTE ", "HONEST_ROUTE_SYNC ", "REG_747 ", "REG_ASYNC ", "REG_SYNC ", "DYNAMIC_ID ", "SHOOTING_ENTER ", "RUN_I_RET ", "RUN_I_GATE ", "MODE_TRANSITION ", "ENTER_REC_STILL ", "UPM_MODEL_ERROR ", "BOOT_FATAL_409 ", "BOOT_FATAL_COMMON ", "RETURN_HANDLE ", "SEQ4BD_CREATE ", "SEQ4BD_STAGE ", "SEQ4BD_MADE ", "KEY_INJECT ", "OBJ_DISPATCH ", "BOOT_FULFIL ", "SYNC_CALL ", "SYNC_MSG ", "AVBBC ", "BUSPOWER ", "CRYPT_LIB ", "CP_TIME_SERVICE ", "CP_RELEASE_SERVICE ", "XFer_REQ ", "ASYNC_SEND ", "SEQ_BOOT_RUN_ENTER ", "SEQ_QUEUE_LOOP ", "SEQ_DEP_WAIT ", "SEQ_DEQUEUE ", "BOOT_SEQ_STEP ", "SEQ_FACTORY ", "SEQ_BOOT_CTOR ", "SEQ_FINISH ", "POOL_WORKER ", "ENTRY_PROBE_", "SYNC_DIRECT ", "MENU_CONTROLLER_SEEN ", "MENU_CTOR_PROBE", "BUILD2_", "MENU_INIT_SKIPPED ", "MODE_SENTINELS", "MODE_SLOT ", "MODE_SLOT4 ", "POINTER_SCAN ", "MODE_ACTIVATE", "FORCE_OPEN_", "FORCE_OPEN_FIELDS ", "FORCE_OPEN_SKIPPED ", "OBSERVER_READY ", "FORCE_SET_ENTER ", "MENU_BUILD_", "MENU_OPEN_", "MENU_INIT_", "MENU_APPLY_", "MANAGER_", "FORCE_SET_BEGIN ", "FORCE_SET ", "CREATE_SCREEN_", "VIEW_SLOT_CALLED ", "FACTORY_CALL ", "CTOR_", "BLIT", "OPEN_SET", "SCREEN_REGISTRY", "OSD_", "FRAME_", "VIEW_CONTENT", "RESOURCE_", "GPE_RGBA_" };
         for (unsigned int i = 0; i < sizeof mirrored / sizeof mirrored[0]; ++i) {
             const char *want = mirrored[i];
             unsigned int k = 0;
@@ -1331,6 +1436,7 @@ void *dlopen(const char *name, int flags) {
         record("GPE_LOADER_FLAGS ", text);
     }
     void *handle = real_dlopen(name, flags);
+    if (handle) patch_bt_null_load();
     if(handle && !__atomic_load_n(&real_bt_error_place,__ATOMIC_ACQUIRE)) {
         void *method=real_dlsym(handle,"_ZN8BTUtils_6BTBlog10errorPlaceEtj");
         if(method && method!=(void *)observe_bt_error_place)
@@ -1391,6 +1497,7 @@ void *dlopen(const char *name, int flags) {
     return handle;
 }
 void observe_bt_error_place(void *self,unsigned short group,unsigned int line) {
+    patch_bt_null_load();
     int saved=*__errno_location();char text[260];
     unsigned long *frame=__builtin_frame_address(0),fp=frame[0];
     Dl_info info={0};if(real_dladdr)real_dladdr(__builtin_return_address(0),&info);
@@ -1410,9 +1517,23 @@ void observe_bt_error_place(void *self,unsigned short group,unsigned int line) {
         if(fd>=0)close(fd);
     }
     *__errno_location()=saved;
+    int diagnostic=!getenv("MENU_OBSERVE_SELFTEST") &&
+        same_name(getenv("MENU_VIRTUAL_UPM_PROFILE"),"diagnostic-v1");
+    /* Only the explicit virtual diagnostic may suppress a null logger call. */
+    if(!self && diagnostic) {
+        record("BT_ERROR_NULL_SELF ","virtual diagnostic: original call skipped");
+        *__errno_location()=saved;
+        return;
+    }
     void (*original)(void *,unsigned short,unsigned int)=__atomic_load_n(&real_bt_error_place,__ATOMIC_ACQUIRE);
     if(!original)original=real_dlsym((void *)-1,"_ZN8BTUtils_6BTBlog10errorPlaceEtj");
-    if(!original || original==observe_bt_error_place)__builtin_trap();
+    if(!original || original==observe_bt_error_place) {
+        record("BT_ERROR_NO_ORIGINAL ","original logger unavailable");
+        if(!diagnostic) __builtin_trap();
+        *__errno_location()=saved;
+        return;
+    }
+    *__errno_location()=saved;
     original(self,group,line);
 }
 /* appFw reaches uxengine_init2 through its own lazy PLT stub at appFw+0x165fe30
@@ -1440,6 +1561,91 @@ static void clear_cache_range(void *start, size_t length) {
     for (; address < end; address += step)
         __asm__ __volatile__("ic ivau, %0" :: "r"(address) : "memory");
     __asm__ __volatile__("dsb ish; isb" ::: "memory");
+}
+
+/* The virtual diagnostic may neutralize two verified BT logger entry points in
+   the exact library's executable mapping; the library file is never modified. */
+static unsigned long bt_patch_state;
+static int bt_map_line_matches(const char *line, size_t length) {
+    static const char path[]="/usr/lib/libBTUtils.so";
+    size_t n=sizeof path-1;
+    return length>n && line[length-n-1]==' ' && !memcmp(line+length-n,path,n);
+}
+static unsigned int bt_patch_busy;
+static int bt_patch_enter(void) {
+    return !__atomic_exchange_n(&bt_patch_busy,1u,__ATOMIC_ACQUIRE);
+}
+static void bt_patch_leave(void) {
+    __atomic_store_n(&bt_patch_busy,0u,__ATOMIC_RELEASE);
+}
+static void patch_bt_null_load(void) {
+    if (getenv("MENU_OBSERVE_SELFTEST") ||
+        !same_name(getenv("MENU_VIRTUAL_UPM_PROFILE"),"diagnostic-v1")) return;
+    if (__atomic_load_n(&bt_patch_state,__ATOMIC_ACQUIRE) || !bt_patch_enter()) return;
+    if (__atomic_load_n(&bt_patch_state,__ATOMIC_ACQUIRE)) { bt_patch_leave(); return; }
+    static char maps[262144]; static int diag;
+    int fd=open("/proc/self/maps",0);
+    ssize_t total=0;
+    if (fd>=0) {
+        ssize_t got;
+        while (total<(ssize_t)sizeof maps-1 &&
+               (got=read(fd,maps+total,(size_t)(sizeof maps-1-total)))>0) total+=got;
+        close(fd);
+    }
+    int hit=0,patched=0,already=0; unsigned long base=0;
+    if (total>0) {
+        maps[total]=0;
+        for (char *line=maps; line && *line; ) {
+            char *next=strchr(line,'\n');
+            if (bt_map_line_matches(line,next?(size_t)(next-line):(size_t)(maps+total-line))) {
+                ++hit;
+                unsigned long start=0,end=0,offset=0; char perms[8]={0}; char *q=line;
+                while ((*q>='0'&&*q<='9')||(*q>='a'&&*q<='f')) {start=start*16+(unsigned long)(*q<='9'?*q-'0':*q-'a'+10);++q;}
+                if (*q=='-') ++q;
+                while ((*q>='0'&&*q<='9')||(*q>='a'&&*q<='f')) {end=end*16+(unsigned long)(*q<='9'?*q-'0':*q-'a'+10);++q;}
+                while (*q==' ') ++q;
+                for (int i=0;i<4 && q[i] && q[i]!=' ';i++) perms[i]=q[i];
+                while (*q && *q!=' ') ++q;
+                while (*q==' ') ++q;
+                if (q[0]=='0' && (q[1]=='x'||q[1]=='X')) q+=2;
+                while ((*q>='0'&&*q<='9')||(*q>='a'&&*q<='f')) {offset=offset*16+(unsigned long)(*q<='9'?*q-'0':*q-'a'+10);++q;}
+                if (start && end>=start && end-start>=4 && offset<=start && perms[2]=='x') {
+                    /* Make both record entry points a bare "ret" so no BT log is ever emitted:
+                       the level-load neutralisation alone still reached the IPC send path and
+                       aborted there (svc, r8=0x87). */
+                    static const unsigned long sites[2]={0x371cUL,0x3770UL};
+                    static const unsigned int expected[2]={0xa9be7bfdu,0xa9bd7bfdu};
+                    base=start-offset;
+                    for (int i=0;i<2;i++) {
+                        if (base>~0UL-sites[i]) continue;
+                        unsigned int *target=(unsigned int *)(base+sites[i]);
+                        if ((unsigned long)target < start || (unsigned long)target > end-4) continue;
+                        if (*(volatile unsigned int *)target==0xd65f03c0u) { ++already; continue; }
+                        if (*(volatile unsigned int *)target!=expected[i]) continue;
+                        unsigned long page=(unsigned long)target & ~0xfffUL;
+                        if (mprotect((void *)page,4096,7)!=0) continue;
+                        *target=0xd65f03c0u;   /* ret */
+                        clear_cache_range(target,4);
+                        mprotect((void *)page,4096,5);
+                        ++patched;
+                    }
+                }
+            }
+            if (!next) break;
+            line=next+1;
+        }
+    }
+    if (diag++<3) {
+        char text[200];
+        snprintf(text,sizeof text,"fd_ok=%d total=%ld hit=%d base=%#lx patched=%d already=%d",
+                 fd>=0,(long)total,hit,base,patched,already);
+        record("BT_ERROR_PATCH_PROBE ",text);
+    }
+    if (patched+already==2) {
+        __atomic_store_n(&bt_patch_state,1UL,__ATOMIC_RELEASE);
+        record("BT_ERROR_NULL_LOAD_PATCHED ","libBTUtils.so record entry points -> ret (virtual diagnostic, memory only)");
+    }
+    bt_patch_leave();
 }
 static unsigned int patch_uxengine_init2(unsigned long base) {
     unsigned char *stub = (unsigned char *)(base + 0x165fe30UL);
@@ -2223,25 +2429,17 @@ extern void null_obj_probe_trampoline(void);
    words. A mismatch aborts the patch instead of silently running a replay that does not match the
    real prologue - that exact mistake (replaying the wrong four instructions) cost a whole
    investigation round. */
-/* Who called lib::assert::notify_model_system_error? It reaches __assert_fail through appFw's PLT
-   (0x165ff80, GOT slot VA 0x5bc27c8). Patching that slot lets us read the *caller of the assert
-   helper*: at this point x29 still belongs to 0x35aa4b4's frame, so [x29+8] is its saved LR.
-   The real __assert_fail is then tail-called with the original arguments, so the guest aborts
-   exactly as it would without the probe. Numbers only. */
+/* The optional PLT probe records only raw numeric assert arguments; it must not
+   follow a potentially damaged guest frame before tail-calling the real assert. */
 void (*g_real_assert_fail)(const char *, const char *, unsigned int, const char *);
 static unsigned int assert_seen;
 void capture_assert_call(unsigned long expr, unsigned long file, unsigned long line,
                          unsigned long func, unsigned long frame) {
     if (assert_seen++ >= 8) return;
-    unsigned long caller = 0;
-    if (frame > 0x100000UL && frame < 0x800000000000UL) caller = *(unsigned long *)(frame + 8);
-    char text[288], e[48], f[48], n[48];
-    format_string_at(expr, e, sizeof e);
-    format_string_at(file, f, sizeof f);
-    format_string_at(func, n, sizeof n);
+    char text[288];
     snprintf(text, sizeof text,
-             "n=%u caller=appFw+%#lx expr=\"%s\" file=\"%s\" line=%lu func=\"%s\"",
-             assert_seen, (unsigned long)(caller - appfw_base), e, f, line & 0xffffffffUL, n);
+             "n=%u expr=%#lx file=%#lx line=%lu func=%#lx frame=%#lx",
+             assert_seen, expr, file, line & 0xffffffffUL, func, frame);
     record("ASSERT_CALLER ", text);
 }
 __asm__(
@@ -2259,6 +2457,33 @@ PROBE_RESTORE_ARGS
 "    br x16\n"
 );
 extern void assert_probe_trampoline(void);
+
+/* Global assert entry: the appFw-only PLT probe above cannot see assertions raised inside other
+   guest libraries. Record the assertion text/file/line for every caller, then forward to the real
+   libc entry so the guest still aborts exactly as it would without the observer. */
+static void (*real_assert_fail_global)(const char *,const char *,unsigned int,const char *);
+extern void abort(void);
+void __assert_fail(const char *assertion,const char *file,unsigned int line,const char *function) {
+    char text[320];
+    snprintf(text,sizeof text,"gl expr=\"%.100s\" file=\"%.100s\" line=%u func=\"%.60s\"",
+             assertion?assertion:"(null)",file?file:"(null)",line,function?function:"(null)");
+    record("ASSERT_CALLER ",text);
+    {   /* Record only the direct caller; a damaged stack must not be traversed. */
+        Dl_info info={0};
+        unsigned long ra=(unsigned long)__builtin_return_address(0);
+        if(real_dladdr) real_dladdr((void *)ra,&info);
+        char t2[300];
+        snprintf(t2,sizeof t2,"ret=%s+%#lx",info.dli_fname?info.dli_fname:"unknown",
+                 info.dli_fbase?(unsigned long)(ra-(unsigned long)info.dli_fbase):0UL);
+        record("ASSERT_CALLER ",t2);
+    }
+    if(!real_assert_fail_global) {
+        real_assert_fail_global=(void (*)(const char *,const char *,unsigned int,const char *))
+            dlvsym((void *)-1,"__assert_fail","GLIBC_2.17");
+    }
+    if(!real_assert_fail_global || real_assert_fail_global==__assert_fail) abort();
+    real_assert_fail_global(assertion,file,line,function);
+}
 /* date_time_add_seconds(src7, seconds, dst7) is what run_i calls right before the assert at
    0x305b99c; a rejected source date makes it return non-zero and the firmware asserts. Record the
    source bytes and the second count so a bad (e.g. all-zero) date is visible instead of inferred. */
@@ -2302,10 +2527,42 @@ static void install_assert_probe(unsigned long base) {
     *(unsigned long *)(base + 0x5bc27c8UL) = (unsigned long)assert_probe_trampoline;
     record("ASSERT_PROBE_ARMED ", "appFw __assert_fail GOT slot 0x5bc27c8");
 }
+static int page_original_prot(unsigned long page) {
+    /* Honest restore: remember the page's real mapping (an RWX code island
+       must stay RWX after the probe patch, not be downgraded to r-x). */
+    int fd = open("/proc/self/maps", 0);
+    if (fd < 0) return 5;
+    char buf[16384];
+    long got = pread(fd, buf, sizeof buf - 1, 0);
+    close(fd);
+    if (got <= 0) return 5;
+    buf[got] = 0;
+    char *line = buf, *next;
+    while (line && *line) {
+        next = strchr(line, '\n');
+        if (next) *next = 0;
+        unsigned long lo, hi;
+        char perms[8] = {0};
+        if (sscanf(line, "%lx-%lx %5s", &lo, &hi, perms) == 3 && lo <= page && page < hi) {
+            int prot = 0;
+            if (perms[0] == 'r') prot |= 1;
+            if (perms[1] == 'w') prot |= 2;
+            if (perms[2] == 'x') prot |= 4;
+            return prot ? prot : 5;
+        }
+        line = next ? next + 1 : 0;
+    }
+    return 5;
+}
+
 static int arm_entry_probe(unsigned long target, const unsigned int expected[4], void *trampoline,
                            void *continue_address, const char *label) {
     (void)continue_address;
     unsigned long page = target & ~0xfffUL;
+    /* The 16-byte patch (two instructions plus the trampoline pointer) can
+       straddle into the next page (e.g. target 0x1b04ff8 sits 8 bytes before
+       a read-only boundary); both pages must be writable for the patch. */
+    unsigned long end_page = (target + 15) & ~0xfffUL;
     for (int i = 0; i < 4; ++i) {
         if (((const unsigned int *)target)[i] != expected[i]) {
             char text[160];
@@ -2316,9 +2573,17 @@ static int arm_entry_probe(unsigned long target, const unsigned int expected[4],
             return -EILSEQ;
         }
     }
+    int prot_page = page_original_prot(page);
+    int prot_end = end_page != page ? page_original_prot(end_page) : prot_page;
     if (mprotect((void *)page, 4096, 7) != 0) {
         int error = *__errno_location();
         record("ENTRY_PROBE_FAILED ", label);
+        return -error;
+    }
+    if (end_page != page && mprotect((void *)end_page, 4096, 7) != 0) {
+        int error = *__errno_location();
+        mprotect((void *)page, 4096, prot_page);
+        record("ENTRY_PROBE_FAILED_CROSSPAGE ", label);
         return -error;
     }
     unsigned int *code = (unsigned int *)target;
@@ -2327,7 +2592,8 @@ static int arm_entry_probe(unsigned long target, const unsigned int expected[4],
     *(unsigned long *)(target + 8) = (unsigned long)trampoline;
     clear_cache_range((void *)target, 16);
     int rc = 0;
-    if (mprotect((void *)page, 4096, 5) != 0) {
+    if (mprotect((void *)page, 4096, prot_page) != 0 ||
+        (end_page != page && mprotect((void *)end_page, 4096, prot_end) != 0)) {
         rc = -*__errno_location();
         record("ENTRY_PROBE_REPROTECT_FAILED ", label);
     }
@@ -2508,8 +2774,9 @@ void capture_shutter_route(unsigned long stage, unsigned long manager, unsigned 
     long bytes = fd < 0 ? -1 : pread(fd, words, sizeof words, (long)event);
     unsigned int code = stage == 3 ? words[2] : words[0];
     int shutter = stage == 3 ?
-        (code == 0x02060000 || code == 0x02060001 || code == 0x02070000 || code == 0x020f0007) :
-        (code == 0xf || code == 0x1d || code == 0xa7 || code == 0x1f1);
+        (code == 0x02060000 || code == 0x02060001 || code == 0x02070000 || code == 0x020f0007 ||
+         code == 0x02130000 || code == 0x02130001) :
+        (code == 0xf || code == 0x1d || code == 0xa7 || code == 0x1f1 || code == 0x1f3);
     if (bytes == sizeof words && shutter && stage < 4) {
         static unsigned int counts[4];
         unsigned int n = __atomic_add_fetch(&counts[stage], 1, __ATOMIC_RELAXED);
@@ -2628,6 +2895,178 @@ static void install_shutter_route_trace(unsigned long base) {
                     shutter_event_continue,"shutter business event 0x1e79d64");
     install_shutter_detail_trace(base);
 }
+/* Observe original exclusion writers before their stores; never change a gate. */
+static void *capture_inhibit_continue __attribute__((used));
+static unsigned int capture_inhibit_seen;
+void capture_inhibit_source(unsigned long manager, unsigned int source,
+                            unsigned int target, unsigned int inhibit, unsigned long caller) {
+    if (target != 0xcb9 || __atomic_fetch_add(&capture_inhibit_seen, 1, __ATOMIC_RELAXED) >= 64) return;
+    int saved_errno = *__errno_location();
+    unsigned int count = 0;
+    int fd = open("/proc/self/mem", 0);
+    long got = fd < 0 ? -1 : pread(fd, &count, sizeof count, (long)(appfw_base + 0x7e1c00cUL));
+    int read_error = got < 0 ? *__errno_location() : 0;
+    int closed = fd < 0 ? -1 : close(fd);
+    char text[440];
+    snprintf(text, sizeof text,
+             "tid=%ld manager=%#lx source=%#x target=%#x inhibit=%u count_before=%u read_bytes=%ld read_errno=%d close_rc=%d caller_app=%#lx phase=before_store original_store_observed=0 observation_only=1 atomic_snapshot=0 capture_verified=0",
+             syscall(178), manager, source, target, inhibit & 255u, count, got, read_error, closed,
+             caller >= appfw_base ? caller-appfw_base : 0);
+    record("CAPTURE_INHIBIT_SOURCE ", text);
+    *__errno_location() = saved_errno;
+}
+__asm__(".text\n.align 2\n"
+".globl capture_inhibit_trampoline\n.type capture_inhibit_trampoline, %function\n"
+"capture_inhibit_trampoline:\n"
+"stp x0,x1,[sp,#-80]!\n"
+"stp x2,x3,[sp,#16]\n"
+"stp x4,x5,[sp,#32]\n"
+"stp x6,x7,[sp,#48]\n"
+"stp x8,x30,[sp,#64]\n"
+"mov x4,x30\n"
+"bl capture_inhibit_source\n"
+"ldp x2,x3,[sp,#16]\n"
+"ldp x4,x5,[sp,#32]\n"
+"ldp x6,x7,[sp,#48]\n"
+"ldp x8,x30,[sp,#64]\n"
+"ldp x0,x1,[sp],#80\n"
+/* Replay the original prologue after observation, including its condition flags. */
+"stp x29,x30,[sp,#-96]!\n"
+"tst w3,#0xff\n"
+"mov x29,sp\n"
+"stp x19,x20,[sp,#16]\n"
+"adrp x16,capture_inhibit_continue\n"
+"ldr x16,[x16,#:lo12:capture_inhibit_continue]\n"
+"br x16\n");
+extern void capture_inhibit_trampoline(void);
+static void install_capture_inhibit_trace(unsigned long base) {
+    static const unsigned int expected[4] = {0xa9ba7bfd,0x72001c7f,0x910003fd,0xa90153f3};
+    capture_inhibit_continue = (void *)(base + 0x246f414UL);
+    arm_entry_probe(base + 0x246f404UL, expected, capture_inhibit_trampoline,
+                    capture_inhibit_continue, "capture inhibit original source writer");
+}
+/* Read-only EE transition probes; no model value or exclusion state is written. */
+static void *ee_tail_before_continue __attribute__((used));
+static void *ee_tail_after_continue __attribute__((used));
+static void *ee_wrapper_continue __attribute__((used));
+static unsigned int ee_trace_seen;
+void capture_ee_transition(unsigned long phase, unsigned long wrapper,
+                           unsigned long pending, unsigned long caller) {
+    int saved_errno = *__errno_location();
+    unsigned long ptrs[2] = {0,0};
+    unsigned int id = 0, current = 0, shadow[8] = {0}, row[6] = {0}, requested = 0;
+    int fd = open("/proc/self/mem", 0);
+    long rp = fd < 0 ? -1 : pread(fd, ptrs, sizeof ptrs, (long)wrapper);
+    long ri = fd < 0 ? -1 : pread(fd, &id, sizeof id, (long)(wrapper+16));
+    if (phase == 2 && (ri != 4 || id != 0x304)) {
+        if (fd >= 0) close(fd);
+        *__errno_location() = saved_errno;
+        return;
+    }
+    if (__atomic_fetch_add(&ee_trace_seen, 1, __ATOMIC_RELAXED) >= 64) {
+        if (fd >= 0) close(fd);
+        *__errno_location() = saved_errno;
+        return;
+    }
+    long rc = fd < 0 ? -1 : pread(fd, &current, sizeof current, (long)(appfw_base+0x7e67700UL));
+    long rs = fd < 0 ? -1 : pread(fd, shadow, sizeof shadow, (long)(appfw_base+0x7e67708UL));
+    long rr = fd < 0 ? -1 : pread(fd, row, sizeof row, (long)(appfw_base+0x7e34c58UL));
+    long rv = phase != 2 ? 0 : fd < 0 ? -1 : pread(fd, &requested, 4, (long)pending);
+    int closed = fd < 0 ? -1 : close(fd);
+    char text[760];
+    snprintf(text, sizeof text,
+             "phase=%lu tid=%ld wrapper=%#lx current_ptr=%#lx shadow_ptr=%#lx model=%#x pending=%#lx requested=%u current=%u shadow=%x,%x,%x,%x,%x,%x,%x,%x exclusion=%x,%x,%x,%x,%x,%x reads=%ld,%ld,%ld,%ld,%ld,%ld close_rc=%d caller_app=%#lx observation_only=1 atomic_snapshot=0 capture_verified=0",
+             phase, syscall(178), wrapper, ptrs[0], ptrs[1], id, pending, phase == 2 ? requested : (unsigned int)pending,
+             current, shadow[0],shadow[1],shadow[2],shadow[3],shadow[4],shadow[5],shadow[6],shadow[7],
+             row[0],row[1],row[2],row[3],row[4],row[5],rp,ri,rc,rs,rr,rv,closed,
+             caller >= appfw_base ? caller-appfw_base : 0);
+    record("EE_TRANSITION_TRACE ", text);
+    *__errno_location() = saved_errno;
+}
+/* Mid-function sites also retain temporary GPRs and every SIMD register. x16 is the patch IP. */
+#define EE_SAVE_LIVE \
+"sub sp,sp,#464\n" \
+"stp x9,x10,[sp,#0]\n" \
+"stp x11,x12,[sp,#16]\n" \
+"stp x13,x14,[sp,#32]\n" \
+"stp x15,x17,[sp,#48]\n" \
+"stp x18,xzr,[sp,#64]\n" \
+"stp q8,q9,[sp,#80]\n" \
+"stp q10,q11,[sp,#112]\n" \
+"stp q12,q13,[sp,#144]\n" \
+"stp q14,q15,[sp,#176]\n" \
+"stp q16,q17,[sp,#208]\n" \
+"stp q18,q19,[sp,#240]\n" \
+"stp q20,q21,[sp,#272]\n" \
+"stp q22,q23,[sp,#304]\n" \
+"stp q24,q25,[sp,#336]\n" \
+"stp q26,q27,[sp,#368]\n" \
+"stp q28,q29,[sp,#400]\n" \
+"stp q30,q31,[sp,#432]\n" \
+PROBE_SAVE_ARGS
+#define EE_RESTORE_LIVE \
+PROBE_RESTORE_ARGS \
+"ldp x9,x10,[sp,#0]\n" \
+"ldp x11,x12,[sp,#16]\n" \
+"ldp x13,x14,[sp,#32]\n" \
+"ldp x15,x17,[sp,#48]\n" \
+"ldr x18,[sp,#64]\n" \
+"ldp q8,q9,[sp,#80]\n" \
+"ldp q10,q11,[sp,#112]\n" \
+"ldp q12,q13,[sp,#144]\n" \
+"ldp q14,q15,[sp,#176]\n" \
+"ldp q16,q17,[sp,#208]\n" \
+"ldp q18,q19,[sp,#240]\n" \
+"ldp q20,q21,[sp,#272]\n" \
+"ldp q22,q23,[sp,#304]\n" \
+"ldp q24,q25,[sp,#336]\n" \
+"ldp q26,q27,[sp,#368]\n" \
+"ldp q28,q29,[sp,#400]\n" \
+"ldp q30,q31,[sp,#432]\n" \
+"add sp,sp,#464\n"
+__asm__(".text\n.align 2\n"
+".globl ee_tail_before_trampoline\n.type ee_tail_before_trampoline,%function\n"
+"ee_tail_before_trampoline:\n"
+EE_SAVE_LIVE
+"mov x2,x0\nmov x1,x22\nmov x0,#0\nmov x3,x30\nbl capture_ee_transition\n"
+EE_RESTORE_LIVE
+"strb wzr,[x29,#0xcd]\nstr w0,[x29,#0x90]\nmov x0,x22\nstr x21,[x29,#0xd0]\n"
+"adrp x16,ee_tail_before_continue\nldr x16,[x16,#:lo12:ee_tail_before_continue]\nbr x16\n"
+".globl ee_tail_after_trampoline\n.type ee_tail_after_trampoline,%function\n"
+"ee_tail_after_trampoline:\n"
+EE_SAVE_LIVE
+"mov x2,#0\nmov x1,x22\nmov x0,#1\nmov x3,x30\nbl capture_ee_transition\n"
+EE_RESTORE_LIVE
+"str wzr,[x29,#0xa0]\nldr w0,[x20,#0x724]\nmov x1,x23\nstr w0,[x29,#0xb8]\n"
+"adrp x16,ee_tail_after_continue\nldr x16,[x16,#:lo12:ee_tail_after_continue]\nbr x16\n"
+".globl ee_wrapper_trampoline\n.type ee_wrapper_trampoline,%function\n"
+"ee_wrapper_trampoline:\n"
+PROBE_SAVE_ARGS
+"mov x2,x1\nmov x1,x0\nmov x0,#2\nmov x3,x30\nbl capture_ee_transition\n"
+PROBE_RESTORE_ARGS
+"stp x29,x30,[sp,#-48]!\nmov x29,sp\nstp x19,x20,[sp,#16]\nmov x19,x0\n"
+"adrp x16,ee_wrapper_continue\nldr x16,[x16,#:lo12:ee_wrapper_continue]\nbr x16\n");
+extern void ee_tail_before_trampoline(void), ee_tail_after_trampoline(void), ee_wrapper_trampoline(void);
+static void install_ee_transition_trace(unsigned long base) {
+    static const unsigned int expected[3][4] = {
+        {0x390337bf,0xb90093a0,0xaa1603e0,0xf9006bb5},
+        {0xb900a3bf,0xb9472680,0xaa1703e1,0xb900bba0},
+        {0xa9bd7bfd,0x910003fd,0xa90153f3,0xaa0003f3}
+    };
+    const unsigned long offsets[3] = {0x339fc60UL,0x339fc84UL,0x338d998UL};
+    for (unsigned int i=0;i<3;i++) for (unsigned int j=0;j<4;j++)
+        if (((const unsigned int *)(base+offsets[i]))[j] != expected[i][j]) {
+            record("EE_TRANSITION_REFUSED ", "original bytes differ; no EE probes installed");
+            return;
+        }
+    ee_tail_before_continue=(void *)(base+offsets[0]+16);
+    ee_tail_after_continue=(void *)(base+offsets[1]+16);
+    ee_wrapper_continue=(void *)(base+offsets[2]+16);
+    arm_entry_probe(base+offsets[0],expected[0],ee_tail_before_trampoline,ee_tail_before_continue,"EE before original write-one call");
+    arm_entry_probe(base+offsets[1],expected[1],ee_tail_after_trampoline,ee_tail_after_continue,"EE after original commit call");
+    arm_entry_probe(base+offsets[2],expected[2],ee_wrapper_trampoline,ee_wrapper_continue,"EE original wrapper write entry");
+}
+
 /* model17c entry observations precede the original setter's prerequisite call and stores. */
 static unsigned int model17c_observer_enabled, model17c_observer_seen;
 static void *model17c_setter_continue;
@@ -2968,7 +3407,8 @@ static void *sequence_create_continue, *mode_factory_table_continue, *mode_facto
 static void *mode_dependency_continue, *mode_schedule_continue, *clock_sequence_continue;
 static int shutter_detail_code(unsigned int code) {
     return code == 0x02060000 || code == 0x02060001 ||
-           code == 0x02070000 || code == 0x020f0007;
+           code == 0x02070000 || code == 0x020f0007 ||
+           code == 0x02130000 || code == 0x02130001;
 }
 static int shutter_detail_mode_code(unsigned int code) {
     return code >= 0x02240000 && code <= 0x02240006;
@@ -3052,9 +3492,10 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
     if (site > 2) { *__errno_location() = saved_errno; return; }
     unsigned int code = 0, id = 0, state[3] = {0};
     long code_bytes = -1, id_bytes = -1, state0 = -1, state1 = -1, state2 = -1;
-    unsigned int press_gate[3] = {0};
-    unsigned char inhibit = 0;
+    unsigned int press_gate[3] = {0}, direct_gate[5] = {0};
+    unsigned char inhibit = 0, direct_block = 0;
     long local_bytes = -1, transition_bytes = -1, inhibit_bytes = -1, duplicate_bytes = -1;
+    long direct_reads[6] = {-1, -1, -1, -1, -1, -1};
     int fd = open("/proc/self/mem", 0);
     if (site == 0) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 + 12));
     if (site == 1) code_bytes = fd < 0 ? -1 : pread(fd, &code, 4, (long)(a0 - 0x10));
@@ -3063,6 +3504,14 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
         state0 = fd < 0 ? -1 : pread(fd, state, 4, (long)(appfw_base + 0x7e5d428UL));
         state1 = fd < 0 ? -1 : pread(fd, state+1, 4, (long)(appfw_base + 0x7e5d498UL));
         state2 = fd < 0 ? -1 : pread(fd, state+2, 4, (long)(appfw_base + 0x7e5c408UL));
+    }
+    if (site == 0 && code_bytes == 4 && code == 0x02070000 && fd >= 0) {
+        /* Inputs to the direct dispatch preceding the screen-controller event. */
+        static const unsigned long offsets[] = {0x7e6efb0UL, 0x7ed9ac0UL, 0x7e6f070UL, 0x7e82310UL};
+        direct_reads[0] = pread(fd, direct_gate, 4, (long)a1);
+        for (unsigned int i = 0; i < sizeof offsets / sizeof offsets[0]; ++i)
+            direct_reads[i + 1] = pread(fd, direct_gate + i + 1, 4, (long)(appfw_base + offsets[i]));
+        direct_reads[5] = pread(fd, &direct_block, 1, (long)(appfw_base + 0x8333ba5UL));
     }
     if (site == 1 && code_bytes == 4 && code == 0x02070000) {
         local_bytes = fd < 0 ? -1 : pread(fd, press_gate, 4, (long)a0);
@@ -3080,12 +3529,18 @@ void capture_shutter_flow(unsigned long site, unsigned long a0, unsigned long a1
         if (n <= 32) {
             const char *name = site == 0 ? "core" : site == 1 ? "final" : "send";
             char text[768];
-            snprintf(text, sizeof text,
+            int written = snprintf(text, sizeof text,
                      "site=%s n=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx code=%#x id=%#x state_d428=%#x state_d498=%#x state_c408=%#x reads=%ld/%ld/%ld/%ld/%ld press_local=%#x transition_67fc8=%#x inhibit_83337e3=%#x duplicate_d570=%#x gate_reads=%ld/%ld/%ld/%ld observation_only=1 atomic_snapshot=0 original_branch_observed=0",
                      name, n, syscall(178), a0, a1, a2, a3, code, id,
                      state[0], state[1], state[2], code_bytes, id_bytes, state0, state1, state2,
                      press_gate[0], press_gate[1], inhibit, press_gate[2],
                      local_bytes, transition_bytes, inhibit_bytes, duplicate_bytes);
+            if (site == 0 && code == 0x02070000 && written >= 0 && (size_t)written < sizeof text) {
+                snprintf(text + written, sizeof text - (size_t)written,
+                         " direct_inputs_v=1 direct_class=%#x direct_6efb0=%#x direct_d9ac0=%#x direct_6f070=%#x direct_82310=%#x direct_33ba5=%#x direct_reads=%ld/%ld/%ld/%ld/%ld/%ld",
+                         direct_gate[0], direct_gate[1], direct_gate[2], direct_gate[3], direct_gate[4], direct_block,
+                         direct_reads[0], direct_reads[1], direct_reads[2], direct_reads[3], direct_reads[4], direct_reads[5]);
+            }
             record("SHUTTER_FLOW ", text);
         }
     }
@@ -4637,7 +5092,9 @@ static void install_shutter_detail_trace(unsigned long base) {
     if (selected[48]) arm_entry_probe(base+offsets[48],expected[48],clock_sequence_trampoline,
                     clock_sequence_continue,"sequence clock run 0x306f494");
     if (flows) enable_sequence_queue_observer(base);
-    if (flows) install_model17c_observer(base);
+    const char *model17c_runtime_ro = getenv("MENU_MODEL17C_RUNTIME_OBSERVE");
+    if (flows && !(model17c_runtime_ro && same_name(model17c_runtime_ro,
+            "virtual-model17c-runtime-ro-v1"))) install_model17c_observer(base);
     if (flows) install_poweron_observers(base);
 }
 /* Natural startup frontier: mode transition, enter-rec-still and boot run_i return.
@@ -5369,6 +5826,172 @@ static void install_osd_submit_probe(void) {
     mode_icon_set_image_target=(void *)(appfw_base+0x165f100UL);
     arm_entry_probe(appfw_base+0x17eb5acUL,(const unsigned int[4]){0x2a0003e1,0xaa1403e0,0x12800fe2,0x97f9ced2},
         (void *)mode_icon_set_image_trampoline,mode_icon_set_image_return,"original setImage arguments (BL and original LR replayed)");
+}
+/* Original normal POWER OFF chain, read-only.  Every site is an original appFw
+   function entry whose first instructions are replayed by the trampoline.  A
+   replaced BL is reissued through an absolute target, never replayed. */
+static unsigned int poweroff_seen[16];
+static void *poweroff_tail_target, *poweroff_cleanup_target;
+void capture_poweroff_site(unsigned int tag, unsigned long a0, unsigned long a1,
+                           unsigned long a2, unsigned long a3, unsigned long caller) {
+    if (tag > 14 || __atomic_fetch_add(&poweroff_seen[tag], 1, __ATOMIC_RELAXED) >= 16) return;
+    int saved_errno = *__errno_location();
+    int fd = open("/proc/self/mem", 0);
+    unsigned int peek[3] = {0, 0, 0};
+    unsigned long vptr = 0, word1c = 0, f12f0 = 0, f12f4 = 0, flag = 0;
+    long got = 0;
+    if (fd >= 0) {
+        switch (tag) {
+        case 2: case 3: got = pread(fd, peek, sizeof peek, (long)a1); break;
+        case 5: case 7:
+            got = pread(fd, &vptr, 8, (long)a0);
+            if (got == 8) {
+                pread(fd, &word1c, 4, (long)(a0 + 0x1c));
+                pread(fd, &f12f0, 4, (long)(a0 + 0x12f0));
+                pread(fd, &f12f4, 4, (long)(a0 + 0x12f4));
+            }
+            break;
+        case 8: got = pread(fd, &f12f0, 4, (long)(a0 + 0x12f0)); break;
+        case 9: got = pread(fd, &f12f4, 4, (long)(a0 + 0x12f4)); break;
+        case 10: got = pread(fd, &vptr, 8, (long)a0); break;
+        case 11: got = pread(fd, &flag, 1, (long)(appfw_base + 0x8838af8UL)); break;
+        default: break;
+        }
+        close(fd);
+    }
+    const char *prefix = "POWER_SITE";
+    switch (tag) {
+    case 1: prefix = "POWER_DISPATCH"; break;
+    case 2: prefix = "POWER_HANDLER"; break;
+    case 3: prefix = "POWER_OFF_FACTOR"; break;
+    case 4: prefix = "POWER_OFF_REQUEST"; break;
+    case 5: prefix = "POWER_OFF_SEQUENCE"; break;
+    case 6: prefix = "POWER_OFF_SEQUENCE_REQUEST"; break;
+    case 7: prefix = "SHUTDOWN_SEQUENCE"; break;
+    case 8: prefix = "SHUTDOWN_SOUND_COMPLETE"; break;
+    case 9: prefix = "SHUTDOWN_PANEL_COMPLETE"; break;
+    case 10: prefix = "SHUTDOWN_TAIL"; break;
+    case 11: prefix = "BACKUP_SYNC_PRODUCER"; break;
+    case 13: prefix = "BACKUP_SYNC_ALL_RC"; break;
+    case 14: prefix = "BACKUP_SYNC_SID_RC"; break;
+    }
+    char text[380];
+    snprintf(text, sizeof text,
+        "tag=%u tid=%ld a0=%#lx a1=%#lx a2=%#lx a3=%#lx caller_app=%#lx peek=%#x/%#x/%#x got=%ld vptr_app=%#lx word1c=%#lx field12f0=%#lx field12f4=%#lx flag=%#lx site_event=%#x request=%#x published=%#x rc=%d observation_only=1",
+        tag, syscall(178), a0, a1, a2, a3, caller >= appfw_base ? caller - appfw_base : 0,
+        peek[0], peek[1], peek[2], got,
+        vptr >= appfw_base ? vptr - appfw_base : vptr, word1c, f12f0, f12f4, flag,
+        tag == 1 ? (unsigned int)a2 : 0xffffffffU,
+        tag == 4 ? 0xfaU : tag == 6 ? 0xfeU : 0U,
+        tag == 10 ? 0x01000091U : 0U,
+        tag == 13 || tag == 14 ? (int)a1 : -1);
+    record(prefix, text);
+    *__errno_location() = saved_errno;
+}
+#define POWEROFF_TRAMPOLINE(NAME, TAG, I1, I2, I3, I4, NEXT) \
+".globl " NAME "\n.type " NAME ", %function\n" NAME ":\n" \
+PROBE_SAVE_ARGS \
+"    mov x5, x30\n" \
+"    mov x4, x3\n    mov x3, x2\n    mov x2, x1\n    mov x1, x0\n    mov x0, #" TAG "\n" \
+"    bl capture_poweroff_site\n" \
+PROBE_RESTORE_ARGS \
+"    .inst " I1 "\n    .inst " I2 "\n    .inst " I3 "\n    .inst " I4 "\n" \
+"    adrp x16, " NEXT "\n    ldr x16, [x16, #:lo12:" NEXT "]\n    br x16\n"
+__asm__(".text\n"
+POWEROFF_TRAMPOLINE("poweroff_dispatch_trampoline", "1", "0xa9be7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f3", "poweroff_dispatch_continue")
+POWEROFF_TRAMPOLINE("poweroff_handler_trampoline", "2", "0xa9bb7bfd", "0x910003fd", "0xa90153f3", "0x9100e3b4", "poweroff_handler_continue")
+POWEROFF_TRAMPOLINE("poweroff_factor_trampoline", "3", "0xa9b67bfd", "0x910003fd", "0xa90153f3", "0x910203b3", "poweroff_factor_continue")
+POWEROFF_TRAMPOLINE("poweroff_request_fa_trampoline", "4", "0xa9bd7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f3", "poweroff_request_fa_continue")
+POWEROFF_TRAMPOLINE("poweroff_request_fe_trampoline", "6", "0xa9bd7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f3", "poweroff_request_fe_continue")
+POWEROFF_TRAMPOLINE("poweroff_off_run_trampoline", "5", "0xa9bb7bfd", "0x910003fd", "0xf8414001", "0xb9401c00", "poweroff_off_run_continue")
+POWEROFF_TRAMPOLINE("poweroff_shutdown_run_trampoline", "7", "0xd11c03ff", "0xa9ba7bfd", "0x910003fd", "0xa90153f3", "poweroff_shutdown_run_continue")
+POWEROFF_TRAMPOLINE("poweroff_sound_trampoline", "8", "0xa9bd7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f4", "poweroff_sound_continue")
+POWEROFF_TRAMPOLINE("poweroff_panel_trampoline", "9", "0xa9bd7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f4", "poweroff_panel_continue")
+POWEROFF_TRAMPOLINE("poweroff_backup_trampoline", "11", "0xa9bb7bfd", "0x910003fd", "0xa90153f3", "0xaa0003f3", "poweroff_backup_continue")
+);
+#define POWEROFF_RETURN_TRAMPOLINE(NAME, TAG) \
+".globl " NAME "\n.type " NAME ", %function\n" NAME ":\n" \
+PROBE_SAVE_ARGS \
+"    mov x5, x30\n    mov w1, w0\n    mov x0, #" TAG "\n" \
+"    bl capture_poweroff_site\n" \
+PROBE_RESTORE_ARGS \
+"    .inst 0xa8c17bfd\n" \
+"    adrp x16, poweroff_cleanup_target\n    ldr x16, [x16, #:lo12:poweroff_cleanup_target]\n    br x16\n"
+__asm__(".text\n"
+POWEROFF_RETURN_TRAMPOLINE("poweroff_backup_all_trampoline", "13")
+POWEROFF_RETURN_TRAMPOLINE("poweroff_backup_sid_trampoline", "14")
+".globl poweroff_tail_trampoline\n.type poweroff_tail_trampoline, %function\npoweroff_tail_trampoline:\n"
+PROBE_SAVE_ARGS
+"    mov x5, x30\n    mov x0, #10\n    bl capture_poweroff_site\n"
+PROBE_RESTORE_ARGS
+"    mov x1, #0x1c\n"
+"    adrp x16, poweroff_tail_target\n    ldr x16, [x16, #:lo12:poweroff_tail_target]\n    br x16\n"
+);
+extern void poweroff_dispatch_trampoline(void), poweroff_handler_trampoline(void);
+extern void poweroff_factor_trampoline(void), poweroff_request_fa_trampoline(void);
+extern void poweroff_request_fe_trampoline(void), poweroff_off_run_trampoline(void);
+extern void poweroff_shutdown_run_trampoline(void), poweroff_sound_trampoline(void);
+extern void poweroff_panel_trampoline(void), poweroff_backup_trampoline(void);
+extern void poweroff_backup_all_trampoline(void), poweroff_backup_sid_trampoline(void);
+extern void poweroff_tail_trampoline(void);
+static void *poweroff_dispatch_continue, *poweroff_handler_continue, *poweroff_factor_continue;
+static void *poweroff_request_fa_continue, *poweroff_request_fe_continue;
+static void *poweroff_off_run_continue, *poweroff_shutdown_run_continue;
+static void *poweroff_sound_continue, *poweroff_panel_continue, *poweroff_backup_continue;
+static int poweroff_probe_armed;
+/* One-word patch: the neighbours 0x24cb2dc and 0x35aa8dc are live functions, so
+   the 16-byte entry stub used elsewhere would overwrite them. */
+static int arm_branch_probe(unsigned long target, unsigned int expected, void *trampoline,
+                            const char *label) {
+    if (*(const unsigned int *)target != expected) {
+        record("ENTRY_PROBE_MISMATCH ", label);
+        return -EILSEQ;
+    }
+    long delta = (long)((unsigned long)trampoline - target);
+    if ((delta & 3) || delta < -(1L << 27) || delta >= (1L << 27)) {
+        record("ENTRY_PROBE_RANGE ", label);
+        return -ERANGE;
+    }
+    unsigned long page = target & ~0xfffUL;
+    if (mprotect((void *)page, 4096, 7) != 0) {
+        record("ENTRY_PROBE_FAILED ", label);
+        return -*__errno_location();
+    }
+    *(unsigned int *)target = 0x14000000U | (((unsigned int)(delta >> 2)) & 0x03ffffffU);
+    clear_cache_range((void *)target, 4);
+    int rc = 0;
+    if (mprotect((void *)page, 4096, 5) != 0) rc = -*__errno_location();
+    record("ENTRY_PROBE_ARMED ", label);
+    return rc;
+}
+static void install_poweroff_observers(unsigned long base) {
+    if (poweroff_probe_armed || !base) return;
+    poweroff_probe_armed = 1;
+    poweroff_tail_target = (void *)(base + 0x3599a00UL);
+    poweroff_cleanup_target = (void *)(base + 0x368278cUL);
+    poweroff_dispatch_continue = (void *)(base + 0x1ad5274UL);
+    poweroff_handler_continue = (void *)(base + 0x1b05008UL);
+    poweroff_factor_continue = (void *)(base + 0x2707b34UL);
+    poweroff_request_fa_continue = (void *)(base + 0x24949bcUL);
+    poweroff_request_fe_continue = (void *)(base + 0x2494b2cUL);
+    poweroff_off_run_continue = (void *)(base + 0x3465988UL);
+    poweroff_shutdown_run_continue = (void *)(base + 0x33daf48UL);
+    poweroff_sound_continue = (void *)(base + 0x33dac9cUL);
+    poweroff_panel_continue = (void *)(base + 0x33dacf0UL);
+    poweroff_backup_continue = (void *)(base + 0x2f3ac6cUL);
+    arm_entry_probe(base+0x1ad5264UL,(const unsigned int[4]){0xa9be7bfd,0x910003fd,0xa90153f3,0xaa0003f3},(void *)poweroff_dispatch_trampoline,poweroff_dispatch_continue,"original master dispatch 0x1ad5264");
+    arm_entry_probe(base+0x1b04ff8UL,(const unsigned int[4]){0xa9bb7bfd,0x910003fd,0xa90153f3,0x9100e3b4},(void *)poweroff_handler_trampoline,poweroff_handler_continue,"original TACT_POWER_OFF handler 0x1b04ff8");
+    arm_entry_probe(base+0x2707b24UL,(const unsigned int[4]){0xa9b67bfd,0x910003fd,0xa90153f3,0x910203b3},(void *)poweroff_factor_trampoline,poweroff_factor_continue,"original off factor 0x2707b24");
+    arm_entry_probe(base+0x24949acUL,(const unsigned int[4]){0xa9bd7bfd,0x910003fd,0xa90153f3,0xaa0003f3},(void *)poweroff_request_fa_trampoline,poweroff_request_fa_continue,"original request 0xfa gate 0x24949ac");
+    arm_entry_probe(base+0x2494b1cUL,(const unsigned int[4]){0xa9bd7bfd,0x910003fd,0xa90153f3,0xaa0003f3},(void *)poweroff_request_fe_trampoline,poweroff_request_fe_continue,"original request 0xfe gate 0x2494b1c");
+    arm_entry_probe(base+0x3465978UL,(const unsigned int[4]){0xa9bb7bfd,0x910003fd,0xf8414001,0xb9401c00},(void *)poweroff_off_run_trampoline,poweroff_off_run_continue,"original sequence_set_off_factor run 0x3465978");
+    arm_entry_probe(base+0x33daf38UL,(const unsigned int[4]){0xd11c03ff,0xa9ba7bfd,0x910003fd,0xa90153f3},(void *)poweroff_shutdown_run_trampoline,poweroff_shutdown_run_continue,"original sequence_power_off run 0x33daf38");
+    arm_entry_probe(base+0x33dac8cUL,(const unsigned int[4]){0xa9bd7bfd,0x910003fd,0xa90153f3,0xaa0003f4},(void *)poweroff_sound_trampoline,poweroff_sound_continue,"original system_sound completion 0x33dac8c");
+    arm_entry_probe(base+0x33dace0UL,(const unsigned int[4]){0xa9bd7bfd,0x910003fd,0xa90153f3,0xaa0003f4},(void *)poweroff_panel_trampoline,poweroff_panel_continue,"original panel_out completion 0x33dace0");
+    arm_entry_probe(base+0x2f3ac5cUL,(const unsigned int[4]){0xa9bb7bfd,0x910003fd,0xa90153f3,0xaa0003f3},(void *)poweroff_backup_trampoline,poweroff_backup_continue,"original backup sync producer 0x2f3ac5c");
+    arm_branch_probe(base+0x24cb2d4UL,0xd2800381U,(void *)poweroff_tail_trampoline,"original 0x01000091 publish 0x24cb2d4");
+    arm_branch_probe(base+0x35aa8d4UL,0xa8c17bfdU,(void *)poweroff_backup_sid_trampoline,"original Backup_sync_subsystem return 0x35aa8d4");
+    arm_branch_probe(base+0x35aa8ecUL,0xa8c17bfdU,(void *)poweroff_backup_all_trampoline,"original Backup_sync_all return 0x35aa8ec");
 }
 static void install_power_notice_probe(unsigned long base) {
     /* Keep the original entry's CBZ; these following four instructions are position independent. */
@@ -6569,6 +7192,7 @@ static void install_create_screen_sentinel(unsigned long base) {
     if (getenv("MENU_ASYNC_SEND")) install_async_send_probe(appfw_base);
     if (getenv("MENU_ENTRY_PROBES")) install_boot_entry_probes(appfw_base);
     if (getenv("MENU_POWER_OBSERVE")) install_power_notice_probe(appfw_base);
+    if (getenv("MENU_POWEROFF_OBSERVE") && !getenv("MENU_OBSERVE_SELFTEST")) install_poweroff_observers(appfw_base);
     if (getenv("MENU_OSD_SUBMIT_TRACE") && real_draw_framebuffer)install_osd_submit_probe();
     if (getenv("MENU_ASSERT_PROBE")) install_assert_probe(appfw_base);
     if (getenv("MENU_OPTION_PROBES")) install_option_probes();
@@ -6584,6 +7208,8 @@ static void install_create_screen_sentinel(unsigned long base) {
     if (getenv("MENU_LIVEVIEW_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_liveview_trace(base);
     if (getenv("MENU_JPEG_REQUEST_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_jpeg_request_trace(base);
     if (getenv("MENU_INPUT_ROUTE_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_shutter_route_trace(base);
+    if (getenv("MENU_CAPTURE_INHIBIT_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_capture_inhibit_trace(base);
+    if (getenv("MENU_CAPTURE_INHIBIT_TRACE") && !getenv("MENU_OBSERVE_SELFTEST")) install_ee_transition_trace(base);
     /* Only now are appFw and its dependencies (libMWF, libosal_*) mapped, so the module can
        resolve them. Starting it earlier crashed bootin.elf with SIGTRAP inside dlopen. */
     if (getenv("MENU_BUSPOWER") && !getenv("MENU_OBSERVE_SELFTEST")) start_bus_power_module();
@@ -7081,7 +7707,7 @@ int osal_dynamic_id(unsigned int type, unsigned int owner, unsigned long value) 
     snprintf(text, sizeof text, "type=%#x owner=%#x result=%d id=%#x caller=%p",
              type, owner, result, id,
              __builtin_return_address(0));
-    if (result != 0 || owner == 0x1cf) record("DYNAMIC_ID ", text);
+    if (result != 0 || owner == 0x1cf || owner == 0x3e) record("DYNAMIC_ID ", text);
     return result;
 }
 /* Registration records are filtered to keep the log readable, but the filter used to
@@ -7090,7 +7716,7 @@ int osal_dynamic_id(unsigned int type, unsigned int owner, unsigned long value) 
    key-event handlers - were invisible in every earlier run. */
 static int trace_registration(unsigned int id) {
     unsigned int family = (id >> 16) & 0xff;
-    if (id == 0x5503e0 || family == 0x55 || family == 0x7a ||
+    if (id == 0x5503e0 || family == 0x55 || family == 0x7a || family == 0x3e ||
         (pinmem_hdmi_video_connection_enabled && family == 0x2a)) return 1;
     return ((id >> 16) & 0xfff) == 0x1cf;
 }
@@ -7319,8 +7945,58 @@ static void native_face_sdk_observation(unsigned int stage,unsigned int id,void 
         sampled,raw,(unsigned int)(stage==3 && result==0 && sampled==48));
     record("FUNCTIONAL_FACE_DMM_SDK_OBSERVATION ",text);*__errno_location()=saved_errno;
 }
+/* UPM diagnostic fixture: unsupported layouts always use the original transport. */
+static int upm_diagnostic_match(unsigned int id, const void *message, unsigned int bytes, int sync) {
+    const unsigned char *p=message;
+    unsigned int mid;
+    if(!p || bytes<4)return 0;
+    mid=(unsigned int)p[0]|((unsigned int)p[1]<<8)|((unsigned int)p[2]<<16)|((unsigned int)p[3]<<24);
+    if(sync) {
+        return (id==0x80924127u && mid==0x00920111u && bytes==40) ||
+            (id==0x80920901u && (mid==3u || mid==4u) && bytes==20) ||
+            (id==0x80924220u && (mid==0x00920118u || mid==0x00920202u) && bytes==16) ||
+            (id==0x80924222u && mid==0x00920118u && bytes==16) ||
+            (id==0x80924223u && mid==0x00920112u && bytes==8) ||
+            (id==0x809243d8u && mid==0x00920112u && bytes==36) ||
+            (id==0x809245dcu && mid==0x00920112u && bytes==12);
+    }
+    return (id==0x80920021u && mid==0x0092016eu && bytes==16) ||
+        (id==0x80920572u && (mid==0x00920114u || mid==0x00920117u || mid==0x0092011fu) && bytes==16) ||
+        (id==0x80920860u && (mid==0x00920112u || mid==0x00920138u) && bytes==8) ||
+        (id==0x80920871u && mid==2u && bytes==208) ||
+        (id==0x809208d0u && mid==0x00920112u && bytes==8);
+}
+static int upm_diagnostic_enabled(void) {
+    return !getenv("MENU_OBSERVE_SELFTEST") &&
+        same_name(getenv("MENU_VIRTUAL_UPM_PROFILE"),"diagnostic-v1");
+}
 int osal_snd_sync_msg(unsigned int id, void *message) {
     audit_cp_background_input(id,message,"sync",__builtin_return_address(0));
+    if (upm_diagnostic_enabled() && real_msg_size && message &&
+        upm_diagnostic_match(id,message,real_msg_size(message),1)) {
+        unsigned int bytes=(real_msg_size&&message)?real_msg_size(message):0; unsigned int mid=0;
+        if(bytes>=4&&message){const unsigned char*w=message;mid=(unsigned)w[0]|((unsigned)w[1]<<8)|((unsigned)w[2]<<16)|((unsigned)w[3]<<24);}
+        /* The boot-info consumer rejects zero; 1 is a synthetic diagnostic fixture,
+           not an identified or physically verified power-on response. */
+        unsigned int boottype = 0;
+        if (message && bytes>=8) {
+            unsigned int *w=(unsigned int *)message;
+            boottype = (mid==0x00920111u) ? 1u : 0u;
+            if (mid==0x00920111u) {
+                /* Diagnostic fixture only: the original reply fields are not yet reconstructed. */
+                unsigned int words = bytes/4;
+                for (unsigned int k=1;k<words;k++) w[k]=1u;
+                w[1]=1u;
+            } else {
+                w[1]=boottype;
+                for (unsigned int i=8;i<bytes;i++) ((unsigned char *)message)[i]=0;
+            }
+        }
+        { char t[150];
+          snprintf(t,sizeof t,"dst=0x%08x msg=0x%08x bytes=%u virtual_reply=%u physical_compatible=0",id,mid,bytes,boottype);
+          record("POWER_UPM_SYNC ",t); }
+        return 0;
+    }
     if (!real_send_sync) __builtin_trap();
     if(functional_camera_enabled && id==0x02820746u && message && real_msg_size) {
         int saved_errno=*__errno_location();
@@ -7483,6 +8159,13 @@ static int dmm_send(void *request,unsigned long caller,unsigned long frame) {
              dmm.slots[0].allocation_epoch,dmm.slots[1].allocation_epoch,
              dmm.slots[0].creator_kind,dmm.slots[1].creator_kind);
     record("DMM_SERVICE ", text);
+    if ((((const unsigned short *)request)[0] == 0x20 && ((const unsigned int *)request)[1] == 0x62a) ||
+        (((const unsigned short *)request)[0] != 0x20 && (((const unsigned int *)request)[2] & 0x3ff) == DMM_LUT_INDEX)) {
+        snprintf(text, sizeof text, "tid=%ld unit=0x62a transport=%d status=%d handle=%#x address=%#llx bytes=%#x allocated=%d opens=%u allocation_count=%llu lifecycle_changed=%u original_cp_executed=0 capture_verified=0",
+                 syscall(178), result, status, handle, address, size, dmm.lut_slot.allocated,
+                 dmm.lut_slot.open_count, dmm.lut_allocations, dmm.lut_lifecycle_changed);
+        record("DMM_LUT_SERVICE ", text);
+    }
     pthread_mutex_unlock(cap_lock);
     if (result) { real_free_msg(source, reply); return result; }
     real_free_msg(0x9061003c, request);
@@ -8528,10 +9211,22 @@ static void functional_face_record(const char *prefix,const struct functional_fa
             (unsigned long long)u->receipt.transaction,(unsigned long long)u->receipt.actual.nonce,u->receipt.actual.destination);
         record("FUNCTIONAL_FACE_DMM_UNIT ",text);
     }
+    if(s->list.generation || s->list.request) {
+        const struct functional_face_runtime_list *l=&s->list;
+        char raw[49];for(unsigned int i=0;i<24;i++)snprintf(raw+2*i,3,"%02x",l->wire[i]);
+        snprintf(text,sizeof text,
+            "pid=%d generation=%u retired=%u gate=%u gate_source=virtual-profile-start original_gate_observed=0 valid=%u count=%u handle=%#x epoch=%llu reference=%llu bytes=%lu logical=%#llx registration=%llu shares_released=%u notify2c_pending=%u request=%p free_rc=%d wire=%s internal0e00_storage=1 event2c_consumed=0 completion=0 original_CP=0 capture_verified=0",
+            getpid(),l->generation,l->retired,l->gate,l->valid,l->count,l->span.handle,
+            (unsigned long long)l->span.epoch,(unsigned long long)l->span.reference,(unsigned long)l->span.bytes,
+            (unsigned long long)l->span.logical,(unsigned long long)l->span.registration,l->shares_released,
+            l->notify_pending,(void *)l->request,l->release_result,raw);
+        record("NATIVE_CP_FACE_LIST ",text);
+    }
 }
 static int functional_face_original_caller(unsigned int op,void *caller,unsigned int source) {
     unsigned long expected=0;unsigned int instruction=0,first=0,second=0;
     switch(op) {
+    case 6:expected=0x3535a68;instruction=0x9784a41b;break;
     case 0x20:expected=0x35522a4;instruction=0x9784320c;break;
     case 0x21:expected=0x3552c60;instruction=0x97842f9d;break;
     case 0x23:expected=0x35524a8;instruction=0x9784318b;break;
@@ -8559,9 +9254,14 @@ static int functional_face_original_caller(unsigned int op,void *caller,unsigned
     record("FUNCTIONAL_FACE_DMM_SOURCE_BOUND ",text);*__errno_location()=saved_errno;return rc;
 }
 static int native_functional_face_send(unsigned int id,void *message,void *caller,int *result) {
-    if(!functional_camera_enabled || id!=FUNCTIONAL_FACE_DMM_CP || !message || !real_msg_size || real_msg_size(message)!=40)return 0;
-    const unsigned int *words=message;unsigned int op=words[0]&0xffffu,unit=0;
-    if(op==0x20 || op==0x21) {
+    if(!functional_camera_enabled || !message || !real_msg_size)return 0;
+    unsigned int bytes=real_msg_size(message);
+    int list=id==NATIVE_CP_FACE_SID && bytes==24 && ((const unsigned char *)message)[0]==2 && ((const unsigned char *)message)[1]==6;
+    if(!list && (id!=FUNCTIONAL_FACE_DMM_CP || bytes!=40))return 0;
+    const unsigned int *words=message;unsigned int op=list?6:words[0]&0xffffu,unit=list?0x1db:0;
+    if(list) {
+        if(words[1]!=0x1db)return 0;
+    } else if(op==0x20 || op==0x21) {
         unit=words[1];if(unit<0x1d9 || unit>0x1db)return 0;
     } else if(op==0x23 || op==0x24 || op==0x25) {
         unsigned int index=words[2]&0x3ffu;
@@ -8594,7 +9294,8 @@ static int native_functional_face_send(unsigned int id,void *message,void *calle
     }
     if(rc){*result=rc;*__errno_location()=saved_errno;return 1;}
     const struct functional_face_runtime_caller origin={owner,unit,FUNCTIONAL_FACE_RUNTIME_ACCEPTED,FUNCTIONAL_FACE_RUNTIME_UNIQUE_REFERENCE};
-    int handled=functional_face_runtime_dispatch(id,message,&io,1,&origin,result);
+    int handled=list?functional_face_runtime_list_dispatch(id,message,&io,1,&origin,result):
+        functional_face_runtime_dispatch(id,message,&io,1,&origin,result);
     *__errno_location()=saved_errno;return handled;
 }
 static void native_functional_face_received(unsigned int id,void *message) {
@@ -10245,8 +10946,8 @@ void capture_sync_call(unsigned long caller, unsigned long body, unsigned long l
     if (body > 0x100000UL && body < 0x800000000000UL) first = *(unsigned int *)body;
     char text[200];
     snprintf(text, sizeof text, "n=%u tid=%ld caller=appFw+%#lx raw=%#x id=%#x len=%lu body0=%08x",
-             sync_call_seen, syscall(178), (unsigned long)(caller - appfw_base), raw_id,
-             raw_id & 0x7fff, length, first);
+             sync_call_seen, syscall(178), (unsigned long)(caller - appfw_base), (unsigned int)raw_id,
+             (unsigned int)(raw_id & 0x7fff), length, first);
     record("SYNC_CALL ", text);
 }
 __asm__(
@@ -10298,6 +10999,24 @@ static unsigned int cp_time_unavailable;
 
 int osal_snd_msg(unsigned int id, void *message) {
     audit_cp_background_input(id,message,"async",__builtin_return_address(0));
+    /* Virtual UPM peer: the board has no battery/power IC, so nobody answers module 0x809208D0.
+       AppFw treats that as a fatal model-system error (upm_add_battery_check -> abort).
+       Accept the message as a virtual power service, log it, and consume it like a real queue
+       would (success path does not free, the receiver owns it). Virtual only: physical=0. */
+    if (upm_diagnostic_enabled() && real_free_msg && real_msg_size && message &&
+        upm_diagnostic_match(id,message,real_msg_size(message),0)) {
+        unsigned int bytes=(real_msg_size&&message)?real_msg_size(message):0;
+        unsigned int mid=0;
+        if (bytes>=4 && message) {
+            const unsigned char *w=message;
+            mid=(unsigned)w[0]|((unsigned)w[1]<<8)|((unsigned)w[2]<<16)|((unsigned)w[3]<<24);
+        }
+        char text[140];
+        snprintf(text,sizeof text,"dst=0x%08x msg=0x%08x bytes=%u virtual_accept=1 physical_compatible=0",id,mid,bytes);
+        record("POWER_UPM_VIRTUAL ",text);
+        if (real_free_msg && message) real_free_msg(id, message);
+        return 0;
+    }
     if(functional_camera_enabled) {
         const struct full_imaging_io capture_io={real_allocate_msg,real_free_msg,real_set_source,
             real_send_msg,real_msg_size,real_get_source,record};
@@ -10451,6 +11170,12 @@ int osal_snd_msg(unsigned int id, void *message) {
             return -ENOTSUP;
         }
         if(bytes>=4 && wire[0]==5 && command==0x4001) {
+            /* CP354768 only stores zoom configuration; the background profile owns these stores. */
+            if(same_name(getenv("MENU_CP_BACKGROUND"),"virtual-mode3-cold-v1")) {
+                int config_result;
+                if(native_cp_background_dispatch(id,message,&io,1,&config_result))return config_result;
+                return -ENOTSUP;
+            }
             if(bytes!=CP_PARAMETER_ZOOM_BYTES)return -EMSGSIZE;
             if(!real_get_source || real_get_source(message)!=CP_PARAMETER_BATCH_SOURCE)return -EPERM;
             if(!cp_owned_state_enabled || !cp302c_no_transition_predecessors_ready())return -ENODATA;
@@ -10869,11 +11594,13 @@ int osal_snd_msg(unsigned int id, void *message) {
             record("FULL_DMM_UNIT_POST_BOOT_CP_REQUEST ", text);
         }
     }
-    if (id==NATIVE_CP_BACKGROUND_SID && getenv("MENU_CP_BACKGROUND") &&
+    if ((id==NATIVE_CP_BACKGROUND_SID || id==NATIVE_CP_CAPTURE_SID ||
+         (id==NATIVE_CP_FACE_SID && functional_camera_enabled)) && getenv("MENU_CP_BACKGROUND") &&
         same_name(getenv("MENU_CP_BACKGROUND"),"virtual-mode3-cold-v1")) {
         const struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,
             real_send_msg,real_msg_size,real_get_source,record};
         int result;
+        if (native_functional_face_send(id,message,__builtin_return_address(0),&result)) return result;
         if (native_cp_background_dispatch(id,message,&io,1,&result)) return result;
     }
     if (id == NATIVE_DMM_UNIT_SID && getenv("MENU_DMM_UNIT_CONFIG")) {
@@ -10884,6 +11611,15 @@ int osal_snd_msg(unsigned int id, void *message) {
         };
         int result;
         if (native_dmm_unit_dispatch(id, message, &io, 1, &result)) return result;
+    }
+    if ((id == NATIVE_CP_PERIODIC_START || id == NATIVE_CP_PERIODIC_STOP) &&
+        same_name(getenv("MENU_CP_PERIODIC_SERVICE"), "virtual-config-v1")) {
+        const struct full_imaging_io io = {
+            real_allocate_msg, real_free_msg, real_set_source, real_send_msg,
+            real_msg_size, real_get_source, record
+        };
+        int result;
+        if (native_cp_periodic_dispatch(id, message, &io, 1, &result)) return result;
     }
     if (id == NATIVE_DIG_LEVEL_SID && getenv("MENU_DIG_LEVEL") &&
         !strcmp(getenv("MENU_DIG_LEVEL"), "virtual")) {
@@ -10996,6 +11732,8 @@ int osal_snd_msg(unsigned int id, void *message) {
             real_msg_size, real_get_source, record
         };
         int result;
+        if (headless_osd_enabled && full_vdf_panel_out_dispatch(id, message, &io,
+            headless_panel_outputs_readback, 1, &result)) return result;
         if (full_vdf_dispatch(id, message, &io, 1, &result)) return result;
     }
     if (id == FULL_VEF_PATH_INPUT && vef_path_enabled) {
@@ -11247,6 +11985,18 @@ int osal_snd_msg(unsigned int id, void *message) {
             return 0;
         }
         if (hdmi_format_enabled && head[0] == 0x200d && head[1] == 0x32f) return hdmi_parameter_send(id, message);
+        /* c178: im.elf infra_wrapper_bb:964 send_ignore_response_i forwards the original
+         * "ignore response" notice (frame 0x200d, property 0x14e, 28 bytes) to the BB
+         * queue; the original BB consumes it with no reply. Consume it here — a
+         * refused send is fatal for the original wrapper (bb_ipsx:964 assert). */
+        if (head[0] == 0x200d && head[1] == 0x14e) {
+            char ignore_text[96];
+            snprintf(ignore_text, sizeof ignore_text, "bytes=%u source=%#x consumed_no_reply",
+                     real_msg_size(message), real_get_source ? real_get_source(message) : 0);
+            record("BB_IGNORE_RESPONSE_CONSUMED ", ignore_text);
+            real_free_msg(0x92840747, message);
+            return 0;
+        }
     }
     if (id == 0x909c015b && message && real_msg_size && real_msg_size(message) >= 12) {
         const unsigned short *head = message;
@@ -11434,7 +12184,19 @@ static pthread_t headless_thread;
 static int (*headless_join)(pthread_t, void **);
 static int headless_try_raster(void) { return pthread_mutex_trylock(headless_raster_mutex); }
 static int headless_unlock_raster(void) { return pthread_mutex_unlock(headless_raster_mutex); }
+/* The installed headless output is LCD-only; no EVF output consumer is created. */
+static unsigned int headless_lcd_output_enabled=1, headless_evf_output_enabled;
+static int headless_panel_owner_pid;
+static int headless_panel_outputs_readback(unsigned int *lcd, unsigned int *evf) {
+    int rc=-ENODATA;
+    pthread_mutex_lock(headless_lifecycle_mutex);
+    if(headless_panel_owner_pid==getpid() && headless_thread_live && !headless_stop) {
+        *lcd=headless_lcd_output_enabled;*evf=headless_evf_output_enabled;rc=0;
+    }
+    pthread_mutex_unlock(headless_lifecycle_mutex);return rc;
+}
 static int headless_frame(struct hosd_frame *frame, unsigned char *pixels) {
+    if(!headless_lcd_output_enabled)return -ENODATA;
     return hosd_capture_frame(headless_libobj, &headless_native, frame, pixels);
 }
 /* The entry's first four verified instructions are PC-independent. */
@@ -11514,7 +12276,7 @@ static void start_headless_osd(void) {
     }
     if (create(&headless_thread, 0, hosd_worker, &ops))
         record("OSD_HEADLESS_FAILED ", "pthread creation unavailable");
-    else headless_thread_live = 1;
+    else { headless_thread_live = 1; headless_panel_owner_pid=getpid(); }
     if(headless_thread_live && getenv("MENU_GUI_MODELS") &&
        same_name(getenv("MENU_GUI_MODELS"),"virtual-inline-v1")) {
         unsigned int state[4]={0};
@@ -11810,7 +12572,7 @@ static int observe_send_sync_direct(unsigned int id, void *message) {
        least that) so the request and the filled-in reply are both visible. */
     unsigned int window = (size > 48) ? 48 : (size ? size : 48);
     snprintf(text, sizeof text, "tid=%ld ENTER dest=%#x bytes=%u caller=%p w=%08x,%08x,%08x,%08x,%08x,%08x",
-             syscall(178), id, size, (unsigned long)((unsigned long)__builtin_return_address(0) - appfw_base),
+             syscall(178), id, size, (void *)((unsigned long)__builtin_return_address(0) - appfw_base),
              (message && window >= 4) ? w[0] : 0, (message && window >= 8) ? w[1] : 0,
              (message && window >= 12) ? w[2] : 0, (message && window >= 16) ? w[3] : 0,
              (message && window >= 20) ? w[4] : 0, (message && window >= 24) ? w[5] : 0);
@@ -11882,7 +12644,7 @@ static void install_sync_msg_probe(unsigned long base) {
    would arrive through one of them. appFw's osal_snd_msg@plt loads the GOT slot at VA 0x5bc1d70. */
 static unsigned int async_send_seen;
 static int observe_send_async(unsigned int id, void *message) {
-    if (!real_send_msg) real_send_msg = real_dlsym((void *)-1, "osal_snd_msg");
+    ensure_real_send_msg();
     if (!real_send_msg) return -1;
     if (id != 0x008f013a && async_send_seen < 400) {
         unsigned int size = (real_msg_size && message) ? real_msg_size(message) : 0;
@@ -12337,7 +13099,8 @@ void *dlsym(void *handle, const char *name) {
         return osal_reg_sync_msg_queue_cb;
     }
     if (symbol && same_name(name, "osal_snd_msg")) {
-        real_send_msg = symbol;
+        real_send_msg_raw = symbol;
+        real_send_msg = symbol ? observed_send_msg : 0;
         return osal_snd_msg;
     }
     if (symbol && same_name(name, "osal_rcv_msg_tmo")) {

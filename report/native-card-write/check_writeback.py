@@ -393,11 +393,15 @@ def decoder_limits():
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
+def _memfile(name):
+    return os.fdopen(os.memfd_create(name, os.MFD_CLOEXEC), 'w+b')
+
+
 def run_decoder(command, snapshot, deadline):
     remaining = deadline - time.monotonic()
     require(remaining > 0, 'independent decode timeout')
     snapshot.seek(0)
-    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+    with _memfile('writeback-decoder-out') as out, _memfile('writeback-decoder-err') as err:
         done = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
                               pass_fds=(snapshot.fileno(),), timeout=remaining,
                               preexec_fn=decoder_limits, shell=False)
@@ -473,7 +477,8 @@ def check_item(record, exported, budget):
                 require(identity(before) == identity(os.fstat(stream.fileno())), 'file changed during range readback')
                 result['range_matches'] = True
                 raise ValueError('file exceeds 128 MiB SHA/snapshot bound; ranges only, export SHA not checked')
-            with tempfile.TemporaryFile() as snapshot:
+            with _reader.owned_temp_directory(exported['host']) as directory_fd, \
+                    tempfile.TemporaryFile(dir=f'/proc/self/fd/{directory_fd}') as snapshot:
                 space = os.fstatvfs(snapshot.fileno())
                 require(space.f_bavail * space.f_frsize >= before.st_size + 1024**2, 'insufficient snapshot space')
                 digest, size = hashlib.sha256(), 0

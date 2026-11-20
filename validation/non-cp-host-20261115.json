@@ -1,0 +1,34 @@
+{
+  "schema": "a7c2-non-cp-host-validation-v1",
+  "status": "passed-scoped-host-only",
+  "workers": 2,
+  "groups": [
+    {"name": "usb-cold", "tests": 31, "passed": 31, "failed": 0, "skipped": 0},
+    {"name": "p1-models", "tests": 9, "passed": 9, "failed": 0, "skipped": 0}
+  ],
+  "scope": "Explicit MSC diagnostic configuration, cold-audit and USB-observer private linking, synthetic P1 SSI/monitor protocol; no firmware execution",
+  "public_sources_sha256": {
+    "runtime/analysis/sony_usb_device.py": "dd53212bd7bad80e4aea68ac71fcf8c52fde782a279b62c601bda9bb70b2dde5",
+    "runtime/analysis/original_cold_boot.py": "bfc8352ff409963043fcf0a3a44e0d097d521cb6c8d552a35e1675de06d77eb5",
+    "runtime/analysis/test_usb_ee_normal_cold.py": "2957ca0cdc73b1c3c5ef2ad6210d8c174fa5b5a2df7bd98d5a679e7873482c74",
+    "runtime/analysis/test_original_cold_boot.py": "ea8bc6e415a24385fdf85707d75bbb8ed089a855596d6b1c4a106d6aabf3430b",
+    "runtime/analysis/test_usb_msc.py": "9574a529ee71f254c6f5a423c1cc93445736d9fbda0d8686d2d28c2f85cfdb84",
+    "tools/run-original-cold.py": "e13882bdedc9ca4955532827af39e644ae255595a812708c57fd598a48d86992",
+    "source/cp-boot/observer_private_inputs.py": "bc946d7211dbeb3a0cdb218b1359f2c4825649e5af1bf0bf6c45b9b854e4039d",
+    "source/cp-boot/p1-spi-monitor.c": "b717c12c500a2071ea741d2ee48e128e039304a578a5e359b40a61ed1e70d24b",
+    "source/cp-boot/p1-spi-monitor.h": "43a33d1f1d251a90e60acd9a5726a82b4febe4fd5b11427243a9e260a4d5fd57",
+    "source/cp-boot/p1-spi-ssi.c": "540647ed1a01d142014b7de2b2cee804ffe969201285d19887c6ebcb98bef2ea",
+    "source/cp-boot/p1-spi-ssi.h": "ae958234a4f9eeba1090dd2ae359944edb4d1b935beb2a080731d5d589ba4a16"
+  },
+  "source_identity_scope": "Public inventory and selected unpublished sources plus private build inputs were checked before and after the batch; private asset hashes and raw logs are not published here. Eight optional research-lineage files were checked during the test and independently after, not before.",
+  "tool_identity_scope": "Compiler executable targets were hashed before and after; executable entry resolution was independently checked after the run, not continuously monitored.",
+  "qemu_started": false,
+  "physical_devices_used": false,
+  "msc_host_enumerated": false,
+  "msc_storage_readback_verified": false,
+  "original_update_installation_verified": false,
+  "original_cp_executed": false,
+  "capture_verified": false,
+  "full_hardware_boot_verified": false,
+  "physical_compatible": false
+}

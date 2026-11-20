@@ -131,6 +131,11 @@ def live_session(process,run,qmp,built,*,leased=None,ram_enabled=False,build_res
 
 
 def main():
+    from usb_scheduler import runtime_preflight
+    runtime_preflight(os.environ)
+    if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
+        from single_ap_sockets import admit
+        admit()
     validate_control(os.environ)
     instance=(Path(os.environ['A7C2_COLD_STORAGE_INSTANCE']).absolute() if os.environ.get('A7C2_COLD_STORAGE_INSTANCE') else storage.ensure_instance())
     runs=ANALYSIS/'menu-runs';runs.mkdir(exist_ok=True)

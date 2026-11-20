@@ -1,0 +1,63 @@
+{
+  "changed_sources": {
+    "runtime/analysis/functional_camera_broker.py": "8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39",
+    "runtime/analysis/test_functional_camera_bridge.py": "51c43042d687b38e1204af93f2a76919808812c99d371d5fb4c7829c2b2c1980",
+    "runtime/analysis/test_media_initial_write.py": "7510c70ad9e3f1651ba019fabc0ce80eec5b2c3179b597d92bf8028344ec5650",
+    "runtime/analysis/test_menu_control.py": "5921e6fb01da5fbc9e978283b7263650dce15c738bc0671fbc4a675796b33967",
+    "source/cp-boot/run-native-cp.py": "b4a64911c4e95019ef2e81c721d23950d39f56cb526422ce914588d45d31838e",
+    "source/cp-boot/test_gpio18.py": "22b9b3e2a3a8b8a1094a936eb5d1c87e5a163e001a093bb893c7aa06dd566689",
+    "source/cp-boot/test_native_ap.py": "f51a04d6631ca6417f46a485d9c7dd154c5b23a0e10a86c8e84dff86e4a048b4",
+    "source/cp-boot/test_native_cp.py": "6e0205fc6da4792798457dc6613e3998b14aa87fc00b776b291921461500bf9d",
+    "source/cp-boot/test_native_device_check.py": "7ed720415b93b537391da00fbf73736ae1554aa85b23847a4993797e6b98650c",
+    "source/cp-boot/test_native_link.py": "b09bfaca9d90b8e464409ae9686dd8f3fb4c599cab156b4e8f6e15750b8c462b",
+    "source/cp-boot/test_native_qtest.py": "19fdf58965c40a0986c7754c6bceb68eef4ae488050d3d32e5ce9ad3288f56cd",
+    "source/cp-boot/test_notify.py": "402c033b01b140a330222a87ab09fcb501ace626ee726bea25f33a1bb747e4ac",
+    "source/cp-boot/test_notify_stage.py": "d51c50c489c22c3f6bc58e4b6460f4cc28a1f8e79dfb0adb4de983f714c314d1",
+    "source/cp-boot/test_official_backup.py": "fd1bea9c4c67bcf2e628e1013d7a4b368c584dac5ce19f548dd6e6d6ae1d0fd7",
+    "source/cp-boot/test_peripherals_stage.py": "c88a75b5438ad9ad58403c532d9273830bb02b52a541f99723d16ce20290555a",
+    "source/cp-boot/test_platform_port.py": "59c28537ddcaeac7196119ce54b57aa3b63759f8510b0d578910d56f6ecda6a0",
+    "source/cp-boot/test_scu.py": "a9b93fa2f56bd5eddcbd7f9419080fe2797b185fc64017b36a9819b20bb09a79",
+    "source/cp-boot/test_stage.py": "ea8ffd664046936e5b520ab822c5e46882d343638c25b5bd45bca13ea3a46183",
+    "source/cp-boot/test_tpu.py": "d81ac6ef346389fd977dca0de814b797de9e125228ec51a93279d18338358254"
+  },
+  "full_boot_verified": false,
+  "groups": [
+    {
+      "errors": 0,
+      "failures": 0,
+      "junit": "analysis/scratch/cp-wait-20261111/rsp-cp-host-v17-1794467334370536798/bridge-and-cp.xml",
+      "junit_sha256": "ab102f4141ace49f3fb7c6c4646ab9eb85f25933f438947a57450a07e0bd5b30",
+      "kind": "pytest",
+      "name": "bridge-and-cp",
+      "passed": 1055,
+      "returncode": 0,
+      "skipped": 0,
+      "tests": 1055
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "junit": "analysis/scratch/cp-wait-20261111/rsp-cp-host-v17-1794467334370536798/product-host.xml",
+      "junit_sha256": "7d19028dc9e1a6abeb45b24e25af77dcabe76e9c95c0cdd9dac250bdaf047fe8",
+      "kind": "product-host",
+      "name": "product-host",
+      "passed": 512,
+      "returncode": 0,
+      "skipped": 49,
+      "tests": 561
+    }
+  ],
+  "new_rsp_tests": [
+    "test_cp_rsp_packet_size_rejects_invalid_negotiation",
+    "test_cp_rsp_packet_size_respects_qemu_limit",
+    "test_cp_rsp_uses_negotiated_limit_for_one_complete_64k_read"
+  ],
+  "new_rsp_tests_executed": true,
+  "original_firmware_executed": false,
+  "original_pair_started": false,
+  "qemu_started": false,
+  "runtime_timing_improvement_verified": false,
+  "schema": "a7c2-rsp-cp-host-validation-v1",
+  "status": "passed",
+  "workers": 2
+}
