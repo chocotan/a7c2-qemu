@@ -17,7 +17,11 @@
 - **LCD 触屏**：在相机画面内按住鼠标左键点击或拖动，松开结束；也接收 GDK 单指触摸。原 AP 的坐标事件、菜单响应和正常退出已验收，[用法与边界](report/2026-11-11-touchscreen/README.md)。物理触屏设备及多指手势未验证。
 - **操作机身控制**：窗口提供主要按键和拨盘。连续 LCD 已与输入队列分开，原 App32 使用常驻发送器；本轮 12 个真实窗口样本中位数 97.3ms，最大 121.1ms，严格 100ms 目标尚未全过。原按压/释放与完整帧校验保留，[实现和验证范围](docs/tech/2026-11-07-low-latency.md)。拍摄相关功能还没有全部接通。
 - **使用 1GiB 虚拟 SD 卡**：新原 cold 实例默认使用 1GiB FAT16 普通虚拟卡；原厂程序可以写入相机数据库等文件，支持安全拔出、重新插入，以及正常关闭后的卡镜像保存。
-- **隔离拍摄写卡（已验证）**：在显式 `functional-ram-card-independent-internal-v1` 实验配置下，原厂程序完成中文首设、关闭自动关机后，自然 0x4038 请求被原厂 JPEG 消费链接受：主图 88,788B 与缩略图 2,627B 的原 MainComp/ACK/DONE/长度写回全部 rc0，缩略图原 DMA 复制读回一致，原厂 Fsys 将 `A:/DCIM/100MSDCF/DSC00001.JPG`（150,228B）写入 1GiB 虚拟卡，原文件读回 EOF/Close/coverage 均 rc0，两次整卡导出摘要一致，照片可独立解码为 640×480 RGB。证据链与历轮失败记录见[拍摄证据报告](report/functional-camera-evidence/p1-candidate184.md)。默认 `./start.sh` 入口尚未接入该拍摄链；33MP 全像素、RAW、录像、机身全按快门与物理 CMOS 均未验证。
+- **隔离拍摄写卡（已验证）**：在显式 `functional-ram-card-independent-internal-v1` 实验配置下，原厂程序完成中文首设、关闭自动关机后，自然 0x4038 请求被原厂 JPEG 消费链接受：主图 88,788B 与缩略图 2,627B 的原 MainComp/ACK/DONE/长度写回全部 rc0，缩略图原 DMA 复制读回一致，原厂 Fsys 将 `A:/DCIM/100MSDCF/DSC00001.JPG`（150,228B）写入 1GiB 虚拟卡，原文件读回 EOF/Close/coverage 均 rc0，两次整卡导出摘要一致，照片可独立解码为 640×480 RGB。成片样例（注意：这是拍摄产物，不是取景画面——实时取景仍是黑屏）：
+
+  ![原厂 Fsys 写入虚拟卡的照片文件，可独立解码](docs/images/captured-dsc00001-20261120.jpg)
+
+  证据链与历轮失败记录见[拍摄证据报告](report/functional-camera-evidence/p1-candidate184.md)。默认 `./start.sh` 入口尚未接入该拍摄链；33MP 全像素、RAW、录像、机身全按快门与物理 CMOS 均未验证。
 - **保留部分设置**：语言和日期格式已验证可以跨次启动恢复。全部设置、首次设置完成状态还没有完整保存，重新启动时可能再次出现首设。
 - **修改运行环境**：可以用 `overwrite/` 替换本次运行使用的程序或库，或在“固件开发”中暂存文件、选择下次使用原版，并核对实际 guest 的完整文件摘要、长度和权限。已有原 AP 文件读回与正常保存退出验证，见[验收收据](validation/firmware-file-native-20261108.json)。
 
