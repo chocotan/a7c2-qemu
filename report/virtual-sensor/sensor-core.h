@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* Virtual A7C2 sensor core: synthetic test pattern in Bayer GRBG 14-bit,
+/* Virtual A7C2 sensor core: original synthetic colour chart in Bayer GRBG 14-bit,
  * full-size RGB demosaic output and integer box downsampler for viewfinder.
  * Component only. Never represents physical sensor silicon. */
 #ifndef SENSOR_CORE_H
@@ -38,13 +38,12 @@ sensor_frame_token sensor_token_next(const sensor_config *cfg,
                                     sensor_frame_token previous);
 int sensor_token_valid(const sensor_config *cfg, sensor_frame_token token);
 
-/* Deterministic test pattern sample at (x, y) for a width x height frame,
- * already reduced to 14 bits (0..16383). Pure integer math, recomputable from
- * coordinates alone:
- *   base    : horizontal gradient, x*(16383)/(width-1)
- *   corners : four 1/8 blocks -> TL 16383, TR 0, BL 8192, BR 4095
- *   stripes : every 16th row carries its row index: (y/16)*1024 & 0x3fff
- * Corner blocks win over the gradient; the stripe row wins over both. */
+/* Deterministic colour-chart photosite sample (0..16383): coordinates map to
+ * a 640x480 reference chart at either supported size, with 3x6 colour patches,
+ * six grayscale steps, dark gutters and four-reference-pixel detail squares.
+ * Returns the channel selected by the GRBG CFA at the actual pixel coordinate;
+ * Bayer and RGB therefore share exactly one scene. The original palette is
+ * synthetic, not a measured calibration target. Out-of-frame samples return 0. */
 uint16_t sensor_test_value(unsigned x, unsigned y, unsigned width,
                            unsigned height);
 

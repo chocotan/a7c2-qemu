@@ -10,6 +10,7 @@
 
 static const char *scenario;
 static int pins, unpins, cancelled, released, reentry_seen, readback_closed, pagemap_reads;
+static int progress_timeout_seen;
 static unsigned char *caller_output;
 static const size_t encoded_size = FCAM_DATA_BYTES + 13017;
 static uint64_t cursor;
@@ -53,6 +54,11 @@ static void record_test(const char *tag, const char *text) {
         ++reentry_seen;
     }
     if (!strcmp(tag, "FUNCTIONAL_CAMERA_TRANSFER ") && strstr(text, "readback_closed=1")) ++readback_closed;
+    if (!strcmp(scenario, "progress-stall") && !strcmp(tag, "FUNCTIONAL_CAMERA_TRANSFER ") &&
+        strstr(text, "error=-110")) {
+        assert(strstr(text, "progress_chunks=1"));
+        progress_timeout_seen = 1;
+    }
 }
 static void sleep_short(void) { const struct timespec t = {0, 100000}; nanosleep(&t, NULL); }
 static void state_reply(void) {
@@ -112,6 +118,12 @@ static void *server(void *unused) {
             else {
                 assert(get64(mailbox + FCAM_HEADER_BYTES) == 77);
                 assert(get64(mailbox + FCAM_HEADER_BYTES + 8) == cursor);
+            }
+            if (!strcmp(scenario, "progress-stall") && op == FCAM_OP_READ_RESULT &&
+                cursor == FCAM_DATA_BYTES) {
+                const struct timespec stall = {0, 420000000};
+                nanosleep(&stall, NULL);
+                continue;
             }
             if (!strcmp(scenario, "partial") && op == FCAM_OP_READ_RESULT) {
                 put32(mailbox + FCAM_H_ERROR, (uint32_t)-EIO);
@@ -1309,6 +1321,9 @@ int main(int argc, char **argv) {
     } else if (!strcmp(scenario, "enospc")) {
         assert(rc == -ENOSPC && result.used == 0 && result.required == encoded_size && cancelled == 1 && !released);
         for (size_t i = 0; i < encoded_size; ++i) assert(caller_output[i] == 0xa5);
+    } else if (!strcmp(scenario, "progress-stall")) {
+        assert(rc == -ETIMEDOUT && cancelled == 0 && !released && !readback_closed && progress_timeout_seen);
+        assert(!memcmp(&before, &result, sizeof result));
     } else if (!strcmp(scenario, "partial")) {
         assert(rc == -EIO && cancelled == 1 && !released && !readback_closed);
         assert(!memcmp(&before, &result, sizeof result));

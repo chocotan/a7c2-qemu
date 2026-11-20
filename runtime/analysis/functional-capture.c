@@ -311,7 +311,14 @@ static int admit_frame(uint8_t model[FCAM_STATE_BYTES],struct fcam_bridge_result
 static int execute_job(void){
     uint8_t model[FCAM_STATE_BYTES]={0};struct fcam_bridge_result result={0};
     int rc=admit_frame(model,&result);if(rc)return rc;
-    uint32_t width=u32(model+8),height=u32(model+12);
+    uint8_t photo[FCAM_STATE_BYTES]={0};struct fcam_bridge_result photo_result={0};
+    rc=fcam_bridge_call(&job.origin,FCAM_OP_CAPTURE_STATE,job.request,16,photo,sizeof photo,&photo_result);
+    if(rc)return rc;
+    if(photo_result.used!=sizeof photo || photo_result.required!=sizeof photo ||
+        photo_result.model_instance!=u64(model+48) || u64(photo+48)!=u64(model+48) ||
+        u64(photo+56)!=u64(model+56))return -ESTALE;
+    uint32_t width=u32(photo+8),height=u32(photo+12);
+    if(!width || width>FCAM_MAX_STILL_WIDTH || !height || height>FCAM_MAX_STILL_HEIGHT)return -ERANGE;
     if(job.io.record){
         char raw[257],text[640];for(unsigned i=0;i<128;++i)snprintf(raw+2*i,3,"%02x",model[i]);
         snprintf(text,sizeof text,"pid=%d job=%llu request_fnv=%016llx model_instance=%#llx generation=%llu state_fnv=%016llx state128=%s policy=%s original_CP_D012_verified=0 capture_verified=0",
@@ -319,7 +326,7 @@ static int execute_job(void){
             (unsigned long long)u64(model+56),(unsigned long long)fnv(model,128),raw,FULL_IMAGING_FUNCTIONAL_POLICY);
         job.io.record("FUNCTIONAL_CAMERA_MODEL_ADMISSION ",text);
     }
-    size_t capacity=96u+(size_t)width*height*3u;if(capacity>64u*1024u*1024u)return -E2BIG;
+    size_t capacity=96u+(size_t)width*height*3u;if(capacity>FCAM_MAX_RESULT_BYTES)return -E2BIG;
     uint8_t *frame=malloc(capacity);if(!frame)return -ENOMEM;
     rc=fcam_bridge_call(&job.origin,FCAM_OP_FRAME_CAPTURE,job.request,16,frame,capacity,&result);
     if(rc){free(frame);return rc;}

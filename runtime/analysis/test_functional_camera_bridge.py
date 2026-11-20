@@ -593,9 +593,13 @@ def test_qmp_transport_fault_latches_before_next_request(fault):
     expected = {'send': BrokenPipeError, 'timeout': TimeoutError, 'eof': EOFError}.get(fault, ValueError)
     with pytest.raises(expected):
         qmp.execute('query-status')
+    failure = dict(qmp.last_failure)
+    assert failure['command'] == 'query-status' and failure['request_id'] == 1
+    assert failure['phase'] == ('write' if fault == 'send' else 'read') and failure['error']
     reads = qmp.socket.reads
     with pytest.raises(ValueError, match='stream desynchronized'):
         qmp.execute('stop')
+    assert qmp.last_failure == failure
     assert qmp.socket.sent == [{'execute': 'query-status', 'id': 1}]
     assert qmp.socket.reads == reads
 
@@ -743,7 +747,7 @@ C_SCENARIOS = ('bitwidth', 'bitwidth-validation', 'bitwidth-badclass', 'bitwidth
                'display', 'displaybadsize', 'displaybadinstance', 'displaybadreserved',
                'bb', 'bbbadsize', 'bbbadinstance', 'bbbadreserved', 'bbbadclass', 'bbsmall',
                'hist', 'histbadsize', 'histbadinstance', 'histbadreserved', 'histbadclass', 'histsmall',
-               'transfer', 'enospc', 'partial', 'readback', 'latebuffer', 'shortchunk', 'lateclose', 'timeoutretain', 'fork',
+               'transfer', 'enospc', 'partial', 'progress-stall', 'readback', 'latebuffer', 'shortchunk', 'lateclose', 'timeoutretain', 'fork',
                'validation', 'serialize', 'pin', 'duplicate', 'pfnzero', 'pfnrange', 'pfnalign', 'pfnchanged', 'pagemap', 'noncezero',
                'badnonce', 'badpid', 'badpages', 'badreserved', 'badseq', 'badop', 'badbounds', 'badfnv')
 
@@ -2076,10 +2080,11 @@ def test_video_frame_request_flags_are_exact(data, accepted):
             b.validate_request(raw, data, MAILBOX, 0)
 
 
+@pytest.mark.parametrize('op', [b.FRAME_CAPTURE, b.CAPTURE_STATE])
 @pytest.mark.parametrize('changed', [None, 'source', 'destination', 'command', 'bytes', 'digest', 'trigger', 'reserved'])
-def test_capture_request_requires_exact_native_origin(changed):
+def test_capture_request_requires_exact_native_origin(changed, op):
     incoming = bytearray(struct.pack('<IIB3xI', 0x40380005, 29, 2, 0))
-    raw = bytearray(header(op=b.FRAME_CAPTURE, data=incoming))
+    raw = bytearray(header(op=op, data=incoming))
     struct.pack_into('<4I', raw, 100, 0x80020002, 0x90040193, 0x4038, 16)
     struct.pack_into('<Q', raw, 120, b.fnv64(incoming))
     fields = {'source': 100, 'destination': 104, 'command': 108, 'bytes': 112, 'digest': 120}
@@ -2093,7 +2098,7 @@ def test_capture_request_requires_exact_native_origin(changed):
         with pytest.raises(ValueError, match='exact original4038'):
             b.validate_request(bytes(raw), bytes(incoming), MAILBOX, 0)
     else:
-        assert b.validate_request(bytes(raw), bytes(incoming), MAILBOX, 0)[0] == b.FRAME_CAPTURE
+        assert b.validate_request(bytes(raw), bytes(incoming), MAILBOX, 0)[0] == op
 
 
 def test_actual_retained_frame_ctypes_transfer_and_content_checker(actual_core_library, wire, monkeypatch):

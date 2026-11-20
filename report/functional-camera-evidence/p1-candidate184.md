@@ -396,4 +396,35 @@ VM正常收尾已核：QMP quit确认、QEMU rc0、signals=[]、租约持有到�
 
 本轮启动计时：独立设置盘24.7s、派生缓存7.2s、启动至guest shell累计63.6s、首帧累计113.0s、settle6.2s；首设及Off短菜单后，broker attach阶段耗时197.6s（从VM启动阶段起算，含构建准备的全局累计237.0s）。对102轮相同`boot_to_broker_attached`基线299.2s减少101.6s。整轮至后处理结束465.2s；本轮已取得成功写卡链，启动提速的端到端观察不再借用失败拍摄轮。
 
+## 第110b轮 `7882`：33MP CMOS拍摄与原厂JPEG写卡完成
+
+范围：只读核收已有第110b轮证据，未另启VM、重拍、改固件或覆写旧失败收据。模型为产品 `ebe72c4352158d92bf202b4bfde9002b31706489216c4303d1ae0e31ea1e046d`，同一实例 `0x3803784cad97dfae`、job1、frame token1、配置代次19、帧代次20。按用户明确的“JPG写到卡上就算完成”判据，本轮 **33MP JPEG写卡完成**；整卡导出与独立解码分别记账，旧严格 `capture_verified=false` 不回填。[公开摘要收据](../../validation/33mp-jpeg-card-write-20261120.json)不包含原日志、库或磁盘。
+
+### 证据与结论
+
+以下路径相对于产品根 `final/a7c2-qemu/`；原始运行材料仅在本地受管目录保留，公开checkout无法单靠摘要重放该轮。
+
+| Evidence | 原始来源 | 已观察事实 |
+| --- | --- | --- |
+| E-110B-FRAME | `runtime/analysis/menu-runs/7882/functional-camera-broker-receipts.jsonl`，event3186/11911/11912/12179 | FRAME_CAPTURE记录7008×4672、stride21024、RGB98,224,128B；含96B头结果98,224,224B完整传输，同一模型进入JPEG消费者；broker记录全结果SHA `a817155ba85c1338c2918ea6127ee794705f8526161bbac4157ea76c6fe6a154` |
+| E-110B-NATIVE | 同目录 `console.log` 48091、48098–48112、48116–48131、48175–48204行 | 原生传输完整读回；原主图1,204,289B、缩略图2,005B的MainComp/ACK/DONE与长度写回rc0；缩略图DMA读回一致；原Fsys两段写入与回调、finished完成 |
+| E-110B-IDENTITY | 同目录 `runtime-manifest.json` 的模型摘要及上述broker `actual_core_sha256` | 声明与实际消费者均绑定上述 `ebe72c…` 模型，不借用第107轮640×480产物 |
+| E-110B-BOUNDARY | 同目录 `p4-capture-write-ready-failure.json`、`p4-capture-write-ready.json`、`functional-camera-retained-owner.json` | 原120秒等待失败保留；后来只读就绪为true，但closed/capture_verified仍false，owner未正常关闭 |
+
+**F-110B-WRITE（E-110B-FRAME/NATIVE/IDENTITY）：** 同一原厂自然 `0x4038` 请求摘要 `72a6aad220635189` 完成完整大帧读回和主图编码。原Fsys写入 `A:/DCIM/100MSDCF/DSC00001.JPG`，token1/cookie `0x1bd2710`，61,440B头部加1,204,289B主图共 **1,265,729B**，两段来源均匹配当前输出owner；submit/callback/finished均rc0，callback-return和finished均返回。主图FNV `aa3226228df41d4e` 与写入area1一致；写入观察合并FNV为 `7613e2f0a3ae982e`。这满足本轮用户约定的写卡完成判据。主图尺寸依据是模型帧证明与原厂输入描述符；卡内文件的独立解码尺寸仍未验，不能宣称已经独立解码7008×4672。
+
+**F-110B-BOUNDARY（E-110B-BOUNDARY）：** 原P4在120.4166秒/177次检查后失败，未发起导出；随后JPEG与原写卡继续完成。后续只读收据记录 `write_ready_for_original_flush=true`，不代表flush、文件读回、双整卡导出、严格输出退休或正常退出已发生。写入日志仍有 `write_verified=0 resources_released=0 original_AP_saved=0 capture_verified=0`，这些是旧严格读回/退休门的状态，保持原义。保留owner、VM、卡和旧收据，下一消费者是owner按现有恢复合同完成原flush/导出/读回和正常关闭；本次未执行回收。
+
+### P-110B：同轮实际调用链
+
+自然 `0x4038` → 默认虚拟CMOS的7008×4672 Bayer→RGB → 98,224,224B结果分块完整读回（E-110B-FRAME/NATIVE）→ 原厂主图/缩略图MainComp与ACK/DONE（E-110B-NATIVE）→ 同代输出owner和缩略图DMA（E-110B-NATIVE）→ 原Fsys两段写入JPG、submit/callback/finished返回（F-110B-WRITE）。该路径终点为原厂写卡完成；独立卡内解码、整卡导出和退出仍在F-110B-BOUNDARY范围内。
+
+可在持有本地原证据的产品目录离线复核关键行：
+
+```bash
+rg -n 'FUNCTIONAL_CAMERA_TRANSFER .*op=17|operation=original-maincomp-config|FSYS_WRITE_REQUEST|FSYS_WRITE_AREA|FSYS_WRITE_SUBMIT|MPR_WRITE_CALLBACK|MPR_WRITE_FINISHED' runtime/analysis/menu-runs/7882/console.log
+```
+
+RAW/ARW写卡、实时取景、录像、默认窗口拍摄入口与物理ASIC兼容均未由本轮提升。1.2MB是当前高重复纹理场景的压缩主图长度，2,005B才是本轮缩略图；不以JPEG文件大小推断像素数，也不以HUD的33M标记替代消费者证明。
+
 

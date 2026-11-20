@@ -31,7 +31,7 @@ PREFIX = 'functional-camera-broker'
 PAGE, PAGE_COUNT, HEADER = 4096, 16, 512
 MAILBOX_BYTES = PAGE * PAGE_COUNT
 DATA = MAILBOX_BYTES - HEADER
-MAX_RESULT = 64 * 1024 * 1024
+MAX_RESULT = 128 * 1024 * 1024
 PAYLOAD_DIRECTORY = 'functional-camera-data'
 PAYLOAD_BUDGET = 512 * 1024 * 1024
 PAYLOAD_FILE_LIMIT = 65536
@@ -63,11 +63,12 @@ BB_0166_OBSERVED_INITIAL_BODY = bytes.fromhex('000100000000000000000000080000000
 HIST_INPUT_BYTES, HIST_RESULT_BYTES, HIST_BINS_OFFSET = 8, 1192, 168
 LAYOUT_INITIAL_BODY = bytes.fromhex('07010100000000008002e0010000000000000000000000000300000000000000')
 STILL, FRAME_CAPTURE, FRAME_STILL, FRAME_RELEASE = 16, 17, 18, 19
+CAPTURE_STATE = 24
 VIDEO_BEGIN, VIDEO_FRAME, VIDEO_END = 32, 33, 34
 READ_RESULT, RELEASE_RESULT, CANCEL = 64, 65, 66
 OPS = {INIT, STATE, CONFIGURE, AUTOFOCUS, VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG,
        BB_STARTUP_CONFIG, HISTOGRAM, AP_SOURCE_SNAPSHOT, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL, CP_PARAMETER_BANK, CP_CRANK_CONTROL, CP_MOVIE_FORMAT, CP_OU_CRANK_CONTROL, STILL, VIDEO_BEGIN, VIDEO_FRAME,
-       VIDEO_END, FRAME_CAPTURE, FRAME_STILL, FRAME_RELEASE, READ_RESULT, RELEASE_RESULT, CANCEL}
+       VIDEO_END, FRAME_CAPTURE, FRAME_STILL, FRAME_RELEASE, CAPTURE_STATE, READ_RESULT, RELEASE_RESULT, CANCEL}
 FNV_SEED = 0xcbf29ce484222325
 
 
@@ -303,7 +304,7 @@ def validate_request(raw, data, mailbox, previous):
              CP_PARAMETER_BANK: (CP_PARAMETER_BANK_BYTES,), CP_CRANK_CONTROL: (CP_CRANK_INPUT_BYTES,),
              CP_MOVIE_FORMAT: (CP_MOVIE_FORMAT_INPUT_BYTES,), CP_OU_CRANK_CONTROL: (CP_OU_CRANK_INPUT_BYTES,),
              AP_SOURCE_SNAPSHOT: range(360, 1177, 8), STILL: (16, 144),
-             FRAME_CAPTURE: (16,), FRAME_STILL: (32, 160), FRAME_RELEASE: (16,),
+             FRAME_CAPTURE: (16,), FRAME_STILL: (32, 160), FRAME_RELEASE: (16,), CAPTURE_STATE: (16,),
              VIDEO_BEGIN: (48,), VIDEO_FRAME: (0, 4), VIDEO_END: (0,), READ_RESULT: (24,),
              RELEASE_RESULT: (16,), CANCEL: (0,)}
     require(size in sizes[op], 'Opcode request size differs')
@@ -334,7 +335,7 @@ def validate_request(raw, data, mailbox, previous):
                 u32(raw, 108) == 0x4072 and u32(raw, 112) == CP_OU_CRANK_INPUT_BYTES and
                 u64(raw, 120) == fnv64(data), 'OU crank requires full original4072 mode0 origin/FNV')
         require(capacity >= CP_OU_CRANK_RESULT_BYTES, 'OU crank requires full224 response capacity')
-    if op == FRAME_CAPTURE:
+    if op in (FRAME_CAPTURE, CAPTURE_STATE):
         require(data[:4] == b'\x05\x00\x38\x40' and data[8] in (2, 10, 12, 8, 9, 3) and
                 data[9:12] == bytes(3) and u32(raw, 100) == 0x80020002 and
                 u32(raw, 104) == 0x90040193 and u32(raw, 108) == 0x4038 and
@@ -663,6 +664,7 @@ class QMP:
     def __init__(self, path, timeout=2.0, *, expected_pid=None, socket_roots=None):
         self.timeout, self.serial = timeout, 0
         self.desynchronized = False
+        self.last_failure = None
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.settimeout(timeout)
         self.buffer = bytearray()
@@ -715,9 +717,11 @@ class QMP:
             message['arguments'] = arguments
         request = json.dumps(message).encode('ascii') + b'\n'
         deadline = time.monotonic() + self.timeout
+        phase = 'write'
         try:
             self.socket.settimeout(self.timeout)
             self.socket.sendall(request)
+            phase = 'read'
             for _ in range(256):
                 value = self._line(deadline)
                 if 'event' in value and not {'id', 'return', 'error'}.intersection(value):
@@ -728,8 +732,10 @@ class QMP:
                 break
             else:
                 raise ValueError('QMP event flood')
-        except BaseException:
+        except BaseException as error:
             self.desynchronized = True
+            self.last_failure = dict(command=command, request_id=serial, phase=phase,
+                                     error=type(error).__name__ + ': ' + str(error))
             raise
         require('return' in value, 'QMP command failed: ' + repr(value)[:2048])
         return value['return']
@@ -943,6 +949,11 @@ class Core:
             require(result.used == 128 and not result.token and u32(actual, 0) == VERSION and
                     u64(actual, 48) == instance and actual[120:] == bytes(8), 'Actual core state identity/size differs')
             self.configuration_fingerprint = fnv64(actual[8:48])
+        elif op == CAPTURE_STATE:
+            require(result.used == 128 and not result.token and u32(actual, 0) == VERSION and
+                    0 < u32(actual, 8) <= 8192 and 0 < u32(actual, 12) <= 8192 and
+                    u64(actual, 48) == instance and actual[120:] == bytes(8),
+                    'Actual photo state identity/geometry/size differs')
         elif op in (VDF_PATH, VDF_ZEBRA, VDF_LAYOUT, VDF_DISPLAY_CONFIG, BB_STARTUP_CONFIG, HISTOGRAM, VDF_BIT_WIDTH, STILL_FORMAT, STARTUP_CONTROL):
             expected_bytes = {VDF_PATH: 160, VDF_ZEBRA: 168, VDF_LAYOUT: 192, VDF_DISPLAY_CONFIG: 176,
                               BB_STARTUP_CONFIG: BB_RESULT_BYTES, HISTOGRAM: HIST_RESULT_BYTES,
@@ -1784,7 +1795,8 @@ class Broker:
             self.start_error = error
             self.cleaning = True
             if self.events:
-                self.emit('failure', error=errors[-1], sequence=self.sequence)
+                self.emit('failure', error=errors[-1], sequence=self.sequence,
+                          qmp_failure=getattr(self.qmp, 'last_failure', None))
         finally:
             self.cleaning = True
             self.ready.set()

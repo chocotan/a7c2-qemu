@@ -1492,7 +1492,7 @@ class FunctionalCameraRunner:
                                 gdb_socket=self.endpoint_root / GDB, qmp_socket=self.endpoint_root / QMP,
                                 coordination_lock=self.coordination_lock, debugger_quiesced=True,
                                 resume_allowed=lambda: self.run_allowed and self.proc.poll() is None,
-                                seconds=3600.0, io_timeout=1.0, **self.socket_options)
+                                seconds=3600.0, io_timeout=2.0, **self.socket_options)
                             self._publish('attached')
                         elif time.monotonic() >= deadline:
                             raise TimeoutError('Functional mailbox guest deadline: previous debugger lease did not close')

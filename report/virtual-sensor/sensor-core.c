@@ -75,34 +75,35 @@ int sensor_cfa_color(unsigned x, unsigned y)
 uint16_t sensor_test_value(unsigned x, unsigned y, unsigned width,
                            unsigned height)
 {
-    unsigned span_x = width > 1 ? width - 1 : 1;
+    /* Original synthetic colours, not a measured commercial reference chart. */
+    static const uint8_t patches[4][6][3] = {
+        {{255,255,255}, {255,224,32}, {32,224,224},
+         {32,192,64}, {224,48,192}, {224,48,32}},
+        {{48,80,224}, {240,144,32}, {128,64,192},
+         {32,144,128}, {240,144,176}, {128,80,48}},
+        {{176,112,80}, {96,144,192}, {112,160,80},
+         {192,160,208}, {64,96,128}, {208,192,128}},
+        {{255,255,255}, {204,204,204}, {153,153,153},
+         {102,102,102}, {51,51,51}, {0,0,0}}
+    };
+    unsigned sx, sy, col, row;
     uint32_t value;
 
-    value = (uint32_t)(((uint64_t)x * 16383u) / span_x);
-    if (value > 16383u)
-        value = 16383u;
-
-    /* Four corner blocks, each 1/8 of the frame in both axes. */
-    {
-        unsigned bw = width / 8u ? width / 8u : 1u;
-        unsigned bh = height / 8u ? height / 8u : 1u;
-        int left = x < bw || x + bw >= width;
-        int vertical = y < bh || y + bh >= height;
-        if (left && vertical) {
-            int top = y < bh;
-            int l = x < bw;
-            if (top)
-                value = l ? 16383u : 0u;   /* TL white, TR black */
-            else
-                value = l ? 8192u : 4095u; /* BL mid, BR low */
-        }
-    }
-
-    /* Row-number stripe: encode the row index every 16th line. */
-    if ((y & 15u) == 0) {
-        value = ((y / 16u) * 1024u) & 0x3fffu;
-    }
-    return (uint16_t)value;
+    if (!width || !height || x >= width || y >= height)
+        return 0;
+    sx = (unsigned)((uint64_t)x * 640u / width);
+    sy = (unsigned)((uint64_t)y * 480u / height);
+    col = sx * 6u / 640u;
+    row = sy / 120u;
+    value = patches[row][col][sensor_cfa_color(x, y)];
+    /* Four reference-pixel gutters separate the patches at either size. */
+    if (sx % 320u < 4u || sx * 6u % 640u < 24u || sy % 120u < 4u)
+        value = 16u;
+    /* Line pairs on both depth planes retain a real-pixel focus target. */
+    if (((sy >= 324u && sy < 356u) || (sy >= 420u && sy < 476u)) &&
+        sx >= 8u && sx < 632u)
+        value = ((sx / 4u + sy / 4u) & 1u) ? 32u : 224u;
+    return (uint16_t)(value * 16383u / 255u);
 }
 
 uint16_t sensor_bayer_unpack(uint16_t packed)

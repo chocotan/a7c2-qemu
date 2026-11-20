@@ -3,13 +3,14 @@
 #define FUNCTIONAL_STILL_FORMAT_ABI_H
 #include "functional-vdf-path-abi.h"
 
-/* Explicit software policy for the second original402d tuple only. L means
- * the currently configured full RGB888 frame; FINE preserves Config48 and
- * explicit per-job JPEG quality/geometry. Both slots' auxiliary/raw fields
+/* Explicit software policy for the second original402d tuple only. Native L
+ * selects a separate 7008x4672 photo slot; explicit Config48 retains its size.
+ * FINE preserves per-job JPEG quality/geometry. Both slots' auxiliary/raw fields
  * are saved and checked; no RAW/HIF output or physical tag2/CP selector,
  * size lookup, publication or native file-format equivalence is claimed.
  * Input16 is canonical (original wire's opaque final2 bytes become zero in
- * the caller's translation). Require prior INIT and active640x480 route.
+ * the caller's translation). Require prior INIT and active640x480 display route.
+ * CAPTURE_STATE reports photo geometry without changing that display configuration.
  * Each success/repeat renders, copies/readbacks an independent packed sink,
  * retires, then saves/readbacks this separate config16 before committing one
  * config/frame generation. Saved state constrains later RGB/codec consumers.

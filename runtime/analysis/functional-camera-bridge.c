@@ -471,6 +471,12 @@ static int exchange(const struct fcam_native_origin *origin, uint32_t flags, uin
         (r->used != FCAM_CP_OU_CRANK_RESULT_BYTES || r->token ||
          origin->wire_fnv1a64 != fnv(input, input_bytes) || !ou_crank_reply_valid(r->data, input))) return -EPROTO;
     if (op == FCAM_OP_AUTOFOCUS && (r->used != FCAM_AF_BYTES || r->token || !zero_bytes(r->data + 24, 8))) return -EPROTO;
+    if (op == FCAM_OP_CAPTURE_STATE && (r->used != FCAM_STATE_BYTES || r->token ||
+        get32(r->data) != FCAM_ABI_VERSION || get64(r->data + FCAM_S_INSTANCE) != nonce ||
+        !get64(r->data + FCAM_S_GENERATION) ||
+        !get32(r->data + FCAM_S_WIDTH) || get32(r->data + FCAM_S_WIDTH) > FCAM_MAX_STILL_WIDTH ||
+        !get32(r->data + FCAM_S_HEIGHT) || get32(r->data + FCAM_S_HEIGHT) > FCAM_MAX_STILL_HEIGHT ||
+        !zero_bytes(r->data + 120, 8))) return -EPROTO;
     if ((op == FCAM_OP_RELEASE_RESULT || op == FCAM_OP_FRAME_RELEASE) && (r->used || r->token)) return -EPROTO;
     if ((op == FCAM_OP_STILL || op == FCAM_OP_FRAME_STILL || op == FCAM_OP_FRAME_CAPTURE) && !r->token) return -EPROTO;
     if (op == FCAM_OP_FRAME_CAPTURE && (r->used < FCAM_FRAME_HEADER_BYTES ||
@@ -561,6 +567,7 @@ static int public_op(uint32_t op, const void *input, size_t n) {
     case FCAM_OP_CP_OU_CRANK_CONTROL: return n == FCAM_CP_OU_CRANK_INPUT_BYTES;
     case FCAM_OP_AUTOFOCUS: return n == FCAM_AF_BYTES;
     case FCAM_OP_STILL: return n == 16 || n == 144;
+    case FCAM_OP_CAPTURE_STATE:
     case FCAM_OP_FRAME_CAPTURE: return fcam_capture_input_valid(input, n);
     case FCAM_OP_FRAME_STILL:
         return (n == 32 || n == 160) && get64(input) &&
@@ -604,11 +611,12 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
         (op == FCAM_OP_CP_PARAMETER_BANK && capacity < FCAM_CP_PARAMETER_BANK_RESULT_BYTES) ||
         (op == FCAM_OP_CP_CRANK_CONTROL && capacity < FCAM_CP_CRANK_RESULT_BYTES) ||
         (op == FCAM_OP_CP_MOVIE_FORMAT && capacity < FCAM_CP_MOVIE_FORMAT_RESULT_BYTES) ||
-        (op == FCAM_OP_CP_OU_CRANK_CONTROL && capacity < FCAM_CP_OU_CRANK_RESULT_BYTES))
+        (op == FCAM_OP_CP_OU_CRANK_CONTROL && capacity < FCAM_CP_OU_CRANK_RESULT_BYTES) ||
+        (op == FCAM_OP_CAPTURE_STATE && capacity < FCAM_STATE_BYTES))
         return leave(-ENOSPC, saved_errno);
     const struct fcam_native_origin native = *origin;
     if (!native.source || !native.destination || !native.bytes) return leave(-EINVAL, saved_errno);
-    if (op == FCAM_OP_FRAME_CAPTURE && (native.source != UINT32_C(0x80020002) ||
+    if ((op == FCAM_OP_FRAME_CAPTURE || op == FCAM_OP_CAPTURE_STATE) && (native.source != UINT32_C(0x80020002) ||
         native.destination != UINT32_C(0x90040193) || native.command != 0x4038 ||
         native.bytes != 16 || native.wire_fnv1a64 != fnv(input, input_bytes)))
         return leave(-EINVAL, saved_errno);
@@ -724,6 +732,8 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
     rc = deadline_start(&deadline);
     if (rc) return leave(rc, saved_errno);
     struct reply *r = &reply_storage;
+    const uint64_t total_deadline = deadline - WAIT_NS + UINT64_C(600000000000);
+    unsigned progress_chunks = 0;
     rc = exchange(&native, flags, op, input, input_bytes, r, deadline);
     size_t copied = 0, written = 0; uint64_t whole = FNV_SEED, token = 0, total = 0, first_seq = sequence;
     if (!rc) {
@@ -751,6 +761,11 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
                 if (copied == total) break;
                 unsigned char request[24] = {0}; put64(request, token); put64(request + 8, copied);
                 put32(request + 16, FCAM_DATA_BYTES);
+                /* Only a verified new chunk restarts the no-progress window. */
+                rc = deadline_start(&deadline);
+                ++progress_chunks;
+                if (!rc && deadline > total_deadline) rc = -ETIMEDOUT;
+                if (rc) break;
                 rc = exchange(&native, flags, FCAM_OP_READ_RESULT, request, sizeof request, r, deadline);
                 if (rc) break;
             }
@@ -771,10 +786,10 @@ int fcam_bridge_call(const struct fcam_native_origin *origin, uint32_t op,
     snprintf(text, sizeof text, "seq=%" PRIu64 "..%" PRIu64 " op=%u source=%#x destination=%#x command=%#x bytes=%u native_fnv=%#" PRIx64
         " request_bytes=%zu request_fnv=%#" PRIx64 " returned_bytes=%zu returned_fnv=%#" PRIx64 " required=%" PRIu64
         " destination_written_bytes=%zu destination_fnv=%#" PRIx64
-        " model_instance=%#" PRIx64 " token=%#" PRIx64 " readback_closed=%d error=%d origin_kind=%s",
+        " model_instance=%#" PRIx64 " token=%#" PRIx64 " readback_closed=%d error=%d origin_kind=%s progress_chunks=%u",
         first_seq, sequence, op, native.source, native.destination, native.command, native.bytes, native.wire_fnv1a64,
         input_bytes, fnv(input, input_bytes), copied, whole, total, written, destination_fnv(output, written), nonce, token, rc == 0, rc,
-        flags ? "api40-source-snapshot" : "native-osal");
+        flags ? "api40-source-snapshot" : "native-osal", progress_chunks);
     note("FUNCTIONAL_CAMERA_TRANSFER ", text);
     if (!rc) { value.used = copied; *result = value; }
     else if (rc == -ENOSPC) *result = value;

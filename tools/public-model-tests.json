@@ -178,6 +178,7 @@
   "report/imola-ipsx-isa/test_isa.py",
   "report/imola-vbb-normalize/test_normalize.py",
   "report/functional-camera-core/test_functional_core.py",
+  "report/functional-camera-core/test_full_resolution.py",
   "report/functional-camera-core/test_functional_startup.py",
   "report/functional-camera-evidence/test_evidence.py",
   "report/functional-graph-evidence/test_graph.py",

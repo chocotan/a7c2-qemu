@@ -1,0 +1,41 @@
+{
+  "bayer_to_rgb_shared_scene_verified": true,
+  "capture_verified": false,
+  "chart_native_card_write_verified": false,
+  "counts": {
+    "photo": 2,
+    "sensor": 8
+  },
+  "default_optical_focus_and_guard_tests_preserved": true,
+  "failed": 0,
+  "failure_reason": "Old gradient coordinates hit chart gutters; then a color block clipped at existing exposure. Use separate white/black patch centers for encoded-content check; Bayer color tests remain strict.",
+  "final_photo_evidence": "scratch/a7c2-full-resolution-v1/chart-photo-retest-2",
+  "final_sensor_evidence": "scratch/a7c2-full-resolution-v1/chart-acceptance-1/sensor",
+  "groups": 2,
+  "independently_decoded_host_jpeg_size": [
+    7008,
+    4672
+  ],
+  "original_failures_preserved": [
+    "scratch/a7c2-full-resolution-v1/chart-acceptance-1/photo",
+    "scratch/a7c2-full-resolution-v1/chart-photo-retest-1"
+  ],
+  "passed": 10,
+  "physical_compatible": false,
+  "qemu_executed": false,
+  "raw_verified": false,
+  "sample": "docs/images/virtual-cmos-color-chart.png",
+  "sample_producer": "host sensor_frame_rgb",
+  "sample_sha256": "a6f6fa3a01199f37316d7750e56c7836552865e7a92d25e9ee3264b3c1dd17ef",
+  "schema": "a7c2-33mp-color-chart-host-v1",
+  "skipped": 0,
+  "sources": {
+    "report/functional-camera-core/test-full-resolution.c": "2ab6131de703805c3c5b5ad355c8a356643ae1b93bd7d1aec7e66e9fe9059550",
+    "report/functional-camera-core/test_full_resolution.py": "59d499ab5ba474487c51944957aa29b33bfc79dd79ec74bf98ba79d2d59b04c4",
+    "report/virtual-sensor/sensor-core.c": "a02b996bb2337b629debbd88c6562f80c806254280eb826aaed3c4e99b4bb5e1",
+    "report/virtual-sensor/sensor-core.h": "dacbb6c8653d96b26fd590028051aba5676c304d30c0a7c160f354fe595022f5",
+    "report/virtual-sensor/test_sensor_core.py": "a69b8f4c4dba8844d708682ba552057c1823747598faf0b000787336ee15edc9"
+  },
+  "status": "PASS_HOST_COMPONENTS",
+  "workers": 2
+}

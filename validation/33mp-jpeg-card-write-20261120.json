@@ -1,0 +1,120 @@
+{
+  "schema": "a7c2-33mp-jpeg-card-write-v1",
+  "recorded_on": "2026-11-20",
+  "run": "7882",
+  "round": "110b",
+  "scope": "Existing isolated functional-camera run; read-only evidence review, no new VM or capture",
+  "acceptance": {
+    "criterion": "User accepts native JPEG card write completion; whole-card export and independent decode are separate checks",
+    "status": "PASS_NATIVE_JPEG_CARD_WRITE_ONLY",
+    "jpeg_card_write_complete": true,
+    "capture_verified": false,
+    "p4_production_batch_verified": false,
+    "original_failure_receipts_preserved": true
+  },
+  "model_sha256": "ebe72c4352158d92bf202b4bfde9002b31706489216c4303d1ae0e31ea1e046d",
+  "source": {
+    "kind": "default virtual CMOS Bayer-to-RGB source",
+    "width": 7008,
+    "height": 4672,
+    "stride_bytes": 21024,
+    "rgb_bytes": 98224128,
+    "frame_result_header_bytes": 96,
+    "frame_result_bytes": 98224224,
+    "complete_native_transfer_readback": true,
+    "transfer_fnv1a64": "6067d9a7c9bafc62",
+    "broker_recorded_transfer_sha256": "a817155ba85c1338c2918ea6127ee794705f8526161bbac4157ea76c6fe6a154",
+    "request_command": "0x4038",
+    "request_fnv1a64": "72a6aad220635189",
+    "model_instance": "0x3803784cad97dfae",
+    "frame_token": 1,
+    "configuration_generation": 19,
+    "frame_generation": 20
+  },
+  "jpeg": {
+    "main_native_output_bytes": 1204289,
+    "main_native_output_fnv1a64": "aa3226228df41d4e",
+    "thumbnail_bytes": 2005,
+    "thumbnail_fnv1a64": "384c46a5a267e32d",
+    "original_maincomp_ack_done_and_length_writeback_rc": 0,
+    "thumbnail_dma_readback_verified": true,
+    "independently_decoded_card_file": false,
+    "independently_decoded_card_dimensions": null,
+    "dimensions_basis": "Same-run 7008x4672 model frame proof and native main-image input descriptor; no claim of independently decoded card dimensions"
+  },
+  "native_fsys_write": {
+    "path": "A:/DCIM/100MSDCF/DSC00001.JPG",
+    "pid": 323,
+    "job": 1,
+    "write_token": 1,
+    "cookie": "0x1bd2710",
+    "header_bytes": 61440,
+    "main_bytes": 1204289,
+    "total_bytes": 1265729,
+    "source_owner_matched": true,
+    "submit_rc": 0,
+    "callback_rc": 0,
+    "callback_returned": true,
+    "finished_rc": 0,
+    "finished_returned": true,
+    "observed_write_fnv1a64": "7613e2f0a3ae982e",
+    "file_readback_verified": false,
+    "strict_output_resources_retired": false
+  },
+  "original_p4_failure": {
+    "timeout_seconds": 120,
+    "elapsed_seconds": 120.41664628899889,
+    "checks": 177,
+    "exports_started": false,
+    "quit_sent": false,
+    "receipt": "runtime/analysis/menu-runs/7882/p4-capture-write-ready-failure.json",
+    "receipt_sha256": "f4ea2509e7bf0f72ffab591314753a9dfed3feb79571790957cd740fb2e56e26"
+  },
+  "later_readonly_write_readiness": {
+    "receipt": "runtime/analysis/menu-runs/7882/p4-capture-write-ready.json",
+    "write_ready_for_original_flush": true,
+    "closed": false,
+    "capture_verified": false
+  },
+  "lifecycle_at_review": {
+    "state": "retained owner; normal close and lease release not verified",
+    "normal_qemu_exit_verified": false,
+    "qemu_returncode": null,
+    "whole_card_export_verified": false,
+    "two_whole_card_exports_equal": null,
+    "retained_owner_receipt": "runtime/analysis/menu-runs/7882/functional-camera-retained-owner.json",
+    "retained_owner_receipt_sha256": "980315df52141a3da1daf6022646bc89326d48eb668539e2b6edecaa2f399bee",
+    "next_consumer": "Owner-authorized original flush/export/readback and normal close; preserve current VM, card and recovery receipts until verified"
+  },
+  "not_verified": [
+    "raw_arw_card_write",
+    "live_view",
+    "video_card_write",
+    "default_window_capture_entry",
+    "physical_asic_compatibility"
+  ],
+  "evidence": [
+    {
+      "id": "E-110B-FRAME",
+      "path": "runtime/analysis/menu-runs/7882/functional-camera-broker-receipts.jsonl",
+      "records": [3186, 11911, 11912, 12179],
+      "facts": "7008x4672 frame proof, complete 98224224-byte transfer and same-model JPEG consumer"
+    },
+    {
+      "id": "E-110B-NATIVE",
+      "path": "runtime/analysis/menu-runs/7882/console.log",
+      "lines": [48091, 48098, 48109, 48128, 48176, 48184, 48185, 48186, 48191, 48192, 48194, 48201, 48203],
+      "facts": "Native full-frame readback, JPEG lengths, source matching, original Fsys write submission/callback/finished"
+    },
+    {
+      "id": "E-110B-MODEL",
+      "path": "runtime/analysis/menu-runs/7882/runtime-manifest.json",
+      "facts": "Same model SHA-256 as actual_core_sha256 in broker frame proofs"
+    }
+  ],
+  "publication": {
+    "raw_firmware_libraries_logs_disks_included": false,
+    "new_runtime_execution_performed": false,
+    "old_receipts_modified": false
+  }
+}

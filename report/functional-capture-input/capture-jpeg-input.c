@@ -51,6 +51,8 @@ int capture_jpeg_input_prepare(struct capture_input *owner,const uint8_t body[80
         !width || width>8192 || !height || height>8192)return -EPROTO;
     struct capture_jpeg_input candidate={.owner=owner};
     int rc=capture_input_info(owner,&candidate.source);if(rc)return rc;
+    /* The supported native L/FINE main image must retain the captured geometry. */
+    if(!selector && (width!=candidate.source.width || height!=candidate.source.height))return -ENOTSUP;
     if(u32(body+0x18) || u32(body+0x1c)!=candidate.source.metadata_unit || u32(body+0x20))return -ENODATA;
     rc=capture_input_metadata_read(owner,candidate.source.metadata_unit,0,1024,&candidate.metadata);
     if(rc)return rc;

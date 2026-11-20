@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #define PAGE 4096u
-#define MAX_RGB (64u * 1024u * 1024u - 96u)
+#define MAX_RGB (128u * 1024u * 1024u - 96u)
 #define SLOTS 8u
 struct borrow { struct capture_input_mapping map; int kind; };
 struct capture_input {

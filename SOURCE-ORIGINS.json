@@ -1,4 +1,125 @@
 {
+  "full_resolution_jpeg_and_color_chart_20261120": {
+    "scope": "33MP native JPEG card write and self-generated virtual CMOS color chart",
+    "changes": {
+      "README.md": {
+        "previous_inventory_sha256": "cd18b4e2c4a6935e635e073f0b6ce219d2fa8f7d663599c6ee3934404b2d585d",
+        "after": "17141f90edb486ead1fbf134985cf3275a9e3f155a81319d63311b60943e4b6f"
+      },
+      "docs/images/virtual-cmos-color-chart.png": {
+        "previous_inventory_sha256": null,
+        "after": "a6f6fa3a01199f37316d7750e56c7836552865e7a92d25e9ee3264b3c1dd17ef"
+      },
+      "report/functional-camera-core/functional-camera-core.c": {
+        "previous_inventory_sha256": "353392743a566425dfdfaec0d436a3a91cd8826d505eab0b37d994821f983a7c",
+        "after": "2be7aa967a72ca2287847cd9d8181ef51d771c080ebf000ca28d9e69b7e37aaf"
+      },
+      "report/functional-camera-core/test-full-resolution.c": {
+        "previous_inventory_sha256": null,
+        "after": "2ab6131de703805c3c5b5ad355c8a356643ae1b93bd7d1aec7e66e9fe9059550"
+      },
+      "report/functional-camera-core/test_full_resolution.py": {
+        "previous_inventory_sha256": null,
+        "after": "59d499ab5ba474487c51944957aa29b33bfc79dd79ec74bf98ba79d2d59b04c4"
+      },
+      "report/functional-camera-core/test_functional_core.py": {
+        "previous_inventory_sha256": "b36c9e0426efcde85d0dee8ccf5844aa9564c7923e8cb428c24e956d6766daec",
+        "after": "3687a077b0ca1be01f3ced991275e382567258aea6a53efe9618c233b670c86d"
+      },
+      "report/functional-camera-evidence/check_evidence.py": {
+        "previous_inventory_sha256": "af30248899b4938d3dbc40b3156bcba02f89e3b7e05de381287ce6fecb5f779c",
+        "after": "cc189dfe832e68f10f3e94e6d4136c4dfd6f93fe593e61d4f2b141043bffa85a"
+      },
+      "report/functional-camera-evidence/p1-candidate184.md": {
+        "previous_inventory_sha256": "5ea46d2fcb8bf9fa0d0a2f54d32dff02a4263a7d966940bdba502fe4e74dcbf9",
+        "after": "de4686a0c36ead53ff4e6aa22d3171cf779b80ae763724f43d2044490d550ec8"
+      },
+      "report/functional-capture-input/capture-input.c": {
+        "previous_inventory_sha256": "8817313e2a10661fcfda50e7054851c92e5025f2233398bb61e88cc245ff4c64",
+        "after": "250349c3c81e97f8e4ebbeb4fe2677216881ce76cc08766a1ff4ff18b04002de"
+      },
+      "report/functional-capture-input/capture-jpeg-input.c": {
+        "previous_inventory_sha256": "5154754943d006fcbf02f2ec0cb97d3c76e95895b25f6145dfafdee78b34ca64",
+        "after": "4bc37a99a3dfdc5e82f853a63c8ed4d292373b61a41a89522eb9e052d57c9de0"
+      },
+      "report/virtual-sensor/README.md": {
+        "previous_inventory_sha256": "7632f5e4703e9ed74c1a78f48bb52fdb2161cb35b5d47216ade97bd0c5e816bb",
+        "after": "03effc845eecb38d27eb651bcfcc209f742e36e1f5282ffe9f26b2d9141bd842"
+      },
+      "report/virtual-sensor/render_preview.py": {
+        "previous_inventory_sha256": null,
+        "after": "02ede2c8235c22194197fd46b61e01f3d4fcc1d11ecc6d2e77cc1d5aca984e7d"
+      },
+      "report/virtual-sensor/sensor-core.c": {
+        "previous_inventory_sha256": "aca80922f24e307686689cbf3685e12a54d354ebf70b6311302573941eb972d0",
+        "after": "a02b996bb2337b629debbd88c6562f80c806254280eb826aaed3c4e99b4bb5e1"
+      },
+      "report/virtual-sensor/sensor-core.h": {
+        "previous_inventory_sha256": "60b68fd2f6cc37304e1f8f234151948020d5c7007fcf1398da824af2976e0477",
+        "after": "dacbb6c8653d96b26fd590028051aba5676c304d30c0a7c160f354fe595022f5"
+      },
+      "report/virtual-sensor/test_sensor_core.py": {
+        "previous_inventory_sha256": "2b0d6b23e1aa4d8398a840b3a6860e5f81f04e1d840fa82da9a5ba730da34dbb",
+        "after": "a69b8f4c4dba8844d708682ba552057c1823747598faf0b000787336ee15edc9"
+      },
+      "runtime/analysis/functional-camera-abi.h": {
+        "previous_inventory_sha256": "587775a58b59dbbfe9938d0eeb8e2875050f22e680b90c6e5c0ab14b41168b77",
+        "after": "9add5b71993b8fb2ea03afdaa4673baab436914f5e53193fb62c0702691a0962"
+      },
+      "runtime/analysis/functional-camera-bridge.c": {
+        "previous_inventory_sha256": "5a80426bbf01eac364a290f8a3f262e67083bf50391cb4874065003ef1666310",
+        "after": "c67d4ff6b174decf6feee9451a33b3625e43437206a8b726e46e604aed1b81ec"
+      },
+      "runtime/analysis/functional-capture.c": {
+        "previous_inventory_sha256": "2fe60c6cc9cf261b8295a504c296c8a9383845e4417ef171c48f3134891e095f",
+        "after": "b21efc1d04a8338b6c4d31fd58d9fcec1618cf8238e5bdaaf53ef4711781349c"
+      },
+      "runtime/analysis/functional-still-format-abi.h": {
+        "previous_inventory_sha256": "54f27f4b98a0ece89fc7f09f4cca38d2e05fd9c0ee84843210fa16822413d51c",
+        "after": "2c4532489e11d30d32fc5ee46a0760d263fb195b2aaa26640adcae20a3bcdf3c"
+      },
+      "runtime/analysis/functional_camera_broker.py": {
+        "previous_inventory_sha256": "8a4cbb5a5908b6cff8e6c7720b9eceed8abdd59dcace58d4857f75937716ad39",
+        "after": "1ba8bfc6dae2841b61b2535a71aeaa6291c82a03303a8c491ebe4d91aa62d16d"
+      },
+      "runtime/analysis/functional_camera_runner.py": {
+        "previous_inventory_sha256": "26dbbd393ae3412508adf1cfde10c844c2d233e7727eaf53ceac323ff69da42c",
+        "after": "77f69a774d17980fd0b1866d6da51596c6a23695bf74e541dd5fc09d3f9a5111"
+      },
+      "runtime/analysis/test-functional-camera-bridge.c": {
+        "previous_inventory_sha256": "97375a370be255fa94aace891bd5e2697791fab47b07e5120b46c069e149ff57",
+        "after": "2a268aa68c7f99b81644ce40ed82eab7409b58d1aa26ff902c7f6c5fd521b8a1"
+      },
+      "runtime/analysis/test_functional_camera_bridge.py": {
+        "previous_inventory_sha256": "9c8c7d204ef1695c64bb9647523b1f36443879f748c3b0f0c4bc7c7b719ce349",
+        "after": "48402c160f798821413b614efe1ba1a744bf65dbeffa105ccd87543f4a3dcbd4"
+      },
+      "tools/public-model-tests.json": {
+        "previous_inventory_sha256": "f6acc15c93694d672795306918c7d29b1c03dd8c720558a73be7a7817e7e5d5a",
+        "after": "2535f12b58dba619ae6c91007b1aba14ea52b824383facb3c6959bb7165c4c51"
+      },
+      "validation/33mp-color-chart-host-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "c25c0180350bcadaf82292e83306d20462de1e681ba1ec4fa3feae804d003f67"
+      },
+      "validation/33mp-jpeg-card-write-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "17fdc3996b51c2e13fa2b749d2400dcdf5c3a6096e7eba01de94c413d00eb7bb"
+      },
+      "validation/README.md": {
+        "previous_inventory_sha256": "65359fc98a5b13068d090a55732fdd3e71c735345e865781692cb1db06ba0275",
+        "after": "98f5684fbdb389c3221c7ed7744db062adf0cbe7e7a8762552ba578b88b7a8a4"
+      }
+    },
+    "host_receipt": "validation/33mp-color-chart-host-20261120.json",
+    "runtime_receipt": "validation/33mp-jpeg-card-write-20261120.json",
+    "native_jpeg_card_write_verified": true,
+    "chart_native_card_write_verified": false,
+    "independent_33mp_card_decode_verified": false,
+    "raw_verified": false,
+    "physical_compatible": false,
+    "unrelated_inventory_reverified": false
+  },
   "default_cmos_20261120": {
     "scope": "default CMOS source and all directly affected consumers",
     "changes": {

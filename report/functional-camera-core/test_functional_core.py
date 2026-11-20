@@ -666,9 +666,13 @@ def test_ctypes_native_still_format_admits_capture_without_host_configure(builds
         receipt, _ = model.request(13, still_format, 176)
         assert receipt[160:] == still_format
         state, _ = model.request(2)
+        photo, _ = model.request(24, capture)
+        assert (u32(state, 8), u32(state, 12)) == (640, 480)
+        assert (u32(photo, 8), u32(photo, 12)) == (7008, 4672)
+        assert photo[:8] == state[:8] and photo[16:] == state[16:]
         frame = model.encoded(17, capture, chunk=DATA_BYTES)
-        assert len(frame) == 96 + 640 * 480 * 3
-        assert (u32(frame, 48), u32(frame, 52), u64(frame, 32)) == (640, 480, u64(state, 56))
+        assert len(frame) == 96 + 7008 * 4672 * 3
+        assert (u32(frame, 48), u32(frame, 52), u64(frame, 32)) == (7008, 4672, u64(state, 56))
         assert u64(frame, 88) == fnv(capture) and u64(frame, 72) == fnv(frame[96:])
         model.request(19, struct.pack("<QII", u64(frame, 8), 0, 1), 0)
         model.request(5, bytes([0, 1, 1]) + bytes(13), 160)

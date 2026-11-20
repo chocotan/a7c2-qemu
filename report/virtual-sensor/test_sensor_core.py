@@ -31,6 +31,8 @@ def sensor(tmp_path_factory):
     core.sensor_demosaic_rgb.argtypes = [C.POINTER(C.c_uint16), C.c_uint,
                                        C.c_uint, C.POINTER(C.c_uint8)]
     core.sensor_cfa_color.argtypes = [C.c_uint, C.c_uint]
+    core.sensor_test_value.argtypes = [C.c_uint, C.c_uint, C.c_uint, C.c_uint]
+    core.sensor_test_value.restype = C.c_uint16
     return core
 
 
@@ -90,11 +92,42 @@ def test_bayer_grbg_packing_boundaries_and_atomic_short_buffer(sensor):
     assert bytes(packed) == before
     assert sensor.sensor_frame_bayer_into(C.byref(config), token, pixels, samples) == 0
     assert packed[0] == packed[-1] == 0xa55a
-    for x, y, expected in ((5, 5, 16383), (600, 5, 0),
-                           (5, 470, 8192), (600, 470, 4095),
-                           (200, 100, 200 * 16383 // 639), (300, 32, 2048)):
-        assert pixels[y * 640 + x] == expected << 2
+    for x, y, level in ((20, 20, 255), (160, 60, 224),
+                        (161, 60, 255), (160, 61, 32),
+                        (53, 390, 255), (586, 390, 0),
+                        (20, 420, 224), (24, 420, 32), (0, 100, 16)):
+        assert pixels[y * 640 + x] == (level * 16383 // 255) << 2
     assert [sensor.sensor_cfa_color(x, y) for y in range(2) for x in range(2)] == [1, 0, 2, 1]
+
+
+@pytest.mark.parametrize('width,height', [(640, 480), (7008, 4672)])
+def test_colour_chart_bayer_rgb_shared_scene(sensor, width, height):
+    config = Config(width, height, 1)
+    samples = width * height
+    raw = (C.c_uint16 * samples)()
+    rgb = (C.c_uint8 * (samples * 3))()
+    assert sensor.sensor_frame_bayer_into(C.byref(config), (1 << 32) | 1,
+                                           raw, samples) == 0
+    assert sensor.sensor_demosaic_rgb(raw, width, height, rgb) == 0
+    # Independently specified patch centres: primary colours and six gray steps.
+    patches = [(0, 0, (255, 255, 255)), (1, 0, (255, 224, 32)),
+               (2, 0, (32, 224, 224)), (3, 0, (32, 192, 64)),
+               (4, 0, (224, 48, 192)), (5, 0, (224, 48, 32)),
+               (0, 1, (48, 80, 224))]
+    patches += [(col, 3, (level,) * 3)
+                for col, level in enumerate((255, 204, 153, 102, 51, 0))]
+    for col, row, colour in patches:
+        x = ((2 * col + 1) * width // 12) & ~1
+        y = ((row * 120 + (30 if row == 3 else 60)) * height // 480) & ~1
+        for dx, dy, channel in ((0, 0, 1), (1, 0, 0), (0, 1, 2), (1, 1, 1)):
+            expected = colour[channel] * 16383 // 255
+            assert raw[(y + dy) * width + x + dx] == expected << 2
+        offset = (y * width + x) * 3
+        assert bytes(rgb[offset:offset + 3]) == bytes(
+            (level * 16383 // 255) * 255 // 16383 for level in colour)
+    assert sensor.sensor_test_value(width, 0, width, height) == 0
+    assert sensor.sensor_test_value(0, height, width, height) == 0
+    assert sensor.sensor_test_value(0, 0, 0, height) == 0
 
 
 def test_demosaic_uses_actual_cfa_channels_at_edges(sensor):

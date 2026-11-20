@@ -1444,9 +1444,19 @@ static int capture_copy(const optical_frame_view *view, void *opaque)
     ++m->consumed;
     return m->proof.consumer_before_fnv1a64 != m->proof.consumer_after_fnv1a64;
 }
+static struct config capture_config(const struct fcam_model *m)
+{
+    struct config photo = m->config;
+    if (!m->capture_configured) {
+        photo.width = FCAM_FULL_STILL_WIDTH;
+        photo.height = FCAM_FULL_STILL_HEIGHT;
+    }
+    return photo;
+}
 static int frame_capture(struct fcam_model *m, const uint8_t *in)
 {
-    m->capture_bytes = (size_t)m->config.width * m->config.height * 3u;
+    const struct config photo = capture_config(m);
+    m->capture_bytes = (size_t)photo.width * photo.height * 3u;
     m->capture_rgb = malloc(m->capture_bytes);
     if (!m->capture_rgb) { m->capture_bytes = 0; return -ENOMEM; }
     uint64_t token = atomic_load(&retained_frame_tokens);
@@ -1456,7 +1466,7 @@ static int frame_capture(struct fcam_model *m, const uint8_t *in)
             return -EOVERFLOW;
         }
     } while (!atomic_compare_exchange_weak(&retained_frame_tokens, &token, token + 1));
-    const optical_frame_config config = optical_config(&m->config);
+    const optical_frame_config config = optical_config(&photo);
     if (optical_frame_configure(&m->capture_owner, &config) != OPTICAL_FRAME_OK ||
         optical_frame_acquire(&m->capture_owner, m->capture_rgb, m->capture_bytes,
                               &m->capture_lease) != OPTICAL_FRAME_OK) {
@@ -1482,8 +1492,8 @@ static int frame_capture(struct fcam_model *m, const uint8_t *in)
     put64(header + 8, m->capture_token); put64(header + 16, m->instance);
     put64(header + 24, m->lifetime); put64(header + 32, m->capture_config_generation);
     put64(header + 40, m->capture_frame_generation);
-    put32(header + 48, m->config.width); put32(header + 52, m->config.height);
-    put32(header + 56, m->config.width * 3u); put32(header + 60, 1);
+    put32(header + 48, photo.width); put32(header + 52, photo.height);
+    put32(header + 56, photo.width * 3u); put32(header + 60, 1);
     put64(header + 64, m->capture_bytes); put64(header + 72, m->proof.source_fnv1a64);
     put32(header + 80, get32(in + 4)); header[84] = in[8];
     put64(header + 88, fnv(in, 16));
@@ -1655,7 +1665,7 @@ struct fcam_model *fcam_model_create(uint64_t instance)
     if (error) goto failed;
     m->caps = FCAM_CAP_STILL | FCAM_CAP_AF | FCAM_CAP_FIXED_OPTICS;
     if (video_engine_stream_begin(m->video, defaults.width, defaults.height,
-        defaults.fps, FCAM_MAX_RESULT_BYTES - FCAM_PACKET_HEADER_BYTES - CONFIG_LIMIT,
+        defaults.fps, VIDEO_ENGINE_MAX_BYTES - FCAM_PACKET_HEADER_BYTES - CONFIG_LIMIT,
         packet_sink, m) == VIDEO_ENGINE_OK) m->caps |= FCAM_CAP_H264;
     (void)video_engine_stream_cancel(m->video);
     return m;
@@ -1897,7 +1907,8 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
         if (error) return error;
         break;
     }
-    case FCAM_OP_FRAME_CAPTURE:
+    case FCAM_OP_CAPTURE_STATE:
+    case FCAM_OP_FRAME_CAPTURE: {
         if (!fcam_capture_input_valid(in, size)) return -EINVAL;
         /* Native 402d commits a verified still format without a host CONFIGURE. */
         if (!m->sensor_initialized || (!m->capture_configured &&
@@ -1905,13 +1916,19 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
              m->vdf_config[0] != 1 || m->vdf_config[1] != 5 || m->vdf_config[2] != 5 ||
              m->config.width != 640 || m->config.height != 480))) return -ENODATA;
         if (m->capture_token) return -EBUSY;
-        if ((size_t)m->config.width * m->config.height * 3u >
+        const struct config photo = capture_config(m);
+        if ((size_t)photo.width * photo.height * 3u >
             FCAM_MAX_RESULT_BYTES - FCAM_FRAME_HEADER_BYTES) return -E2BIG;
+        if (op == FCAM_OP_CAPTURE_STATE) {
+            if (capacity < FCAM_STATE_BYTES) return -ENOSPC;
+            break;
+        }
         if (m->capture_owner.info.generation == UINT64_MAX ||
             m->capture_owner.info.counts.staged == UINT64_MAX ||
             m->capture_owner.info.counts.rendered == UINT64_MAX ||
             m->capture_owner.info.counts.read == UINT64_MAX) return -EOVERFLOW;
         break;
+    }
     case FCAM_OP_FRAME_STILL: {
         if (size != 32 && size != 160) return -EINVAL;
         if (get32(in + 8) > 2 || get32(in + 12)) return -EINVAL;
@@ -2035,6 +2052,15 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
 {
     struct fcam_exec_result value = {0};
     int error = 0;
+    if (op == FCAM_OP_CAPTURE_STATE) {
+        const struct config photo = capture_config(m);
+        state(m, out);
+        put32(out + FCAM_S_WIDTH, photo.width);
+        put32(out + FCAM_S_HEIGHT, photo.height);
+        value.used = FCAM_STATE_BYTES;
+        *r = value;
+        return 0;
+    }
     if (op == FCAM_OP_CP_PARAMETER_BANK) return parameter_transaction(m, in, size, out, r);
     if (op == FCAM_OP_CP_CRANK_CONTROL) return crank_transaction(m, in, out, r);
     if (op == FCAM_OP_CP_MOVIE_FORMAT) return movie_transaction(m, in, out, r);
@@ -2105,7 +2131,7 @@ static int execute(struct fcam_model *m, uint32_t op, const uint8_t *in, size_t 
         if (op == FCAM_OP_VIDEO_BEGIN) {
             if (!(m->caps & FCAM_CAP_H264)) return -ENOTSUP;
             m->video_status = video_engine_stream_begin(m->video, config.width, config.height,
-                config.fps, FCAM_MAX_RESULT_BYTES - FCAM_PACKET_HEADER_BYTES - CONFIG_LIMIT,
+                config.fps, VIDEO_ENGINE_MAX_BYTES - FCAM_PACKET_HEADER_BYTES - CONFIG_LIMIT,
                 packet_sink, m);
             if (m->video_status != VIDEO_ENGINE_OK) return fault(m, -EIO);
         }

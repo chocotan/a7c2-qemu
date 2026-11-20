@@ -18,7 +18,9 @@
 #define FCAM_CONFIG_BYTES 48u
 #define FCAM_AF_BYTES 32u
 #define FCAM_PACKET_HEADER_BYTES 96u
-#define FCAM_MAX_RESULT_BYTES (64u * 1024u * 1024u)
+#define FCAM_MAX_RESULT_BYTES (128u * 1024u * 1024u)
+#define FCAM_FULL_STILL_WIDTH 7008u
+#define FCAM_FULL_STILL_HEIGHT 4672u
 #define FCAM_DEFAULT_WIDTH 640u
 #define FCAM_DEFAULT_HEIGHT 480u
 #define FCAM_DEFAULT_FPS 30u
@@ -84,6 +86,7 @@
 #define FCAM_OP_CP_CRANK_CONTROL 21u
 #define FCAM_OP_CP_MOVIE_FORMAT 22u
 #define FCAM_OP_CP_OU_CRANK_CONTROL 23u
+#define FCAM_OP_CAPTURE_STATE 24u
 #define FCAM_OP_STILL 16u
 #define FCAM_OP_FRAME_CAPTURE 17u
 #define FCAM_OP_FRAME_STILL 18u
@@ -111,6 +114,10 @@
  * No model operation writes a host JPEG/MP4 file or substitutes for MPR/Fsys. */
 
 /* Retained software RGB bus; no Sony pixel layout or native allocation claim.
+ * CAPTURE_STATE16: the same exact original4038 body/origin as FRAME_CAPTURE.
+ * Returns State128 with effective PHOTO width/height; STATE keeps display geometry.
+ * This query changes no configuration, counters, frame proof or ownership.
+ * Native L/FINE capture uses 7008x4672; explicit Config48 keeps its requested size.
  * FRAME_CAPTURE16: original type5/4038 body, with actual origin checked by bridge.
  * Result Frame96 then immutable packed RGB: u32 version=1,header_bytes=96;
  * u64 frame_token,instance,lifetime,config_generation,frame_generation;
