@@ -519,7 +519,7 @@ class GTKTests(unittest.TestCase):
             actual_width, actual_height = self.ui.window.get_size()
             lcd_width, lcd_height = self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()
             self.assertAlmostEqual(lcd_width / lcd_height, 4 / 3, delta=.02)
-            for name, widget in dict(self.ui.buttons, ON=self.ui.on, OFF=self.ui.off, REFRESH=self.ui.refresh).items():
+            for name, widget in dict(self.ui.buttons, ON=self.ui.on, OFF=self.ui.off).items():
                 x, y = widget.translate_coordinates(self.ui.window, 0, 0)
                 self.assertGreaterEqual(x, 0, name)
                 self.assertGreaterEqual(y, 0, name)
@@ -535,6 +535,37 @@ class GTKTests(unittest.TestCase):
             result.append(dict(size=[actual_width, actual_height], lcd=[self.ui.lcd.get_allocated_width(), self.ui.lcd.get_allocated_height()], buttons=len(self.ui.buttons)))
         import json
         (evidence / 'gtk-layout.json').write_text(json.dumps(result, indent=2) + '\n')
+
+    def test_all_physical_buttons_and_dials_dispatch_correctly(self):
+        from menu_live import control_catalog
+        catalog = control_catalog()
+        for name in KEY_NAMES:
+            self.assertIn(name, catalog, name)
+            self.assertTrue(catalog[name]['available'], name)
+            self.vm.value['controls'][name].update(catalog[name])
+        self.vm.value['sd_card'] = {'ok': True, 'state': 'present'}
+        self.running()
+        hud_path = Path(__file__).resolve().parents[2] / 'docs/images/virtual-cmos-ui-hud-20261120.png'
+        if hud_path.is_file():
+            self.vm.complete(png=hud_path.read_bytes())
+            self.ui.update(self.vm.status())
+            self.ui.window.set_focus(None)
+            self.settle()
+            w, h = self.ui.window.get_size()
+            shot = Gdk.pixbuf_get_from_window(self.ui.window.get_window(), 0, 0, w, h)
+            shot.savev(str(hud_path.with_name('camera-ui-window-20261120.png')), 'png', [], [])
+        for name, button in self.ui.buttons.items():
+            self.assertTrue(button.get_sensitive(), name)
+            if name == 'MODE':
+                self.click(button)
+                self.assertTrue(self.ui.mode_popover.get_visible())
+                self.click(self.mode_choices()['P'])
+                self.assertEqual(self.vm.calls[-1], {'action': 'position', 'key': 'MODE', 'position': 'P'})
+            else:
+                self.click(button)
+                self.assertEqual(self.vm.calls[-1], {'action': 'key', 'key': name}, name)
+            self.vm.complete()
+            self.ui.update(self.vm.status())
 
     def test_faulted_vm_blocks_camera_input_but_keeps_off_available(self):
         self.running()

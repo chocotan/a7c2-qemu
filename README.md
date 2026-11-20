@@ -4,9 +4,9 @@
 
 默认窗口提供原厂界面、菜单、机身按键和虚拟存储。33 MP JPEG 与未压缩 RAW 写卡使用独立的实验配置，尚未接入默认窗口。
 
-![原厂界面叠加虚拟 CMOS 色卡](docs/images/virtual-cmos-ui-hud-20261120.png)
+![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261120.png)
 
-这是 QEMU RAMFB 的直接截图。实验预览由 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1` 显式开启，在原厂 HUD 透明层后合成虚拟色卡，不修改原始 OSD。它是软件预览，不模拟原 CP 的 YC 视频通路或物理 ISP。
+上图为重构后的单窗口相机界面，LCD 画面来自 QEMU RAMFB 的[直接截图](docs/images/virtual-cmos-ui-hud-20261120.png)。实验预览由 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1` 显式开启，在原厂 HUD 透明层后合成虚拟色卡，不修改原始 OSD。它是软件预览，不模拟原 CP 的 YC 视频通路或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
