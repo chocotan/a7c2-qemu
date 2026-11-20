@@ -49,6 +49,16 @@ static void refresh(void) {
     if (done && !state.ap_consumed) {
         state.completed_cycles++;
         state.command_completed[state.command == FCAM_STARTUP_CONTROL_CMD_SETTINGS]++;
+        if (state.command == FCAM_STARTUP_CONTROL_CMD_MODE) {
+            memcpy(state.mode_wire, state.original_wire, sizeof state.mode_wire);
+            memcpy(state.mode_canonical32, state.canonical32, sizeof state.mode_canonical32);
+            state.mode_wire_fnv = hash(state.mode_wire, sizeof state.mode_wire);
+            state.mode_canonical_fnv = hash(state.mode_canonical32, sizeof state.mode_canonical32);
+            state.mode_cycle = state.cycle;
+            state.mode_model_instance = state.model_instance;
+            state.mode_config_generation = state.config_generation;
+            state.mode_consumed = 1;
+        }
     }
     state.ap_consumed = done;
 }

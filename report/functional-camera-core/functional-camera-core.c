@@ -3,6 +3,7 @@
 #include "../virtual-camera-pipeline/camera-pipeline.h"
 #include "../virtual-jpeg-hardware/jpeg-hardware-codec.h"
 #include "../../runtime/analysis/device-models/cp-parameter-batch.h"
+#include "../../runtime/analysis/frame-rle.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -1498,6 +1499,22 @@ static int frame_capture(struct fcam_model *m, const uint8_t *in)
     put32(header + 80, get32(in + 4)); header[84] = in[8];
     put64(header + 88, fnv(in, 16));
     m->result_size = FCAM_FRAME_HEADER_BYTES + m->capture_bytes;
+    /* The independent 4014 bank survives 4057; JPEG transport stays byte-identical. */
+    if (m->mode_valid && get16(m->mode_bank32) == FCAM_STARTUP_CONTROL_CMD_MODE &&
+        get16(m->mode_bank32 + 12) == 2u) {
+        const size_t capacity = m->capture_bytes - 1u;
+        uint8_t *packed = malloc(capacity);
+        if (packed) {
+            const size_t bytes = fcam_rgb_pack(m->result_data + FCAM_FRAME_HEADER_BYTES,
+                m->capture_bytes / 3u, packed, capacity);
+            if (bytes) {
+                memcpy(m->result_data + FCAM_FRAME_HEADER_BYTES, packed, bytes);
+                put32(header + 60, 2);
+                m->result_size = FCAM_FRAME_HEADER_BYTES + bytes;
+            }
+            free(packed);
+        }
+    }
     return 0;
 }
 struct retained_jpeg_context { struct fcam_model *model; const uint8_t *input; };
@@ -1934,6 +1951,7 @@ static int validate_request(const struct fcam_model *m, uint32_t op,
         if (get32(in + 8) > 2 || get32(in + 12)) return -EINVAL;
         const int error = still_input_valid(in + 16, size - 16);
         if (error) return error;
+        /* RAW-only still needs JPEG previews; only selector0 is the main output. */
         if (!m->capture_token || get64(in) != m->capture_token) return -ESTALE;
         if (m->capture_encoded_mask & (1u << get32(in + 8))) return -EALREADY;
         if (m->capture_owner.info.counts.read == UINT64_MAX) return -EOVERFLOW;

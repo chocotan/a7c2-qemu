@@ -13,8 +13,9 @@ PRODUCT = HERE.parents[1]
 BASE = PRODUCT / 'runtime/analysis'
 
 
+@pytest.mark.parametrize('raw', [False, True], ids=['jpeg', 'raw-rle'])
 @pytest.mark.parametrize('sanitized', [False, True])
-def test_full_photo_and_independent_display_geometry(tmp_path, sanitized):
+def test_full_photo_and_independent_display_geometry(tmp_path, sanitized, raw):
     spec = importlib.util.spec_from_file_location('full_photo_model_build', BASE / 'build-functional-camera-model.py')
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
@@ -36,8 +37,12 @@ def test_full_photo_and_independent_display_geometry(tmp_path, sanitized):
     env = dict(os.environ, ASAN_OPTIONS='detect_leaks=1:halt_on_error=1:quarantine_size_mb=32',
                UBSAN_OPTIONS='halt_on_error=1:print_stacktrace=1')
     env.pop('A7C2_VIRTUAL_CMOS_PROFILE', None)
-    ran = subprocess.run([str(executable), str(output)], env=env, capture_output=True, timeout=150)
+    ran = subprocess.run([str(executable), str(output), *(['raw'] if raw else [])], env=env, capture_output=True, timeout=150)
+    (tmp_path / 'model.stdout').write_bytes(ran.stdout)
+    (tmp_path / 'model.stderr').write_bytes(ran.stderr)
     assert ran.returncode == 0, ran.stderr.decode(errors='replace')
+    if raw:
+        assert b'RAW_FRAME_TRANSFER rgb_bytes=98224128 ' in ran.stdout
     assert b'FULL_RESOLUTION_PHOTO_AND_DISPLAY_SEPARATION_PASS' in ran.stdout
     with Image.open(output) as image:
         assert image.format == 'JPEG' and image.size == (7008, 4672) and image.mode == 'RGB'

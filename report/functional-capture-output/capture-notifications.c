@@ -47,9 +47,17 @@ int capture_notifications_build(struct capture_output_memory *owner,const uint8_
     memcpy(next.entry+0x14,job_time,12);
     /* Functional1006 fixed envelope; unused/padding fields explicitly reserved0. */
     header(next.info,0x1006,source.request_cookie);p32(next.info+0x0c,next.job_scalar);
-    p32(next.info+0xb8,1);p32(next.info+0xc4,next.job_scalar);
-    uint8_t *jpg=next.info+0xc8;
-    if((rc=area(jpg,&meta)) || (rc=area(jpg+0x90,&main)) || (rc=area(jpg+0xa0,&thumb)))return rc;
+    uint8_t raw_info[CAPTURE_RAW_INFO_BYTES];
+    int raw=capture_output_memory_raw_info(owner,raw_info);
+    if(raw && raw!=-ENODATA)return raw;
+    if(!raw){
+        p32(next.info+0xb8,2);p32(next.info+0xc4,next.job_scalar);
+        memcpy(next.info+0xc8,raw_info,sizeof raw_info);
+    }else{
+        p32(next.info+0xb8,1);p32(next.info+0xc4,next.job_scalar);
+        uint8_t *jpg=next.info+0xc8;
+        if((rc=area(jpg,&meta)) || (rc=area(jpg+0x90,&main)) || (rc=area(jpg+0xa0,&thumb)))return rc;
+    }
     p32(next.info+0x218,0);
     rc=capture_output_memory_hold(owner,&next.lease_token);if(rc)return rc;
     *out=next;return 0;

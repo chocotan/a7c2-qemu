@@ -1,5 +1,15 @@
 # 本包验证记录
 
+## 11月20日33MP未压缩RAW写卡、读回与独立解码
+
+第117轮 `48b4` 在显式隔离配置中，通过原菜单选择RAW-only／L／UNCOMPRESS，原AP自然 `0x4038` 请求进入原 `libarw`，原Fsys将 **67,223,552B** 写入 `A:/DCIM/100MSDCF/DSC00001.ARW`。submit、callback、finished均返回0，回调与完成通知均已返回。原flush两次均0，两份1GiB整卡导出SHA-256一致；卡内原ARW全文摘要与写入内容一致，见[公开收据](33mp-uncompressed-raw-runtime-20261120.json)及[既有拍摄调查](../report/functional-camera-evidence/p1-candidate184.md)。
+
+ARW为7008×4672、14位GRBG、`Compression=1`（未压缩），LE uint16像素区65,482,752B，偏移1,740,800B、行跨度14,016B。已安装的LibRaw `raw-identify` 与 `dcraw_emu` 均返回0，完整解码为7008×4672 RGB，白色色块255、黑色色块0。[900×600预览](../docs/images/captured-raw-dsc00001-20261120.png)由该卡内原文件的独立解码结果缩小，非宿主重绘；两条黑白横带来自虚拟CMOS输入场景的细节目标。
+
+工具层RLE仅压缩自定义host/guest运输载荷（98,224,128B RGB→2,527,401B），原厂消费者收到完整还原像素，ARW仍为UNCOMPRESS；不代表原机内部总线。真实CP/ISP/物理CMOS、RAW＋JPEG、其他RAW压缩模式、录像及默认 `start.sh` 拍摄接线均未由此验证。
+
+**写卡与独立解码通过，完整生命周期未通过。** 第117轮driver在写卡后清理报 `-EPROTO`，旧失败收据保留。卡已在QMP退出前导出，QMP确认且QEMU退出、未发信号；资源退休仍未验，`capture_verified=false`。后续v7清理修复通过[两线程定向宿主回归与交叉构建](33mp-raw-final-host-20261120.json)：1,372项通过，另有15个子测试，0失败、0跳过。未新启VM，guest清理未复验，全量公共测试未完成。第110b轮JPEG写卡结论保持，卡内独立解码尚未验证。下方按日期与轮次保留历史结论，不用本轮RAW成功回填。
+
 ## 11月20日完整33MP色卡与UI实际预览
 
 [完整色卡生成收据](33mp-color-chart-20261120.json)记录7008×4672 Bayer→RGB直接生成，预览600×400从同一完整图缩小。第110b轮同一guest已将色卡作为软件视频平面置于原厂HUD透明层后，经实际RAMFB扫描输出；[UI实跑收据](virtual-cmos-ui-preview-20261120.json)及README截图来自QMP直接screendump，未后期叠图。正式viewer已用封存固件库的sealed memfd编译；两线程窄检查覆盖原OSD/alpha/profile守卫和五份已存真实UI场景，均通过。

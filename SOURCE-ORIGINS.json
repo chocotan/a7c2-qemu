@@ -1,4 +1,298 @@
 {
+  "native_uncompressed_raw_20261120": {
+    "scope": "native 33MP UNCOMPRESS RAW, owned buffers, DMA and serializer cleanup; affected host consumers",
+    "changes": {
+      "README.md": {
+        "previous_inventory_sha256": "fb1550bf674a2e968e925d53c819a4ce562d4bee78b1ebeb65e09a6770be6705",
+        "after": "e1a909990462dceef75e69fcd35304d7c75be079358dbf4a3d69e63cbf0bf721"
+      },
+      "docs/images/captured-raw-dsc00001-20261120.png": {
+        "previous_inventory_sha256": null,
+        "after": "d746af44649b490aff293976912b72c9f75867d8e299ff807a9f98f8f4838c99"
+      },
+      "report/functional-camera-core/functional-camera-core.c": {
+        "previous_inventory_sha256": "2be7aa967a72ca2287847cd9d8181ef51d771c080ebf000ca28d9e69b7e37aaf",
+        "after": "bff6599a187aba97ceb3c5fa96056d9a38e6cdafb105d6f1c4261ff6c2ed8c0e"
+      },
+      "report/functional-camera-core/functional-camera-core.h": {
+        "previous_inventory_sha256": "8ba13ed4e21748e5c50c5219d67afd2c7d7662cdf96cc6876ad5661777adf97a",
+        "after": "151b4fe11ff0da6c57b8354e6a081ffc8f3d691d1c5a6225c12d10706c4f87a4"
+      },
+      "report/functional-camera-core/test-full-resolution.c": {
+        "previous_inventory_sha256": "2ab6131de703805c3c5b5ad355c8a356643ae1b93bd7d1aec7e66e9fe9059550",
+        "after": "28df8f8bb9fab15ed4e50b61e0a06067faa1b07a6ddf10c70a74d51d0ba4c4e2"
+      },
+      "report/functional-camera-core/test_full_resolution.py": {
+        "previous_inventory_sha256": "59d499ab5ba474487c51944957aa29b33bfc79dd79ec74bf98ba79d2d59b04c4",
+        "after": "38c1347b738df9f5797576e45f90c8a6b5a8b854ba7431049df9e7491e5299dd"
+      },
+      "report/functional-camera-evidence/check_evidence.py": {
+        "previous_inventory_sha256": "cc189dfe832e68f10f3e94e6d4136c4dfd6f93fe593e61d4f2b141043bffa85a",
+        "after": "e4c1ca31644508b7c73b4a5e360c0a2e309bb9794d42aa521f745deffdaaf498"
+      },
+      "report/functional-camera-evidence/p1-candidate184.md": {
+        "previous_inventory_sha256": "de4686a0c36ead53ff4e6aa22d3171cf779b80ae763724f43d2044490d550ec8",
+        "after": "49699bb876755510b8cf054f9bdabb0a93cc93edb6187bbcafb3d685ebdb90b9"
+      },
+      "report/functional-camera-evidence/test_evidence.py": {
+        "previous_inventory_sha256": "8c4fff8946e44a9bd777abb921d8c30a7c3ef559a5cc6af68cc773abdcbf2e37",
+        "after": "ed714a2c87cc77c5857c0abddde04bd03b017ec8fbc32675e97f1d29fe4aba10"
+      },
+      "report/functional-capture-output/capture-dma.c": {
+        "previous_inventory_sha256": "0b183c5c7bafeeaf2b53a97e6bd1c3419ea36a8f579b6fe9ae8e35e5b21b47ef",
+        "after": "7b4851e16df70c33ed13cc5287d2f9301935daeb6a3fe9c90e81ed8335b045a4"
+      },
+      "report/functional-capture-output/capture-dma.h": {
+        "previous_inventory_sha256": "7c172e7d50e8b8a2a6fbd8af3564c3dd40c2e7a2a563d04fe59508711c07eceb",
+        "after": "996b27ea6199021c199ca3b7de9b3a21e228a9d81189d4c9605055bb6338b005"
+      },
+      "report/functional-capture-output/capture-notifications.c": {
+        "previous_inventory_sha256": "086124fb39fb464261c6c4205722452d6e3a626b588c3b8908e54fd11362d64e",
+        "after": "4d0b9f8b9d620b11fd64f6a5c06f5646ebe8d39d05500cbd907b690819631867"
+      },
+      "report/functional-capture-output/capture-notifications.h": {
+        "previous_inventory_sha256": "a6a7b2e1e5d22c0ca02b37d15d6e01f6ea2ea5092125cc036a610449d4e2a5c1",
+        "after": "9381a42d40fc0cb7680a896293af01d2fdb32d1141ae767445edb2187857076c"
+      },
+      "report/functional-capture-output/capture-output-memory.c": {
+        "previous_inventory_sha256": "8a059f9de082681a9706309ba99ef70f4171cac7132fa585d9c95c86cdefb215",
+        "after": "86a25a30660e6e43aeb0107a1a268f2f28c80ef425d5715eb39d43a9a361c3dc"
+      },
+      "report/functional-capture-output/capture-output-memory.h": {
+        "previous_inventory_sha256": "bc9ff6eb9ba513e9b02a49ab030d8ec811580494c65f54602a6c171de7101f6b",
+        "after": "a8d79e8f61c1d5f98232e9a9582ae427d6a8352959ea60d090ea9e8b874622c1"
+      },
+      "report/functional-capture-output/capture-save.c": {
+        "previous_inventory_sha256": "be811c2ab829b26ab9d16de009d671e9523ac1a7bf26184dfa53d576a1c84914",
+        "after": "a4a3672066ad5404cda91c307b0696f7c90bb880d712cba3a29c71f93f8bbcdc"
+      },
+      "report/functional-capture-output/capture-save.h": {
+        "previous_inventory_sha256": "61aac7995e22a6c8b97368d7c505b5b711f1c5ec6876f891ee84e9529e2e11f7",
+        "after": "70c62275b359a9f286314496c1df632edbff5fcb85ae24b135e11b24855a03f2"
+      },
+      "report/functional-capture-output/test-capture-save-raw.c": {
+        "previous_inventory_sha256": null,
+        "after": "61a2132f85ad9efe58cfb60178987351c4e765e3959a268f94a072f0f9430997"
+      },
+      "report/functional-capture-output/test-capture-save.c": {
+        "previous_inventory_sha256": "2e5ce8d5df7054f78752cc48df5db6621aaeb82785dc6922afe6505e27fd909d",
+        "after": "581216509ef38067ae43386b3106eeebb14d7fda4c7b01ffed85b8045c962a32"
+      },
+      "report/functional-capture-output/test-dma.c": {
+        "previous_inventory_sha256": null,
+        "after": "b4a8ce19366659a0ee0c16f58916d2d1aa9ce18a794b07c6fbe034bd66418be5"
+      },
+      "report/functional-capture-output/test-output-raw.c": {
+        "previous_inventory_sha256": null,
+        "after": "57e70fd13fafcdca405935002431b6a304f874c18e5ae2ebf29f95568a05badb"
+      },
+      "report/virtual-sensor/README.md": {
+        "previous_inventory_sha256": "49fe27b9d1bc2710019187c7341650aefccf37ab81df524c86f28c0b69a08d78",
+        "after": "f7ee799ca2c629c86357e89cc0e555d7746f7423ea9d3c591e66d025f61e5668"
+      },
+      "runtime/analysis/build-functional-camera-model.py": {
+        "previous_inventory_sha256": "464fd3ab4a9a2ae8035082fb1d6344b9a204f83401c91f311ce93ff7300c2d48",
+        "after": "26392e1ef2fd6b7b6b58fe8e185876848e38d6058d57419788bde73791066beb"
+      },
+      "runtime/analysis/build-observers.sh": {
+        "previous_inventory_sha256": "8966125f181bf7183d8f80f160e4f3c21d750bcf0522756be9c3b41379322e95",
+        "after": "b7e7a39891345fc4d60eda0fc7fde0f4aa2ca940fd219f1f701da597403dd944"
+      },
+      "runtime/analysis/device-models/functional-startup-control.c": {
+        "previous_inventory_sha256": "07cc3ae11d4298a49af11cf8236bca2838206f6015e80014456b127fe562e991",
+        "after": "28bde0463c6cf63b575da940e3bd29925398b0647e573a7ce77af9e64f62366c"
+      },
+      "runtime/analysis/device-models/functional-startup-control.h": {
+        "previous_inventory_sha256": "f3cd94592fc6ace37876cfbba6b6acb5a126f7f6bf9f2127887755530b7ba302",
+        "after": "c1f796ae597c2e5bcd78e17c48066dbe292e1fa5a7721f5a1af736172e51164e"
+      },
+      "runtime/analysis/device-models/functional-still-format.c": {
+        "previous_inventory_sha256": "538ff9ccfabcbf03d70260e210812fc1aeabb1973aef74271c686c918f19b267",
+        "after": "1d5172e5a3f14bf51da8fa3c263db0e95bc8d4b34a3e02c0bd562dae1ea18edd"
+      },
+      "runtime/analysis/device-models/functional-still-format.h": {
+        "previous_inventory_sha256": "8b975363b3b6d8830bfc1220a09b92f29d65073fa5b6ab574a2488e63ba74717",
+        "after": "2c2844ba0837a5ede8c5209376e5293f4245db29dc3ca3607f2f120ba49aa750"
+      },
+      "runtime/analysis/frame-rle.h": {
+        "previous_inventory_sha256": null,
+        "after": "68947f797d4ee6c1608caed2ce2176b4c78947e7dee1e0fd1c0d433aeffc7223"
+      },
+      "runtime/analysis/functional-camera-abi.h": {
+        "previous_inventory_sha256": "9add5b71993b8fb2ea03afdaa4673baab436914f5e53193fb62c0702691a0962",
+        "after": "0819af30b9979b7c2051bec0061224a134323bbe045898a3035296911b9a8861"
+      },
+      "runtime/analysis/functional-camera-bridge.c": {
+        "previous_inventory_sha256": "c67d4ff6b174decf6feee9451a33b3625e43437206a8b726e46e604aed1b81ec",
+        "after": "4ba1f247e8aea317206edd400788ea59316279de19f3324922269621d6c60636"
+      },
+      "runtime/analysis/functional-capture-raw-blobs.c": {
+        "previous_inventory_sha256": null,
+        "after": "b7f0938646585130026abb60344b35ad3025d809b3b7fca15e96419e24e9d303"
+      },
+      "runtime/analysis/functional-capture-raw-blobs.h": {
+        "previous_inventory_sha256": null,
+        "after": "9000b7de814ec659bd98eb51a22e4a097f27b09ae24ebd52f9444d688ced5eb6"
+      },
+      "runtime/analysis/functional-capture-raw-writer.c": {
+        "previous_inventory_sha256": null,
+        "after": "1ab9ca208a47a9e5ab457aa53f87286758fc169a6ad4ea39d6c5a7685311b770"
+      },
+      "runtime/analysis/functional-capture-raw.h": {
+        "previous_inventory_sha256": null,
+        "after": "282e09bf393b2f26b0a81b90cb73992005bd32d817f9110069ab4a9bf8c8b08a"
+      },
+      "runtime/analysis/functional-capture.c": {
+        "previous_inventory_sha256": "b21efc1d04a8338b6c4d31fd58d9fcec1618cf8238e5bdaaf53ef4711781349c",
+        "after": "6d9b2bd79ce5acac370c4c41bea9f85274030c75333091b0447c3617fe6a4601"
+      },
+      "runtime/analysis/functional-startup-control-abi.h": {
+        "previous_inventory_sha256": "dfb4df55e158ea5e15721ec336895a761b8a045c6e096417ba34c601964bf316",
+        "after": "7534d8e00ed8193fb5c54a981891da52a008f398c1d046c79da0ccacb5a5f6d7"
+      },
+      "runtime/analysis/functional-still-format-abi.h": {
+        "previous_inventory_sha256": "2c4532489e11d30d32fc5ee46a0760d263fb195b2aaa26640adcae20a3bcdf3c",
+        "after": "5aa5be5cd12ddf32276c567b30fc78de6b114543145cc6f7d4d02ecf97b996e6"
+      },
+      "runtime/analysis/functional_camera_broker.py": {
+        "previous_inventory_sha256": "1ba8bfc6dae2841b61b2535a71aeaa6291c82a03303a8c491ebe4d91aa62d16d",
+        "after": "a1524d37099cc54d567813e08f642758f2ccd758d6f0d565fe8fc8bc42069136"
+      },
+      "runtime/analysis/raw-template.c": {
+        "previous_inventory_sha256": null,
+        "after": "b4039fc9b6f23a8b3de1aacbee1dc4223445d05b2c263f9b51349155155e27d5"
+      },
+      "runtime/analysis/raw-template.h": {
+        "previous_inventory_sha256": null,
+        "after": "a54997e34502c4bdf911d2d4b33f713c9ac048a29d2f414c4c065e1f2e55dfa1"
+      },
+      "runtime/analysis/test-frame-rle.c": {
+        "previous_inventory_sha256": null,
+        "after": "b9716dde60818cc53ccde91c3c7cfbcab0a4bb5aa6630ed5a765111629e40428"
+      },
+      "runtime/analysis/test-functional-capture.c": {
+        "previous_inventory_sha256": "0155a981be4fdba7ae56dce5b712b278932a6513487f11a92d72225d46619424",
+        "after": "a79f4f1d3a798bf15bde20d0fc25faa744ca82a7dbd170c717af7753c5761e3d"
+      },
+      "runtime/analysis/test-functional-startup-control-core.c": {
+        "previous_inventory_sha256": "29c451090dc6856caf7f249341c6ceeac6e6db5d2fc2168d25bf3dfa65f4a90c",
+        "after": "06969b22a0d2316ccbb51ae368c3e2aea98cec358a6f8733ca2c0ef63234d916"
+      },
+      "runtime/analysis/test-functional-still-format-core.c": {
+        "previous_inventory_sha256": "b32ee41a0c6287240a32b7ead01df288ef56f962424144dab7e939b916b5e705",
+        "after": "87fda8d8d981f17ee2333afd6992cc16750df53df5036570e6fa8f4da89af9a7"
+      },
+      "runtime/analysis/test-raw-blobs.c": {
+        "previous_inventory_sha256": null,
+        "after": "5ba8f7b317020c4bd37d3fe88bfdfb7a414bc28cfdd496342ac5bfa51e98d14d"
+      },
+      "runtime/analysis/test-raw-mode-snapshot.c": {
+        "previous_inventory_sha256": null,
+        "after": "85079efa90f45247f66f59f8438933377a100e70a814cfb859179da315a09cfb"
+      },
+      "runtime/analysis/test-raw-template.c": {
+        "previous_inventory_sha256": null,
+        "after": "08edda60235f1f43aa47a8adbe0c093deb6ec65646351d39b6310d55258a93de"
+      },
+      "runtime/analysis/test-raw-writer.c": {
+        "previous_inventory_sha256": null,
+        "after": "a29c1ea7c4d0c72a73b438390d194bdae9fb150b24349c6cb9a828ced588047c"
+      },
+      "runtime/analysis/test_functional_capture.py": {
+        "previous_inventory_sha256": "132dc2c57f07349077e77e422b0e517818d355b6cc37afd07acc7d8737a5ee25",
+        "after": "e36cce2dec9b5dc7a5d79b47c982a00720019492cb572bc975d894bc98eada77"
+      },
+      "runtime/analysis/test_functional_raw_contracts.py": {
+        "previous_inventory_sha256": null,
+        "after": "385bf5bc1e5f6136f7598681952b43d776a72230dc64915d0b488fbcd86d3caf"
+      },
+      "runtime/analysis/test_functional_vdf_broker.py": {
+        "previous_inventory_sha256": "4a24955bfc989554b7f75ba29313f0189072b9adcaba8cd4d06132ed37dbe73a",
+        "after": "4a34b002ea3a2e21e17196f54297144e3b2ffa0ba65c07c0a0ac867142de7dfc"
+      },
+      "runtime/analysis/test_media_initial_write.py": {
+        "previous_inventory_sha256": "7510c70ad9e3f1651ba019fabc0ce80eec5b2c3179b597d92bf8028344ec5650",
+        "after": "604ef3ca611714a6361a2f29b076e69a8d0f5f5ffd3798dab5a1b5e9c1ec0802"
+      },
+      "runtime/analysis/test_single_ap_entrypoints.py": {
+        "previous_inventory_sha256": null,
+        "after": "b8d319a1db4986f476e2ac3afe29fa0c20f885414dd0d8f78d2af84458a72572"
+      },
+      "runtime/analysis/test_source_snapshot.py": {
+        "previous_inventory_sha256": "7570a1f17b20ce2c1bfde52fad2bbd6e4372feaf7bb1c37930ebf6461f11e4bc",
+        "after": "2e25adaa9ca3cd61027b6c25d5961a492af6790b4186c4ccd478e4ff514a338d"
+      },
+      "source/cp-boot/build-observer-diagnostic.sh": {
+        "previous_inventory_sha256": null,
+        "after": "a2081a30a9565c9a5bf9940e73fea13d0dba57b5b3a446ddb4f0d56363fc35f0"
+      },
+      "source/cp-boot/test_observer_private_inputs.py": {
+        "previous_inventory_sha256": null,
+        "after": "812b7c8a99bf47f3cf585d7b7fc47544fbb45756016ce8dcd85297c37396679d"
+      },
+      "tools/public-model-tests.json": {
+        "previous_inventory_sha256": "2535f12b58dba619ae6c91007b1aba14ea52b824383facb3c6959bb7165c4c51",
+        "after": "5340ec35300d52e1c3c8348161e890d62492116755a6f75591904486f26d8d3f"
+      },
+      "validation/33mp-raw-final-host-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "f18db5f3dcf53ec54573868aa5a302e5a87832f8b57b49840782693c66218a6a"
+      },
+      "validation/33mp-uncompressed-raw-runtime-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "30527bea4d28933181598936433d90cfc2a62cc620876f9254a53e4bbf5735ba"
+      },
+      "validation/README.md": {
+        "previous_inventory_sha256": "5982df0d4606d7f0d86534148180d07ee93c0a4b00befcf543e20c584898e935",
+        "after": "4f329cdebf287e48720513aac2957451eaa23d054256570da99a8072bb7ca54b"
+      },
+      "validation/raw-integrated-host-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "fd4a19da2a525cea9a4310d255d110b15b81aa5c932cd27275aedfe18cd4f41a"
+      },
+      "validation/raw111-contract-fix-host-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "c77a9e1a5a662b9a86b159d3828403aa08b491a4a67ea2ed87a6a15b83da2d14"
+      }
+    },
+    "host_receipt": "validation/33mp-raw-final-host-20261120.json",
+    "runtime_receipt": "validation/33mp-uncompressed-raw-runtime-20261120.json",
+    "host_workers": 2,
+    "host_groups": 2,
+    "host_summary": {
+      "owners": {
+        "passed": 557,
+        "skipped": 0,
+        "subtests_passed": 8,
+        "failed": 0,
+        "errors": 0,
+        "junit_testcases": 557,
+        "pytest_summary": "557 passed, 8 subtests passed in 13.81s",
+        "junit_sha256": "fd4fb8e3270fd6078623a4e9a4ec7c1ec660364728f635f49618025d84b32010",
+        "stdout_sha256": "8713a6ffb7892eb392f89de81bb39c3142122c3547a2c024576cb767190827bb",
+        "returncode": 0
+      },
+      "pixels": {
+        "passed": 815,
+        "skipped": 0,
+        "subtests_passed": 7,
+        "failed": 0,
+        "errors": 0,
+        "junit_testcases": 815,
+        "pytest_summary": "815 passed, 7 subtests passed in 97.31s (0:01:37)",
+        "junit_sha256": "3a760fb93a7d77838194ceb8fc5ee692d5f37a63e894244d5a36677d4307b093",
+        "stdout_sha256": "f0aaab1a120ae4e6105161b5902bd522b43aa321dbd22454d810432ad6c0ba24",
+        "returncode": 0
+      }
+    },
+    "native_raw_card_write_verified": true,
+    "independent_raw_pixel_decode_verified": true,
+    "cleanup_source_fixed": true,
+    "cleanup_guest_reverified": false,
+    "resources_retired_verified": false,
+    "default_window_capture_verified": false,
+    "physical_compatible": false
+  },
   "full_chart_actual_ui_preview_20261120": {
     "scope": "33MP native-size host chart and real guest virtual CMOS HUD preview",
     "changes": {

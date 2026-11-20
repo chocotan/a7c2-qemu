@@ -393,11 +393,43 @@ static void reload(void)
     assert(startup_domain(m) && !memcmp(mode, m->mode_bank32, 32));
     fcam_model_destroy(m);
 }
+static void raw_selection(void)
+{
+    struct fcam_model *m = setup(); uint8_t in[32], out[192], still[32] = {0};
+    static const uint8_t selections[][2] = {{1,0}, {2,0}, {2,1}};
+    put32(still, FCAM_STILL_FULL_JPEG); put32(still + 4, 128);
+    put32(still + 8, 64); put32(still + 12, 73);
+    for (size_t i = 0; i < 3; ++i) {
+        canonical(m, 0x4014, in); in[12] = selections[i][0]; in[13] = selections[i][1];
+        assert(fcam_startup_control_validate_basic(in));
+        request(m, FCAM_OP_STARTUP_CONTROL, in, 32, out, 192);
+        assert(!memcmp(m->mode_bank32, in, 32) && !memcmp(out + 160, in, 32) && startup_domain(m));
+        const struct fcam_model before = *m;
+        assert(validate_request(m, FCAM_OP_STILL, still, 16, 1) == 0);
+        uint8_t framed[32] = {0}; memcpy(framed + 16, still, 16);
+        assert(validate_request(m, FCAM_OP_FRAME_STILL, framed, 32, 1) == -ESTALE);
+        put32(framed + 8, 1);
+        assert(validate_request(m, FCAM_OP_FRAME_STILL, framed, 32, 1) == -ESTALE);
+        put32(framed + 8, 2);
+        assert(validate_request(m, FCAM_OP_FRAME_STILL, framed, 32, 1) == -ESTALE);
+        assert(!memcmp(m, &before, sizeof before));
+        m->mode_bank32[12] ^= 3u; assert(!startup_domain(m)); m->mode_bank32[12] ^= 3u;
+        assert(startup_domain(m));
+    }
+    static const uint8_t unknown[][2] = {{0,0}, {1,1}, {2,2}, {2,4}, {4,0}, {255,255}};
+    for (size_t i = 0; i < sizeof unknown / sizeof unknown[0]; ++i) {
+        canonical(m, 0x4014, in); in[12] = unknown[i][0]; in[13] = unknown[i][1];
+        assert(!fcam_startup_control_validate_basic(in)); rejected(m, in, 32, 192, -ENOTSUP);
+    }
+    canonical(m, 0x4014, in); in[12] = 2; in[13] = 1;
+    in[24] ^= 1; rejected(m, in, 32, 192, -ESTALE);
+    fcam_model_destroy(m);
+}
 int main(int argc, char **argv)
 {
     assert(argc == 2); av_log_set_level(AV_LOG_ERROR);
     if (!strcmp(argv[1], "success")) success();
-    else if (!strcmp(argv[1], "validation")) validation();
+    else if (!strcmp(argv[1], "validation")) { validation(); raw_selection(); }
     else if (!strcmp(argv[1], "faults")) faults(0x4057);
     else if (!strcmp(argv[1], "focus-reset")) focus_reset();
     else if (!strcmp(argv[1], "focus-faults")) faults(0x403f);

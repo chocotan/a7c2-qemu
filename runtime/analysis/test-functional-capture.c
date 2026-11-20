@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* Host ownership/transport fixture; no original AP, native codec, JPEG decode
  * or Fsys runs here. Existing memory provider exercises actual mmap/leases. */
+#define _GNU_SOURCE
+#include "functional-startup-control-abi.h"
+#include "functional-still-format-abi.h"
 #include "functional-capture.c"
 #include <assert.h>
 #include <sys/wait.h>
@@ -9,6 +12,33 @@ static unsigned allocations,releases,sends,rpcs,reservations,unlocks;
 static int allocate_error,send_error,release_error,reserve_error,predecessor=1,inline_receive,imaging_live,dmm_inline;
 static int info_send_error,info_observe_before_error;
 static unsigned admission_case,admission_calls,admission_snapshots;
+static unsigned format_case;
+void functional_startup_control_snapshot(struct functional_startup_control_snapshot *s){
+    *s=(struct functional_startup_control_snapshot){.owner_pid=getpid(),.ap_consumed=1,
+        .mode_applied=1,.mode_consumed=1,.mode_cycle=1,.cycle=2,
+        .command=0x4057,.model_instance=22,.mode_model_instance=22,
+        .config_generation=1,.mode_config_generation=1};
+    p16(s->mode_canonical32,0x4014);p16(s->mode_canonical32+2,16);
+    memcpy(s->mode_canonical32+4,fcam_startup_control_mode_body,16);
+    if(format_case>=5)s->mode_canonical32[12]=2;
+    if(format_case==6)s->mode_canonical32[13]=1;
+    s->mode_wire[0]=5;p16(s->mode_wire+2,0x4014);
+    memcpy(s->mode_wire+8,s->mode_canonical32+4,16);
+    s->mode_wire_fnv=fnv(s->mode_wire,sizeof s->mode_wire);
+    s->mode_canonical_fnv=fnv(s->mode_canonical32,sizeof s->mode_canonical32);
+    if(format_case==1)s->mode_consumed=0;
+    if(format_case==2)++s->mode_model_instance;
+    if(format_case==3)++s->mode_wire_fnv;
+}
+void functional_still_format_snapshot(struct functional_still_format_snapshot *s){
+    *s=(struct functional_still_format_snapshot){.owner_pid=getpid(),.ap_consumed=1,
+        .completed_cycles=1,.cycle=1,.model_instance=22,.config_generation=1,
+        .origin={.command=0x402d,.source=0x80020002,.destination=0x90030001}};
+    memcpy(s->canonical16,fcam_still_format_initial,16);
+    if(format_case>=5)s->canonical16[7]=s->canonical16[13]=1;
+    if(format_case==4)++s->config_generation;
+    if(format_case==7)s->canonical16[13]=0;
+}
 static struct packet *sent_packets[32];
 static uint8_t saved_config_body[56];
 static struct packet *packet(void *p){return (struct packet *)((uint8_t *)p-2*sizeof(unsigned));}
@@ -324,8 +354,46 @@ static void test_output_diagnostics(void){
     assert(!capture_output_memory_info(job.output,&after) && !memcmp(&before,&after,sizeof before));
     assert(!memcmp(&original_state,&state,sizeof state));free(p);destroy_output();
 }
+static void test_capture_format(unsigned scenario){
+    setup();format_case=scenario;
+    int expected=scenario==1 || scenario==2 || scenario==4?-ESTALE:
+        scenario==3?-EBADMSG:scenario==6 || scenario==7?-ENOTSUP:0;
+    assert(capture_format(22,1,1)==expected);
+    if(!expected){
+        assert(job.raw==(scenario==5) && job.mode_cycle==1 && job.format_cycle==1);
+        assert(!capture_format(22,1,0));
+        ++job.mode_cycle;assert(capture_format(22,1,0)==-ESTALE);
+    }
+}
+static void test_frame_expand(void){
+    uint8_t original[96+16*3]={0},request[16],parameters[128]={0},packed[96+16*3]={0};
+    set_request(request);p32(original,1);p32(original+4,96);
+    for(unsigned i=8;i<48;i+=8)p64(original+i,i);
+    p32(original+48,4);p32(original+52,4);p32(original+56,12);
+    p32(original+60,FCAM_PIXELS_RGB888);p64(original+64,48);
+    for(unsigned i=24;i<48;++i)original[96+i]=(uint8_t)i;
+    p64(original+72,fnv(original+96,48));p32(original+80,73);original[84]=2;p64(original+88,fnv(request,16));
+    memcpy(packed,original,96);p32(packed+60,FCAM_PIXELS_RGB888_RLE);
+    size_t bytes=fcam_rgb_pack(original+96,16,packed+96,48);assert(bytes && bytes<48);
+    uint8_t *frame=malloc(sizeof original);assert(frame);memcpy(frame,packed,96+bytes);
+    assert(capture_frame_expand(&frame,sizeof original,96+bytes,0)==-EBADMSG);
+    assert(capture_frame_expand(&frame,sizeof original,95,1)==-EBADMSG);
+    assert(capture_frame_expand(&frame,sizeof original,96+bytes-1,1)==-EBADMSG);
+    frame[96+bytes]=0;
+    assert(capture_frame_expand(&frame,sizeof original,97+bytes,1)==-EBADMSG);
+    assert(!capture_frame_expand(&frame,sizeof original,96+bytes,1));
+    assert(!memcmp(frame,original,sizeof original));
+    parameters[0x63]=8;struct capture_input *input=NULL;
+    assert(!capture_input_create(frame,sizeof original,request,parameters,&input));
+    assert(!capture_input_destroy(input));frame[96]^=1;
+    assert(capture_input_create(frame,sizeof original,request,parameters,&input)==-EBADMSG);
+    assert(capture_frame_expand(&frame,sizeof original,sizeof original-1,0)==-EBADMSG);
+    assert(!capture_frame_expand(&frame,sizeof original,sizeof original,0));free(frame);
+}
 int main(int argc,char **argv){assert(argc==2);int mode=atoi(argv[1]);
-    if(mode<6)test_reject(mode);else if(mode<8)test_accept(mode-6);else if(mode<11)test_terminal(mode==9,mode==10);
+    if(mode==0)test_frame_expand();
+    if(mode>=48)test_capture_format((unsigned)mode-48);
+    else if(mode<6)test_reject(mode);else if(mode<8)test_accept(mode-6);else if(mode<11)test_terminal(mode==9,mode==10);
     else if(mode<16)test_dmm((unsigned)mode-11);else if(mode==16)test_output_dmm();else if(mode<19)test_delivery(mode==18);else if(mode==19)test_fork();else if(mode<26)test_native_queue((unsigned)mode-20);else if(mode<28)test_creator_save_retirement(mode==27);else if(mode==38)test_output_diagnostics();else if(mode==39 || mode==40)test_publication_failure(mode==40);else if(mode>=41 && mode<=47)test_allocation_failure((unsigned)mode-41);else test_admission((unsigned)mode-27);
     puts("PASS HOST_ONLY capture ownership/gates/native transport/provider rollback/notification retirement; original_AP=0 original_codec=0 Fsys_saved=0 capture_verified=0");return 0;
 }

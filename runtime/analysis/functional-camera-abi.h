@@ -30,6 +30,7 @@
 #define FCAM_MAX_VIDEO_WIDTH 1920u
 #define FCAM_MAX_VIDEO_HEIGHT 1080u
 #define FCAM_PIXELS_RGB888 1u /* internal virtual image bus: R,G,B; top row first */
+#define FCAM_PIXELS_RGB888_RLE 2u /* lossless RGB pixel runs; decoded size/FNV stay in Frame96 */
 #define FCAM_CAP_STILL 1u
 #define FCAM_CAP_H264 2u
 #define FCAM_CAP_AF 4u
@@ -121,7 +122,11 @@
  * FRAME_CAPTURE16: original type5/4038 body, with actual origin checked by bridge.
  * Result Frame96 then immutable packed RGB: u32 version=1,header_bytes=96;
  * u64 frame_token,instance,lifetime,config_generation,frame_generation;
- * u32 width,height,stride,RGB888=1; u64 rgb_bytes,rgb_fnv; u32 cookie;
+ * u32 width,height,stride,pixel_format(1 RGB888,2 lossless RGB888 RLE);
+ * u64 decoded_rgb_bytes,decoded_rgb_fnv; u32 cookie;
+ * RLE payload: u16LE tag, count=(tag&0x7fff)+1 pixels; bit0x8000 repeats
+ * the following RGB triplet, otherwise count literal triplets follow.
+ * Result total is 96 plus actual payload bytes; decoding must be exact.
  * u8 trigger,reserved0[3]; u64 whole-original-request FNV at byte88.
  * FRAME_STILL32/160: u64 frame_token; u32 selector(0 Main,1 Thm,2 Scn),reserved0;
  * Still16/144. All selectors read this same slot; software nearest-neighbor scale.

@@ -9,8 +9,9 @@
  * zero, LEu64 FNV1a64 of this instance's actual State128 bytes8..47. The caller
  * must first obtain STATE and hash those actual40 bytes; never hash Config48
  * or substitute a fixed fingerprint. validate_basic checks only the tuple.
- * 4014 saves an observed-mode descriptor constraining later RGB/codec domain
- * integrity; no physical enum or still/video restriction is inferred.
+ * 4014 saves the actual observed body, accepting JPEG/NONE, RAW/NONE and
+ * RAW/JPEG only in the otherwise unchanged ordinary still context. Recording
+ * RAW selection does not implement a RAW pixel stream or ARW output.
  * 4057/request0 copies/readbacks current virtual config40 into an independent
  * settings checkpoint. 403f/body(0,0) restores the full RGB viewport, with a
  * separate current-config40 checkpoint; other magnification inputs are unsupported.
@@ -49,9 +50,14 @@ static inline int fcam_startup_control_validate_basic(
     if (!((command == FCAM_STARTUP_CONTROL_CMD_MODE && bytes == 16u) ||
           (command == FCAM_STARTUP_CONTROL_CMD_SETTINGS && bytes == 4u) ||
           (command == FCAM_STARTUP_CONTROL_CMD_FOCUS_OFF && bytes == 8u))) return 0;
-    for (size_t i = 0; i < 16u; ++i)
+    for (size_t i = 0; i < 16u; ++i) {
+        if (command == FCAM_STARTUP_CONTROL_CMD_MODE && (i == 8u || i == 9u)) continue;
         if (input[4u + i] != (command == FCAM_STARTUP_CONTROL_CMD_MODE ?
             fcam_startup_control_mode_body[i] : 0u)) return 0;
+    }
+    if (command == FCAM_STARTUP_CONTROL_CMD_MODE &&
+        !((input[12] == 1u && input[13] == 0u) ||
+          (input[12] == 2u && input[13] <= 1u))) return 0;
     for (size_t i = 20u; i < 24u; ++i) if (input[i]) return 0;
     return 1;
 }

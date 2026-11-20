@@ -35,16 +35,18 @@ int main(int argc,char **argv){
     assert(!capture_output_memory_reply(owner,allocation,0,allocated));
     memset((void *)header.cpu,0,4096);((unsigned char *)header.cpu)[0]=255;((unsigned char *)header.cpu)[1]=216;
     if(mode>=27){
-        struct capture_output_span thumbnail;assert(!capture_output_memory_span(owner,CAPTURE_OUT_THUMB,&thumbnail));
+        struct capture_output_span thumbnail,auxiliary;assert(!capture_output_memory_span(owner,CAPTURE_OUT_THUMB,&thumbnail));
+        assert(!capture_output_memory_span(owner,CAPTURE_OUT_AUX,&auxiliary));
         uint8_t query[40]={0},response[40];
         if(mode!=31){
             query[0]=0x21;p32(query+4,header.unit_type);query[22]=1;p32(query+8,header.handle);assert(!capture_output_memory_reply(owner,query,0,response));
             p32(query+4,thumbnail.unit_type);p32(query+8,thumbnail.handle);assert(!capture_output_memory_reply(owner,query,0,response));
         }
-        uint64_t digest=0;int rc=capture_dma_thumbnail(owner,mode==29?header.alias+header.capacity:header.alias+16,
+        uint64_t digest=0;int rc=capture_dma_thumbnail(owner,mode==29?auxiliary.alias+auxiliary.capacity+1:header.alias+16,
             mode==28?thumbnail.alias+1:thumbnail.alias,mode==30?thumbnail.bytes-1:thumbnail.bytes,&digest);
-        assert(rc==(mode==27?0:mode==31?-ESTALE:-ERANGE));
-        if(!rc)assert(digest==hash((const void *)thumbnail.cpu,thumbnail.bytes) && !memcmp((void *)(header.cpu+16),(void *)thumbnail.cpu,thumbnail.bytes));
+        assert(rc==(mode==27 || mode==30?0:mode==31?-ESTALE:-ERANGE));
+        if(!rc){size_t copied=mode==30?thumbnail.bytes-1:thumbnail.bytes;
+            assert(digest==hash((const void *)thumbnail.cpu,copied) && !memcmp((void *)(header.cpu+16),(void *)thumbnail.cpu,copied));}
         if(mode!=31){query[0]=0x23;query[22]=2;p32(query+8,header.handle);assert(!capture_output_memory_reply(owner,query,0,response));p32(query+8,thumbnail.handle);assert(!capture_output_memory_reply(owner,query,0,response));}
     }
     file_size=4096+body.bytes;file_bytes=calloc(1,file_size+1);assert(file_bytes);memcpy(file_bytes,(void *)header.cpu,4096);memcpy(file_bytes+4096,(void *)body.cpu,body.bytes);

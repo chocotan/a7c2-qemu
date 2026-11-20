@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "functional-camera-core.h"
 #include "../../runtime/analysis/functional-still-format-abi.h"
+#include "../../runtime/analysis/functional-startup-control-abi.h"
+#include "../../runtime/analysis/frame-rle.h"
 #include "../functional-capture-input/capture-input.h"
 #include <assert.h>
 #include <errno.h>
@@ -40,7 +42,8 @@ static uint8_t *collect(struct fcam_model *m,uint32_t op,const uint8_t *in,size_
     *bytes=used;return whole;
 }
 int main(int argc,char **argv) {
-    assert(argc==2);
+    assert(argc==2 || (argc==3 && !strcmp(argv[2],"raw")));
+    const int raw=argc==3;
     struct fcam_model *m=fcam_model_create(101);assert(m);
     uint8_t active[128],photo[128],query[16]={5,0,0x38,0x40};
     p32(query+4,29);query[8]=2;
@@ -49,9 +52,17 @@ int main(int argc,char **argv) {
     memset(photo,0xa5,sizeof photo);
     assert(fcam_model_request(m,FCAM_OP_CAPTURE_STATE,query,sizeof query,photo,sizeof photo,&result)==-ENODATA);
     for(size_t i=0;i<sizeof photo;++i)assert(photo[i]==0xa5);
-    uint8_t route[16]={1,5,5},response[176];
+    uint8_t route[16]={1,5,5},response[192];
     call(m,FCAM_OP_VDF_PATH,route,sizeof route,response,sizeof response);
     call(m,FCAM_OP_STILL_FORMAT,fcam_still_format_initial,16,response,sizeof response);
+    if(raw){
+        uint8_t mode[32]={0x14,0x40,16},settings[32]={0x57,0x40,4};
+        memcpy(mode+4,fcam_startup_control_mode_body,16);mode[12]=2;
+        call(m,FCAM_OP_STATE,NULL,0,active,sizeof active);p64(mode+24,fnv(active+8,40));
+        call(m,FCAM_OP_STARTUP_CONTROL,mode,sizeof mode,response,sizeof response);
+        call(m,FCAM_OP_STATE,NULL,0,active,sizeof active);p64(settings+24,fnv(active+8,40));
+        call(m,FCAM_OP_STARTUP_CONTROL,settings,sizeof settings,response,sizeof response);
+    }
     call(m,FCAM_OP_STATE,NULL,0,active,sizeof active);
     call(m,FCAM_OP_CAPTURE_STATE,query,sizeof query,photo,sizeof photo);
     assert(u32(active+8)==640 && u32(active+12)==480);
@@ -60,6 +71,14 @@ int main(int argc,char **argv) {
     uint8_t after[128];call(m,FCAM_OP_STATE,NULL,0,after,sizeof after);
     assert(!memcmp(active,after,sizeof active));
     size_t bytes=0;uint8_t *frame=collect(m,FCAM_OP_FRAME_CAPTURE,query,sizeof query,&bytes);
+    if(raw){
+        const size_t rgb_bytes=98224128u;
+        assert(u32(frame+60)==FCAM_PIXELS_RGB888_RLE && bytes<96u+rgb_bytes);
+        uint8_t *plain=malloc(96u+rgb_bytes);assert(plain);memcpy(plain,frame,96);
+        assert(!fcam_rgb_unpack(frame+96,bytes-96,plain+96,rgb_bytes/3u));p32(plain+60,FCAM_PIXELS_RGB888);
+        printf("RAW_FRAME_TRANSFER rgb_bytes=%zu wire_bytes=%zu pixels=%u\n",rgb_bytes,bytes,7008u*4672u);
+        free(frame);frame=plain;bytes=96u+rgb_bytes;
+    }
     assert(bytes==96u+98224128u && u32(frame+48)==7008 && u32(frame+52)==4672 && u32(frame+56)==21024);
     assert(u64(frame+64)==98224128u && u64(frame+72)==fnv(frame+96,bytes-96));
     assert(u64(frame+32)==u64(photo+56) && u64(frame+88)==fnv(query,sizeof query));

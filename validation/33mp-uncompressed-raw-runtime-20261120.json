@@ -1,0 +1,102 @@
+{
+  "schema": "a7c2-native-33mp-uncompressed-arw-runtime-v1",
+  "status": "PASS_NATIVE_ARW_WRITE_CARD_READBACK_AND_INDEPENDENT_PIXEL_DECODE",
+  "profile": "virtual-functional-camera-v1 / functional-ram-card-independent-internal-v1",
+  "run": "48b4",
+  "native_request": "original AP natural type5/0x4038",
+  "original_menu": "RAW-only / L / UNCOMPRESS",
+  "file": {
+    "path": "A:/DCIM/100MSDCF/DSC00001.ARW",
+    "bytes": 67223552,
+    "sha256": "017ae09eaa61f133478dda7855db3bf33353475b26169694ce831a4f2985b799",
+    "fnv1a64": "b0365a76bfc1e0ff"
+  },
+  "raw": {
+    "format": "ARW/TIFF",
+    "width": 7008,
+    "height": 4672,
+    "bits_per_sample": 14,
+    "compression": 1,
+    "cfa": "GRBG",
+    "raw_strip_offset": 1740800,
+    "raw_strip_bytes": 65482752,
+    "row_stride_bytes": 14016
+  },
+  "native_fsys": {
+    "pid": 324,
+    "token": 1,
+    "cookie": "0x1bd12d0",
+    "request_fnv1a64": "c3239ef0cd2da476",
+    "source_areas": 4,
+    "submit_rc": 0,
+    "callback_rc": 0,
+    "finished_rc": 0,
+    "callback_returned": true,
+    "finished_returned": true
+  },
+  "whole_card_exports": {
+    "bytes": 1073741824,
+    "count": 2,
+    "equal": true,
+    "sha256": "5499a5fbcb5959cd32fad777e968a3a3a22f27c69dc81e159fa4e1a291e3f430",
+    "original_Fsys_FlushVolume_rc": [
+      0,
+      0
+    ]
+  },
+  "independent_decode": {
+    "engine": "installed LibRaw raw-identify / dcraw_emu",
+    "returncodes": [
+      0,
+      0
+    ],
+    "size": [
+      7008,
+      4672
+    ],
+    "mode": "RGB",
+    "white_patch": [
+      255,
+      255,
+      255
+    ],
+    "black_patch": [
+      0,
+      0,
+      0
+    ]
+  },
+  "preview": {
+    "path": "docs/images/captured-raw-dsc00001-20261120.png",
+    "size": [
+      900,
+      600
+    ],
+    "source": "downscaled independently decoded original card ARW; not regenerated sensor pixels",
+    "sha256": "d746af44649b490aff293976912b72c9f75867d8e299ff807a9f98f8f4838c99"
+  },
+  "virtual_transport": {
+    "kind": "lossless RGB888_RLE16 between host and guest software only",
+    "original_rgb_bytes": 98224128,
+    "wire_bytes": 2527401,
+    "changes_raw_file_compression": false,
+    "physical_camera_bus_behavior_verified": false
+  },
+  "lifecycle": {
+    "original_driver_failed": true,
+    "original_error": "post-write callback cleanup -EPROTO",
+    "old_failure_receipts_unchanged": true,
+    "card_exported_before_QMP_quit": true,
+    "external_QMP_quit_acknowledged": true,
+    "QEMU_exit_observed": true,
+    "signals_sent": [],
+    "resources_retired_verified": false
+  },
+  "raw_native_card_write_verified": true,
+  "card_file_readback_verified": true,
+  "independent_raw_pixel_decode_verified": true,
+  "media_database_semantics_verified": false,
+  "original_CP_execution_verified": false,
+  "physical_cmos_compatible": false,
+  "capture_verified": false
+}

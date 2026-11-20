@@ -6172,6 +6172,35 @@ def camera_packets(raw):
     return packets
 
 
+def frame_rgb_pixels(frame):
+    """Decode the virtual image-bus payload; all source identity checks remain at its consumers."""
+    require(len(frame) >= 96, 'truncated virtual RGB frame')
+    width, height, stride, pixels = struct.unpack_from('<4I', frame, 48)
+    size = struct.unpack_from('<Q', frame, 64)[0]
+    require(0 < width <= 8192 and 0 < height <= 8192 and stride == width * 3 and
+            size == stride * height and size <= 128 * 1024**2 - 96,
+            'virtual RGB geometry exceeds the image-bus bounds')
+    payload = frame[96:]
+    if pixels == 1:
+        require(len(payload) == size, 'plain virtual RGB payload length differs')
+        return payload
+    require(pixels == 2 and 0 < len(payload) < size, 'unknown or oversized virtual RGB encoding')
+    result, cursor = bytearray(), 0
+    while cursor < len(payload):
+        require(len(payload) - cursor >= 2, 'truncated RGB run header')
+        tag = struct.unpack_from('<H', payload, cursor)[0]
+        cursor += 2
+        count = (tag & 0x7fff) + 1
+        require(count * 3 <= size - len(result), 'RGB run exceeds the original frame')
+        length = 3 if tag & 0x8000 else count * 3
+        require(length <= len(payload) - cursor, 'truncated RGB run pixels')
+        value = payload[cursor:cursor + length]
+        result.extend(value * count if tag & 0x8000 else value)
+        cursor += length
+    require(len(result) == size, 'RGB runs do not fill the original frame')
+    return bytes(result)
+
+
 def retained_frame_proof(op, incoming, output, p, delta, retained, generation, config, result_token, instance):
     expected_kind = {17: 7, 18: 8, 19: 9, 66: 9}[op]
     result_data = output if op in (17, 18) else b''
@@ -6185,10 +6214,11 @@ def retained_frame_proof(op, incoming, output, p, delta, retained, generation, c
         token, model, lifetime, saved_config, frame_generation = struct.unpack_from('<5Q', output, 8)
         width, height, stride, pixels = struct.unpack_from('<4I', output, 48)
         size, digest = struct.unpack_from('<2Q', output, 64)
+        rgb = frame_rgb_pixels(output)
         require(version == 1 and header == 96 and token and model == instance and
                 lifetime == p['model_lifetime'] and saved_config == config and frame_generation == generation + 1 and
-                0 < width <= 8192 and 0 < height <= 8192 and stride == width * 3 and pixels == 1 and
-                size == stride * height == len(output) - 96 and digest == fnv(output[96:]) and
+                0 < width <= 8192 and 0 < height <= 8192 and stride == width * 3 and pixels in (1, 2) and
+                size == stride * height == len(rgb) and digest == fnv(rgb) and
                 output[80:84] == incoming[4:8] and output[84] == incoming[8] and
                 output[85:88] == bytes(3) and struct.unpack_from('<Q', output, 88)[0] == fnv(incoming),
                 'retained frame header/pixels/original request differ')
@@ -6467,10 +6497,11 @@ def check_retained_jpeg_input(run, job, tx, transport, body, selector):
     model, lifetime, config, generation = struct.unpack_from('<4Q', frame, 16)
     width, height, stride, pixel_format = struct.unpack_from('<4I', frame, 48)
     size, digest = struct.unpack_from('<2Q', frame, 64)
+    rgb = frame_rgb_pixels(frame)
     require(model == transport['model_instance'] and lifetime == number(bf['frame_lifetime']) and
             config == number(bf['input_cfg']) and generation == number(bf['input_frame']) and
-            size == len(frame) - 96 == width * height * 3 == number(bf['source_bytes']) and
-            pixel_format == 1 and stride == width * 3 and fnv(frame[96:]) == digest == int(bf['source_fnv'], 16),
+            size == len(rgb) == width * height * 3 == number(bf['source_bytes']) and
+            pixel_format in (1, 2) and stride == width * 3 and fnv(rgb) == digest == int(bf['source_fnv'], 16),
             'retained native input changed source RGB or captured identity')
     needed(type(tx.get('frame')) is dict, 'retained native JPEG actual frame proof')
     proof = tx['frame']['proof']

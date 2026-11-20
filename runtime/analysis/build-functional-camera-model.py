@@ -51,7 +51,7 @@ def main():
     if not compiler:
         raise RuntimeError('installed host C compiler is required')
     sources = [REPORT / name for name in SOURCES] + [BASE / 'device-models/cp-parameter-batch.c']
-    headers = [BASE / 'functional-camera-abi.h', BASE / 'functional-vdf-path-abi.h',
+    headers = [BASE / 'functional-camera-abi.h', BASE / 'frame-rle.h', BASE / 'functional-vdf-path-abi.h',
                BASE / 'functional-bb-startup-abi.h', BASE / 'functional-vdf-bit-width-abi.h',
                BASE / 'functional-still-format-abi.h', BASE / 'functional-startup-control-abi.h',
                BASE / 'device-models/cp-parameter-batch.h']

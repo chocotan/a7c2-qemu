@@ -427,4 +427,23 @@ rg -n 'FUNCTIONAL_CAMERA_TRANSFER .*op=17|operation=original-maincomp-config|FSY
 
 RAW/ARW写卡、实时取景、录像、默认窗口拍摄入口与物理ASIC兼容均未由本轮提升。1.2MB是当前高重复纹理场景的压缩主图长度，2,005B才是本轮缩略图；不以JPEG文件大小推断像素数，也不以HUD的33M标记替代消费者证明。
 
+## 第111轮 `9ba1`：原RAW输入被MPR提前拒绝；第112轮修复复验
 
+第111轮通过原菜单选择RAW-only、L、UNCOMPRESS；原4014/402d消费及自然4038均有收据。98,224,224B帧已完整读回，原MainComp也完成嵌入预览与缩略图。原ulog在`0xad5ac`记录`mpr_RecordStill`进入R0，在`0xad632`记录`mpr_err [0x3]`。随后原MPR释放五个RAW输入句柄，没有原Fsys RAW写请求。420秒业务观察器最终超时，不能称为原内部崩溃或RAW成功。
+
+生产者确定遗漏`RawInfo+0x90`（area9）：原`_check_error@e3ab0/e3ab8/e3ac0`要求其bytes、handle、unit_type均非零，缺失时返回私有值-5；`RecordStill@eb2e8`进入提前释放路径，外层转换为3。-5为静态推导，未把它记为已实读返回寄存器。原`_make_add_if_t`将JPEG缩略图`JpgInfo+0xa0`和RAW area9映射到相同`common+0x178`槽，故修复直接发布当前任务真实缩略图；可选area19保持空，仍仅五个唯一句柄。另按原libarw写出代码补齐内嵌JPEG预览的0xa2前缀，原SOI及像素内容保留。
+
+精确`mpr::RecordStill` interpose继续执行原入口并保持原返回与errno；仅当前PID/job/代次及完整RawInfo吻合时记录实际返回。原非零返回立即锁存当前capture fault，不再依靠最终观察超时。P4同步识别真实`/ # `提示符前缀。集中两个工作线程、两组受影响检查：首轮194通过、1个测试宏别名编译失败；只修测试后该节点通过，唯一通过节点共195。新observer与独立initramfs构建完成，详见[本批宿主收据](../../validation/raw111-contract-fix-host-20261120.json)。第112轮已使用全新实例开始复验；原厂ARW写卡和独立解码仍未通过。
+
+用户随后明确要求终止遗留实例。按实际QEMU身份和任务输出inode精确绑定的20个自有实验QEMU均经PIDFD发送SIGTERM并确认退出，未用SIGKILL；未删除旧盘、日志或改写旧失败收据。此为用户授权的强制停止，不记为QMP正常关机。第110b/111轮同实例的guest RAM已不再保留，其未执行的导出/读回不能再沿旧owner恢复路线补做。退出明细在项目任务目录`user-requested-qemu-stop-1/result.json`，磁盘保留供后续只读审计。后续主线仅单实例运行，原错误即时抛出，内部总预算1040秒、外部1065秒；失败实例按本次用户授权及时停止。
+
+
+## 第117轮RAW落卡与最终受影响宿主复验
+
+第117轮 `48b4` 已由原 `libarw`／Fsys 写入67,223,552B的未压缩ARW，卡内全文读回、两份整卡导出一致及LibRaw独立7008×4672全像素解码均通过；原写后清理 `-EPROTO` 失败保持，未回填为完整拍摄成功。
+
+清理错误来自原序列化器 `0x26c444` 将BitsPerSample的数据指针重定向到header内联值，并非IFD条目排序。修复沿 `app+0x1850` 的IFD对象读取 `ifd+56` 条目起点和`ifd+72` 偏移，仅累计3项有效entry的位置，恢复14位标签后再调用原析构。
+
+最终v7以2个工作线程／2组完成受影响宿主复验：1372通过、0跳过、另计15个subtest通过；RAW、RLE运输、DMA、AUX、析构、原JPEG回归及4处夹具在本轮范围内，原固件ABI构建和独立overlay读回验证通过。见[最终宿主收据](../../validation/33mp-raw-final-host-20261120.json)。
+
+此前公共suite仍保留682通过／3失败／49跳过及models收集错误，未完成全公共suite。本轮未新启VM、未重走首设；v7析构修复仅获宿主验证，guest实际收尾延期。`resources_retired_verified=false`、严格 `capture_verified=false` 保持。

@@ -43,7 +43,7 @@ done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include \
   -c "$vdf_dir/system-sound-owner.c" -o "$device_build/system-sound-owner.o"
-for owner in infrabb-registry osdpin-registry dig-level-device cp-periodic-service dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
+for owner in infrabb-registry osdpin-registry dig-level-device cp-periodic-service dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-capture-raw-blobs functional-capture-raw-writer raw-template functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
   owner_flags=()
   case "$owner" in functional-face-*) owner_flags=(-DFULL_IMAGING_GUEST);; esac
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" \
@@ -67,6 +67,10 @@ clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -isystem /usr/aarch64-linux-gnu/include \
   -c "$source_dir/../../report/functional-capture-queue/capture-resize-request.c" \
   -o "$device_build/capture-resize-request.o"
+clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+  -isystem /usr/aarch64-linux-gnu/include \
+  -c "$source_dir/../../report/virtual-sensor/sensor-core.c" \
+  -o "$device_build/sensor-core.o"
 # Hidden sections keep the reused metadata parsers without host codec entry points.
 for parser in native-video-binding/native-video native-video-paramsets/native-paramsets \
               native-video-au-contract/native-au native-video-length-format/native-lengths; do

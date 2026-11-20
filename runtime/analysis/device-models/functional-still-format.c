@@ -180,6 +180,7 @@ static int validate_format(const unsigned char *p, const struct fcam_bridge_resu
     const unsigned char *route = p + 128;
     if (!shape(p, r, 176) || u32(p + 4) != 176 || r->model_instance != s->model_instance ||
         u64(p + 8) != s->model_instance || u64(p + 40) != hash(s->canonical16, 16) ||
+        !fcam_still_format_input_valid(s->canonical16) ||
         memcmp(p + 160, s->canonical16, 16) || route[0] != 1 || route[1] != 5 || route[2] != 5 ||
         route[4] > 2 || route[13] || route[14] || route[15]) return -EPROTO;
     if (u64(p + 144) != s->before_frame_generation || u64(p + 152) != s->before_config_generation ||

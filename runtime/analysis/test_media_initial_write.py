@@ -120,9 +120,17 @@ def test_actual_qmp_quit_guard_runs_before_wire_even_startup_exception(tmp_path)
             events.append('flush')
         def readline(self):
             return b'{"return":{}}'
+    def transport(proc, stream, name, arguments=None):
+        assert proc is scope['proc'] and stream is scope['stream']
+        assert name == 'query-status' and arguments is None
+        stream.write(json.dumps({'execute': name}).encode() + b'\n')
+        stream.flush()
+        return json.loads(stream.readline())
+
     from contextlib import nullcontext
     scope = dict(early_media_watch=object(), proc=object(), out=tmp_path,
                  stream=Stream(), json=json, functional_camera=None, nullcontext=nullcontext,
+                 qmp_transaction=transport,
                  native_pair=None, host_sd_fd=None, directory_sd_fd=None, host_sd_export_verified=[False])
     import media_initial_write
     original = media_initial_write.guard_shutdown

@@ -1,6 +1,11 @@
 /* SPDX-License-Identifier: MIT */
 #define _GNU_SOURCE
 #include "functional-capture.h"
+#include "functional-capture-raw.h"
+#include "frame-rle.h"
+#include "device-models/functional-startup-control.h"
+#include "device-models/functional-still-format.h"
+#include "../../report/virtual-sensor/sensor-core.h"
 #include "functional-camera-bridge.h"
 #include "functional-jpeg-codec.h"
 #include "functional-mpr-memory.h"
@@ -56,11 +61,12 @@ static struct {
     struct functional_mpr_memory_lease open;
     struct terminal_lease completion[3],requests[2];
     void *retained_request,*retained_dmm,*retained_dmm_reply;
-    uint64_t memory_generation;
+    uint64_t memory_generation,mode_cycle,format_cycle;
+    unsigned raw;
     struct dmm_inflight inflight[16];
     int dmm_sending;long dmm_sender;
     uint64_t export_token;
-    unsigned opened,closed,output_diagnostic_notes;
+    unsigned opened,closed,output_diagnostic_notes,raw_native_notes;
     _Alignas(16) uint8_t table[FUNCTIONAL_MPR_MEMORY_TABLE_BYTES];
 } job;
 static uint16_t u16(const uint8_t *p){return (uint16_t)(p[0]|(uint16_t)p[1]<<8);}
@@ -176,7 +182,8 @@ static int notification_send(unsigned destination,void *packet){
     pthread_mutex_lock(&mutex);job.published_delivery=job.delivery;
     int rc=capture_delivery_info(job.delivery,&info);
     int publication=!rc && packet==info.leases[2].pointer;
-    if(publication)rc=capture_output_memory_publish_begin(job.output);
+    if(publication)rc=job.raw?capture_output_memory_publish_raw_begin(job.output,0):
+        capture_output_memory_publish_begin(job.output);
     pthread_mutex_unlock(&mutex);if(rc)return rc;
     rc=job.io.send(destination,packet);
     if(publication){
@@ -205,6 +212,8 @@ static int retire_notifications(void){
 }
 void functional_capture_fsys_begin(unsigned token,const struct fsys_write_layout *layout,const uint64_t hashes[FSYS_WRITE_AREAS],const unsigned readable[FSYS_WRITE_AREAS]){
     int saved=errno;if(!atomic_load(&enabled) || process()){errno=saved;return;}
+    pthread_mutex_lock(&mutex);struct capture_output_memory *raw_output=job.raw && job.save?job.output:NULL;pthread_mutex_unlock(&mutex);
+    if(raw_output){int checked=functional_capture_raw_native_writer_ready(raw_output);if(checked){fault(checked);errno=saved;return;}}
     pthread_mutex_lock(&mutex);int rc=job.save?capture_save_match(job.save,token,layout,hashes,readable):0;
     if(rc<0 && !state.error)state.error=rc;
     if(rc>0)state.write_token=token;
@@ -308,9 +317,118 @@ static int admit_frame(uint8_t model[FCAM_STATE_BYTES],struct fcam_bridge_result
         if(rc && rc!=EINTR)return -rc;
     }
 }
+static int capture_format(uint64_t instance,uint64_t generation,int remember){
+    struct functional_startup_control_snapshot mode;
+    struct functional_still_format_snapshot format;
+    functional_startup_control_snapshot(&mode);functional_still_format_snapshot(&format);
+    /* mode_wire/cycle/consumed must persist the last retired4014 across4057. */
+    if(mode.owner_pid!=getpid() || format.owner_pid!=getpid() || mode.faults || format.faults ||
+       mode.busy || format.busy || mode.retained || format.retained || mode.guard_held || format.guard_held ||
+       !mode.ap_consumed || !mode.mode_applied || !mode.mode_consumed || !mode.mode_cycle ||
+       !format.ap_consumed || !format.completed_cycles || !format.cycle ||
+       mode.model_instance!=instance || mode.mode_model_instance!=instance || format.model_instance!=instance ||
+       mode.config_generation>generation || mode.mode_config_generation>generation || format.config_generation>generation)return -ESTALE;
+    if(fnv(mode.mode_wire,sizeof mode.mode_wire)!=mode.mode_wire_fnv ||
+       fnv(mode.mode_canonical32,sizeof mode.mode_canonical32)!=mode.mode_canonical_fnv ||
+       !fcam_startup_control_validate_basic(mode.mode_canonical32) ||
+       memcmp(mode.mode_wire+8,mode.mode_canonical32+4,16))return -EBADMSG;
+    const uint8_t *m=mode.mode_wire;
+    if(m[0]!=5 || u16(m+2)!=0x4014 || format.origin.command!=0x402d ||
+       format.origin.source!=0x80020002 || format.origin.destination!=0x90030001)return -EBADMSG;
+    unsigned raw=m[16]==2 && m[17]==0;
+    if(!raw && !(m[16]==1 && m[17]==0))return -ENOTSUP;
+    if(raw && (format.canonical16[6]!=0 || format.canonical16[7]!=1 ||
+               format.canonical16[12]!=0 || format.canonical16[13]!=1))return -ENOTSUP;
+    if(!remember && (job.raw!=raw || job.mode_cycle!=mode.mode_cycle || job.format_cycle!=format.cycle))return -ESTALE;
+    if(remember){job.raw=raw;job.mode_cycle=mode.mode_cycle;job.format_cycle=format.cycle;}
+    return 0;
+}
+int functional_capture_raw_writer_current(struct capture_output_memory *output,uint64_t *serial,uintptr_t *base,uint64_t *generation){
+    if(!output || !serial || !base || !generation || process() || !atomic_load(&enabled))return -EINVAL;
+    pthread_mutex_lock(&mutex);
+    int rc=job.output!=output || !job.raw || !job.input || !state.job || state.error ||
+        state.resources_released || !job.export_token || !original.base || !job.memory_generation?-ESTALE:0;
+    if(!rc){*serial=state.job;*base=original.base;*generation=job.memory_generation;}
+    pthread_mutex_unlock(&mutex);return rc;
+}
+void functional_capture_raw_writer_fault(int rc){fault(rc);}
+void functional_capture_raw_native_event(struct capture_output_memory *output,uint64_t serial,
+        uintptr_t base,uint64_t generation,int returning,int native_result){
+    int saved=errno;
+    if(process() || !atomic_load(&enabled)){errno=saved;return;}
+    pthread_mutex_lock(&mutex);
+    int valid=output && job.output==output && job.raw && job.input && state.job==serial &&
+        !state.error && !state.resources_released && job.export_token && original.base==base &&
+        job.memory_generation==generation;
+    void (*logger)(const char *,const char *)=valid && job.raw_native_notes<8?job.io.record:NULL;
+    if(logger)++job.raw_native_notes;
+    /* Latch under the identity check so a late return cannot fault another job. */
+    int failed=valid && returning && native_result;
+    if(failed){state.error=-EREMOTEIO;state.phase=FAULT;pthread_cond_broadcast(&wake);}
+    pthread_mutex_unlock(&mutex);
+    if(logger){char text[320];snprintf(text,sizeof text,
+        "operation=RecordStill-%s pid=%d job=%llu generation=%llu libmpr_base=%#llx native_result=%d rc=%d capture_verified=0",
+        returning?"return":"entry",getpid(),(unsigned long long)serial,(unsigned long long)generation,
+        (unsigned long long)base,native_result,failed?-EREMOTEIO:0);
+        logger("FUNCTIONAL_CAMERA_RAW_NATIVE ",text);}
+    if(failed)note("fault-retained",-EREMOTEIO);
+    errno=saved;
+}
+static int prepare_raw(void){
+    struct capture_input_info source;int rc=capture_input_info(job.input,&source);if(rc)return rc;
+    if(source.width!=7008 || source.height!=4672)return -ENOTSUP;
+    rc=capture_format(source.model_instance,source.config_generation,0);if(rc)return rc;
+    const char *profile=getenv("A7C2_VIRTUAL_CMOS_PROFILE");
+    if(profile && !strcmp(profile,"legacy-checker"))return -ENOTSUP;
+    if(!profile || !*profile)profile="virtual-cmos-v1";
+    struct capture_output_raw_input raw={0};
+    rc=functional_capture_raw_native_metadata(job.output,&source,profile,&raw);if(rc)return rc;
+    if(raw.pixels || raw.preview || raw.thumbnail)return -EBADMSG;
+    struct capture_output_span preview,thumb;
+    rc=capture_output_memory_span(job.output,CAPTURE_OUT_MAIN,&preview);if(rc)return rc;
+    rc=capture_output_memory_span(job.output,CAPTURE_OUT_THUMB,&thumb);if(rc)return rc;
+    if(preview.generation!=thumb.generation || preview.bytes>SIZE_MAX-2)return -ESTALE;
+    uint8_t *jpeg=malloc(preview.bytes+2);if(!jpeg)return -ENOMEM;
+    jpeg[0]=255;jpeg[1]=216;memcpy(jpeg+2,(const void *)preview.cpu,preview.bytes);
+    sensor_config cfg;rc=sensor_config_parse(SENSOR_PROFILE_FULL,&cfg);
+    if(rc){free(jpeg);return rc;}
+    uint64_t index=source.frame_generation&UINT64_C(0xffffffff);if(!index)index=1;
+    sensor_frame_token token=((uint64_t)cfg.generation<<32)|index;
+    if(!sensor_token_valid(&cfg,token)){free(jpeg);return -ESTALE;}
+    uint16_t *bayer=sensor_frame_bayer(&cfg,token);
+    if(!bayer){free(jpeg);return -ENOMEM;}
+    size_t samples=(size_t)source.width*source.height;
+    /* Work on a handoff copy; the original immutable JPEG input is untouched. */
+    for(size_t i=0;i<samples;++i){uint16_t value=sensor_bayer_unpack(bayer[i]);p16((uint8_t *)bayer+2*i,value);}
+    raw.pixels=bayer;raw.pixel_bytes=samples*2;
+    raw.preview=jpeg;raw.preview_bytes=preview.bytes+2;
+    raw.thumbnail=(const void *)thumb.cpu;raw.thumbnail_bytes=thumb.bytes;
+    raw.frame_token=source.token;raw.model_instance=source.model_instance;
+    raw.model_lifetime=source.model_lifetime;raw.config_generation=source.config_generation;
+    raw.request_fnv1a64=source.request_fnv1a64;raw.request_cookie=source.request_cookie;raw.request_trigger=source.request_trigger;
+    rc=capture_output_memory_add_raw(job.output,&raw);
+    free(bayer);free(jpeg);
+    if(!rc)rc=functional_capture_raw_native_writer_arm(job.output);
+    return rc;
+}
+static int capture_frame_expand(uint8_t **frame,size_t capacity,size_t transferred,int raw){
+    if(transferred<FCAM_FRAME_HEADER_BYTES || transferred>capacity ||
+       capacity<FCAM_FRAME_HEADER_BYTES || u64(*frame+64)!=capacity-FCAM_FRAME_HEADER_BYTES)return -EBADMSG;
+    uint32_t format=u32(*frame+60);
+    if(format==FCAM_PIXELS_RGB888)return transferred==capacity?0:-EBADMSG;
+    if(!raw || format!=FCAM_PIXELS_RGB888_RLE || transferred==FCAM_FRAME_HEADER_BYTES)return -EBADMSG;
+    uint8_t *decoded=malloc(capacity);if(!decoded)return -ENOMEM;
+    memcpy(decoded,*frame,FCAM_FRAME_HEADER_BYTES);
+    int rc=fcam_rgb_unpack(*frame+FCAM_FRAME_HEADER_BYTES,transferred-FCAM_FRAME_HEADER_BYTES,
+        decoded+FCAM_FRAME_HEADER_BYTES,(capacity-FCAM_FRAME_HEADER_BYTES)/3u);
+    if(rc){free(decoded);return rc;}
+    p32(decoded+60,FCAM_PIXELS_RGB888);
+    free(*frame);*frame=decoded;return 0;
+}
 static int execute_job(void){
     uint8_t model[FCAM_STATE_BYTES]={0};struct fcam_bridge_result result={0};
     int rc=admit_frame(model,&result);if(rc)return rc;
+    rc=capture_format(u64(model+48),u64(model+56),1);if(rc)return rc;
     uint8_t photo[FCAM_STATE_BYTES]={0};struct fcam_bridge_result photo_result={0};
     rc=fcam_bridge_call(&job.origin,FCAM_OP_CAPTURE_STATE,job.request,16,photo,sizeof photo,&photo_result);
     if(rc)return rc;
@@ -331,7 +449,8 @@ static int execute_job(void){
     rc=fcam_bridge_call(&job.origin,FCAM_OP_FRAME_CAPTURE,job.request,16,frame,capacity,&result);
     if(rc){free(frame);return rc;}
     pthread_mutex_lock(&mutex);state.frame_acquired=1;state.frame_token=u64(frame+8);state.model_instance=u64(frame+16);state.phase=FRAME;pthread_mutex_unlock(&mutex);
-    if(result.used!=capacity || result.required!=capacity || u64(frame+16)!=u64(model+48) || u64(frame+32)!=u64(model+56)){free(frame);return -ESTALE;}
+    if(result.used!=result.required || u64(frame+16)!=u64(model+48) || u64(frame+32)!=u64(model+56)){free(frame);return -ESTALE;}
+    rc=capture_frame_expand(&frame,capacity,result.used,job.raw);if(rc){free(frame);return rc;}
     uint8_t parameters[128]={0};parameters[0x63]=8;parameters[0x70]=2;p16(parameters+0x68,width);p16(parameters+0x6a,height);
     /* This P128 is the declared software single-JPEG policy. It does not
      * represent Sony CP settings or infer unknown ASIC packing. */
@@ -352,6 +471,7 @@ static int execute_job(void){
     if(sent!=1)return -EIO;
     rc=wait_terminal(1);if(rc)return rc;
     rc=finish_encoding();if(rc)return rc;
+    if(job.raw){rc=prepare_raw();if(rc)return rc;}
     time_t seconds=time(NULL);struct tm t;if(seconds<0 || !gmtime_r(&seconds,&t) || t.tm_year<70 || t.tm_year>8099)return -ERANGE;
     uint8_t local[12]={0};p16(local+2,(unsigned)t.tm_year+1900);local[4]=(uint8_t)(t.tm_mon+1);local[5]=(uint8_t)t.tm_mday;
     local[6]=(uint8_t)t.tm_hour;local[7]=(uint8_t)t.tm_min;local[8]=(uint8_t)t.tm_sec;
@@ -505,9 +625,14 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
     unsigned slot=0;while(slot<16 && job.inflight[slot].pointer)++slot;
     if(slot==16){pthread_mutex_unlock(&mutex);*result=-ENOSPC;return 1;}
     int senc=source==0x80550123 && (op==0x24 || op==0x25),owned=0;
-    int output_request=job.output && ((handle&UINT32_C(0xff000000))==UINT32_C(0x68000000) ||
-        (op==0x20 && (u32(q+4)==0x80d61 || u32(q+4)==0x27f) && job.save &&
-         (state.phase==DELIVERING || state.phase==WAIT_SAVE)));
+    int allocation=0;
+    if(job.output && op==0x20 && job.save && (state.phase==DELIVERING || state.phase==WAIT_SAVE))
+        for(unsigned role=CAPTURE_OUT_HEADER;role<=CAPTURE_OUT_AUX;++role){
+            struct capture_output_span span;
+            if(!capture_output_memory_span(job.output,(enum capture_output_role)role,&span) && span.unit_type==u32(q+4))allocation=1;
+        }
+    int output_request=job.output && (((handle&UINT32_C(0xff000000))==UINT32_C(0x68000000) ||
+        (handle&UINT32_C(0xff000000))==UINT32_C(0x69000000)) || allocation);
     if((job.retained_dmm || job.retained_dmm_reply) && (senc || output_request)){
         pthread_mutex_unlock(&mutex);*result=-EBUSY;return 1;
     }
@@ -548,6 +673,10 @@ int functional_capture_dmm(unsigned destination,void *message,const struct full_
             for(unsigned i=0;i<CAPTURE_OUT_COUNT;++i){
                 struct capture_output_span span;
                 if(!capture_output_memory_span(job.output,(enum capture_output_role)i,&span) && span.handle==handle){output_unit=span.unit_type;break;}
+            }
+            if(!output_unit && job.raw)for(unsigned i=0;i<CAPTURE_RAW_COUNT;++i){
+                struct capture_output_span span;
+                if(!capture_output_memory_raw_span(job.output,(enum capture_output_raw_role)i,&span) && span.handle==handle){output_unit=span.unit_type;break;}
             }
         }
         rc=capture_output_memory_reply(job.output,q,mapbase,reply);owned=1;
@@ -604,14 +733,19 @@ int functional_capture_native_dma(void *destination,void *source,uint32_t bytes)
         rc=process();if(rc){errno=saved;return rc;}
         pthread_mutex_lock(&mutex);
         if(job.output){
-            struct capture_output_span header,thumb;
-            rc=capture_output_memory_span(job.output,CAPTURE_OUT_HEADER,&header);
-            if(!rc)rc=capture_output_memory_span(job.output,CAPTURE_OUT_THUMB,&thumb);
-            if(!rc)owned=(uintptr_t)source==thumb.alias || ((uintptr_t)destination>=header.alias &&
-                (uintptr_t)destination-header.alias<header.capacity);
+            for(unsigned i=0;i<CAPTURE_OUT_COUNT+CAPTURE_RAW_COUNT;++i){
+                struct capture_output_span span={0};
+                int span_rc=i<CAPTURE_OUT_COUNT?
+                    capture_output_memory_span(job.output,(enum capture_output_role)i,&span):
+                    capture_output_memory_raw_span(job.output,(enum capture_output_raw_role)(i-CAPTURE_OUT_COUNT),&span);
+                if(!span_rc && span.handle && span.alias && span.capacity){
+                    uint64_t src=(uintptr_t)source,dst=(uintptr_t)destination;
+                    owned|=(src>=span.alias && src-span.alias<=span.capacity) ||
+                        (dst>=span.alias && dst-span.alias<=span.capacity);
+                }
+            }
             if(owned){
-                if((uintptr_t)__builtin_return_address(0)!=original.base+0x275ad4 ||
-                   (state.phase!=DELIVERING && state.phase!=WAIT_SAVE) || !job.save)rc=-EPERM;
+                if((state.phase!=DELIVERING && state.phase!=WAIT_SAVE) || !job.save)rc=-EPERM;
                 else{uint64_t readback=0;rc=capture_dma_thumbnail(job.output,(uintptr_t)destination,(uintptr_t)source,bytes,&readback);
                     if(!rc && job.io.record){logger=job.io.record;snprintf(text,sizeof text,
                         "pid=%d job=%llu frame_token=%#llx bytes=%u readback_fnv=%016llx actual_consumed=1 physical_ASIC_verified=0 capture_verified=0",

@@ -1,0 +1,88 @@
+{
+  "schema": "a7c2-33mp-raw-final-host-v1",
+  "status": "PASS_AFFECTED_HOST_CHECKS_AND_V7_BUILD",
+  "workers": 2,
+  "groups": 2,
+  "results": {
+    "owners": {
+      "passed": 557,
+      "skipped": 0,
+      "subtests_passed": 8,
+      "failed": 0,
+      "errors": 0,
+      "junit_testcases": 557,
+      "pytest_summary": "557 passed, 8 subtests passed in 13.81s",
+      "junit_sha256": "fd4fb8e3270fd6078623a4e9a4ec7c1ec660364728f635f49618025d84b32010",
+      "stdout_sha256": "8713a6ffb7892eb392f89de81bb39c3142122c3547a2c024576cb767190827bb",
+      "returncode": 0
+    },
+    "pixels": {
+      "passed": 815,
+      "skipped": 0,
+      "subtests_passed": 7,
+      "failed": 0,
+      "errors": 0,
+      "junit_testcases": 815,
+      "pytest_summary": "815 passed, 7 subtests passed in 97.31s (0:01:37)",
+      "junit_sha256": "3a760fb93a7d77838194ceb8fc5ee692d5f37a63e894244d5a36677d4307b093",
+      "stdout_sha256": "f0aaab1a120ae4e6105161b5902bd522b43aa321dbd22454d810432ad6c0ba24",
+      "returncode": 0
+    }
+  },
+  "passed": 1372,
+  "skipped": 0,
+  "subtests_passed": 15,
+  "failed": 0,
+  "errors": 0,
+  "coverage": [
+    "RAW contracts/input/export",
+    "lossless RLE transport",
+    "DMA copies",
+    "ARW AUX capacity",
+    "serializer pointer/destructor restoration",
+    "original JPEG regression",
+    "four corrected fixtures"
+  ],
+  "acceptance_result_sha256": "c3677f80d4e4f32c067e8513cc8b84cfcb0946044b7bc7338be9493e028e985a",
+  "source_readback_returncode": 0,
+  "build": {
+    "version": "v7",
+    "observer_sha256": "eb4c904d7437284537d947e60111e1003a8a4092ab171600922c792cd6610b27",
+    "diagnostic_receipt_sha256": "eba4947d3edd576a69b5fa540c63516c83ab181791412823630b1d58f22c7fe8",
+    "source_archive_sha256": "f62434a653584b7aee0d1b066750e7d5897b9761838fd9bc00650295efca1053",
+    "overlay_sha256": "477f610d0feb2119aaee86e8f721dc6c8b7ed8c7b65ec8ce76be8bf16c840544",
+    "overlay_bytes": 1492735136,
+    "overlay_verified": true
+  },
+  "earlier_public_suite": {
+    "evidence": "scratch/a7c2-full-resolution-v1/raw-final-acceptance-1",
+    "host_passed": 682,
+    "host_failed": 3,
+    "host_skipped": 49,
+    "host_subtests_passed": 113,
+    "models_collection_error_preserved": true,
+    "full_public_suite_completed": false,
+    "old_failures_unchanged": true
+  },
+  "earlier_affected_attempt": {
+    "owner_fixture_failures": 3,
+    "pixels_timed_out": true,
+    "original_evidence_retained": true
+  },
+  "runtime_reference": "33mp-uncompressed-raw-runtime-20261120.json",
+  "native_RAW117_write_readback_and_LibRaw_decode_verified": true,
+  "qemu_system_executed": false,
+  "new_VM_run": false,
+  "v7_guest_cleanup_retested": false,
+  "serializer_cleanup_fix_verified": "host only",
+  "original_RAW117_cleanup_error": "-EPROTO",
+  "resources_retired_verified": false,
+  "strict_capture_verified": false,
+  "capture_verified": false,
+  "deferred": [
+    "new guest cleanup/lifecycle run",
+    "complete public suite",
+    "default-window capture integration",
+    "physical CP/ISP/CMOS compatibility"
+  ]
+}

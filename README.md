@@ -2,34 +2,39 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-**目前可以操作菜单，并已在隔离实验配置下完成默认虚拟CMOS的33MP（7008×4672帧）拍摄→原厂JPEG写卡：`DSC00001.JPG` 总长1,265,729B，原Fsys写入回调与完成通知均返回0。显式虚拟CMOS软件预览已在原厂主界面实际上屏（下图）；默认窗口入口的拍摄接线仍待完成。**
+默认窗口提供原厂界面、菜单、机身按键和虚拟存储。33 MP JPEG 与未压缩 RAW 写卡使用独立的实验配置，尚未接入默认窗口。
 
-第110b轮按用户约定的“JPG写到卡上就算完成”判据记为写卡完成，见[33MP写卡收据](validation/33mp-jpeg-card-write-20261120.json)。原P4的120秒等待失败保留；本轮整卡导出、文件独立解码与owner正常关闭尚未完成，严格 `capture_verified=false` 保持。RAW/ARW和录像仍未完成。
+![原厂界面叠加虚拟 CMOS 色卡](docs/images/virtual-cmos-ui-hud-20261120.png)
 
-![原厂UI主界面实际显示虚拟CMOS色卡，QMP直接截图](docs/images/virtual-cmos-ui-hud-20261120.png)
-
-上图是第110b轮同一guest的实际RAMFB画面：虚拟CMOS色卡在guest显示消费者中与原厂HUD透明层合成，再由QMP直接截图，未后期贴图。[实跑收据](validation/virtual-cmos-ui-preview-20261120.json)记录实际主界面通过、菜单往返未通过；原CP/YC视频传输和物理ISP仍未验证。预览使用显式 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1`，原始OSD数据保持不变。此前[默认启动原界面](docs/images/default-startup-20261108.png)及[收据](validation/default-startup-20261108.json)、[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用2.01 ALLLANG BODYDATA与固定QEMU源码构建。
+这是 QEMU RAMFB 的直接截图。实验预览由 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1` 显式开启，在原厂 HUD 透明层后合成虚拟色卡，不修改原始 OSD。它是软件预览，不模拟原 CP 的 YC 视频通路或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
 ## 能做什么
 
 - **运行原厂程序**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核。
-- **查看原厂界面**：显示相机的 LCD 画面，可以选择简体中文、浏览菜单。拍摄主界面已有短时运行验证，完整启动和长期稳定性仍在完善。
-- **LCD 触屏**：在相机画面内按住鼠标左键点击或拖动，松开结束；也接收 GDK 单指触摸。原 AP 的坐标事件、菜单响应和正常退出已验收，[用法与边界](report/2026-11-11-touchscreen/README.md)。物理触屏设备及多指手势未验证。
-- **操作机身控制**：窗口提供主要按键和拨盘。连续 LCD 已与输入队列分开，原 App32 使用常驻发送器；本轮 12 个真实窗口样本中位数 97.3ms，最大 121.1ms，严格 100ms 目标尚未全过。原按压/释放与完整帧校验保留，[实现和验证范围](docs/tech/2026-11-07-low-latency.md)。拍摄相关功能还没有全部接通。
-- **使用 1GiB 虚拟 SD 卡**：新原 cold 实例默认使用 1GiB FAT16 普通虚拟卡；原厂程序可以写入相机数据库等文件，支持安全拔出、重新插入，以及正常关闭后的卡镜像保存。
-- **隔离拍摄写卡（已完成）**：在显式 `functional-ram-card-independent-internal-v1` 实验配置下，第110b轮自然0x4038请求取得7008×4672虚拟CMOS帧，原厂MainComp编码主图1,204,289B、缩略图2,005B；原Fsys将 `A:/DCIM/100MSDCF/DSC00001.JPG`（1,265,729B）写入1GiB虚拟卡，提交、写回调和完成通知均返回0。见[33MP写卡收据](validation/33mp-jpeg-card-write-20261120.json)和[拍摄证据报告](report/functional-camera-evidence/p1-candidate184.md)。本轮卡内独立解码、整卡导出和owner正常关闭尚未完成；此前640×480的[真实卡内成片](docs/images/captured-dsc00001-20261120.jpg)已有完整导出与独立解码证据。默认 `./start.sh` 入口尚未接入该拍摄链；RAW、录像、机身全按快门与物理CMOS仍未完成。
-- **保留部分设置**：语言和日期格式已验证可以跨次启动恢复。全部设置、首次设置完成状态还没有完整保存，重新启动时可能再次出现首设。
-- **修改运行环境**：可以用 `overwrite/` 替换本次运行使用的程序或库，或在“固件开发”中暂存文件、选择下次使用原版，并核对实际 guest 的完整文件摘要、长度和权限。已有原 AP 文件读回与正常保存退出验证，见[验收收据](validation/firmware-file-native-20261108.json)。
+- **查看原厂界面**：显示相机 LCD，可用简体中文完成首设并浏览菜单。
+- **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸。不支持多指手势。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
+- **操作机身控制**：窗口提供主要按键和拨盘。连续 LCD 与输入使用独立队列；输入由常驻发送器送到原厂应用，保留按下与释放事件。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
+- **使用虚拟 SD 卡**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入，以及正常关闭后的卡镜像保存。
+- **保留部分设置**：可以跨启动保留语言和日期格式；首次设置仍可能再次出现。
+- **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
-虚拟感光元件、软件镜头、对焦和JPEG／H.264编码已有实现与组件测试。拍摄功能模型默认使用[虚拟CMOS的Bayer→RGB帧源](report/virtual-sensor/README.md)，显示帧保持640×480，原生L照片帧为7008×4672，无需额外环境开关。当前场景已改为自产彩色色块、灰阶与细节方格，后续RAW也将使用同一Bayer源。
+## 虚拟 CMOS 与静态照片
+
+实验配置 `functional-ram-card-independent-internal-v1` 使用[虚拟 CMOS](report/virtual-sensor/README.md)生成 GRBG Bayer 色卡，显示帧为 640×480，L 尺寸照片为 7008×4672。固件负责 JPEG 编码、ARW 封装和 Fsys 写卡。未压缩 RAW 在原厂菜单选择 `RAW-only`、`L` 和 `UNCOMPRESS`，输出到虚拟卡的 `DCIM/100MSDCF/`。
+
+![原虚拟卡ARW经独立LibRaw解码后的缩小预览](docs/images/captured-raw-dsc00001-20261120.png)
+
+上图为虚拟卡中 `DSC00001.ARW` 经 LibRaw 解码后缩至 900×600 的预览。ARW 使用 `Compression=1`，以小端 16 位容器保存 14 位 GRBG 样本，行跨度为 14,016 字节。图中两条黑白横带是色卡的细节图案。
+
+RAW 模式可以在宿主和 guest 之间使用无损 RLE 传送 RGB 帧，guest 还原完整像素后再交给原厂消费者。RLE 不改变 ARW 的未压缩格式，也不模拟相机内部总线。
 
 [![33MP虚拟CMOS色卡的600×400缩小预览（宿主模型生成）](docs/images/virtual-cmos-color-chart-preview.png)](docs/images/virtual-cmos-color-chart.png)
 
-[查看完整7008×4672色卡PNG](docs/images/virtual-cmos-color-chart.png)：直接调用当前传感器模型的全像素配置，经GRBG Bayer采样和RGB解码生成，不是640×480放大；本体没有附加标注画布，来源写在PNG元数据中。上方仅为同一33MP图的600×400缩小预览。此图由宿主生成，并非原厂程序写卡成片；色卡版本尚未取得原厂写卡证据。此前第107轮默认CMOS的[真实卡内成片](docs/images/captured-cmos-dsc00001-20261120.jpg)及[同轮完整读回收据](validation/default-cmos-runtime-20261120.json)保留；本次实际UI预览见页首截图。
+[完整 7008×4672 色卡](docs/images/virtual-cmos-color-chart.png)由宿主传感器模型直接生成，是输入场景示意，不是固件写卡成片。
 
-默认窗口入口的拍摄接线与RAW／录像仍在推进；隔离第110b轮已完成33MP帧的原厂JPEG写卡，卡内独立解码另待核验。HUD显示的33M设置本身不作为输出分辨率证据。
+RAW 写卡后的资源清理仍属于实验范围。RAW＋JPEG、其他 RAW 压缩模式和录像写卡不在当前支持范围内。
 
 ## 怎么运行
 
@@ -73,8 +78,6 @@ A7C2_VIRTUAL_HCI= ./start.sh --bodydata /path/to/BODYDATA.DAT
 
 也可以把固件放到 `incoming/bodydata/BODYDATA.DAT`，以后直接执行 `./start.sh`。
 
-当前无参数 `./start.sh` 已在独立产品副本实际完成原 init 冷启动、中文首设、HUD、原菜单往返和保存退出；首个合成 LCD 改用原启动预算的剩余时间，避免固定 15 秒过早失败。见[默认入口实跑与修复](docs/tech/2026-11-09-default-cold-entry.md)及[收据](validation/default-original-cold-entry-20261109.json)。此前 direct-bootin 默认入口的记录保留在[2026-11-08 收据](validation/default-after-integration-20261108.json)，文件测试和同盘恢复见[窗口集成记录](docs/tech/2026-11-09-original-cold-window.md)。
-
 ## 原 init 冷启动
 
 默认 `./start.sh` 和窗口 ON 使用原用户态冷启动：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，再启动原相机程序。原有兼容路线仍可显式选择：
@@ -90,11 +93,11 @@ python3 tools/run-original-cold.py --new-instance \
   --output runtime/diagnostics/my-original-cold --seconds 180
 ```
 
-CLI 创建专属内部盘，输出目录必须不存在。窗口默认使用自己的持久内部盘；CLI 与窗口分别验收。原 BootROM、loader、CP、WBI 和完整硬件上电仍未完成，详见[原冷启动复现](docs/tech/2026-11-09-original-cold-boot.md)与[窗口集成记录](docs/tech/2026-11-09-original-cold-window.md)。
+CLI 创建专属内部盘，输出目录必须不存在。窗口默认使用自己的持久内部盘。原 BootROM、loader、CP、WBI 和完整硬件上电仍未完成，详见[原冷启动复现](docs/tech/2026-11-09-original-cold-boot.md)与[窗口集成记录](docs/tech/2026-11-09-original-cold-window.md)。
 
 ## 虚拟卡和设置
 
-新原 cold 默认卡为 **1GiB**；非零种子不会把整卡额外装入 initrd，完整读回与跨冷启动判据见[虚拟 SD 专题](docs/tech/2026-11-10-1g-sd.md)。
+新原 cold 默认卡为 **1 GiB**；使用非零种子时，不会把整卡额外装入 initrd。见[虚拟 SD 专题](docs/tech/2026-11-10-1g-sd.md)。
 
 关机时按 **OFF** 或关闭窗口，等待保存完成。默认虚拟卡保存为：
 
@@ -117,7 +120,7 @@ runtime/analysis/menu-runs/run-*/SD/card.img
 
 ## 内部持久磁盘与固件开发
 
-窗口的“固件开发”面板提供文件测试、启动测试和更新三个区域。RAM 会话已实际接通：停态选择后 ON，保存 RAM 并正常退出，再从同一内部盘恢复原程序与原菜单；见[窗口 RAM 使用与验收](docs/tech/2026-11-09-window-ram.md)及[收据](validation/window-ram-20261109.json)。独立 CLI 的[原恢复记录](docs/tech/2026-11-09-ram-restore.md)保留。完整 BODYDATA 更新正在继续集成，尚未通过。
+窗口的“固件开发”面板提供文件测试、启动测试和更新三个区域。要保留会话，可在停机状态选择 RAM 模式，再按 **ON**。保存 RAM 并退出后，可用同一内部盘恢复。见[窗口 RAM 模式](docs/tech/2026-11-09-window-ram.md)。RAM 恢复不是原厂 WBI；完整 BODYDATA 更新尚不支持。
 
 原冷启动默认使用并保留内部持久磁盘。兼容路线可以在停止 VM 后勾选“使用内部持久磁盘”，或者执行：
 
@@ -127,9 +130,9 @@ runtime/analysis/menu-runs/run-*/SD/card.img
 
 第一次会从自己的官方 BODYDATA 缓存创建单个内部磁盘文件，容量和19个卷的布局由官方分区表决定；用户区与两个 boot 区总计 1,962,934,272 字节。生成物保存在 `runtime/analysis/persistent-storage/`，已有实例不会在重启时重铺。只使用普通虚拟磁盘文件。
 
-持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。内部卷的重启与关闭结果见[开发与存储验收](docs/tech/2026-11-08-development-and-storage.md)。全部设置持久化仍未验证。
+持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。见[开发与存储说明](docs/tech/2026-11-08-development-and-storage.md)。完整设置持久化尚不支持。
 
-[官方启动流程复核](docs/tech/2026-11-08-boot-review.md)保留此前路线的差异。原 init/pivot 用户态冷链现已接到窗口 ON；原冷启动下的旧逻辑配置复位暂禁用，盘上设置保持。热 WBI 恢复仍未完成；已通过的限定 QEMU RAM roundtrip 不冒充 WBI。显式 Sony USB 候选已通过本机宿主 `054c:0336` 枚举、配置1／4个端点、原 jiritsu 七步认证、19B版本读取、worker Uid/Gid四列全零、preload中和读回及同轮保存退出；复现与边界见[USB报告](docs/tech/2026-11-09-usb-jiritsu.md)和[收据](validation/usb-jiritsu-20261109.json)。普通 AP 菜单 USB 启动和通用大OUT模型仍未完成；隔离配置下的33MP原厂JPEG写卡已完成，完整BODYDATA安装验收尚未通过。
+显式 USB 配置可在本机枚举 Sony USB 设备并通过 jiritsu 访问 guest。普通相机菜单中的 USB 启动和 MSC 尚未接通；配置与限制见 [USB 专题](docs/tech/2026-11-09-usb-jiritsu.md)。
 
 ## 替换程序或库
 
@@ -153,30 +156,12 @@ overwrite/
 
 替换不兼容的程序或库可能导致启动失败。
 
-## 接下来做什么
+## 技术文档
 
-当前优先级：1）加快启动速度；2）完善全像素（33MP）模拟与完成RAW写卡；3）视频录制写卡。隔离第110b轮已完成33MP CMOS帧的原厂JPEG写卡；独立卡内解码、完整导出与正常退出另计，RAW尚未写卡。取景、媒体数据库语义、完整设置持久化和 USB 枚举仍有未完成项。固件更新与完整启动链的研究继续在研究仓库维护，尚未集成的实验不会作为本产品的第二套启动源码分发。
-
-当前产品保留原生界面、按键、拨盘、虚拟 SD 与已接入的功能模型。
-
-- **实时取景**：显式functional软件预览已在原厂HUD实际显示虚拟CMOS场景；LCD为640×480，照片源为7008×4672。默认窗口接线和原CP/YC视频通路仍待完成。
-- **镜头和拍摄参数**：让原厂程序实际控制软件镜头、对焦、曝光等设置。
-- **RAW**：实现 Bayer 原始采样与 ARW 封装链，未完成前不能把改后缀当 RAW。
-- **录像**：接通录制开始、停止、编码和文件收尾，保存能正常播放的 MP4。
-- **日常操作**：补齐剩余按键、拨盘、声音和设置保存，检查长时间运行和反复开关机。
-
-## 研究文档
-
-- [开发面板与单盘集成](docs/tech/2026-11-08-development-and-storage.md)：文件测试和原 guest 读回、自包含驱动构建、单盘实际验收与剩余阻塞。
-- [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：CLI、原 RAM0→init→pivot/chroot→init2→原 HUD／菜单；[窗口接线](docs/tech/2026-11-09-original-cold-window.md)记录默认 ON、同盘文件开发和保存边界。
-- [官方启动流程复核](docs/tech/2026-11-08-boot-review.md)：逐阶段对照包内原 init/init2、挂载、原 AP 与默认产品路径差异。
-- [产品运行边界](docs/tech/2026-11-07-current-progress.md)：外部输入、已接入能力和仍未完成的功能。
-- [11月6日历史进展](docs/tech/2026-11-06-current-progress.md)：当时完整离线验收与4000／4057／4072失败；当次仅文档发布。
-- [11月4日研究进展](docs/tech/2026-11-04-current-progress.md)：原输入与13图的验收、403e／VDF剩余阻塞；上次文档发布。
-- [10 月 31 日历史进展](docs/tech/2026-10-31-current-progress.md)：上次源码移交时的原界面、数据消费和验证边界。
-- [图像源与显示配置](docs/tech/functional-source-and-display.md)：公开代码、软件策略和拍摄边界。
-- [开发进度与验证记录](validation/README.md)：已验证的功能、失败记录和仍未完成的部分。
-- [启动排障与技术笔记](docs/tech/README.md)：固件导入、启动、显示、输入、存储和成像的定位方法，也可供其它机型迁移参考。
-- [源码来源](SOURCES.md)与[第三方许可](THIRD-PARTY.md)。
+- [开发面板与单盘集成](docs/tech/2026-11-08-development-and-storage.md)：文件替换、启动与存储实现。
+- [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：从原 RAM0 经 `init`、根挂载和 `init2` 到相机应用的启动路径。
+- [图像源与显示配置](docs/tech/functional-source-and-display.md)：软件成像、显示与实验配置。
+- [启动排障与技术笔记](docs/tech/README.md)：固件导入、显示、输入、存储和成像。
+- [验证记录](validation/README.md)与[源码来源](SOURCES.md)、[第三方许可](THIRD-PARTY.md)。
 
 固件、私有设置、虚拟卡和运行时生成的二进制均不随源码分发。

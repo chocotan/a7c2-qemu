@@ -4,6 +4,7 @@ These tests intentionally do not invoke a compiler, QEMU or the shell builder.
 """
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,9 +13,10 @@ import tempfile
 
 import pytest
 
-import observer_private_inputs as private
-
 HERE = Path(__file__).resolve().parent
+spec = importlib.util.spec_from_file_location('observer_private_inputs_test', HERE / 'observer_private_inputs.py')
+private = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(private)
 
 
 def _newc(files):

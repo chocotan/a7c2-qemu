@@ -244,6 +244,7 @@
   "runtime/analysis/test_bb_timecode_main_wiring.py",
   "runtime/analysis/test_identity_refused.py",
   "runtime/analysis/test_functional_capture.py",
+  "runtime/analysis/test_functional_raw_contracts.py",
   "runtime/analysis/test_functional_capture_wiring.py",
   "runtime/analysis/test_functional_imaging_admission.py",
   "runtime/analysis/test_boot_flow.py",

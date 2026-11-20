@@ -14,15 +14,18 @@ struct capture_save;
 struct capture_save_info {
     int owner_pid,first_error;
     unsigned token,submitted,callback_seen,callback_returned,finished,readback,coverage;
-    unsigned write_readback_verified;
+    unsigned write_readback_verified,raw;
     uint64_t generation,frame_token,request_fnv1a64,main_fnv,bytes,file_fnv,cookie,path_fnv;
 };
 int capture_save_prepare(struct capture_output_memory *,uint64_t actual_callback_address,
     struct capture_save **out);
-/* 0=foreign request (no matching actual Main address), 1=accepted same-job write,
- * negative=matching but invalid/stale/ambiguous. All contributing spans must be
- * within this output owner and include the complete unchanged Main exactly once
- * as the final contribution; unknown/copied buffers are never inferred equal. */
+/* 0=foreign request (no matching actual JPEG Main or RAW pixel address),
+ * 1=accepted same-job write, negative=matching but invalid/stale/ambiguous.
+ * JPEG requires .JPG and its SOI; RAW requires .ARW and an original II header.
+ * All contributing spans must be owned and include the complete unchanged
+ * main payload exactly once as the final contribution. RAW only allows RAW
+ * groups and live native header/aux spans. This proves source/lifecycle,
+ * not TIFF/ARW semantic validity or independent decoder compatibility. */
 int capture_save_match(struct capture_save *,unsigned token,const struct fsys_write_layout *,
     const uint64_t actual_source_hashes[FSYS_WRITE_AREAS],const unsigned readable[FSYS_WRITE_AREAS]);
 /* Token0 is reserved for whole-trace coverage, using bytes as actual record count.

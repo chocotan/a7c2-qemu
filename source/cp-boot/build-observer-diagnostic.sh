@@ -8,7 +8,7 @@ build_parent="$product/source/build"
 [[ $# == 1 && "$1" == /* && "$(dirname -- "$1")" == "$build_parent" && ! -e "$1" && ! -L "$1" ]] || {
   echo 'Usage: build-observer-diagnostic.sh ABSOLUTE_NEW_CHILD_OF_SOURCE_BUILD' >&2; exit 2;
 }
-[[ "$(sha256sum "$analysis/build-observers.sh" | cut -d ' ' -f1)" == affe1ece63e45f24bc3c31b6328d6c378811a481de639ee19142197899764be3 ]] || {
+[[ "$(sha256sum "$analysis/build-observers.sh" | cut -d ' ' -f1)" == b7e7a39891345fc4d60eda0fc7fde0f4aa2ca940fd219f1f701da597403dd944 ]] || {
   echo 'Reviewed upstream observer recipe changed; inspect and update this isolated recipe' >&2; exit 1;
 }
 out="$1"
@@ -42,7 +42,7 @@ for device in vdf-device touch-panel-device tcin-device imaging-device vef-path-
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -isystem /usr/aarch64-linux-gnu/include -c "$vdf_dir/$device.c" -o "$objects/$device.o"
 done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include -c "$vdf_dir/system-sound-owner.c" -o "$objects/system-sound-owner.o"
-for owner in infrabb-registry osdpin-registry dig-level-device cp-periodic-service dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
+for owner in infrabb-registry osdpin-registry dig-level-device cp-periodic-service dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-capture-raw-blobs functional-capture-raw-writer raw-template functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
   owner_flags=()
   case "$owner" in functional-face-*) owner_flags=(-DFULL_IMAGING_GUEST);; esac
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/$owner.c" -o "$objects/$owner.o"
@@ -54,6 +54,7 @@ for capture in capture-output-memory capture-notifications capture-delivery capt
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -isystem /usr/aarch64-linux-gnu/include -I"$source_dir/../../report/functional-capture-input" -c "$source_dir/../../report/functional-capture-output/$capture.c" -o "$objects/$capture.o"
 done
 clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/../../report/functional-capture-queue/capture-resize-request.c" -o "$objects/capture-resize-request.o"
+clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/../../report/virtual-sensor/sensor-core.c" -o "$objects/sensor-core.o"
 for parser in native-video-binding/native-video native-video-paramsets/native-paramsets native-video-au-contract/native-au native-video-length-format/native-lengths; do
   clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics -fvisibility=hidden -ffunction-sections -fdata-sections -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/../../report/$parser.c" -o "$objects/${parser##*/}.o"
 done
@@ -73,7 +74,7 @@ for helper in pin-control-probe system-sound-owner; do
   cmp -- "$analysis/menu-root/simulation/$helper" "$out/menu-root/simulation/$helper"
 done
 sha256sum --check "$out/library-sha256sums"
-[[ "$(sha256sum "$analysis/build-observers.sh" | cut -d ' ' -f1)" == affe1ece63e45f24bc3c31b6328d6c378811a481de639ee19142197899764be3 ]]
+[[ "$(sha256sum "$analysis/build-observers.sh" | cut -d ' ' -f1)" == b7e7a39891345fc4d60eda0fc7fde0f4aa2ca940fd219f1f701da597403dd944 ]]
 python3 -B "$analysis/snapshot-observer-sources.py" "$out" "$out/snapshot" --finish
 python3 -B - "$out" "$analysis" "${BASH_SOURCE[0]}" "$recipe_sha" "$private_recipe" "$private_recipe_sha" <<'PY'
 import hashlib, json, os, pathlib, sys, tarfile

@@ -326,11 +326,32 @@ static void consumers(void)
     assert(still_format_domain(m) && !memcmp(m->still_format_config, input, 16));
     fcam_model_destroy(m);
 }
+static void raw_format_selection(void)
+{
+    struct fcam_model *m = setup(); uint8_t selected[16], out[176];
+    for (unsigned format = 0; format <= 1; ++format) {
+        memcpy(selected, input, 16); selected[7] = selected[13] = (uint8_t)format;
+        assert(fcam_still_format_input_valid(selected));
+        const struct fcam_model before = *m;
+        request(m, FCAM_OP_STILL_FORMAT, selected, 16, out, 176);
+        assert(still_format_domain(m) && !memcmp(m->still_format_config, selected, 16));
+        assert(!memcmp(out + 160, selected, 16) && get64(out + 40) == fnv(selected, 16));
+        assert(m->generation == before.generation + 1 && m->frame_generation == before.frame_generation + 1);
+        assert(!memcmp(&m->config, &before.config, sizeof m->config));
+        assert(!m->jpeg_encoded && !m->video_encoded && !m->result_data);
+    }
+    for (unsigned a = 0; a < 4; ++a) for (unsigned b = 0; b < 4; ++b) {
+        if (a == b && a <= 1) continue;
+        memcpy(selected, input, 16); selected[7] = (uint8_t)a; selected[13] = (uint8_t)b;
+        assert(!fcam_still_format_input_valid(selected)); rejected(m, selected, 16, 176, -ENOTSUP);
+    }
+    fcam_model_destroy(m);
+}
 int main(int argc, char **argv)
 {
     assert(argc == 2); av_log_set_level(AV_LOG_ERROR);
     if (!strcmp(argv[1], "success")) success();
-    else if (!strcmp(argv[1], "validation")) validation();
+    else if (!strcmp(argv[1], "validation")) { validation(); raw_format_selection(); }
     else if (!strcmp(argv[1], "faults")) faults();
     else { assert(!strcmp(argv[1], "consumers")); consumers(); }
     return 0;

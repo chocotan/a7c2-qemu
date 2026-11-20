@@ -27,6 +27,37 @@ checker = importlib.util.module_from_spec(_spec)
 exec(compile(_spec.loader.get_source(_spec.name), _spec.origin, 'exec'), checker.__dict__)
 
 
+class FrameRlePayload(unittest.TestCase):
+    @staticmethod
+    def frame(payload, pixel_format=2):
+        header = bytearray(96)
+        struct.pack_into('<4I', header, 48, 8, 1, 24, pixel_format)
+        struct.pack_into('<Q', header, 64, 24)
+        return bytes(header) + payload
+
+    def test_run_and_literal_preserve_all_original_pixels(self):
+        red, green, blue = b'\xff\x00\x00', b'\x00\xff\x00', b'\x00\x00\xff'
+        payload = struct.pack('<H', 0x8003) + red + struct.pack('<H', 0) + green + struct.pack('<H', 0x8002) + blue
+        self.assertEqual(checker.frame_rgb_pixels(self.frame(payload)), red * 4 + green + blue * 3)
+
+    def test_plain_frame_remains_compatible(self):
+        pixels = bytes(range(24))
+        self.assertEqual(checker.frame_rgb_pixels(self.frame(pixels, 1)), pixels)
+
+    def test_incomplete_overflow_and_trailing_records_are_rejected(self):
+        valid = struct.pack('<H', 0x8007) + b'\x01\x02\x03'
+        for payload in (b'', b'\x80', valid[:-1], valid + b'\x00',
+                        struct.pack('<H', 0x8008) + b'\x01\x02\x03',
+                        struct.pack('<H', 7) + b'\x01\x02\x03',
+                        struct.pack('<H', 0x8000) + b'\x01\x02\x03'):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                checker.frame_rgb_pixels(self.frame(payload))
+
+    def test_unknown_encoding_is_rejected(self):
+        with self.assertRaises(ValueError):
+            checker.frame_rgb_pixels(self.frame(bytes(range(24)), 3))
+
+
 # Complete public OBS text only, copied from run-jfz16a4v; never native acceptance.
 JFZ_VDF_RESOURCE_OBS = '''OBS FUNCTIONAL_VDF_PATH_RESOURCE_DEPENDENCIES pid=258 tid=381 accepted=1 proc_ap_consumed=1 input_ap_consumed=1 output_ap_consumed=1 output_faults=0 current_request_retained_expected=1 capture_verified=0
 OBS FUNCTIONAL_VDF_PATH_RESOURCES_TTS_TABLE pid=258 tid=381 appfw_base=0x7f25c3f000 table_va=0x5f66b08 address=0x7f2bba5b08 bytes=144 reads=144/144 unchanged=1 atomic_snapshot=0 raw_before=1a00000005040000000008000000000000802afe0400000000840000000008000000001e000000000060280b7e000000000008001d0000000060280b7e00000000000800000000001b000000060400000000080000000000008032fe0400000001840000000008000000081e000000000060200b7e000000000008001e0000000060200b7e0000000000080000000000 raw_after=1a00000005040000000008000000000000802afe0400000000840000000008000000001e000000000060280b7e000000000008001d0000000060280b7e00000000000800000000001b000000060400000000080000000000008032fe0400000001840000000008000000081e000000000060200b7e000000000008001e0000000060200b7e0000000000080000000000 ownership_verified=0

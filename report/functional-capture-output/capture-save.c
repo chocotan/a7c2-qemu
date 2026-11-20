@@ -9,6 +9,7 @@ struct capture_save {
     struct capture_output_memory *owner;
     struct capture_save_info info;
     struct capture_output_span main;
+    unsigned raw;
     uint64_t callback,lease;
 };
 static uint64_t hash_bytes(uint64_t h,const void *p,size_t n){const unsigned char *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*UINT64_C(1099511628211);return h;}
@@ -24,19 +25,26 @@ static int current(struct capture_save *s){
 int capture_save_prepare(struct capture_output_memory *owner,uint64_t callback,struct capture_save **out){
     if(!owner || !callback || !out || *out)return -EINVAL;
     struct capture_output_info info;int rc=capture_output_memory_info(owner,&info);if(rc)return rc;
-    struct capture_output_span main;rc=capture_output_memory_span(owner,CAPTURE_OUT_MAIN,&main);if(rc)return rc;
+    struct capture_output_span main;
+    rc=capture_output_memory_raw_span(owner,CAPTURE_RAW_PIXELS,&main);
+    unsigned raw=!rc;
+    if(rc==-ENODATA)rc=capture_output_memory_span(owner,CAPTURE_OUT_MAIN,&main);
+    if(rc)return rc;
     if(!main.bytes || main.bytes>main.capacity || main.generation!=info.generation)return -ESTALE;
     struct capture_save *s=calloc(1,sizeof *s);if(!s)return -ENOMEM;
     rc=capture_output_memory_hold(owner,&s->lease);if(rc){free(s);return rc;}
-    s->owner=owner;s->callback=callback;s->main=main;
+    s->owner=owner;s->callback=callback;s->main=main;s->raw=raw;
     s->info=(struct capture_save_info){.owner_pid=getpid(),.generation=info.generation,
-        .frame_token=info.frame_token,.request_fnv1a64=info.request_fnv1a64,.main_fnv=hash((const void *)main.cpu,main.bytes)};
+        .frame_token=info.frame_token,.request_fnv1a64=info.request_fnv1a64,.raw=raw,.main_fnv=hash((const void *)main.cpu,main.bytes)};
     *out=s;return 0;
 }
-static int jpeg_path(const char *path,size_t length){
+static int media_path(const char *path,size_t length,unsigned raw){
     if(length<7 || path[0]<'A' || path[0]>'Z' || path[1]!=':' || path[2]!='/')return 0;
-    const char *suffix=path+length-4;return suffix[0]=='.' && (suffix[1]=='j' || suffix[1]=='J') &&
-        (suffix[2]=='p' || suffix[2]=='P') && (suffix[3]=='g' || suffix[3]=='G');
+    const char *suffix=path+length-4;
+    const char *extension=raw?"ARW":"JPG";
+    if(suffix[0]!='.')return 0;
+    for(unsigned i=0;i<3;++i){unsigned char c=(unsigned char)suffix[i+1];if(c>='a' && c<='z')c-=32;if(c!=(unsigned char)extension[i])return 0;}
+    return 1;
 }
 int capture_save_match(struct capture_save *s,unsigned token,const struct fsys_write_layout *layout,
     const uint64_t hashes[FSYS_WRITE_AREAS],const unsigned readable[FSYS_WRITE_AREAS]){
@@ -50,12 +58,25 @@ int capture_save_match(struct capture_save *s,unsigned token,const struct fsys_w
     rc=current(s);if(rc)return fault(s,rc);
     if(!token || s->info.token || main_count!=1)return fault(s,-EALREADY);
     const char *end=memchr(layout->path,0,sizeof layout->path);
-    if(!end || !jpeg_path(layout->path,(size_t)(end-layout->path)) || layout->callback!=s->callback ||
+    if(!end || !media_path(layout->path,(size_t)(end-layout->path),s->raw) || layout->callback!=s->callback ||
        !layout->cookie || layout->address_mode!=1 || layout->payload_bytes!=layout->expected_bytes ||
        layout->expected_bytes<=s->main.bytes || layout->expected_bytes>FSYS_WRITE_OBSERVATION_LIMIT)return fault(s,-EBADMSG);
     if(hash((const void *)s->main.cpu,s->main.bytes)!=s->info.main_fnv)return fault(s,-ESTALE);
-    struct capture_output_span spans[CAPTURE_OUT_COUNT];
-    for(unsigned i=0;i<CAPTURE_OUT_COUNT;++i){rc=capture_output_memory_span(s->owner,(enum capture_output_role)i,&spans[i]);if(rc)return fault(s,rc);}
+    struct capture_output_span spans[CAPTURE_OUT_COUNT+CAPTURE_RAW_COUNT];
+    unsigned span_count=s->raw?CAPTURE_RAW_COUNT:CAPTURE_OUT_COUNT;
+    unsigned main_role=s->raw?CAPTURE_RAW_PIXELS:CAPTURE_OUT_MAIN;
+    for(unsigned i=0;i<span_count;++i){
+        rc=s->raw?capture_output_memory_raw_span(s->owner,(enum capture_output_raw_role)i,&spans[i]):
+            capture_output_memory_span(s->owner,(enum capture_output_role)i,&spans[i]);
+        if(s->raw && i==CAPTURE_RAW_THUMB && rc==-ENODATA){memset(&spans[i],0,sizeof spans[i]);continue;}
+        if(rc)return fault(s,rc);
+    }
+    /* Native ARW may allocate its writable output prefix through real DMM. */
+    if(s->raw)for(unsigned role=CAPTURE_OUT_HEADER;role<=CAPTURE_OUT_AUX;++role){
+        rc=capture_output_memory_span(s->owner,(enum capture_output_role)role,&spans[span_count]);
+        if(rc)return fault(s,rc);
+        ++span_count;
+    }
     uint64_t submitted=0,payload=0,combined=UINT64_C(14695981039346656037);unsigned main_seen=0,first=1;
     for(unsigned i=0;i<layout->count;++i){
         const struct fsys_write_area *a=&layout->area[i];
@@ -66,17 +87,23 @@ int capture_save_match(struct capture_save *s,unsigned token,const struct fsys_w
         if(expected>a->submitted_bytes)expected=a->submitted_bytes;
         if(a->bytes!=expected || !readable[i])return fault(s,-EBADMSG);
         unsigned role=0;
-        for(;role<CAPTURE_OUT_COUNT;++role){
+        for(;role<span_count;++role){
             const struct capture_output_span *p=&spans[role];
-            if(a->address>=p->cpu && a->address-p->cpu<p->capacity &&
+            if(p->handle && p->generation==s->info.generation &&
+               (!s->raw || role<CAPTURE_RAW_COUNT || p->references) &&
+               a->address>=p->cpu && a->address-p->cpu<p->capacity &&
                a->submitted_bytes<=p->capacity-(a->address-p->cpu))break;
         }
-        if(role==CAPTURE_OUT_COUNT)return fault(s,-EXDEV);
+        if(role==span_count)return fault(s,-EXDEV);
         if(a->bytes){
             if(main_seen)return fault(s,-EBADMSG);
             const unsigned char *p=(const void *)(uintptr_t)a->address;
-            if(first){if(a->bytes<2 || p[0]!=255 || p[1]!=216)return fault(s,-EBADMSG);first=0;}
-            if(role==CAPTURE_OUT_MAIN){if(a->address!=s->main.cpu || a->bytes!=s->main.bytes)return fault(s,-EBADMSG);main_seen=1;}
+            if(first){
+                if(s->raw){if(a->bytes<8 || memcmp(p,"II\052\000\010\000\000\000",8))return fault(s,-EBADMSG);}
+                else if(a->bytes<2 || p[0]!=255 || p[1]!=216)return fault(s,-EBADMSG);
+                first=0;
+            }
+            if(role==main_role){if(a->address!=s->main.cpu || a->bytes!=s->main.bytes)return fault(s,-EBADMSG);main_seen=1;}
             if(hash(p,(size_t)a->bytes)!=hashes[i])return fault(s,-ESTALE);
             combined=hash_bytes(combined,p,(size_t)a->bytes);payload+=a->bytes;
         }else if(hashes[i]!=UINT64_C(14695981039346656037))return fault(s,-EBADMSG);

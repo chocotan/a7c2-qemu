@@ -1,0 +1,46 @@
+{
+  "schema": "a7c2-raw111-contract-fix-host-v1",
+  "status": "PASS_AFFECTED_HOST_CHECKS_AND_GUEST_BUILD_ONLY",
+  "scope": "RawInfo required thumbnail area9, native ARW preview prefix, original RecordStill error propagation",
+  "host": {
+    "workers": 2,
+    "groups": 2,
+    "first_attempt": {"passed": 194, "failed": 1},
+    "first_failure": "test-raw-writer.c invoked memset after the fixture had renamed its declaration",
+    "repair": "test fixture calls raw_test_memset; production code unchanged after the two-worker batch",
+    "targeted_retest": {"passed": 1, "failed": 0},
+    "unique_nodes_passed": 195,
+    "remaining_failures": 0,
+    "previous_failed_receipts_preserved": true
+  },
+  "native_failure_evidence": {
+    "run": "9ba1",
+    "frame_bytes_read_back": 98224224,
+    "native_RecordStill_return": 3,
+    "static_contract_gap": "RawInfo+0x90 was zero; original _check_error requires handle, bytes and unit_type",
+    "private_check_error_inferred_return": -5,
+    "private_check_error_return_dynamically_read": false,
+    "fsys_raw_write_seen": false
+  },
+  "fixes": [
+    "Publish the actual same-job JPEG thumbnail as required RawInfo area9; leave optional area19 empty",
+    "Retain native0xa2 prefix before the embedded preview JPEG SOI",
+    "Keep original RecordStill execution and return; report its nonzero return as an immediate identity-bound capture fault"
+  ],
+  "guest_observer_sha256": "44e3cd5340486ee3ecbc592a3593f821be90250a92538319b3f646c6092eef21",
+  "independent_initramfs_sha256": "a42623bb62aa35add4c21ec8becf4f5fa37e25ac3719f6d0c01219c74c49a845",
+  "raw_native_card_write_verified": false,
+  "independent_arw_decode_verified": false,
+  "next_consumer": "One fresh original-AP RAW112 capture with the fixed observer",
+  "user_authorized_old_qemu_termination": {
+    "instances": 20,
+    "exited": 20,
+    "signal": "SIGTERM",
+    "sigkill_used": false,
+    "normal_qmp_shutdown_claimed": false,
+    "old_capture_results_unchanged": true,
+    "old_disks_or_logs_deleted": false
+  },
+  "physical_cmos_compatible": false,
+  "real_device_written": false
+}

@@ -485,9 +485,12 @@ static int exchange(const struct fcam_native_origin *origin, uint32_t flags, uin
         !get64(r->data + 32) || !get64(r->data + 40) ||
         !get32(r->data + 48) || get32(r->data + 48) > FCAM_MAX_STILL_WIDTH ||
         !get32(r->data + 52) || get32(r->data + 52) > FCAM_MAX_STILL_HEIGHT ||
-        get32(r->data + 56) != get32(r->data + 48) * 3u || get32(r->data + 60) != 1 ||
+        get32(r->data + 56) != get32(r->data + 48) * 3u ||
+        (get32(r->data + 60) != FCAM_PIXELS_RGB888 && get32(r->data + 60) != FCAM_PIXELS_RGB888_RLE) ||
         get64(r->data + 64) != (uint64_t)get32(r->data + 56) * get32(r->data + 52) ||
-        r->total != FCAM_FRAME_HEADER_BYTES + get64(r->data + 64) ||
+        (get32(r->data + 60) == FCAM_PIXELS_RGB888 ?
+            r->total != FCAM_FRAME_HEADER_BYTES + get64(r->data + 64) :
+            (r->total <= FCAM_FRAME_HEADER_BYTES || r->total - FCAM_FRAME_HEADER_BYTES > get64(r->data + 64))) ||
         get32(r->data + 80) != get32((const unsigned char *)input + 4) ||
         r->data[84] != ((const unsigned char *)input)[8] || !zero_bytes(r->data + 85, 3) ||
         get64(r->data + 88) != fnv(input, input_bytes))) return -EPROTO;

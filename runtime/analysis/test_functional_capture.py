@@ -6,27 +6,46 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 REPORT = HERE.parents[1] / 'report'
+PRODUCT = next((p / 'final/a7c2-qemu' for p in HERE.parents
+                if (p / 'final/a7c2-qemu/runtime/analysis').is_dir()), HERE.parents[1])
+
+
+def source(relative):
+    candidate = HERE.parents[1] / relative
+    return candidate if candidate.is_file() else PRODUCT / relative
 
 
 @pytest.fixture(scope='module', params=[False, True], ids=['strict', 'sanitized'])
 def capture_binary(request, tmp_path_factory):
     work = tmp_path_factory.mktemp('capture-owner')
     flags = ['-std=c11', '-Wall', '-Wextra', '-Werror', '-pedantic', '-O1', '-g',
-             '-pthread', '-fno-pie', '-I', str(HERE)]
+             '-pthread', '-fno-pie', '-I', str(HERE),
+             '-I', str(PRODUCT / 'runtime/analysis'),
+             '-I', str(PRODUCT / 'runtime/analysis/device-models'),
+             '-I', str(REPORT / 'functional-capture-output'),
+             '-I', str(PRODUCT / 'report/functional-capture-output')]
     if request.param:
         flags += ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
     provider = work / 'memory-provider.o'
+    writer = work / 'raw-writer.o'
     commands = [
+        # POSIX dlsym interposition requires function/object pointer casts.
+        ['cc', *[f for f in flags if f != '-pedantic'], '-fno-builtin-memset',
+         '-c', str(HERE / 'functional-capture-raw-writer.c'), '-o', str(writer)],
         ['cc', *flags, '-Dmain=memory_fixture_unused_main', '-c',
-         str(HERE / 'test-functional-mpr-memory.c'), '-o', str(provider)],
-        ['cc', *flags, '-no-pie', str(HERE / 'test-functional-capture.c'), str(provider),
-         str(REPORT / 'functional-capture-input/capture-input.c'),
-         str(REPORT / 'functional-capture-output/capture-output-memory.c'),
-         str(REPORT / 'functional-capture-output/capture-notifications.c'),
-         str(REPORT / 'functional-capture-output/capture-delivery.c'),
-         str(REPORT / 'functional-capture-output/capture-save.c'),
-         str(REPORT / 'functional-capture-output/capture-dma.c'),
-         str(REPORT / 'functional-capture-queue/capture-resize-request.c'),
+         str(source('runtime/analysis/test-functional-mpr-memory.c')), '-o', str(provider)],
+        ['cc', *flags, '-no-pie', str(HERE / 'test-functional-capture.c'), str(provider), str(writer),
+         *[str(source('report/' + name)) for name in [
+             'functional-capture-input/capture-input.c',
+             'functional-capture-output/capture-output-memory.c',
+             'functional-capture-output/capture-notifications.c',
+             'functional-capture-output/capture-delivery.c',
+             'functional-capture-output/capture-save.c',
+             'functional-capture-output/capture-dma.c',
+             'functional-capture-queue/capture-resize-request.c',
+             'virtual-sensor/sensor-core.c']],
+         *[str(HERE / name) for name in [
+             'functional-capture-raw-blobs.c', 'raw-template.c']],
          '-ldl', '-o', str(work / 'capture')],
     ]
     for argv in commands:
@@ -35,7 +54,7 @@ def capture_binary(request, tmp_path_factory):
     return work / 'capture'
 
 
-@pytest.mark.parametrize('mode', range(48))
+@pytest.mark.parametrize('mode', range(56))
 def test_capture_ownership_and_real_transport_boundaries(capture_binary, mode):
     ran = subprocess.run([str(capture_binary), str(mode)], capture_output=True,
                          text=True, timeout=20)

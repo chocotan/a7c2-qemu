@@ -73,9 +73,14 @@ def test_shell_gates_precede_lock_and_qemu_resources():
     menu=(HERE/'run-menu-probe.sh').read_text()
     kernel=(HERE/'qemu-kernel-probe.sh').read_text()
     assert menu.index('single_ap_sockets.py')<menu.index('exec 9>>')
-    assert kernel.index('single_ap_sockets.py')<kernel.index('mkdir -p "$output_dir"')
+    assert menu.index('exec 9>>')<menu.index('exec python3 "$analysis_dir/original_cold_live.py"')
+    assert menu.index('exec 9>>')<menu.index('probe=(python3 "$analysis_dir/qemu-menu-probe.py"')
+    assert kernel.index('single_ap_sockets.py')<kernel.index('install -D')<kernel.index('mkdir -p "$output_dir"')
     assert "qemu_prefix=(/usr/bin/sh -c 'umask 0177; exec \"$@\"' sh)" in kernel
-    assert '"${qemu_prefix[@]}" "/tools/$binary_relative"' in kernel
+    assert 'ram_qemu_path="/tools/$binary_relative"' in kernel
+    assert 'ram_handoff_launch=(/usr/bin/env -u LD_LIBRARY_PATH /usr/bin/python3 -B /internal-disk-receiver.py' in kernel
+    launch = '"${ram_handoff_launch[@]}" "${qemu_prefix[@]}" "$ram_qemu_path"'
+    assert kernel.index('mkdir -p "$output_dir"')<kernel.index('runner=(exec)')<kernel.index('bwrap --unshare-all')<kernel.index(launch)
     assert 'runner=(exec)' in kernel and 'timeout --signal=TERM' not in kernel
 
 

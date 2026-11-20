@@ -91,12 +91,23 @@ def u64(raw, offset):
     return int.from_bytes(raw[offset:offset + 8], 'little')
 
 
+def startup_cap_mode_body_valid(body):
+    return (len(body) == 16 and body[:8] == STARTUP_CAP_MODE_BODY[:8] and
+            body[10:] == STARTUP_CAP_MODE_BODY[10:] and body[8:10] in (b'\x01\x00', b'\x02\x00', b'\x02\x01'))
+
+
+def still_format_input_valid(data):
+    return (len(data) == STILL_FORMAT_INPUT_BYTES and data[7] in (0, 1) and data[13] == data[7] and
+            data[:7] == STILL_FORMAT_INPUT[:7] and data[8:13] == STILL_FORMAT_INPUT[8:13] and
+            data[14:] == STILL_FORMAT_INPUT[14:])
+
+
 def startup_control_input_valid(data, fingerprint):
     if len(data) != STARTUP_CONTROL_INPUT_BYTES or fingerprint is None or u64(data, 24) != fingerprint:
         return False
     command, count = struct.unpack_from('<2H', data)
     return data[20:24] == bytes(4) and (
-        command == 0x4014 and count == 16 and data[4:20] == STARTUP_CAP_MODE_BODY or
+        command == 0x4014 and count == 16 and startup_cap_mode_body_valid(data[4:20]) or
         command == 0x4057 and count == 4 and data[4:20] == bytes(16) or
         command == 0x403f and count == 8 and data[4:20] == bytes(16))
 
@@ -971,7 +982,7 @@ class Core:
                     require(startup_control_input_valid(data, getattr(self, 'configuration_fingerprint', None)) and
                             actual[160:] == data, 'Actual startup control tuple/current STATE configuration fingerprint/readback differs')
                 elif op == STILL_FORMAT:
-                    require(data == STILL_FORMAT_INPUT and actual[160:] == data,
+                    require(still_format_input_valid(data) and actual[160:] == data,
                             'Actual observed-L/Fine software still-format configuration/readback differs')
                 elif op == VDF_BIT_WIDTH:
                     require(data == bytes(BIT_WIDTH_INPUT_BYTES) and actual[160:] == data,

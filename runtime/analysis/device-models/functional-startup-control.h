@@ -21,6 +21,10 @@ struct functional_startup_control_snapshot {
     unsigned int state_valid, operation_attempted, model_complete, retained;
     unsigned int command, command_requests[2], command_completed[2], mode_applied;
     unsigned int original_wire_bytes;
+    unsigned int mode_consumed;
+    uint64_t mode_cycle, mode_model_instance, mode_config_generation;
+    uint64_t mode_wire_fnv, mode_canonical_fnv;
+    unsigned char mode_wire[24], mode_canonical32[32];
     unsigned int original_ap_verified, original_cp, physical_asic_verified;
     unsigned int physical_cp_rtos_verified, original_selector_verified, capture_verified;
     unsigned int source_dependencies_closed, native_cp, ee;

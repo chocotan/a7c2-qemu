@@ -33,7 +33,8 @@ struct functional_still_format_snapshot {
 /* Local setup only; no RPC, importer, implicit INIT or reset. Explicit functional
  * profile only. Parent's reserved predecessor predicate must prove actual prior
  * diagnostic M clean/AP free, active current-instance VDF, all13 and all resources.
- * Only exact type5/402d/24B/AP with the L/Fine tuple is supported; wire22..23
+ * Only exact type5/402d/24B/AP with the ordinary L/Fine context and matching
+ * COMPRESS0/UNCOMPRESS1 RAW fields is supported; wire22..23
  * remain opaque in raw24/FNV and become virtual zero in canonical16.
  * Before Core admission refusals leave caller ownership. A corrupt/failed live
  * Core result also leaves caller ownership, with sticky fault and actual raw

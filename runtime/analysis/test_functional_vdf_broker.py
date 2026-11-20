@@ -98,8 +98,10 @@ def bit_width_response():
     return data, route, bytes(raw)
 
 
-def still_format_response():
-    data, (route, base) = b.STILL_FORMAT_INPUT, response()
+def still_format_response(raw_format=0):
+    selected = bytearray(b.STILL_FORMAT_INPUT)
+    selected[7] = selected[13] = raw_format
+    data, (route, base) = bytes(selected), response()
     raw = bytearray(base + data)
     struct.pack_into('<I', raw, 4, 176)
     struct.pack_into('<I', raw, 96, 8)
@@ -107,9 +109,11 @@ def still_format_response():
     return data, route, bytes(raw)
 
 
-def startup_control_response(command=0x4014):
-    body = b.STARTUP_CAP_MODE_BODY if command == 0x4014 else bytes(16)
-    data = struct.pack('<2H', command, 16 if command == 0x4014 else 8 if command == 0x403f else 4) + body + bytes(4) + struct.pack('<Q', b.fnv64(bytes(40)))
+def startup_control_response(command=0x4014, selection=(1, 0)):
+    body = bytearray(b.STARTUP_CAP_MODE_BODY if command == 0x4014 else bytes(16))
+    if command == 0x4014:
+        body[8:10] = bytes(selection)
+    data = struct.pack('<2H', command, 16 if command == 0x4014 else 8 if command == 0x403f else 4) + bytes(body) + bytes(4) + struct.pack('<Q', b.fnv64(bytes(40)))
     route, base = response()
     raw = bytearray(base + data)
     struct.pack_into('<I', raw, 4, 192)
@@ -405,6 +409,65 @@ def test_display_rejects_unmodelled_features_even_with_consistent_mock_readback(
     core.vdf_route = route
     with pytest.raises(ValueError, match='disabled-feature policy'):
         core.execute(INSTANCE, b.VDF_DISPLAY_CONFIG, bytes(data), 176)
+
+
+@pytest.mark.parametrize('selection', [(1, 0), (2, 0), (2, 1)])
+def test_startup_raw_selection_keeps_actual_body_and_requires_fingerprint(selection):
+    data, route, raw = startup_control_response(selection=selection)
+    core = core_with_reply(raw)
+    core.vdf_route, core.configuration_fingerprint = route, b.fnv64(bytes(40))
+    assert b.startup_control_input_valid(data, core.configuration_fingerprint)
+    assert core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)[1][160:] == data
+    for offset in (4, 11, 14, 19, 20, 23, 24):
+        bad, forged = bytearray(data), bytearray(raw)
+        bad[offset] ^= 1
+        forged[160:] = bad
+        struct.pack_into('<Q', forged, 40, b.fnv64(bad))
+        rejected = core_with_reply(bytes(forged))
+        rejected.vdf_route, rejected.configuration_fingerprint = route, core.configuration_fingerprint
+        with pytest.raises(ValueError, match='startup control tuple'):
+            rejected.execute(INSTANCE, b.STARTUP_CONTROL, bytes(bad), 192)
+
+
+@pytest.mark.parametrize('selection', [(0, 0), (1, 1), (2, 2), (2, 4), (4, 0), (255, 255)])
+def test_startup_unknown_format_rejected_even_with_matching_echo(selection):
+    data, route, raw = startup_control_response(selection=selection)
+    core = core_with_reply(raw)
+    core.vdf_route, core.configuration_fingerprint = route, b.fnv64(bytes(40))
+    assert not b.startup_control_input_valid(data, core.configuration_fingerprint)
+    with pytest.raises(ValueError, match='startup control tuple'):
+        core.execute(INSTANCE, b.STARTUP_CONTROL, data, 192)
+
+
+@pytest.mark.parametrize('raw_format', [0, 1])
+def test_still_raw_format_matching_records_and_exact_readback(raw_format):
+    data, route, raw = still_format_response(raw_format)
+    core = core_with_reply(raw)
+    core.vdf_route = route
+    assert b.still_format_input_valid(data)
+    assert core.execute(INSTANCE, b.STILL_FORMAT, data, 176)[1][160:] == data
+    for offset in range(16):
+        bad, forged = bytearray(data), bytearray(raw)
+        bad[offset] ^= 1
+        forged[160:] = bad
+        struct.pack_into('<Q', forged, 40, b.fnv64(bad))
+        rejected = core_with_reply(bytes(forged))
+        rejected.vdf_route = route
+        with pytest.raises(ValueError, match='still-format configuration/readback'):
+            rejected.execute(INSTANCE, b.STILL_FORMAT, bytes(bad), 176)
+    changed = bytearray(raw)
+    changed[167] = changed[173] = 1 - raw_format
+    rejected = core_with_reply(bytes(changed))
+    rejected.vdf_route = route
+    with pytest.raises(ValueError, match='still-format configuration/readback'):
+        rejected.execute(INSTANCE, b.STILL_FORMAT, data, 176)
+
+
+@pytest.mark.parametrize('a,b_value', [(0, 1), (1, 0), (2, 2), (3, 3), (255, 255)])
+def test_still_unknown_or_mismatching_raw_format_rejected(a, b_value):
+    data = bytearray(b.STILL_FORMAT_INPUT)
+    data[7], data[13] = a, b_value
+    assert not b.still_format_input_valid(bytes(data))
 
 
 @pytest.mark.parametrize('command', [0x4014, 0x4057, 0x403f])
