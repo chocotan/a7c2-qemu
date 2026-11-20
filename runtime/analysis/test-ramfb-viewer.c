@@ -107,9 +107,56 @@ int main(void) {
     m.mode=2; assert(submit(&b,m.pool,1,0x24)==-2 && m.sleeps==100);
     free(m.pool);
 
-    char directory[]="/tmp/ramfb-test-XXXXXX"; assert(mkdtemp(directory));
-    char path[128], replacement[128];
+    unsigned char *meta=frame+HOSD_HEADER;
+    unsigned char *present=meta+80+256*96+16;
+    memset(meta,0,sizeof(struct hosd_metadata));
+    putle(meta,0x1000,2);putle(meta+8,9,4);present[256]=1;
+    const unsigned hud_ids[]={0,3,4,5,8};
+    for(unsigned i=0;i<sizeof hud_ids/sizeof *hud_ids;i++) {
+        unsigned id=hud_ids[i];unsigned char *w=meta+80+96*id;
+        present[id]=1;putle(w,0x1001,2);putle(w+8,id,2);
+        putle(w+10,id?1:0,2);putle(w+12,1,4);
+    }
+    putle(meta+80+20,640,2);putle(meta+80+22,480,2);
+    assert(preview_scene(frame));
+    putle(meta+8,11,4);assert(!preview_scene(frame));putle(meta+8,9,4);
+    present[256]=0;assert(!preview_scene(frame));present[256]=1;
+    present[1]=2;assert(!preview_scene(frame));present[1]=0;
+    meta[80+96*3+10]=0;assert(!preview_scene(frame));meta[80+96*3+10]=1;
+    unsigned char preserved[sizeof(struct hosd_metadata)];memcpy(preserved,meta,sizeof preserved);
+    memset(pixels,0,HOSD_PIXELS);
+    preview_enabled=0;assert(!convert_frame(frame,output) && !preview_active);
+    for(unsigned i=0;i<sizeof output;i++)assert(!output[i]);
+    preview_enabled=1;assert(!convert_frame(frame,output) && preview_active && preview_rgb);
+    for(unsigned i=0;i<HOSD_PIXELS/2;i++)for(unsigned c=0;c<3;c++)
+        assert(output[4*i+c]==preview_rgb[3*i+2-c]);
+    putle(pixels,0x123f,2);putle(pixels+2,0xf008,2);
+    assert(!convert_frame(frame,output));
+    assert(output[0]==51 && output[1]==34 && output[2]==17);
+    for(unsigned c=0;c<3;c++)assert(output[4+c]==
+        (((c==2?255:0)*8+preview_rgb[3+2-c]*7+7)/15));
+    assert(!memcmp(meta,preserved,sizeof preserved));
+    putle(meta+8,11,4);assert(!convert_frame(frame,output) && !preview_active);
+    assert(output[4]==0 && output[5]==0 && output[6]==136);
+    preview_enabled=0;free(preview_rgb);preview_rgb=NULL;
+
+    char directory[4096];
+#ifdef RAMFB_FIRMWARE_TEST
+    const char *temp_dir=RAMFB_TEST_TMPDIR;
+#else
+    const char *temp_dir=getenv("TMPDIR");
+#endif
+    assert(temp_dir);
+    assert(snprintf(directory,sizeof directory,"%s/ramfb-test-XXXXXX",temp_dir)<(int)sizeof directory);
+    assert(mkdtemp(directory));
+    char path[8192], replacement[8192];
     snprintf(path,sizeof path,"%s/frame",directory); snprintf(replacement,sizeof replacement,"%s/new",directory);
+    int profile_fd=open(path,O_CREAT|O_TRUNC|O_RDWR,0600);assert(profile_fd>=0);
+    assert(write(profile_fd,PREVIEW_NAME,sizeof PREVIEW_NAME-1)==sizeof PREVIEW_NAME-1);
+    assert(lseek(profile_fd,0,SEEK_SET)==0);assert(preview_profile(profile_fd)==1);
+    assert(lseek(profile_fd,0,SEEK_SET)==0);assert(write(profile_fd,"X",1)==1);
+    assert(lseek(profile_fd,0,SEEK_SET)==0);assert(preview_profile(profile_fd)==-1);
+    assert(!close(profile_fd));assert(!unlink(path));
     fixture(1,1,0x1003); save(path);
     int fd=open(path,O_RDONLY); assert(fd>=0);
     /* Replace pathname between open and read: all bytes must remain old inode's. */

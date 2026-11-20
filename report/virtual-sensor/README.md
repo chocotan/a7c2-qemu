@@ -1,12 +1,14 @@
 # 虚拟 CMOS 帧源
 
+实际原厂HUD上的虚拟CMOS预览见[UI截图](../../docs/images/virtual-cmos-ui-hud-20261120.png)和[实跑收据](../../validation/virtual-cmos-ui-preview-20261120.json)。它由guest RAMFB消费者在原OSD透明层后合成，并直接经QMP截图；显式使用 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1`。LCD预览640×480与照片7008×4672使用同一确定性色卡场景，原CP/YC传帧和物理ISP尚未验证。
+
 拍摄功能模型在 640×480 和 7008×4672 尺寸默认从本模块取得 Bayer 采样，再解马赛克为 RGB；不需要设置 `A7C2_VIRTUAL_CMOS_PROFILE`。该默认值属于拍摄功能模型，默认 `./start.sh` 的原厂窗口拍摄接线仍未完成。
 
 本模块生成自产色卡：18 个彩色色块、6 级灰阶、深色间隔和两条细节方格。它不使用第三方图片或商用色卡的测量数据，也不是色彩校准目标。两个尺寸通过整数坐标缩放使用同一场景，再按各自像素的 GRBG CFA 选择通道；RGB 必须由这些 Bayer 样本解码，RAW 候选采样与 RGB 共享源。14 位样本左移两位保存在 `uint16_t` 中。它是软件功能模型，不代表原厂 CMOS、ISP 或 Sony ARW 的物理格式。
 
-![虚拟CMOS色卡示意（宿主模型生成）](../../docs/images/virtual-cmos-color-chart.png)
+[![33MP虚拟CMOS色卡的600×400缩小预览（宿主模型生成）](../../docs/images/virtual-cmos-color-chart-preview.png)](../../docs/images/virtual-cmos-color-chart.png)
 
-上图由 [`render_preview.py`](render_preview.py) 调用当前 `sensor_frame_rgb` 生成，底部文字仅用于展示标注；不是原厂程序写卡成片。历史写卡收据继续引用原样本，替换场景不会追溯改变旧证据。复现时将 `TMPDIR` 指向本项目任务目录后执行该脚本。
+[完整色卡PNG](../../docs/images/virtual-cmos-color-chart.png)尺寸恰为7008×4672，由 [`render_preview.py`](render_preview.py) 调用真实 `sensor_config_parse("7008x4672")` 和 `sensor_frame_rgb`，直接采样全尺寸GRBG Bayer后解码生成，不是640×480放大。图片本体无附加标注画布，来源保存在PNG元数据中；上方600×400预览从同一33MP图缩小。二者均为宿主生成，并非原厂程序写卡成片。历史写卡收据继续引用原样本，替换场景不会追溯改变旧证据。复现时将 `TMPDIR` 指向本项目任务目录后执行该脚本；脚本自检全尺寸、代表色块、保存读回像素及来源元数据，并自动回收临时编译库。见[本次生成收据](../../validation/33mp-color-chart-20261120.json)。
 
 - `sensor_config_parse(NULL, ...)`：640×480；`"7008x4672"`：显式全像素配置；未知配置拒绝。
 - `sensor_token_next` / `sensor_token_valid`：绑定配置代次与非零帧序号；序号耗尽返回 0，调用方需切换配置代次。

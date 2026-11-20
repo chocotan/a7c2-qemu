@@ -94,7 +94,8 @@ if [[ "${MENU_MEDIA_SELFTEST:-0}" == 1 || "${MENU_RM_FILE:-0}" == 1 ]]; then
   python3 "$analysis_dir/make-media-fixture.py"
 fi
 clang "${common[@]}" --sysroot=/usr/aarch64-linux-gnu -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
-  "$source_dir/ramfb-viewer.c" "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/ramfb-viewer"
+  "$source_dir/ramfb-viewer.c" "$source_dir/../../report/virtual-sensor/sensor-core.c" \
+  "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/ramfb-viewer"
 clang "${common[@]}" -isystem /usr/aarch64-linux-gnu/include -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$source_dir/sd-window-export.c" "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/sd-window-export"
 clang "${common[@]}" -isystem /usr/aarch64-linux-gnu/include -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \

@@ -11,6 +11,14 @@
 #include <sys/file.h>
 #include <signal.h>
 #include "headless-osd.h"
+#include "../../report/virtual-sensor/sensor-core.h"
+#include <stdlib.h>
+
+#define PREVIEW_PROFILE "/tmp/virtual-preview.profile"
+#define PREVIEW_NAME "functional-cmos-chart-v1\n"
+static unsigned char *preview_rgb;
+static int preview_enabled;
+static int preview_active;
 
 #define RAMFB_BASE UINT64_C(0x41e100000)
 #define RAMFB_SIZE 0x500000U
@@ -41,6 +49,35 @@ static uint64_t le(const unsigned char *p, unsigned n) {
     uint64_t v = 0;
     for (unsigned i = 0; i < n; ++i) v |= (uint64_t)p[i] << (8 * i);
     return v;
+}
+/* shortcut: functional guest compositor bypasses CP/YC; replace when its video-plane ABI is implemented. */
+static int preview_scene(const unsigned char *raw) {
+    const unsigned char *m = raw + HOSD_HEADER;
+    const unsigned char *present = m + 80 + 256*96 + 16;
+    for (unsigned i=0; i<258; i++) if (present[i] > 1) return 0;
+    if (present[256] != 1 || le(m,2) != 0x1000 || le(m+8,4) != 9 ||
+        le(m+12,4) > 16 || le(m+16,4) || le(m+20,4) || le(m+24,4)) return 0;
+    for (unsigned i=0; i<256; i++) if (present[i]) {
+        const unsigned char *w = m + 80 + 96*i;
+        if (le(w,2) != 0x1001 || le(w+8,2) != i || le(w+28,4) > 16) return 0;
+    }
+    const unsigned ids[] = {0,3,4,5,8};
+    for (unsigned i=0; i<sizeof ids/sizeof *ids; i++) {
+        const unsigned char *w = m + 80 + 96*ids[i];
+        if (present[ids[i]] != 1 || le(w+10,2) != (ids[i] ? 1 : 0) ||
+            le(w+12,4) != 1) return 0;
+    }
+    const unsigned char *w = m + 80;
+    return !le(w+16,4) && le(w+20,2) == 640 && le(w+22,2) == 480;
+}
+static int view_stat(int fd, struct stat *st);
+static int preview_profile(int fd) {
+    char name[sizeof PREVIEW_NAME];
+    struct stat st;
+    if (view_stat(fd,&st) || !S_ISREG(st.st_mode) || st.st_size != sizeof PREVIEW_NAME-1 ||
+        read(fd,name,sizeof name) != sizeof PREVIEW_NAME-1 ||
+        memcmp(name,PREVIEW_NAME,sizeof PREVIEW_NAME-1)) return -1;
+    return 1;
 }
 static uint64_t be(const unsigned char *p, unsigned n) {
     uint64_t v = 0;
@@ -105,6 +142,26 @@ static void convert(const unsigned char *p, unsigned char *out) {
         unsigned v = le(p + 2 * i, 2);
         memcpy(out + 4*i, conversion_table[v], 4);
     }
+}
+static int convert_frame(const unsigned char *raw, unsigned char *out) {
+    const unsigned char *pixels = raw + HOSD_HEADER + sizeof(struct hosd_metadata);
+    preview_active = preview_enabled && preview_scene(raw);
+    if (!preview_active) { convert(pixels,out); return 0; }
+    if (!preview_rgb) {
+        sensor_config cfg = sensor_config_default();
+        preview_rgb = sensor_frame_rgb(&cfg,sensor_token_next(&cfg,0));
+        if (!preview_rgb) return -1;
+    }
+    for (unsigned i=0; i<HOSD_PIXELS/2; i++) {
+        unsigned v = le(pixels+2*i,2), a=v&15;
+        for (unsigned c=0; c<3; c++) {
+            unsigned fg=((v>>(4+4*c))&15)*17;
+            unsigned bg=preview_rgb[3*i+2-c];
+            out[4*i+c]=(fg*a+bg*(15-a)+7)/15;
+        }
+        out[4*i+3]=0;
+    }
+    return 0;
 }
 static int config(unsigned char *cfg, unsigned char *dma, unsigned slot, unsigned selector) {
     if (slot > 1 || selector < 0x20 || selector >= 0x4000) return -1;
@@ -271,6 +328,12 @@ static void record(const char *event, const char *reason, const unsigned char *h
 static int run(void) {
     static unsigned char raw[HOSD_BYTES];
     struct consumer s = {.fd = -1};
+    int profile = open(PREVIEW_PROFILE,O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (profile >= 0) {
+        preview_enabled = preview_profile(profile);
+        close(profile);
+        if (preview_enabled < 0) { record("FAIL","virtual-preview profile invalid",raw,0); return 1; }
+    } else if (errno != ENOENT) { record("FAIL","virtual-preview profile unreadable",raw,0); return 1; }
     signal(SIGBUS, fault); signal(SIGSEGV, fault);
     int lock = open("/tmp/ramfb-viewer.lock", O_CREAT | O_RDWR, 0600);
     if (lock < 0 || flock(lock, LOCK_EX | LOCK_NB)) { record("FAIL", "already running/lock", raw, 0); return 1; }
@@ -312,9 +375,12 @@ static int run(void) {
             if (action < 0) record("REJECT", err, raw, slot);
             continue;
         }
-        if (action == 2) {
+        if (action == 2 || (preview_enabled && action == 1)) {
             unsigned target = slot ^ 1;
-            convert(raw + HOSD_HEADER + sizeof(struct hosd_metadata), pool + target * RAMFB_SLOT);
+            if (convert_frame(raw, pool + target * RAMFB_SLOT)) {
+                record("FAIL","virtual-preview sensor generation failed",raw,slot);
+                close(next); return 1;
+            }
             int result = submit(&b, pool, target, selector);
             if (result) {
                 record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
@@ -323,7 +389,9 @@ static int run(void) {
             slot = target;
         }
         commit(&s, next, &st, raw);
-        record(action == 2 ? "SUBMITTED" : "RETAINED", "DMA is not screenshot proof", raw, slot);
+        record(action == 2 || preview_enabled ? "SUBMITTED" : "RETAINED",
+               preview_active ? "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof" :
+               "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
     }
 }
 void _start(void) { _exit(run()); }

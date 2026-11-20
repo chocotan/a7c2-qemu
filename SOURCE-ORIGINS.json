@@ -1,4 +1,81 @@
 {
+  "full_chart_actual_ui_preview_20261120": {
+    "scope": "33MP native-size host chart and real guest virtual CMOS HUD preview",
+    "changes": {
+      "README.md": {
+        "previous_inventory_sha256": "17141f90edb486ead1fbf134985cf3275a9e3f155a81319d63311b60943e4b6f",
+        "after": "fb1550bf674a2e968e925d53c819a4ce562d4bee78b1ebeb65e09a6770be6705"
+      },
+      "docs/images/virtual-cmos-color-chart-preview.png": {
+        "previous_inventory_sha256": null,
+        "after": "bd96c585a02763ed6d60d029e602e1f75dac497e5c8751e145239c596e60827a"
+      },
+      "docs/images/virtual-cmos-color-chart.png": {
+        "previous_inventory_sha256": "a6f6fa3a01199f37316d7750e56c7836552865e7a92d25e9ee3264b3c1dd17ef",
+        "after": "2d343f1b7796b9d6e207c8ec8d72a3383faa0aabde84df27e00bdb1b1eecd1d1"
+      },
+      "docs/images/virtual-cmos-ui-hud-20261120.png": {
+        "previous_inventory_sha256": null,
+        "after": "40a324b5c29d5887646403b3f7d26e915a61f063d8547bb2cc8b87948e87e6cc"
+      },
+      "report/virtual-sensor/README.md": {
+        "previous_inventory_sha256": "03effc845eecb38d27eb651bcfcc209f742e36e1f5282ffe9f26b2d9141bd842",
+        "after": "49fe27b9d1bc2710019187c7341650aefccf37ab81df524c86f28c0b69a08d78"
+      },
+      "report/virtual-sensor/render_preview.py": {
+        "previous_inventory_sha256": "02ede2c8235c22194197fd46b61e01f3d4fcc1d11ecc6d2e77cc1d5aca984e7d",
+        "after": "7af220fa84ab1cd15b10dda227014d9eba48ab1b6c719a0444392d540f212a4b"
+      },
+      "runtime/analysis/build-observers.sh": {
+        "previous_inventory_sha256": "38e74b9a2c35fa7b7f4273a01c157c34f8c7d4b4096911ddd5d81c3bf173374f",
+        "after": "8966125f181bf7183d8f80f160e4f3c21d750bcf0522756be9c3b41379322e95"
+      },
+      "runtime/analysis/check-ramfb-viewer.sh": {
+        "previous_inventory_sha256": "36ee32add4743d5ff1deff23e537c5a7624fd8059018e59e72b2c481132726b4",
+        "after": "0b5e8da17f26b72ddf45e83198f96e9204ccb809bb56fd9074bee06e8d9e9cd8"
+      },
+      "runtime/analysis/qemu-menu-probe.py": {
+        "previous_inventory_sha256": "f6a98d4252dff6ae3189ddf3fed1bb3b9325283fcc1c627f51d5f80642e8747a",
+        "after": "485c4ccb2bf3e91dd59ac5e18c0385e4698df702120728200c23110f2bddb7a8"
+      },
+      "runtime/analysis/ramfb-viewer.c": {
+        "previous_inventory_sha256": "ac5322c815afa27e1efc2cccb01cd51f145af3c169c116df7395dac700281201",
+        "after": "c966c5589d20e3156049784598d4ac8343f53704061f15ee6891b9b1c8ed9cdd"
+      },
+      "runtime/analysis/snapshot-observer-sources.py": {
+        "previous_inventory_sha256": "a20bd2c4db6adbf833157c2aac36e8f1c7d8aa9b2015996bf4c61c653d447e0d",
+        "after": "4b25a1fee3e8b1051cad9b2bab63d3605e4eb6a299df68de3e60e58e783e95ac"
+      },
+      "runtime/analysis/test-ramfb-viewer.c": {
+        "previous_inventory_sha256": "e3cc10ca8f33f9d400c65fbf59fdea8ddd6f33505aa3953b670768ff6b50edbf",
+        "after": "dc262b0e0bbc9238457a3bc4fb53c9e35adbb19f59d9e0b31b42b65d0c0ff169"
+      },
+      "runtime/analysis/test-virtual-preview-scenes.c": {
+        "previous_inventory_sha256": null,
+        "after": "009aaef0a57623729fa28c2d826fb23a50456f2b1398a6591511241b3031d70d"
+      },
+      "validation/33mp-color-chart-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "afddbf0bdbf9dd12ff34914c7cd17bb4a243d90699419660d935f313ef937b5b"
+      },
+      "validation/README.md": {
+        "previous_inventory_sha256": "98f5684fbdb389c3221c7ed7744db062adf0cbe7e7a8762552ba578b88b7a8a4",
+        "after": "5982df0d4606d7f0d86534148180d07ee93c0a4b00befcf543e20c584898e935"
+      },
+      "validation/virtual-cmos-ui-preview-20261120.json": {
+        "previous_inventory_sha256": null,
+        "after": "829c4a53263a70b1d172fb84d957f9e3d964af3b17ea1c7757e840e087f5cd51"
+      }
+    },
+    "receipt": "validation/virtual-cmos-ui-preview-20261120.json",
+    "full_chart_receipt": "validation/33mp-color-chart-20261120.json",
+    "actual_hud_visible": true,
+    "actual_menu_roundtrip_verified": false,
+    "cp_yc_video_verified": false,
+    "new_chart_native_card_write_verified": false,
+    "raw_verified": false,
+    "unrelated_inventory_reverified": false
+  },
   "full_resolution_jpeg_and_color_chart_20261120": {
     "scope": "33MP native JPEG card write and self-generated virtual CMOS color chart",
     "changes": {

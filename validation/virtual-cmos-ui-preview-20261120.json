@@ -1,0 +1,43 @@
+{
+  "actual_hud_visible": true,
+  "actual_menu_roundtrip_verified": false,
+  "chart_native_card_write_verified": false,
+  "failed_attempt_preserved": "scratch/a7c2-full-resolution-v1/preview-actual-7882/failure.json",
+  "failed_attempt_reason": "HUD screenshot succeeded; subsequent MENU check still saw HUD. No retry or success promotion.",
+  "guest_binary_sha256": "db402ea07ccceda30d36e29a87a0b5aa4b2e4ac30f3c9031d63e7afc92daf22f",
+  "guest_consumer": "ramfb-viewer with functional-cmos-chart-v1",
+  "guest_submission": "RAMFB_SUBMITTED reason=virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof errno=0 seq=97987 pixel_source=7448 source_phys=0x438a16100 hash=8a1618f90d15a7bb scanout=0x41e100000",
+  "gui_scene_gate": "GUI9 with validated HUD widgets 0/3/4/5/8",
+  "host_groups": 2,
+  "host_workers": 2,
+  "new_vm_started": false,
+  "normal_qemu_exit_verified": false,
+  "original_cp_yc_video_delivery_verified": false,
+  "original_osd_container_modified": false,
+  "photo_scene_size": [
+    7008,
+    4672
+  ],
+  "physical_sensor_verified": false,
+  "postprocessed_overlay": false,
+  "preview_source_size": [
+    640,
+    480
+  ],
+  "raw_write_verified": false,
+  "retained_owner": "110b owner/card and original P4 failure remain retained; no quit sent",
+  "run": "7882",
+  "saved_scene_cases_passed": 5,
+  "schema": "a7c2-virtual-cmos-ui-preview-v1",
+  "screenshot": "docs/images/virtual-cmos-ui-hud-20261120.png",
+  "screenshot_producer": "QMP screendump of actual guest RAMFB; PPM to PNG lossless conversion",
+  "screenshot_sha256": "40a324b5c29d5887646403b3f7d26e915a61f063d8547bb2cc8b87948e87e6cc",
+  "screenshot_size": [
+    640,
+    480
+  ],
+  "sealed_firmware_library_inputs": true,
+  "signals_sent": [],
+  "source": "same deterministic GRBG virtual sensor scene as 33MP photo model, generated at preview resolution",
+  "status": "PASS_ACTUAL_SHOOTING_HUD_ONLY"
+}

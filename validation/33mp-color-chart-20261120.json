@@ -1,0 +1,15 @@
+{
+  "path": "docs/images/virtual-cmos-color-chart.png",
+  "bytes": 446445,
+  "sha256": "2d343f1b7796b9d6e207c8ec8d72a3383faa0aabde84df27e00bdb1b1eecd1d1",
+  "sensor_source_sha256": "a02b996bb2337b629debbd88c6562f80c806254280eb826aaed3c4e99b4bb5e1",
+  "width": 7008,
+  "height": 4672,
+  "preview_path": "docs/images/virtual-cmos-color-chart-preview.png",
+  "preview_bytes": 41343,
+  "preview_sha256": "bd96c585a02763ed6d60d029e602e1f75dac497e5c8751e145239c596e60827a",
+  "label": "33MP虚拟CMOS色卡（宿主模型生成）",
+  "producer": "host sensor_frame_rgb",
+  "camera_card_capture": false,
+  "temporary_library_reclaimed_bytes": 16384
+}

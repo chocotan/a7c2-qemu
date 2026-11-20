@@ -482,6 +482,12 @@ if (functional_camera_profile not in ('', FUNCTIONAL_CAMERA_PROFILE) or
         os.environ.get('A7C2_FUNCTIONAL_CAMERA', '') != functional_camera_profile or
         (functional_camera_profile and cp_capture_format_profile != FULL_CP_OWNED_STATE_PROFILE)):
     parser.error('Functional camera requires the exact paired profile and owned-state full-connection predecessor')
+virtual_preview = os.environ.get('MENU_VIRTUAL_PREVIEW', '')
+if virtual_preview not in ('', 'functional-cmos-chart-v1'):
+    parser.error('MENU_VIRTUAL_PREVIEW must be functional-cmos-chart-v1 or unset')
+if virtual_preview and (not functional_camera_profile or args.native_display is None or
+                        not args.headless_osd or not args.initramfs or not args.observe):
+    parser.error('Virtual preview requires functional camera, native display, headless OSD, initramfs and observer')
 if gui_models not in ('','virtual-inline-v1'):
     parser.error('MENU_GUI_MODELS must be virtual-inline-v1 or unset')
 if gui_models and (os.environ.get('MENU_HEADLESS_OSD')!='1' or not args.observe or not args.initramfs):
@@ -915,6 +921,9 @@ manifest = {'probe_args': vars(args).copy(), 'settle_seconds': int(os.environ.ge
             'input_route':'legacy-file' if os.environ.get('MENU_LIVE_KEY_FILE') else 'app32' if os.environ.get('MENU_LIVE_APP_INPUT')=='1' else 'infra20',
             'dmm_unit_config_service': dmm_unit_config,
             'rm_file_profile': ('virtual-rm1-mmc-file-v1' if rm_slot1 else 'virtual-rm2-mmc-file-v1') if rm_file else None,
+            'virtual_preview_profile': virtual_preview or None,
+            'virtual_preview_consumer': 'guest-ramfb-software-compositor' if virtual_preview else None,
+            'virtual_preview_cp_yc_verified': False,
             'gui_model_store_profile': gui_models or None,
             'cp_background_profile':cp_background or None,
             'cp_background_asset_identity':cp_background_identity,
@@ -1575,6 +1584,10 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                 if args.headless_osd:
                     setup += ["export MENU_HEADLESS_OSD=1"]
                 if args.native_display is not None:
+                    if virtual_preview:
+                        setup += ["printf '%s\\n' functional-cmos-chart-v1 > /tmp/virtual-preview.profile"]
+                    else:
+                        setup += ["rm -f /tmp/virtual-preview.profile"]
                     setup += ["/simulation/ramfb-viewer >/dev/null &",
                               "echo RAMFB_VIEWER_PID=$!"]
                 if os.environ.get("MENU_GPE_RGBA4444"):

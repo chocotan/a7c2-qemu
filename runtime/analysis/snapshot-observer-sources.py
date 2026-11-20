@@ -8,6 +8,7 @@ import tarfile
 NATIVE = Path('report/2026-10-17-qemu-native-camera/runtime/analysis')
 SHARED = NATIVE / 'device-models'
 METADATA_INPUTS = (
+    'report/virtual-sensor/sensor-core.c', 'report/virtual-sensor/sensor-core.h',
     'runtime/analysis/functional_camera_broker.py', 'runtime/analysis/backup_profile.py',
     'report/native-video-binding/native-video.c', 'report/native-video-binding/native-video.h',
     'report/native-video-paramsets/native-paramsets.c', 'report/native-video-paramsets/native-paramsets.h',

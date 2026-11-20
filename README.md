@@ -2,13 +2,13 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-**目前可以操作菜单，并已在隔离实验配置下完成默认虚拟CMOS的33MP（7008×4672帧）拍摄→原厂JPEG写卡：`DSC00001.JPG` 总长1,265,729B，原Fsys写入回调与完成通知均返回0。默认窗口入口尚未接通拍照；取景区域仍是黑色，首次启动也可能停在设置、教程或错误页面。**
+**目前可以操作菜单，并已在隔离实验配置下完成默认虚拟CMOS的33MP（7008×4672帧）拍摄→原厂JPEG写卡：`DSC00001.JPG` 总长1,265,729B，原Fsys写入回调与完成通知均返回0。显式虚拟CMOS软件预览已在原厂主界面实际上屏（下图）；默认窗口入口的拍摄接线仍待完成。**
 
-第110b轮按用户约定的“JPG写到卡上就算完成”判据记为写卡完成，见[33MP写卡收据](validation/33mp-jpeg-card-write-20261120.json)。原P4的120秒等待失败保留；本轮整卡导出、文件独立解码与owner正常关闭尚未完成，严格 `capture_verified=false` 保持。RAW/ARW、实时取景和录像仍未完成。
+第110b轮按用户约定的“JPG写到卡上就算完成”判据记为写卡完成，见[33MP写卡收据](validation/33mp-jpeg-card-write-20261120.json)。原P4的120秒等待失败保留；本轮整卡导出、文件独立解码与owner正常关闭尚未完成，严格 `capture_verified=false` 保持。RAW/ARW和录像仍未完成。
 
-![直接执行默认 start.sh 后的原厂拍摄界面，已完成原中文菜单往返](docs/images/default-startup-20261108.png)
+![原厂UI主界面实际显示虚拟CMOS色卡，QMP直接截图](docs/images/virtual-cmos-ui-hud-20261120.png)
 
-上图记录 2026-11-08 直接执行当时默认 `./start.sh` 的 direct-bootin 实际窗口，没有传入 HCI 环境变量。已完成原首设、拍摄主界面、中文菜单进入与返回，未出现“系统出错”，原配置没有重置；[验收收据](validation/default-startup-20261108.json)记录原帧、原事件及正常保存退出。取景和拍摄成片尚未恢复，长期电源/黑帧唤醒仍在完善。此前的[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用 2.01 ALLLANG BODYDATA 与固定 QEMU 源码构建，不依赖研究仓库或系统 dump。
+上图是第110b轮同一guest的实际RAMFB画面：虚拟CMOS色卡在guest显示消费者中与原厂HUD透明层合成，再由QMP直接截图，未后期贴图。[实跑收据](validation/virtual-cmos-ui-preview-20261120.json)记录实际主界面通过、菜单往返未通过；原CP/YC视频传输和物理ISP仍未验证。预览使用显式 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1`，原始OSD数据保持不变。此前[默认启动原界面](docs/images/default-startup-20261108.png)及[收据](validation/default-startup-20261108.json)、[原语言页](docs/images/startup-window-20261107.png)和[显式模型首轮HUD](docs/images/native-shooting-20261107.png)保留。运行只用2.01 ALLLANG BODYDATA与固定QEMU源码构建。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
@@ -25,9 +25,9 @@
 
 虚拟感光元件、软件镜头、对焦和JPEG／H.264编码已有实现与组件测试。拍摄功能模型默认使用[虚拟CMOS的Bayer→RGB帧源](report/virtual-sensor/README.md)，显示帧保持640×480，原生L照片帧为7008×4672，无需额外环境开关。当前场景已改为自产彩色色块、灰阶与细节方格，后续RAW也将使用同一Bayer源。
 
-![虚拟CMOS色卡示意（宿主模型生成）](docs/images/virtual-cmos-color-chart.png)
+[![33MP虚拟CMOS色卡的600×400缩小预览（宿主模型生成）](docs/images/virtual-cmos-color-chart-preview.png)](docs/images/virtual-cmos-color-chart.png)
 
-上图由当前宿主传感器模型生成，用于展示色卡；色卡版本尚未取得原厂写卡证据。此前第107轮默认CMOS的[真实卡内成片](docs/images/captured-cmos-dsc00001-20261120.jpg)及[同轮完整读回收据](validation/default-cmos-runtime-20261120.json)保留；实时取景仍是黑屏。
+[查看完整7008×4672色卡PNG](docs/images/virtual-cmos-color-chart.png)：直接调用当前传感器模型的全像素配置，经GRBG Bayer采样和RGB解码生成，不是640×480放大；本体没有附加标注画布，来源写在PNG元数据中。上方仅为同一33MP图的600×400缩小预览。此图由宿主生成，并非原厂程序写卡成片；色卡版本尚未取得原厂写卡证据。此前第107轮默认CMOS的[真实卡内成片](docs/images/captured-cmos-dsc00001-20261120.jpg)及[同轮完整读回收据](validation/default-cmos-runtime-20261120.json)保留；本次实际UI预览见页首截图。
 
 默认窗口入口的拍摄接线与RAW／录像仍在推进；隔离第110b轮已完成33MP帧的原厂JPEG写卡，卡内独立解码另待核验。HUD显示的33M设置本身不作为输出分辨率证据。
 
@@ -159,7 +159,7 @@ overwrite/
 
 当前产品保留原生界面、按键、拨盘、虚拟 SD 与已接入的功能模型。
 
-- **实时取景**：让原厂界面显示虚拟场景（当前合成源为 640×480，未达 33MP）。
+- **实时取景**：显式functional软件预览已在原厂HUD实际显示虚拟CMOS场景；LCD为640×480，照片源为7008×4672。默认窗口接线和原CP/YC视频通路仍待完成。
 - **镜头和拍摄参数**：让原厂程序实际控制软件镜头、对焦、曝光等设置。
 - **RAW**：实现 Bayer 原始采样与 ARW 封装链，未完成前不能把改后缀当 RAW。
 - **录像**：接通录制开始、停止、编码和文件收尾，保存能正常播放的 MP4。
