@@ -236,6 +236,8 @@ def profile_environment(current, menu_key=False, natural_boot=False):
                    MENU_PIN_REGISTRY='1',MENU_HDMI_BOOT_CONFIG='1',MENU_VDF_CONFIG='1',
                    MENU_CP_RELEASE_SERVICE='1',MENU_CP_TIME_SERVICE='1',MENU_CRYPT_LIB='1',
                    MENU_BUSPOWER='1',MENU_DATE_SERVICE='1',QEMU_BOOT_TYPE='1',MENU_SETTLE_SECONDS='20')
+        if current.get('A7C2_VIRTUAL_LENS_HUD', '1') != '0':
+            env['MENU_VIRTUAL_LENS_HUD'] = '1'
         if current.get('A7C2_JPEG_REQUEST_TRACE') == '1':env['MENU_JPEG_REQUEST_TRACE']='1'
         if current.get('A7C2_NATURAL_START_TRACE') == '1':env['MENU_NATURAL_START_TRACE']='1'
         if current.get('A7C2_INPUT_ROUTE_TRACE') == '1':env['MENU_INPUT_ROUTE_TRACE']='1'

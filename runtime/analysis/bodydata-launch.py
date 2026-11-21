@@ -194,22 +194,54 @@ def unpack(package, stage, sdk, expected_sha):
     return {'model': info.model, 'version': info.version, 'region': info.region, 'crypter': crypter}
 
 
-def cache_package(package, cache, sdk, unpacker=unpack):
-    cache = safe_path(cache)
+def _save_quick_cache(cache, package, package_sha):
+    st = regular(package).stat()
+    meta = {'package': str(package.resolve()), 'size': st.st_size,
+            'mtime_ns': st.st_mtime_ns, 'package_sha256': package_sha}
+    tmp = cache / f'.quick-cache.{os.getpid()}.tmp'
+    tmp.unlink(missing_ok=True)
+    write_json(tmp, meta)
+    tmp.replace(cache / 'quick-cache.json')
+
+
+def cache_package(package, cache, sdk, unpacker=unpack, *, verify_sha=True):
+    package, cache, sdk = regular(package), safe_path(cache), safe_path(sdk)
     cache.parent.mkdir(parents=True, exist_ok=True)
     if not cache.exists():
         cache.mkdir(mode=0o700)
         write_json(cache/'owner.json', {'tool': 'bodydata-launch', 'schema': SCHEMA})
     if json.loads(regular(cache/'owner.json').read_text()) != {'tool': 'bodydata-launch', 'schema': SCHEMA}:
         raise ValueError(f'Unknown cache directory: {cache}')
-    sha = digest(package)
-    target = cache/sha
     # Lock the ownership marker, without creating or truncating another file.
     with regular(cache/'owner.json').open('rb') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if not verify_sha:
+            quick_file = cache / 'quick-cache.json'
+            if quick_file.is_file() and not quick_file.is_symlink():
+                try:
+                    quick = json.loads(quick_file.read_text())
+                    st = package.stat()
+                    cand = cache / quick.get('package_sha256', '')
+                    if (quick.get('package') == str(package.resolve()) and
+                            quick.get('size') == st.st_size and
+                            quick.get('mtime_ns') == st.st_mtime_ns and
+                            (cand / 'success.json').is_file() and
+                            (cand / 'firmware.fdat').is_file() and
+                            (cand / 'firmware-root').is_dir()):
+                        print(f'CACHE_FASTPATH {cand}', flush=True)
+                        return cand
+                except (OSError, json.JSONDecodeError, ValueError):
+                    pass
+        sha = digest(package)
+        target = cache/sha
         if os.path.lexists(target):
-            verify_cache(target, sha)
-            print(f'CACHE_VERIFIED {target}', flush=True)
+            if verify_sha:
+                verify_cache(target, sha)
+                print(f'CACHE_VERIFIED {target}', flush=True)
+            else:
+                regular(target / 'success.json')
+                print(f'CACHE_FASTPATH {target}', flush=True)
+            _save_quick_cache(cache, package, sha)
             return target
         space(cache, package.stat().st_size*10)
         stage = Path(tempfile.mkdtemp(prefix=f'.{sha}.staging-', dir=cache))
@@ -222,6 +254,7 @@ def cache_package(package, cache, sdk, unpacker=unpack):
             if os.path.lexists(target):
                 raise ValueError(f'Refusing existing cache: {target}')
             stage.rename(target)
+            _save_quick_cache(cache, package, sha)
             return target
         except Exception as exc:
             # A failed stage is never published and never retains a success marker.
@@ -233,23 +266,71 @@ def cache_package(package, cache, sdk, unpacker=unpack):
             raise
 
 
-def prepare(entry, runtime, kit, runner=subprocess.run):
+def _fonts_present(analysis):
+    fonts_dir = analysis / 'menu-root/simulation/language-fonts'
+    return fonts_dir.is_dir() and sum(1 for p in fonts_dir.iterdir() if p.is_file()) == 3
+
+
+def prepare(entry, runtime, kit, runner=subprocess.run, *, verify_sha=True):
     runtime, kit = safe_path(runtime), safe_path(kit)
     analysis = runtime/'analysis'
     if not analysis.is_dir():
         raise ValueError('Runtime must already contain the main startup scripts and guest overlay')
+    fast_stamp = analysis / '.prepare-fast.json'
+    if not verify_sha and (analysis / 'native-assets.json').is_file() and _fonts_present(analysis) and fast_stamp.is_file():
+        try:
+            recorded = json.loads(fast_stamp.read_text())
+            if recorded.get('entry') == entry.name:
+                return
+        except (OSError, json.JSONDecodeError):
+            pass
     script = regular(kit/'prepare-assets.py')
     common = [sys.executable, str(script), '--runtime', str(runtime)]
     source = ['--firmware-root', str(entry/'firmware-root')]
-    runner(common+source+['--fdat',str(entry/'firmware.fdat'),'--verify-inputs'],check=True)
+    if verify_sha:
+        runner(common+source+['--fdat',str(entry/'firmware.fdat'),'--verify-inputs'],check=True)
     # Verify the selected package even when an older runtime is already installed.
     if os.path.lexists(analysis/'native-assets.json'):
-        runner(common+['--check-runtime'], check=True)
+        if verify_sha:
+            runner(common+['--check-runtime'], check=True)
     else:
         space(analysis, 2*1024**3)
         runner(common+source+['--fdat', str(entry/'firmware.fdat')], check=True)
-    runner(common+source+['--install-language-fonts'], check=True)
-    runner(common+['--check-runtime'], check=True)
+    if verify_sha or not _fonts_present(analysis):
+        runner(common+source+['--install-language-fonts'], check=True)
+    if verify_sha:
+        runner(common+['--check-runtime'], check=True)
+    if (analysis / 'native-assets.json').is_file() and _fonts_present(analysis):
+        try:
+            tmp = analysis / f'.prepare-fast.{os.getpid()}.tmp'
+            tmp.unlink(missing_ok=True)
+            write_json(tmp, {'entry': entry.name})
+            tmp.replace(fast_stamp)
+        except OSError:
+            pass
+
+
+def _resolve_cold_flag(cli_value):
+    value = cli_value if cli_value is not None else os.environ.get('A7C2_COLD_FLAG', 'force')
+    normalized = str(value).strip().lower()
+    if normalized in ('1', 'force'):
+        return 'force'
+    if normalized in ('0', 'strict'):
+        return 'strict'
+    if normalized == 'clear':
+        return 'clear'
+    raise ValueError(f'Unknown cold flag mode: {value}')
+
+
+def _resolve_verify_sha(cli_value):
+    if cli_value is not None:
+        return bool(cli_value)
+    raw = os.environ.get('A7C2_VERIFY_SHA', '0').strip().lower()
+    if raw in ('1', 'true', 'yes', 'on'):
+        return True
+    if raw in ('0', 'false', 'no', 'off', ''):
+        return False
+    raise ValueError(f'Unknown A7C2_VERIFY_SHA value: {raw}')
 
 
 def main(argv=None):
@@ -264,8 +345,14 @@ def main(argv=None):
     parser.add_argument('--sd-image',type=Path,help='regular virtual FAT image to copy into this guest; physical devices are not accepted')
     parser.add_argument('--boot-profile',choices=('original-init-cold','direct-bootin'),default='original-init-cold',help='original kernel/init/init2 by default; direct-bootin keeps the compatibility route')
     parser.add_argument('--persistent-storage',action='store_true',help='enable a persistent internal disk on the direct-bootin route; required by original-init-cold')
+    parser.add_argument('--cold-flag',choices=('force','clear','strict'),default=None,help='how the virtual loader handles p5 WBI2 magic (default: A7C2_COLD_FLAG or force)')
+    verify_group = parser.add_mutually_exclusive_group()
+    verify_group.add_argument('--verify-sha',dest='verify_sha',action='store_true',default=None,help='enable startup SHA verification (or set A7C2_VERIFY_SHA=1)')
+    verify_group.add_argument('--no-verify-sha',dest='verify_sha',action='store_false',help='disable startup SHA verification (default; or set A7C2_VERIFY_SHA=0)')
     args = parser.parse_args(argv)
     try:
+        cold_flag = _resolve_cold_flag(args.cold_flag)
+        verify_sha = _resolve_verify_sha(args.verify_sha)
         if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
             from single_ap_sockets import admit
             admit()
@@ -273,12 +360,14 @@ def main(argv=None):
             raise ValueError('Native entry uses its adjacent runtime; runtime-analysis must be RUNTIME/analysis')
         package = discover(args.bodydata)
         print(f'BODYDATA {package}', flush=True)
-        entry = cache_package(package, args.cache, args.fwtool)
-        prepare(entry, args.runtime, args.runtime_analysis)
+        entry = cache_package(package, args.cache, args.fwtool, verify_sha=verify_sha)
+        prepare(entry, args.runtime, args.runtime_analysis, verify_sha=verify_sha)
         print('BODYDATA_PREPARED ILCE-7CM2 2.01 ALLLANG', flush=True)
         if not args.prepare_only:
             launch_env=dict(os.environ)
             launch_env['A7C2_BOOT_PROFILE']=args.boot_profile
+            launch_env['A7C2_COLD_FLAG']=cold_flag
+            launch_env['A7C2_VERIFY_SHA']='1' if verify_sha else '0'
             if args.persistent_storage or args.boot_profile=='original-init-cold':launch_env['A7C2_USE_PERSISTENT_STORAGE']='1'
             if args.overwrite_dir is not None:
                 launch_env['A7C2_OVERWRITE_DIR']=str(safe_path(args.overwrite_dir))

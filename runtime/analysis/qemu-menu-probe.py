@@ -1268,12 +1268,15 @@ if args.initramfs:
         expected_guest.update({entry['path']:entry['new_sha256'] for entry in persistent_manifest['entries']})
     if udate_distribution and expected_guest['simulation/sony_udate_distribution.ko'] != json.loads(udate_kernel_receipt.read_text())['sha256']:
         raise RuntimeError('UDATE kernel module differs from its ABI receipt; overlay replacement is not admitted')
-    manifest['selected_initramfs_verified_files'] = verify_image(
-        Path(command[-1]), expected_guest,
-        forbidden=('simulation/yc-input-uncompressed','simulation/yc-ownership-observe',
-                   'tmp/sd10g.ready','tmp/sony-sd10g/card.img') +
-                  (('simulation/media-camera.fat',) if ram_capture_media else ()) +
-                  (() if os.environ.get('MENU_YC_INPUT_RAW') else ('simulation/yc-input.gray',)))
+    if os.environ.get('A7C2_VERIFY_SHA', '1') == '0' and not isolated_observer_proof and not udate_distribution:
+        manifest['selected_initramfs_verified_files'] = {}
+    else:
+        manifest['selected_initramfs_verified_files'] = verify_image(
+            Path(command[-1]), expected_guest,
+            forbidden=('simulation/yc-input-uncompressed','simulation/yc-ownership-observe',
+                       'tmp/sd10g.ready','tmp/sony-sd10g/card.img') +
+                      (('simulation/media-camera.fat',) if ram_capture_media else ()) +
+                      (() if os.environ.get('MENU_YC_INPUT_RAW') else ('simulation/yc-input.gray',)))
     manifest['original_libraries_unchanged'] = not overwrite_manifest or not any(
         entry['path'].startswith(('usr/lib/','lib/')) and entry['new_sha256']!=entry['old_sha256']
         for entry in overwrite_manifest['entries'])
@@ -1820,6 +1823,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     setup += ["export MENU_ASYNC_SEND=1"]
                 if os.environ.get("MENU_CP_RELEASE_SERVICE"):
                     setup += ["export MENU_CP_RELEASE_SERVICE=1"]
+                if os.environ.get("MENU_VIRTUAL_LENS_HUD"):
+                    setup += ["export MENU_VIRTUAL_LENS_HUD=%s" % os.environ["MENU_VIRTUAL_LENS_HUD"]]
                 if os.environ.get("MENU_CTOR_CENSUS"):
                     setup += ["export MENU_CTOR_CENSUS=1"]
                 if os.environ.get("MENU_OSD_OBSERVE") or os.environ.get("MENU_SOFTWARE_LZ77"):

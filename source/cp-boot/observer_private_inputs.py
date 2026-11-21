@@ -177,7 +177,7 @@ class _PinnedImage:
         return os.fstat(self.fd)
 
 
-def snapshot_libraries(analysis, output):
+def snapshot_libraries(analysis, output, *, verify_sha=True):
     """Populate an existing owned 0700 build; retain all partial files on failure."""
     analysis, output = _canonical(analysis), _canonical(output)
     _require(analysis != output and analysis not in output.parents and output not in analysis.parents,
@@ -186,8 +186,8 @@ def snapshot_libraries(analysis, output):
         analysis_fd = inputs.enter_context(_directory(analysis))
         output_fd = stack.enter_context(_directory(output, private=True))
         source_fd = inputs.enter_context(_directory(analysis / 'menu-root/lib'))
-        image_fd = inputs.enter_context(_input(analysis_fd, 'menu-initramfs.cpio', protected=True))
-        base_sha = _digest(image_fd)
+        image_fd = inputs.enter_context(_input(analysis_fd, 'menu-initramfs.cpio', protected=True)) if verify_sha else None
+        base_sha = _digest(image_fd) if verify_sha else ('0' * 64)
         sources = {name: inputs.enter_context(_input(source_fd, name)) for name in LIBRARIES}
         for name, fd in sources.items():
             _require(0 < os.fstat(fd).st_size <= MAX_LIBRARY_BYTES,
@@ -207,24 +207,26 @@ def snapshot_libraries(analysis, output):
             sha, private_identities[name] = _copy(fd, private_fd, name)
             libraries['lib/' + name] = dict(sha256=sha,
                 source=str(analysis / 'menu-root/lib' / name), snapshot=str(output / 'lib' / name))
-        expected = {name: item['sha256'] for name, item in libraries.items()}
-        _require(verify_image(_PinnedImage(image_fd), expected) == expected,
-                 'Base initramfs library identities differ')
-        _require(_digest(image_fd) == base_sha, 'Base initramfs full SHA256 changed')
-        # Re-read sources before closing their pinned identity checks.
-        for name, fd in sources.items():
-            _require(_digest(fd, limit=MAX_LIBRARY_BYTES) == libraries['lib/' + name]['sha256'],
-                     'Source library full SHA256 changed: ' + name)
-        for name in LIBRARIES:
-            with _input(private_fd, name, private=True) as fd:
-                _require(_identity(os.fstat(fd)) == private_identities[name],
-                         'Private library identity changed: ' + name)
-                _require(_digest(fd) == libraries['lib/' + name]['sha256'],
-                         'Private library full SHA256 changed: ' + name)
+        if verify_sha:
+            expected = {name: item['sha256'] for name, item in libraries.items()}
+            _require(verify_image(_PinnedImage(image_fd), expected) == expected,
+                     'Base initramfs library identities differ')
+            _require(_digest(image_fd) == base_sha, 'Base initramfs full SHA256 changed')
+            # Re-read sources before closing their pinned identity checks.
+            for name, fd in sources.items():
+                _require(_digest(fd, limit=MAX_LIBRARY_BYTES) == libraries['lib/' + name]['sha256'],
+                         'Source library full SHA256 changed: ' + name)
+            for name in LIBRARIES:
+                with _input(private_fd, name, private=True) as fd:
+                    _require(_identity(os.fstat(fd)) == private_identities[name],
+                             'Private library identity changed: ' + name)
+                    _require(_digest(fd) == libraries['lib/' + name]['sha256'],
+                             'Private library full SHA256 changed: ' + name)
         # Finish all source identity and ancestor checks before publishing success.
         inputs.close()
         receipt = dict(schema=SCHEMA, base_initramfs_sha256=base_sha,
-                       libraries=libraries, physical_compatible=False)
+                       libraries=libraries, physical_compatible=False,
+                       base_initramfs_verified=bool(verify_sha))
         raw = (json.dumps(receipt, indent=2, sort_keys=True) + '\n').encode()
         with _new(output_fd, 'library-inputs.json') as fd:
             _write(fd, raw)

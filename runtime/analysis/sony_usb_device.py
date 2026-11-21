@@ -182,7 +182,7 @@ def ee_normal_cold(current,payload):
                  helpers={'usb-ee-native-pins.h':pins},pins_content=pins_content,private_input=private_input)
 
 
-def prepare_private_libraries(payload):
+def prepare_private_libraries(payload, *, verify_sha=True):
     """Snapshot protected link inputs once; retain the receipt and partial failures."""
     payload=build_output_directory(payload)
     if payload.is_relative_to(ANALYSIS):
@@ -208,7 +208,7 @@ def prepare_private_libraries(payload):
         raise ValueError('USB observer intent readback differs')
     spec=importlib.util.spec_from_file_location('usb_observer_private_inputs',PRODUCT/'source/cp-boot/observer_private_inputs.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    receipt=module.snapshot_libraries(ANALYSIS,private)
+    receipt=module.snapshot_libraries(ANALYSIS,private,verify_sha=verify_sha)
     proof={'private_input_receipt':str(private/'library-inputs.json'),
            'sha256':sha(private/'library-inputs.json'),
            'next_consumer':'cold audit and USB observer build review and reference-checked cleanup'}

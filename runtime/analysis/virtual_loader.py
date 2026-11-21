@@ -67,20 +67,49 @@ def read_wbi2(fd, geometry):
     head = os.pread(fd, len(WBI2_MAGIC), partition['offset'])
     return head == WBI2_MAGIC
 
+def clear_wbi2_fd(fd, geometry, *, backup_path=None):
+    """Backup and zero the 4-byte WBI2 header on nflasha5 when explicitly requested."""
+    partition = _slices(fd, geometry)['nflasha5']
+    head = os.pread(fd, len(WBI2_MAGIC), partition['offset'])
+    if head != WBI2_MAGIC:
+        return dict(changed=False, offset=partition['offset'], before=head.hex())
+    if backup_path is not None:
+        backup = Path(backup_path)
+        if not backup.exists():
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            backup.write_bytes(head)
+            backup.chmod(0o600)
+    zeros = b'\x00' * len(WBI2_MAGIC)
+    if os.pwrite(fd, zeros, partition['offset']) != len(zeros):
+        raise OSError('Short p5 WBI2 clear write')
+    os.fsync(fd)
+    if os.pread(fd, len(WBI2_MAGIC), partition['offset']) != zeros:
+        raise ValueError('p5 WBI2 clear readback differs')
+    return dict(changed=True, offset=partition['offset'], before=head.hex(), after=zeros.hex(),
+                backup=str(backup_path) if backup_path is not None else None)
 
-def evaluate_fd(fd, geometry, *, retained_ram=False):
+
+def evaluate_fd(fd, geometry, *, retained_ram=False, force_cold=False):
     updater_present, updater_content = read_updater_mode(fd, geometry)
     wbi2 = read_wbi2(fd, geometry)
     predicates = dict(DEFAULT_PREDICATES)
-    predicates.update(updater=updater_present, hotboot=bool(retained_ram), ssboot=wbi2)
+    forced_cold_override = bool(force_cold and wbi2 and not updater_present and not retained_ram)
+    if forced_cold_override:
+        predicates.update(updater=False, hotboot=False, ssboot=False, cldboot=True)
+    else:
+        predicates.update(updater=updater_present, hotboot=bool(retained_ram), ssboot=wbi2)
     route = boot_flow.select_route(predicates)
     resolve = boot_flow.resolve_resume(route, ld_read=True, ld=0, h=False,
                                       retained_ram_bound=bool(retained_ram))
-    return dict(schema=SCHEMA, profile=PROFILE, physical_bootrom_compatible=False,
-                predicates=predicates, predicate_defaults='CP/PMIC inputs fixed per DEFAULT_PREDICATES',
-                disk_inputs=dict(updater_mode_present=updater_present,
-                                 updater_mode_content=updater_content, wbi2_magic=wbi2),
-                retained_ram=bool(retained_ram), route=route, resolve=resolve)
+    result = dict(schema=SCHEMA, profile=PROFILE, physical_bootrom_compatible=False,
+                  predicates=predicates, predicate_defaults='CP/PMIC inputs fixed per DEFAULT_PREDICATES',
+                  disk_inputs=dict(updater_mode_present=updater_present,
+                                   updater_mode_content=updater_content, wbi2_magic=wbi2),
+                  retained_ram=bool(retained_ram), route=route, resolve=resolve)
+    if forced_cold_override:
+        result['cold_flag_mode'] = 'force'
+        result['forced_cold_override'] = True
+    return result
 
 
 @contextmanager
@@ -89,9 +118,10 @@ def _lease(instance):
         yield leased
 
 
-def evaluate(instance, *, retained_ram=False):
+def evaluate(instance, *, retained_ram=False, force_cold=False):
     with _lease(instance) as leased:
-        return evaluate_fd(leased['fd'], leased['geometry'], retained_ram=retained_ram)
+        return evaluate_fd(leased['fd'], leased['geometry'], retained_ram=retained_ram,
+                           force_cold=force_cold)
 
 
 def cold_boot_assets_fd(fd, geometry, *, kernel_sha256, ram0_sha256):

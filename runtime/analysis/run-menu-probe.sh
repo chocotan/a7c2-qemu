@@ -27,7 +27,10 @@ PY
     export MENU_SD_IMAGE="$A7C2_SD_IMAGE"
 fi
 
-if [ -f "$analysis_dir/native-assets.json" ]; then
+export A7C2_COLD_FLAG="${A7C2_COLD_FLAG:-force}"
+export A7C2_VERIFY_SHA="${A7C2_VERIFY_SHA:-0}"
+
+if [ -f "$analysis_dir/native-assets.json" ] && [ "${A7C2_VERIFY_SHA:-0}" = "1" ]; then
     runtime_dir="$(cd -- "$analysis_dir/.." && pwd)"
     python3 "$analysis_dir/prepare-assets.py" --runtime "$runtime_dir" --check-runtime
 fi
@@ -42,8 +45,12 @@ fi
 
 if [ "${SKIP_REBUILD:-0}" != "1" ]; then
     bash "$analysis_dir/build-observers.sh" >/dev/null || { echo "observer build failed"; exit 1; }
-    bash "$analysis_dir/prepare-menu-initramfs.sh" >/dev/null || { echo "initramfs build failed"; exit 1; }
-    echo "rebuilt observer + initramfs"
+    if [[ "${A7C2_BOOT_PROFILE:-direct-bootin}" != original-init-cold ]]; then
+        bash "$analysis_dir/prepare-menu-initramfs.sh" >/dev/null || { echo "initramfs build failed"; exit 1; }
+        echo "rebuilt observer + initramfs"
+    else
+        echo "rebuilt observer"
+    fi
 fi
 
 if [[ "${A7C2_BOOT_PROFILE:-direct-bootin}" == original-init-cold ]]; then

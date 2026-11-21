@@ -85,6 +85,7 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "device-models/functional-background-start.h"
 #include "device-models/functional-vdf-layout-stage.h"
 #include "device-models/functional-cp-zoom.h"
+#include "device-models/virtual-lens-hud.h"
 typedef unsigned long size_t;
 typedef unsigned long pthread_t;
 static int (*sd_ack_create)(pthread_t *,const void *,void *(*)(void *),void *);
@@ -1354,6 +1355,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_", "FULL_CP_PERIODIC_",
             "FULL_DMM_UNIT_",
+            "VIRTUAL_LENS_HUD_",
             "NATIVE_CP_BACKGROUND_", "NATIVE_CP_FACE_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_FOCUS_RESET_MODEL ", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM", "FUNCTIONAL_CP_PARAMETER_BANK_", "FUNCTIONAL_CP_CRANK_CONTROL_", "FUNCTIONAL_CP_MOVIE_FORMAT_", "FUNCTIONAL_CP_OU_CRANK_CONTROL_", "FUNCTIONAL_BB_TIMECODE_", "NATIVE_BB_TIMECODE_INPUT_AUDIT ",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
@@ -2599,6 +2601,204 @@ static int arm_entry_probe(unsigned long target, const unsigned int expected[4],
     }
     record("ENTRY_PROBE_ARMED ", label);
     return rc;
+}
+/* Software virtual lens & exposure HUD support (MENU_VIRTUAL_LENS_HUD=1).
+ * On ILCE-7CM2 (model_index=25), appFw.so offloads view_mp_aperture/shutter_speed/iso_sensitivity
+ * to CP's hardware MP-OSD plane by setting param.use_cp_mp_draw=1 (+0x2b8 / +0x2c1), which causes
+ * AP's own built-in view_text/view_icon renderers at +0x181b660/+0x181d05c/+0x181ca04 to return
+ * early. Clearing use_cp_mp_draw on entry enables appFw's own native AP OSD widgets, while
+ * sending verified type-6 notifications (0x2044/0x201b/0x200e/0x2036) to 0x80020002 feeds
+ * deterministic virtual lens & exposure values through the real OSAL queue. */
+static int virtual_lens_hud_enabled;
+static unsigned int virtual_lens_hud_boot_published, virtual_lens_hud_hud_published;
+static unsigned int virtual_lens_hud_ap_logs, virtual_lens_hud_ss_logs, virtual_lens_hud_iso_logs;
+static void *virtual_hud_aperture_continue, *virtual_hud_shutter_continue, *virtual_hud_iso_continue;
+static struct virtual_lens_hud_state virtual_lens_hud_current;
+static int virtual_lens_hud_send_one(const unsigned char *payload, unsigned int bytes) {
+    if (!payload || !bytes || !real_allocate_msg || !real_set_source || !real_send_msg || !real_free_msg)
+        return -1021;
+    void *msg = 0;
+    int rc = real_allocate_msg(VIRTUAL_LENS_HUD_AP_DEST, &msg, bytes, 1);
+    if (rc || !msg) return rc ? rc : -1024;
+    memcpy(msg, payload, bytes);
+    real_set_source(msg, VIRTUAL_LENS_HUD_CP_SOURCE);
+    rc = real_send_msg(VIRTUAL_LENS_HUD_AP_DEST, msg);
+    if (rc) real_free_msg(VIRTUAL_LENS_HUD_AP_DEST, msg);
+    return rc;
+}
+static void virtual_lens_hud_publish_state(const char *reason) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    int saved_errno = *__errno_location();
+    unsigned char m2044[VIRTUAL_LENS_HUD_2044_BYTES];
+    unsigned char m201b[VIRTUAL_LENS_HUD_201B_BYTES];
+    unsigned char m200e[VIRTUAL_LENS_HUD_200E_BYTES];
+    unsigned char m2036[VIRTUAL_LENS_HUD_2036_BYTES];
+    int n2044 = virtual_lens_hud_encode_2044(&virtual_lens_hud_current, m2044, sizeof m2044);
+    int n201b = virtual_lens_hud_encode_201b(&virtual_lens_hud_current, m201b, sizeof m201b);
+    int n200e = virtual_lens_hud_encode_200e(&virtual_lens_hud_current, m200e, sizeof m200e);
+    int n2036 = virtual_lens_hud_encode_2036(&virtual_lens_hud_current, m2036, sizeof m2036);
+    int rc2044 = n2044 > 0 ? virtual_lens_hud_send_one(m2044, (unsigned int)n2044) : n2044;
+    int rc201b = n201b > 0 ? virtual_lens_hud_send_one(m201b, (unsigned int)n201b) : n201b;
+    int rc200e = n200e > 0 ? virtual_lens_hud_send_one(m200e, (unsigned int)n200e) : n200e;
+    int rc2036 = n2036 > 0 ? virtual_lens_hud_send_one(m2036, (unsigned int)n2036) : n2036;
+    char text[256];
+    snprintf(text, sizeof text,
+             "reason=%s tid=%ld rc_2044=%d rc_201b=%d rc_200e=%d rc_2036=%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1 original_CP=0",
+             reason ? reason : "unknown", syscall(178), rc2044, rc201b, rc200e, rc2036,
+             (unsigned int)virtual_lens_hud_current.aperture_x100,
+             (unsigned int)virtual_lens_hud_current.shutter_num,
+             (unsigned int)virtual_lens_hud_current.shutter_den,
+             (unsigned int)virtual_lens_hud_current.iso_cp_byte);
+    record("VIRTUAL_LENS_HUD_PUBLISHED ", text);
+    *__errno_location() = saved_errno;
+}
+static void *virtual_lens_hud_publish_worker(void *arg) {
+    virtual_lens_hud_publish_state((const char *)arg);
+    return 0;
+}
+static void virtual_lens_hud_schedule_publish(const char *reason) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (__atomic_exchange_n(&virtual_lens_hud_hud_published, 1u, __ATOMIC_ACQ_REL)) return;
+    if (sd_ack_create) {
+        pthread_t thread = 0;
+        if (sd_ack_create(&thread, 0, virtual_lens_hud_publish_worker, (void *)reason) == 0) {
+            if (sd_ack_detach) sd_ack_detach(thread);
+            return;
+        }
+    }
+    __atomic_store_n(&virtual_lens_hud_hud_published, 0u, __ATOMIC_RELEASE);
+}
+void virtual_hud_aperture_enter(unsigned long view) {
+    if (!virtual_lens_hud_enabled || view < 0x100000UL || view >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    unsigned char *p = (unsigned char *)view;
+    unsigned int prev_mp = p[0x2b8];
+    p[0x2b8] = 0u;
+    virtual_lens_hud_schedule_publish("hud-aperture");
+    unsigned int count = __atomic_fetch_add(&virtual_lens_hud_ap_logs, 1u, __ATOMIC_RELAXED);
+    if (count < 4u) {
+        char text[192];
+        snprintf(text, sizeof text,
+                 "kind=aperture n=%u visible=%u prev_cp_mp=%u aperture_x100=%u hide=%u x=%u y=%u",
+                 count, (unsigned int)p[0x2a4], prev_mp,
+                 (unsigned int)*(const unsigned short *)(p + 0x2ba),
+                 *(const unsigned int *)(p + 0x2bc),
+                 *(const unsigned int *)(p + 0x290), *(const unsigned int *)(p + 0x294));
+        record("VIRTUAL_LENS_HUD_WIDGET ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void virtual_hud_shutter_enter(unsigned long view) {
+    if (!virtual_lens_hud_enabled || view < 0x100000UL || view >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    unsigned char *p = (unsigned char *)view;
+    unsigned int prev_mp = p[0x2b8];
+    p[0x2b8] = 0u;
+    virtual_lens_hud_schedule_publish("hud-shutter");
+    unsigned int count = __atomic_fetch_add(&virtual_lens_hud_ss_logs, 1u, __ATOMIC_RELAXED);
+    if (count < 4u) {
+        char text[192];
+        snprintf(text, sizeof text,
+                 "kind=shutter n=%u visible=%u prev_cp_mp=%u num=%u den=%u x=%u y=%u",
+                 count, (unsigned int)p[0x2a4], prev_mp,
+                 *(const unsigned int *)(p + 0x2bc), *(const unsigned int *)(p + 0x2c0),
+                 *(const unsigned int *)(p + 0x290), *(const unsigned int *)(p + 0x294));
+        record("VIRTUAL_LENS_HUD_WIDGET ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+void virtual_hud_iso_enter(unsigned long view) {
+    if (!virtual_lens_hud_enabled || view < 0x100000UL || view >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    unsigned char *p = (unsigned char *)view;
+    unsigned int prev_mp = p[0x2c1];
+    p[0x2c1] = 0u;
+    virtual_lens_hud_schedule_publish("hud-iso");
+    unsigned int count = __atomic_fetch_add(&virtual_lens_hud_iso_logs, 1u, __ATOMIC_RELAXED);
+    if (count < 4u) {
+        char text[192];
+        snprintf(text, sizeof text,
+                 "kind=iso n=%u visible=%u prev_cp_mp=%u mode=%u flag50=%u x=%u y=%u",
+                 count, (unsigned int)p[0x2a4], prev_mp,
+                 *(const unsigned int *)(p + 0x2bc), (unsigned int)p[0x2c8],
+                 *(const unsigned int *)(p + 0x290), *(const unsigned int *)(p + 0x294));
+        record("VIRTUAL_LENS_HUD_WIDGET ", text);
+    }
+    *__errno_location() = saved_errno;
+}
+__asm__(
+".text\n"
+".globl virtual_hud_aperture_trampoline\n"
+".type virtual_hud_aperture_trampoline, %function\n"
+"virtual_hud_aperture_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_hud_aperture_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394a9001\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_hud_aperture_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_hud_aperture_continue]\n"
+"    br x16\n"
+".globl virtual_hud_shutter_trampoline\n"
+".type virtual_hud_shutter_trampoline, %function\n"
+"virtual_hud_shutter_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_hud_shutter_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394a9002\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_hud_shutter_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_hud_shutter_continue]\n"
+"    br x16\n"
+".globl virtual_hud_iso_trampoline\n"
+".type virtual_hud_iso_trampoline, %function\n"
+"virtual_hud_iso_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_hud_iso_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bc7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394a9002\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_hud_iso_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_hud_iso_continue]\n"
+"    br x16\n"
+);
+extern void virtual_hud_aperture_trampoline(void);
+extern void virtual_hud_shutter_trampoline(void);
+extern void virtual_hud_iso_trampoline(void);
+static void install_virtual_lens_hud_probes(unsigned long base) {
+    if (!same_name(getenv("MENU_VIRTUAL_LENS_HUD"), "1")) return;
+    virtual_lens_hud_init_defaults(&virtual_lens_hud_current);
+    virtual_lens_hud_enabled = 1;
+    virtual_hud_aperture_continue = (void *)(base + 0x181b670UL);
+    virtual_hud_shutter_continue = (void *)(base + 0x181d06cUL);
+    virtual_hud_iso_continue = (void *)(base + 0x181ca14UL);
+    int rc_ap = arm_entry_probe(base + 0x181b660UL,
+        (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9001, 0xa90153f3},
+        (void *)virtual_hud_aperture_trampoline, virtual_hud_aperture_continue,
+        "view_mp_aperture 0x181b660");
+    int rc_ss = arm_entry_probe(base + 0x181d05cUL,
+        (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9002, 0xa90153f3},
+        (void *)virtual_hud_shutter_trampoline, virtual_hud_shutter_continue,
+        "view_mp_shutter_speed 0x181d05c");
+    int rc_iso = arm_entry_probe(base + 0x181ca04UL,
+        (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9002, 0xa90153f3},
+        (void *)virtual_hud_iso_trampoline, virtual_hud_iso_continue,
+        "view_mp_iso_sensitivity 0x181ca04");
+    char text[192];
+    snprintf(text, sizeof text,
+             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
+             rc_ap, rc_ss, rc_iso,
+             (unsigned int)virtual_lens_hud_current.aperture_x100,
+             (unsigned int)virtual_lens_hud_current.shutter_num,
+             (unsigned int)virtual_lens_hud_current.shutter_den,
+             (unsigned int)virtual_lens_hud_current.iso_cp_byte);
+    record("VIRTUAL_LENS_HUD_ARMED ", text);
 }
 /* Original request objects are observed only during their owning call. */
 static unsigned int liveview_request_count, liveview_consume_count, liveview_run_count;
@@ -11913,6 +12113,12 @@ int osal_snd_msg(unsigned int id, void *message) {
         if (serviced == 0) return 0;
         if (serviced != -1024) return serviced;   /* unexpected failure: do not forward to a dead SID */
     }
+    if (virtual_lens_hud_enabled && !functional_camera_enabled && !cp_owned_state_enabled &&
+        id == VIRTUAL_LENS_HUD_CP_SOURCE && message && create_screen_calls >= 1 &&
+        real_get_source && real_get_source(message) == VIRTUAL_LENS_HUD_AP_DEST) {
+        if (!__atomic_exchange_n(&virtual_lens_hud_boot_published, 1u, __ATOMIC_ACQ_REL))
+            virtual_lens_hud_publish_state("boot-90030001");
+    }
 
     /* Force-dispatch from the application's own message loop, i.e. after its UI construction stack has
        unwound: calling the dispatcher from inside create_screen re-entered the manager and aborted. */
@@ -13073,6 +13279,7 @@ void *dlsym(void *handle, const char *name) {
         start_live_key_worker();
         if (!getenv("MENU_OBSERVE_SELFTEST")) install_create_screen_sentinel(appfw_base);
         if (!getenv("MENU_OBSERVE_SELFTEST")) install_frame_observers(appfw_base);
+        if (!getenv("MENU_OBSERVE_SELFTEST")) install_virtual_lens_hud_probes(appfw_base);
         if (!getenv("MENU_OBSERVE_DISABLE_UX2_HOOK") && !getenv("MENU_OBSERVE_SELFTEST")) {
             unsigned int patched = patch_uxengine_init2(appfw_base);
             char text[96];

@@ -1234,7 +1234,24 @@ class CameraUI:
         Gtk.main()
 
 
-def main(autostart=True):
+def main(autostart=True, argv=None):
+    if argv is not None:
+        import argparse
+        parser = argparse.ArgumentParser(description='Sony A7C II QEMU native control UI')
+        parser.add_argument('--cold-flag', choices=('force', 'clear', 'strict'), default=None,
+                            help='how the virtual loader handles p5 WBI2 magic (default: A7C2_COLD_FLAG or force)')
+        verify_group = parser.add_mutually_exclusive_group()
+        verify_group.add_argument('--verify-sha', dest='verify_sha', action='store_true', default=None,
+                                  help='enable startup SHA verification (or set A7C2_VERIFY_SHA=1)')
+        verify_group.add_argument('--no-verify-sha', dest='verify_sha', action='store_false',
+                                  help='disable startup SHA verification (default; or set A7C2_VERIFY_SHA=0)')
+        args = parser.parse_args(argv)
+        if args.cold_flag is not None:
+            os.environ['A7C2_COLD_FLAG'] = args.cold_flag
+        if args.verify_sha is not None:
+            os.environ['A7C2_VERIFY_SHA'] = '1' if args.verify_sha else '0'
+    os.environ.setdefault('A7C2_COLD_FLAG', 'force')
+    os.environ.setdefault('A7C2_VERIFY_SHA', '0')
     if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
         from single_ap_sockets import admit
         admit()
@@ -1270,4 +1287,4 @@ def main(autostart=True):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(main(argv=sys.argv[1:]))

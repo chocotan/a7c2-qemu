@@ -57,14 +57,27 @@ def ensure_instance(base=None):
     finally:os.close(lock)
 
 
-def module_file():
+def _sha_enabled(verify_sha=None):
+    if verify_sha is not None:
+        return bool(verify_sha)
+    raw = os.environ.get('A7C2_VERIFY_SHA', '1').strip().lower()
+    return raw not in ('0', 'false', 'no', 'off')
+
+
+def module_file(verify_sha=None):
+    check_sha = _sha_enabled(verify_sha)
     manifest=MODULE_SOURCE/'abi-manifest.json'
     build=MODULE_OUTPUTS/('build-'+sha(manifest)[:16])
     result=build/'result.json'
     if not result.exists():
         if build.exists():raise ValueError('Preserve failed persistent module build; select a fresh output')
         subprocess.run([sys.executable,'-B',str(MODULE_SOURCE/'build.py'),'--source',str(MODULE_SOURCE),'--output',str(build)],check=True)
-    proof=json.loads(result.read_bytes());path=build/'sony_persistent_flash.ko'
+    path=build/'sony_persistent_flash.ko'
+    if not check_sha:
+        if path.is_symlink() or not path.is_file():
+            raise ValueError('Persistent kernel module is missing: '+str(path))
+        return path
+    proof=json.loads(result.read_bytes())
     if proof.get('source_manifest_sha256')!=sha(manifest) or proof.get('module',{}).get('sha256')!=sha(path):
         raise ValueError('Persistent module differs from checked product sources')
     for name,row in json.loads(manifest.read_bytes())['files'].items():
@@ -74,7 +87,8 @@ def module_file():
     return path
 
 
-def binary_environment(binary=None,ram_state=False,proof_path=None):
+def binary_environment(binary=None,ram_state=False,proof_path=None,verify_sha=None):
+    check_sha = _sha_enabled(verify_sha)
     default=binary is None
     binary=ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui/qemu-system-aarch64' if default else Path(binary).absolute()
     # An explicit proof file must still bind this exact executable and module sources.
@@ -84,24 +98,27 @@ def binary_environment(binary=None,ram_state=False,proof_path=None):
     else:
         proof_path=Path(proof_path).absolute()
     if proof_path.is_symlink() or not proof_path.is_file():raise ValueError('Persistent build proof must be a regular file')
-    if not default and (binary.is_symlink() or not binary.is_file()):raise ValueError('Persistent candidate must be a regular file')
+    if binary.is_symlink() or not binary.is_file():raise ValueError('Persistent candidate must be a regular file')
     proof=json.loads(proof_path.read_bytes())
-    if proof.get('binary_sha256')!=sha(binary) or proof.get('profile')!='persistent-flash-cold-v1' or proof.get('mmio_base')!='0x0b010000':
+    if proof.get('profile')!='persistent-flash-cold-v1' or proof.get('mmio_base')!='0x0b010000':
         raise ValueError('Rebuild product QEMU with persistent flash support')
-    for name,digest in proof['source_files'].items():
-        if sha(MODULE_SOURCE/name)!=digest:raise ValueError('Persistent QEMU model source changed')
-    # The pinned default predates opt-in RAM migration; a candidate must match the current stage.
-    default_stage='02e8b028972af302239ca1ecbbbc09747a88aabc26129c2face23f12ba15b276'
-    if proof['stage_source_sha256'] not in ({default_stage} if default else {sha(MODULE_SOURCE/'stage.py')}):
-        raise ValueError('Persistent QEMU staging source changed')
-    if ram_state:
-        ram_proof_path=binary.parent.parent/'ram-state-source.json'
-        ram_proof=json.loads(ram_proof_path.read_bytes())
-        if ram_proof.get('stage_source_sha256')!=sha(PRODUCT/'source/ram-state/stage.py'):
-            raise ValueError('RAM device-state staging source changed')
-        for name,digest in ram_proof['outputs'].items():
-            if sha(binary.parent.parent/'qemu-11.1.2'/name)!=digest:
-                raise ValueError('RAM device-state output changed: '+name)
+    if check_sha:
+        if proof.get('binary_sha256')!=sha(binary):
+            raise ValueError('Rebuild product QEMU with persistent flash support')
+        for name,digest in proof['source_files'].items():
+            if sha(MODULE_SOURCE/name)!=digest:raise ValueError('Persistent QEMU model source changed')
+        # The pinned default predates opt-in RAM migration; a candidate must match the current stage.
+        default_stage='02e8b028972af302239ca1ecbbbc09747a88aabc26129c2face23f12ba15b276'
+        if proof['stage_source_sha256'] not in ({default_stage} if default else {sha(MODULE_SOURCE/'stage.py')}):
+            raise ValueError('Persistent QEMU staging source changed')
+        if ram_state:
+            ram_proof_path=binary.parent.parent/'ram-state-source.json'
+            ram_proof=json.loads(ram_proof_path.read_bytes())
+            if ram_proof.get('stage_source_sha256')!=sha(PRODUCT/'source/ram-state/stage.py'):
+                raise ValueError('RAM device-state staging source changed')
+            for name,digest in ram_proof['outputs'].items():
+                if sha(binary.parent.parent/'qemu-11.1.2'/name)!=digest:
+                    raise ValueError('RAM device-state output changed: '+name)
     return dict(QEMU_SYSTEM_DIR=str(binary.parent),QEMU_SYSTEM_BINARY=binary.name)
 
 

@@ -13,6 +13,28 @@ elif [[ $# != 0 ]]; then
   echo 'Usage: prepare-menu-initramfs.sh [--without-updater]' >&2
   exit 2
 fi
+pad_bytes="${CPIO_PAD_BYTES:-0}"
+preload="${PRELOAD_ALL:-0}"
+stamp="${output}.stamp"
+if [ "${A7C2_FORCE_REBUILD:-0}" != "1" ] && [ -z "${MENU_YC_INPUT_RAW:-}" ] && ! [[ ${MENU_SD_IMAGE+x} ]] && [ -f "$output" ] && [ -f "$stamp" ]; then
+  stamp_key=$(python3 - "$root" "$boot" "$analysis_dir" "$preload" "$pad_bytes" "$output" <<'PY'
+import os,sys
+from pathlib import Path
+root,boot,analysis=Path(sys.argv[1]),Path(sys.argv[2]),Path(sys.argv[3])
+preload,pad,out=sys.argv[4],sys.argv[5],Path(sys.argv[6])
+parts=[f"preload={preload}",f"pad={pad}",f"out={out.name}"]
+for p in [analysis/"libIMDB-menu.so",analysis/"menu-observe.so",analysis/"native-assets.json",out,
+          *sorted(boot.glob("*.bin")),*sorted(boot.glob("*.hcd"))]:
+    if p.exists():
+        st=p.stat()
+        parts.append(f"{p.name}:{st.st_size}:{st.st_mtime_ns}")
+print("|".join(parts))
+PY
+)
+  if [ "$(cat "$stamp")" = "$stamp_key" ] && ! find "$root" -newer "$stamp" -print -quit | grep -q .; then
+    exit 0
+  fi
+fi
 for file in "$boot/"*.bin "$boot/"*.hcd; do cp -a "$file" "$root/system/"; done
 # im.elf loads IMDB from a fixed /usr/lib path; only this generated test root uses the qemu-filtered copy.
 chmod u+w "$root/usr/lib/libIMDB.so"
@@ -36,7 +58,7 @@ chmod 0755 "$root/init"
 # PRELOAD_ALL=1 puts the observer into every dynamically linked guest process through
 # /etc/ld.so.preload, so senders and queue creators outside im.elf become visible.
 mkdir -p "$root/etc"
-if [ "${PRELOAD_ALL:-0}" = 1 ]; then
+if [ "$preload" = 1 ]; then
   printf '/simulation/menu-observe.so\n' > "$root/etc/ld.so.preload"
   echo "preload: observer injected into every guest process"
 else
@@ -44,7 +66,6 @@ else
 fi
 # ponytail: speech dictionaries are excluded from this menu-only test image;
 # include them if screen-reader behavior becomes part of the experiment.
-pad_bytes="${CPIO_PAD_BYTES:-0}"
 if [ "$pad_bytes" != "0" ]; then
   head -c "$pad_bytes" /dev/zero > "$root/simulation/.pad"
 else
@@ -52,6 +73,21 @@ else
 fi
 (cd "$root" && find . -path './usr/share/screenreader' -prune -o "${exclude_updater[@]}" -print0 |
   cpio --null -o -H newc --quiet) > "$output"
+if [ -z "${MENU_YC_INPUT_RAW:-}" ] && ! [[ ${MENU_SD_IMAGE+x} ]]; then
+  python3 - "$root" "$boot" "$analysis_dir" "$preload" "$pad_bytes" "$output" > "$stamp" <<'PY'
+import sys
+from pathlib import Path
+root,boot,analysis=Path(sys.argv[1]),Path(sys.argv[2]),Path(sys.argv[3])
+preload,pad,out=sys.argv[4],sys.argv[5],Path(sys.argv[6])
+parts=[f"preload={preload}",f"pad={pad}",f"out={out.name}"]
+for p in [analysis/"libIMDB-menu.so",analysis/"menu-observe.so",analysis/"native-assets.json",out,
+          *sorted(boot.glob("*.bin")),*sorted(boot.glob("*.hcd"))]:
+    if p.exists():
+        st=p.stat()
+        parts.append(f"{p.name}:{st.st_size}:{st.st_mtime_ns}")
+print("|".join(parts))
+PY
+fi
 if [[ -n "${MENU_YC_INPUT_RAW:-}" ]]; then
   [[ -f "$MENU_YC_INPUT_RAW" && ! -L "$MENU_YC_INPUT_RAW" && $(stat -c %s "$MENU_YC_INPUT_RAW") == 2073600 ]] || {
     echo 'YC grayscale input must be a 2073600-byte regular file' >&2; exit 1;

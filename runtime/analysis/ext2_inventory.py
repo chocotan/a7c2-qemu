@@ -41,6 +41,38 @@ class Ext2:
             raise RuntimeError(f'debugfs command failed: {text}: {errors or result.stdout}')
         return result.stdout
 
+    def batch(self,commands,write=False,name='debugfs-batch.cmd'):
+        if not commands:return ''
+        cmdfile=self.scratch/name
+        cmdfile.write_text('\n'.join(commands)+'\n',encoding='utf-8')
+        argv=['debugfs',*(['-w'] if write else []),'-f',str(cmdfile),str(self.path)]
+        result=subprocess.run(argv,capture_output=True,text=True,timeout=120)
+        errors='\n'.join(l for l in result.stderr.splitlines() if not re.match(r'^debugfs \d',l)).strip()
+        if result.returncode or errors:
+            raise RuntimeError(f'debugfs batch failed: {errors or result.stdout}')
+        return result.stdout
+
+    def probe_paths(self,paths):
+        """Query type/symlink target for specific guest paths without reading file data."""
+        found={}
+        for path in paths:
+            argv=['debugfs','-R',f'stat {quote(path)}',str(self.path)]
+            result=subprocess.run(argv,capture_output=True,text=True,timeout=60)
+            if result.returncode or 'File not found' in result.stderr:
+                continue
+            kind_match=re.search(r'Type:\s*(\S+)',result.stdout)
+            if not kind_match:
+                continue
+            kind_name=kind_match[1]
+            if kind_name=='directory':
+                found[path]={'kind':'dir'}
+            elif kind_name=='symlink':
+                fast=re.search(r'^Fast link dest: "(.*)"$',result.stdout,re.M)
+                found[path]={'kind':'symlink','target':fast[1] if fast else None}
+            else:
+                found[path]={'kind':'file'}
+        return found
+
     def inode_stat(self,inode):
         text=self.command(f'stat <{int(inode)}>')
         flags=re.search(r'Flags:\s*(0x[0-9a-fA-F]+)',text)

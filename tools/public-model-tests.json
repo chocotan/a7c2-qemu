@@ -285,5 +285,7 @@
   "source/cp-boot/test_native_qtest.py",
   "source/cp-boot/test_native_device_check.py",
   "source/cp-boot/test_peripherals_stage.py",
-  "source/cp-boot/test_platform_port.py"
+  "source/cp-boot/test_platform_port.py",
+  "runtime/analysis/test_fast_boot_controls.py",
+  "runtime/analysis/test_virtual_lens_hud.py"
 ]

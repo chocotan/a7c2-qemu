@@ -44,6 +44,7 @@ BASE_GUEST={
     'MENU_DMM_UNIT_CONFIG':'1','MENU_PIN_REGISTRY':'1','MENU_PIN_CONTROL_MEMORY':'1','MENU_PIN_CONNECTION':'cold',
     'MENU_CP_TIME_SERVICE':'1','MENU_CRYPT_LIB':'1','MENU_BUSPOWER':'1',
     'MENU_CP_RELEASE_SERVICE':'1','MENU_OSD_OBSERVE':'1','MENU_FRAME_OBSERVE':'1',
+    'MENU_VIRTUAL_LENS_HUD':'1',
 }
 
 
@@ -55,7 +56,26 @@ def sha(path):
     with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
-def product_input_bindings():
+def parse_cold_flag(host):
+    raw=host.get('A7C2_COLD_FLAG')
+    if raw is None:return 'strict'
+    value=str(raw).strip().lower()
+    if value in ('1','force'):return 'force'
+    if value in ('0','strict'):return 'strict'
+    if value=='clear':return 'clear'
+    raise ValueError('Unknown A7C2_COLD_FLAG mode: '+str(raw))
+
+
+def parse_verify_sha(host):
+    raw=host.get('A7C2_VERIFY_SHA')
+    if raw is None:return True
+    value=str(raw).strip().lower()
+    if value in ('1','true','yes','on'):return True
+    if value in ('0','false','no','off'):return False
+    raise ValueError('Unknown A7C2_VERIFY_SHA setting: '+str(raw))
+
+
+def product_input_bindings(*,verify_sha=True):
     imported=json.loads((ANALYSIS/'native-assets.json').read_bytes())
     need(imported.get('model')=='ILCE-7CM2' and imported.get('version')=='2.01','Cold route requires the product official2.01 import')
     build=json.loads((ANALYSIS/'observer-build-inputs.json').read_bytes())
@@ -69,9 +89,16 @@ def product_input_bindings():
         'simulation/pin-control-probe':build['pin_control_probe_sha256'],
         'simulation/system-sound-owner':build['system_sound_owner_sha256'],
     }
-    for name,digest in identities.items():need(sha(ANALYSIS/'menu-root'/name)==digest,'Product cold input identity differs: '+name)
-    need(sha(ANALYSIS/'observer-build-sources.tar.gz')==build['source_archive_sha256'],'Product observer source archive changed')
-    return dict(guest_inputs=identities,observer_build_receipt_sha256=sha(ANALYSIS/'observer-build-inputs.json'),observer_source_archive_sha256=build['source_archive_sha256'])
+    if verify_sha:
+        for name,digest in identities.items():need(sha(ANALYSIS/'menu-root'/name)==digest,'Product cold input identity differs: '+name)
+        need(sha(ANALYSIS/'observer-build-sources.tar.gz')==build['source_archive_sha256'],'Product observer source archive changed')
+        receipt_sha=sha(ANALYSIS/'observer-build-inputs.json')
+    else:
+        for name in identities:
+            path=ANALYSIS/'menu-root'/name
+            need(path.is_file() and not path.is_symlink(),'Product cold input missing: '+name)
+        receipt_sha=None
+    return dict(guest_inputs=identities,observer_build_receipt_sha256=receipt_sha,observer_source_archive_sha256=build['source_archive_sha256'],sha_verified=bool(verify_sha))
 
 
 def guest_environment(host):
@@ -148,24 +175,37 @@ def original_menu_pixels(image):
     return hashlib.sha256(mask.tobytes()).hexdigest()=='f76f446097088810cb417f3cafc761d758dcc980a994a12ea2c977bc45d421d7'
 
 
-def guest_identity_script(bindings):
+def guest_identity_script(bindings,*,verify_sha=True):
     lines=['#!/bin/busybox sh','set -e']
     for name in ('usr/bin/im.elf','usr/lib/appFw.so','usr/lib/libObj.so'):
-        digest=bindings['guest_inputs'][name];target='/'+name
+        target='/'+name
+        if not verify_sha:
+            lines.append('[ -f '+target+' ] || exit 78')
+            continue
+        digest=bindings['guest_inputs'][name]
         need(re.fullmatch(r'[0-9a-f]{64}',digest) is not None,'Invalid original ELF digest')
         lines+=['digest=$(/usr/bin/openssl dgst -sha256 '+target+')',
                 'case "$digest" in "SHA256('+target+')= '+digest+'"|"SHA2-256('+target+')= '+digest+'") echo PRODUCT_COLD_GUEST_ELF_VERIFIED='+target+':'+digest+';; *) exit 78;; esac']
     return '\n'.join(lines)+'\n'
 
 
-def font_install_script(fonts):
+def font_install_script(fonts,*,verify_sha=True):
     commands=['#!/bin/busybox sh','set -e']
     for name,path in sorted(fonts.items()):
         need(re.fullmatch(r'[A-Za-z0-9_.+-]+',name) is not None,'Unsafe font basename')
-        target='/tmp/images/'+name;digest=sha(path);valid='"SHA256('+target+')= '+digest+'"|"SHA2-256('+target+')= '+digest+'"'
+        target='/tmp/images/'+name
+        size=path.stat().st_size
+        if not verify_sha:
+            commands+=['existing=$(/bin/busybox wc -c < '+target+' 2>/dev/null) || existing=',
+                       'if [ "$existing" != "'+str(size)+'" ]; then',
+                       '  /simulation/audit space /tmp '+str(size+1024**2)+' || exit 1',
+                       '  /bin/busybox cp /simulation/language-fonts/'+name+' '+target,
+                       'fi']
+            continue
+        digest=sha(path);valid='"SHA256('+target+')= '+digest+'"|"SHA2-256('+target+')= '+digest+'"'
         commands+=['digest=$(/usr/bin/openssl dgst -sha256 '+target+' 2>/dev/null) || digest=',
                    'case "$digest" in '+valid+') ;; *)',
-                   '  /simulation/audit space /tmp '+str(path.stat().st_size+1024**2)+' || exit 1',
+                   '  /simulation/audit space /tmp '+str(size+1024**2)+' || exit 1',
                    '  /bin/busybox cp /simulation/language-fonts/'+name+' '+target,
                    '  digest=$(/usr/bin/openssl dgst -sha256 '+target+')',
                    '  case "$digest" in '+valid+') ;; *) exit 1;; esac;; esac']
@@ -180,17 +220,56 @@ def _checked(command,log,timeout=90,pass_fds=(),environment=None):
     return result
 
 
-def _patch(image,work,files,links=()):
-    fs=Ext2(image,work);before=fs.inventory();original=dict(before['entries']);directories=set()
+def _patch(image,work,files,links=(),*,verify_sha=True):
+    fs=Ext2(image,work);directories=set()
     entry='/sbin/init' if image.name=='ram0.ext2' else '/sbin/init2'
-    for name,digest in ORIGINAL_SCRIPTS.items():
-        if name in ('/sbin/init','/sbin/init2') and name!=entry:continue
-        need(original.get(name,{}).get('sha256')==digest,'Original cold script identity differs: '+name)
-        need(name not in files and name not in dict(links),'Refuse replacing original cold script: '+name)
     for path in [*files,*dict(links)]:
         need(path.startswith('/') and '..' not in Path(path).parts,'Nonlocal cold image path')
         for parent in Path(path).parents:
             if str(parent)!='/':directories.add(str(parent))
+    if not verify_sha:
+        for name in ORIGINAL_SCRIPTS:
+            if name in ('/sbin/init','/sbin/init2') and name!=entry:continue
+            need(name not in files and name not in dict(links),'Refuse replacing original cold script: '+name)
+        sorted_dirs=sorted(directories,key=lambda x:(x.count('/'),x))
+        existing_dirs={}
+        top_missing=set()
+        for directory in sorted_dirs:
+            parent=str(Path(directory).parent)
+            if parent!='/' and parent not in existing_dirs:
+                top_missing.add(directory)
+                continue
+            probed=fs.probe_paths([directory])
+            if directory in probed:
+                need(probed[directory]['kind']=='dir','Cold directory conflicts with original file')
+                existing_dirs[directory]=probed[directory]
+        candidate_leaves=[p for p in [*files,*dict(links)] if (str(Path(p).parent)=='/' or str(Path(p).parent) in existing_dirs)]
+        existing_leaves=fs.probe_paths(candidate_leaves)
+        commands=[]
+        for directory in sorted_dirs:
+            if directory not in existing_dirs:
+                commands.append('mkdir '+quote(directory))
+        touched=set(files)|set(dict(links))
+        for path,source in files.items():
+            if path in existing_leaves:
+                need(existing_leaves[path]['kind']!='dir','Refuse replacing original directory')
+                commands.append('rm '+quote(path))
+            commands.append('write '+quote(source)+' '+quote(path))
+            mode=stat.S_IMODE(source.stat().st_mode)&0o777
+            for field,value in (('mode','0'+format(stat.S_IFREG|mode,'o')),('uid','0'),('gid','0')):
+                commands.append('set_inode_field '+quote(path)+' '+field+' '+value)
+        for path,target in links:
+            if path in existing_leaves:
+                need(existing_leaves[path].get('kind')=='symlink' and existing_leaves[path].get('target')==target,'Cold symlink conflicts with existing path')
+            else:
+                commands.append('symlink '+quote(path)+' '+quote(target))
+        fs.batch(commands,write=True,name=image.stem+'-patch.cmd')
+        return dict(original_tree_sha256=None,adapted_tree_sha256=None,original_untouched_entries_verified=False,sha_verified=False,changed_or_added=sorted(touched|directories),original_scripts={})
+    before=fs.inventory();original=dict(before['entries'])
+    for name,digest in ORIGINAL_SCRIPTS.items():
+        if name in ('/sbin/init','/sbin/init2') and name!=entry:continue
+        need(original.get(name,{}).get('sha256')==digest,'Original cold script identity differs: '+name)
+        need(name not in files and name not in dict(links),'Refuse replacing original cold script: '+name)
     for directory in sorted(directories,key=lambda x:(x.count('/'),x)):
         if directory not in original:fs.command('mkdir '+quote(directory),write=True)
         else:need(original[directory]['kind']=='dir','Cold directory conflicts with original file')
@@ -306,20 +385,43 @@ def usb_imdb(host,payload):
     return {'libIMDB-msc.so':target,'libIMDB.so':target}
 
 
-def build_audit(payload,output,private_inputs):
+def build_audit(payload,output,private_inputs,*,verify_sha=True):
     from sony_usb_device import verify_private_libraries,sealed_link_libraries,private_tool_environment
     verify_private_libraries(private_inputs)
     audit=payload/'audit'
+    source_file=SOURCE/'cold-start-audit.c'
+    if not verify_sha:
+        cache_dir=SOURCE/'.cache'
+        cached_audit=cache_dir/'audit'
+        stamp_file=cache_dir/'audit.stamp.json'
+        src_stat=source_file.stat()
+        libc_sha=private_inputs[1]['libraries']['lib/libc-2.25.so']['sha256']
+        want=dict(source_size=src_stat.st_size,source_mtime_ns=src_stat.st_mtime_ns,libc_sha256=libc_sha)
+        try:
+            have=json.loads(stamp_file.read_text()) if cached_audit.is_file() and stamp_file.is_file() else None
+        except (OSError,json.JSONDecodeError):
+            have=None
+        if have==want:
+            shutil.copyfile(cached_audit,audit);audit.chmod(0o755)
+            return audit
     with sealed_link_libraries(private_inputs) as (libraries,descriptors), private_tool_environment(private_inputs) as (environment,temp_fd):
-        _checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(SOURCE/'cold-start-audit.c'),libraries[0],'-o',str(audit)],output/'audit-build.log',pass_fds=descriptors+(temp_fd,),environment=environment)
+        _checked(['clang','--target=aarch64-linux-gnu','--sysroot=/usr/aarch64-linux-gnu','-fuse-ld=lld','-nostdlib','-O2','-fno-stack-protector','-Wl,--no-undefined','-Wl,-e,_start','-Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1',str(source_file),libraries[0],'-o',str(audit)],output/'audit-build.log',pass_fds=descriptors+(temp_fd,),environment=environment)
     verify_private_libraries(private_inputs);audit.chmod(0o755)
+    if not verify_sha:
+        cache_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
+        tmp=cache_dir/f'audit.{os.getpid()}.tmp'
+        shutil.copyfile(audit,tmp);tmp.chmod(0o755);tmp.replace(cached_audit)
+        stamp_tmp=cache_dir/f'audit.stamp.{os.getpid()}.tmp'
+        stamp_tmp.write_text(json.dumps(want,sort_keys=True)+'\n');stamp_tmp.replace(stamp_file)
     return audit
 
 
 def prepare(instance,output,host_environment):
     from usb_scheduler import runtime_preflight
     runtime_preflight(host_environment)
-    input_bindings=product_input_bindings()
+    verify_sha=parse_verify_sha(host_environment)
+    cold_flag=parse_cold_flag(host_environment)
+    input_bindings=product_input_bindings(verify_sha=verify_sha)
     output=Path(output).absolute();need(not output.exists(),'Fresh cold output required');output.mkdir(mode=0o700)
     work=output/'work';work.mkdir();payload=output/'payload';payload.mkdir()
     need(shutil.disk_usage(output).free>512*1024**2,'Insufficient room for small original RAM0 and audit')
@@ -327,28 +429,43 @@ def prepare(instance,output,host_environment):
     from fwtool.archive.fat import readFat
     with disk.lease(Path(instance).absolute()) as leased:
         slices={row['id']:row for row in leased['geometry']['slices']};p3=slices['nflasha3']
-        loader=virtual_loader.evaluate_fd(leased['fd'],leased['geometry'])
+        wbi2_clear=virtual_loader.clear_wbi2_fd(leased['fd'],leased['geometry'],backup_path=output/'wbi2-magic-before.bin') if cold_flag=='clear' else None
+        loader=virtual_loader.evaluate_fd(leased['fd'],leased['geometry'],force_cold=(cold_flag=='force'))
         need(loader['route'].get('status')=='selected' and loader['route'].get('mode')==1 and loader['resolve'].get('path')=='cold',
              'Virtual loader selected a non-cold route; this build only boots cold: '+json.dumps(loader,sort_keys=True))
-        virtual_loader.save_receipt(output,loader)
-        original_disk_before=disk.hashed(leased['fd'])
+        saved_loader={**loader,'wbi2_cleared':wbi2_clear} if wbi2_clear is not None else loader
+        virtual_loader.save_receipt(output,saved_loader)
+        original_disk_before=disk.hashed(leased['fd']) if verify_sha else None
         source=io.BytesIO(os.pread(leased['fd'],p3['bytes'],p3['offset']));found={}
+        ram=output/'ram0.ext2'
         for entry in readFat(source):
             if entry.path in ('/initrd.img','/vmlinux.bin'):
                 data=entry.contents.read(entry.size);need(len(data)==entry.size,'Short p3 boot file')
-                expected=RAM0_SHA if entry.path=='/initrd.img' else KERNEL_SHA
-                need(hashlib.sha256(data).hexdigest()==expected,'Current disk p3 boot identity differs')
-                name='ram0.original.ext2' if entry.path=='/initrd.img' else 'kernel.original.img';path=output/name;path.write_bytes(data);need(sha(path)==expected,'Extracted original boot file readback differs');found[name]=dict(bytes=len(data),sha256=expected)
+                if verify_sha:
+                    expected=RAM0_SHA if entry.path=='/initrd.img' else KERNEL_SHA
+                    need(hashlib.sha256(data).hexdigest()==expected,'Current disk p3 boot identity differs')
+                    name='ram0.original.ext2' if entry.path=='/initrd.img' else 'kernel.original.img';path=output/name;path.write_bytes(data);need(sha(path)==expected,'Extracted original boot file readback differs');found[name]=dict(bytes=len(data),sha256=expected)
+                else:
+                    need(len(data)>0,'Empty p3 boot file')
+                    if entry.path=='/initrd.img':
+                        ram.write_bytes(data)
+                        found['ram0.original.ext2']=dict(bytes=len(data),sha256=None)
+                    else:
+                        found['kernel.original.img']=dict(bytes=len(data),sha256=None)
         need(len(found)==2,'Original p3 kernel/RAM0 missing')
-        ram=output/'ram0.ext2';shutil.copyfile(output/'ram0.original.ext2',ram)
+        if verify_sha:
+            shutil.copyfile(output/'ram0.original.ext2',ram)
         from sony_usb_device import prepare_private_libraries,prepare_observer
-        private_inputs=prepare_private_libraries(payload)
-        audit=build_audit(payload,output,private_inputs)
+        private_inputs=prepare_private_libraries(payload,verify_sha=verify_sha)
+        audit=build_audit(payload,output,private_inputs,verify_sha=verify_sha)
         helpers={}
         for path in (ANALYSIS/'menu-root/simulation').rglob('*'):
             if path.is_file() and path.name!='media-camera.fat':
                 need(not path.is_symlink(),'Cold helper symlink refused')
-                relative=str(path.relative_to(ANALYSIS/'menu-root/simulation'));target=payload/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target);target.chmod(stat.S_IMODE(path.stat().st_mode)&0o777);need(sha(path)==sha(target),'Cold helper copy differs');helpers[relative]=target
+                relative=str(path.relative_to(ANALYSIS/'menu-root/simulation'));target=payload/relative;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target);target.chmod(stat.S_IMODE(path.stat().st_mode)&0o777)
+                if verify_sha:
+                    need(sha(path)==sha(target),'Cold helper copy differs')
+                helpers[relative]=target
         for name,source in (('audit',audit),('bootin-wrapper',SOURCE/'bootin.sh')):
             if source!=payload/name:shutil.copyfile(source,payload/name)
             (payload/name).chmod(0o755);helpers[name]=payload/name
@@ -362,23 +479,26 @@ def prepare(instance,output,host_environment):
         helpers.update(prepare_scheduler(host_environment,payload,private_inputs=private_inputs))
         helpers.update(usb_imdb(host_environment,payload))
         expected_bindings={**input_bindings,'guest_inputs':dict(input_bindings['guest_inputs'])}
-        if host_environment.get('A7C2_USB_MSC')=='1':
+        if verify_sha and host_environment.get('A7C2_USB_MSC')=='1':
             expected_bindings['guest_inputs']['usr/lib/libIMDB.so']=sha(helpers['libIMDB-msc.so'])
         for entry in entries:expected_bindings['guest_inputs'][entry['path']]=entry['new_sha256']
         from sparse_seed import build as build_sd_seed
         sd_source=host_environment.get('A7C2_SD_IMAGE',str(ANALYSIS/'menu-root/simulation/media-camera.fat'))
-        sd_card=build_sd_seed(sd_source,payload/'sd-seed')
+        sd_card=build_sd_seed(sd_source,payload/'sd-seed',verify_sha=verify_sha)
         for path in (payload/'sd-seed').rglob('*'):
             if path.is_file():
                 name=str(path.relative_to(payload));helpers[name]=path
         shutil.copyfile(SOURCE/'install-sd.sh',payload/'install-sd.sh');(payload/'install-sd.sh').chmod(0o755)
         helpers['install-sd.sh']=payload/'install-sd.sh'
-        environment=guest_environment(host_environment);envfile=payload/'environment.sh';envfile.write_text('\n'.join('export '+k+'='+shlex.quote(v) for k,v in sorted(environment.items()))+'\n');envfile.chmod(0o600);helpers['environment.sh']=envfile
+        environment=guest_environment(host_environment)
+        if not verify_sha:
+            environment['PRODUCT_COLD_SKIP_SHA']='1'
+        envfile=payload/'environment.sh';envfile.write_text('\n'.join('export '+k+'='+shlex.quote(v) for k,v in sorted(environment.items()))+'\n');envfile.chmod(0o600);helpers['environment.sh']=envfile
         reset=payload/'reset-runtime.sh';reset.write_text('#!/bin/busybox sh\nset -e\n'+'\n'.join(storage.runtime_reset_commands())+'\n');reset.chmod(0o755);helpers['reset-runtime.sh']=reset
         fonts={name[len('language-fonts/'):]:path for name,path in helpers.items() if name.startswith('language-fonts/')}
         need(len(fonts)==3,'Exact three product language fonts required')
-        fontinstaller=payload/'install-fonts.sh';fontinstaller.write_text(font_install_script(fonts));fontinstaller.chmod(0o755);helpers['install-fonts.sh']=fontinstaller
-        originalcheck=payload/'verify-originals.sh';originalcheck.write_text(guest_identity_script(expected_bindings));originalcheck.chmod(0o755);helpers['verify-originals.sh']=originalcheck
+        fontinstaller=payload/'install-fonts.sh';fontinstaller.write_text(font_install_script(fonts,verify_sha=verify_sha));fontinstaller.chmod(0o755);helpers['install-fonts.sh']=fontinstaller
+        originalcheck=payload/'verify-originals.sh';originalcheck.write_text(guest_identity_script(expected_bindings,verify_sha=verify_sha));originalcheck.chmod(0o755);helpers['verify-originals.sh']=originalcheck
         helper_bytes=sum(p.stat().st_size for p in helpers.values())
         need(helper_bytes<480*1024**2,'Cold RAM helper budget exceeded')
         ram_bytes=max(192*1024**2,((helper_bytes+64*1024**2+64*1024**2-1)//(64*1024**2))*(64*1024**2))
@@ -386,17 +506,36 @@ def prepare(instance,output,host_environment):
         with ram.open('r+b') as stream:stream.truncate(ram_bytes)
         _checked(['resize2fs',str(ram)],output/'ram0-resize.log')
         helperbudget=payload/'helper-bytes';helperbudget.write_text(str(helper_bytes+1024**2)+'\n')
-        helperlist=payload/'helpers';helperlist.write_text(''.join(n+' '+str(p.stat().st_size)+' '+sha(p)+' '+format(p.stat().st_mode&0o777,'o')+'\n' for n,p in sorted(helpers.items())))
+        helperlist=payload/'helpers';helperlist.write_text(''.join(n+' '+str(p.stat().st_size)+' '+(sha(p) if verify_sha else '-')+' '+format(p.stat().st_mode&0o777,'o')+'\n' for n,p in sorted(helpers.items())))
         capacities=payload/'capacities';capacities.write_text(''.join(('nflashaB'+n[-1] if n.startswith('nflashaB') else 'cnflasha'+n[len('nflasha'):])+' '+str(row['bytes']//512)+'\n' for n,row in slices.items()))
         freeram=payload/'freeramdisk';freeram.write_text('#!/bin/busybox sh\nexec /simulation/audit release "$@"\n');freeram.chmod(0o755)
         for name in ('bootstrap.sh','insmod.sh'):subprocess.run(['sh','-n',str(SOURCE/name)],check=True)
         newfiles={'/sbin/product-cold-bootstrap':SOURCE/'bootstrap.sh','/sbin/insmod':SOURCE/'insmod.sh','/qemu/audit':audit,'/qemu/helpers':helperlist,'/qemu/helper-bytes':helperbudget,'/qemu/capacities':capacities,'/qemu/sony_persistent_flash.ko':storage.module_file()}
         newfiles.update(('/qemu/simulation/'+n,p) for n,p in helpers.items())
-        ramproof=_patch(ram,work,newfiles)
-        p7=slices['nflasha7'];before=output/'p7.original.ext2';before.write_bytes(os.pread(leased['fd'],p7['bytes'],p7['offset']));adapted=output/'p7.ext2';shutil.copyfile(before,adapted)
+        ramproof=_patch(ram,work,newfiles,verify_sha=verify_sha)
+        p7=slices['nflasha7'];before=output/'p7.original.ext2'
+        raw_p7_before=os.pread(leased['fd'],p7['bytes'],p7['offset'])
+        if verify_sha:
+            before.write_bytes(raw_p7_before)
+        adapted=output/'p7.ext2';adapted.write_bytes(raw_p7_before)
         empty=payload/'image_mmca';empty.write_bytes(b'');empty.chmod(0o600)
-        p7proof=_patch(adapted,work,{'/sbin/insmod':SOURCE/'insmod.sh','/sbin/freeramdisk':freeram,'/image_mmca':empty},[('/simulation','/dev/qemu-simulation')])
-        raw=adapted.read_bytes();need(len(raw)==p7['bytes'],'Derived p7 capacity changed');need(os.pwrite(leased['fd'],raw,p7['offset'])==len(raw),'Short p7 write');os.fsync(leased['fd']);need(disk.hashed(leased['fd'],p7['offset'],p7['bytes'])==sha(adapted),'Derived p7 disk readback differs')
-        result=dict(schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),virtual_loader=loader,ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram),original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,p7_before_sha256=sha(before),p7_after_sha256=sha(adapted),original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']),guest_environment=environment,helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p)) for n,p in helpers.items()},sd_card=sd_card,kernel_sha256=KERNEL_SHA,source_class='official-bodydata-derived-with-explicit-virtual-adapters',product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,original_guest_executed=False,full_boot_verified=False)
+        p7proof=_patch(adapted,work,{'/sbin/insmod':SOURCE/'insmod.sh','/sbin/freeramdisk':freeram,'/image_mmca':empty},[('/simulation','/dev/qemu-simulation')],verify_sha=verify_sha)
+        raw=adapted.read_bytes();need(len(raw)==p7['bytes'],'Derived p7 capacity changed');need(os.pwrite(leased['fd'],raw,p7['offset'])==len(raw),'Short p7 write');os.fsync(leased['fd'])
+        if verify_sha:
+            need(disk.hashed(leased['fd'],p7['offset'],p7['bytes'])==sha(adapted),'Derived p7 disk readback differs')
+        result=dict(
+            schema='a7c2-product-original-cold-preparation-v1',profile=PROFILE,instance=str(Path(instance).absolute()),
+            virtual_loader=loader,cold_flag_mode=cold_flag,sha_verified=verify_sha,
+            ram0=str(ram),ram0_bytes=ram.stat().st_size,ram0_sha256=sha(ram) if verify_sha else None,
+            original_boot_files=found,ram0_tree=ramproof,p7_tree=p7proof,
+            p7_before_sha256=sha(before) if verify_sha else None,p7_after_sha256=sha(adapted) if verify_sha else None,
+            original_disk_before_sha256=original_disk_before,derived_disk_sha256=disk.hashed(leased['fd']) if verify_sha else None,
+            guest_environment=environment,
+            helper_sources={n:dict(bytes=p.stat().st_size,sha256=sha(p) if verify_sha else None) for n,p in helpers.items()},
+            sd_card=sd_card,kernel_sha256=KERNEL_SHA if verify_sha else None,
+            source_class='official-bodydata-derived-with-explicit-virtual-adapters',
+            product_input_bindings=input_bindings,expected_guest_inputs=expected_bindings['guest_inputs'],
+            overwrite=dict(overwrite,entries=entries),helper_bytes=helper_bytes,
+            original_guest_executed=False,full_boot_verified=False)
         storage._save(output/'result.json',result)
     return result

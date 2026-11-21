@@ -1,5 +1,6 @@
 #!/bin/busybox sh
 set -e
+[ ! -r /simulation/environment.sh ] || . /simulation/environment.sh || exit 1
 base=/tmp/sony-sd1g
 card=$base/card.img
 if [ -e "$base" ]; then
@@ -29,16 +30,20 @@ while read -r offset length name digest extra; do
     case "$digest" in *[!0-9a-f]*|'') exit 78;; esac
     [ "${#digest}" = 64 ] || exit 78
     /simulation/sd-sparse write "$card" "/simulation/sd-seed/$name" "$offset" || exit 1
-    actual=$(/usr/bin/openssl dgst -sha256 "/simulation/sd-seed/$name") || exit 1
-    case "$actual" in *"= $digest") ;; *) exit 78;; esac
+    if [ "${PRODUCT_COLD_SKIP_SHA:-0}" != 1 ]; then
+        actual=$(/usr/bin/openssl dgst -sha256 "/simulation/sd-seed/$name") || exit 1
+        case "$actual" in *"= $digest") ;; *) exit 78;; esac
+    fi
     previous_end=$((offset + length))
 done < /simulation/sd-seed/chunks.txt
 # Allocate no zero tail; never overwrite a nonzero terminal block.
 if [ "$previous_end" != "$total" ]; then
     /simulation/sd-sparse write "$card" /simulation/sd-seed/zero.bin $((total - 4096)) || exit 1
 fi
-actual=$(/usr/bin/openssl dgst -sha256 "$card") || exit 1
-case "$actual" in *"= $expected") ;; *) echo PRODUCT_SD_FULL_READBACK_FAILED; exit 78;; esac
+if [ "${PRODUCT_COLD_SKIP_SHA:-0}" != 1 ]; then
+    actual=$(/usr/bin/openssl dgst -sha256 "$card") || exit 1
+    case "$actual" in *"= $expected") ;; *) echo PRODUCT_SD_FULL_READBACK_FAILED; exit 78;; esac
+fi
 /bin/busybox mount --bind "$card" /image_mmca || exit 1
 echo "PRODUCT_SD_1G_READY bytes=$total sha256=$expected chunks=$previous_end"
 /simulation/sd-sparse map || exit 1

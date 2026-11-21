@@ -2,6 +2,9 @@
 # Build guest helpers against the original firmware ABI, including its loader guard.
 set -euo pipefail
 analysis_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if [ "${A7C2_FORCE_REBUILD:-0}" != "1" ] && python3 "$analysis_dir/snapshot-observer-sources.py" "$analysis_dir" --check-stamp; then
+  exit 0
+fi
 mkdir -p "$analysis_dir/menu-root/simulation"
 install -m 0755 "$analysis_dir/guest-overlay/simulation/diag.sh" "$analysis_dir/menu-root/simulation/diag.sh"
 install -m 0755 "$analysis_dir/guest-overlay/simulation/input-state.sh" "$analysis_dir/menu-root/simulation/input-state.sh"
@@ -20,6 +23,23 @@ python3 "$analysis_dir/snapshot-observer-sources.py" "$analysis_dir" "$device_bu
 source_dir="$device_build/report/2026-10-17-qemu-native-camera/runtime/analysis"
 vdf_dir="$source_dir/device-models"
 common+=("-ffile-prefix-map=$device_build=.")
+_cc_pids=()
+_cc_limit="$(nproc 2>/dev/null || echo 4)"
+cc_wait() {
+  local rc=0 pid
+  for pid in "${_cc_pids[@]}"; do
+    wait "$pid" || rc=1
+  done
+  _cc_pids=()
+  return "$rc"
+}
+cc_async() {
+  clang "$@" &
+  _cc_pids+=("$!")
+  if [ "${#_cc_pids[@]}" -ge "$_cc_limit" ]; then
+    cc_wait || return 1
+  fi
+}
 clang "${common[@]}" -isystem /usr/aarch64-linux-gnu/include \
   -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$vdf_dir/pin-buffer-probe.c" "$vdf_dir/pin-buffer-owner.c" "$vdf_dir/pin-buffer-guest.c" \
@@ -35,50 +55,51 @@ for device in vdf-device touch-panel-device tcin-device imaging-device vef-path-
               pin-connection pin-buffer-owner pin-buffer-guest pin-buffer-wire pin-format \
               cp-sync-resources cp-cold-control cp-background-device cp302c-no-transition cp-notification-control cp-parameter-batch cp-capture-format cp-output-policy cp-startup-controls-diagnostic cp-ee-controls-diagnostic cp-movie-format-diagnostic \
               cp-state-snapshot cp-full-state-snapshot cp-start-state-data cp-start-state-provider cp-property-stage cp-property-stage-file \
-              cp-parameter-state cp-parameter-import cp-parameter-view cp-lif-frame cp-lif-bitmap cp-state-publication functional-camera-control functional-still-format functional-startup-control functional-vdf-path functional-vdf-layout-stage functional-cp-zoom functional-histogram functional-background-start; do
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+              cp-parameter-state cp-parameter-import cp-parameter-view cp-lif-frame cp-lif-bitmap cp-state-publication functional-camera-control functional-still-format functional-startup-control functional-vdf-path functional-vdf-layout-stage functional-cp-zoom functional-histogram functional-background-start virtual-lens-hud; do
+  cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -isystem /usr/aarch64-linux-gnu/include -c "$vdf_dir/$device.c" \
     -o "$device_build/$device.o"
 done
-clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -DSYSTEM_SOUND_OWNER_LIBRARY -isystem /usr/aarch64-linux-gnu/include \
   -c "$vdf_dir/system-sound-owner.c" -o "$device_build/system-sound-owner.o"
 for owner in infrabb-registry osdpin-registry dig-level-device cp-periodic-service dmm-unit-config rm-file-device sd-state sd-hotplug-runtime gui-model-wire gui-model-store functional-camera-bridge functional-camera-events functional-mpr-codec functional-mpr-memory functional-jpeg-codec functional-capture functional-capture-raw-blobs functional-capture-raw-writer raw-template functional-face-dmm functional-face-registry functional-face-runtime functional-face-transfer functional-face-ap-observer functional-face-native-ap functional-face-proc functional-face-sdk functional-face-source-snapshot; do
   owner_flags=()
   case "$owner" in functional-face-*) owner_flags=(-DFULL_IMAGING_GUEST);; esac
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" \
+  cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics "${owner_flags[@]}" \
     -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/$owner.c" \
     -o "$device_build/$owner.o"
 done
 for capture in capture-input capture-mapper capture-jpeg-input; do
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+  cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -isystem /usr/aarch64-linux-gnu/include \
     -c "$source_dir/../../report/functional-capture-input/$capture.c" \
     -o "$device_build/$capture.o"
 done
 for capture in capture-output-memory capture-notifications capture-delivery capture-save capture-dma; do
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+  cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -isystem /usr/aarch64-linux-gnu/include \
     -I"$source_dir/../../report/functional-capture-input" \
     -c "$source_dir/../../report/functional-capture-output/$capture.c" \
     -o "$device_build/$capture.o"
 done
-clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -isystem /usr/aarch64-linux-gnu/include \
   -c "$source_dir/../../report/functional-capture-queue/capture-resize-request.c" \
   -o "$device_build/capture-resize-request.o"
-clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
   -isystem /usr/aarch64-linux-gnu/include \
   -c "$source_dir/../../report/virtual-sensor/sensor-core.c" \
   -o "$device_build/sensor-core.o"
 # Hidden sections keep the reused metadata parsers without host codec entry points.
 for parser in native-video-binding/native-video native-video-paramsets/native-paramsets \
               native-video-au-contract/native-au native-video-length-format/native-lengths; do
-  clang --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
+  cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -fvisibility=hidden -ffunction-sections -fdata-sections \
     -isystem /usr/aarch64-linux-gnu/include -c "$source_dir/../../report/$parser.c" \
     -o "$device_build/${parser##*/}.o"
 done
+cc_wait
 clang "${common[@]}" -shared -fPIC "$source_dir/mutex-trace.c" "${libraries[@]}" \
   -o "$analysis_dir/menu-root/simulation/mutex-trace.so"
 if [[ "${MENU_MEDIA_SELFTEST:-0}" == 1 || "${MENU_RM_FILE:-0}" == 1 ]]; then
@@ -166,3 +187,4 @@ clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so
   "$analysis_dir/menu-root/usr/lib/libosal_utm.so" \
     -Wl,--allow-shlib-undefined "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/backup-dump"
 python3 "$analysis_dir/snapshot-observer-sources.py" --finish "$analysis_dir" "$device_build"
+python3 "$analysis_dir/snapshot-observer-sources.py" --write-stamp "$analysis_dir"

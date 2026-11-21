@@ -18,7 +18,11 @@ read -r helper_bytes < /qemu/helper-bytes || fail ram-budget
 while read -r relative bytes digest mode; do
     parent=${relative%/*}
     [ "$parent" = "$relative" ] || /bin/busybox mkdir -p "/dev/qemu-simulation/$parent" || fail directory
-    /qemu/audit copy "/qemu/simulation/$relative" "/dev/qemu-simulation/$relative" "$bytes" "$digest" "$mode" || fail helper-content
+    if [ "$digest" = "-" ]; then
+        /qemu/audit copyfast "/qemu/simulation/$relative" "/dev/qemu-simulation/$relative" "$bytes" "$mode" || fail helper-content
+    else
+        /qemu/audit copy "/qemu/simulation/$relative" "/dev/qemu-simulation/$relative" "$bytes" "$digest" "$mode" || fail helper-content
+    fi
 done < /qemu/helpers
 /bin/busybox insmod /qemu/sony_persistent_flash.ko mmio_base=0x0b010000 || fail flash-module
 while read -r node sectors; do

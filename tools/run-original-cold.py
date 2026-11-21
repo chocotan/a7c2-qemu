@@ -18,7 +18,7 @@ import time
 ROOT=Path(__file__).resolve().parents[1]
 ANALYSIS=ROOT/'runtime/analysis'
 sys.path.insert(0,str(ANALYSIS))
-from original_cold_boot import prepare,need,sha,verify_root_observation,original_menu_pixels,chinese_language_rows,verify_chain_log,product_input_bindings
+from original_cold_boot import prepare,need,sha,verify_root_observation,original_menu_pixels,chinese_language_rows,verify_chain_log,product_input_bindings,parse_verify_sha
 import persistent_storage as storage
 from menu_live import connect_in_run,serial_command,key_command,qmp_transaction
 
@@ -95,8 +95,11 @@ def navigate_main_menu(process,runtime,qmp):
 def cold_environment(live=False):
     environment=dict(os.environ) if live else runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
     environment.update(SONY_TIMER_MODEL='1',SONY_DMM_SERVICE='1',QEMU_SYSTEM_SOUND_OWNER='1',QEMU_PIN_CONTROL_MEMORY='1',MENU_RM_FILE='1',MENU_NATIVE_WINDOW='1',QEMU_NATIVE_DISPLAY='none',QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0',QEMU_TRACE_FLAGS='guest_errors,unimp',A7C2_ORIGINAL_COLD='original-init-v1')
-    if 'A7C2_USB_GENERATION_OBSERVE' in os.environ:
-        environment['A7C2_USB_GENERATION_OBSERVE']=os.environ['A7C2_USB_GENERATION_OBSERVE']
+    for name in ('A7C2_USB_GENERATION_OBSERVE','A7C2_COLD_FLAG','A7C2_VERIFY_SHA'):
+        if name in os.environ:
+            environment[name]=os.environ[name]
+    environment.setdefault('A7C2_COLD_FLAG','force')
+    environment.setdefault('A7C2_VERIFY_SHA','0')
     return environment
 
 
@@ -158,8 +161,9 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
     scheduler=scheduler_contract(built) if scheduler_enabled(environment) else None
     build_result=Path(built['ram0']).parent/'result.json'
     if not live:runtime.mkdir(mode=0o700)
+    verify_sha=parse_verify_sha(environment)
     process=None;stream=None;connection=None;quit_attempted=False
-    result=dict(schema='a7c2-product-original-init-cold-actual-v2',verified=False,guest_started=False,full_boot_verified=False,physical_devices_used=False,capture_verified=False,ram_capture_verified=False,ram_restore_verified=False,sony_wbi_resume_executed=False,qmp_boundary_unknown=False,serial_boundary_unknown=False,owner_retention_requested=False,build_result_sha256=sha(build_result))
+    result=dict(schema='a7c2-product-original-init-cold-actual-v2',verified=False,guest_started=False,full_boot_verified=False,physical_devices_used=False,capture_verified=False,ram_capture_verified=False,ram_restore_verified=False,sony_wbi_resume_executed=False,qmp_boundary_unknown=False,serial_boundary_unknown=False,owner_retention_requested=False,sha_verified=verify_sha,build_result_sha256=sha(build_result) if verify_sha else None)
     def save():
         temporary=output/'result.new';temporary.write_text(json.dumps(result,indent=2)+'\n');os.replace(temporary,output/'result.json')
     def qmp(command,arguments=None,pass_fd=None):
@@ -180,15 +184,16 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
         selected_qemu=Path(environment.get('QEMU_SYSTEM_DIR',str(ANALYSIS.parent/'sources/qemu-11.1.2/build-sony-ui')))/environment.get('QEMU_SYSTEM_BINARY','qemu-system-aarch64')
         environment.update(storage.inherited_environment(leased,binary=selected_qemu if ram_session else None,
                                                            ram_state=ram_session))
-        qemu_digest=sha(Path(environment['QEMU_SYSTEM_DIR'])/environment['QEMU_SYSTEM_BINARY'])
+        qemu_digest=sha(Path(environment['QEMU_SYSTEM_DIR'])/environment['QEMU_SYSTEM_BINARY']) if (verify_sha or ram_restore) else None
         restore_contract=None
         if ram_restore:
             from original_ram_restore import load_capture
             restore_contract=load_capture(ram_restore,leased,built,qemu_digest)
-        else:
+        elif verify_sha:
             need(storage.disk.hashed(leased['fd'])==built['derived_disk_sha256'],'Disk changed between original-cold preparation and the launch lease')
-        need(sha(Path(built['ram0']))==built['ram0_sha256'],'Prepared original RAM0 changed before launch')
-        need(sha(ANALYSIS/'unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked/vmlinux.bin')==built['kernel_sha256'],'Actual launcher kernel differs from the current disk p3 kernel')
+        if verify_sha:
+            need(sha(Path(built['ram0']))==built['ram0_sha256'],'Prepared original RAM0 changed before launch')
+            need(sha(ANALYSIS/'unpacked/firmware.tar_unpacked/0700_part_image/dev/nflasha3_unpacked/vmlinux.bin')==built['kernel_sha256'],'Actual launcher kernel differs from the current disk p3 kernel')
         from sony_usb_device import environment as usb_environment,publish_context
         environment.update(usb_environment(environment,runtime))
         if ram_restore:environment['QEMU_RAM_INCOMING']='defer'
@@ -396,7 +401,12 @@ def ram_roundtrip(instance,output,seconds):
 def main():
     from usb_scheduler import runtime_preflight
     runtime_preflight(os.environ)
-    parser=argparse.ArgumentParser();selection=parser.add_mutually_exclusive_group(required=True);selection.add_argument('--instance',type=Path);selection.add_argument('--new-instance',action='store_true',help='create an independent disk from this product official BODYDATA cache');parser.add_argument('--output',type=Path,required=True);parser.add_argument('--seconds',type=int,default=120);parser.add_argument('--prepare-only',action='store_true');parser.add_argument('--ram-roundtrip',action='store_true',help='save original AP RAM, normally exit, restore on the same disk, and verify original MENU/LCD');parser.add_argument('--usb-msc',action='store_true',help='use the ordinary original AP USB cable and ENTER, then preserve actual MSC evidence');args=parser.parse_args()
+    parser=argparse.ArgumentParser();selection=parser.add_mutually_exclusive_group(required=True);selection.add_argument('--instance',type=Path);selection.add_argument('--new-instance',action='store_true',help='create an independent disk from this product official BODYDATA cache');parser.add_argument('--output',type=Path,required=True);parser.add_argument('--seconds',type=int,default=120);parser.add_argument('--prepare-only',action='store_true');parser.add_argument('--ram-roundtrip',action='store_true',help='save original AP RAM, normally exit, restore on the same disk, and verify original MENU/LCD');parser.add_argument('--usb-msc',action='store_true',help='use the ordinary original AP USB cable and ENTER, then preserve actual MSC evidence');parser.add_argument('--cold-flag',choices=('force','clear','strict'),default=None,help='how the virtual loader handles p5 WBI2 magic (default: A7C2_COLD_FLAG or force)');verify_group=parser.add_mutually_exclusive_group();verify_group.add_argument('--verify-sha',dest='verify_sha',action='store_true',default=None,help='enable startup SHA verification (or set A7C2_VERIFY_SHA=1)');verify_group.add_argument('--no-verify-sha',dest='verify_sha',action='store_false',help='disable startup SHA verification (default; or set A7C2_VERIFY_SHA=0)');args=parser.parse_args()
+    cold_flag=args.cold_flag or os.environ.get('A7C2_COLD_FLAG') or 'force'
+    verify_sha_val=('1' if args.verify_sha else '0') if args.verify_sha is not None else os.environ.get('A7C2_VERIFY_SHA','0')
+    os.environ['A7C2_COLD_FLAG']=cold_flag
+    os.environ['A7C2_VERIFY_SHA']=verify_sha_val
+    verify_sha=parse_verify_sha(os.environ)
     if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
         from single_ap_sockets import admit
         admit()
@@ -411,11 +421,18 @@ def main():
     try:
         try:fcntl.flock(descriptor,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise ValueError('Another product session owns the build/run assets; no cold guest started') from None
-        product_input_bindings()
+        import inspect
+        if 'verify_sha' in inspect.signature(product_input_bindings).parameters:
+            product_input_bindings(verify_sha=verify_sha)
+        else:
+            product_input_bindings()
         args.output=args.output.absolute();args.output.mkdir(mode=0o700,parents=True)
         if args.new_instance:args.instance=storage.ensure_instance(args.output/'storage')
         if args.prepare_only:
-            env=runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True);prepare(args.instance,args.output/'build',env);print('ORIGINAL_COLD_PREPARED',args.output,flush=True);return 0
+            env=runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
+            env['A7C2_COLD_FLAG']=cold_flag
+            env['A7C2_VERIFY_SHA']=verify_sha_val
+            prepare(args.instance,args.output/'build',env);print('ORIGINAL_COLD_PREPARED',args.output,flush=True);return 0
         if args.ram_roundtrip:
             return 0 if ram_roundtrip(args.instance,args.output,args.seconds)['actual_ram_roundtrip_verified'] else 1
         outcome=run(args.instance,args.output,args.seconds,**({'usb_msc':True} if args.usb_msc else {}))

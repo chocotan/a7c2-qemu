@@ -85,3 +85,7 @@ runtime/research/
 validation/scratch/
 *.orig
 source/build/observer-*
+/runtime/analysis/.observer-build.stamp.json
+/runtime/analysis/.prepare-fast.json
+/runtime/analysis/cold/.cache/
+/runtime/analysis/persistent-storage/

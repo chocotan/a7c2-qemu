@@ -80,6 +80,21 @@ static int transfer(int source, int destination, u64 expected_size, const char *
     finish(&hash,actual);
     return total!=expected_size || strcmp(actual,expected_hash);
 }
+static int transfer_raw(int source, int destination, u64 expected_size) {
+    u8 buffer[65536];u64 total=0;
+    for (;;) {
+        long n=read(source,buffer,sizeof buffer);
+        if (n<0) { if (*__errno_location()==4) continue; return 1; }
+        if (!n) break;
+        total+=(u64)n;if (total>expected_size) return 1;
+        for (long off=0;off<n;) {
+            long done=write(destination,buffer+off,(size_t)(n-off));
+            if (done<0 && *__errno_location()==4) continue;
+            if (done<=0) return 1;off+=done;
+        }
+    }
+    return total!=expected_size;
+}
 static int run(int argc, char **argv) {
     u64 bytes,mode;
     if (argc==3 && !strcmp(argv[1],"release") && !strcmp(argv[2],"/dev/ram0")) {
@@ -105,6 +120,18 @@ static int run(int argc, char **argv) {
         u64 available=(u64)s.bavail*s.frsize;
         printf("COLD_SPACE path=%s available=%llu required=%llu\n",argv[2],available,bytes);
         return available<bytes ? 4 : 0;
+    }
+    if (argc==6 && !strcmp(argv[1],"copyfast") && !number(argv[4],&bytes,10) &&
+        !number(argv[5],&mode,8) && mode<=0777 && bytes<=0x80000000ULL) {
+        int source=open(argv[2],0x20000); /* O_NOFOLLOW */
+        if (source<0) return 5;
+        int destination=open(argv[3],0x20000|0xc2,0600); /* O_NOFOLLOW|O_EXCL|O_CREAT|O_RDWR */
+        if (destination<0) { close(source);return 6; }
+        int bad=transfer_raw(source,destination,bytes);close(source);
+        if (close(destination)) bad=1;
+        if (!bad && chmod(argv[3],(unsigned)mode)) bad=1;
+        printf("COLD_COPYFAST path=%s bytes=%llu verified=%d errno=%d\n",argv[3],bytes,!bad,*__errno_location());
+        return bad ? 7 : 0;
     }
     if (argc!=7 || strcmp(argv[1],"copy") || number(argv[4],&bytes,10) ||
         number(argv[6],&mode,8) || mode>0777 || bytes>0x80000000ULL) return 2;
