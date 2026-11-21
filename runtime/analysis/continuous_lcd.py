@@ -29,8 +29,21 @@ class ContinuousLCD:
         self.error = ''
         self.samples = self.changes = 0
         self.last_hash = None
+        self.last_raw = None
+        self.boost_until = time.monotonic() + 3.0
         self.started = time.monotonic()
         self.peer = None
+
+    IDLE_PERIOD = 1 / 15      # nothing is changing: screendump contends with the single-vCPU TCG guest
+    BOOST_PERIOD = 1 / 60     # right after input or a changed frame
+    BOOST_SECONDS = 1.5
+
+    def nudge(self):
+        """Input was just accepted: sample at the fast rate until the screen settles."""
+        self.boost_until = time.monotonic() + self.BOOST_SECONDS
+
+    def _pace(self):
+        return max(self.period, self.BOOST_PERIOD) if time.monotonic() < self.boost_until else self.IDLE_PERIOD
 
     @staticmethod
     def _descendant(pid, ancestor):
@@ -98,7 +111,7 @@ class ContinuousLCD:
                                 raise ValueError('LCD peer/owner identity changed')
                         self._command(stream, 'screendump', {'filename': '/out/lcd-continuous.ppm'})
                         self._frame(self.run / 'lcd-continuous.ppm')
-                        deadline += self.period
+                        deadline += self._pace()
                         now = time.monotonic()
                         if deadline < now:
                             deadline = now
@@ -142,15 +155,27 @@ class ContinuousLCD:
                 raise ValueError('LCD frame changed before its QMP completion')
         finally:
             os.close(fd)
-        with Image.open(io.BytesIO(raw)) as image:
-            if image.format != 'PPM' or image.size != (640, 480):
-                raise ValueError('LCD is not a 640x480 QEMU surface')
-            rgb = image.convert('RGB')
-            digest = hashlib.sha256(rgb.tobytes()).hexdigest()
+        header = b'P6\n640 480\n255\n'
+        if raw.startswith(header) and len(raw) == len(header) + 640 * 480 * 3:
+            # QEMU's own PPM: skip decode/hash entirely while the screen is unchanged.
+            self.samples += 1
+            if raw == self.last_raw:
+                return
+            pixels = raw[len(header):]
+            digest = hashlib.sha256(pixels).hexdigest()
+            image = Image.frombytes('RGB', (640, 480), pixels)
+        else:
+            with Image.open(io.BytesIO(raw)) as source:
+                if source.format != 'PPM' or source.size != (640, 480):
+                    raise ValueError('LCD is not a 640x480 QEMU surface')
+                image = source.convert('RGB')
+            digest = hashlib.sha256(image.tobytes()).hexdigest()
             self.samples += 1
             if digest == self.last_hash:
                 return
-            buffer = io.BytesIO(); rgb.save(buffer, format='PNG', compress_level=1)
+        buffer = io.BytesIO(); image.save(buffer, format='PNG', compress_level=1)
+        self.last_raw = raw
+        self.boost_until = max(self.boost_until, time.monotonic() + self.BOOST_SECONDS)
         self.changes += 1
         info = dict(sequence=self.samples, pixel_source_seq=self.changes, sha256=digest,
                     captured_at=time.time(), number=self.changes, source='continuous QEMU ramfb',

@@ -159,7 +159,8 @@ if [[ "${A7C2_USB_GENERATION_OBSERVE+x}" == x ]]; then
 fi
 
 # A7C2_BOOT_QUIET=1 (iteration runs): skip per-MMIO/-d trace logging entirely.
-if [[ "${A7C2_BOOT_QUIET:-}" == 1 ]]; then
+# The original cold product route is latency-sensitive: no -d tracing unless A7C2_COLD_TRACE=1.
+if [[ "${A7C2_BOOT_QUIET:-}" == 1 || ( -n "${A7C2_ORIGINAL_COLD:-}" && "${A7C2_COLD_TRACE:-}" != 1 ) ]]; then
   trace_args=()
 else
   trace_args=(-d "${QEMU_TRACE_FLAGS:-in_asm,cpu_reset,guest_errors,unimp}" -D /out/boot-trace.log)
@@ -542,7 +543,7 @@ if [[ "$wbi_resume" == 1 ]]; then machine_args=(-machine 'virt,secure=off,gic-ve
 
 # Iteration profile: a large TCG translation cache avoids retranslation thrash
 # while the original firmware loops; single thread matches the timing contract.
-if [[ "${A7C2_BOOT_QUIET:-}" == 1 ]]; then
+if [[ "${A7C2_BOOT_QUIET:-}" == 1 || -n "${A7C2_ORIGINAL_COLD:-}" ]]; then
   machine_args+=(-accel tcg,thread=single,tb-size=2048)
 fi
 boot_args=(-kernel /kernel.img -initrd /initrd.img -append "$cmdline")

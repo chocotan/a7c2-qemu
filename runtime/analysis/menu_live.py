@@ -31,18 +31,18 @@ KEY_DEFINITIONS = {
     'RIGHT': dict(label='右', code='0x1af', verified=True, native='R', shortcuts=['ArrowRight']),
     'DELETE': dict(label='删除', code='0x1f8', verified=True, native='X', shortcuts=['Delete'],
                    note='已验证菜单帮助页；照片删除未验证'),
-    'REAR_LEFT': dict(label='后拨轮左转', code='0x10000013', status='0xfffffc00',
-                      native='<', shortcuts=['PageUp'], note='单次 -1024；原P档HUD已见曝光补偿0.0→-0.3，其它上下文待验'),
-    'REAR_RIGHT': dict(label='后拨轮右转', code='0x10000013', status='0x400',
-                       native='>', shortcuts=['PageDown'], note='单次 +1024；原P档HUD已见曝光补偿-0.3→0.0，其它上下文待验'),
-    'TOP_LEFT': dict(label='右上拨轮左转', code='0x10000016', status='0xfffffc00',
-                     note='原始码→UIBIZ 2ea已核；拍摄上下文功能未实测'),
-    'TOP_RIGHT': dict(label='右上拨轮右转', code='0x10000016', status='0x400',
-                      note='原始码→UIBIZ 2ea已核；拍摄上下文功能未实测'),
-    'CONTROL_LEFT': dict(label='控制轮左转',code='0x1000001d',status='0xfffffc00',note='原始码→UIBIZ 2f6已核；拍摄上下文功能未实测'),
-    'CONTROL_RIGHT': dict(label='控制轮右转',code='0x1000001d',status='0x400',note='原始码→UIBIZ 2f6已核；拍摄上下文功能未实测'),
-    'FRONT_LEFT': dict(label='前拨轮左转',code='0x1000001c',status='0xfffffc00',note='原始码→UIBIZ 2f5已核；拍摄上下文功能未实测'),
-    'FRONT_RIGHT': dict(label='前拨轮右转',code='0x1000001c',status='0x400',note='原始码→UIBIZ 2f5已核；拍摄上下文功能未实测'),
+    'REAR_LEFT': dict(label='后拨轮左转', code='0x10000016', status='0xffffffe2',
+                      native='<', shortcuts=['PageUp'], note='A7C II 单步 -30；原码→UIBIZ 2ea；拍摄 HUD 由虚拟镜头响应'),
+    'REAR_RIGHT': dict(label='后拨轮右转', code='0x10000016', status='0x1e',
+                       native='>', shortcuts=['PageDown'], note='A7C II 单步 +30；原码→UIBIZ 2ea；拍摄 HUD 由虚拟镜头响应'),
+    'TOP_LEFT': dict(label='右上拨轮左转', code='0x10000013', status='0xfffffc00',
+                     note='A7C II 单步 -1024；原码→UIBIZ 2ef；P档曝光补偿已见'),
+    'TOP_RIGHT': dict(label='右上拨轮右转', code='0x10000013', status='0x400',
+                      note='A7C II 单步 +1024；原码→UIBIZ 2ef；P档曝光补偿已见'),
+    'CONTROL_LEFT': dict(label='控制轮左转',code='0x1000001d',status='0xffffffe8',note='A7C II 单步 -24；原码→UIBIZ 2f6'),
+    'CONTROL_RIGHT': dict(label='控制轮右转',code='0x1000001d',status='0x18',note='A7C II 单步 +24；原码→UIBIZ 2f6'),
+    'FRONT_LEFT': dict(label='前拨轮左转',code='0x1000001c',status='0xffffffea',note='A7C II 单步 -22；原码→UIBIZ 2f5'),
+    'FRONT_RIGHT': dict(label='前拨轮右转',code='0x1000001c',status='0x16',note='A7C II 单步 +22；原码→UIBIZ 2f5'),
     'C2': dict(label='C2', alias='DELETE', note='与删除键共用；自定义 C2 功能未验证'),
     'DISP': dict(label='DISP', alias='UP', note='与上方向键共用；显示切换功能未验证'),
     'ISO': dict(label='ISO', alias='RIGHT', note='与右方向键共用；ISO 功能未验证'),
@@ -928,6 +928,19 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                 except OSError:pass
                 with (out/'wifi-events.jsonl').open('a') as events:
                     events.write(json.dumps({'requested': request['enabled'], **result})+'\n')
+            elif action=='cmos_source' and set(request) in ({'action','path'},{'action','default'}):
+                import cmos_source
+                try:
+                    if 'path' in request:
+                        jpeg=cmos_source.prepare_jpeg(request['path'])
+                        for guest_command in cmos_source.upload_commands(jpeg):live_serial(guest_command)
+                        result={'type':'cmos_source','ok':True,'source':'custom','name':Path(request['path']).name}
+                    elif request['default'] is True:
+                        live_serial(cmos_source.reset_command())
+                        result={'type':'cmos_source','ok':True,'source':'default-color-chart','name':'色卡'}
+                    else:raise ValueError('default 必须为 true')
+                except (OSError,RuntimeError,ValueError) as error:
+                    result={'type':'cmos_source','ok':False,'error':f'{type(error).__name__}: {error}'}
             elif action=='export_sd' and (set(request)=={'action'} or set(request)=={'action','shutdown_storage'} and request['shutdown_storage'] is True or set(request)=={'action','shutdown_storage','capture_ram'} and request['shutdown_storage'] is True and request['capture_ram'] is True):
                 if sd_export is None:raise ValueError('This session has no virtual SD export profile')
                 if request.get('capture_ram') and ram_capture is None:

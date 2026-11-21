@@ -52,5 +52,7 @@ int virtual_lens_hud_encode_2036(const struct virtual_lens_hud_state *state,
 int virtual_lens_hud_step_aperture(struct virtual_lens_hud_state *state, int delta);
 int virtual_lens_hud_step_shutter(struct virtual_lens_hud_state *state, int delta);
 int virtual_lens_hud_step_iso(struct virtual_lens_hud_state *state, int delta);
+int virtual_lens_hud_program_shift(struct virtual_lens_hud_state *state, int delta);
+uint32_t virtual_lens_hud_iso_value(uint8_t iso_cp_byte);
 
 #endif

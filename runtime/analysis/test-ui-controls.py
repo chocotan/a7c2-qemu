@@ -101,12 +101,14 @@ class UIControlsTests(unittest.TestCase):
                         self.assertEqual(entry['verification'] if 'verification' in entry else control_catalog()[name]['verification'], '未验证')
 
     def test_independent_dial_codes_and_legacy_transport_limit(self):
-        for side, status in [('LEFT', '0xfffffc00'), ('RIGHT', '0x400')]:
-            commands = [key_command(prefix + '_' + side) for prefix in ('REAR', 'FRONT', 'CONTROL')]
-            self.assertEqual(len(set(commands)),3)
-            for command,code in zip(commands,('0x10000013','0x1000001c','0x1000001d')):
-                self.assertIn(code+' 0 '+status,command)
-            for prefix in ('REAR', 'FRONT', 'CONTROL'):
+        for side in ('LEFT', 'RIGHT'):
+            steps = {'REAR': ('0x10000016', '0xffffffe2', '0x1e'), 'FRONT': ('0x1000001c', '0xffffffea', '0x16'),
+                     'CONTROL': ('0x1000001d', '0xffffffe8', '0x18'), 'TOP': ('0x10000013', '0xfffffc00', '0x400')}
+            commands = [key_command(prefix + '_' + side) for prefix in steps]
+            self.assertEqual(len(set(commands)), 4)
+            for command, (code, left, right) in zip(commands, steps.values()):
+                self.assertIn(code + ' 0 ' + (left if side == 'LEFT' else right), command)
+            for prefix in ('REAR', 'FRONT', 'CONTROL', 'TOP'):
                 entry = control_catalog(True)[prefix + '_' + side]
                 self.assertFalse(entry['available'])
                 self.assertIn('live 文件通道', entry['unavailable_reason'])

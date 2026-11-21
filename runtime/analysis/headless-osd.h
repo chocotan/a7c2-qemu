@@ -62,4 +62,6 @@ int hosd_persist(const char *, const unsigned char *, unsigned long);
 /* A once-per-boot claim, deliberately not removed on failure/process exit. */
 int hosd_claim(const char *path, const char *modules,
                int (*stat_queue)(unsigned int, unsigned int *), void (*log)(const char *, const char *));
+/* Returns 1 when the latest committed OSD metadata matches the shooting HUD scene. */
+int hosd_is_shooting_scene(void);
 #endif

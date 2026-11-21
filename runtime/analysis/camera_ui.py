@@ -238,7 +238,9 @@ class CameraUI:
         self.window.show_all()
         self.update(self.state)
         if timer:
-            self.source_id = GLib.timeout_add(16, self.tick)
+            # Frames arrive by push (_notify_lcd); the timer only drives status housekeeping,
+            # so a continuous display needs no 60 Hz idle wakeups.
+            self.source_id = GLib.timeout_add(100 if getattr(vm, 'continuous_display', False) else 16, self.tick)
 
     def _build_header(self):
         self.status_label = label('', 'status')
@@ -468,6 +470,23 @@ class CameraUI:
         net.pack_start(self.wifi_switch, False, False, 0)
         row.pack_start(net, False, False, 4)
 
+        cmos = Gtk.Box(spacing=6)
+        cmos.set_valign(Gtk.Align.CENTER)
+        self.cmos_label = label('CMOS 色卡', 'hint')
+        cmos.pack_start(self.cmos_label, False, False, 0)
+        self.cmos_pick = Gtk.Button(label='选择图片…')
+        self.cmos_pick.set_size_request(-1, 44)
+        self.cmos_pick.get_accessible().set_name('选择本地图片作为虚拟 CMOS 画面源')
+        self.cmos_pick.set_tooltip_text('PNG/JPEG 等；自动缩放到 640×480，实时替换取景画面，全按快门写入虚拟 SD')
+        self.cmos_pick.connect('clicked', lambda _: self.choose_cmos_image())
+        cmos.pack_start(self.cmos_pick, False, False, 0)
+        self.cmos_default = Gtk.Button(label='恢复色卡')
+        self.cmos_default.set_size_request(-1, 44)
+        self.cmos_default.get_accessible().set_name('恢复默认虚拟 CMOS 色卡')
+        self.cmos_default.connect('clicked', lambda _: self.set_cmos_source(None))
+        cmos.pack_start(self.cmos_default, False, False, 0)
+        row.pack_start(cmos, False, False, 4)
+
         self.reset_button = Gtk.Button(label='重置设置')
         self.reset_button.set_size_request(-1, 44)
         self.reset_button.get_style_context().add_class('danger')
@@ -492,6 +511,7 @@ class CameraUI:
         scroll.set_size_request(-1, 150)
         scroll.add(self.detail_text)
         self.details.add(scroll)
+        self.details.connect('notify::expanded', lambda *_: (setattr(self, 'last_details', None), self.update(self.state)))
         details_card.pack_start(self.details, False, False, 0)
         self.drawers.pack_start(details_card, True, True, 0)
         self._build_development()
@@ -671,6 +691,37 @@ class CameraUI:
         if key in ('Return','KP_Enter') and focus in choices:
             self._choose_mode(focus.get_label());return True
         return False
+
+    def choose_cmos_image(self):
+        if self.closing:
+            return
+        dialog = Gtk.FileChooserDialog(title='选择 CMOS 模拟图片', transient_for=self.window,
+                                       action=Gtk.FileChooserAction.OPEN)
+        dialog.add_buttons('取消', Gtk.ResponseType.CANCEL, '选择', Gtk.ResponseType.ACCEPT)
+        images = Gtk.FileFilter()
+        images.set_name('图片 (PNG/JPEG/BMP/WEBP/GIF)')
+        for pattern in ('*.png', '*.jpg', '*.jpeg', '*.bmp', '*.webp', '*.gif'):
+            images.add_pattern(pattern)
+            images.add_pattern(pattern.upper())
+        dialog.add_filter(images)
+        try:
+            if dialog.run() == Gtk.ResponseType.ACCEPT:
+                self.set_cmos_source(dialog.get_filename())
+        finally:
+            dialog.destroy()
+
+    def set_cmos_source(self, path):
+        if self.closing:
+            return
+        try:
+            self.vm.enqueue({'action': 'cmos_source', 'path': path} if path else
+                            {'action': 'cmos_source', 'default': True})
+            self.cmos_label.set_text('CMOS 切换中…')
+        except (ValueError, RuntimeError, OSError) as error:
+            self.local_error = 'CMOS 画面源未发送：' + str(error)
+            self.update(self.vm.status())
+            return
+        self.feedback.set_text('CMOS 画面源切换已排队；图片缩放为 640×480 后实时替换取景画面。')
 
     def wifi(self, enabled):
         if self.closing or self.wifi_syncing:
@@ -911,6 +962,19 @@ class CameraUI:
         elif wifi.get('ok') is True:
             self.wifi_confirmed = wifi.get('enabled') is True
         wifi_pending = bool(state.get('pending') or state.get('busy'))
+        cmos = state.get('cmos_source') or {}
+        if not wifi_pending or cmos:
+            if cmos.get('ok') is False:
+                self.cmos_label.set_text('CMOS 切换失败')
+                self.cmos_label.set_tooltip_text(str(cmos.get('error')))
+            elif cmos.get('source') == 'custom':
+                self.cmos_label.set_text('CMOS ' + str(cmos.get('name'))[:18])
+            elif not str(self.cmos_label.get_text()).endswith('…') or cmos:
+                self.cmos_label.set_text('CMOS 色卡')
+        cmos_ready = (not (self.closing or self.development_busy) and state.get('state') == 'running'
+                      and not state.get('mock'))
+        self.cmos_pick.set_sensitive(cmos_ready)
+        self.cmos_default.set_sensitive(cmos_ready and cmos.get('source') == 'custom')
         self.wifi_label.set_text('Wi-Fi …' if wifi_pending else ('Wi-Fi 开' if self.wifi_confirmed else 'Wi-Fi 关'))
         self.wifi_switch.set_sensitive(not(self.closing or self.development_busy) and state.get('state') == 'running'
                                        and bool(state.get('usb_net')) and not wifi_pending)
@@ -1027,6 +1091,8 @@ class CameraUI:
         input_hint = ('快捷键：方向键/Enter/M/Esc/Delete；F1=C1，F2=C2，A=AF-ON，F=Fn，P=播放，R=REC，H=半按，S=全按；'
                       'Q/E=前轮，[/]=后轮，,/.=控制轮；1/2/3=照片/录像/S&Q；F5–F12=AUTO/P/A/S/M/MR1/MR2/MR3。'
                       if self.input_bindings is not None else '快捷键：方向键 / Enter / M / Esc / Delete；')
+        if not self.details.get_expanded():
+            return
         detail = '\n'.join([input_hint + 'Tab 切换控件，Space 激活焦点。',
                            'ON / OFF 仅管理 owned VM，真实电源未模拟。', '',
                            '最近操作（输入已提交不代表固件功能完成）'] +

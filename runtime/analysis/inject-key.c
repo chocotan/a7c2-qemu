@@ -13,6 +13,7 @@ extern int osal_free_msg(unsigned int,void *);
 extern int strcmp(const char *,const char *);
 extern int dprintf(int,const char *,...);
 extern long read(int,void *,size_t);
+extern int usleep(unsigned int);
 extern int *__errno_location(void);
 extern int __libc_start_main(int (*)(int, char **), int, char **,
                             void (*)(void), void (*)(void), void (*)(void), void *);
@@ -61,23 +62,39 @@ static int serve_app(void) {
             if(newline>=0){if((unsigned long)newline!=used-1)return 2;break;}
         }
         if(!used || line[used-1]!='\n')return 2;
-        line[used-1]=0;char *args[6];unsigned int count=0;char *p=line;
+        line[used-1]=0;char *args[8];unsigned int count=0;char *p=line;
         while(*p){
             while(*p==' ' || *p=='\t')p++;
             if(!*p)break;
-            if(count==6)return 2;
+            if(count==8)return 2;
             args[count++]=p;
             while(*p && *p!=' ' && *p!='\t')p++;
             if(*p)*p++=0;
         }
         int stopping=count==2 && !strcmp(args[0],"STOP");
-        if(count!=6 && !stopping)return 2;
-        const char *number=args[stopping?1:0];
+        int tapping=count==7 && !strcmp(args[0],"TAP");
+        if(count!=6 && !stopping && !tapping)return 2;
+        const char *number=args[(stopping || tapping)?1:0];
         if(number[0]<'0' || number[0]>'9')return 2;
         char *end;*__errno_location()=0;
         unsigned long sequence=strtoul(number,&end,10);
         if(*end || *__errno_location() || !sequence || sequence<=previous)return 2;
         if(stopping)return 0;
+        if(tapping){
+            int ok=1;
+            unsigned int key=field(args[2],&ok),sub=field(args[3],&ok),ex=field(args[4],&ok),from=field(args[5],&ok);
+            unsigned int hold_us=field(args[6],&ok);
+            if(!ok || hold_us>100000U)return 2;
+            previous=sequence;
+            unsigned int press[5]={key,sub,1U,ex,from};
+            unsigned int release[5]={key,sub,0U,ex,from};
+            int r1=submit(0x005503e0,0x005503e0,press,1,2);
+            if(!r1 && hold_us)usleep(hold_us);
+            int r2=submit(0x005503e0,0x005503e0,release,1,2);
+            int result=r1?r1:r2;
+            if(dprintf(1,"APP_INPUT_RESULT %lu %d\n",sequence,result)<0)return 2;
+            continue;
+        }
         unsigned int body[5];int ok=1;
         for(int i=0;i<5;i++)body[i]=field(args[i+1],&ok);
         if(!ok)return 2;

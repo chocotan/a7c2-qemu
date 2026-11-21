@@ -11,6 +11,7 @@ for name in menu-load.log gpe-requests.bin; do
     /bin/busybox ln -s /dev/null /tmp/$name || exit 1
 done
 /bin/busybox sh /simulation/reset-runtime.sh || exit 1
+(umask 077; printf "functional-cmos-chart-v1\n" > /tmp/virtual-preview.profile) || exit 1
 /simulation/ramfb-viewer >/dev/null 2>&1 &
 echo "PRODUCT_COLD_VIEWER pid=$!"
 echo "PRODUCT_COLD_BOOTIN pid=$$"

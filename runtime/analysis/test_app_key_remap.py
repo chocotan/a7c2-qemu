@@ -85,7 +85,7 @@ def test_original_raw_to_canonical_mapping_and_role_bindings():
         assert mapping[code]==target
     roles={'FN':0x8d,'REC':0x1c,'AF_ON':0x2d7,'PLAYBACK':0x22,'SHUTTER':0xf,
            'SHUTTER_HALF':0x1d,'C1':0xe,
-           'FRONT_LEFT':0x2f5,'REAR_LEFT':0x2ef,'CONTROL_LEFT':0x2f6,'MODE':0x2a,
+           'FRONT_LEFT':0x2f5,'REAR_LEFT':0x2ea,'TOP_LEFT':0x2ef,'CONTROL_LEFT':0x2f6,'MODE':0x2a,
            'MODE_STILL':0x1c5,'MODE_MOVIE':0x1c5,'MODE_SQ':0x1c5}
     for name,target in roles.items():
         code=key_definition(name)['code']

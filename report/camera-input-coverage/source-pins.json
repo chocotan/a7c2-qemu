@@ -18,7 +18,11 @@
     {
       "path": "runtime/analysis/menu_live.py",
       "symbol": "KEY_DEFINITIONS",
-      "sha256": "e2c19cd36de9103cdd568f30837805fa675096dc8d324196c8b19daccfb628a2"
+      "sha256": "978451b32acc620ae470ac2faeb0a7ab076655eb2b1ce75ea5baf211f286d126",
+      "sha256_history": [
+        "e2c19cd36de9103cdd568f30837805fa675096dc8d324196c8b19daccfb628a2"
+      ],
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/menu_live.py",
@@ -37,21 +41,27 @@
     },
     {
       "path": "runtime/analysis/inject-key.c",
-      "sha256": "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7",
+      "sha256": "9c25f60ae91f78484abea1cda2cfca5650fbb7e9d28e4a89413cd79076a8f8bd",
       "sha256_history": [
         "ae107d4e6f0653d9d73ffe49ed80aa521369581e3d344f9de385b8b7ee1f2c73",
-        "1d969ab4a5d1b23cebebf80fac1235ff43dc08739700afbab44fbc2448bc13d6"
+        "1d969ab4a5d1b23cebebf80fac1235ff43dc08739700afbab44fbc2448bc13d6",
+        "cad963737e70ede3a4cbe94f60d1d0832e7800f078bced3d9fc62f49d12e6fe7"
       ],
       "previous_sha256": "1d969ab4a5d1b23cebebf80fac1235ff43dc08739700afbab44fbc2448bc13d6",
-      "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived."
+      "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived.",
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/test_app_key_remap.py",
-      "sha256": "c20139a56003f5f551edb86a999f5a7883d626314d9f69c768a25a550fd77421"
+      "sha256": "21df9996c34a7b066470cbc9bf1913654c4cf62705a060d36ae4e41d5001de9f",
+      "sha256_history": [
+        "c20139a56003f5f551edb86a999f5a7883d626314d9f69c768a25a550fd77421"
+      ],
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "f01cbbaac16241ec79fccca85a186bc8e9d80277886020b4eb22e382be7be6b4",
+      "sha256": "ee04a8ece6b58a9944d8d574fe7077ee7441f72af5b1836f4f1c8ab0b2c12370",
       "ram_window_change_scope": "2026-11-09: optional RAM capture runs only after current SD save and nineteen-volume freeze; input mappings, 50ms release and serial sender unchanged.",
       "cold_gui_previous_sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
       "cold_gui_change_scope": "2026-11-09: optional storage shutdown callback after actual SD export, for a current cold-GUI full-freeze receipt; input mappings and serial sender unchanged. No USB, full hardware boot or capture verification.",
@@ -65,13 +75,15 @@
         "6a724033ec84f87ed160e870069146599c336733ba8e8848de130e234f803a8a",
         "a6ddcbee9c62087f8ffdd93469c255883180f6af6a51cd2ab66ed76ef837ad19",
         "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b",
-        "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128"
+        "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
+        "f01cbbaac16241ec79fccca85a186bc8e9d80277886020b4eb22e382be7be6b4"
       ],
-      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "0e9185ec5fe8249647beb9ef45f1348bfe1ede5f8159b80134aeeb65d27c5d56",
+      "sha256": "8b4f3fea463268d1516f256ccf49dbceda6d314e64cff5ee7984695efdf859b3",
       "ram_window_change_scope": "2026-11-09/10: verified same-disk RAM save/restore, p2-only reset transaction and selected original-file restoration; non-confirmation keeps StoreError before any write; input ownership and QMP-only exit unchanged.",
       "cold_gui_previous_sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
       "cold_gui_change_scope": "2026-11-09: explicit original-init-cold route gives the launcher the sole persistent lease; direct-bootin remains available; unsupported device combinations and legacy reset refused. Input ownership and QMP-only exit unchanged.",
@@ -90,13 +102,15 @@
         "5b9cad9aee890e56e89f02be0f654b3e970bc4812bf0c17b1f19fc4fcdae8bcd",
         "bd0e61156db1377f26f6f4d689cd6e9fa90172fea64de968296a4ce11babed03",
         "0e403da8ff9f1a0af71932014424c335bf09cc8220528390c80b2e964b782862",
-        "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377"
+        "299ed5747bed90de102983974b67226a01793b4d4f09be7ab17c76d43072c377",
+        "0e9185ec5fe8249647beb9ef45f1348bfe1ede5f8159b80134aeeb65d27c5d56"
       ],
-      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "e840288e9288f8a8e86a2db5556ce8c31cb75a6355b69f2ddffc7279a7c4488e",
+      "sha256": "ec48298882004d567c54a1f313af86d4c6af7f86354ff581573c0cc3ba236c13",
       "fast_boot_change_scope": "2026-11-21: add --cold-flag and --verify-sha/--no-verify-sha CLI/env forwarding; input bindings, touch coordinates, dial actions, and lifecycle gates preserved.",
       "ui_refactor_change_scope": "2026-11-20: concise and ergonomic single-window UI refactoring; integrated top plate, aligned rear thumb panel, viewfinder bezel, and unified bottom peripheral/drawer dock; all input bindings, touch coordinates, and lifecycle gates preserved.",
       "ram_window_change_scope": "2026-11-09/10: actual RAM controls and stopped p2-only reset confirmation; original input release gates and actual LCD consumption unchanged.",
@@ -113,9 +127,11 @@
         "00702e1715c5e8d4080d5275b16575176c02b5a0b0c10f1d9d38d0ff3b742dc0",
         "0599bf19f16923e1c0d78ce36b697a879fc5fa99c94a0d1442509d47b1485488",
         "a76c1ae0f375f2240c8c52e74b29dbec43686a8e41d7c43986913c368e72c2f6",
-        "f5b805ccb949d591fe3aa27aadf77b0856a54d9b6d88f0fdd45221af1ab6346c"
+        "f5b805ccb949d591fe3aa27aadf77b0856a54d9b6d88f0fdd45221af1ab6346c",
+        "e840288e9288f8a8e86a2db5556ce8c31cb75a6355b69f2ddffc7279a7c4488e"
       ],
-      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal."
+      "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     },
     {
       "path": "runtime/analysis/menu_live.py",
@@ -124,8 +140,12 @@
     },
     {
       "path": "report/camera-input-coverage/input_bindings.py",
-      "sha256": "b2296e4e44126b36034af9de34cfff533b5b573eeb273bf659d4fe82e95f35b9",
-      "change_scope": "Single touch ownership, GTK mouse/touch mapping and original input cleanup"
+      "sha256": "918308c7510338f1efc7375f6892a5cd58eb52a2447df10fc0d34f1758cf05c3",
+      "change_scope": "Single touch ownership, GTK mouse/touch mapping and original input cleanup",
+      "sha256_history": [
+        "b2296e4e44126b36034af9de34cfff533b5b573eeb273bf659d4fe82e95f35b9"
+      ],
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
     }
   ],
   "raw_to_canonical": {
@@ -206,20 +226,20 @@
       "canonical": "0x2f5"
     },
     "REAR_LEFT": {
-      "raw": "0x10000013",
-      "canonical": "0x2ef"
+      "raw": "0x10000016",
+      "canonical": "0x2ea"
     },
     "REAR_RIGHT": {
+      "raw": "0x10000016",
+      "canonical": "0x2ea"
+    },
+    "TOP_LEFT": {
       "raw": "0x10000013",
       "canonical": "0x2ef"
     },
-    "TOP_LEFT": {
-      "raw": "0x10000016",
-      "canonical": "0x2ea"
-    },
     "TOP_RIGHT": {
-      "raw": "0x10000016",
-      "canonical": "0x2ea"
+      "raw": "0x10000013",
+      "canonical": "0x2ef"
     },
     "CONTROL_LEFT": {
       "raw": "0x1000001d",
@@ -257,8 +277,22 @@
     "MR3": 20
   },
   "dial_status": {
-    "left": "0xfffffc00",
-    "right": "0x400"
+    "FRONT": {
+      "left": "0xffffffea",
+      "right": "0x16"
+    },
+    "REAR": {
+      "left": "0xffffffe2",
+      "right": "0x1e"
+    },
+    "CONTROL": {
+      "left": "0xffffffe8",
+      "right": "0x18"
+    },
+    "TOP": {
+      "left": "0xfffffc00",
+      "right": "0x400"
+    }
   },
   "routes": {
     "app32": {

@@ -20,6 +20,23 @@
 - **保留部分设置**：可以跨启动保留语言和日期格式；首次设置仍可能再次出现。
 - **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
+## 近期更新（2026-11-21）
+
+下表区分“已实现并通过宿主测试”与“实机验证”。本次新增项目**尚未在隔离 VM 中实机验证**（运行中的用户窗口占用了 `.menu-probe.lock`，未强行并行启动），验证前不应视为已通过。软件虚拟模型不代表真实 CP/ISP，`capture_verified` 保持 false。
+
+| 项目 | 内容 | 状态 |
+| --- | --- | --- |
+| 底部曝光 HUD | 拍摄主页下方的光圈、快门、ISO 由虚拟镜头经原 OSAL 队列发给原厂 HUD，截图见[曝光 HUD](docs/images/virtual-lens-exposure-hud-20261121.png) | 已实机截图 |
+| 默认色卡 CMOS | `./start.sh` 冷启动在 `ramfb-viewer` 前写入 `functional-cmos-chart-v1`，拍摄画面默认合成色卡 | 宿主测试；实机待验 |
+| 自定义 CMOS 图片 | 窗口工具栏“选择图片…/恢复色卡”：宿主把图片缩放为 640×480 baseline JPEG，经串口分块送入 guest `cmos-import` 解码并热替换（`/tmp/virtual-cmos-custom.rgb`） | 宿主往返测试（Pillow→C 解码）；实机待验 |
+| 全按快门写卡 | `menu-observe.so` 观察全按事件，把当前色卡/自定义图片编码为 JPEG（含 Sony EXIF），经原 `Fsys_*` 写 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验 | 内存 Fsys 单测（ASan/UBSan）；实机待验 |
+| 播放页 | 播放键进入叠加回放，左右切换、删除、MENU/半按退出；原厂没有图像数据库，故使用叠加层而非原厂播放界面 | 宿主单测；实机待验 |
+| Fn 键 | 点按改为 guest 内原子按下/释放，避免 guest 时间约 6.5 倍快于宿主而落入 ≥500 ms 长按分支 | 宿主测试；实机待验 |
+| 拨轮 | 后拨轮与右上拨轮码已对调；A7C II 单步为前 ±22、后 ±30、控制 ±24、右上 ±1024；P/A/S/M 下前/后/控制轮步进 HUD 的光圈、快门、ISO | 宿主测试；实机待验 |
+| 延迟 | LCD 空闲 15 Hz、输入后 60 Hz 自适应；原始 PPM 字节比较跳过解码和哈希；GTK 100 ms 状态定时器；`console.log` 增量读取；guest 查看器缓存合成并用 inotify；冷启动 `tb-size=2048` 且不再 `-d` 跟踪；“快捷键与日志”抽屉仅展开时更新 | 宿主测试；实机延迟未测 |
+
+拨轮映射（虚拟镜头模型，非原厂逻辑）：P 档前/后轮为程序偏移、控制轮为 ISO；A 档前轮光圈、其余 ISO；S 档前轮快门、其余 ISO；M 档前轮快门、后轮光圈、控制轮 ISO。
+
 ## 虚拟 CMOS 与静态照片
 
 实验配置 `functional-ram-card-independent-internal-v1` 使用[虚拟 CMOS](report/virtual-sensor/README.md)生成 GRBG Bayer 色卡，显示帧为 640×480，L 尺寸照片为 7008×4672。固件负责 JPEG 编码、ARW 封装和 Fsys 写卡。未压缩 RAW 在原厂菜单选择 `RAW-only`、`L` 和 `UNCOMPRESS`，输出到虚拟卡的 `DCIM/100MSDCF/`。

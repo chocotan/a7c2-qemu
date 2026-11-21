@@ -97,6 +97,7 @@ class VM:
         self.storage_lease=None
         self.storage_instance=str(Path(storage_instance).absolute()) if storage_instance is not None else None
         self.wifi = None
+        self.cmos_source = None
         self.sd_card = None
         self.sd_pending = 0
         self.natural_boot=natural_boot
@@ -334,7 +335,7 @@ class VM:
                         firmware_selection=self.firmware_selection,firmware_verification=self.firmware_verification,
                         persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,boot_profile=self.boot_profile,
                         ram_enabled=self.ram_enabled,ram_snapshot=self.ram_snapshot,ram_restored=self.ram_restored,
-                        wifi=self.wifi, usb_net=self.usb_net,
+                        wifi=self.wifi, usb_net=self.usb_net, cmos_source=self.cmos_source,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
                         log=self.log_path, run=self.run_dir)
@@ -363,7 +364,7 @@ class VM:
             self.input_lifecycle = False
             self.touch_input = False
             self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
-            self.wifi = None
+            self.wifi = None; self.cmos_source = None
             self.sd_card = None
             self.sd_pending = 0
             self.state, self.error, self.stale = 'starting', '', True
@@ -430,6 +431,11 @@ class VM:
                 entry=control_catalog().get(command['key'],{})
                 if not entry.get('available') or command['position'] not in entry.get('positions',{}):
                     raise ValueError('未知或不可用的拨盘位置')
+            elif (isinstance(command,dict) and command.get('action')=='cmos_source'
+                  and (set(command)=={'action','default'} and command['default'] is True
+                       or set(command)=={'action','path'} and isinstance(command['path'],str)
+                       and len(command['path'])<4096)):
+                if not self.natural_boot or self.mock:raise ValueError('CMOS 源需要原生 guest')
             elif (isinstance(command, dict) and set(command) == {'action', 'key'}
                   and command['action'] == 'key' and isinstance(command['key'], str)
                   and command['key'] in KEYS):
@@ -439,6 +445,8 @@ class VM:
                     raise ValueError(entry['unavailable_reason'])
             else:
                 raise ValueError('未知按键或控制命令')
+            if self.lcd_stream is not None and hasattr(self.lcd_stream, 'nudge'):
+                self.lcd_stream.nudge()
             try:
                 self.commands.put_nowait(dict(command))
                 if command['action']=='sd_card':self.sd_pending+=1
@@ -774,6 +782,9 @@ class VM:
                         self.sd_pending=max(0,self.sd_pending-1)
                         self.event('虚拟SD状态：'+str(reply.get('state'))+
                                    ('' if reply.get('ok') else ' / '+str(reply.get('error','未完成'))),kind='storage')
+                    elif command['action']=='cmos_source' and reply.get('type')=='cmos_source':
+                        self.cmos_source={key:value for key,value in reply.items() if key!='type'}
+                        self.event('CMOS 画面源：'+(str(reply.get('name')) if reply.get('ok') else '切换失败 '+str(reply.get('error'))),kind='input')
                     elif command['action']=='wifi' and reply.get('type')=='wifi':
                         self.wifi = {key: value for key, value in reply.items() if key != 'type'}
                         if reply.get('ok'):

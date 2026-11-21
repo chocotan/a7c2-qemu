@@ -25,7 +25,10 @@ class PersistentAppInput:
                     self.monitor.check()
                     if self.proc.poll() is not None:
                         raise RuntimeError('Original input owner exited before its reply')
-                    data = self.console.read_bytes()[offset:].replace(b'\r\n', b'\n')
+                    # Incremental read: never re-read the whole (growing) console on each wakeup.
+                    with self.console.open('rb') as reader:
+                        reader.seek(offset)
+                        data = reader.read().replace(b'\r\n', b'\n')
                     match = pattern.search(data)
                     if match:return match, data
                     wakeup.wait(min(.05, max(0, deadline-time.monotonic())))
@@ -67,6 +70,19 @@ class PersistentAppInput:
         reply, data = self._wait(offset, pattern)
         if int(reply.group(1)) != 0:
             raise RuntimeError('Original App32 allocation/send failed rc=' + reply.group(1).decode())
+        return data
+
+    def tap(self, key, hold_us=50000):
+        """Press and release inside the guest: one serial round trip, so a tap
+        never exceeds the firmware's ~500 ms long-press timer (Fn, etc.)."""
+        if not 0 <= key <= 0xffffffff or not 0 < hold_us <= 100000:
+            raise ValueError('Invalid atomic tap')
+        self.start(); self.sequence += 1
+        offset = self._write(f'TAP {self.sequence} {key} 0 0 0 {hold_us}')
+        pattern = re.compile(rb'(?:^|\n)APP_INPUT_RESULT ' + str(self.sequence).encode() + rb' ([0-9]+)\n')
+        reply, data = self._wait(offset, pattern)
+        if int(reply.group(1)) != 0:
+            raise RuntimeError('Original App32 atomic tap failed rc=' + reply.group(1).decode())
         return data
 
     def pause(self):

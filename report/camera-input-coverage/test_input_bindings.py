@@ -172,7 +172,7 @@ def test_all_contacts_use_actual_encoder_and_original_queue(wire, app, name):
 
 
 @pytest.mark.parametrize('app', [False, True])
-@pytest.mark.parametrize('dial', ['FRONT', 'REAR', 'CONTROL'])
+@pytest.mark.parametrize('dial', ['FRONT', 'REAR', 'CONTROL', 'TOP'])
 @pytest.mark.parametrize('ticks', [-32, -1, 1, 32])
 def test_all_dials_send_signed_u32_increments_without_release(wire, app, dial, ticks):
     session = InputSession(wire, app_input=app)
@@ -181,7 +181,7 @@ def test_all_dials_send_signed_u32_increments_without_release(wire, app, dial, t
     assert len(wire.events) == abs(ticks)
     direction = 'RIGHT' if ticks > 0 else 'LEFT'
     for event in wire.events:
-        assert_event(event, dial + '_' + direction, int(PINS['dial_status'][direction.lower()], 0), app)
+        assert_event(event, dial + '_' + direction, int(PINS['dial_status'][dial][direction.lower()], 0), app)
 
 
 @pytest.mark.parametrize('app', [False, True])
@@ -639,8 +639,8 @@ def test_actual_live_owner_handles_queue_and_shutdown_cleanup_without_vm(monkeyp
     assert replies[4]['type'] == 'error' and 'legacy tap' in replies[4]['error']
     assert replies[-1]['ok'] and not replies[-1]['input_state']['held']
     assert exported and exported[0][-2:] == [(0xa7, 0), (0x1f1, 0)]
-    assert wire.statuses == [(0x1f1, 1), (0xa7, 1), (0x1000001c, 0xfffffc00),
-                             (0x1000001c, 0xfffffc00), (0x7025, 19), (0xa7, 0), (0x1f1, 0)]
+    assert wire.statuses == [(0x1f1, 1), (0xa7, 1), (0x1000001c, 0xffffffea),
+                             (0x1000001c, 0xffffffea), (0x7025, 19), (0xa7, 0), (0x1f1, 0)]
     assert_event(wire.events[0], 'SHUTTER_HALF', 1, app)
 
 

@@ -55,7 +55,7 @@ for device in vdf-device touch-panel-device tcin-device imaging-device vef-path-
               pin-connection pin-buffer-owner pin-buffer-guest pin-buffer-wire pin-format \
               cp-sync-resources cp-cold-control cp-background-device cp302c-no-transition cp-notification-control cp-parameter-batch cp-capture-format cp-output-policy cp-startup-controls-diagnostic cp-ee-controls-diagnostic cp-movie-format-diagnostic \
               cp-state-snapshot cp-full-state-snapshot cp-start-state-data cp-start-state-provider cp-property-stage cp-property-stage-file \
-              cp-parameter-state cp-parameter-import cp-parameter-view cp-lif-frame cp-lif-bitmap cp-state-publication functional-camera-control functional-still-format functional-startup-control functional-vdf-path functional-vdf-layout-stage functional-cp-zoom functional-histogram functional-background-start virtual-lens-hud; do
+              cp-parameter-state cp-parameter-import cp-parameter-view cp-lif-frame cp-lif-bitmap cp-state-publication functional-camera-control functional-still-format functional-startup-control functional-vdf-path functional-vdf-layout-stage functional-cp-zoom functional-histogram functional-background-start virtual-lens-hud virtual-cmos-capture; do
   cc_async --target=aarch64-linux-gnu -O2 -fPIC -mno-outline-atomics \
     -isystem /usr/aarch64-linux-gnu/include -c "$vdf_dir/$device.c" \
     -o "$device_build/$device.o"
@@ -176,6 +176,9 @@ clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so
   -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \
   "$analysis_dir/menu-root/usr/lib/libosal_utm.so" \
   -Wl,--allow-shlib-undefined "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/inject-key"
+clang "${common[@]}" -isystem /usr/aarch64-linux-gnu/include -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
+  "$source_dir/cmos-import.c" "$device_build/virtual-cmos-capture.o" "$device_build/virtual-lens-hud.o" \
+  "$device_build/sensor-core.o" "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/cmos-import"
 clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so.1 \
   "$source_dir/inject-cp-event.c" \
   -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \

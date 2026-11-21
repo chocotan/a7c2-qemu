@@ -170,3 +170,32 @@ int virtual_lens_hud_step_iso(struct virtual_lens_hud_state *state, int delta) {
     state->iso_auto = 0u;
     return 0;
 }
+
+int virtual_lens_hud_program_shift(struct virtual_lens_hud_state *state, int delta) {
+    if (!state || !state->lens_mounted) return -ENODEV;
+    if (!delta) return 0;
+    uint16_t old_ap = state->aperture_x100;
+    uint16_t old_num = state->shutter_num;
+    uint32_t old_den = state->shutter_den;
+    int rc_ap = virtual_lens_hud_step_aperture(state, -delta);
+    int rc_ss = virtual_lens_hud_step_shutter(state, delta);
+    if (rc_ap || rc_ss || state->aperture_x100 == old_ap ||
+        (state->shutter_num == old_num && state->shutter_den == old_den)) {
+        state->aperture_x100 = old_ap;
+        state->shutter_num = old_num;
+        state->shutter_den = old_den;
+    }
+    return 0;
+}
+
+uint32_t virtual_lens_hud_iso_value(uint8_t iso_cp_byte) {
+    static const uint32_t k_iso_values[] = {
+        100, 125, 160, 200, 250, 320, 400, 500, 640, 800,
+        1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6400, 8000,
+        10000, 12800, 16000, 20000, 25600
+    };
+    if (iso_cp_byte < 0x0bu) return 100u;
+    size_t idx = (size_t)(iso_cp_byte - 0x0bu);
+    size_t n = sizeof k_iso_values / sizeof k_iso_values[0];
+    return idx < n ? k_iso_values[idx] : k_iso_values[n - 1];
+}

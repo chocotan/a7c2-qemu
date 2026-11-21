@@ -86,6 +86,8 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "device-models/functional-vdf-layout-stage.h"
 #include "device-models/functional-cp-zoom.h"
 #include "device-models/virtual-lens-hud.h"
+#include "device-models/virtual-cmos-capture.h"
+static void vcmos_resolve(void);
 typedef unsigned long size_t;
 typedef unsigned long pthread_t;
 static int (*sd_ack_create)(pthread_t *,const void *,void *(*)(void *),void *);
@@ -885,6 +887,7 @@ static void initialize(void) {
     real_msg_size = real_dlsym((void *)-1, "osal_msg_size");
     real_rcv_msg_tmo = real_dlsym((void *)-1, "osal_rcv_msg_tmo");
     real_u_rcv_msg_tmo = real_dlsym((void *)-1, "u_osal_rcv_msg_tmo");
+    vcmos_resolve();
     real_dladdr = real_dlsym((void *)-1, "dladdr");
     capid_enabled = getenv("QEMU_CAPID_SERVICE") && !getenv("MENU_OBSERVE_SELFTEST");
     (void)0;
@@ -2799,6 +2802,137 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
              (unsigned int)virtual_lens_hud_current.shutter_den,
              (unsigned int)virtual_lens_hud_current.iso_cp_byte);
     record("VIRTUAL_LENS_HUD_ARMED ", text);
+}
+/* ---- Software virtual camera input model (dials, shutter capture, playback) ----
+ * Observes the injected App32 keys on queue 0x5503e0. Software model only:
+ * physical CP/ISP and the original image database are not involved. */
+static unsigned int vcmos_shoot_mode = 3; /* original MODE position: P=3 A=5 S=4 M=6 */
+static unsigned int vcmos_hud_pending, vcmos_job_busy;
+static struct virtual_cmos_fsys_ops vcmos_ops;
+static struct virtual_cmos_playback_state vcmos_pb;
+static void vcmos_resolve(void) {
+    if (!real_dlsym) return;
+    vcmos_ops.get_mount_drives = real_dlsym((void *)-1, "Fsys_GetMountDrives");
+    vcmos_ops.mkdir_fn = real_dlsym((void *)-1, "Fsys_Mkdir");
+    vcmos_ops.open_fn = real_dlsym((void *)-1, "Fsys_Open");
+    vcmos_ops.write_fn = real_dlsym((void *)-1, "Fsys_Write");
+    vcmos_ops.read_fn = real_dlsym((void *)-1, "Fsys_Read");
+    vcmos_ops.flush_fn = real_dlsym((void *)-1, "Fsys_Flush");
+    vcmos_ops.close_fn = real_dlsym((void *)-1, "Fsys_Close");
+    vcmos_ops.remove_fn = real_dlsym((void *)-1, "Fsys_Remove");
+    vcmos_ops.flush_volume_fn = real_dlsym((void *)-1, "Fsys_FlushVolume");
+}
+static int vcmos_ops_ready(void) {
+    return vcmos_ops.get_mount_drives && vcmos_ops.mkdir_fn && vcmos_ops.open_fn && vcmos_ops.write_fn &&
+           vcmos_ops.read_fn && vcmos_ops.close_fn && vcmos_ops.remove_fn;
+}
+static void vcmos_touch_blink(void) {
+    int fd = open(VIRTUAL_SHUTTER_BLINK_PATH, 1 | 0x40 | 0x200 | 0x8000, 0600 /* aarch64 O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW */);
+    if (fd < 0) return;
+    if (write(fd, "1", 1) < 0) { /* marker only */ }
+    close(fd);
+}
+static void *vcmos_hud_worker(void *arg) {
+    (void)arg;
+    __atomic_store_n(&vcmos_hud_pending, 0u, __ATOMIC_RELEASE);
+    virtual_lens_hud_publish_state("dial");
+    return 0;
+}
+static void vcmos_schedule_hud(void) {
+    if (__atomic_exchange_n(&vcmos_hud_pending, 1u, __ATOMIC_ACQ_REL)) return;
+    pthread_t thread = 0;
+    if (sd_ack_create && sd_ack_create(&thread, 0, vcmos_hud_worker, 0) == 0) {
+        if (sd_ack_detach) sd_ack_detach(thread);
+        return;
+    }
+    __atomic_store_n(&vcmos_hud_pending, 0u, __ATOMIC_RELEASE);
+}
+/* job: 1 capture, 2 playback enter, 3 prev, 4 next, 5 delete, 6 exit */
+static void *vcmos_job_worker(void *arg) {
+    long job = (long)arg;
+    char text[200];
+    if (!vcmos_ops_ready()) {
+        record("VIRTUAL_CMOS_FAULT ", "Fsys ops unresolved; no capture or playback");
+    } else if (job == 1) {
+        struct virtual_cmos_capture_result result;
+        __builtin_memset(&result, 0, sizeof result);
+        int rc = virtual_cmos_capture_to_sd(&vcmos_ops, VIRTUAL_CMOS_CUSTOM_RGB_PATH, &virtual_lens_hud_current, &result);
+        snprintf(text, sizeof text, "rc=%d path=%s source=%s bytes=%lu fnv1a64=%016lx readback=%d software_virtual_cmos=1 physical_CP_ISP=unverified",
+                 rc, result.path, result.source, (unsigned long)result.bytes, (unsigned long)result.fnv1a64, result.readback_verified);
+        record("VIRTUAL_CMOS_CAPTURE ", text);
+    } else if (job == 2) {
+        int rc = virtual_cmos_playback_enter(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH);
+        snprintf(text, sizeof text, "rc=%d count=%u", rc, vcmos_pb.count);
+        record("VIRTUAL_CMOS_PLAYBACK_ENTER ", text);
+    } else if (job == 3 || job == 4) {
+        virtual_cmos_playback_step(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH, job == 3 ? -1 : 1);
+    } else if (job == 5) {
+        int rc = virtual_cmos_playback_delete(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH);
+        snprintf(text, sizeof text, "rc=%d count=%u", rc, vcmos_pb.count);
+        record("VIRTUAL_CMOS_PLAYBACK_DELETE ", text);
+    } else if (job == 6) {
+        virtual_cmos_playback_exit(&vcmos_pb, VIRTUAL_PLAYBACK_FRAME_PATH);
+    }
+    __atomic_store_n(&vcmos_job_busy, 0u, __ATOMIC_RELEASE);
+    return 0;
+}
+static void vcmos_start_job(long job) {
+    if (__atomic_exchange_n(&vcmos_job_busy, 1u, __ATOMIC_ACQ_REL)) return;
+    pthread_t thread = 0;
+    if (sd_ack_create && sd_ack_create(&thread, 0, vcmos_job_worker, (void *)job) == 0) {
+        if (sd_ack_detach) sd_ack_detach(thread);
+        return;
+    }
+    __atomic_store_n(&vcmos_job_busy, 0u, __ATOMIC_RELEASE);
+}
+static void virtual_input_observed(const unsigned int *ev) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    unsigned int code = ev[0], status = ev[2];
+    if (code == 0x7025) { vcmos_shoot_mode = status; return; }
+    if (code == 0x1000001c || code == 0x10000016 || code == 0x1000001d) {
+        if (!hosd_is_shooting_scene() || !status) return;
+        int dir = (int)status > 0 ? 1 : -1;
+        int front = code == 0x1000001c, rear = code == 0x10000016;
+        int changed = 0;
+        switch (vcmos_shoot_mode) {
+        case 3: /* P: front/rear program shift, control ISO */
+            changed = (front || rear) ? virtual_lens_hud_program_shift(&virtual_lens_hud_current, dir)
+                                      : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
+            break;
+        case 5: /* A: front aperture, rear/control ISO */
+            changed = front ? virtual_lens_hud_step_aperture(&virtual_lens_hud_current, dir)
+                            : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
+            break;
+        case 4: /* S: front shutter, rear/control ISO */
+            changed = front ? virtual_lens_hud_step_shutter(&virtual_lens_hud_current, dir)
+                            : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
+            break;
+        case 6: /* M: front shutter, rear aperture, control ISO */
+            changed = front ? virtual_lens_hud_step_shutter(&virtual_lens_hud_current, dir)
+                            : rear ? virtual_lens_hud_step_aperture(&virtual_lens_hud_current, dir)
+                                   : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
+            break;
+        default: break;
+        }
+        if (changed) vcmos_schedule_hud();
+        return;
+    }
+    if (vcmos_pb.active) {
+        if (code == 0x15 && status == 1) vcmos_start_job(3);
+        else if (code == 0x1af && status == 1) vcmos_start_job(4);
+        else if (code == 0x1f8 && status == 1) vcmos_start_job(5);
+        else if ((code == 0x1ab || code == 0x1f1 || code == 0x1f7 || code == 0xa7 || code == 0x1ac) && status == 1) {
+            /* Exit must not be dropped by the busy flag: run it synchronously (no file IO). */
+            virtual_cmos_playback_exit(&vcmos_pb, VIRTUAL_PLAYBACK_FRAME_PATH);
+        }
+        return;
+    }
+    if (code == 0xa7 && status == 1 && hosd_is_shooting_scene()) {
+        vcmos_touch_blink();
+        vcmos_start_job(1);
+    } else if (code == 0x1f7 && status == 1 && hosd_is_shooting_scene()) {
+        vcmos_start_job(2);
+    }
 }
 /* Original request objects are observed only during their owning call. */
 static unsigned int liveview_request_count, liveview_consume_count, liveview_run_count;
@@ -10622,6 +10756,8 @@ int osal_rcv_msg_tmo(unsigned int id, void **message, long timeout) {
         snprintf(kt, sizeof kt, "tid=%ld pid=%ld code=%#x status=%u bytes=%u",
                  syscall(178), (long)getpid(), ev[0], (unsigned int)ev[2], real_msg_size ? real_msg_size(*message) : 0);
         record("KEY_RECV ", kt);
+        if (real_msg_size && real_get_source && real_msg_size(*message) == 32 &&
+            real_get_source(*message) == 0x5503e0) virtual_input_observed(ev);
     }
     if (!result && message && *message) record_osd_transport("OSD_TRANSPORT_RECEIVE ", id, *message);
     if (!result && id == 0x807a0020 && bb_ready_pending) bb_key_seen = 1;

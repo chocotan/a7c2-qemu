@@ -239,6 +239,26 @@ int hosd_capture_frame(unsigned long base, const struct hosd_native *api, struct
     }
     return ok ? 0 : -1;
 }
+static int hosd_shooting_scene_flag;
+static int hosd_meta_is_shooting(const struct hosd_metadata *m) {
+    if (!m) return 0;
+    for (unsigned i = 0; i < 258; ++i) if (m->present[i] > 1) return 0;
+    if (m->present[256] != 1 || u16(m->gui) != 0x1000 || u32(m->gui + 8) != 9 ||
+        u32(m->gui + 12) > 16 || u32(m->gui + 16) || u32(m->gui + 20) || u32(m->gui + 24)) return 0;
+    const unsigned ids[] = {0, 3, 4, 5, 8};
+    for (unsigned i = 0; i < sizeof ids / sizeof *ids; ++i) {
+        const unsigned char *w = m->widgets[ids[i]];
+        if (m->present[ids[i]] != 1 || u16(w) != 0x1001 || u16(w + 8) != ids[i] ||
+            u16(w + 10) != (ids[i] ? 1u : 0u) || u32(w + 12) != 1) return 0;
+    }
+    return !u32(m->widgets[0] + 16) && u16(m->widgets[0] + 20) == 640 && u16(m->widgets[0] + 22) == 480;
+}
+int hosd_is_shooting_scene(void) {
+    return __atomic_load_n(&hosd_shooting_scene_flag, __ATOMIC_ACQUIRE);
+}
+static void hosd_update_shooting_scene(const struct hosd_metadata *m) {
+    __atomic_store_n(&hosd_shooting_scene_flag, hosd_meta_is_shooting(m), __ATOMIC_RELEASE);
+}
 static int stopping(const struct hosd_ops *o) {
     return o->stop && __atomic_load_n(o->stop, __ATOMIC_ACQUIRE);
 }
@@ -302,6 +322,7 @@ static int consume(struct hosd_state *s, const struct hosd_ops *o, const char *p
         ok = hosd_persist(path, snapshot, HOSD_BYTES) == 0;
         if (ok) {
             ++s->sequence;
+            hosd_update_shooting_scene(&s->frozen);
             if (s->pending == 0x1003) {
                 memcpy(s->retained_pixels, pixels, HOSD_PIXELS);
                 memcpy(s->retained_descriptor, d, 36);

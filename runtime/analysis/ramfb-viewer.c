@@ -16,7 +16,16 @@
 
 #define PREVIEW_PROFILE "/tmp/virtual-preview.profile"
 #define PREVIEW_NAME "functional-cmos-chart-v1\n"
+#define PREVIEW_CUSTOM_RGB "/tmp/virtual-cmos-custom.rgb"
+#define PREVIEW_PLAYBACK_FRAME "/tmp/virtual-playback-frame.bin"
+#define PREVIEW_SHUTTER_BLINK "/tmp/virtual-shutter-blink"
+#define PREVIEW_RGB_BYTES (640U * 480U * 3U)
+#define PREVIEW_PLAYBACK_HDR 16U
+#define PREVIEW_PLAYBACK_BYTES (PREVIEW_PLAYBACK_HDR + PREVIEW_RGB_BYTES)
 static unsigned char *preview_rgb;
+static unsigned char *custom_preview_rgb;
+static int custom_preview_active;
+static struct stat custom_preview_st;
 static int preview_enabled;
 static int preview_active;
 
@@ -71,6 +80,7 @@ static int preview_scene(const unsigned char *raw) {
     return !le(w+16,4) && le(w+20,2) == 640 && le(w+22,2) == 480;
 }
 static int view_stat(int fd, struct stat *st);
+static int read_all(int fd, unsigned char *p, size_t n);
 static int preview_profile(int fd) {
     char name[sizeof PREVIEW_NAME];
     struct stat st;
@@ -78,6 +88,49 @@ static int preview_profile(int fd) {
         read(fd,name,sizeof name) != sizeof PREVIEW_NAME-1 ||
         memcmp(name,PREVIEW_NAME,sizeof PREVIEW_NAME-1)) return -1;
     return 1;
+}
+__attribute__((unused)) static int refresh_custom_preview(const char *path) {
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) {
+        if (errno == ENOENT && custom_preview_active) {
+            custom_preview_active = 0;
+            memset(&custom_preview_st, 0, sizeof custom_preview_st);
+            return 1;
+        }
+        return 0;
+    }
+    struct stat st;
+    if (view_stat(fd, &st) || !S_ISREG(st.st_mode) || (size_t)st.st_size != PREVIEW_RGB_BYTES) {
+        close(fd);
+        return 0;
+    }
+    if (custom_preview_active &&
+        st.st_dev == custom_preview_st.st_dev && st.st_ino == custom_preview_st.st_ino &&
+        st.st_mtim.tv_sec == custom_preview_st.st_mtim.tv_sec &&
+        st.st_mtim.tv_nsec == custom_preview_st.st_mtim.tv_nsec) {
+        close(fd);
+        return 0;
+    }
+    if (!custom_preview_rgb) {
+        custom_preview_rgb = malloc(PREVIEW_RGB_BYTES);
+        if (!custom_preview_rgb) { close(fd); return 0; }
+    }
+    if (read_all(fd, custom_preview_rgb, PREVIEW_RGB_BYTES)) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+    custom_preview_st = st;
+    custom_preview_active = 1;
+    return 1;
+}
+__attribute__((unused)) static void rgb24_to_xrgb8888(const unsigned char *rgb, unsigned char *out) {
+    for (unsigned i = 0; i < 640U * 480U; ++i) {
+        out[4U * i + 0] = rgb[3U * i + 2];
+        out[4U * i + 1] = rgb[3U * i + 1];
+        out[4U * i + 2] = rgb[3U * i + 0];
+        out[4U * i + 3] = 0;
+    }
 }
 static uint64_t be(const unsigned char *p, unsigned n) {
     uint64_t v = 0;
@@ -127,39 +180,53 @@ static const char *validate(const unsigned char *p, size_t n) {
 }
 static unsigned char conversion_table[65536][4];
 static int conversion_ready;
-static void convert(const unsigned char *p, unsigned char *out) {
-    if (!conversion_ready) {
-        for (unsigned v = 0; v < 65536; ++v) {
-            unsigned a = v & 15;
-            conversion_table[v][0] = (((v >> 4) & 15) * 17 * a + 7) / 15;
-            conversion_table[v][1] = (((v >> 8) & 15) * 17 * a + 7) / 15;
-            conversion_table[v][2] = ((v >> 12) * 17 * a + 7) / 15;
-            conversion_table[v][3] = 0;
-        }
-        conversion_ready = 1;
+static void ensure_conversion_table(void) {
+    if (conversion_ready) return;
+    for (unsigned v = 0; v < 65536; ++v) {
+        unsigned a = v & 15;
+        conversion_table[v][0] = (((v >> 4) & 15) * 17 * a + 7) / 15;
+        conversion_table[v][1] = (((v >> 8) & 15) * 17 * a + 7) / 15;
+        conversion_table[v][2] = ((v >> 12) * 17 * a + 7) / 15;
+        conversion_table[v][3] = 0;
     }
+    conversion_ready = 1;
+}
+static void convert(const unsigned char *p, unsigned char *out) {
+    ensure_conversion_table();
     for (unsigned i = 0; i < HOSD_PIXELS / 2; ++i) {
-        unsigned v = le(p + 2 * i, 2);
-        memcpy(out + 4*i, conversion_table[v], 4);
+        unsigned v = (unsigned)p[2 * i] | ((unsigned)p[2 * i + 1] << 8);
+        memcpy(out + 4 * i, conversion_table[v], 4);
     }
 }
 static int convert_frame(const unsigned char *raw, unsigned char *out) {
     const unsigned char *pixels = raw + HOSD_HEADER + sizeof(struct hosd_metadata);
     preview_active = preview_enabled && preview_scene(raw);
     if (!preview_active) { convert(pixels,out); return 0; }
-    if (!preview_rgb) {
+    const unsigned char *bg_rgb = custom_preview_active ? custom_preview_rgb : preview_rgb;
+    if (!bg_rgb) {
         sensor_config cfg = sensor_config_default();
         preview_rgb = sensor_frame_rgb(&cfg,sensor_token_next(&cfg,0));
         if (!preview_rgb) return -1;
+        bg_rgb = preview_rgb;
     }
+    ensure_conversion_table();
     for (unsigned i=0; i<HOSD_PIXELS/2; i++) {
-        unsigned v = le(pixels+2*i,2), a=v&15;
-        for (unsigned c=0; c<3; c++) {
-            unsigned fg=((v>>(4+4*c))&15)*17;
-            unsigned bg=preview_rgb[3*i+2-c];
-            out[4*i+c]=(fg*a+bg*(15-a)+7)/15;
+        unsigned v = (unsigned)pixels[2*i] | ((unsigned)pixels[2*i+1] << 8);
+        unsigned a = v & 15;
+        if (a == 0) {
+            out[4*i+0] = bg_rgb[3*i+2];
+            out[4*i+1] = bg_rgb[3*i+1];
+            out[4*i+2] = bg_rgb[3*i+0];
+            out[4*i+3] = 0;
+        } else if (a == 15) {
+            memcpy(out + 4*i, conversion_table[v], 4);
+        } else {
+            unsigned inv = 15 - a;
+            out[4*i+0] = ((((v >> 4) & 15) * 17 * a) + bg_rgb[3*i+2] * inv + 7) / 15;
+            out[4*i+1] = ((((v >> 8) & 15) * 17 * a) + bg_rgb[3*i+1] * inv + 7) / 15;
+            out[4*i+2] = (((v >> 12) * 17 * a) + bg_rgb[3*i+0] * inv + 7) / 15;
+            out[4*i+3] = 0;
         }
-        out[4*i+3]=0;
     }
     return 0;
 }
@@ -282,12 +349,17 @@ static int snapshot(struct consumer *s, int fd, unsigned char *raw, struct stat 
     return 2;
 }
 static void commit(struct consumer *s, int fd, struct stat *st, const unsigned char *raw) {
+    int same_pixels = s->fd >= 0 && le(raw + 120, 8) == le(s->header + 120, 8);
     if (s->fd >= 0) close(s->fd);
     s->fd = fd; s->st = *st; memcpy(s->header, raw, HOSD_HEADER);
-    s->pixel_hash = fnv(raw + HOSD_HEADER + sizeof(struct hosd_metadata), HOSD_PIXELS, 0);
+    if (!same_pixels) {
+        s->pixel_hash = fnv(raw + HOSD_HEADER + sizeof(struct hosd_metadata), HOSD_PIXELS, 0);
+    }
 }
 
 #ifndef RAMFB_TEST
+#include <poll.h>
+#include <sys/inotify.h>
 static void fault(int signo) {
     (void)signo;
     static const char line[] = "RAMFB_FAIL reason=MMIO/memory signal fault; no display proof\n";
@@ -325,8 +397,69 @@ static void record(const char *event, const char *reason, const unsigned char *h
     if (fd >= 0) { if (write(fd, line, n) != n) dprintf(2, "RAMFB_STATUS_WRITE_FAILED\n"); close(fd); }
     if (!strcmp(event, "FAIL")) dprintf(2, "%s", line);
 }
+static int present_stage(struct bus *b, unsigned char *pool, const unsigned char *stage,
+                         unsigned *slot, unsigned selector) {
+    unsigned target = *slot ^ 1;
+    memcpy(pool + target * RAMFB_SLOT, stage, XRGB_BYTES);
+    int result = submit(b, pool, target, selector);
+    if (!result) *slot = target;
+    return result;
+}
+/* Returns: 0 = not active, 1 = active & newly rendered to stage, 2 = active & unchanged. */
+static int check_playback_frame(unsigned char *stage, struct stat *last_st, int *was_active) {
+    static unsigned char pb_buf[PREVIEW_PLAYBACK_BYTES];
+    int fd = open(PREVIEW_PLAYBACK_FRAME, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) {
+        int exited = *was_active;
+        *was_active = 0;
+        memset(last_st, 0, sizeof *last_st);
+        return exited ? -1 : 0; /* -1 signals playback just exited, restore live OSD */
+    }
+    struct stat st;
+    if (view_stat(fd, &st) || !S_ISREG(st.st_mode) || (size_t)st.st_size != PREVIEW_PLAYBACK_BYTES) {
+        close(fd);
+        return *was_active ? 2 : 0;
+    }
+    if (*was_active &&
+        st.st_dev == last_st->st_dev && st.st_ino == last_st->st_ino &&
+        st.st_mtim.tv_sec == last_st->st_mtim.tv_sec &&
+        st.st_mtim.tv_nsec == last_st->st_mtim.tv_nsec) {
+        close(fd);
+        return 2;
+    }
+    if (read_all(fd, pb_buf, PREVIEW_PLAYBACK_BYTES) ||
+        memcmp(pb_buf, "VPLAY001", 8) != 0 ||
+        le(pb_buf + 12, 2) != 640 || le(pb_buf + 14, 2) != 480) {
+        close(fd);
+        return *was_active ? 2 : 0;
+    }
+    close(fd);
+    rgb24_to_xrgb8888(pb_buf + PREVIEW_PLAYBACK_HDR, stage);
+    *last_st = st;
+    *was_active = 1;
+    return 1;
+}
+static int check_shutter_blink(struct stat *last_st, int *have_last) {
+    int fd = open(PREVIEW_SHUTTER_BLINK, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) return 0;
+    struct stat st;
+    int ok = !view_stat(fd, &st) && S_ISREG(st.st_mode);
+    close(fd);
+    if (!ok) return 0;
+    if (*have_last &&
+        st.st_dev == last_st->st_dev && st.st_ino == last_st->st_ino &&
+        st.st_mtim.tv_sec == last_st->st_mtim.tv_sec &&
+        st.st_mtim.tv_nsec == last_st->st_mtim.tv_nsec) {
+        return 0;
+    }
+    *last_st = st;
+    int triggered = *have_last || st.st_size > 0;
+    *have_last = 1;
+    return triggered;
+}
 static int run(void) {
     static unsigned char raw[HOSD_BYTES];
+    static unsigned char stage[XRGB_BYTES];
     struct consumer s = {.fd = -1};
     int profile = open(PREVIEW_PROFILE,O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
     if (profile >= 0) {
@@ -334,6 +467,7 @@ static int run(void) {
         close(profile);
         if (preview_enabled < 0) { record("FAIL","virtual-preview profile invalid",raw,0); return 1; }
     } else if (errno != ENOENT) { record("FAIL","virtual-preview profile unreadable",raw,0); return 1; }
+    if (preview_enabled) refresh_custom_preview(PREVIEW_CUSTOM_RGB);
     signal(SIGBUS, fault); signal(SIGSEGV, fault);
     int lock = open("/tmp/ramfb-viewer.lock", O_CREAT | O_RDWR, 0600);
     if (lock < 0 || flock(lock, LOCK_EX | LOCK_NB)) { record("FAIL", "already running/lock", raw, 0); return 1; }
@@ -354,14 +488,66 @@ static int run(void) {
     unsigned char *pool = mmap(NULL, RAMFB_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, RAMFB_BASE);
     close(fd);
     if (pool == MAP_FAILED) { record("FAIL", "mmap reserved scanout", raw, 0); return 1; }
+    int infd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (infd >= 0) {
+        if (inotify_add_watch(infd, "/tmp", IN_MOVED_TO | IN_CLOSE_WRITE | IN_DELETE) < 0) {
+            close(infd);
+            infd = -1;
+        }
+    }
     char init[160];
     snprintf(init, sizeof init, "fw_cfg=0x9020000 selector=0x%x DMA=0x%llx config=0x%llx awaiting snapshot",
              selector, (unsigned long long)(RAMFB_BASE + RAMFB_DMA),
              (unsigned long long)(RAMFB_BASE + RAMFB_CFG));
     record("INIT", init, raw, 0);
     unsigned slot = 1, ticks = 0;
+    struct stat pb_st, blink_st;
+    memset(&pb_st, 0, sizeof pb_st);
+    memset(&blink_st, 0, sizeof blink_st);
+    int pb_active = 0, have_blink = 0, have_raw = 0;
     for (;;) {
-        usleep(10000); ++ticks;
+        if (ticks > 0) {
+            if (infd >= 0) {
+                struct pollfd pfd = {.fd = infd, .events = POLLIN};
+                int ready = poll(&pfd, 1, 150);
+                if (ready > 0) {
+                    char evbuf[2048];
+                    while (read(infd, evbuf, sizeof evbuf) > 0) {}
+                }
+            } else {
+                usleep(10000);
+            }
+        }
+        ++ticks;
+
+        int force_redraw = 0;
+        int pb = check_playback_frame(stage, &pb_st, &pb_active);
+        if (pb == 1) {
+            int result = present_stage(&b, pool, stage, &slot, selector);
+            if (result) {
+                record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
+                return 1;
+            }
+            record("SUBMITTED", "virtual-playback=1 DMA-is-not-screenshot-proof", raw, slot);
+        } else if (pb < 0) {
+            force_redraw = 1;
+        }
+
+        if (preview_enabled && refresh_custom_preview(PREVIEW_CUSTOM_RGB) && have_raw && !pb_active) {
+            force_redraw = 1;
+        }
+
+        if (have_raw && !pb_active && check_shutter_blink(&blink_st, &have_blink)) {
+            memset(stage, 0, XRGB_BYTES);
+            int result = present_stage(&b, pool, stage, &slot, selector);
+            if (result) {
+                record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
+                return 1;
+            }
+            usleep(55000);
+            force_redraw = 1;
+        }
+
         int next = open(HOSD_PATH, O_RDONLY | O_NONBLOCK | O_NOFOLLOW);
         if (next < 0) {
             if (ticks == 1 || ticks % 100 == 0) record("WAIT", "snapshot unavailable", s.header, slot);
@@ -370,28 +556,50 @@ static int run(void) {
         struct stat st;
         const char *err = NULL;
         int action = snapshot(&s, next, raw, &st, &err);
-        if (action <= 0) {
+        if (action < 0) {
             close(next);
-            if (action < 0) record("REJECT", err, raw, slot);
+            record("REJECT", err, raw, slot);
             continue;
         }
-        if (action == 2 || (preview_enabled && action == 1)) {
-            unsigned target = slot ^ 1;
-            if (convert_frame(raw, pool + target * RAMFB_SLOT)) {
+        if (action == 0) {
+            close(next);
+            if (force_redraw && have_raw && !pb_active) {
+                if (convert_frame(raw, stage)) {
+                    record("FAIL", "virtual-preview sensor generation failed", raw, slot);
+                    return 1;
+                }
+                int result = present_stage(&b, pool, stage, &slot, selector);
+                if (result) {
+                    record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
+                    return 1;
+                }
+                record("SUBMITTED",
+                       preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
+                                                               : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
+                                      : "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
+            }
+            continue;
+        }
+        have_raw = 1;
+        int need_submit = !pb_active && (action == 2 || force_redraw || (preview_enabled && action == 1));
+        if (need_submit) {
+            if (convert_frame(raw, stage)) {
                 record("FAIL","virtual-preview sensor generation failed",raw,slot);
                 close(next); return 1;
             }
-            int result = submit(&b, pool, target, selector);
+            int result = present_stage(&b, pool, stage, &slot, selector);
             if (result) {
                 record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
                 close(next); return 1;
             }
-            slot = target;
         }
         commit(&s, next, &st, raw);
-        record(action == 2 || preview_enabled ? "SUBMITTED" : "RETAINED",
-               preview_active ? "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof" :
-               "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
+        if (!pb_active) {
+            record(need_submit ? "SUBMITTED" : "RETAINED",
+                   preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
+                                                           : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
+                                  : "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
+        }
     }
 }
 void _start(void) { _exit(run()); }

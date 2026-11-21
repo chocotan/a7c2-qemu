@@ -228,6 +228,13 @@ class InputSession:
                         raise ValueError('A tap must not release a held input source')
                     if key_definition(name)['status'] is not None:
                         self._send(key_command(name, self.app_input))
+                    elif (name not in ('SHUTTER', 'SHUTTER_HALF') and self.app_input
+                          and callable(getattr(self.input_fn, 'tap', None))):
+                        code = _contact(name)
+                        self.uncertain.add(code)
+                        if not isinstance(self.input_fn.tap(code), bytes):
+                            raise RuntimeError('Selected serial input must return checked command bytes')
+                        self.uncertain.discard(code)
                     else:
                         failure = None
                         try:
