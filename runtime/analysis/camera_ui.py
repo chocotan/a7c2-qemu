@@ -197,14 +197,15 @@ class CameraUI:
         self.buttons = {}
         self.mode_popover = None
         self.poller = SnapshotPoller()
-        self.pixbuf = self.png_bytes = None
+        self.pixbuf = self.png_bytes = self.rgb_bytes = None
         self.frame_token = None
         self.display_frame = {}
         self.local_error = ''
         self.drag = None
         self.wheel_widgets = []
         self.last_input = {}
-        self.last_status = self.last_details = None
+        self.last_status = None
+        self._button_cache = {}
         self.source_id = 0
         self.lcd_idle_pending = False
         self.vm.lcd_changed = self._notify_lcd
@@ -500,20 +501,7 @@ class CameraUI:
         self.error_label.get_accessible().set_role(Atk.Role.ALERT)
         self.root.pack_start(self.error_label, False, False, 0)
 
-        self.drawers = Gtk.Box(spacing=12, homogeneous=True)
-        details_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        details_card.get_style_context().add_class('drawer-card')
-        self.details = Gtk.Expander(label='快捷键与日志')
-        self.detail_text = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
-        self.detail_text.get_accessible().set_name('最近操作记录和每个控件的禁用原因')
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_size_request(-1, 150)
-        scroll.add(self.detail_text)
-        self.details.add(scroll)
-        self.details.connect('notify::expanded', lambda *_: (setattr(self, 'last_details', None), self.update(self.state)))
-        details_card.pack_start(self.details, False, False, 0)
-        self.drawers.pack_start(details_card, True, True, 0)
+        self.drawers = Gtk.Box(spacing=12)
         self._build_development()
         self.root.pack_start(self.drawers, False, False, 0)
 
@@ -904,14 +892,31 @@ class CameraUI:
         return False
 
     def _read_frame(self, state):
-        # Retry a changed metadata version instead of pairing a PNG with the wrong frame.
+        # Retry a changed metadata version instead of pairing pixels with the wrong frame.
         with self.vm.lock:
+            rgb = getattr(self.vm, 'rgb', None)
             png = self.vm.png
         token = SnapshotPoller.token(state)
         if token != SnapshotPoller.token(self.vm.status()):
             return
         frame = state.get('snapshot')
-        if not png or not frame:
+        if (rgb is None and not png) or not frame:
+            return
+        if rgb is not None:
+            if token == self.frame_token and rgb is self.rgb_bytes:
+                return
+            try:
+                if not isinstance(rgb, bytes) or len(rgb) != 640 * 480 * 3:
+                    raise ValueError('RGB 帧尺寸应为 640 x 480 x 3')
+                pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+                    GLib.Bytes.new(rgb), GdkPixbuf.Colorspace.RGB, False, 8, 640, 480, 640 * 3)
+                self.pixbuf, self.rgb_bytes, self.png_bytes, self.frame_token = pixbuf, rgb, None, token
+                self.display_frame = dict(frame)
+                if self.local_error.startswith('LCD 解码失败'):
+                    self.local_error = ''
+                self.lcd.queue_draw()
+            except (GLib.Error, ValueError) as error:
+                self.local_error = 'LCD 解码失败，保留上一幅画面：' + str(error)
             return
         if token == self.frame_token and png is self.png_bytes:
             return
@@ -924,7 +929,7 @@ class CameraUI:
             pixbuf = loader.get_pixbuf()
             if not pixbuf or pixbuf.get_width() != 640 or pixbuf.get_height() != 480:
                 raise ValueError('LCD 图像尺寸应为 640 x 480')
-            self.pixbuf, self.png_bytes, self.frame_token = pixbuf, png, token
+            self.pixbuf, self.png_bytes, self.rgb_bytes, self.frame_token = pixbuf, png, None, token
             self.display_frame = dict(frame)
             if self.local_error.startswith('LCD 解码失败'):
                 self.local_error = ''
@@ -1037,12 +1042,18 @@ class CameraUI:
             verified = entry.get('verification', '已验证' if entry.get('verified') else '未验证')
             text = ' / '.join(filter(None, (entry.get('label', KEY_NAMES.get(symbol, symbol)), symbol,
                                            verified, entry.get('note'), reason)))
-            button.set_sensitive(not reason)
-            button.set_tooltip_text(text)
-            button.get_accessible().set_name(text)
+            key = (not reason, text)
+            if self._button_cache.get(symbol) != key:
+                self._button_cache[symbol] = key
+                button.set_sensitive(key[0])
+                button.set_tooltip_text(text)
+                button.get_accessible().set_name(text)
         for widget, prefix_name in self.wheel_widgets:
             reason = self.reason(prefix_name + '_LEFT') or self.reason(prefix_name + '_RIGHT')
-            widget.set_tooltip_text(reason or '滚轮或拖动外圈；每次手势发送一个独立拨轮符号')
+            tip = reason or '滚轮或拖动外圈；每次手势发送一个独立拨轮符号'
+            if self._button_cache.get(('wheel', id(widget))) != tip:
+                self._button_cache[('wheel', id(widget))] = tip
+                widget.set_tooltip_text(tip)
         ring_style = self.ring.get_style_context()
         if self.reason('CONTROL_LEFT') and self.reason('CONTROL_RIGHT'):
             ring_style.add_class('wheel-off')
@@ -1088,21 +1099,6 @@ class CameraUI:
         if event_key is not None and event_key != self.last_status:
             self.last_status = event_key
             self.feedback.set_text(events[0].get('message', ''))
-        input_hint = ('快捷键：方向键/Enter/M/Esc/Delete；F1=C1，F2=C2，A=AF-ON，F=Fn，P=播放，R=REC，H=半按，S=全按；'
-                      'Q/E=前轮，[/]=后轮，,/.=控制轮；1/2/3=照片/录像/S&Q；F5–F12=AUTO/P/A/S/M/MR1/MR2/MR3。'
-                      if self.input_bindings is not None else '快捷键：方向键 / Enter / M / Esc / Delete；')
-        if not self.details.get_expanded():
-            return
-        detail = '\n'.join([input_hint + 'Tab 切换控件，Space 激活焦点。',
-                           'ON / OFF 仅管理 owned VM，真实电源未模拟。', '',
-                           '最近操作（输入已提交不代表固件功能完成）'] +
-                           [str(event.get('message', '')) for event in events[:12]] + ['\n全部按键 / registry'] +
-                           [f'{symbol} / {entry.get("label", symbol)} / {entry.get("verification", "未验证")} / '
-                            + (self.reason(symbol) or '可以排队，响应以固件为准') + ' / ' + entry.get('note', '')
-                            for symbol, entry in registry.items()])
-        if detail != self.last_details:
-            self.detail_text.get_buffer().set_text(detail)
-            self.last_details = detail
 
     def lcd_point(self, x, y, clamp=False):
         """Widget coordinates -> firmware 640x480 touch pixel via the _draw_lcd mapping.

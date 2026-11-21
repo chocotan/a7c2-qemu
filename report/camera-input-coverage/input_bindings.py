@@ -326,7 +326,7 @@ class InputBindings:
         if source in self.sources:
             return True  # OS key-repeat must not produce extra press/release pairs.
         entry = _entry(name)
-        if entry['status'] is not None or position is not None:
+        if entry['status'] is not None or position is not None or name == 'FN':
             self.activate(name, source=source, position=position)
             self.sources[source] = None
         else:
@@ -629,7 +629,7 @@ def attach_gtk(ui):
     ui.release_inputs = cleanup
     for name, button in ui.buttons.items():
         entry = key_definition(name)
-        if entry['code'] and entry['status'] is None and not entry['positions']:
+        if entry['code'] and entry['status'] is None and not entry['positions'] and name != 'FN':
             button.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.TOUCH_MASK)
             button.connect('button-press-event', pointer, name)
             button.connect('button-release-event', pointer, name)

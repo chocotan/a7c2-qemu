@@ -14,17 +14,19 @@ from PIL import Image
 
 
 class ContinuousLCD:
-    def __init__(self, run, owner, publish, *, fps=120):
+    def __init__(self, run, owner, publish, *, fps=120, encode_png=True):
         self.run = Path(run).resolve(strict=True)
         if self.run.is_symlink() or not 15 < fps <= 120:
             raise ValueError('Invalid LCD run or refresh rate')
         self.owner, self.publish, self.period = owner, publish, 1 / fps
+        self.encode_png = bool(encode_png)
         from single_ap_sockets import roots_for_run
         self.roots = roots_for_run(run)
         if self.roots is not None:
             from diagnostic_fs_socket_roots import process_identity
             self.owner_identity = process_identity(owner.pid)
         self.cancel = threading.Event()
+        self.wake = threading.Event()
         self.thread = None
         self.error = ''
         self.samples = self.changes = 0
@@ -39,8 +41,9 @@ class ContinuousLCD:
     BOOST_SECONDS = 1.5
 
     def nudge(self):
-        """Input was just accepted: sample at the fast rate until the screen settles."""
+        """Input was just accepted: sample at the fast rate immediately until the screen settles."""
         self.boost_until = time.monotonic() + self.BOOST_SECONDS
+        self.wake.set()
 
     def _pace(self):
         return max(self.period, self.BOOST_PERIOD) if time.monotonic() < self.boost_until else self.IDLE_PERIOD
@@ -115,7 +118,10 @@ class ContinuousLCD:
                         now = time.monotonic()
                         if deadline < now:
                             deadline = now
-                        self.cancel.wait(max(0, deadline - now))
+                        delay = max(0, deadline - now)
+                        if delay > 0 and not self.cancel.is_set():
+                            self.wake.wait(delay)
+                            self.wake.clear()
         except (OSError, ValueError, RuntimeError, EOFError) as error:
             if not self.cancel.is_set():
                 self.error = str(error)
@@ -163,28 +169,39 @@ class ContinuousLCD:
                 return
             pixels = raw[len(header):]
             digest = hashlib.sha256(pixels).hexdigest()
-            image = Image.frombytes('RGB', (640, 480), pixels)
+            if self.encode_png:
+                image = Image.frombytes('RGB', (640, 480), pixels)
+                buffer = io.BytesIO(); image.save(buffer, format='PNG', compress_level=1)
+                payload = buffer.getvalue()
+            else:
+                payload = pixels
         else:
             with Image.open(io.BytesIO(raw)) as source:
                 if source.format != 'PPM' or source.size != (640, 480):
                     raise ValueError('LCD is not a 640x480 QEMU surface')
                 image = source.convert('RGB')
-            digest = hashlib.sha256(image.tobytes()).hexdigest()
+            pixels = image.tobytes()
+            digest = hashlib.sha256(pixels).hexdigest()
             self.samples += 1
             if digest == self.last_hash:
                 return
-        buffer = io.BytesIO(); image.save(buffer, format='PNG', compress_level=1)
+            if self.encode_png:
+                buffer = io.BytesIO(); image.save(buffer, format='PNG', compress_level=1)
+                payload = buffer.getvalue()
+            else:
+                payload = pixels
         self.last_raw = raw
         self.boost_until = max(self.boost_until, time.monotonic() + self.BOOST_SECONDS)
         self.changes += 1
         info = dict(sequence=self.samples, pixel_source_seq=self.changes, sha256=digest,
                     captured_at=time.time(), number=self.changes, source='continuous QEMU ramfb',
                     transport_samples=self.samples, changed_frames=self.changes)
-        self.publish(buffer.getvalue(), info)
+        self.publish(payload, info)
         self.last_hash = digest
 
     def stop(self):
         self.cancel.set()
+        self.wake.set()
         if self.thread is not None:
             self.thread.join(timeout=5)
             if self.thread.is_alive():

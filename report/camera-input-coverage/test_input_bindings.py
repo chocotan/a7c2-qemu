@@ -721,3 +721,22 @@ def test_selected_ui_constructor_and_off_close_call_the_installed_bindings(gtk_u
     ui.update = lambda state: None
     camera_class.power(ui, False)
     assert called[-1] == 'stop'
+
+
+def test_fn_gtk_click_and_keyboard_use_atomic_tap(gtk_ui, wire):
+    ui, bindings, queued, session, drain, Gdk = gtk_ui
+    # Clicking Fn in GTK must not hold a pointer press/release contact; clicked -> atomic tap.
+    assert 'button-press-event' not in ui.buttons['FN'].signals
+    ui.buttons['FN'].emit('clicked')
+    assert len(queued) == 1 and queued[0]['op'] == 'tap' and queued[0]['key'] == 'FN'
+    drain()
+    assert wire.statuses == [(0x7095, 1), (0x7095, 0)]
+    # Keyboard 'f' shortcut must also enqueue a single atomic tap with no held contact.
+    key = event(1, key='f', code=41)
+    assert ui.window.emit('key-press-event', key)
+    assert len(queued) == 1 and queued[0]['op'] == 'tap' and queued[0]['key'] == 'FN'
+    assert ui.window.emit('key-release-event', key)
+    assert len(queued) == 1
+    drain()
+    assert not session.status()['held'] and wire.statuses[-2:] == [(0x7095, 1), (0x7095, 0)]
+

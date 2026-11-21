@@ -1,0 +1,111 @@
+{
+  "schema": "a7c2-live-verify-20261122",
+  "capture_verified": false,
+  "software_virtual_cmos": true,
+  "physical_cp_isp_verified": false,
+  "steps": {
+    "boot": {
+      "ok": true,
+      "elapsed_s": 11.21,
+      "handoff": {
+        "original_script_handoff_order_verified": true,
+        "ordered_log_offsets": [
+          43351,
+          47477,
+          47813,
+          47934,
+          48033,
+          48448,
+          57674
+        ],
+        "original_script_bytes_bound_by_build": true
+      },
+      "tcg_tb_size_in_proc": true
+    },
+    "qemu_flags": {
+      "tb_size_2048": true,
+      "no_trace_d": true
+    },
+    "zero_png_lcd": {
+      "ok": true,
+      "raw_bytes": 921600
+    },
+    "default_chart_and_hud": {
+      "ok": true,
+      "center_unique_colors": 568,
+      "bottom_hud_bright_pixels": 7720,
+      "ramfb_status": "RAMFB_SUBMITTED reason=virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof errno=2 seq=126 pixel_source=119 source_phys=0x438a16100 hash=99f5cf6cdea2e4dd scanout=0x41e300000"
+    },
+    "latency": {
+      "ok": true,
+      "measurements": [
+        {
+          "action": "menu-open",
+          "ms": 624.6
+        },
+        {
+          "action": "menu-close",
+          "ms": 827.9
+        }
+      ]
+    },
+    "fn_key": {
+      "ok": true,
+      "screen_0xc2_created": true,
+      "first_change_ms": 652.0
+    },
+    "dials": {
+      "ok": true,
+      "top_ev_hud_changed": true,
+      "m_mode_hud_bar_changed": true,
+      "virtual_hud_dial_publishes": 9,
+      "last_publish": "VIRTUAL_LENS_HUD_PUBLISHED reason=dial tid=859 rc_2044=0 rc_201b=0 rc_200e=0 rc_2036=0 aperture=560 shutter=1/1000 iso_cp=0xe virtual_lens_model=1 original_CP=0"
+    },
+    "custom_cmos_upload": {
+      "ok": true,
+      "upload_jpeg_bytes": 25260,
+      "upload_seconds": 3.32,
+      "center_pixels_changed": true,
+      "ramfb_status": ""
+    },
+    "shutter_capture": {
+      "ok": true,
+      "capture_1": "rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG source=custom bytes=27878 fnv1a64=f5b5a96fe08d4094 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+      "capture_2": "rc=0 path=A:/DCIM/100MSDCF/DSC00002.JPG source=chart bytes=58133 fnv1a64=51a59cda6cfb4be6 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+      "reset_restored_chart": true
+    },
+    "playback": {
+      "ok": true,
+      "enter": "rc=0 count=2",
+      "step": "rc=0 index=0 count=2",
+      "exit": "exited"
+    },
+    "sd_export": {
+      "ok": true,
+      "export_ok": true,
+      "files": {
+        "DSC00001.JPG": {
+          "bytes": 27878,
+          "size": [
+            640,
+            480
+          ],
+          "format": "JPEG",
+          "exif_make": "SONY",
+          "exif_model": "ILCE-7CM2"
+        },
+        "DSC00002.JPG": {
+          "bytes": 58133,
+          "size": [
+            640,
+            480
+          ],
+          "format": "JPEG",
+          "exif_make": "SONY",
+          "exif_model": "ILCE-7CM2"
+        }
+      }
+    }
+  },
+  "all_ok": true
+}

@@ -2,40 +2,42 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-默认窗口提供原厂界面、菜单、机身按键和虚拟存储。33 MP JPEG 与未压缩 RAW 写卡使用独立的实验配置，尚未接入默认窗口。
+默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持页面选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡与播放页浏览，以及虚拟存储。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
 
-![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261120.png)
+![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261122.png)
 
-上图为重构后的单窗口相机界面，LCD 画面来自 QEMU RAMFB 的[直接截图](docs/images/virtual-cmos-ui-hud-20261120.png)。实验预览由 `MENU_VIRTUAL_PREVIEW=functional-cmos-chart-v1` 显式开启，在原厂 HUD 透明层后合成虚拟色卡，不修改原始 OSD。它是软件预览，不模拟原 CP 的 YC 视频通路或物理 ISP。
+上图为当前单窗口相机界面（LCD 画面为隔离实机冷启动的真实 [QEMU RAMFB 帧](docs/images/live-dial-m-hud-20261122.png)），工具栏新增 **CMOS 色卡 / 选择图片… / 恢复色卡**，底部移除冗余的“快捷键与日志”抽屉，仅保留折叠的“固件开发”面板。默认色卡由冷启动脚本写入 `functional-cmos-chart-v1` 开启，在原厂 HUD 透明层后合成；它属于软件虚拟 CMOS 模型，不代表真实 CP 的 YC 视频通路或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
 ## 能做什么
 
-- **运行原厂程序**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核。
-- **查看原厂界面**：显示相机 LCD，可用简体中文完成首设并浏览菜单。
+- **运行原厂程序与快速冷启动**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核，支持 `--cold-flag`（默认 `force`）与 `--no-verify-sha`（默认跳过启动全量 SHA 复算），配合 TCG `tb-size=2048` 实机约 11 秒到达首帧。
+- **查看原厂界面与底部曝光 HUD**：显示相机 LCD，可用简体中文完成首设、浏览主菜单和原厂 Fn 快捷菜单；拍摄主页下方通过虚拟镜头模型经原 OSAL 队列向原厂 HUD 实时显示快门、光圈与 ISO。
 - **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸。不支持多指手势。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
-- **操作机身控制**：窗口提供主要按键和拨盘。连续 LCD 与输入使用独立队列；输入由常驻发送器送到原厂应用，保留按下与释放事件。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
-- **使用虚拟 SD 卡**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入，以及正常关闭后的卡镜像保存。
-- **保留部分设置**：可以跨启动保留语言和日期格式；首次设置仍可能再次出现。
+- **低延迟机身按键与 4 拨轮**：窗口提供主要按键和 4 个拨轮（前拨轮 ±22、后拨轮 ±30、控制轮 ±24、右上拨轮 ±1024）。LCD 通道直传 640×480 原始 RGB24（去掉同进程 PNG 编解码），空闲 15 Hz / 按键立即唤醒 60 Hz；Fn 键在 guest 内原子点按（20 ms）以避开固件 500 ms 长按分支。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
+- **默认 CMOS 色卡 + 自定义图片热替换**：默认启用色卡背景，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片（宿主等比缩放到 640×480 后经串口分块送入 guest `cmos-import` 原子替换），随时可点“恢复色卡”。
+- **全按快门写虚拟 SD + 播放页查看**：拍摄画面全按快门将当前色卡或自定义图片编码为 Baseline JPEG（含 Sony `ILCE-7CM2` 与当前光圈/快门/ISO EXIF），经原 `libInfraFsys.so` 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验；按**播放**键可叠加查看、左右翻页、删除及退出，关机导出的 `SD/card.img` 可在宿主直接解出照片。
+- **使用虚拟 SD 卡与保留设置**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入与关机镜像导出；可跨启动保留语言和日期格式。
 - **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
-## 近期更新（2026-11-21）
+## 近期更新与实机验证（2026-11-22）
 
-下表区分“已实现并通过宿主测试”与“实机验证”。本次新增项目**尚未在隔离 VM 中实机验证**（运行中的用户窗口占用了 `.menu-probe.lock`，未强行并行启动），验证前不应视为已通过。软件虚拟模型不代表真实 CP/ISP，`capture_verified` 保持 false。
+以下全部项目已在**独立隔离的冷启动 QEMU 实例**中配合真实 ILCE-7CM2 2.01 固件完成端到端实机验证（不干扰宿主已有实例）。软件虚拟 CMOS / 虚拟镜头模型不代表真实 CP ASIC 或物理 ISP，原厂硬件指标 `capture_verified` 仍保持 `false`。
 
-| 项目 | 内容 | 状态 |
+| 项目 | 实现内容 | 实机验证结果 |
 | --- | --- | --- |
-| 底部曝光 HUD | 拍摄主页下方的光圈、快门、ISO 由虚拟镜头经原 OSAL 队列发给原厂 HUD，截图见[曝光 HUD](docs/images/virtual-lens-exposure-hud-20261121.png) | 已实机截图 |
-| 默认色卡 CMOS | `./start.sh` 冷启动在 `ramfb-viewer` 前写入 `functional-cmos-chart-v1`，拍摄画面默认合成色卡 | 宿主测试；实机待验 |
-| 自定义 CMOS 图片 | 窗口工具栏“选择图片…/恢复色卡”：宿主把图片缩放为 640×480 baseline JPEG，经串口分块送入 guest `cmos-import` 解码并热替换（`/tmp/virtual-cmos-custom.rgb`） | 宿主往返测试（Pillow→C 解码）；实机待验 |
-| 全按快门写卡 | `menu-observe.so` 观察全按事件，把当前色卡/自定义图片编码为 JPEG（含 Sony EXIF），经原 `Fsys_*` 写 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验 | 内存 Fsys 单测（ASan/UBSan）；实机待验 |
-| 播放页 | 播放键进入叠加回放，左右切换、删除、MENU/半按退出；原厂没有图像数据库，故使用叠加层而非原厂播放界面 | 宿主单测；实机待验 |
-| Fn 键 | 点按改为 guest 内原子按下/释放，避免 guest 时间约 6.5 倍快于宿主而落入 ≥500 ms 长按分支 | 宿主测试；实机待验 |
-| 拨轮 | 后拨轮与右上拨轮码已对调；A7C II 单步为前 ±22、后 ±30、控制 ±24、右上 ±1024；P/A/S/M 下前/后/控制轮步进 HUD 的光圈、快门、ISO | 宿主测试；实机待验 |
-| 延迟 | LCD 空闲 15 Hz、输入后 60 Hz 自适应；原始 PPM 字节比较跳过解码和哈希；GTK 100 ms 状态定时器；`console.log` 增量读取；guest 查看器缓存合成并用 inotify；冷启动 `tb-size=2048` 且不再 `-d` 跟踪；“快捷键与日志”抽屉仅展开时更新 | 宿主测试；实机延迟未测 |
+| 按键与显示延迟 | `ContinuousLCD` 自适应 15/60 Hz + 按键即刻唤醒 + 零 PNG 原始 RGB24（921,600 B）直出到 `GdkPixbuf`；GTK 定时器降为 100 ms 并缓存 26 个按钮状态；移除底部“快捷键与日志”抽屉；`console.log` seek 增量读；guest `ramfb-viewer` RAM 缓存合成 + `inotify`；冷启动默认 `tb-size=2048` 且关闭 `-d` 跟踪 | 实机冷启动 **11.21 s**，原始 RGB24 零 PNG 生效；菜单开/关延迟 **624.6 ms / 827.9 ms**，Fn 打开延迟 **652.0 ms** |
+| Fn 键 | GTK 按钮点击与键盘 `F` 均走 guest `inject-key --serve-app` 原子 `TAP`（20 ms hold），避免 guest 虚拟时钟快于宿主而落入 ≥500 ms 长按分支 | 实机打开原厂 Fn 快捷菜单（`CREATE_SCREEN id=0xc2` / `scr0135_0001`）并可正常退出 |
+| 4 个拨轮 + HUD 联动 | 对调后拨轮（`0x10000016` / `2ea`）与右上拨轮（`0x10000013` / `2ef`）；修正 A7C II 单步（前 ±22、后 ±30、控制 ±24、右上 ±1024）；`menu-observe.so` 按模式步进虚拟镜头 HUD 并重发 | 右上拨轮实机在 P 档调出橙色曝光补偿 `+0.7`；M 档前/后拨轮实机将底部原厂 HUD 从 `1/125 F4.0` 步进到 `1/1000 F5.6`（控制轮步进虚拟 ISO 至 `ISO 200` 写入 EXIF/播放页；原厂菜单为 Auto ISO 时底部 HUD 仍显示 `ISO AUTO`） |
+| 默认色卡 + 自定义 CMOS | `bootin.sh` 默认写入 `functional-cmos-chart-v1`；工具栏“选择图片…/恢复色卡”经 `cmos_source.py` + guest `cmos-import` 热替换 `/tmp/virtual-cmos-custom.rgb` | 实机默认即显示色卡；25 KB 自定义测试图 **3.32 s** 上传热替换生效，“恢复色卡”实时还原 |
+| 全按快门写卡 + 播放页 | `menu-observe.so` 在 `dlopen("libInfraFsys.so")` 时绑定全部 9 个原厂 `Fsys_*` 接口，全按写入 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验；播放键进入叠加回放（屏蔽下层键位避免误触拍摄菜单） | 实机连拍自定义图 `DSC00001.JPG`（27,878 B）与色卡 `DSC00002.JPG`（58,133 B）均 `rc=0 readback=1`；播放页正常展示/翻页/退出；导出 `SD/card.img` 后宿主 FAT16 解析与 Pillow + Sony EXIF（`SONY / ILCE-7CM2`）校验通过 |
 
-拨轮映射（虚拟镜头模型，非原厂逻辑）：P 档前/后轮为程序偏移、控制轮为 ISO；A 档前轮光圈、其余 ISO；S 档前轮快门、其余 ISO；M 档前轮快门、后轮光圈、控制轮 ISO。
+拨轮映射（软件虚拟镜头模型）：P / AUTO / MR1–3 档前/后拨轮为程序偏移、控制轮为 ISO；A 档前拨轮光圈、后/控制轮 ISO；S 档前拨轮快门、后/控制轮 ISO；M 档前拨轮快门、后拨轮光圈、控制轮 ISO；右上拨轮由原厂固件原生处理曝光补偿。
+
+| 原厂 Fn 快捷菜单（实机） | 自定义 CMOS + 拨轮 M 档 HUD（实机） | 虚拟 SD 照片播放页（实机） |
+| :---: | :---: | :---: |
+| ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与 1/1000 F5.6 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![虚拟 SD 照片播放页](docs/images/live-playback-20261122.png) |
 
 ## 虚拟 CMOS 与静态照片
 
@@ -74,6 +76,11 @@ python3 tools/check-source.py
 ```
 
 把 `/path/to/BODYDATA.DAT` 换成自己的固件路径。脚本不会自动下载源码或安装依赖。
+
+启动选项速查：
+
+- `--cold-flag force|clear|strict`（或 `A7C2_COLD_FLAG`，默认 `force`）：控制虚拟 loader 对 p5 WBI2 标记的处理策略。
+- `--verify-sha` / `--no-verify-sha`（或 `A7C2_VERIFY_SHA=1|0`，默认 `0`）：是否在每次启动前执行全量文件 SHA 校验；日常开发默认关闭以加快启动。
 
 窗口出现后按 **ON**，等待启动并完成相机的语言、日期等提示。启动失败、停在教程或显示“系统出错”时，可以先查看[启动排障文档](docs/tech/README.md)。
 

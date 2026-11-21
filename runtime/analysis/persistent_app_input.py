@@ -72,7 +72,7 @@ class PersistentAppInput:
             raise RuntimeError('Original App32 allocation/send failed rc=' + reply.group(1).decode())
         return data
 
-    def tap(self, key, hold_us=50000):
+    def tap(self, key, hold_us=20000):
         """Press and release inside the guest: one serial round trip, so a tap
         never exceeds the firmware's ~500 ms long-press timer (Fn, etc.)."""
         if not 0 <= key <= 0xffffffff or not 0 < hold_us <= 100000:

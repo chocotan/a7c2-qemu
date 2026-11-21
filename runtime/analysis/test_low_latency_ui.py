@@ -372,3 +372,23 @@ def test_lcd_profile_cannot_bypass_fixed_owner_gate(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='BLOCKED:'):
         ContinuousLCD(tmp_path, SimpleNamespace(pid=os.getpid()), lambda *_: None)
     assert not (tmp_path / 'lcd-continuous-result.json').exists()
+
+
+def test_continuous_lcd_zero_png_raw_rgb_and_nudge(tmp_path):
+    received = []
+    view = ContinuousLCD(tmp_path, None, lambda payload, info: received.append((payload, info)), encode_png=False)
+    pixels = bytes([10, 20, 30]) * (640 * 480)
+    ppm = tmp_path / 'lcd-continuous.ppm'
+    ppm.write_bytes(b'P6\n640 480\n255\n' + pixels)
+    view._frame(ppm)
+    assert len(received) == 1
+    payload, info = received[0]
+    assert payload == pixels and len(payload) == 640 * 480 * 3 and not payload.startswith(b'\x89PNG')
+    assert info['changed_frames'] == 1 and info['transport_samples'] == 1
+    # Unchanged raw frame skips publish and stays fast.
+    view._frame(ppm)
+    assert len(received) == 1 and view.samples == 2
+    assert not view.wake.is_set()
+    view.nudge()
+    assert view.wake.is_set()
+

@@ -120,6 +120,7 @@ class VM:
         self.owned_process=None
         self.snapshot = None
         self.png = None
+        self.rgb = None
         self.stale = True
         self.events = deque(maxlen=12)
         self.event_id = 0
@@ -365,6 +366,7 @@ class VM:
             self.touch_input = False
             self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
             self.wifi = None; self.cmos_source = None
+            self.rgb = None
             self.sd_card = None
             self.sd_pending = 0
             self.state, self.error, self.stale = 'starting', '', True
@@ -678,13 +680,17 @@ class VM:
 
             if self.continuous_display:
                 from continuous_lcd import ContinuousLCD
-                def publish_lcd(png, info):
+                def publish_lcd(frame_bytes, info):
                     with self.lock:
-                        self.png, self.snapshot = png, info
+                        if (isinstance(frame_bytes, bytes) and len(frame_bytes) == 640 * 480 * 3
+                                and not frame_bytes.startswith(b'\x89PNG')):
+                            self.rgb, self.png, self.snapshot = frame_bytes, None, info
+                        else:
+                            self.png, self.rgb, self.snapshot = frame_bytes, None, info
                         self.stale = bool(self.firmware_fault)
                     if self.lcd_changed is not None:
                         self.lcd_changed()
-                self.lcd_stream = ContinuousLCD(run, process, publish_lcd).start()
+                self.lcd_stream = ContinuousLCD(run, process, publish_lcd, encode_png=False).start()
             cancelled()
             with self.lock:
                 if self.cancel.is_set():
@@ -746,6 +752,7 @@ class VM:
                             image.verify()
                         info = reply['info']
                         self.png = png
+                        self.rgb = None
                         self.snapshot = {'sequence': info['sequence'], 'pixel_source_seq': info['pixel_source_seq'],
                                          'sha256': info['sha256'], 'captured_at': reply['captured_at'],
                                          'number': (self.snapshot or {}).get('number', 0) + 1}
@@ -940,7 +947,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path in ('/api/snapshot', '/api/save'):
             with self.server.vm.lock:
                 png = self.server.vm.png
+                rgb = self.server.vm.rgb
                 number = (self.server.vm.snapshot or {}).get('number')
+            if png is None and rgb is not None and len(rgb) == 640 * 480 * 3:
+                from PIL import Image
+                buf = io.BytesIO()
+                Image.frombytes('RGB', (640, 480), rgb).save(buf, format='PNG', compress_level=1)
+                png = buf.getvalue()
             if png is None:
                 return self.respond(409, {'error': '尚无本次控制台已校验快照'})
             return self.respond(200, png, 'image/png', self.path == '/api/save', number)
