@@ -115,12 +115,18 @@ class ContinuousLCD:
                                         source_label='fast-shm virtual CP display')
                     if self.cancel.wait(0.055):
                         return
+                    # Re-read display state after the blink sleep so updates during the blink are not missed.
+                    state = shm.display_state()
+                    osd_seq, slot, flags, pb_seq, blink_seq, custom_active, custom_seq, osd_pixel_seq = state
+                    last_blink = blink_seq
                     last_key = None  # Force immediate redraw of the live frame after 55ms shutter blink.
                 key = (osd_seq, slot, flags, pb_seq, custom_active, custom_seq)
                 if osd_seq > 0 and key != last_key:
                     pixels, rendered_seq = shm.render_rgb24()
-                    last_key = key
-                    self._publish_rgb24(pixels, sequence=rendered_seq, pixel_source_seq=osd_pixel_seq,
+                    after_state = shm.display_state()
+                    last_key = (rendered_seq, after_state[1], after_state[2], after_state[3],
+                                after_state[5], after_state[6])
+                    self._publish_rgb24(pixels, sequence=rendered_seq, pixel_source_seq=after_state[7],
                                         source_label='fast-shm virtual CP display')
                 delay = self.SHM_ACTIVE_PERIOD if time.monotonic() < self.boost_until else self.SHM_IDLE_PERIOD
                 if not self.cancel.is_set():

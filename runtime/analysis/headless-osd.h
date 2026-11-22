@@ -64,6 +64,8 @@ int hosd_claim(const char *path, const char *modules,
                int (*stat_queue)(unsigned int, unsigned int *), void (*log)(const char *, const char *));
 /* Returns 1 when the latest committed OSD metadata matches the shooting HUD scene. */
 int hosd_is_shooting_scene(void);
+/* Track authoritative live-view shooting screen (scr0132_0001) across temporary OSD widget changes. */
+void hosd_set_screen_liveview(int active);
 /* Optional zero-VFAT shared-memory fast sink registered when MENU_FAST_SHM=1. */
 struct hosd_fast_sink {
     unsigned char *(*acquire_slot)(unsigned int *slot_out);

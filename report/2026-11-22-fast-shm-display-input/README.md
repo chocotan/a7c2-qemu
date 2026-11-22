@@ -85,7 +85,38 @@
   - [`test_virtual_hci.py`](../../runtime/analysis/test_virtual_hci.py)：新增回归测试 `test_start_bt_virtual_avoids_stale_pty_race`（51 passed, 8 subtests passed）。
 - **实机复验**（`run-7ydpb8_i`，在含旧 `.pty` 的隔离克隆盘上启动）：`bt-launch-781.log` 成功拉起 `bsa_server`（PID 794），`virtual-hci` 正常完成 33+ 条 HCI 交互（含 `VHCI_DIAG 07f000`），原厂客户端打印 `bsa_cl_mgt_init`，全程 0 次 `BT_ERROR_PLACE line=4454`、0 次 `scr0039_0002`。
 
-## 5. 边界与剩余事项
+## 5. 伴随实机六项回归修复与二次冷启闭环验收（2026-11-23）
+
+在 `fast-shm` 全功能联机测试（原始失败现场保留于 `run-miz6safi`、`run-8mdpvpxx`、`run-had8fz92`）中定位并根除了 6 项显示、输入、状态机与持久化缺陷：
+
+1. **Bug 1（画面撕裂/错层与长按快门黑屏）**：
+   - `1a`（`PLAYBACK_BG` 泄漏至首次开机向导、主菜单、关机页，及首帧 OSD 前误增 `osd_seq`）：[`menu-observe.c`](../../runtime/analysis/menu-observe.c) 的 `vcmos_clear_playback_bg()` 在每次离开回放页（含 `PLAYBACK -> MENU`）及 `fast-shm` 启动初始化时无条件清零 `FAST_SHM_FLAG_PLAYBACK_BG`；[`headless-osd.c`](../../runtime/analysis/headless-osd.c) 仅在收到 `0x1003` 首帧像素后递增 `osd_seq`。
+   - `1b`（55 ms 快门黑屏闪烁误用休眠前旧状态 & GTK 帧竞态）：[`continuous_lcd.py`](../../runtime/analysis/continuous_lcd.py) 在 55 ms 闪烁休眠结束后重新采样当前 SHM 帧；[`camera_ui.py`](../../runtime/analysis/camera_ui.py) 新增 `_lcd_idle_lock` 串行化 `_notify_lcd` 与 `_read_frame`，避免 `lcd_idle_pending` 丢帧或半帧覆盖。
+   - `1c`（长按快门 `0x1005` 将 `hosd_meta_is_shooting` 置 `0` 导致取景黑屏与跳过拍照）：[`headless-osd.h`](../../runtime/analysis/headless-osd.h) / [`headless-osd.c`](../../runtime/analysis/headless-osd.c) 新增 `hosd_set_screen_liveview(int)`，使 `scr0132_0001` 拍摄态不再被 `0x1005` 误降级，`0xa7` 拍照与取景始终保持活跃。
+2. **Bug 2（回放按快门退出后按键/拨盘锁死 & `AppFw` 队列满卡死）**：
+   - `2a`（`PLAYBACK -> SHUTTER_HALF / FULL SHUTTER` 锁死 `PLAYBACK / MODE / MENU / DIALS`）：无 CP 完成回执时，`AppFw` 全局事件过滤器 `*(appfw_base + 0x7e4ea90)` 滞留 7 个 `mask=0x10` 锁定组（`0x305, 0xf4, 0x1c6, 0x1c3, 0x1c7, 0x1c5, 0x2a`），同时回放态属性 `prop 0x183`（`0x7e5d650`）、`prop 0x252d`（`0x7efcfb0`）、`prop 0xf65`（`0x7e82120`）滞留为 `1`，在索尼抑制图中直接抑制 `aperture(0x3ba7) / shutter(0x3ba1) / progshift(0x39d4)`。修复：在 `S1` 释放且离开回放后，经索尼原生线程安全接口 `0x250f108` 解除滞留过滤锁，并经索尼原生线程安全 setter（`0x2af05d0 / 0x2bdf1e0 / 0x2b63c18 / 0x2bdeb04`）与抑制图提交函数 `0x24cb320` 复位。
+   - `2b`（高频 `PLAYBACK + UP` 或输入爆发时 `fast_shm_send_app32` 在 `osal_valloc_msg_wait(..., wait=1)` 永久阻塞）：改为非阻塞分配并配有限次退避重试，避免拖死 `fast_input_worker` 与 `AppFw`。
+3. **Bug 3（`OFF` 关机后 LCD 残留关机前最后一帧）**：
+   - [`camera_ui.py`](../../runtime/analysis/camera_ui.py) 在 `state in ('disconnected', 'exited')` 时清空 `self.pixbuf` 并将 LCD 区域绘制为深色黑屏 `(8, 11, 12)`，新增回归单测于 [`test_camera_ui.py`](../../runtime/analysis/test_camera_ui.py)。
+4. **Bug 4（每次 `OFF -> ON` 重复弹出首次开机向导 `scr0099_0001`）**：
+   - `sequence_clock::run_i`（`0x306f494`）在向缺失 CP RTC 服务执行 `osal_snd_sync_msg(0x80900141)` 前阻塞，导致未清除 `prop 0x1a76`（`0x7eda8d0`）、`prop 0x1bd`（`0x7e5df40`）且未落盘 `Backup 0x02cf0014=0 / 0x01070140=0`。修复：[`menu-observe.c`](../../runtime/analysis/menu-observe.c) 在 `virtual_clock_ctor_enter` 仅接管 `cmd == 0 || cmd == 2`（忽略启动期 `cmd == 1`），由 `vcmos_worker_main` 清零两项模型属性、调用非阻塞 `0x35aae70(0)` 并执行 `Backup_sync_subsystem(0x02cf / 0x0107)` 读回确认 `bkp14_rc=1 bkp14=0`。`reset_configuration` 仍恢复出厂首次向导。
+5. **Bug 5（回放 `DELETE/C2` 及按 `REC` 后 `DELETE/C2` 失效）**：
+   - 按 `REC`（`0x1f0`）在无 CP 停录回执时留下事件过滤组 `[0x274:0x1, 0x273:0x1]` 以及模型属性 `prop 0x34d`（`0x7e67fe8 = 1`），导致 `0x179a518`（`0x17a1eec`）在事件路由层将回放 `DELETE/C2` 按下事件 `0x021f0007` 改写为 `0x20000001` 吞掉（而松开事件 `0x021f0008` 仍穿透）。修复：在 `REC` 松开及切换至拍摄/回放页时，经索尼原生线程安全 setter `0x2b034c8 / 0x2b033f8`（及 `prop 0x22a / 0x22f` 的 `0x2af46ac / 0x2af4b4c`）复位并调用 `0x24cb320` 提交抑制图。
+6. **Bug 6（`M/A/S/P` 模式下光圈/快门/程序偏移前后拨盘）**：
+   - 经上述抑制图复位后，首次进入、`PLAYBACK -> FULL SHUTTER` 6 轮循环后、`PB -> MENU -> PB_EXIT` 后以及二次冷启（Boot 2）后，前后拨盘在 `M/A/S/P` 全模式均即时响应。
+
+### 5.1 独立验收记录（2026-11-23）
+
+- **Host 独立验收（2 工作线程，4 检查组，4/4 通过）**：
+  - `fast_shm_and_stream`：**32 passed, 6 subtests passed**（新增 `test_fast_shm.py` 针对 `fast-shm` 队列与状态标志回归测试）
+  - `control_cold_and_input`：**251 passed, 11 subtests passed**
+  - `camera_ui_xvfb`（Xvfb `1920x1080x24`）：**55 passed**（含 OFF 关机黑屏像素读回验证）
+  - `c_headless_ramfb_and_shell`：`bash -n`、`HOSD_COMPLETE_READBACK_AND_FAILURE_PRESERVATION_PASS`、`HOSD_STALE_PART_SKIP_PRESERVATION_PASS`、`RAMFB_TEST_PASS`
+- **隔离实机 QEMU Boot 1 + Boot 2 端到端全量验收（`ALL_6_LIVE_CHECKS_PASSED!`）**：
+  - **Boot 1**（`run-qgfp1dr3`，冷启 `18.60 s`）：全部探针 `rc=0`；首次向导 `PLAYBACK_BG=0`；向导完成后 `VIRTUAL_CMOS_CLOCK_SEQ_DONE seq=0x83 cmd=0 clk_model=0 dt_model=0 sync_2cf=0 sync_107=0 bkp14_rc=1 bkp14=0`；`M/A/S/P` 拨盘 10/10 通过；快门连拍 6/6（含 `4.5 s` 长按，全程 `FLAG_SHOOTING=1`、`caps=1`）；`PLAYBACK -> FULL SHUTTER` 6/6 轮全部自动解除 7 组事件锁与 `p183/p252d/pf65=1->0` 且每轮后 `MODE + FRONT` 拨盘即时响应；`PLAYBACK -> MENU` 清零 `PLAYBACK_BG`（`flags=0x0`）且退回拍摄后拨盘可用；`PLAYBACK + UP` 15/15 零卡死（`sent=113, ack=113, rc=0`）；回放 `DELETE/C2` 正常弹出 `scr7110_0018` 并完成 `VIRTUAL_CMOS_NATIVE_DELETE_DONE`；`REC` 连按 2 次后再进回放按 `DELETE/C2` 正常弹出 `scr7110_0018`；正常关机落盘。
+  - **Boot 2**（`run-m4d3rvto`，同一持久盘二次冷启 `12.97 s`）：直接进入 `scr0039_boot -> rep_boot -> rep_shooting -> scr0132_0001`，完全跳过 `scr0099_0001` 首次向导，`flags=0x1`（`PLAYBACK_BG=0, FLAG_SHOOTING=1`），`MODE=M` 前拨盘立即可用，正常关机退出。
+
+## 6. 边界与剩余事项
 
 - `A7C2_RAM_MODE=1`（QEMU RAM 迁移保存/恢复会话）继续使用原匿名内存与 QMP 路径，以保持 `ram.qevm` 迁移合同不变。
-- `fast-shm` 仍属 AP 软件 OSD + 宿主虚拟 CP 合成模型，不代表物理 CP/ISP 硬件实机验证。
+- `fast-shm` 仍属 AP 软件 OSD + 宿主虚拟 CP 合成模型，不代表物理 CP/ISP 硬件实机验证；`REC` 物理录像写盘仍待独立 CP 编码管线实现，当前修复保证误触 `REC` 不会污染后续回放删除或拨盘状态。

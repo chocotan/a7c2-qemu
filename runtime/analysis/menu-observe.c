@@ -2673,14 +2673,19 @@ static unsigned char *fast_shm_playback_bg_ptr(void);
 static void fast_shm_set_playback_bg(int active);
 static void fast_shm_touch_blink(void);
 static unsigned int vcmos_pb_bg_active;
+static unsigned int vcmos_in_playback_screen;
+static unsigned int vcmos_s1_held;
 static void vcmos_clear_playback_bg(void) {
-    if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
+    unsigned int was_active = __atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL);
+    if (was_active) {
         if (fast_shm_is_active()) {
             fast_shm_set_playback_bg(0);
         } else {
             unlink(VIRTUAL_PLAYBACK_BG_PATH);
         }
-        record("VIRTUAL_CMOS_PLAYBACK_BG_CLEARED ", "returned to shooting");
+        record("VIRTUAL_CMOS_PLAYBACK_BG_CLEARED ", "left playback screen");
+    } else if (fast_shm_is_active()) {
+        fast_shm_set_playback_bg(0);
     }
 }
 static void virtual_lens_hud_schedule_publish(const char *reason) {
@@ -3024,8 +3029,62 @@ PROBE_RESTORE_ARGS
 "    br x16\n"
 "1:\n"
 "    ret\n"
+".globl virtual_pb_on_exit1_trampoline\n"
+".type virtual_pb_on_exit1_trampoline, %function\n"
+"virtual_pb_on_exit1_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_on_exit1_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394c0800\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_pb_on_exit1_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_on_exit1_continue]\n"
+"    br x16\n"
+".globl virtual_pb_on_exit2_trampoline\n"
+".type virtual_pb_on_exit2_trampoline, %function\n"
+"virtual_pb_on_exit2_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_on_exit_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394c2000\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_pb_on_exit2_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_on_exit2_continue]\n"
+"    br x16\n"
+".globl virtual_pb_on_exit_trampoline\n"
+".type virtual_pb_on_exit_trampoline, %function\n"
+"virtual_pb_on_exit_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_on_exit_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0x394c2000\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_pb_on_exit_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_on_exit_continue]\n"
+"    br x16\n"
+".globl virtual_clock_ctor_trampoline\n"
+".type virtual_clock_ctor_trampoline, %function\n"
+"virtual_clock_ctor_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_clock_ctor_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9bd7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f3\n"
+"    adrp x16, virtual_clock_ctor_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_clock_ctor_continue]\n"
+"    br x16\n"
 );
 static void *virtual_pb_enqueue_continue, *virtual_pb_start_playback_continue, *virtual_pb_delete_continue;
+static void *virtual_pb_on_exit1_continue, *virtual_pb_on_exit2_continue, *virtual_pb_on_exit_continue;
+static void *virtual_clock_ctor_continue;
 extern void virtual_hud_aperture_trampoline(void);
 extern void virtual_hud_shutter_trampoline(void);
 extern void virtual_hud_iso_trampoline(void);
@@ -3041,6 +3100,10 @@ extern void virtual_pb_create_yc_trampoline(void);
 extern void virtual_pb_enqueue_trampoline(void);
 extern void virtual_pb_start_playback_trampoline(void);
 extern void virtual_pb_delete_trampoline(void);
+extern void virtual_pb_on_exit1_trampoline(void);
+extern void virtual_pb_on_exit2_trampoline(void);
+extern void virtual_pb_on_exit_trampoline(void);
+extern void virtual_clock_ctor_trampoline(void);
 static void install_virtual_lens_hud_probes(unsigned long base) {
     if (!same_name(getenv("MENU_VIRTUAL_LENS_HUD"), "1")) return;
     virtual_lens_hud_init_defaults(&virtual_lens_hud_current);
@@ -3060,6 +3123,10 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
     virtual_pb_enqueue_continue = (void *)(base + 0x3228ed0UL);
     virtual_pb_start_playback_continue = (void *)(base + 0x33d1488UL);
     virtual_pb_delete_continue = (void *)(base + 0x24d1a54UL);
+    virtual_pb_on_exit1_continue = (void *)(base + 0x224ef54UL);
+    virtual_pb_on_exit2_continue = (void *)(base + 0x2250138UL);
+    virtual_pb_on_exit_continue = (void *)(base + 0x22518e4UL);
+    virtual_clock_ctor_continue = (void *)(base + 0x3109984UL);
     int rc_ap = arm_entry_probe(base + 0x181b660UL,
         (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9001, 0xa90153f3},
         (void *)virtual_hud_aperture_trampoline, virtual_hud_aperture_continue,
@@ -3115,11 +3182,28 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
         (const unsigned int[4]){0xa9ba7bfd, 0x910003fd, 0xa90153f3, 0xaa0003f4},
         (void *)virtual_pb_delete_trampoline, virtual_pb_delete_continue,
         "pb_delete_0x62 0x24d1a44");
-    char text[320];
+    int rc_pbx1 = arm_entry_probe(base + 0x224ef44UL,
+        (const unsigned int[4]){0xa9bd7bfd, 0x910003fd, 0x394c0800, 0xa90153f3},
+        (void *)virtual_pb_on_exit1_trampoline, virtual_pb_on_exit1_continue,
+        "pb_on_exit1 0x224ef44");
+    int rc_pbx2 = arm_entry_probe(base + 0x2250128UL,
+        (const unsigned int[4]){0xa9bd7bfd, 0x910003fd, 0x394c2000, 0xa90153f3},
+        (void *)virtual_pb_on_exit2_trampoline, virtual_pb_on_exit2_continue,
+        "pb_on_exit2 0x2250128");
+    int rc_pbx3 = arm_entry_probe(base + 0x22518d4UL,
+        (const unsigned int[4]){0xa9bd7bfd, 0x910003fd, 0x394c2000, 0xa90153f3},
+        (void *)virtual_pb_on_exit_trampoline, virtual_pb_on_exit_continue,
+        "pb_on_exit3 0x22518d4");
+    int rc_pbx = rc_pbx1 ? rc_pbx1 : (rc_pbx2 ? rc_pbx2 : rc_pbx3);
+    int rc_clk = arm_entry_probe(base + 0x3109974UL,
+        (const unsigned int[4]){0xa9bd7bfd, 0x910003fd, 0xa90153f3, 0xaa0003f3},
+        (void *)virtual_clock_ctor_trampoline, virtual_clock_ctor_continue,
+        "seq_clock_ctor 0x3109974");
+    char text[384];
     snprintf(text, sizeof text,
-             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d dial_rc=%d,%d,%d,%d,%d,%d,%d pb_rc=%d,%d,%d,%d,%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
+             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d dial_rc=%d,%d,%d,%d,%d,%d,%d pb_rc=%d,%d,%d,%d,%d,%d,%d pbx_rc=%d,%d,%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
              rc_ap, rc_ss, rc_iso, rc_dap, rc_dss, rc_dps, rc_di1, rc_di2, rc_di3, rc_di4, rc_pbr, rc_pby,
-             rc_pbe, rc_pbs, rc_pbd,
+             rc_pbe, rc_pbs, rc_pbd, rc_pbx, rc_clk, rc_pbx1, rc_pbx2, rc_pbx3,
              (unsigned int)virtual_lens_hud_current.aperture_x100,
              (unsigned int)virtual_lens_hud_current.shutter_num,
              (unsigned int)virtual_lens_hud_current.shutter_den,
@@ -3385,7 +3469,9 @@ void virtual_pb_read_still_enter(unsigned long req, unsigned long resp) {
                 sel_rc = vcmos_mpr.sidb_select(0xffffffffu, uid, rec, 1);
                 if (sel_rc == 0 && rec[0x0c0] && rec[0x0c1]) {
                     snprintf(path, sizeof path, "%.260s", (const char *)(rec + 0x0c1));
-                    vcmos_queue_pb_path(path);
+                    if (__atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE)) {
+                        vcmos_queue_pb_path(path);
+                    }
                 }
                 free(rec);
             }
@@ -3487,6 +3573,47 @@ int virtual_pb_delete_intercept(unsigned long param_ptr, unsigned int sync_flag,
     *__errno_location() = saved_errno;
     return 1;
 }
+static void virtual_pb_on_exit_clear_flag(unsigned long self, unsigned long offset) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (!self || self < 0x100000UL || self >= 0x800000000000UL) return;
+    unsigned char *s1_exit_flag = (unsigned char *)(self + offset);
+    if (*s1_exit_flag) {
+        int saved_errno = *__errno_location();
+        *s1_exit_flag = 0u;
+        char text[96];
+        snprintf(text, sizeof text, "cleared rep_playback+%lu S1-skip flag for clean shooting exit", offset);
+        record("VIRTUAL_CMOS_PB_EXIT_NORMALIZED ", text);
+        *__errno_location() = saved_errno;
+    }
+}
+void virtual_pb_on_exit1_enter(unsigned long self) {
+    virtual_pb_on_exit_clear_flag(self, 770UL);
+}
+void virtual_pb_on_exit_enter(unsigned long self) {
+    virtual_pb_on_exit_clear_flag(self, 776UL);
+}
+static unsigned char vcmos_clock_param_lock;
+static unsigned int vcmos_clock_param[6];
+void virtual_clock_ctor_enter(unsigned long self, unsigned long param_ptr) {
+    (void)self;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (!param_ptr || param_ptr < 0x100000UL || param_ptr >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    const unsigned int *src = (const unsigned int *)param_ptr;
+    unsigned int cmd = src[0];
+    int handled = (cmd == 0u || cmd == 2u) ? 1 : 0;
+    if (handled) {
+        while (__atomic_test_and_set(&vcmos_clock_param_lock, __ATOMIC_ACQUIRE)) {}
+        for (int i = 0; i < 6; ++i) vcmos_clock_param[i] = src[i];
+        __atomic_clear(&vcmos_clock_param_lock, __ATOMIC_RELEASE);
+    }
+    char text[160];
+    snprintf(text, sizeof text, "seq=0x83 cmd=%u handled=%d tid=%ld virtual_clock_dispatch=1 original_CP=0",
+             cmd, handled, syscall(178));
+    record("VIRTUAL_CMOS_CLOCK_SEQ_ENQUEUE ", text);
+    if (handled) vcmos_post_work(256u);
+    *__errno_location() = saved_errno;
+}
 static void vcmos_touch_blink(void) {
     if (fast_shm_is_active()) {
         fast_shm_touch_blink();
@@ -3540,19 +3667,23 @@ static void *vcmos_worker_main(void *arg) {
                 while (__atomic_test_and_set(&vcmos_pb_path_lock, __ATOMIC_ACQUIRE)) {}
                 snprintf(path, sizeof path, "%s", vcmos_pb_req_path);
                 __atomic_clear(&vcmos_pb_path_lock, __ATOMIC_RELEASE);
-                if (path[0] && vcmos_ops_ready()) {
+                if (path[0] && __atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE) && vcmos_ops_ready()) {
                     unsigned int seq = __atomic_add_fetch(&vcmos_pb_bg_seq, 1u, __ATOMIC_RELAXED);
                     unsigned char *shm_bg = fast_shm_playback_bg_ptr();
                     int rc;
                     if (shm_bg) {
                         rc = virtual_cmos_decode_playback_rgb(&vcmos_ops, path, shm_bg);
-                        if (rc == 0) {
+                        if (rc == 0 && __atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE)) {
                             __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
                             fast_shm_set_playback_bg(1);
                         }
                     } else {
                         rc = virtual_cmos_render_playback_bg(&vcmos_ops, path, VIRTUAL_PLAYBACK_BG_PATH, seq);
-                        if (rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                        if (rc == 0 && __atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE)) {
+                            __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                        } else if (rc == 0) {
+                            unlink(VIRTUAL_PLAYBACK_BG_PATH);
+                        }
                     }
                     char text[224];
                     snprintf(text, sizeof text, "rc=%d seq=%u path=%s", rc, seq, path);
@@ -3670,6 +3801,176 @@ static void *vcmos_worker_main(void *arg) {
                     record("VIRTUAL_CMOS_NATIVE_DELETE_DONE ", text);
                 }
             }
+            if ((flags & 256u) && appfw_base) {
+                /* sequence_clock::run_i (0x306f494) calls osal_snd_sync_msg(0x80900141) to the
+                 * absent CP RTC service before clearing prop 0x1a76 (0x7eda8d0) and prop 0x1bd
+                 * (0x7e5df40) and calling 0x35aae70(0). Complete those AP-local state updates and
+                 * sync Backup subsystems 0x02cf / 0x0107 directly without blocking vcmos_worker. */
+                unsigned int cparam[6];
+                while (__atomic_test_and_set(&vcmos_clock_param_lock, __ATOMIC_ACQUIRE)) {}
+                for (int i = 0; i < 6; ++i) cparam[i] = vcmos_clock_param[i];
+                __atomic_clear(&vcmos_clock_param_lock, __ATOMIC_RELEASE);
+                if (cparam[0] == 0u || cparam[0] == 2u) {
+                    *(volatile unsigned char *)(appfw_base + 0x7eda8d0UL) = 0u;
+                    *(volatile unsigned int *)(appfw_base + 0x7e5df40UL) = 0u;
+                    void (*write_firstboot_done)(unsigned int) =
+                        (void (*)(unsigned int))(appfw_base + 0x35aae70UL);
+                    write_firstboot_done(0u);
+                    int sync_2cf = -999, sync_107 = -999, nread_rc = -999;
+                    unsigned char bkp14 = 0xffu;
+                    void *bh = 0;
+                    if (real_dlopen) {
+                        bh = real_dlopen("libbackup.so", 6);
+                        if (!bh) bh = real_dlopen("/usr/lib/libbackup.so", 6);
+                    }
+                    int (*bkp_sync)(unsigned int) = 0;
+                    int (*bkp_nread)(unsigned int, void *, int) = 0;
+                    if (real_dlsym) {
+                        if (bh) {
+                            bkp_sync = real_dlsym(bh, "Backup_sync_subsystem");
+                            bkp_nread = real_dlsym(bh, "Backup_nread");
+                        }
+                        if (!bkp_sync) bkp_sync = real_dlsym((void *)-1, "Backup_sync_subsystem");
+                        if (!bkp_sync) bkp_sync = real_dlsym((void *)0, "Backup_sync_subsystem");
+                        if (!bkp_nread) bkp_nread = real_dlsym((void *)-1, "Backup_nread");
+                        if (!bkp_nread) bkp_nread = real_dlsym((void *)0, "Backup_nread");
+                    }
+                    if (bkp_sync) {
+                        sync_2cf = bkp_sync(0x02cfu);
+                        sync_107 = bkp_sync(0x0107u);
+                    }
+                    if (bkp_nread) {
+                        nread_rc = bkp_nread(0x02cf0014u, &bkp14, 1);
+                    }
+                    char text[192];
+                    snprintf(text, sizeof text,
+                             "seq=0x83 cmd=%u clk_model=%u dt_model=%u sync_2cf=%d sync_107=%d bkp14_rc=%d bkp14=%u",
+                             cparam[0],
+                             (unsigned int)*(const volatile unsigned char *)(appfw_base + 0x7eda8d0UL),
+                             *(const volatile unsigned int *)(appfw_base + 0x7e5df40UL),
+                             sync_2cf, sync_107, nread_rc, (unsigned int)bkp14);
+                    record("VIRTUAL_CMOS_CLOCK_SEQ_DONE ", text);
+                }
+            }
+            if ((flags & 512u) && appfw_base) {
+                /* Without CP completion, two AP-side transition paths can leave stuck locks:
+                 * 1) SHUTTER_HALF exiting Playback (0x1aff7b8 / 0x1b3a818) blocks event groups in
+                 *    *(appfw_base + 0x7e4ea90) and leaves Playback-active properties stuck at 1:
+                 *    prop 0x183 (0x7e5d650), prop 0x252d (0x7efcfb0), prop 0xf65 (0x7e82120),
+                 *    prop 0x2525 (0x7efce98) -> inhibiting aperture/shutter/progshift dials.
+                 * 2) Pressing REC (0x1f0) without CP movie-rec completion blocks [0x274,0x273] and
+                 *    leaves movie-rec state prop 0x22a (0x7e65110) / prop 0x22f (0x7e651b8) != 0,
+                 *    which causes 0x179a518 to swallow Playback DELETE/C2 (0x021f0007 -> 0x0100014a)
+                 *    and inhibits exposure dials.
+                 * Once S1 is released, clear stuck filter locks via Sony's thread-safe 0x250f108,
+                 * reset stuck Playback/Movie-Rec flags via Sony's thread-safe setters, and commit
+                 * Sony's inhibit solver (0x24cb320). */
+                long req[2] = {0L, 45000000L};
+                syscall(101 /* SYS_nanosleep */, req, 0);
+                if (!__atomic_load_n(&vcmos_s1_held, __ATOMIC_ACQUIRE)) {
+                    unsigned int in_pb = __atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE);
+                    void (*filter_set)(unsigned int, unsigned int, unsigned int, unsigned int) =
+                        (void (*)(unsigned int, unsigned int, unsigned int, unsigned int))(appfw_base + 0x250f108UL);
+                    unsigned char *filter_obj = *(unsigned char *const volatile *)(appfw_base + 0x7e4ea90UL);
+                    unsigned int found_grps[32];
+                    unsigned int found_masks[32];
+                    int nfound = 0;
+                    if (filter_obj && !in_pb) {
+                        unsigned char *node = *(unsigned char *const volatile *)(filter_obj + 24UL);
+                        for (int step = 0; step < 32 && node &&
+                             (unsigned long)node >= 0x100000UL && (unsigned long)node < 0x800000000000UL; ++step) {
+                            unsigned int grp = *(const volatile unsigned int *)(node + 8UL);
+                            unsigned int msk = *(const volatile unsigned int *)(node + 16UL);
+                            found_grps[nfound] = grp;
+                            found_masks[nfound] = msk;
+                            nfound++;
+                            node = *(unsigned char *const volatile *)(node + 0UL);
+                        }
+                        for (int i = 0; i < nfound; ++i) {
+                            filter_set(found_grps[i], 0u, 0xffffffffu, 1u);
+                        }
+                    }
+                    unsigned int p183_b = *(const volatile unsigned int *)(appfw_base + 0x7e5d650UL);
+                    unsigned int p252d_b = *(const volatile unsigned int *)(appfw_base + 0x7efcfb0UL);
+                    unsigned int pf65_b = *(const volatile unsigned int *)(appfw_base + 0x7e82120UL);
+                    unsigned int p2525_b = *(const volatile unsigned int *)(appfw_base + 0x7efce98UL);
+                    unsigned int p22a_b = *(const volatile unsigned int *)(appfw_base + 0x7e65110UL);
+                    unsigned int p22f_b = *(const volatile unsigned int *)(appfw_base + 0x7e651b8UL);
+                    unsigned int p34c_b = *(const volatile unsigned int *)(appfw_base + 0x7e67fc8UL);
+                    unsigned int p34d_b = *(const volatile unsigned int *)(appfw_base + 0x7e67fe8UL);
+                    int reset_any = 0;
+                    unsigned int zero = 0u;
+                    if (!in_pb) {
+                        if (p183_b != 0u) {
+                            ((void (*)(const unsigned int *))(appfw_base + 0x2af05d0UL))(&zero);
+                            reset_any = 1;
+                        }
+                        if (p252d_b != 0u) {
+                            ((void (*)(const unsigned int *))(appfw_base + 0x2bdf1e0UL))(&zero);
+                            reset_any = 1;
+                        }
+                        if (pf65_b != 0u) {
+                            ((void (*)(const unsigned int *))(appfw_base + 0x2b63c18UL))(&zero);
+                            reset_any = 1;
+                        }
+                        if (p2525_b != 0u) {
+                            ((void (*)(const unsigned int *))(appfw_base + 0x2bdeb04UL))(&zero);
+                            reset_any = 1;
+                        }
+                    }
+                    if (p22a_b != 0u) {
+                        ((void (*)(const unsigned int *))(appfw_base + 0x2af46acUL))(&zero);
+                        reset_any = 1;
+                    }
+                    if (p22f_b != 0u) {
+                        ((void (*)(const unsigned int *))(appfw_base + 0x2af4b4cUL))(&zero);
+                        reset_any = 1;
+                    }
+                    if (p34c_b != 0u) {
+                        ((void (*)(const unsigned int *))(appfw_base + 0x2b033f8UL))(&zero);
+                        reset_any = 1;
+                    }
+                    if (p34d_b != 0u) {
+                        ((void (*)(const unsigned int *))(appfw_base + 0x2b034c8UL))(&zero);
+                        reset_any = 1;
+                    }
+                    if (reset_any) {
+                        ((void (*)(void))(appfw_base + 0x24cb320UL))();
+                    }
+                    if (nfound > 0 || reset_any) {
+                        int nafter = 0;
+                        if (filter_obj) {
+                            unsigned char *node = *(unsigned char *const volatile *)(filter_obj + 24UL);
+                            for (int step = 0; step < 32 && node &&
+                                 (unsigned long)node >= 0x100000UL && (unsigned long)node < 0x800000000000UL; ++step) {
+                                nafter++;
+                                node = *(unsigned char *const volatile *)(node + 0UL);
+                            }
+                        }
+                        char fbuf[160];
+                        int fp = 0;
+                        fbuf[0] = '\0';
+                        for (int i = 0; i < nfound && fp < (int)sizeof fbuf - 20; ++i) {
+                            fp += snprintf(fbuf + fp, sizeof fbuf - (unsigned long)fp,
+                                           "%s%#x:%#x", i ? "," : "", found_grps[i], found_masks[i]);
+                        }
+                        char text[448];
+                        snprintf(text, sizeof text,
+                                 "nf=%d nafter=%d p183=%u->%u p252d=%u->%u pf65=%u->%u p2525=%u->%u p34d=%u->%u entries=[%s] inh=%u,%u,%u",
+                                 nfound, nafter,
+                                 p183_b, *(const volatile unsigned int *)(appfw_base + 0x7e5d650UL),
+                                 p252d_b, *(const volatile unsigned int *)(appfw_base + 0x7efcfb0UL),
+                                 pf65_b, *(const volatile unsigned int *)(appfw_base + 0x7e82120UL),
+                                 p2525_b, *(const volatile unsigned int *)(appfw_base + 0x7efce98UL),
+                                 p34d_b, *(const volatile unsigned int *)(appfw_base + 0x7e67fe8UL),
+                                 fbuf,
+                                 (unsigned int)*(const volatile unsigned char *)(appfw_base + 0x833360aUL),
+                                 (unsigned int)*(const volatile unsigned char *)(appfw_base + 0x8333604UL),
+                                 (unsigned int)*(const volatile unsigned char *)(appfw_base + 0x8333437UL));
+                        record("VIRTUAL_CMOS_S1_UNBLOCK_DONE ", text);
+                    }
+                }
+            }
         }
     }
     return 0;
@@ -3736,6 +4037,17 @@ static void virtual_input_observed(unsigned int *ev) {
         }
     }
     if (!virtual_lens_hud_enabled) return;
+    if (code == 0x1f1u) {
+        if (status != 0u) {
+            __atomic_store_n(&vcmos_s1_held, 1u, __ATOMIC_RELEASE);
+        } else {
+            __atomic_store_n(&vcmos_s1_held, 0u, __ATOMIC_RELEASE);
+            vcmos_post_work(512u);
+        }
+    }
+    if (code == 0x1f0u && status == 0u) {
+        vcmos_post_work(512u);
+    }
     if (code == 0xa7 && status == 1 && hosd_is_shooting_scene()) {
         vcmos_touch_blink();
         vcmos_post_work(2u);
@@ -8187,12 +8499,48 @@ static void *observe_create_screen(void *a0, void *a1, void *a2, void *a3, void 
     }
     void *result = real_create_screen(a0, a1, a2, a3, a4, a5, a6, a7);
     __atomic_store_n(&last_input_screen,id,__ATOMIC_RELEASE);
+    if (id == 0x344u || id == 0x345u || id == 0x23u || id == 0x26u || id == 0x28u) {
+        __atomic_store_n(&vcmos_in_playback_screen, 1u, __ATOMIC_RELEASE);
+        hosd_set_screen_liveview(0);
+        if (virtual_lens_hud_enabled && appfw_base &&
+            (*(const volatile unsigned int *)(appfw_base + 0x7e65110UL) |
+             *(const volatile unsigned int *)(appfw_base + 0x7e651b8UL) |
+             *(const volatile unsigned int *)(appfw_base + 0x7e67fc8UL) |
+             *(const volatile unsigned int *)(appfw_base + 0x7e67fe8UL)) != 0u) {
+            vcmos_post_work(512u);
+        }
+    } else if (id == 0x177u || id == 0x178u) {
+        /* Keep playback background visible behind delete-confirmation overlays. */
+        hosd_set_screen_liveview(0);
+    } else if (id == 0u && count >= 100u) {
+        __atomic_store_n(&vcmos_in_playback_screen, 0u, __ATOMIC_RELEASE);
+        vcmos_clear_playback_bg();
+        hosd_set_screen_liveview(1);
+        if (virtual_lens_hud_enabled && appfw_base && !__atomic_load_n(&vcmos_s1_held, __ATOMIC_ACQUIRE)) {
+            unsigned char *fobj = *(unsigned char *const volatile *)(appfw_base + 0x7e4ea90UL);
+            unsigned char *fhead = fobj ? *(unsigned char *const volatile *)(fobj + 24UL) : 0;
+            unsigned int stuck = *(const volatile unsigned int *)(appfw_base + 0x7e5d650UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7efcfb0UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7e82120UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7efce98UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7e65110UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7e651b8UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7e67fc8UL) |
+                                 *(const volatile unsigned int *)(appfw_base + 0x7e67fe8UL);
+            if (fhead || stuck != 0u) vcmos_post_work(512u);
+        }
+    } else if (id == 0x343u) {
+        __atomic_store_n(&vcmos_in_playback_screen, 0u, __ATOMIC_RELEASE);
+        vcmos_clear_playback_bg();
+    } else {
+        __atomic_store_n(&vcmos_in_playback_screen, 0u, __ATOMIC_RELEASE);
+        vcmos_clear_playback_bg();
+        hosd_set_screen_liveview(0);
+    }
     if (id == 0x309u) {
         __atomic_store_n(&vcmos_in_apo_sleep, 1u, __ATOMIC_RELEASE);
         __atomic_store_n(&vcmos_wake_in_progress, 0u, __ATOMIC_RELEASE);
-        if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
-            unlink(VIRTUAL_PLAYBACK_BG_PATH);
-        }
+        vcmos_clear_playback_bg();
         record("APO_SLEEP_ENTERED ", "screen=0x309 awaiting_input_to_wake=1");
     } else if (id == 0x308u) {
         if (vcmos_auto_wake_enabled()) {
@@ -13414,10 +13762,16 @@ static void fast_shm_set_playback_bg(int active) {
     if (active) {
         __atomic_add_fetch(&fast_shm_ctrl->playback_bg_seq, 1U, __ATOMIC_RELEASE);
         __atomic_fetch_or(&fast_shm_ctrl->display_flags, FAST_SHM_FLAG_PLAYBACK_BG, __ATOMIC_ACQ_REL);
+        if (__atomic_load_n(&fast_shm_ctrl->osd_seq, __ATOMIC_ACQUIRE) > 0ULL) {
+            __atomic_add_fetch(&fast_shm_ctrl->osd_seq, 1ULL, __ATOMIC_RELEASE);
+        }
     } else {
-        __atomic_fetch_and(&fast_shm_ctrl->display_flags, ~FAST_SHM_FLAG_PLAYBACK_BG, __ATOMIC_ACQ_REL);
+        uint32_t prev = __atomic_fetch_and(&fast_shm_ctrl->display_flags, ~FAST_SHM_FLAG_PLAYBACK_BG, __ATOMIC_ACQ_REL);
+        if ((prev & FAST_SHM_FLAG_PLAYBACK_BG) &&
+            __atomic_load_n(&fast_shm_ctrl->osd_seq, __ATOMIC_ACQUIRE) > 0ULL) {
+            __atomic_add_fetch(&fast_shm_ctrl->osd_seq, 1ULL, __ATOMIC_RELEASE);
+        }
     }
-    __atomic_add_fetch(&fast_shm_ctrl->osd_seq, 1ULL, __ATOMIC_RELEASE);
 }
 static void fast_shm_touch_blink(void) {
     if (!fast_shm_is_active() || !fast_shm_ctrl) return;
@@ -13466,7 +13820,17 @@ static int fast_shm_send_app32(unsigned int key, unsigned int sub, unsigned int 
     if (!real_allocate_msg || !real_set_source || !real_send_msg || !real_free_msg) return 3;
     const unsigned int queue = 0x005503e0U;
     void *msg = 0;
-    int rc = real_allocate_msg(queue, &msg, 32U, 1U);
+    int rc = -1;
+    /* Use non-blocking OSAL allocation with bounded retry (~200ms) so fast_input_worker
+     * never blocks permanently if AppFw stops draining queue 0x5503e0. */
+    for (unsigned int attempt = 0; attempt < 40U; ++attempt) {
+        rc = real_allocate_msg(queue, &msg, 32U, 0U);
+        if (rc == 0 && msg) break;
+        msg = 0;
+        if (rc != -1023 && rc != -1022) break;
+        long req[2] = {0L, 5000000L};
+        syscall(101 /* SYS_nanosleep */, req, 0);
+    }
     if (rc || !msg) return 3;
     unsigned int *w = (unsigned int *)msg;
     for (int i = 0; i < 8; ++i) w[i] = 0U;

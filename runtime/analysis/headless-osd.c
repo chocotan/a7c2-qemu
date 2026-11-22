@@ -240,6 +240,7 @@ int hosd_capture_frame(unsigned long base, const struct hosd_native *api, struct
     return ok ? 0 : -1;
 }
 static int hosd_shooting_scene_flag;
+static int hosd_screen_liveview_flag;
 static int hosd_meta_is_shooting(const struct hosd_metadata *m) {
     if (!m) return 0;
     for (unsigned i = 0; i < 258; ++i) if (m->present[i] > 1) return 0;
@@ -253,11 +254,20 @@ static int hosd_meta_is_shooting(const struct hosd_metadata *m) {
     }
     return !u32(m->widgets[0] + 16) && u16(m->widgets[0] + 20) == 640 && u16(m->widgets[0] + 22) == 480;
 }
+void hosd_set_screen_liveview(int active) {
+    int v = active ? 1 : 0;
+    __atomic_store_n(&hosd_screen_liveview_flag, v, __ATOMIC_RELEASE);
+    if (v) __atomic_store_n(&hosd_shooting_scene_flag, 1, __ATOMIC_RELEASE);
+}
 int hosd_is_shooting_scene(void) {
-    return __atomic_load_n(&hosd_shooting_scene_flag, __ATOMIC_ACQUIRE);
+    return __atomic_load_n(&hosd_shooting_scene_flag, __ATOMIC_ACQUIRE) ||
+           __atomic_load_n(&hosd_screen_liveview_flag, __ATOMIC_ACQUIRE);
+}
+static int hosd_effective_shooting(const struct hosd_metadata *m) {
+    return hosd_meta_is_shooting(m) || __atomic_load_n(&hosd_screen_liveview_flag, __ATOMIC_ACQUIRE);
 }
 static void hosd_update_shooting_scene(const struct hosd_metadata *m) {
-    __atomic_store_n(&hosd_shooting_scene_flag, hosd_meta_is_shooting(m), __ATOMIC_RELEASE);
+    __atomic_store_n(&hosd_shooting_scene_flag, hosd_effective_shooting(m), __ATOMIC_RELEASE);
 }
 static struct hosd_fast_sink hosd_fast_sink_active;
 void hosd_set_fast_sink(const struct hosd_fast_sink *sink) {
@@ -275,8 +285,8 @@ static int consume(struct hosd_state *s, const struct hosd_ops *o, const char *p
         u16(d + 0x18) > 640 || u16(d + 0x1a) > 480 ||
         u16(d + 0x1c) > 640 - u16(d + 0x18) || u16(d + 0x1e) > 480 - u16(d + 0x1a)) return -1;
     if (hosd_fast_sink_active.acquire_slot && hosd_fast_sink_active.publish && !getenv("MENU_OSD_META_PIXELS")) {
-        int prev_shooting = hosd_is_shooting_scene();
-        int next_shooting = hosd_meta_is_shooting(&s->frozen);
+        int prev_shooting = __atomic_load_n(&hosd_shooting_scene_flag, __ATOMIC_ACQUIRE);
+        int next_shooting = hosd_effective_shooting(&s->frozen);
         if (s->pending == 0x1005) {
             ++s->sequence;
             hosd_update_shooting_scene(&s->frozen);

@@ -387,6 +387,11 @@ int main(void) {
     for (int i = 0; i < 4; ++i) assert(hosd_step(st, &ops, "/nonexistent/dir/should-not-write") == 0);
     assert(capture_calls == 1 && publish_calls == 1 && last_pixels_updated == 1 && ack_sent == 2);
     assert(slot_buf[0][0] == 0xAB && slot_buf[0][HOSD_PIXELS - 1] == 0xAB);
+    assert(hosd_is_shooting_scene() == 0);
+    hosd_set_screen_liveview(1);
+    assert(hosd_is_shooting_scene() == 1);
+    hosd_set_screen_liveview(0);
+    assert(hosd_is_shooting_scene() == 1); /* retained until next metadata commit */
     free(st);
     return 0;
 }
@@ -399,3 +404,46 @@ int main(void) {
             input=fixture, text=True, check=True, capture_output=True,
         )
         subprocess.run([str(exe)], check=True, timeout=10)
+
+
+def test_continuous_lcd_shutter_blink_rereads_post_sleep_state(tmp_path):
+    """Frame updates arriving during the 55ms shutter blink must be rendered immediately after."""
+    fd = fast_shm.create_ram_memfd()
+    received = []
+    blink_seen = threading.Event()
+    post_blink_blue = threading.Event()
+
+    def on_frame(payload, info):
+        px = payload[:3]
+        received.append((px, info))
+        if px == b'\x00\x00\x00':
+            blink_seen.set()
+        elif blink_seen.is_set() and px == b'\x00\x00\xff':
+            post_blink_blue.set()
+
+    owner = SimpleNamespace(pid=os.getpid(), poll=lambda: None)
+    lcd = ContinuousLCD(tmp_path, owner, on_frame, encode_png=False, fast_shm_fd=fd).start()
+    raw = mmap.mmap(fd, fast_shm.MAP_SIZE, offset=fast_shm.MEMFD_OFFSET)
+    try:
+        # Slot 0 = green, Slot 1 = blue.
+        raw[fast_shm.OSD0_OFF:fast_shm.OSD0_OFF + fast_shm.OSD_BYTES] = struct.pack('<H', 0x0F0F) * (fast_shm.WIDTH * fast_shm.HEIGHT)
+        raw[fast_shm.OSD1_OFF:fast_shm.OSD1_OFF + fast_shm.OSD_BYTES] = struct.pack('<H', 0x00FF) * (fast_shm.WIDTH * fast_shm.HEIGHT)
+        struct.pack_into('<I', raw, fast_shm.CTRL_OFF + fast_shm.OFF_GUEST_DISPLAY_READY, 1)
+        struct.pack_into('<QII', raw, fast_shm.CTRL_OFF + fast_shm.OFF_OSD_SEQ, 1, 0, 0)
+        lcd.nudge()
+        deadline = time.monotonic() + 2.0
+        while not received and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert received and received[0][0] == b'\x00\xff\x00'
+
+        # Trigger blink, then flip to slot 1 (blue) while ContinuousLCD is inside the 55ms blink sleep.
+        struct.pack_into('<I', raw, fast_shm.CTRL_OFF + fast_shm.OFF_BLINK_SEQ, 1)
+        lcd.nudge()
+        assert blink_seen.wait(2.0), 'shutter blink black frame not emitted'
+        struct.pack_into('<QII', raw, fast_shm.CTRL_OFF + fast_shm.OFF_OSD_SEQ, 2, 1, 0)
+        assert post_blink_blue.wait(2.0), f'expected post-blink blue frame, got {[p for p, _ in received]}'
+    finally:
+        lcd.stop()
+        raw.close()
+        os.close(fd)
+

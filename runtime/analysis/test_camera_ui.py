@@ -567,6 +567,10 @@ class GTKTests(unittest.TestCase):
         self.vm.stop()
         self.ui.update(self.vm.status())
         self.assertIn('旧画面', self.ui.frame_label.get_text())
+        self.settle()
+        ox, oy = self.ui.lcd.translate_coordinates(self.ui.window, 0, 0)
+        off_pixel = Gdk.pixbuf_get_from_window(self.ui.window.get_window(), ox + 24, oy + 24, 1, 1)
+        self.assertEqual(tuple(off_pixel.get_pixels()[:3]), (8, 11, 12))
 
     def test_rapid_distinct_keyboard_shortcuts_are_not_dropped(self):
         self.running()

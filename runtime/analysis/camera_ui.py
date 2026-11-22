@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Single GTK3 camera window. Importing this module never creates or starts a VM."""
+import contextlib
 import math
 import os
 from pathlib import Path
@@ -210,7 +211,9 @@ class CameraUI:
         self.last_status = None
         self._button_cache = {}
         self.source_id = 0
+        self._lcd_idle_lock = threading.Lock()
         self.lcd_idle_pending = False
+        self._last_vm_state = self.state.get('state')
         self.vm.lcd_changed = self._notify_lcd
         self.provider = Gtk.CssProvider()
         self.provider.load_from_data(CSS)
@@ -962,27 +965,36 @@ class CameraUI:
         return False
 
     def _notify_lcd(self):
-        if not self.closed and not self.lcd_idle_pending:
+        lock = getattr(self, '_lcd_idle_lock', None)
+        with (lock if lock is not None else contextlib.nullcontext()):
+            if self.closed or self.lcd_idle_pending:
+                return
             self.lcd_idle_pending = True
-            GLib.idle_add(self._present_lcd, priority=GLib.PRIORITY_HIGH_IDLE)
+        GLib.idle_add(self._present_lcd, priority=GLib.PRIORITY_HIGH_IDLE)
 
     def _present_lcd(self):
-        self.lcd_idle_pending = False
+        lock = getattr(self, '_lcd_idle_lock', None)
+        with (lock if lock is not None else contextlib.nullcontext()):
+            self.lcd_idle_pending = False
         if not self.closed:
             self._read_frame(self.vm.status())
         return False
 
     def _read_frame(self, state):
-        # Retry a changed metadata version instead of pairing pixels with the wrong frame.
+        # Read pixels and matching snapshot metadata atomically under vm.lock so rapid frames never drop.
         with self.vm.lock:
             rgb = getattr(self.vm, 'rgb', None)
             png = self.vm.png
-        token = SnapshotPoller.token(state)
-        if token != SnapshotPoller.token(self.vm.status()):
-            return
-        frame = state.get('snapshot')
+            vm_snap = getattr(self.vm, 'snapshot', None)
+            if isinstance(vm_snap, dict):
+                frame = dict(vm_snap)
+            elif isinstance(state.get('snapshot'), dict):
+                frame = dict(state['snapshot'])
+            else:
+                frame = None
         if (rgb is None and not png) or not frame:
             return
+        token = SnapshotPoller.token({'snapshot': frame})
         if rgb is not None:
             if token == self.frame_token and rgb is self.rgb_bytes:
                 return
@@ -992,7 +1004,7 @@ class CameraUI:
                 pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
                     GLib.Bytes.new(rgb), GdkPixbuf.Colorspace.RGB, False, 8, 640, 480, 640 * 3)
                 self.pixbuf, self.rgb_bytes, self.png_bytes, self.frame_token = pixbuf, rgb, None, token
-                self.display_frame = dict(frame)
+                self.display_frame = frame
                 if self.local_error.startswith('LCD 解码失败'):
                     self.local_error = ''
                 self.lcd.queue_draw()
@@ -1011,7 +1023,7 @@ class CameraUI:
             if not pixbuf or pixbuf.get_width() != 640 or pixbuf.get_height() != 480:
                 raise ValueError('LCD 图像尺寸应为 640 x 480')
             self.pixbuf, self.png_bytes, self.rgb_bytes, self.frame_token = pixbuf, png, None, token
-            self.display_frame = dict(frame)
+            self.display_frame = frame
             if self.local_error.startswith('LCD 解码失败'):
                 self.local_error = ''
             self.lcd.queue_draw()
@@ -1020,6 +1032,10 @@ class CameraUI:
 
     def update(self, state):
         self.state = state
+        vm_state = state.get('state')
+        if vm_state != self._last_vm_state:
+            self._last_vm_state = vm_state
+            self.lcd.queue_draw()
         self.poller.observe(state, self.clock())
         self._read_frame(state)
         name = STATE_NAMES.get(state.get('state'), str(state.get('state', '未知')))
@@ -1239,7 +1255,10 @@ class CameraUI:
         width, height = widget.get_allocated_width(), widget.get_allocated_height()
         cr.set_source_rgb(8 / 255, 11 / 255, 12 / 255)
         cr.paint()
-        if self.pixbuf is not None:
+        vm_state = self.state.get('state')
+        powered_off = vm_state in ('disconnected', 'exited')
+        restarting_stale = vm_state == 'starting' and bool(self.state.get('stale'))
+        if self.pixbuf is not None and not powered_off and not restarting_stale:
             scale = min(width / 640, height / 480)
             cr.save()
             cr.translate((width - 640 * scale) / 2, (height - 480 * scale) / 2)
@@ -1256,8 +1275,12 @@ class CameraUI:
                 cr.move_to(16, height * frac)
                 cr.line_to(width - 16, height * frac)
             cr.stroke()
-            vm_state = self.state.get('state')
-            prompt = '正在启动…' if vm_state in ('running', 'starting') else '点击 ON 开机'
+            if vm_state in ('running', 'starting'):
+                prompt = '正在启动…'
+            elif self.pixbuf is not None and powered_off:
+                prompt = '已关机 · 点击 ON 开机'
+            else:
+                prompt = '点击 ON 开机'
             layout = widget.create_pango_layout(prompt)
             layout.set_alignment(Pango.Alignment.CENTER)
             tw, th = layout.get_pixel_size()
