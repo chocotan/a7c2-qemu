@@ -521,6 +521,34 @@ record('launcher-exited')
         vm.instance_lease.__exit__.assert_not_called()
         vm.host_sd_context.__exit__.assert_not_called()
 
+    def test_default_on_features_and_usb_ram_switching(self):
+        fake_receipt = '/fake/usb-device-build.json'
+        fake_ram_bin = Path('/fake/qemu-system-aarch64')
+        import sony_usb_device, original_ram_restore
+        clean_env = {k: v for k, v in os.environ.items() if not k.startswith('A7C2_')}
+        with mock.patch.dict(os.environ, clean_env, clear=True), \
+                mock.patch.object(sony_usb_device, 'discover_candidate', return_value=fake_receipt), \
+                mock.patch.object(original_ram_restore, 'window_binary', return_value=fake_ram_bin):
+            vm = control.VM(natural_boot=True, boot_profile='original-init-cold')
+            st = vm.status()
+            self.assertTrue(st['usb_device_enabled'])
+            self.assertTrue(st['usb_device_available'])
+            self.assertTrue(st['auto_wake_enabled'])
+            self.assertTrue(st['virtual_lens_hud_enabled'])
+            self.assertFalse(st['ram_enabled'])
+            # Switching RAM mode ON cleanly disables USB device instead of raising
+            vm.configure_ram(True)
+            self.assertTrue(vm.ram_enabled)
+            self.assertFalse(vm.usb_device_enabled)
+            # Switching USB device ON cleanly disables RAM mode
+            vm.configure_usb_device(True)
+            self.assertTrue(vm.usb_device_enabled)
+            self.assertFalse(vm.ram_enabled)
+            vm.configure_auto_wake(False)
+            self.assertFalse(vm.auto_wake_enabled)
+            vm.configure_virtual_lens_hud(False)
+            self.assertFalse(vm.virtual_lens_hud_enabled)
+
 
 if __name__ == '__main__':
     unittest.main()

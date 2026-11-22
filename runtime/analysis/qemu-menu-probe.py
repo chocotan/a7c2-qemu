@@ -1825,6 +1825,8 @@ with (out / "console.log").open("a" if live_fd else "w") as console, \
                     setup += ["export MENU_CP_RELEASE_SERVICE=1"]
                 if os.environ.get("MENU_VIRTUAL_LENS_HUD"):
                     setup += ["export MENU_VIRTUAL_LENS_HUD=%s" % os.environ["MENU_VIRTUAL_LENS_HUD"]]
+                if os.environ.get("MENU_AUTO_WAKE"):
+                    setup += ["export MENU_AUTO_WAKE=%s" % os.environ["MENU_AUTO_WAKE"]]
                 if os.environ.get("MENU_CTOR_CENSUS"):
                     setup += ["export MENU_CTOR_CENSUS=1"]
                 if os.environ.get("MENU_OSD_OBSERVE") or os.environ.get("MENU_SOFTWARE_LZ77"):

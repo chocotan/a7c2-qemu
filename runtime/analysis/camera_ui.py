@@ -504,6 +504,45 @@ class CameraUI:
         row.pack_end(self.reset_button, False, False, 0)
         self.root.pack_start(row, False, False, 0)
 
+        features = Gtk.Box(spacing=12)
+        features.get_style_context().add_class('toolbar')
+        features.pack_start(label('功能开关', 'section'), False, False, 0)
+        self.feature_usb_sync = False
+        self.feature_usb_device = Gtk.CheckButton(label='相机 USB 设备')
+        self.feature_usb_device.set_tooltip_text('默认启用相机 USB 设备端点（「连接电脑」）；与 QEMU RAM 会话互斥，关机(OFF)后可切换')
+        self.feature_usb_device.connect('toggled', self._feature_usb_toggled)
+        features.pack_start(self.feature_usb_device, False, False, 0)
+
+        self.feature_auto_wake_sync = False
+        self.feature_auto_wake = Gtk.CheckButton(label='省电自动唤醒')
+        self.feature_auto_wake.set_tooltip_text('默认启用：自动省电黑屏后按任意键唤醒，并自动重置 60 秒省电计时；关机(OFF)后可切换')
+        self.feature_auto_wake.connect('toggled', self._feature_auto_wake_toggled)
+        features.pack_start(self.feature_auto_wake, False, False, 0)
+
+        self.feature_hud_sync = False
+        self.feature_virtual_lens_hud = Gtk.CheckButton(label='虚拟镜头 HUD / 拍摄')
+        self.feature_virtual_lens_hud.set_tooltip_text('默认启用：光圈/快门/ISO 拨盘曝光联动与软件 CMOS 拍照/原厂回放；关机(OFF)后可切换')
+        self.feature_virtual_lens_hud.connect('toggled', self._feature_hud_toggled)
+        features.pack_start(self.feature_virtual_lens_hud, False, False, 0)
+
+        self.development_ram_sync = False
+        self.development_ram = Gtk.CheckButton(label='QEMU RAM 会话')
+        self.development_ram.set_tooltip_text('启用整机 RAM 保存/恢复（将自动关闭相机 USB 设备）；关机(OFF)后可切换')
+        self.development_ram.connect('toggled', self._development_ram_toggled)
+        features.pack_start(self.development_ram, False, False, 0)
+
+        self.development_storage_sync = False
+        self.development_storage = Gtk.CheckButton(label='内部持久磁盘')
+        self.development_storage.set_tooltip_text('原冷启动使用持久内部盘；兼容启动可在停止后切换内存镜像或内部盘')
+        self.development_storage.connect('toggled', self._development_storage_toggled)
+        features.pack_start(self.development_storage, False, False, 0)
+
+        self.features_hint = label('关机(OFF)后可切换 · 下次开机生效', 'hint')
+        self.features_hint.set_valign(Gtk.Align.CENTER)
+        features.pack_end(self.features_hint, False, False, 0)
+        self.features_bar = features
+        self.root.pack_start(features, False, False, 0)
+
         self.error_label = label('', 'error', wrap=True)
         self.error_label.set_no_show_all(True)
         self.error_label.get_accessible().set_role(Atk.Role.ALERT)
@@ -539,18 +578,6 @@ class CameraUI:
             self.development_buttons[action] = button
             row.pack_start(button, False, False, 0)
         box.pack_start(row, False, False, 0)
-        toggles = Gtk.Box(spacing=12)
-        self.development_storage_sync = False
-        self.development_storage = Gtk.CheckButton(label='使用内部持久磁盘')
-        self.development_storage.set_tooltip_text('原启动使用持久内部盘；兼容启动可在停止后选择内存镜像或内部盘')
-        self.development_storage.connect('toggled', self._development_storage_toggled)
-        toggles.pack_start(self.development_storage, False, False, 0)
-        self.development_ram_sync = False
-        self.development_ram = Gtk.CheckButton(label='QEMU RAM 会话')
-        self.development_ram.set_tooltip_text('先构建 RAM 候选；保存后从同一内部盘继续原程序。Sony WBI 独立未完成。')
-        self.development_ram.connect('toggled', self._development_ram_toggled)
-        toggles.pack_start(self.development_ram, False, False, 0)
-        box.pack_start(toggles, False, False, 0)
         actions = Gtk.Box(spacing=6)
         restart = Gtk.Button(label='关闭后重新启动')
         restart.set_size_request(-1, 38)
@@ -571,6 +598,36 @@ class CameraUI:
         panel.add(box)
         dev_card.pack_start(panel, False, False, 0)
         self.drawers.pack_start(dev_card, True, True, 0)
+
+    def _feature_usb_toggled(self, widget):
+        if self.feature_usb_sync:
+            return
+        try:
+            self.vm.configure_usb_device(widget.get_active())
+            self.local_error = ''
+        except (ValueError, RuntimeError, OSError, AttributeError) as error:
+            self.local_error = '相机 USB 设备：' + str(error)
+        self.update(self.vm.status())
+
+    def _feature_auto_wake_toggled(self, widget):
+        if self.feature_auto_wake_sync:
+            return
+        try:
+            self.vm.configure_auto_wake(widget.get_active())
+            self.local_error = ''
+        except (ValueError, RuntimeError, OSError, AttributeError) as error:
+            self.local_error = '省电自动唤醒：' + str(error)
+        self.update(self.vm.status())
+
+    def _feature_hud_toggled(self, widget):
+        if self.feature_hud_sync:
+            return
+        try:
+            self.vm.configure_virtual_lens_hud(widget.get_active())
+            self.local_error = ''
+        except (ValueError, RuntimeError, OSError, AttributeError) as error:
+            self.local_error = '虚拟镜头 HUD：' + str(error)
+        self.update(self.vm.status())
 
     def _development_storage_toggled(self,widget):
         if self.development_storage_sync:return
@@ -1023,6 +1080,18 @@ class CameraUI:
                                      card.get('ok') is True and card_state in ('present','absent'))
         idle=not(self.closing or self.reinitializing or self.development_busy)
         stopped=state.get('state') in ('disconnected','exited','error') and state.get('can_start') is True
+        self.feature_usb_sync=True
+        try:self.feature_usb_device.set_active(state.get('usb_device_enabled') is True)
+        finally:self.feature_usb_sync=False
+        self.feature_usb_device.set_sensitive(idle and stopped and state.get('boot_profile')=='original-init-cold' and hasattr(self.vm,'configure_usb_device'))
+        self.feature_auto_wake_sync=True
+        try:self.feature_auto_wake.set_active(state.get('auto_wake_enabled',True) is True)
+        finally:self.feature_auto_wake_sync=False
+        self.feature_auto_wake.set_sensitive(idle and stopped and hasattr(self.vm,'configure_auto_wake'))
+        self.feature_hud_sync=True
+        try:self.feature_virtual_lens_hud.set_active(state.get('virtual_lens_hud_enabled',True) is True)
+        finally:self.feature_hud_sync=False
+        self.feature_virtual_lens_hud.set_sensitive(idle and stopped and hasattr(self.vm,'configure_virtual_lens_hud'))
         self.development_storage_sync=True
         try:self.development_storage.set_active(state.get('persistent_storage') is True)
         finally:self.development_storage_sync=False
@@ -1031,6 +1100,7 @@ class CameraUI:
         try:self.development_ram.set_active(state.get('ram_enabled') is True)
         finally:self.development_ram_sync=False
         self.development_ram.set_sensitive(idle and stopped and state.get('boot_profile')=='original-init-cold' and hasattr(self.vm,'configure_ram'))
+        self.features_hint.set_text('已关机 · 勾选后点击 ON 生效' if stopped else '运行中 · 关机(OFF)后可切换')
         for action,button in self.development_buttons.items():
             available=hasattr(self.vm,'select_firmware_test') if action in ('stage','original') else True
             ready=stopped if action in ('stage','original') else state.get('state')=='running'
@@ -1370,21 +1440,10 @@ class CameraUI:
 
 
 def main(autostart=True, argv=None):
-    if argv is not None:
-        import argparse
-        parser = argparse.ArgumentParser(description='Sony A7C II QEMU native control UI')
-        parser.add_argument('--cold-flag', choices=('force', 'clear', 'strict'), default=None,
-                            help='how the virtual loader handles p5 WBI2 magic (default: A7C2_COLD_FLAG or force)')
-        verify_group = parser.add_mutually_exclusive_group()
-        verify_group.add_argument('--verify-sha', dest='verify_sha', action='store_true', default=None,
-                                  help='enable startup SHA verification (or set A7C2_VERIFY_SHA=1)')
-        verify_group.add_argument('--no-verify-sha', dest='verify_sha', action='store_false',
-                                  help='disable startup SHA verification (default; or set A7C2_VERIFY_SHA=0)')
-        args = parser.parse_args(argv)
-        if args.cold_flag is not None:
-            os.environ['A7C2_COLD_FLAG'] = args.cold_flag
-        if args.verify_sha is not None:
-            os.environ['A7C2_VERIFY_SHA'] = '1' if args.verify_sha else '0'
+    if argv:
+        print('camera_ui.py 不接受命令行参数；请编辑 a7c2.env 或通过环境变量配置（例如 A7C2_COLD_FLAG、A7C2_VERIFY_SHA）。',
+              file=sys.stderr)
+        return 2
     os.environ.setdefault('A7C2_COLD_FLAG', 'force')
     os.environ.setdefault('A7C2_VERIFY_SHA', '0')
     if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
@@ -1405,7 +1464,7 @@ def main(autostart=True, argv=None):
             usb_net=boot_profile=='direct-bootin' and not bool(os.environ.get('A7C2_PREVIEW_PNG') or
                              os.environ.get('A7C2_NATURAL_IMAGING_PROFILE') == '1' or
                              os.environ.get('A7C2_FUNCTIONAL_CAMERA_MEDIA')), instance=instance,
-            persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE')=='1')
+            persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE','1')!='0')
     ui = CameraUI(vm)
     def interrupted(*_):
         GLib.idle_add(ui._close)

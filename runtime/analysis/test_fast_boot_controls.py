@@ -196,21 +196,24 @@ def test_bodydata_launch_cli_env_and_quick_cache(tmp_path, monkeypatch):
         type('R', (), {'returncode': 0})(),
     )[1])
 
+    monkeypatch.setenv('A7C2_RUNTIME_DIR', str(runtime))
+    monkeypatch.setenv('A7C2_RUNTIME_ANALYSIS_DIR', str(kit))
     monkeypatch.delenv('A7C2_COLD_FLAG', raising=False)
     monkeypatch.delenv('A7C2_VERIFY_SHA', raising=False)
-    rc = bl.main(['--runtime', str(runtime), '--runtime-analysis', str(kit)])
+    monkeypatch.delenv('A7C2_PREPARE_ONLY', raising=False)
+    rc = bl.main([])
     assert rc == 0
     assert recorded == [('cache', False), ('prepare', False), ('ui', 'force', '0')]
 
     recorded.clear()
     monkeypatch.setenv('A7C2_COLD_FLAG', 'clear')
     monkeypatch.setenv('A7C2_VERIFY_SHA', '1')
-    rc = bl.main(['--runtime', str(runtime), '--runtime-analysis', str(kit)])
+    rc = bl.main([])
     assert rc == 0
     assert recorded == [('cache', True), ('prepare', True), ('ui', 'clear', '1')]
 
-    # CLI flags override env vars
+    # CLI flags are rejected cleanly in favor of a7c2.env / environment variables
     recorded.clear()
-    rc = bl.main(['--runtime', str(runtime), '--runtime-analysis', str(kit), '--cold-flag', 'strict', '--no-verify-sha'])
-    assert rc == 0
-    assert recorded == [('cache', False), ('prepare', False), ('ui', 'strict', '0')]
+    rc = bl.main(['--cold-flag', 'strict', '--no-verify-sha'])
+    assert rc == 2
+    assert recorded == []

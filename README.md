@@ -2,18 +2,20 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡、原厂单张播放界面以及虚拟存储。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
+默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡、原厂单张播放界面、省电自动唤醒、相机 USB 设备（「连接电脑」）以及虚拟存储，并可在界面“功能开关”栏中按需开启或关闭。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
 
 ![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261122.png)
 
-上图为单窗口相机控制界面（LCD 为真实 QEMU RAMFB 画面），工具栏提供 **CMOS 色卡 / 选择图片… / 恢复色卡** 与虚拟存储控制，底部可展开“固件开发”面板。拍摄预览、镜头曝光与播放解码均由软件虚拟模型提供，不代表真实 CP ASIC 或物理 ISP。
+上图为单窗口相机控制界面（LCD 为真实 QEMU RAMFB 画面），工具栏提供虚拟存储、**连接电脑**（USB 设备）、**CMOS 色卡 / 选择图片… / 恢复色卡**与常驻**功能开关**栏，底部可展开“固件开发”面板。拍摄预览、镜头曝光与播放解码均由软件虚拟模型提供，不代表真实 CP ASIC 或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
 ## 能做什么
 
-- **运行原厂程序与冷启动**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核，支持 `--cold-flag` 与 `--verify-sha`/`--no-verify-sha` 启动选项。
+- **运行原厂程序与冷启动**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核；所有启动参数统一由仓库根目录的 [`a7c2.env`](a7c2.env) 和环境变量控制。
 - **原厂界面、Fn 菜单与底部曝光 HUD**：显示 640×480 相机 LCD，可完成简体中文首设、浏览主菜单和原厂 Fn 快捷菜单；拍摄页面底部通过虚拟镜头模型实时联动原厂快门、光圈与 ISO 显示。
+- **自动省电（APO1）按任意键唤醒**：操作按键或拨盘时自动重置原厂内核 60 秒省电计时；静置触发自动省电黑屏后，按任意机身按键、拨盘或触屏即可经原厂内核 UPM 唤醒回到实时拍摄画面（可在 UI 开关）。
+- **相机 USB 设备与 UI 功能开关**：默认启用相机 USB 设备端点（「连接电脑」），与 QEMU RAM 快照会话、省电自动唤醒、虚拟镜头 HUD/拍摄、内部持久磁盘等均可在界面中直接开关。
 - **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸（不支持多指手势）。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
 - **低延迟机身按键与 4 个拨轮**：提供机身按键、模式拨盘与 4 个拨轮（前拨轮、后拨轮、控制轮、右上曝光补偿拨轮），A / S / M / P 档跟随原厂固件自身的拨轮映射与橙色聚焦；LCD 采用零 PNG 原始 RGB24 自适应刷新。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
 - **虚拟 CMOS 色卡与自定义图片**：默认显示虚拟 CMOS 色卡，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片实时替换画面，或点击“恢复色卡”。
@@ -47,7 +49,7 @@ RAW 写卡后的资源清理仍属于实验范围。RAW＋JPEG、其他 RAW 压�
 
 先准备：
 
-1. 自己的 **ILCE-7CM2 2.01 ALLLANG `BODYDATA.DAT`**。其它版本暂不支持，仓库不提供 Sony 固件。
+1. 自己的 **ILCE-7CM2 2.01 ALLLANG `BODYDATA.DAT`**（放到 `incoming/bodydata/BODYDATA.DAT`，或在 `a7c2.env` 中填写 `A7C2_BODYDATA`）。其它版本暂不支持，仓库不提供 Sony 固件。
 2. [QEMU 11.1.2 源码归档](https://download.qemu.org/qemu-11.1.2.tar.xz)，放到 `source/vendor/qemu-11.1.2.tar.xz`。校验信息见[源码下载说明](source/vendor/README.md)。
 3. Python 图形、加密依赖和编译工具。下面的检查脚本会列出缺少的命令、模块和开发库；Python 构建环境还需要 pip、setuptools 和 wheel。
 
@@ -56,44 +58,45 @@ RAW 写卡后的资源清理仍属于实验范围。RAW＋JPEG、其他 RAW 压�
 ```bash
 ./tools/check-host.sh
 python3 tools/check-source.py
-./start.sh --bodydata /path/to/BODYDATA.DAT --prepare-only
+A7C2_BODYDATA=/path/to/BODYDATA.DAT A7C2_PREPARE_ONLY=1 ./start.sh
 ./build-qemu.sh
-./start.sh --bodydata /path/to/BODYDATA.DAT
+./build-qemu.sh --stage-only --sony-device --ram-state
+./start.sh
 ```
 
-把 `/path/to/BODYDATA.DAT` 换成自己的固件路径。脚本不会自动下载源码或安装依赖。
+把 `/path/to/BODYDATA.DAT` 换成自己的固件路径（放入 `incoming/bodydata/BODYDATA.DAT` 或写入 `a7c2.env` 后直接运行 `./start.sh` 即可）。脚本不会自动下载源码或安装依赖。
 
-启动选项速查：
+### 配置文件与环境变量（`a7c2.env`）
 
-- `--cold-flag force|clear|strict`（或 `A7C2_COLD_FLAG`，默认 `force`）：控制虚拟 loader 对 p5 WBI2 标记的处理策略。
-- `--verify-sha` / `--no-verify-sha`（或 `A7C2_VERIFY_SHA=1|0`，默认 `0`）：是否在每次启动前执行全量文件 SHA 校验；日常开发默认关闭以加快启动。
+`./start.sh` 不接受命令行参数，启动时会自动读取仓库根目录的 [`a7c2.env`](a7c2.env)（也可用 `A7C2_ENV_FILE=/path/to/custom.env` 指定其他文件）。若在 shell 中显式传入同名变量（如 `A7C2_VERIFY_SHA=1 ./start.sh`），shell 环境变量优先于 `a7c2.env`。
 
-窗口出现后按 **ON**，等待启动并完成相机的语言、日期等提示。启动失败、停在教程或显示“系统出错”时，可以先查看[启动排障文档](docs/tech/README.md)。
+常用配置项（均已带默认启用值，可直接编辑 `a7c2.env`）：
 
-默认相机启动现在选择已有的 `virtual-rom-v1` 虚拟蓝牙控制器，让原 BSA 完成管理初始化，无需额外设置环境变量，见[默认启动修复记录](docs/tech/2026-11-08-default-startup.md)。它只模拟有限控制器行为，不提供真实无线或手机配对。原系统错误页没有被屏蔽；后续黑帧与完整唤醒仍待修复。
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `A7C2_BODYDATA` | 留空（自动查找） | `BODYDATA.DAT` 文件或目录路径，留空自动查找 `incoming/bodydata/BODYDATA.DAT` |
+| `A7C2_BOOT_PROFILE` | `original-init-cold` | `original-init-cold`（原冷启动）或 `direct-bootin`（兼容启动） |
+| `A7C2_COLD_FLAG` | `force` | 虚拟 loader 对 p5 WBI2 标记的处理：`force` / `clear` / `strict` |
+| `A7C2_VERIFY_SHA` | `0` | 启动前是否执行全量 SHA256 校验：`0`（快速启动）/ `1`（全量校验） |
+| `A7C2_ENABLE_USB_DEVICE` | `1` | 默认启用相机 USB 设备端点（「连接电脑」），与 RAM 会话互斥，可在 UI 切换 |
+| `A7C2_RAM_MODE` | `0` | 设为 `1` 时启动即启用 QEMU RAM 快照会话（自动关闭 USB 设备），亦可在 UI 切换 |
+| `A7C2_AUTO_WAKE` | `1` | 自动省电（APO1）按任意键唤醒 + 操作自动重置 60 秒省电计时，可在 UI 切换 |
+| `A7C2_VIRTUAL_LENS_HUD` | `1` | 虚拟镜头 HUD、拨盘参数联动与软件 CMOS 拍摄/原厂回放，可在 UI 切换 |
+| `A7C2_VIRTUAL_HCI` | `virtual-rom-v1` | 虚拟蓝牙控制器（留空禁用，禁用后原蓝牙初始化可能报错） |
+| `A7C2_SD_IMAGE` | 留空 | 指定已有虚拟 FAT SD 镜像路径（普通文件） |
+| `A7C2_OVERWRITE_DIR` | 留空 | 指定自定义 guest 文件覆盖目录 |
+| `A7C2_PREPARE_ONLY` | `0` | 设为 `1` 仅导入校验固件资产，不启动 UI/VM |
 
-仅在排查原蓝牙依赖时，可以显式禁用该模型作对照：
+窗口出现后会自动启动（或按 **ON**），等待完成相机的语言、日期等首设提示。启动排障见[启动排障文档](docs/tech/README.md)。
 
-```bash
-A7C2_VIRTUAL_HCI= ./start.sh --bodydata /path/to/BODYDATA.DAT
-```
-
-禁用后原蓝牙初始化可能失败并显示“系统出错”；原配置不会因选择这个对照而重置。
-
-第一次导入和编译完成后，后续只需：
-
-```bash
-./start.sh --bodydata /path/to/BODYDATA.DAT
-```
-
-也可以把固件放到 `incoming/bodydata/BODYDATA.DAT`，以后直接执行 `./start.sh`。
+默认启动已启用 `virtual-rom-v1` 虚拟蓝牙控制器，让原 BSA 完成管理初始化，见[默认启动修复记录](docs/tech/2026-11-08-default-startup.md)。它只模拟有限控制器行为，不提供真实无线或手机配对；仅排查蓝牙依赖时可设置 `A7C2_VIRTUAL_HCI= ./start.sh`。
 
 ## 原 init 冷启动
 
-默认 `./start.sh` 和窗口 ON 使用原用户态冷启动：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，再启动原相机程序。原有兼容路线仍可显式选择：
+默认 `./start.sh` 和窗口 ON 使用原用户态冷启动：从官方包的原 RAM0 运行原 init，经过 p7 根挂载、pivot/chroot、原 init2，再启动原相机程序。原有兼容路线仍可通过环境变量选择：
 
 ```bash
-./start.sh --boot-profile direct-bootin
+A7C2_BOOT_PROFILE=direct-bootin ./start.sh
 ```
 
 独立 CLI 实验入口保留。准备好上面的产品资产后执行：
@@ -115,34 +118,29 @@ CLI 创建专属内部盘，输出目录必须不存在。窗口默认使用自�
 runtime/analysis/menu-runs/run-*/SD/card.img
 ```
 
-下次继续使用某张卡时，指定它的路径：
+下次继续使用某张卡时，可在 `a7c2.env` 中设置 `A7C2_SD_IMAGE`，或临时传入环境变量：
 
 ```bash
-./start.sh --bodydata /path/to/BODYDATA.DAT \
-  --sd-image /path/to/previous-run/SD/card.img
+A7C2_SD_IMAGE=/path/to/previous-run/SD/card.img ./start.sh
 ```
 
-原冷启动的相机设置保存在同一内部盘的 `/setting`，保存时另有 `runtime/analysis/camera-instances/default/` 的已校验快照。旧内存路线的快照只迁入内部盘一次；以后保留盘上实际值。完整设置持久化尚未验证。虚拟卡需要通过 `--sd-image` 手动选择；同一窗口内的重启自动沿用刚保存的卡。
+原冷启动的相机设置保存在同一内部盘的 `/setting`，保存时另有 `runtime/analysis/camera-instances/default/` 的已校验快照。旧内存路线的快照只迁入内部盘一次；以后保留盘上实际值。完整设置持久化尚未验证。同一窗口内的重启自动沿用刚保存的虚拟卡。
 
 运行中可以点击 **安全拔出 SD**，等窗口确认卡已拔出，再点击 **插入 SD**。目前只能重插同一张虚拟卡，还不能在运行中换选另一张镜像。
 
 如果保存失败，窗口会保留运行实例与错误信息，并提示重试正常保存或在确认后强制关闭本窗口拥有的虚拟机。
 
-## 内部持久磁盘与固件开发
+## 内部持久磁盘、USB 与固件开发
 
-窗口的“固件开发”面板提供文件测试、启动测试和更新三个区域。要保留会话，可在停机状态选择 RAM 模式，再按 **ON**。保存 RAM 并退出后，可用同一内部盘恢复。见[窗口 RAM 模式](docs/tech/2026-11-09-window-ram.md)。RAM 恢复不是原厂 WBI；完整 BODYDATA 更新尚不支持。
+窗口工具栏下方的“功能开关”栏可直接管理**相机 USB 设备**、**省电自动唤醒**、**虚拟镜头 HUD / 拍摄**、**QEMU RAM 会话**与**内部持久磁盘**（停机状态勾选，下次开机生效）。展开“固件开发”面板可进行文件测试、重启和 RAM 保存/恢复。
 
-原冷启动默认使用并保留内部持久磁盘。兼容路线可以在停止 VM 后勾选“使用内部持久磁盘”，或者执行：
+- **相机 USB 设备（默认开启）**：需先完成 `./build-qemu.sh --stage-only --sony-device --ram-state`（会自动发现最新构建）；运行中可点击工具栏 **连接电脑**。普通相机菜单中的 USB 启动和 MSC 仍属独立范围，详见 [USB 专题](docs/tech/2026-11-09-usb-jiritsu.md)。
+- **QEMU RAM 会话**：在停机状态勾选 **QEMU RAM 会话**（会自动关闭 USB 设备）再按 **ON**，保存 RAM 并退出后可用同一内部盘恢复。见[窗口 RAM 模式](docs/tech/2026-11-09-window-ram.md)。RAM 恢复不是原厂 WBI；完整 BODYDATA 更新尚不支持。
+- **内部持久磁盘**：原冷启动默认使用并保留内部持久磁盘；兼容路线可在停止 VM 后勾选“内部持久磁盘”，或设置 `A7C2_BOOT_PROFILE=direct-bootin A7C2_USE_PERSISTENT_STORAGE=1 ./start.sh`。
 
-```bash
-./start.sh --boot-profile direct-bootin --persistent-storage
-```
+第一次会从自己的官方 BODYDATA 缓存创建单个内部磁盘文件，容量和 19 个卷的布局由官方分区表决定；用户区与两个 boot 区总计 1,962,934,272 字节。生成物保存在 `runtime/analysis/persistent-storage/`，已有实例不会在重启时重铺。只使用普通虚拟磁盘文件。
 
-第一次会从自己的官方 BODYDATA 缓存创建单个内部磁盘文件，容量和19个卷的布局由官方分区表决定；用户区与两个 boot 区总计 1,962,934,272 字节。生成物保存在 `runtime/analysis/persistent-storage/`，已有实例不会在重启时重铺。只使用普通虚拟磁盘文件。
-
-持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。见[开发与存储说明](docs/tech/2026-11-08-development-and-storage.md)。完整设置持久化尚不支持。
-
-显式 USB 配置可在本机枚举 Sony USB 设备并通过 jiritsu 访问 guest。普通相机菜单中的 USB 启动和 MSC 尚未接通；配置与限制见 [USB 专题](docs/tech/2026-11-09-usb-jiritsu.md)。
+持久盘文件测试当前支持 `/usr` 下的程序或库：保存退出后选择文件和目标路径，ON 后点击读回检查；必须看到实际 guest 的完整摘要、长度与 root 字段匹配。选择“原版”后再次启动会把对应目标恢复为包内原文件。见[开发与存储说明](docs/tech/2026-11-08-development-and-storage.md)。
 
 ## 替换程序或库
 
@@ -155,11 +153,10 @@ overwrite/
         └── appFw.so
 ```
 
-正常执行 `./start.sh` 就会加载这些文件。也可以指定另一个覆盖目录：
+正常执行 `./start.sh` 就会加载这些文件。也可以在 `a7c2.env` 中设置 `A7C2_OVERWRITE_DIR` 或临时传入：
 
 ```bash
-./start.sh --bodydata /path/to/BODYDATA.DAT \
-  --overwrite-dir /path/to/my-overwrite
+A7C2_OVERWRITE_DIR=/path/to/my-overwrite ./start.sh
 ```
 
 覆盖目录只接受普通文件和目录，不支持符号链接。原冷启动只接受包内已有、可恢复的 `/usr` 文件；修改写入当前虚拟内部盘，原始固件文件保持只读。恢复原版时，在停止后使用开发面板的“原版”再启动并读回；仅移走覆盖文件不会撤销已持久化的改动。兼容路线的非持久模式仍仅修改派生启动镜像。
@@ -172,6 +169,7 @@ overwrite/
 - [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：从原 RAM0 经 `init`、根挂载和 `init2` 到相机应用的启动路径。
 - [图像源与显示配置](docs/tech/functional-source-and-display.md)：软件成像、显示与实验配置。
 - [低延迟输入、拨轮、虚拟 CMOS 与原厂播放实机报告](report/2026-11-22-ui-latency-dials-fn-cmos-capture/README.md)：相关实现细节、问题排查与实机验证收据。
+- [环境配置、默认功能与 APO1 唤醒实机报告](report/2026-11-22-env-config-default-features-apo-wake/README.md)：`a7c2.env` 纯环境配置、UI 功能开关与省电唤醒验证记录。
 - [启动排障与技术笔记](docs/tech/README.md)：固件导入、显示、输入、存储和成像。
 - [验证记录](validation/README.md)与[源码来源](SOURCES.md)、[第三方许可](THIRD-PARTY.md)。
 

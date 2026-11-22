@@ -1,0 +1,81 @@
+{
+  "schema": "a7c2.env-default-features-apo-wake-verification.v1",
+  "date": "2026-11-22",
+  "host_acceptance": {
+    "worker_threads": 2,
+    "check_groups": 4,
+    "passed_groups": 4,
+    "failed_groups": 0,
+    "groups": {
+      "group1_bodydata_and_fastboot": {"passed": true, "elapsed_s": 1.35},
+      "group2_menu_control_and_input_pins": {"passed": true, "elapsed_s": 5.12},
+      "group3_camera_ui_xvfb": {"passed": true, "elapsed_s": 38.09},
+      "group4_cold_boot_usb_and_entrypoints": {"passed": true, "elapsed_s": 1.71}
+    }
+  },
+  "live_qemu_verification": {
+    "run_id": "run-avrxz4lc",
+    "isolated_storage": true,
+    "default_persistent_storage_untouched": true,
+    "boot_elapsed_s": 21.5,
+    "initial_vm_flags": {
+      "usb_device_enabled": true,
+      "usb_device_available": true,
+      "auto_wake_enabled": true,
+      "virtual_lens_hud_enabled": true,
+      "ram_enabled": false
+    },
+    "usb_context_exists": true,
+    "usb_ui_status": {
+      "schema": "a7c2.usb-control.v1",
+      "run_id": "run-avrxz4lc",
+      "phase": "blocked",
+      "blocked_reason": {
+        "code": "gadget_not_ready",
+        "detail": "VBUS absent"
+      },
+      "device_backend_not_enabled": false
+    },
+    "mss_reload_seen": true,
+    "mss_reload_sample": "OBS APO_MSS_RELOAD n=1 rc=0",
+    "apo_sleep_entered": true,
+    "apo_sleep_idle_elapsed_s": 58.0,
+    "apo_sleep_luma": 0.0,
+    "apo_wake_button": "SHUTTER_HALF",
+    "apo_wake_triggered": true,
+    "apo_wake_upm_rc": 0,
+    "apo_wake_boot_screen": true,
+    "apo_wake_complete": "ack_rc=0 event=0x01000090 mss_reload_rc=0 bi=2,0,0,0,0,0,0,0 pf=0,0,0 ck=3 dt=0 clk=1",
+    "apo_boot_warm_resume": "warm_resume=1 dt=0 clk=0 pre=[0,0,1,0,0] post=[1,0,1,0,0] s050=0 s71f=1 saved=1",
+    "apo_wake_resumed": true,
+    "apo_wake_elapsed_s": 0.9,
+    "before_apo_luma": 126.5,
+    "after_wake_luma": 126.45,
+    "post_wake_input_ok": true,
+    "post_wake_menu_opened": "scr0132_0001 -> rep_menu -> scr7001_1003",
+    "clean_shutdown_ok": true,
+    "shutdown_elapsed_s": 2.08,
+    "sd_fsys_flush_rc": 0,
+    "evidence_sha256": {
+      "00-boot.png": "f7dec7906b511b41ce997c92c435a111b33103a8bdd80038f0b726b8f536ef08",
+      "01-before-apo.png": "7f24a00bc20524adb16ac3fcb6c65ed9debe49fa0b115b620eb827469636e45d",
+      "02-apo-sleep-black.png": "441da7236f6ffdd8fb4cdfa2d9ce7b8d8df8cf2f7a8e82c530714d92266ce613",
+      "03-after-wake.png": "493814be364fa53f7d28cb8f4d252ac7a0a2b243e151eab644baab19f85c765f",
+      "04-post-wake-menu.png": "345845d20a2f590b802dfbf1f2670cba2caf4ea3ae94c4c62176f3bd58d0540c",
+      "console.log": "a9c0633a4b57efb0e541571d18edafea984c4d36fd4289f44c586112527d66be"
+    }
+  },
+  "cleanup_accounting": {
+    "whitelisted_items_reclaimed": 11,
+    "blocked_items": 0,
+    "task_reclaimed_allocated_bytes": 2558832640,
+    "task_reclaimed_logical_bytes": 12958766403,
+    "fs_free_before_bytes": 987802316800,
+    "fs_free_after_bytes": 990361477120,
+    "fs_free_delta_bytes": 2559160320,
+    "retained_production_artifacts": [
+      "source/build/qemu-EJjB4N/build/qemu-system-aarch64 (unified QEMU build with Sony USB device + RAM restore)",
+      "runtime/analysis/menu-observe.so (rebuilt observer shared library with APO1 warm-resume fix)"
+    ]
+  }
+}

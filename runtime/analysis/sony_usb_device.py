@@ -49,6 +49,33 @@ def candidate(receipt):
     return binary
 
 
+def discover_candidate(explicit=None):
+    """Return the path to the newest valid usb-device-build.json receipt, or None."""
+    if explicit:
+        candidate(explicit)
+        return str(Path(explicit).absolute())
+    build_root=PRODUCT/'source/build'
+    if not build_root.is_dir() or build_root.is_symlink():
+        return None
+    receipts=[]
+    for entry in build_root.iterdir():
+        if entry.is_symlink() or not entry.is_dir():
+            continue
+        receipt=entry/'usb-device-build.json'
+        if receipt.is_file() and not receipt.is_symlink():
+            try:
+                receipts.append((receipt.stat().st_mtime_ns,receipt))
+            except OSError:
+                continue
+    for _,receipt in sorted(receipts,reverse=True):
+        try:
+            candidate(receipt)
+            return str(receipt.absolute())
+        except (OSError,ValueError,KeyError,json.JSONDecodeError):
+            continue
+    return None
+
+
 def environment(current,run):
     from single_ap_sockets import roots_for_run
     roots=roots_for_run(run,current)

@@ -3,7 +3,6 @@
 
 Supported runtime: pinned ILCE-7CM2 2.01 ALLLANG only. No capture claim.
 """
-import argparse
 import fcntl
 import hashlib
 import importlib
@@ -60,7 +59,7 @@ def discover(given=None, base=KIT):
             candidates.extend(p for p in root.iterdir() if p.name.lower() == 'bodydata.dat')
     candidates = list(dict.fromkeys(candidates))
     if len(candidates) != 1:
-        raise ValueError(f'Expected exactly one BODYDATA.DAT; found {len(candidates)} in {roots}. Use --bodydata PATH.')
+        raise ValueError(f'Expected exactly one BODYDATA.DAT; found {len(candidates)} in {roots}. Set A7C2_BODYDATA in a7c2.env or environment.')
     return regular(candidates[0])
 
 
@@ -310,8 +309,29 @@ def prepare(entry, runtime, kit, runner=subprocess.run, *, verify_sha=True):
             pass
 
 
-def _resolve_cold_flag(cli_value):
-    value = cli_value if cli_value is not None else os.environ.get('A7C2_COLD_FLAG', 'force')
+def _parse_bool_env(name, default):
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return bool(default)
+    normalized = str(raw).strip().lower()
+    if normalized in ('1', 'true', 'yes', 'on'):
+        return True
+    if normalized in ('0', 'false', 'no', 'off'):
+        return False
+    raise ValueError(f'Unknown {name} value: {raw}')
+
+
+def _env_path(name, default=None):
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    return Path(str(raw).strip())
+
+
+def _resolve_cold_flag():
+    value = os.environ.get('A7C2_COLD_FLAG')
+    if value is None or not str(value).strip():
+        return 'force'
     normalized = str(value).strip().lower()
     if normalized in ('1', 'force'):
         return 'force'
@@ -319,62 +339,75 @@ def _resolve_cold_flag(cli_value):
         return 'strict'
     if normalized == 'clear':
         return 'clear'
-    raise ValueError(f'Unknown cold flag mode: {value}')
+    raise ValueError(f'Unknown A7C2_COLD_FLAG mode: {value}')
 
 
-def _resolve_verify_sha(cli_value):
-    if cli_value is not None:
-        return bool(cli_value)
-    raw = os.environ.get('A7C2_VERIFY_SHA', '0').strip().lower()
-    if raw in ('1', 'true', 'yes', 'on'):
-        return True
-    if raw in ('0', 'false', 'no', 'off', ''):
-        return False
-    raise ValueError(f'Unknown A7C2_VERIFY_SHA value: {raw}')
+def _resolve_verify_sha():
+    return _parse_bool_env('A7C2_VERIFY_SHA', False)
+
+
+def _resolve_boot_profile():
+    raw = os.environ.get('A7C2_BOOT_PROFILE')
+    profile = str(raw).strip() if raw is not None and str(raw).strip() else 'original-init-cold'
+    if profile not in ('original-init-cold', 'direct-bootin'):
+        raise ValueError(f'Unknown A7C2_BOOT_PROFILE: {profile} (expected original-init-cold or direct-bootin)')
+    return profile
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--bodydata', type=Path, help='file or directory containing one BODYDATA.DAT')
-    parser.add_argument('--cache', type=Path, default=KIT.parent/'bodydata-cache')
-    parser.add_argument('--fwtool', type=Path, default=KIT/'vendor/fwtool-sdk', help='complete fwtool SDK root, not FAT-only subset')
-    parser.add_argument('--runtime', type=Path, default=KIT.parent)
-    parser.add_argument('--runtime-analysis', type=Path, default=KIT, help='integration/testing: existing native analysis scripts')
-    parser.add_argument('--prepare-only', action='store_true', help='import/check assets and fonts without starting a VM')
-    parser.add_argument('--overwrite-dir',type=Path,help='relative guest paths to replace in a derived initramfs; default product overwrite/')
-    parser.add_argument('--sd-image',type=Path,help='regular virtual FAT image to copy into this guest; physical devices are not accepted')
-    parser.add_argument('--boot-profile',choices=('original-init-cold','direct-bootin'),default='original-init-cold',help='original kernel/init/init2 by default; direct-bootin keeps the compatibility route')
-    parser.add_argument('--persistent-storage',action='store_true',help='enable a persistent internal disk on the direct-bootin route; required by original-init-cold')
-    parser.add_argument('--cold-flag',choices=('force','clear','strict'),default=None,help='how the virtual loader handles p5 WBI2 magic (default: A7C2_COLD_FLAG or force)')
-    verify_group = parser.add_mutually_exclusive_group()
-    verify_group.add_argument('--verify-sha',dest='verify_sha',action='store_true',default=None,help='enable startup SHA verification (or set A7C2_VERIFY_SHA=1)')
-    verify_group.add_argument('--no-verify-sha',dest='verify_sha',action='store_false',help='disable startup SHA verification (default; or set A7C2_VERIFY_SHA=0)')
-    args = parser.parse_args(argv)
+    args = sys.argv[1:] if argv is None else list(argv)
+    if args:
+        print('bodydata-launch.py 不接受命令行参数；请编辑 a7c2.env 或通过环境变量配置（例如 A7C2_BODYDATA、A7C2_BOOT_PROFILE、A7C2_VERIFY_SHA、A7C2_COLD_FLAG 等）。',
+              file=sys.stderr)
+        return 2
     try:
-        cold_flag = _resolve_cold_flag(args.cold_flag)
-        verify_sha = _resolve_verify_sha(args.verify_sha)
+        cold_flag = _resolve_cold_flag()
+        verify_sha = _resolve_verify_sha()
+        boot_profile = _resolve_boot_profile()
+        prepare_only = _parse_bool_env('A7C2_PREPARE_ONLY', False)
+        persistent_storage = _parse_bool_env('A7C2_USE_PERSISTENT_STORAGE', True)
+        enable_usb_device = _parse_bool_env('A7C2_ENABLE_USB_DEVICE', True)
+        ram_mode = _parse_bool_env('A7C2_RAM_MODE', False)
+        auto_wake = _parse_bool_env('A7C2_AUTO_WAKE', True)
+        virtual_lens_hud = _parse_bool_env('A7C2_VIRTUAL_LENS_HUD', True)
+        bodydata = _env_path('A7C2_BODYDATA')
+        cache = _env_path('A7C2_CACHE_DIR', KIT.parent / 'bodydata-cache')
+        fwtool = _env_path('A7C2_FWTOOL_DIR', KIT / 'vendor/fwtool-sdk')
+        runtime = _env_path('A7C2_RUNTIME_DIR', KIT.parent)
+        runtime_analysis = _env_path('A7C2_RUNTIME_ANALYSIS_DIR', KIT)
+        overwrite_dir = _env_path('A7C2_OVERWRITE_DIR')
+        sd_image = _env_path('A7C2_SD_IMAGE')
         if 'A7C2_SINGLE_AP_SOCKETS' in os.environ or 'A7C2_SINGLE_AP_SOCKET_ROOT' in os.environ:
             from single_ap_sockets import admit
             admit()
-        if not args.prepare_only and safe_path(args.runtime_analysis).parent != safe_path(args.runtime):
-            raise ValueError('Native entry uses its adjacent runtime; runtime-analysis must be RUNTIME/analysis')
-        package = discover(args.bodydata)
+        if not prepare_only and safe_path(runtime_analysis).parent != safe_path(runtime):
+            raise ValueError('Native entry uses its adjacent runtime; A7C2_RUNTIME_ANALYSIS_DIR must be A7C2_RUNTIME_DIR/analysis')
+        package = discover(bodydata)
         print(f'BODYDATA {package}', flush=True)
-        entry = cache_package(package, args.cache, args.fwtool, verify_sha=verify_sha)
-        prepare(entry, args.runtime, args.runtime_analysis, verify_sha=verify_sha)
+        entry = cache_package(package, cache, fwtool, verify_sha=verify_sha)
+        prepare(entry, runtime, runtime_analysis, verify_sha=verify_sha)
         print('BODYDATA_PREPARED ILCE-7CM2 2.01 ALLLANG', flush=True)
-        if not args.prepare_only:
-            launch_env=dict(os.environ)
-            launch_env['A7C2_BOOT_PROFILE']=args.boot_profile
-            launch_env['A7C2_COLD_FLAG']=cold_flag
-            launch_env['A7C2_VERIFY_SHA']='1' if verify_sha else '0'
-            if args.persistent_storage or args.boot_profile=='original-init-cold':launch_env['A7C2_USE_PERSISTENT_STORAGE']='1'
-            if args.overwrite_dir is not None:
-                launch_env['A7C2_OVERWRITE_DIR']=str(safe_path(args.overwrite_dir))
-            if args.sd_image is not None:
-                launch_env['A7C2_SD_IMAGE']=str(regular(args.sd_image))
-            return subprocess.run([sys.executable, str(regular(args.runtime_analysis/'camera_ui.py'))],
-                                  check=False,env=launch_env).returncode
+        if not prepare_only:
+            launch_env = dict(os.environ)
+            launch_env['A7C2_BOOT_PROFILE'] = boot_profile
+            launch_env['A7C2_COLD_FLAG'] = cold_flag
+            launch_env['A7C2_VERIFY_SHA'] = '1' if verify_sha else '0'
+            launch_env['A7C2_USE_PERSISTENT_STORAGE'] = '1' if (persistent_storage or boot_profile == 'original-init-cold') else '0'
+            launch_env['A7C2_ENABLE_USB_DEVICE'] = '1' if enable_usb_device else '0'
+            launch_env['A7C2_RAM_MODE'] = '1' if ram_mode else '0'
+            launch_env['A7C2_AUTO_WAKE'] = '1' if auto_wake else '0'
+            launch_env['A7C2_VIRTUAL_LENS_HUD'] = '1' if virtual_lens_hud else '0'
+            launch_env.setdefault('A7C2_VIRTUAL_HCI', 'virtual-rom-v1')
+            if overwrite_dir is not None:
+                launch_env['A7C2_OVERWRITE_DIR'] = str(safe_path(overwrite_dir))
+            else:
+                launch_env.pop('A7C2_OVERWRITE_DIR', None)
+            if sd_image is not None:
+                launch_env['A7C2_SD_IMAGE'] = str(regular(sd_image))
+            else:
+                launch_env.pop('A7C2_SD_IMAGE', None)
+            return subprocess.run([sys.executable, str(regular(runtime_analysis / 'camera_ui.py'))],
+                                  check=False, env=launch_env).returncode
         return 0
     except Exception as exc:
         print(f'BODYDATA launch failed: {exc}', file=sys.stderr)

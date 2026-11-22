@@ -71,7 +71,25 @@ class StubVM:
 
     def configure_ram(self,enabled):
         if self.value['state']=='running':raise ValueError('stop first')
-        self.value['ram_enabled']=enabled;self.calls.append(('ram_mode',enabled))
+        self.value['ram_enabled']=enabled
+        if enabled:self.value['usb_device_enabled']=False
+        self.calls.append(('ram_mode',enabled))
+
+    def configure_usb_device(self,enabled):
+        if self.value['state']=='running':raise ValueError('stop first')
+        self.value['usb_device_enabled']=enabled
+        if enabled:self.value['ram_enabled']=False
+        self.calls.append(('usb_device',enabled))
+
+    def configure_auto_wake(self,enabled):
+        if self.value['state']=='running':raise ValueError('stop first')
+        self.value['auto_wake_enabled']=enabled
+        self.calls.append(('auto_wake',enabled))
+
+    def configure_virtual_lens_hud(self,enabled):
+        if self.value['state']=='running':raise ValueError('stop first')
+        self.value['virtual_lens_hud_enabled']=enabled
+        self.calls.append(('virtual_lens_hud',enabled))
 
     def save_ram(self):
         self.calls.append('ram_save')
@@ -472,6 +490,23 @@ class GTKTests(unittest.TestCase):
             self.vm.value['usb_net'] = True
             self.ui.update(self.vm.status())
             self.assertTrue(self.ui.net_box.get_visible())
+
+    def test_feature_toggles_bar_and_main_rejects_cli_args(self):
+        self.vm.value.update(boot_profile='original-init-cold', usb_device_enabled=True,
+                             auto_wake_enabled=True, virtual_lens_hud_enabled=True, ram_enabled=False)
+        self.ui.update(self.vm.status())
+        self.assertTrue(self.ui.feature_usb_device.get_active())
+        self.assertTrue(self.ui.feature_auto_wake.get_active())
+        self.assertTrue(self.ui.feature_virtual_lens_hud.get_active())
+        self.assertTrue(self.ui.feature_usb_device.get_sensitive())
+        self.ui.feature_auto_wake.set_active(False); self.settle()
+        self.assertIn(('auto_wake', False), self.vm.calls)
+        self.ui.feature_virtual_lens_hud.set_active(False); self.settle()
+        self.assertIn(('virtual_lens_hud', False), self.vm.calls)
+        self.ui.feature_usb_device.set_active(False); self.settle()
+        self.assertIn(('usb_device', False), self.vm.calls)
+        import camera_ui as camera_ui_mod
+        self.assertEqual(camera_ui_mod.main(autostart=False, argv=['--verify-sha']), 2)
 
     def test_lcd_only_backend_bytes_old_state_and_bad_png(self):
         self.running()

@@ -44,7 +44,7 @@ BASE_GUEST={
     'MENU_DMM_UNIT_CONFIG':'1','MENU_PIN_REGISTRY':'1','MENU_PIN_CONTROL_MEMORY':'1','MENU_PIN_CONNECTION':'cold',
     'MENU_CP_TIME_SERVICE':'1','MENU_CRYPT_LIB':'1','MENU_BUSPOWER':'1',
     'MENU_CP_RELEASE_SERVICE':'1','MENU_OSD_OBSERVE':'1','MENU_FRAME_OBSERVE':'1',
-    'MENU_VIRTUAL_LENS_HUD':'1',
+    'MENU_VIRTUAL_LENS_HUD':'1','MENU_AUTO_WAKE':'1',
 }
 
 
@@ -114,6 +114,10 @@ def guest_environment(host):
         if name in allowed and name.startswith('MENU_'):
             need(isinstance(value,str) and re.fullmatch(r'[A-Za-z0-9_./,:=+@-]*',value) is not None,'Unsafe cold guest option: '+name)
             selected[name]=value
+    if host.get('A7C2_VIRTUAL_LENS_HUD')=='0':
+        selected['MENU_VIRTUAL_LENS_HUD']='0'
+    if host.get('A7C2_AUTO_WAKE')=='0':
+        selected['MENU_AUTO_WAKE']='0'
     from sony_usb_device import selected as usb_selected
     if usb_selected(host):selected['PRODUCT_SONY_USB_DEVICE']='1'
     if host.get('A7C2_USB_SENSER') is not None:

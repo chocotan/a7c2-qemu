@@ -175,9 +175,40 @@ class Tests(unittest.TestCase):
         def broken(*args, **kw): raise subprocess.CalledProcessError(1, args[0])
         with self.assertRaises(subprocess.CalledProcessError): m.prepare(self.root/'entry', runtime, self.root, broken)
 
+    def test_start_loads_env_file_with_caller_precedence_and_rejects_cli_args(self):
+        startup=self.root/'start.sh'
+        startup.write_bytes(Path(__file__).resolve().parents[2].joinpath('start.sh').read_bytes())
+        (self.root/'a7c2.env').write_text(
+            '# comment line\n'
+            'A7C2_COLD_FLAG=clear\n'
+            'A7C2_VERIFY_SHA="1"\n'
+            'A7C2_AUTO_WAKE=1\n'
+            'A7C2_BODYDATA=\n'
+        )
+        entry=self.root/'runtime/analysis/bodydata-launch.py'
+        entry.parent.mkdir(parents=True);entry.write_text('')
+        commands=self.root/'commands';commands.mkdir()
+        python=commands/'python3'
+        python.write_text('#!/bin/sh\nprintf "%s|%s|%s|%s\\n" "$A7C2_COLD_FLAG" "$A7C2_VERIFY_SHA" "$A7C2_AUTO_WAKE" "$A7C2_BODYDATA"\n')
+        python.chmod(0o755)
+        base_env={k:v for k,v in m.os.environ.items() if not k.startswith('A7C2_')}
+        base_env['PATH']=str(commands)+m.os.pathsep+m.os.environ['PATH']
+        run=subprocess.run(['/bin/bash',str(startup)],env=base_env,capture_output=True,text=True)
+        self.assertEqual(run.returncode,0,run.stderr)
+        self.assertEqual(run.stdout.strip(),'clear|1|1|')
+        # Caller-exported env overrides a7c2.env
+        override_env={**base_env,'A7C2_VERIFY_SHA':'0','A7C2_COLD_FLAG':'strict'}
+        run2=subprocess.run(['/bin/bash',str(startup)],env=override_env,capture_output=True,text=True)
+        self.assertEqual(run2.returncode,0,run2.stderr)
+        self.assertEqual(run2.stdout.strip(),'strict|0|1|')
+        # CLI arguments are rejected with exit code 2
+        refused=subprocess.run(['/bin/bash',str(startup),'--verify-sha'],env=base_env,capture_output=True,text=True)
+        self.assertEqual(refused.returncode,2)
+
     def test_prepare_only_never_launches_vm(self):
-        with patch.object(m, 'discover', return_value=self.package), patch.object(m, 'cache_package', return_value=self.root/'entry'), patch.object(m, 'prepare') as prep, patch.object(m.subprocess, 'run') as run:
-            self.assertEqual(m.main(['--prepare-only']), 0)
+        env = {'A7C2_PREPARE_ONLY': '1'}
+        with patch.dict(m.os.environ, env, clear=False), patch.object(m, 'discover', return_value=self.package), patch.object(m, 'cache_package', return_value=self.root/'entry'), patch.object(m, 'prepare') as prep, patch.object(m.subprocess, 'run') as run:
+            self.assertEqual(m.main([]), 0)
             prep.assert_called_once()
             run.assert_not_called()
 
@@ -186,27 +217,38 @@ class Tests(unittest.TestCase):
         analysis = runtime/'analysis'
         analysis.mkdir(parents=True)
         (analysis/'camera_ui.py').write_text('')
+        clean = {k: v for k, v in m.os.environ.items() if not k.startswith('A7C2_')}
+        base_env = {**clean, 'A7C2_RUNTIME_DIR': str(runtime), 'A7C2_RUNTIME_ANALYSIS_DIR': str(analysis)}
         with patch.object(m, 'discover', return_value=self.package) as discover, patch.object(m, 'cache_package', return_value=self.root/'entry'), patch.object(m, 'prepare'), patch.object(m.subprocess, 'run', return_value=SimpleNamespace(returncode=7)) as run:
-            self.assertEqual(m.main(['--runtime', str(runtime), '--runtime-analysis', str(analysis)]), 7)
+            with patch.dict(m.os.environ, base_env, clear=True):
+                self.assertEqual(m.main([]), 7)
             self.assertIn(str(analysis/'camera_ui.py'),run.call_args.args[0])
             self.assertEqual(run.call_args.kwargs['env']['A7C2_BOOT_PROFILE'],'original-init-cold')
             self.assertEqual(run.call_args.kwargs['env']['A7C2_USE_PERSISTENT_STORAGE'],'1')
-            self.assertEqual(m.main(['--runtime',str(runtime),'--runtime-analysis',str(analysis),'--boot-profile','direct-bootin']),7)
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_ENABLE_USB_DEVICE'],'1')
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_AUTO_WAKE'],'1')
+            self.assertEqual(run.call_args.kwargs['env']['A7C2_VIRTUAL_LENS_HUD'],'1')
+            with patch.dict(m.os.environ, {**base_env, 'A7C2_BOOT_PROFILE': 'direct-bootin'}, clear=True):
+                self.assertEqual(m.main([]),7)
             self.assertEqual(run.call_args.kwargs['env']['A7C2_BOOT_PROFILE'],'direct-bootin')
             discover.reset_mock()
-            self.assertEqual(m.main(['--runtime', str(runtime), '--runtime-analysis', str(self.root)]), 1)
+            with patch.dict(m.os.environ, {**clean, 'A7C2_RUNTIME_DIR': str(runtime), 'A7C2_RUNTIME_ANALYSIS_DIR': str(self.root)}, clear=True):
+                self.assertEqual(m.main([]), 1)
             discover.assert_not_called()
 
     def test_sd_image_forwarding_and_symlink_rejection(self):
         runtime=self.root/'runtime';analysis=runtime/'analysis';analysis.mkdir(parents=True)
         (analysis/'camera_ui.py').write_text('')
         card=self.root/'card.img';card.write_bytes(b'virtual card')
-        args=['--runtime',str(runtime),'--runtime-analysis',str(analysis),'--sd-image',str(card)]
+        clean = {k: v for k, v in m.os.environ.items() if not k.startswith('A7C2_')}
+        env={**clean,'A7C2_RUNTIME_DIR':str(runtime),'A7C2_RUNTIME_ANALYSIS_DIR':str(analysis),'A7C2_SD_IMAGE':str(card)}
         with patch.object(m,'discover',return_value=self.package),patch.object(m,'cache_package',return_value=self.root/'entry'),patch.object(m,'prepare'),patch.object(m.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
-            self.assertEqual(m.main(args),0)
+            with patch.dict(m.os.environ,env,clear=True):
+                self.assertEqual(m.main([]),0)
             self.assertEqual(run.call_args.kwargs['env']['A7C2_SD_IMAGE'],str(card))
             run.reset_mock();card.unlink();card.symlink_to(self.package)
-            self.assertEqual(m.main(args),1);run.assert_not_called()
+            with patch.dict(m.os.environ,env,clear=True):
+                self.assertEqual(m.main([]),1);run.assert_not_called()
 
     def test_overwrite_forwarding_and_symlink_rejection(self):
         runtime = self.root/'runtime'
@@ -217,21 +259,24 @@ class Tests(unittest.TestCase):
         overwrite.mkdir()
         payload = overwrite/'replacement.bin'
         payload.write_bytes(b'user supplied firmware replacement')
-        args = ['--runtime', str(runtime), '--runtime-analysis', str(analysis),
-                '--overwrite-dir', str(overwrite)]
+        clean = {k: v for k, v in m.os.environ.items() if not k.startswith('A7C2_')}
+        env = {**clean, 'A7C2_RUNTIME_DIR': str(runtime), 'A7C2_RUNTIME_ANALYSIS_DIR': str(analysis),
+               'A7C2_OVERWRITE_DIR': str(overwrite)}
         with patch.object(m, 'discover', return_value=self.package), \
                 patch.object(m, 'cache_package', return_value=self.root/'entry'), \
                 patch.object(m, 'prepare'), \
                 patch.object(m.subprocess, 'run', return_value=SimpleNamespace(returncode=0)) as run:
-            self.assertEqual(m.main(args), 0)
+            with patch.dict(m.os.environ, env, clear=True):
+                self.assertEqual(m.main([]), 0)
             self.assertEqual(run.call_args.kwargs['env']['A7C2_OVERWRITE_DIR'], str(overwrite))
             self.assertEqual(payload.read_bytes(), b'user supplied firmware replacement')
             self.assertEqual(self.package.read_bytes(), b'official test fixture')
             run.reset_mock()
             alias = self.root/'overwrite-alias'
             alias.symlink_to(overwrite, target_is_directory=True)
-            args[-1] = str(alias)
-            self.assertEqual(m.main(args), 1)
+            env['A7C2_OVERWRITE_DIR'] = str(alias)
+            with patch.dict(m.os.environ, env, clear=True):
+                self.assertEqual(m.main([]), 1)
             run.assert_not_called()
 
     def test_prepare_failure_never_launches_overwrite_runtime(self):
@@ -241,12 +286,15 @@ class Tests(unittest.TestCase):
         (analysis/'camera_ui.py').write_text('')
         overwrite = self.root/'overwrite'
         overwrite.mkdir()
-        with patch.object(m, 'discover', return_value=self.package), \
+        clean = {k: v for k, v in m.os.environ.items() if not k.startswith('A7C2_')}
+        env = {**clean, 'A7C2_RUNTIME_DIR': str(runtime), 'A7C2_RUNTIME_ANALYSIS_DIR': str(analysis),
+               'A7C2_OVERWRITE_DIR': str(overwrite)}
+        with patch.dict(m.os.environ, env, clear=True), \
+                patch.object(m, 'discover', return_value=self.package), \
                 patch.object(m, 'cache_package', return_value=self.root/'entry'), \
                 patch.object(m, 'prepare', side_effect=ValueError('asset verification failed')), \
                 patch.object(m.subprocess, 'run') as run:
-            self.assertEqual(m.main(['--runtime', str(runtime), '--runtime-analysis', str(analysis),
-                                     '--overwrite-dir', str(overwrite)]), 1)
+            self.assertEqual(m.main([]), 1)
             run.assert_not_called()
 
     def test_cache_lock_and_insufficient_space_publish_nothing(self):
@@ -261,14 +309,12 @@ class Tests(unittest.TestCase):
         self.assertFalse((new/m.digest(self.package)).exists())
         self.assertFalse(list(new.glob('.*.staging-*')))
 
-    def test_research_inputs_are_not_product_startup_dependencies(self):
+    def test_cli_arguments_and_research_flags_are_rejected(self):
         for arguments in (['--require-full-boot'], ['--boot-profile', 'undeclared-full-system-profile'],
                           ['--system-dump', str(self.root)], ['--system-runtime', str(self.root)],
-                          ['--boot-output', str(self.root/'out')]):
+                          ['--boot-output', str(self.root/'out')], ['--verify-sha']):
             with self.subTest(arguments=arguments), patch.object(m, 'discover') as discover, patch.object(m.subprocess, 'run') as run:
-                with self.assertRaises(SystemExit) as refused:
-                    m.main(arguments)
-                self.assertEqual(refused.exception.code, 2)
+                self.assertEqual(m.main(arguments), 2)
                 discover.assert_not_called()
                 run.assert_not_called()
 

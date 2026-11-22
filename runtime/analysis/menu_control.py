@@ -61,6 +61,18 @@ def wait_functional_camera_owner(process):
     raise RuntimeError('功能相机进程组尚未退出；保留VM与租约，不发送TERM/KILL')
 
 
+def _env_bool(name, default):
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return bool(default)
+    value = str(raw).strip().lower()
+    if value in ('1', 'true', 'yes', 'on'):
+        return True
+    if value in ('0', 'false', 'no', 'off'):
+        return False
+    return bool(default)
+
+
 class VM:
     def __init__(self, command=None, native_display=None,natural_boot=False,usb_net=False,instance=None,persistent_storage=False,storage_instance=None,boot_profile='direct-bootin',settings_restart=False):
         if native_display not in (None, 'none', 'gtk', 'sdl'):
@@ -85,6 +97,26 @@ class VM:
         self.ram_snapshot=None
         self.ram_restored=False
         self._ram_restore=None
+        self.auto_wake_enabled = _env_bool('A7C2_AUTO_WAKE', True)
+        self.virtual_lens_hud_enabled = _env_bool('A7C2_VIRTUAL_LENS_HUD', True)
+        self.usb_device_build = None
+        self.usb_device_enabled = False
+        if not self.mock and self.boot_profile == 'original-init-cold':
+            try:
+                from sony_usb_device import discover_candidate
+                self.usb_device_build = discover_candidate(os.environ.get('A7C2_USB_DEVICE_BUILD') or None)
+            except (OSError, ValueError):
+                self.usb_device_build = None
+            if _env_bool('A7C2_RAM_MODE', False):
+                try:
+                    from original_ram_restore import window_binary
+                    self.ram_qemu = str(window_binary())
+                    self.ram_enabled = True
+                except (OSError, ValueError):
+                    self.ram_enabled = False
+                    self.ram_qemu = None
+            if not self.ram_enabled and self.usb_device_build is not None and _env_bool('A7C2_ENABLE_USB_DEVICE', True):
+                self.usb_device_enabled = True
         self.persistent_storage=bool(persistent_storage or boot_profile=='original-init-cold')
         # Default off.  Only this explicit flag admits the reviewed RAM capture card plus
         # independent internal settings disk combination; every other route is unchanged.
@@ -232,14 +264,48 @@ class VM:
             if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
                 raise ValueError('先保存退出当前 VM，再选择 RAM 模式')
             if enabled:
-                from sony_usb_device import selected
-                if selected(os.environ):raise ValueError('Sony USB 设备状态迁移尚未审计；RAM 模式使用独立会话')
                 from original_ram_restore import window_binary
                 binary=window_binary()
                 self.ram_qemu=str(binary)
+                self.usb_device_enabled=False
             self.ram_enabled=enabled
             if not enabled:self.ram_snapshot=None
-            self.event('下一次启动启用 RAM 保存/恢复' if enabled else '下一次启动使用普通冷启动',kind='firmware')
+            self.event('下一次启动启用 RAM 保存/恢复（已自动关闭 USB 设备）' if enabled else '下一次启动使用普通冷启动',kind='firmware')
+
+    def configure_usb_device(self,enabled):
+        with self.lock:
+            if type(enabled) is not bool or self.mock or self.boot_profile!='original-init-cold':
+                raise ValueError('相机 USB 设备需要原冷启动与真实原生控制器')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先保存退出当前 VM，再切换相机 USB 设备')
+            if enabled:
+                from sony_usb_device import discover_candidate
+                receipt=discover_candidate(os.environ.get('A7C2_USB_DEVICE_BUILD') or None)
+                if not receipt:
+                    raise ValueError('尚未找到已验证的 USB 设备 QEMU 构建；请先运行 ./build-qemu.sh --stage-only --sony-device --ram-state')
+                self.usb_device_build=receipt
+                self.ram_enabled=False
+                self.ram_snapshot=None
+            self.usb_device_enabled=enabled
+            self.event('下一次启动启用相机 USB 设备（「连接电脑」可用）' if enabled else '下一次启动关闭相机 USB 设备',kind='firmware')
+
+    def configure_auto_wake(self,enabled):
+        with self.lock:
+            if type(enabled) is not bool or self.mock or not self.natural_boot:
+                raise ValueError('省电自动唤醒需要真实原生启动')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先保存退出当前 VM，再切换省电自动唤醒')
+            self.auto_wake_enabled=enabled
+            self.event('下一次启动开启省电自动唤醒（按任意键唤醒并自动重置 60 秒省电计时）' if enabled else '下一次启动关闭省电自动唤醒',kind='firmware')
+
+    def configure_virtual_lens_hud(self,enabled):
+        with self.lock:
+            if type(enabled) is not bool or self.mock or not self.natural_boot:
+                raise ValueError('虚拟镜头 HUD 需要真实原生启动')
+            if not self.status()['can_start'] or self.state not in ('disconnected','exited','error'):
+                raise ValueError('先保存退出当前 VM，再切换虚拟镜头 HUD')
+            self.virtual_lens_hud_enabled=enabled
+            self.event('下一次启动开启虚拟镜头 HUD 与软件拍摄/回放' if enabled else '下一次启动关闭虚拟镜头 HUD 与软件拍摄/回放',kind='firmware')
 
     def save_ram(self):
         with self.lock:
@@ -336,6 +402,8 @@ class VM:
                         firmware_selection=self.firmware_selection,firmware_verification=self.firmware_verification,
                         persistent_storage=self.persistent_storage,storage_instance=self.storage_instance,boot_profile=self.boot_profile,
                         ram_enabled=self.ram_enabled,ram_snapshot=self.ram_snapshot,ram_restored=self.ram_restored,
+                        usb_device_enabled=self.usb_device_enabled,usb_device_available=self.usb_device_build is not None,
+                        auto_wake_enabled=self.auto_wake_enabled,virtual_lens_hud_enabled=self.virtual_lens_hud_enabled,
                         wifi=self.wifi, usb_net=self.usb_net, cmos_source=self.cmos_source,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
@@ -652,11 +720,24 @@ class VM:
                 raise ValueError('功能相机RAM卡模式不支持USB网络、内部单盘或RAM恢复组合')
             env['A7C2_BOOT_PROFILE']=self.boot_profile
             for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD',
-                         'A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM','A7C2_RAM_QEMU'):
+                         'A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM','A7C2_RAM_QEMU',
+                         'A7C2_SONY_USB_DEVICE','A7C2_USB_DEVICE_BUILD'):
                 env.pop(name,None)
             if self.ram_enabled:
                 env.update(A7C2_RAM_WINDOW='1',A7C2_RAM_QEMU=self.ram_qemu)
                 if self._ram_restore:env['A7C2_RAM_RESTORE_STREAM']=self._ram_restore
+            elif self.usb_device_enabled and self.boot_profile=='original-init-cold' and self.usb_device_build:
+                from sony_usb_device import PROFILE as SONY_USB_PROFILE
+                env.update(A7C2_SONY_USB_DEVICE=SONY_USB_PROFILE,A7C2_USB_DEVICE_BUILD=self.usb_device_build)
+            env['A7C2_AUTO_WAKE']='1' if self.auto_wake_enabled else '0'
+            env['MENU_AUTO_WAKE']='1' if self.auto_wake_enabled else '0'
+            env['A7C2_VIRTUAL_LENS_HUD']='1' if self.virtual_lens_hud_enabled else '0'
+            if self.virtual_lens_hud_enabled:
+                env['MENU_VIRTUAL_LENS_HUD']='1'
+            elif self.boot_profile=='original-init-cold':
+                env['MENU_VIRTUAL_LENS_HUD']='0'
+            else:
+                env.pop('MENU_VIRTUAL_LENS_HUD',None)
             env.pop('A7C2_STORAGE_RESTORE_FILE',None)
             env.pop('A7C2_STORAGE_RESTORE_SELECTION',None)
             if self.firmware_selection is not None:

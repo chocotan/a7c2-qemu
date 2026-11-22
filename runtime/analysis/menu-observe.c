@@ -1371,7 +1371,7 @@ static void record(const char *prefix, const char *name) {
             "GUI_PROPERTY_",
             "GUI_MODEL_",
             "BT_ERROR_",
-            "POWER_", "SHUTDOWN_", "SD_ACK_",
+            "POWER_", "SHUTDOWN_", "APO_", "SD_ACK_",
             "INPUT_EVENT32 ", "CAPTURE_INHIBIT_SOURCE ", "EE_TRANSITION_TRACE ",
             "SHUTTER_ROUTE", "SHUTTER_DETAIL_", "SHUTTER_DISPATCH ", "SHUTTER_TARGET ", "SHUTTER_HANDLER ", "SHUTTER_FLOW ", "SHUTTER_API ", "SHUTTER_MODE ", "SYSTEM_MODE ", "EE_SEQUENCE ", "SEQUENCE_QUEUE ", "SEQUENCE_CREATE ", "MODE_FACTORY ", "MODE_DEPENDENCY ", "MODE_WORKER ", "MODE_SCHEDULE ", "CLOCK_SEQUENCE ",
             "LIVEVIEW_",
@@ -3101,9 +3101,103 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
  * Software virtual model only: physical CP/ISP is not involved. */
 static unsigned int vcmos_ops_bound, vcmos_mpr_bound, vcmos_blink_seq, vcmos_pb_bg_seq;
 static unsigned int vcmos_worker_state, vcmos_work_flags, vcmos_wake_notified;
+static unsigned int vcmos_in_apo_sleep, vcmos_wake_in_progress;
+static unsigned int apo_saved_media_valid, apo_saved_m1, apo_saved_m2, apo_saved_s110;
+static unsigned char apo_saved_s3a8, apo_saved_s3c8;
+static long vcmos_wake_started_sec, vcmos_last_mss_reload_sec;
 static int vcmos_wake_pipe[2] = {-1, -1};
 static unsigned char vcmos_pb_path_lock;
 static char vcmos_pb_req_path[264];
+static int vcmos_auto_wake_enabled(void) {
+    if (functional_camera_enabled || cp_owned_state_enabled) return 0;
+    const char *v = getenv("MENU_AUTO_WAKE");
+    return !v || !same_name(v, "0");
+}
+static void apo_snapshot_live_media_state(void) {
+    if (!appfw_base) return;
+    unsigned char s3a8 = *(const volatile unsigned char *)(appfw_base + 0x7e5d3a8UL);
+    if (!s3a8) return;
+    apo_saved_s3a8 = s3a8;
+    apo_saved_s3c8 = *(const volatile unsigned char *)(appfw_base + 0x7e5d3c8UL);
+    apo_saved_m1 = *(const volatile unsigned int *)(appfw_base + 0x7e5d0f8UL + 40UL);
+    apo_saved_m2 = *(const volatile unsigned int *)(appfw_base + 0x7e5d0f8UL + 152UL);
+    apo_saved_s110 = *(const volatile unsigned int *)(appfw_base + 0x7efd110UL);
+    __atomic_store_n(&apo_saved_media_valid, 1u, __ATOMIC_RELEASE);
+}
+static unsigned int apo_boot_evt_wrapper(unsigned long ctrl) {
+    if (!appfw_base) return 1u;
+    int saved_errno = *__errno_location();
+    unsigned int sl = __atomic_load_n(&vcmos_in_apo_sleep, __ATOMIC_ACQUIRE);
+    unsigned int wk = __atomic_load_n(&vcmos_wake_in_progress, __ATOMIC_ACQUIRE);
+    volatile unsigned int *s498 = (volatile unsigned int *)(appfw_base + 0x7e5d498UL);
+    volatile unsigned int *ck = (volatile unsigned int *)(appfw_base + 0x7e5df08UL);
+    const volatile unsigned int *dt = (const volatile unsigned int *)(appfw_base + 0x7e5df40UL);
+    volatile unsigned char *clk = (volatile unsigned char *)(appfw_base + 0x7eda8d0UL);
+    volatile unsigned char *s3a8 = (volatile unsigned char *)(appfw_base + 0x7e5d3a8UL);
+    volatile unsigned char *s3c8 = (volatile unsigned char *)(appfw_base + 0x7e5d3c8UL);
+    volatile unsigned int *m1 = (volatile unsigned int *)(appfw_base + 0x7e5d0f8UL + 40UL);
+    volatile unsigned int *m2 = (volatile unsigned int *)(appfw_base + 0x7e5d0f8UL + 152UL);
+    volatile unsigned int *s110 = (volatile unsigned int *)(appfw_base + 0x7efd110UL);
+    const volatile unsigned int *s050 = (const volatile unsigned int *)(appfw_base + 0x7e5c050UL);
+    const volatile unsigned int *s71f00 = (const volatile unsigned int *)(appfw_base + 0x7e71f00UL);
+    unsigned int saved_s498 = *s498;
+    unsigned int pre_s3a8 = *s3a8, pre_s3c8 = *s3c8, pre_m1 = *m1, pre_m2 = *m2, pre_s110 = *s110;
+    int warm_resume = (sl || wk) ? 1 : 0;
+    if (warm_resume) {
+        /* Cold boot's sequence_boot (0x2a) leaves Group 0 parked in its post-promise
+         * CameraBackground tail. On APO1 wake-up, process_power_on (0x209dd68) would
+         * otherwise see s498==0 && s428==0 and re-enqueue sequence_boot at 0x272ffa4,
+         * deadlocking on EventWaiter::wait (0x272ffb0). Taking process_power_on's own
+         * warm-resume branch (s498!=0) syncs camera state without re-running 0x2a.
+         * Also restore pre-sleep media readiness flags cleared by scr0039_shutdown
+         * (0x2743ef0) because the virtual SD card never unmounted during APO1 sleep,
+         * allowing rep_boot_controller::can_open_next_screen (0x205eecc) to advance
+         * immediately into rep_shooting -> scr0132_0001. */
+        *s498 = 1u;
+        if (*ck != 0x1bu) *ck = 0x1bu;
+        if (*dt != 2u) *clk = 0u;
+        if (__atomic_load_n(&apo_saved_media_valid, __ATOMIC_ACQUIRE)) {
+            if (!*s3a8 && apo_saved_s3a8) *s3a8 = apo_saved_s3a8;
+            if (!*s3c8 && apo_saved_s3c8) *s3c8 = apo_saved_s3c8;
+            if (*m1 != apo_saved_m1 && (apo_saved_m1 == 1u || apo_saved_m1 == 2u)) *m1 = apo_saved_m1;
+            if (*m2 != apo_saved_m2 && (apo_saved_m2 == 1u || apo_saved_m2 == 2u)) *m2 = apo_saved_m2;
+            if (*s110 != 0u && apo_saved_s110 == 0u) *s110 = 0u;
+        }
+    }
+    *__errno_location() = saved_errno;
+    void (*fn_key)(void *, int) = (void (*)(void *, int))(appfw_base + 0x188f3f8UL);
+    void (*fn_pon)(void *) = (void (*)(void *))(appfw_base + 0x209dd68UL);
+    void *key_obj = *(void **)(ctrl + 392UL);
+    if (key_obj) fn_key(key_obj, 0);
+    fn_pon((void *)ctrl);
+    if (warm_resume) {
+        *s498 = saved_s498;
+        saved_errno = *__errno_location();
+        char text[224];
+        snprintf(text, sizeof text,
+                 "warm_resume=1 dt=%u clk=%u pre=[%u,%u,%u,%u,%u] post=[%u,%u,%u,%u,%u] s050=%u s71f=%u saved=%u",
+                 *dt, (unsigned int)*clk,
+                 pre_s3a8, pre_s3c8, pre_m1, pre_m2, pre_s110,
+                 (unsigned int)*s3a8, (unsigned int)*s3c8, *m1, *m2, *s110,
+                 *s050, *s71f00, __atomic_load_n(&apo_saved_media_valid, __ATOMIC_ACQUIRE));
+        record("APO_BOOT_WARM_RESUME_DONE ", text);
+        *__errno_location() = saved_errno;
+    }
+    return 1u;
+}
+static void install_apo_wake_probes(unsigned long base) {
+    if (!vcmos_auto_wake_enabled()) return;
+    int r1 = arm_entry_probe(base + 0x209f300UL,
+        (const unsigned int[4]){0xa9be7bfd, 0x52800001, 0x910003fd, 0xf9000bf3},
+        (void *)apo_boot_evt_wrapper, (void *)(base + 0x209f310UL), "apo_boot_evt 0x209f300");
+    char text[64];
+    snprintf(text, sizeof text, "evt=%d", r1);
+    record("APO_WAKE_PROBES_ARMED ", text);
+}
+static long vcmos_mono_sec(void) {
+    long mono[2] = {0, 0};
+    return syscall(113, 1, mono) == 0 ? mono[0] : 0L;
+}
 static struct virtual_cmos_fsys_ops vcmos_ops;
 struct vcmos_mpr_ops {
     void (*rec_clear)(void *);
@@ -3410,6 +3504,73 @@ static void *vcmos_worker_main(void *arg) {
                     free(obj);
                 }
             }
+            if (flags & 16u) {
+                ensure_real_send_msg();
+                int rc = -1;
+                if (real_allocate_msg && real_set_source && real_send_msg && real_free_msg) {
+                    const unsigned int queue = 0x80920021u, source = 0x92840747u;
+                    void *msg = 0;
+                    rc = real_allocate_msg(queue, &msg, 16u, 1u);
+                    if (rc == 0 && msg) {
+                        unsigned int *w = (unsigned int *)msg;
+                        w[0] = 0x00920142u; w[1] = 8u; w[2] = 0u; w[3] = 0u;
+                        real_set_source(msg, source);
+                        rc = real_send_msg(queue, msg);
+                        if (rc != 0) real_free_msg(queue, msg);
+                    }
+                }
+                if (rc != 0) __atomic_store_n(&vcmos_wake_in_progress, 0u, __ATOMIC_RELEASE);
+                char text[128];
+                snprintf(text, sizeof text, "queue=0x80920021 src=0x92840747 cmd=0x920142 factor=8 rc=%d", rc);
+                record("APO_WAKE_UPM_SENT ", text);
+            }
+            if ((flags & 32u) && appfw_base) {
+                /* Wait briefly for scr0039_boot (0x308) on_enter & create_screen to finish. */
+                long req[2] = {0L, 400000000L};
+                syscall(101 /* SYS_nanosleep */, req, 0);
+                if (__atomic_load_n(&vcmos_in_apo_sleep, __ATOMIC_ACQUIRE) ||
+                    __atomic_load_n(&vcmos_wake_in_progress, __ATOMIC_ACQUIRE)) {
+                    unsigned char dummy_in[32];
+                    unsigned int ack_rc = 0u, reload_rc = 0u;
+                    __builtin_memset(dummy_in, 0, sizeof dummy_in);
+                    volatile unsigned int *boot_info = (volatile unsigned int *)(appfw_base + 0x7e5dd38UL);
+                    volatile unsigned int *poff_factor = (volatile unsigned int *)(appfw_base + 0x7e5dd88UL);
+                    unsigned int pf0 = poff_factor[0], pf1 = poff_factor[1], pf2 = poff_factor[2];
+                    void (*send_cancel_ack)(const void *, void *) = (void (*)(const void *, void *))(appfw_base + 0x34dac88UL);
+                    void (*publish_model_event)(const void *) = (void (*)(const void *))(appfw_base + 0x24cb2d4UL);
+                    void (*mss_reload)(const void *, void *) = (void (*)(const void *, void *))(appfw_base + 0x34da608UL);
+                    send_cancel_ack(dummy_in, &ack_rc);
+                    unsigned int ev[7] = {0x01000090u, 0u, 0u, 0u, 0u, 0u, 0u};
+                    publish_model_event(ev);
+                    mss_reload(dummy_in, &reload_rc);
+                    char text[256];
+                    snprintf(text, sizeof text,
+                             "ack_rc=%u event=0x01000090 mss_reload_rc=%u bi=%u,%u,%u,%u,%u,%u,%u,%u pf=%u,%u,%u ck=%u dt=%u clk=%u",
+                             ack_rc, reload_rc,
+                             boot_info[0], boot_info[1], boot_info[2], boot_info[3],
+                             boot_info[4], boot_info[5], boot_info[6], boot_info[7],
+                             pf0, pf1, pf2,
+                             *(const volatile unsigned int *)(appfw_base + 0x7e5df08UL),
+                             *(const volatile unsigned int *)(appfw_base + 0x7e5df40UL),
+                             (unsigned int)*(const volatile unsigned char *)(appfw_base + 0x7eda8d0UL));
+                    record("APO_WAKE_COMPLETE_SENT ", text);
+                    if (virtual_lens_hud_enabled) virtual_lens_hud_publish_state("apo-wake");
+                }
+            }
+            if ((flags & 64u) && appfw_base) {
+                unsigned char dummy_in[32];
+                unsigned int reload_rc = 0u;
+                __builtin_memset(dummy_in, 0, sizeof dummy_in);
+                void (*mss_reload)(const void *, void *) = (void (*)(const void *, void *))(appfw_base + 0x34da608UL);
+                mss_reload(dummy_in, &reload_rc);
+                static unsigned int mss_reload_logged;
+                unsigned int n = __atomic_add_fetch(&mss_reload_logged, 1u, __ATOMIC_RELAXED);
+                if (n <= 8u || !(n & (n - 1u))) {
+                    char text[96];
+                    snprintf(text, sizeof text, "n=%u rc=%u", n, reload_rc);
+                    record("APO_MSS_RELOAD ", text);
+                }
+            }
         }
     }
     return 0;
@@ -3444,8 +3605,38 @@ static void vcmos_post_work(unsigned int flags) {
     }
 }
 static void virtual_input_observed(unsigned int *ev) {
-    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (functional_camera_enabled || cp_owned_state_enabled) return;
     unsigned int code = ev[0], status = ev[2];
+    if (code == 0u || code == 0xc000003u) return;
+    if (vcmos_auto_wake_enabled()) {
+        if (__atomic_load_n(&vcmos_in_apo_sleep, __ATOMIC_ACQUIRE)) {
+            if (status != 0u) {
+                long now = vcmos_mono_sec();
+                unsigned int st = __atomic_load_n(&vcmos_wake_in_progress, __ATOMIC_ACQUIRE);
+                if (st != 0u && now - __atomic_load_n(&vcmos_wake_started_sec, __ATOMIC_ACQUIRE) >= 5L) {
+                    __atomic_store_n(&vcmos_wake_in_progress, 0u, __ATOMIC_RELEASE);
+                }
+                unsigned int expected = 0u;
+                if (__atomic_compare_exchange_n(&vcmos_wake_in_progress, &expected, 1u, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                    __atomic_store_n(&vcmos_wake_started_sec, now, __ATOMIC_RELEASE);
+                    char wt[96];
+                    snprintf(wt, sizeof wt, "code=%#x status=%#x", code, status);
+                    record("APO_WAKE_TRIGGERED ", wt);
+                    vcmos_post_work(16u);
+                }
+            }
+            return;
+        }
+        if (status != 0u) {
+            long now = vcmos_mono_sec();
+            long prev = __atomic_load_n(&vcmos_last_mss_reload_sec, __ATOMIC_RELAXED);
+            if (now - prev >= 2L &&
+                __atomic_compare_exchange_n(&vcmos_last_mss_reload_sec, &prev, now, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+                vcmos_post_work(64u);
+            }
+        }
+    }
+    if (!virtual_lens_hud_enabled) return;
     if (code == 0xa7 && status == 1 && hosd_is_shooting_scene()) {
         vcmos_touch_blink();
         vcmos_post_work(2u);
@@ -7897,6 +8088,32 @@ static void *observe_create_screen(void *a0, void *a1, void *a2, void *a3, void 
     }
     void *result = real_create_screen(a0, a1, a2, a3, a4, a5, a6, a7);
     __atomic_store_n(&last_input_screen,id,__ATOMIC_RELEASE);
+    if (id == 0x309u) {
+        __atomic_store_n(&vcmos_in_apo_sleep, 1u, __ATOMIC_RELEASE);
+        __atomic_store_n(&vcmos_wake_in_progress, 0u, __ATOMIC_RELEASE);
+        if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
+            unlink(VIRTUAL_PLAYBACK_BG_PATH);
+        }
+        record("APO_SLEEP_ENTERED ", "screen=0x309 awaiting_input_to_wake=1");
+    } else if (id == 0x308u) {
+        if (vcmos_auto_wake_enabled()) {
+            unsigned int expected = 1u;
+            if (__atomic_compare_exchange_n(&vcmos_wake_in_progress, &expected, 2u, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+                record("APO_WAKE_BOOT_SCREEN ", "screen=0x308 posting_cancel_complete=1");
+                vcmos_post_work(32u);
+            }
+        }
+    } else if ((id != 0u && id != 0x344u && id != 0x345u && id != 0x347u) || (id == 0u && count >= 100u)) {
+        apo_snapshot_live_media_state();
+        unsigned int was_sleeping = __atomic_exchange_n(&vcmos_in_apo_sleep, 0u, __ATOMIC_ACQ_REL);
+        unsigned int was_waking = __atomic_exchange_n(&vcmos_wake_in_progress, 0u, __ATOMIC_ACQ_REL);
+        if (was_sleeping || was_waking) {
+            char aw[96];
+            snprintf(aw, sizeof aw, "screen=%#x count=%lu was_sleep=%u was_wake=%u", id, count, was_sleeping, was_waking);
+            record("APO_WAKE_RESUMED ", aw);
+            if (virtual_lens_hud_enabled) vcmos_post_work(1u);
+        }
+    }
     if (getenv("MENU_FORCE_IN_FACTORY") && getenv("MENU_MENU_INIT")) try_menu_init();
     snprintf(text, sizeof text, "call=%u returned=%p", create_screen_calls, result);
     record("CREATE_SCREEN_RETURN ", text);
@@ -12959,6 +13176,10 @@ int osal_snd_msg(unsigned int id, void *message) {
         unsigned int code = size >= 4 ? ((const unsigned short *)message)[1] : 0;
         /* Known periodic noise: heartbeat/log-drain channels, plus the 0x20f keepalive on
            the model event queue (real key events on 0x5503e0 use code 0x1400 and stay visible). */
+        if (id == 0x5503e0 && code == 0x20f && file_media_flush_pending_fn) {
+            file_media_flush_pending_fn();
+            start_sd_ack_retry_worker();
+        }
         if (id == 0x8f013a || id == 0x8f0139 || id == 0x92b4086f || (id == 0x5503e0 && code == 0x20f))
             return real_send_msg(id, message);
         char text[180];
@@ -13933,6 +14154,7 @@ void *dlsym(void *handle, const char *name) {
         if (!getenv("MENU_OBSERVE_SELFTEST")) install_create_screen_sentinel(appfw_base);
         if (!getenv("MENU_OBSERVE_SELFTEST")) install_frame_observers(appfw_base);
         if (!getenv("MENU_OBSERVE_SELFTEST")) install_virtual_lens_hud_probes(appfw_base);
+        if (!getenv("MENU_OBSERVE_SELFTEST")) install_apo_wake_probes(appfw_base);
         if (!getenv("MENU_OBSERVE_DISABLE_UX2_HOOK") && !getenv("MENU_OBSERVE_SELFTEST")) {
             unsigned int patched = patch_uxengine_init2(appfw_base);
             char text[96];
