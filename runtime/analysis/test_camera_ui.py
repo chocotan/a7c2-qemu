@@ -424,7 +424,7 @@ class GTKTests(unittest.TestCase):
         self.assertTrue(self.ui.closed)
         self.assertIn('close', self.vm.calls)
 
-    def test_close_failure_offers_explicit_force_close_dialog(self):
+    def test_close_failure_auto_falls_back_to_force_close(self):
         self.running()
         def fail_close():
             self.vm.calls.append('close')
@@ -436,27 +436,55 @@ class GTKTests(unittest.TestCase):
         self.vm.force_close = do_force_close
         self.ui._close()
         deadline = time.monotonic() + 2
-        while self.ui.close_dialog is None and time.monotonic() < deadline:
-            self.settle()
-        self.assertIsNotNone(self.ui.close_dialog)
-        self.assertFalse(self.ui.closed)
-        # Cancel closes dialog without force-killing.
-        self.ui.close_dialog.response(Gtk.ResponseType.CANCEL)
-        self.settle()
-        self.assertIsNone(self.ui.close_dialog)
-        self.assertNotIn('force_close', self.vm.calls)
-        self.assertFalse(self.ui.closed)
-        # Second close attempt -> choose explicit Force Close.
-        self.ui._close()
-        deadline = time.monotonic() + 2
-        while self.ui.close_dialog is None and time.monotonic() < deadline:
-            self.settle()
-        self.ui.close_dialog.response(Gtk.ResponseType.REJECT)
-        deadline = time.monotonic() + 2
         while not self.ui.closed and time.monotonic() < deadline:
             self.settle()
         self.assertTrue(self.ui.closed)
+        self.assertEqual(self.vm.calls[-2:], ['close', 'force_close'])
+
+    def test_close_failure_and_force_close_failure_keeps_window_open_with_error(self):
+        self.running()
+        def fail_close():
+            self.vm.calls.append('close')
+            raise RuntimeError('injected save timeout')
+        def fail_force():
+            self.vm.calls.append('force_close')
+            raise RuntimeError('process still alive')
+        self.vm.close = fail_close
+        self.vm.force_close = fail_force
+        try:
+            self.ui._close()
+            deadline = time.monotonic() + 2
+            while self.ui.closing and time.monotonic() < deadline:
+                self.settle()
+            self.assertFalse(self.ui.closed)
+            self.assertIn('VM 强制关闭失败', self.ui.local_error)
+            self.assertIn('process still alive', self.ui.local_error)
+        finally:
+            del self.vm.close
+            del self.vm.force_close
+
+    def test_off_save_failure_auto_falls_back_to_force_stop_without_closing_window(self):
+        self.running()
+        def stopping_stub():
+            self.vm.calls.append('stop')
+            self.vm.value.update(state='stopping', can_start=False, can_stop=False)
+        def do_force_close():
+            self.vm.calls.append('force_close')
+            self.vm.value.update(state='exited', can_start=True, can_stop=False, error='')
+        self.vm.stop = stopping_stub
+        self.vm.force_close = do_force_close
+        self.ui.power(False)
+        self.assertIn('stop', self.vm.calls)
+        self.vm.value.update(state='running', error='SD保存失败；VM未关闭：flush/STOP timed out')
+        self.ui.update(self.vm.status())
+        deadline = time.monotonic() + 2
+        while 'force_close' not in self.vm.calls and time.monotonic() < deadline:
+            self.settle()
+        while self.ui.force_closing and time.monotonic() < deadline:
+            self.settle()
         self.assertIn('force_close', self.vm.calls)
+        self.assertFalse(self.ui.closed)
+        self.assertEqual(self.vm.status()['state'], 'exited')
 
     def test_force_close_failure_keeps_window_open_with_error(self):
         self.running()
@@ -464,13 +492,16 @@ class GTKTests(unittest.TestCase):
             self.vm.calls.append('force_close')
             raise RuntimeError('process still alive')
         self.vm.force_close = fail_force
-        self.ui._force_close()
-        deadline = time.monotonic() + 2
-        while self.ui.closing and time.monotonic() < deadline:
-            self.settle()
-        self.assertFalse(self.ui.closed)
-        self.assertIn('VM 强制关闭失败', self.ui.local_error)
-        self.assertIn('process still alive', self.ui.local_error)
+        try:
+            self.ui._force_close()
+            deadline = time.monotonic() + 2
+            while self.ui.closing and time.monotonic() < deadline:
+                self.settle()
+            self.assertFalse(self.ui.closed)
+            self.assertIn('VM 强制关闭失败', self.ui.local_error)
+            self.assertIn('process still alive', self.ui.local_error)
+        finally:
+            del self.vm.force_close
 
     def test_optional_usb_and_wifi_controls_hidden_unless_backend_enabled(self):
         import tempfile

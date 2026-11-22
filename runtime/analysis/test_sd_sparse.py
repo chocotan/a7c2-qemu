@@ -73,19 +73,19 @@ int main(int argc,char **argv) {
     subprocess.run(['clang','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
                     '-I',str(BASE),str(source),'-o',str(binary)],check=True)
     card=tmp_path/'card.img'
-    with card.open('xb') as stream:stream.truncate(1024**3)
+    with card.open('xb') as stream:stream.truncate(4*1024**3)
     first=tmp_path/'first.bin';second=tmp_path/'second.bin';zero=tmp_path/'zero.bin'
     first.write_bytes(bytes(range(256))*16);second.write_bytes(b'\xa5'*4096);zero.write_bytes(bytes(4096))
     def write(chunk,offset):return subprocess.run([str(binary),str(card),str(chunk),str(offset)],check=True,capture_output=True,timeout=10)
-    write(first,0);write(second,65536);write(zero,1024**3-4096)
-    assert card.stat().st_size==1024**3 and card.stat().st_blocks*512<=4*65536
+    write(first,0);write(second,65536);write(zero,4*1024**3-4096)
+    assert card.stat().st_size==4*1024**3 and card.stat().st_blocks*512<=4*65536
     with card.open('rb') as stream:
         assert stream.read(4096)==first.read_bytes()
         stream.seek(65536);assert stream.read(4096)==second.read_bytes()
-        stream.seek(1024**3-4096);assert stream.read(4096)==bytes(4096)
+        stream.seek(4*1024**3-4096);assert stream.read(4096)==bytes(4096)
     bad=tmp_path/'bad.bin';bad.write_bytes(bytes(4097))
     assert subprocess.run([str(binary),str(card),str(bad),'0'],capture_output=True).returncode!=0
-    assert subprocess.run([str(binary),str(card),str(zero),str(1024**3)],capture_output=True).returncode!=0
+    assert subprocess.run([str(binary),str(card),str(zero),str(4*1024**3)],capture_output=True).returncode!=0
 
 
 def map_bytes(ranges=((0,4096),(4*1024**3,4096)), **changes):
@@ -103,6 +103,8 @@ def test_map_identity_and_empty_card():
     assert parse_map(map_bytes(()),TOTAL)['ranges']==[]
     one_gib=1024**3
     assert parse_map(map_bytes(((65536,4096),),total=one_gib),one_gib)['ranges']==[(65536,4096)]
+    four_gib=4*1024**3
+    assert parse_map(map_bytes(((65536,4096),(four_gib-4096,4096)),total=four_gib),four_gib)['ranges']==[(65536,4096),(four_gib-4096,4096)]
 
 
 @pytest.mark.parametrize('raw',[

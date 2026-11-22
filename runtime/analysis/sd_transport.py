@@ -72,8 +72,8 @@ def card_source(path):
         fd=regular(parent,path.name)
         try:
             before=os.fstat(fd)
-            if not 0x400000<=before.st_size<=0x80000000 or before.st_size%4096:
-                raise ValueError('Virtual SD must be a 4096-byte aligned 4 MiB..2 GiB regular image')
+            if not 0x400000<=before.st_size<=0x100000000 or before.st_size%4096:
+                raise ValueError('Virtual SD must be a 4096-byte aligned 4 MiB..4 GiB regular image')
             yield fd
             if identity(before)!=identity(os.fstat(fd)):raise ValueError('Virtual SD source changed while reading')
         finally:os.close(fd)

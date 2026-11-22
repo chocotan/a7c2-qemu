@@ -266,7 +266,7 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
         if(!S_ISBLK(state.identity.st_mode))goto fail;
     } else {
         if(!S_ISREG(state.identity.st_mode) || state.identity.st_size<MIN_IMAGE_BYTES || state.identity.st_size%4096)goto fail;
-        if(state.sparse ? state.identity.st_size!=10LL*1024*1024*1024 : state.identity.st_size>0x80000000LL)goto fail;
+        if(state.sparse ? state.identity.st_size!=10LL*1024*1024*1024 : state.identity.st_size>0x100000000LL)goto fail;
         state.image_bytes=(uint64_t)state.identity.st_size;
     }
     if(backing())goto fail;
@@ -277,7 +277,7 @@ int native_rm_file_start(const char *path,const char *claim,const struct full_im
         if(native_sd_hotplug_enabled() && state.slot!=1)goto fail;
     }
     unsigned char bytes[4096];state.hash=0xcbf29ce484222325ULL;
-    int sampled=state.sparse || state.host_block;
+    int sampled=state.sparse || state.host_block || state.image_bytes>0x40000000ULL;
     for(uint64_t offset=0;offset<(sampled?2*sizeof bytes:state.image_bytes);offset+=sizeof bytes){
         off_t position=sampled && offset?(off_t)(state.image_bytes-sizeof bytes):(off_t)offset;
         if(pread(state.fd,bytes,sizeof bytes,position)!=sizeof bytes)goto fail;

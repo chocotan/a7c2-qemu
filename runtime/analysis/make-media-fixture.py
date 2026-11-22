@@ -35,20 +35,35 @@ print('MEDIA_FIXTURE_PASS', target, len(image.getvalue()))
 
 # The original application allocates a 0x939000-byte image database; 4 MiB is only a unit-test card.
 camera=target.with_name('media-camera.fat')
-camera_bytes=1024*1024*1024
-if shutil.disk_usage(target.parent).free<camera_bytes*3+1024*1024*1024:
-    raise RuntimeError('Insufficient host space for camera SD image and initramfs')
+camera_bytes=4*1024*1024*1024
+if shutil.disk_usage(target.parent).free<camera_bytes+64*1024**3:
+    raise RuntimeError('Insufficient host space for 4 GiB virtual camera SD image and reserve')
 descriptor,name=tempfile.mkstemp(prefix='.media-camera-',dir=target.parent)
 try:
     os.ftruncate(descriptor,camera_bytes)
     os.close(descriptor);descriptor=-1
-    subprocess.run(['mkfs.fat','-a','-F','16','-s','64','-S','512','-i','7C220201',name],check=True,capture_output=True)
+    subprocess.run(['mkfs.fat','-a','-F','32','-s','64','-S','512','-i','7C220201',name],check=True,capture_output=True)
+    # Set FAT32 FSInfo FSI_Free_Count / FSI_Nxt_Free to the Microsoft FAT32 spec
+    # "unknown / compute from FAT" sentinel (0xFFFFFFFF). Sony's PrFILE2 Fsys_FlushVolume
+    # flushes FAT/dir/data while keeping the volume mounted and does not rewrite FSInfo until
+    # unmount, so leaving mkfs.fat's initial free count causes read-only fsck.fat -n to fail.
+    with open(name,'r+b') as stream:
+        boot=stream.read(512)
+        fsinfo_sec=int.from_bytes(boot[48:50],'little')
+        backup_sec=int.from_bytes(boot[50:52],'little')
+        for sec in (fsinfo_sec, backup_sec + fsinfo_sec):
+            if sec:
+                stream.seek(sec*512)
+                fsi=stream.read(512)
+                if fsi[:4]==b'RRaA' and fsi[484:488]==b'rrAa' and fsi[508:512]==b'\x00\x00\x55\xaa':
+                    stream.seek(sec*512+488)
+                    stream.write(b'\xff\xff\xff\xff\xff\xff\xff\xff')
     subprocess.run(['fsck.fat','-n',name],check=True,capture_output=True)
     with open(name,'rb') as stream:
         boot=stream.read(512)
     sectors=int.from_bytes(boot[19:21],'little') or int.from_bytes(boot[32:36],'little')
     assert (sectors*512==camera_bytes and boot[13]==64 and
-            boot[54:62]==b'FAT16   ' and boot[510:512]==b'\x55\xaa')
+            boot[82:90]==b'FAT32   ' and boot[510:512]==b'\x55\xaa')
     Path(name).replace(camera)
 finally:
     if descriptor>=0:os.close(descriptor)

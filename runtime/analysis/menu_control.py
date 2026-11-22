@@ -566,7 +566,7 @@ class VM:
                 self.state == 'starting' and (self.functional_camera or self.boot_profile == 'original-init-cold'))
         if save:
             self.stop()
-            if not self.shutdown_done.wait(timeout=180):
+            if not self.shutdown_done.wait(timeout=30):
                 raise RuntimeError('SD保存尚未完成；VM保留运行，请稍后重试')
             with self.lock:
                 if self.state in ('running','faulted'):raise RuntimeError('SD保存失败；VM保留运行：'+self.error)

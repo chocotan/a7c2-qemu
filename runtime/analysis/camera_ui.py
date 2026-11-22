@@ -188,6 +188,8 @@ class CameraUI:
     def __init__(self, vm, *, timer=True, clock=time.monotonic):
         self.vm, self.clock = vm, clock
         self.closed = self.closing = False
+        self.force_closing = False
+        self.off_requested = False
         self.reinitializing = False
         self.development_busy = False
         self.reset_dialog = None
@@ -849,13 +851,27 @@ class CameraUI:
             if not on and self.input_bindings is not None and not self.release_inputs():
                 return
             if on:
+                self.off_requested = False
                 self.vm.start()
                 self.pixbuf = self.png_bytes = self.frame_token = None
                 self.display_frame = {}
                 self.poller = SnapshotPoller(float(self.interval.get_active_id()))
                 self.lcd.queue_draw()
             else:
-                self.vm.stop()
+                cur_state = self.vm.status().get('state')
+                if cur_state == 'stopping' and hasattr(self.vm, 'force_close'):
+                    self._force_stop_vm(reason='正常关机保存超时，改用强制关机')
+                    return
+                self.off_requested = True
+                try:
+                    self.vm.stop()
+                except (ValueError, RuntimeError, OSError) as error:
+                    if (self.vm.status().get('state') in ('starting', 'running', 'faulted', 'stopping')
+                            and hasattr(self.vm, 'force_close')):
+                        self._force_stop_vm(reason=str(error))
+                        return
+                    self.off_requested = False
+                    raise
             self.local_error = ''
         except (ValueError, RuntimeError, OSError) as error:
             self.local_error = 'VM 启停失败：' + str(error)
@@ -1020,8 +1036,20 @@ class CameraUI:
         elif state.get('state') == 'running':
             status_style.add_class('status-running')
         self.spinner.start() if activity or state.get('state') in ('starting', 'stopping') else self.spinner.stop()
+        if state.get('state') in ('disconnected', 'exited'):
+            self.off_requested = False
+        elif (getattr(self, 'off_requested', False)
+              and not (self.closing or getattr(self, 'force_closing', False)
+                       or self.reinitializing or self.development_busy)
+              and state.get('state') in ('running', 'faulted', 'error')
+              and 'SD保存失败；VM未关闭' in str(state.get('error', ''))
+              and hasattr(self.vm, 'force_close')):
+            self.off_requested = False
+            self._force_stop_vm(reason=str(state.get('error', '')))
         self.on.set_sensitive(not(self.closing or self.development_busy) and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')))
-        self.off.set_sensitive(not(self.closing or self.development_busy) and state.get('can_stop', state.get('state') in ('starting', 'running')))
+        self.off.set_sensitive(not(self.closing or self.development_busy or getattr(self, 'force_closing', False))
+                               and (state.get('can_stop', state.get('state') in ('starting', 'running'))
+                                    or (state.get('state') == 'stopping' and hasattr(self.vm, 'force_close'))))
         self.reset_button.set_sensitive(not(self.closing or self.reinitializing or self.development_busy)
             and state.get('settings_persistent') is True and bool(state.get('settings_generation'))
             and state.get('state') in ('disconnected','exited') and bool(state.get('can_start')))
@@ -1336,13 +1364,16 @@ class CameraUI:
             close_dialog.destroy()
             self.close_dialog = None
         if self.closing:
+            if not getattr(self, 'force_closing', False) and hasattr(self.vm, 'force_close'):
+                self._force_close(allow_while_closing=True)
             return True
         if (self.input_bindings is not None and self.vm.status().get('state') == 'running'
                 and not self.release_inputs()):
             return True
         self.closing = True
+        self.off_requested = False
         self._cancel_drag()
-        self.feedback.set_text('正在保存虚拟SD并关闭本窗口拥有的 VM，请稍候。')
+        self.feedback.set_text('正在保存虚拟SD并关闭本窗口拥有的 VM，请稍候（再次点击关闭可立即强制退出）。')
         self.root.set_sensitive(False)
 
         def cleanup():
@@ -1352,51 +1383,72 @@ class CameraUI:
                 if state.get('state') in ('starting', 'running', 'stopping') or state.get('can_start') is False:
                     raise RuntimeError('VM 尚未确认退出')
             except (ValueError, RuntimeError, OSError) as error:
+                if hasattr(self.vm, 'force_close'):
+                    GLib.idle_add(self._note_auto_force_close, str(error))
+                    try:
+                        self.force_closing = True
+                        self.vm.force_close()
+                    except (ValueError, RuntimeError, OSError) as force_error:
+                        GLib.idle_add(self._force_close_failed, str(error) + '；强制关闭亦失败：' + str(force_error))
+                        return
+                    GLib.idle_add(self._finish_close)
+                    return
                 GLib.idle_add(self._close_failed, str(error))
                 return
             GLib.idle_add(self._finish_close)
         threading.Thread(target=cleanup, name='camera-owned-vm-cleanup', daemon=True).start()
         return True
 
+    def _note_auto_force_close(self, message):
+        if not self.closed:
+            self.feedback.set_text('正常关机保存失败，正在强制关闭本窗口拥有的 VM：' + message)
+        return False
+
     def _close_failed(self, message):
         self.closing = False
+        self.force_closing = False
         self.root.set_sensitive(True)
         self.local_error = 'VM 清理失败；窗口保留，可再次关闭窗口重试：' + message
         self.update(self.vm.status())
-        close_dialog = getattr(self, 'close_dialog', None)
-        if close_dialog is not None:
-            close_dialog.destroy()
-            self.close_dialog = None
-        if self.window.get_mapped() and hasattr(self.vm, 'force_close'):
-            dialog = Gtk.MessageDialog(
-                transient_for=self.window, modal=True,
-                message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE,
-                text='无法正常保存并关闭虚拟机')
-            dialog.set_title('关闭确认')
-            dialog.format_secondary_text(
-                message + '\n\n可重试正常保存；如果虚拟机已无响应，可强制关闭本窗口及本窗口拥有的虚拟机（本次未保存的虚拟 SD 修改可能丢失）。')
-            dialog.add_button('取消', Gtk.ResponseType.CANCEL)
-            dialog.add_button('重试正常保存', Gtk.ResponseType.APPLY)
-            force_btn = dialog.add_button('强制关闭', Gtk.ResponseType.REJECT)
-            force_btn.get_style_context().add_class('danger')
-            dialog.set_default_response(Gtk.ResponseType.APPLY)
-            def on_response(widget, choice):
-                if getattr(self, 'close_dialog', None) is widget:
-                    self.close_dialog = None
-                widget.destroy()
-                if choice == Gtk.ResponseType.APPLY:
-                    self._close()
-                elif choice == Gtk.ResponseType.REJECT:
-                    self._force_close()
-            dialog.connect('response', on_response)
-            self.close_dialog = dialog
-            dialog.show_all()
         return False
 
-    def _force_close(self):
-        if self.closing or self.closed:
+    def _force_stop_vm(self, reason=''):
+        if self.closed or self.closing or getattr(self, 'force_closing', False):
+            return
+        self.force_closing = True
+        self.off_requested = False
+        self._cancel_drag()
+        note = ('正常关机保存失败，正在强制停止本窗口拥有的 VM：' + reason) if reason else '正在强制停止本窗口拥有的 VM，请稍候。'
+        self.feedback.set_text(note)
+        self.update(self.vm.status())
+        def worker():
+            error_text = ''
+            try:
+                self.vm.force_close()
+            except (ValueError, RuntimeError, OSError) as error:
+                error_text = str(error)
+            def done():
+                self.force_closing = False
+                if self.closed:
+                    return False
+                if error_text:
+                    self.local_error = 'VM 强制停止失败；租约保留：' + error_text
+                else:
+                    self.local_error = ''
+                    self.feedback.set_text('正常关机保存失败，已强制停止本窗口拥有的 VM。')
+                self.update(self.vm.status())
+                return False
+            GLib.idle_add(done)
+        threading.Thread(target=worker, name='camera-owned-vm-force-stop', daemon=True).start()
+
+    def _force_close(self, *, allow_while_closing=False):
+        if self.closed or getattr(self, 'force_closing', False):
+            return
+        if self.closing and not allow_while_closing:
             return
         self.closing = True
+        self.force_closing = True
+        self.off_requested = False
         self._cancel_drag()
         self.feedback.set_text('正在强制关闭本窗口拥有的 VM，请稍候。')
         self.root.set_sensitive(False)
@@ -1411,17 +1463,21 @@ class CameraUI:
 
     def _force_close_failed(self, message):
         self.closing = False
+        self.force_closing = False
         self.root.set_sensitive(True)
         self.local_error = 'VM 强制关闭失败；窗口与租约保留：' + message
         self.update(self.vm.status())
         return False
 
     def _finish_close(self):
+        if self.closed:
+            return False
         close_dialog = getattr(self, 'close_dialog', None)
         if close_dialog is not None:
             close_dialog.destroy()
             self.close_dialog = None
         self.closed = True
+        self.force_closing = False
         if self.source_id:
             GLib.source_remove(self.source_id)
             self.source_id = 0
@@ -1476,7 +1532,11 @@ def main(autostart=True, argv=None):
         ui.run()
     finally:
         if not ui.closed:
-            vm.close()
+            try:
+                vm.close()
+            except (ValueError, RuntimeError, OSError):
+                if hasattr(vm, 'force_close'):
+                    vm.force_close()
     return 0
 
 

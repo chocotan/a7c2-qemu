@@ -1,0 +1,65 @@
+{
+  "work_dir": "/home/choco/Downloads/20261009sony7c2/final/a7c2-qemu/runtime/tmp/verify-sd4g-live",
+  "run_dir": "/home/choco/Downloads/20261009sony7c2/final/a7c2-qemu/runtime/analysis/menu-runs/run-c9t_pimr",
+  "checks": {
+    "sd_4g_boot": {
+      "build_sd_bytes": 4294967296,
+      "guest_sd_ready_4g": true,
+      "rm_file_started_4g": true,
+      "five_pb_probes_armed": true
+    },
+    "captures": {
+      "capture_lines": [
+        "OBS VIRTUAL_CMOS_CAPTURE rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG source=chart bytes=58241 fnv1a64=1d236cf01f0752bf readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+        "OBS VIRTUAL_CMOS_CAPTURE rc=0 path=A:/DCIM/100MSDCF/DSC00002.JPG source=chart bytes=58241 fnv1a64=1d236cf01f0752bf readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified"
+      ],
+      "sidb_lines": [
+        "OBS VIRTUAL_CMOS_SIDB_REGISTER drive=A media=0x1000 slot=0 getrec_rc=0 uid_rc=0 uid=0x41020001 upd_rc=0 flush_rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG",
+        "OBS VIRTUAL_CMOS_SIDB_REGISTER drive=A media=0x1000 slot=0 getrec_rc=0 uid_rc=0 uid=0x41020004 upd_rc=0 flush_rc=0 path=A:/DCIM/100MSDCF/DSC00002.JPG"
+      ]
+    },
+    "playback_no_sidebars": {
+      "left_mean_luma": 138.02,
+      "center_mean_luma": 127.85,
+      "right_mean_luma": 116.95,
+      "sample_left_30_140": [
+        47,
+        79,
+        222
+      ],
+      "sample_right_605_140": [
+        128,
+        79,
+        47
+      ],
+      "no_dark_mask_pass": true
+    },
+    "delete_first": {
+      "done_lines": [
+        "OBS VIRTUAL_CMOS_NATIVE_DELETE_DONE seq=0x62 flush_rc=0 native_mpr_delete=1 original_CP=0"
+      ],
+      "screen_after_delete": "0x23",
+      "widget_count": 70,
+      "exited_deleting_dialog": true
+    },
+    "delete_last": {
+      "done_lines": [
+        "OBS VIRTUAL_CMOS_NATIVE_DELETE_DONE seq=0x62 flush_rc=0 native_mpr_delete=1 original_CP=0",
+        "OBS VIRTUAL_CMOS_NATIVE_DELETE_DONE seq=0x62 flush_rc=0 native_mpr_delete=1 original_CP=0"
+      ],
+      "screen_after_delete": "0x8f",
+      "widget_count": 10,
+      "exited_deleting_dialog": true
+    },
+    "export_4g": {
+      "export_ok": true,
+      "expected_total": 4294967296,
+      "fsck_rc": 0,
+      "card_published": true,
+      "card_size": 4294967296,
+      "card_allocated_bytes": 10182656,
+      "host_fsck_rc": 0,
+      "remaining_dcim_entries": []
+    }
+  }
+}

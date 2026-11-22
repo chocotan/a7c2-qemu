@@ -2998,8 +2998,25 @@ PROBE_RESTORE_ARGS
 "    br x16\n"
 "1:\n"
 "    ret\n"
+".globl virtual_pb_delete_trampoline\n"
+".type virtual_pb_delete_trampoline, %function\n"
+"virtual_pb_delete_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_delete_intercept\n"
+"    mov w17, w0\n"
+PROBE_RESTORE_ARGS
+"    cbnz w17, 1f\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    .inst 0xaa0003f4\n"
+"    adrp x16, virtual_pb_delete_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_delete_continue]\n"
+"    br x16\n"
+"1:\n"
+"    ret\n"
 );
-static void *virtual_pb_enqueue_continue, *virtual_pb_start_playback_continue;
+static void *virtual_pb_enqueue_continue, *virtual_pb_start_playback_continue, *virtual_pb_delete_continue;
 extern void virtual_hud_aperture_trampoline(void);
 extern void virtual_hud_shutter_trampoline(void);
 extern void virtual_hud_iso_trampoline(void);
@@ -3014,6 +3031,7 @@ extern void virtual_pb_read_still_trampoline(void);
 extern void virtual_pb_create_yc_trampoline(void);
 extern void virtual_pb_enqueue_trampoline(void);
 extern void virtual_pb_start_playback_trampoline(void);
+extern void virtual_pb_delete_trampoline(void);
 static void install_virtual_lens_hud_probes(unsigned long base) {
     if (!same_name(getenv("MENU_VIRTUAL_LENS_HUD"), "1")) return;
     virtual_lens_hud_init_defaults(&virtual_lens_hud_current);
@@ -3032,6 +3050,7 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
     virtual_pb_create_yc_continue = (void *)(base + 0x30418d8UL);
     virtual_pb_enqueue_continue = (void *)(base + 0x3228ed0UL);
     virtual_pb_start_playback_continue = (void *)(base + 0x33d1488UL);
+    virtual_pb_delete_continue = (void *)(base + 0x24d1a54UL);
     int rc_ap = arm_entry_probe(base + 0x181b660UL,
         (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9001, 0xa90153f3},
         (void *)virtual_hud_aperture_trampoline, virtual_hud_aperture_continue,
@@ -3083,11 +3102,15 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
         (const unsigned int[4]){0xd112c3ff, 0xa9ba7bfd, 0x910003fd, 0xf9400001},
         (void *)virtual_pb_start_playback_trampoline, virtual_pb_start_playback_continue,
         "pb_start_playback 0x33d1478");
+    int rc_pbd = arm_entry_probe(base + 0x24d1a44UL,
+        (const unsigned int[4]){0xa9ba7bfd, 0x910003fd, 0xa90153f3, 0xaa0003f4},
+        (void *)virtual_pb_delete_trampoline, virtual_pb_delete_continue,
+        "pb_delete_0x62 0x24d1a44");
     char text[320];
     snprintf(text, sizeof text,
-             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d dial_rc=%d,%d,%d,%d,%d,%d,%d pb_rc=%d,%d,%d,%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
+             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d dial_rc=%d,%d,%d,%d,%d,%d,%d pb_rc=%d,%d,%d,%d,%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
              rc_ap, rc_ss, rc_iso, rc_dap, rc_dss, rc_dps, rc_di1, rc_di2, rc_di3, rc_di4, rc_pbr, rc_pby,
-             rc_pbe, rc_pbs,
+             rc_pbe, rc_pbs, rc_pbd,
              (unsigned int)virtual_lens_hud_current.aperture_x100,
              (unsigned int)virtual_lens_hud_current.shutter_num,
              (unsigned int)virtual_lens_hud_current.shutter_den,
@@ -3417,12 +3440,31 @@ int virtual_pb_start_playback_intercept(unsigned long obj_addr) {
              syscall(178), bg_rc, seq, jpg_path[0] ? jpg_path : "(empty)", bg_rc == 0 ? 1 : 0);
     record("VIRTUAL_CMOS_NATIVE_PB_START ", text);
     /* Set sequence_playback displayability status (obj+3024 -> model 0x285c16c+2936):
-     * 0 = playable still (opens native scr7102_0001_still / 0002 / 0003), 4 = unable to display. */
+     * 0 = playable still (opens native scr7102_0001_still / 0002 / 0003), 4 = unable to display.
+     * Set obj+120 (recorded aspect marker enum -> 0x2d47314 -> prop 0x25c4) to 6 (Off/None);
+     * leaving 0 maps to 1:1 Aspect Marker and makes scr7102_0001_still draw 80% dark sidebars. */
+    *(unsigned int *)(obj_addr + 120UL) = 6u;
     *(unsigned int *)(obj_addr + 3024UL) = (bg_rc == 0) ? 0u : 4u;
     /* Complete Sony's own sequence_playback::start_playback_exit(obj, ok) to publish real EXIF/OSD
      * metadata and emit MODEL_PLAY_START_OK, opening native scr7102_0001_still. */
     void (*start_pb_exit)(void *, int) = (void (*)(void *, int))(appfw_base + 0x33ce72cUL);
     start_pb_exit((void *)obj_addr, bg_rc == 0 ? 1 : 0);
+    *__errno_location() = saved_errno;
+    return 1;
+}
+int virtual_pb_delete_intercept(unsigned long param_ptr, unsigned int sync_flag, unsigned long cb_ptr) {
+    (void)param_ptr; (void)sync_flag; (void)cb_ptr;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return 0;
+    if (!appfw_base) return 0;
+    int saved_errno = *__errno_location();
+    if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
+        unlink(VIRTUAL_PLAYBACK_BG_PATH);
+    }
+    char text[128];
+    snprintf(text, sizeof text, "seq=0x62 tid=%ld sync=%u native_delete_dispatch=1 original_CP=0",
+             syscall(178), sync_flag);
+    record("VIRTUAL_CMOS_NATIVE_DELETE_ENQUEUE ", text);
+    vcmos_post_work(128u);
     *__errno_location() = saved_errno;
     return 1;
 }
@@ -3569,6 +3611,30 @@ static void *vcmos_worker_main(void *arg) {
                     char text[96];
                     snprintf(text, sizeof text, "n=%u rc=%u", n, reload_rc);
                     record("APO_MSS_RELOAD ", text);
+                }
+            }
+            if ((flags & 128u) && appfw_base) {
+                /* Let the UI thread finish pushing scr7110_0002 ("正在删除") and
+                 * subscribing to event 0x01000019 before sequence_delete_multipul runs. */
+                long req[2] = {0, 50000000L};
+                syscall(101 /* SYS_nanosleep */, req, 0);
+                void *obj = malloc(0x220UL);
+                if (obj) {
+                    __builtin_memset(obj, 0, 0x220UL);
+                    void (*del_ctor)(void *) = (void (*)(void *))(appfw_base + 0x310e384UL);
+                    void (*del_run)(void *) = (void (*)(void *))(appfw_base + 0x3093a20UL);
+                    void (*del_dtor)(void *) = (void (*)(void *))(appfw_base + 0x30931d4UL);
+                    del_ctor(obj);
+                    del_run(obj);
+                    del_dtor(obj);
+                    free(obj);
+                    int flush_rc = -1;
+                    if (vcmos_ops_ready() && vcmos_ops.flush_volume_fn) {
+                        flush_rc = vcmos_ops.flush_volume_fn('A');
+                    }
+                    char text[128];
+                    snprintf(text, sizeof text, "seq=0x62 flush_rc=%d native_mpr_delete=1 original_CP=0", flush_rc);
+                    record("VIRTUAL_CMOS_NATIVE_DELETE_DONE ", text);
                 }
             }
         }

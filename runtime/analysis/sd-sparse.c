@@ -11,7 +11,8 @@
 #include <sys/vfs.h>
 
 #define SD_SPARSE_TOTAL (UINT64_C(10)*1024*1024*1024)
-#define SD_SPARSE_CARD_TOTAL (UINT64_C(1)*1024*1024*1024)
+#define SD_SPARSE_CARD_TOTAL (UINT64_C(4)*1024*1024*1024)
+#define SD_SPARSE_CARD_TOTAL_1G (UINT64_C(1)*1024*1024*1024)
 #define SD_SPARSE_DATA_LIMIT (UINT64_C(512)*1024*1024)
 #define SD_SPARSE_WINDOW 0x400000U
 #define SD_SPARSE_RANGES 4096U
@@ -125,7 +126,8 @@ static int sparse_map(void) {
     unsigned int count=0;uint64_t data=0;int rc=4;
     if(__fxstat(0,fd,&before) || __lxstat(0,"/image_mmca",&named) ||
        !S_ISREG(before.st_mode) || !S_ISREG(named.st_mode) || !sparse_same(&before,&named) ||
-       (before.st_size!=SD_SPARSE_TOTAL && before.st_size!=SD_SPARSE_CARD_TOTAL) || before.st_blocks<0 ||
+       (before.st_size!=SD_SPARSE_TOTAL && before.st_size!=SD_SPARSE_CARD_TOTAL &&
+        before.st_size!=SD_SPARSE_CARD_TOTAL_1G) || before.st_blocks<0 ||
        (uint64_t)before.st_blocks>SD_SPARSE_DATA_LIMIT/512)goto done;
     printf("SD_SPARSE_BEGIN total=%llu dev=%llu inode=%llu mtime=%lld.%09ld ctime=%lld.%09ld\n",
            (unsigned long long)before.st_size,(unsigned long long)before.st_dev,

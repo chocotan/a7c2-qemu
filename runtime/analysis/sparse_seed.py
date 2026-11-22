@@ -14,7 +14,8 @@ import stat
 
 from sd_transport import card_source, identity
 
-TOTAL = 1024**3
+TOTAL = 4 * 1024**3
+VALID_TOTALS = (1024**3, 4 * 1024**3)
 BLOCK = 4096
 MAX_CHUNK = 4 * 1024**2
 MAX_CHUNKS = 4096
@@ -131,7 +132,7 @@ def build(source, destination, *, source_fd=None, verify_sha=True):
     if '..' in destination.parts or destination.exists() or destination.is_symlink():
         raise ValueError('Sparse seed requires a fresh ordinary destination')
     if shutil.disk_usage(destination.parent).free < TOTAL + 64 * 1024**3:
-        raise ValueError('Sparse seed/export requires 1 GiB plus the 64 GiB reserve')
+        raise ValueError('Sparse seed/export requires 4 GiB plus the 64 GiB reserve')
     if not verify_sha and source_fd is None:
         cached = _try_cache_reuse(source, destination, verify_sha)
         if cached is not None:
@@ -168,32 +169,75 @@ def build(source, destination, *, source_fd=None, verify_sha=True):
         data_bytes += len(raw)
         pending = bytearray()
 
+    def scan_chunk(big_offset, chunk):
+        nonlocal pending_offset
+        if full is not None:
+            full.update(chunk)
+        if chunk == _ZERO_SCAN[:len(chunk)]:
+            flush()
+            return
+        view = memoryview(chunk)
+        for inner in range(0, len(chunk), BLOCK):
+            raw = view[inner:inner + BLOCK]
+            if raw != _ZERO_BLOCK:
+                if not pending:
+                    pending_offset = big_offset + inner
+                pending.extend(raw)
+                if len(pending) >= MAX_CHUNK:
+                    flush()
+            else:
+                flush()
+
     with _source(source, source_fd) as fd:
         before = os.fstat(fd)
-        if before.st_size != TOTAL:
-            raise ValueError('The product camera SD must be exactly 1 GiB')
-        for big_offset in range(0, TOTAL, SCAN_CHUNK):
-            chunk = os.pread(fd, SCAN_CHUNK, big_offset)
-            if len(chunk) != SCAN_CHUNK:
-                raise ValueError('Short virtual SD read')
-            if full is not None:
-                full.update(chunk)
-            if chunk == _ZERO_SCAN:
-                flush()
-                continue
-            view = memoryview(chunk)
-            for inner in range(0, SCAN_CHUNK, BLOCK):
-                raw = view[inner:inner + BLOCK]
-                if raw != _ZERO_BLOCK:
-                    if not pending:
-                        pending_offset = big_offset + inner
-                    pending.extend(raw)
-                    if len(pending) >= MAX_CHUNK:
+        total = before.st_size
+        if total not in VALID_TOTALS:
+            raise ValueError('The product camera SD must be 1 GiB or 4 GiB')
+        used_seek_data = False
+        if not verify_sha and hasattr(os, 'SEEK_DATA') and hasattr(os, 'SEEK_HOLE'):
+            try:
+                cursor = 0
+                while cursor < total:
+                    try:
+                        data_start = os.lseek(fd, cursor, os.SEEK_DATA)
+                    except OSError as exc:
+                        if exc.errno == 6:  # ENXIO: no more data extents
+                            flush()
+                            break
+                        raise
+                    if data_start >= total:
                         flush()
-                else:
-                    flush()
+                        break
+                    aligned_start = (data_start // BLOCK) * BLOCK
+                    if aligned_start > cursor:
+                        flush()
+                    hole_start = os.lseek(fd, data_start, os.SEEK_HOLE)
+                    aligned_end = min(total, ((hole_start + BLOCK - 1) // BLOCK) * BLOCK)
+                    pos = aligned_start
+                    while pos < aligned_end:
+                        step = min(SCAN_CHUNK, aligned_end - pos)
+                        chunk = os.pread(fd, step, pos)
+                        if len(chunk) != step:
+                            raise ValueError('Short virtual SD read')
+                        scan_chunk(pos, chunk)
+                        pos += step
+                    cursor = aligned_end
+                used_seek_data = True
+            except OSError:
+                for row in rows:
+                    (destination / row['file']).unlink(missing_ok=True)
+                rows.clear()
+                pending.clear()
+                data_bytes = 0
+                used_seek_data = False
+        if not used_seek_data:
+            for big_offset in range(0, total, SCAN_CHUNK):
+                chunk = os.pread(fd, SCAN_CHUNK, big_offset)
+                if len(chunk) != SCAN_CHUNK:
+                    raise ValueError('Short virtual SD read')
+                scan_chunk(big_offset, chunk)
         flush()
-        if os.fstat(fd).st_size != TOTAL:
+        if os.fstat(fd).st_size != total:
             raise ValueError('Virtual SD size changed while packaging')
 
     # Independently visit every logical block when verify_sha is enabled.
@@ -214,7 +258,7 @@ def build(source, destination, *, source_fd=None, verify_sha=True):
                 raise ValueError('Short packaged chunk during reconstruction')
             actual.update(raw)
             cursor = row['offset'] + row['length']
-        gap = TOTAL - cursor
+        gap = total - cursor
         while gap > 0:
             step = min(gap, SCAN_CHUNK)
             actual.update(_ZERO_SCAN if step == SCAN_CHUNK else _ZERO_SCAN[:step])
@@ -231,13 +275,13 @@ def build(source, destination, *, source_fd=None, verify_sha=True):
     if verify_sha and zero.read_bytes() != _ZERO_BLOCK:
         raise ValueError('Terminal zero-block readback differs')
     full_hex = full.hexdigest() if full is not None else zero_hex
-    manifest = {'schema': 'a7c2-sparse-sd-seed-v1', 'bytes': TOTAL,
+    manifest = {'schema': 'a7c2-sparse-sd-seed-v1', 'bytes': total,
                 'sha256': full.hexdigest() if verify_sha else None,
                 'sha_verified': bool(verify_sha),
                 'block_bytes': BLOCK, 'data_bytes': data_bytes,
                 'chunks': rows, 'terminal_zero_file': 'zero.bin', 'source': str(Path(source).absolute()),
                 'representation_only': True, 'physical_device': False}
-    (destination / 'identity.txt').write_text(f"{TOTAL} {full_hex}\n", encoding='ascii')
+    (destination / 'identity.txt').write_text(f"{total} {full_hex}\n", encoding='ascii')
     (destination / 'chunks.txt').write_text(''.join(
         f"{row['offset']} {row['length']} {row['file']} {row['sha256']}\n" for row in rows), encoding='ascii')
     (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
