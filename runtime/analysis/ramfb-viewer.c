@@ -18,6 +18,7 @@
 #define PREVIEW_NAME "functional-cmos-chart-v1\n"
 #define PREVIEW_CUSTOM_RGB "/tmp/virtual-cmos-custom.rgb"
 #define PREVIEW_PLAYBACK_FRAME "/tmp/virtual-playback-frame.bin"
+#define PREVIEW_PLAYBACK_BG "/tmp/virtual-playback-bg.bin"
 #define PREVIEW_SHUTTER_BLINK "/tmp/virtual-shutter-blink"
 #define PREVIEW_RGB_BYTES (640U * 480U * 3U)
 #define PREVIEW_PLAYBACK_HDR 16U
@@ -26,6 +27,9 @@ static unsigned char *preview_rgb;
 static unsigned char *custom_preview_rgb;
 static int custom_preview_active;
 static struct stat custom_preview_st;
+static unsigned char *playback_bg_rgb;
+static int playback_bg_active;
+static struct stat playback_bg_st;
 static int preview_enabled;
 static int preview_active;
 
@@ -124,6 +128,48 @@ __attribute__((unused)) static int refresh_custom_preview(const char *path) {
     custom_preview_active = 1;
     return 1;
 }
+__attribute__((unused)) static int refresh_playback_bg(const char *path) {
+    int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    if (fd < 0) {
+        if (errno == ENOENT && playback_bg_active) {
+            playback_bg_active = 0;
+            memset(&playback_bg_st, 0, sizeof playback_bg_st);
+            return 1;
+        }
+        return 0;
+    }
+    struct stat st;
+    if (view_stat(fd, &st) || !S_ISREG(st.st_mode) || (size_t)st.st_size != PREVIEW_PLAYBACK_BYTES) {
+        close(fd);
+        return 0;
+    }
+    if (playback_bg_active &&
+        st.st_dev == playback_bg_st.st_dev && st.st_ino == playback_bg_st.st_ino &&
+        st.st_mtim.tv_sec == playback_bg_st.st_mtim.tv_sec &&
+        st.st_mtim.tv_nsec == playback_bg_st.st_mtim.tv_nsec) {
+        close(fd);
+        return 0;
+    }
+    unsigned char hdr[PREVIEW_PLAYBACK_HDR];
+    if (read_all(fd, hdr, PREVIEW_PLAYBACK_HDR) ||
+        memcmp(hdr, "VPBG0001", 8) != 0 ||
+        le(hdr + 12, 2) != 640 || le(hdr + 14, 2) != 480) {
+        close(fd);
+        return 0;
+    }
+    if (!playback_bg_rgb) {
+        playback_bg_rgb = malloc(PREVIEW_RGB_BYTES);
+        if (!playback_bg_rgb) { close(fd); return 0; }
+    }
+    if (read_all(fd, playback_bg_rgb, PREVIEW_RGB_BYTES)) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+    playback_bg_st = st;
+    playback_bg_active = 1;
+    return 1;
+}
 __attribute__((unused)) static void rgb24_to_xrgb8888(const unsigned char *rgb, unsigned char *out) {
     for (unsigned i = 0; i < 640U * 480U; ++i) {
         out[4U * i + 0] = rgb[3U * i + 2];
@@ -201,13 +247,20 @@ static void convert(const unsigned char *p, unsigned char *out) {
 static int convert_frame(const unsigned char *raw, unsigned char *out) {
     const unsigned char *pixels = raw + HOSD_HEADER + sizeof(struct hosd_metadata);
     preview_active = preview_enabled && preview_scene(raw);
-    if (!preview_active) { convert(pixels,out); return 0; }
-    const unsigned char *bg_rgb = custom_preview_active ? custom_preview_rgb : preview_rgb;
-    if (!bg_rgb) {
-        sensor_config cfg = sensor_config_default();
-        preview_rgb = sensor_frame_rgb(&cfg,sensor_token_next(&cfg,0));
-        if (!preview_rgb) return -1;
-        bg_rgb = preview_rgb;
+    const unsigned char *bg_rgb = NULL;
+    if (playback_bg_active && playback_bg_rgb) {
+        bg_rgb = playback_bg_rgb;
+    } else if (preview_active) {
+        bg_rgb = custom_preview_active ? custom_preview_rgb : preview_rgb;
+        if (!bg_rgb) {
+            sensor_config cfg = sensor_config_default();
+            preview_rgb = sensor_frame_rgb(&cfg,sensor_token_next(&cfg,0));
+            if (!preview_rgb) return -1;
+            bg_rgb = preview_rgb;
+        }
+    } else {
+        convert(pixels, out);
+        return 0;
     }
     ensure_conversion_table();
     for (unsigned i=0; i<HOSD_PIXELS/2; i++) {
@@ -536,6 +589,9 @@ static int run(void) {
         if (preview_enabled && refresh_custom_preview(PREVIEW_CUSTOM_RGB) && have_raw && !pb_active) {
             force_redraw = 1;
         }
+        if (refresh_playback_bg(PREVIEW_PLAYBACK_BG) && have_raw && !pb_active) {
+            force_redraw = 1;
+        }
 
         if (have_raw && !pb_active && check_shutter_blink(&blink_st, &have_blink)) {
             memset(stage, 0, XRGB_BYTES);
@@ -576,12 +632,13 @@ static int run(void) {
                 record("SUBMITTED",
                        preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
                                                                : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
-                                      : "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
+                                      : (playback_bg_active ? "virtual-playback-bg=1 native-osd=1 DMA-is-not-screenshot-proof"
+                                                            : "virtual-preview=off DMA-is-not-screenshot-proof"), raw, slot);
             }
             continue;
         }
         have_raw = 1;
-        int need_submit = !pb_active && (action == 2 || force_redraw || (preview_enabled && action == 1));
+        int need_submit = !pb_active && (action == 2 || force_redraw || ((preview_enabled || playback_bg_active) && action == 1));
         if (need_submit) {
             if (convert_frame(raw, stage)) {
                 record("FAIL","virtual-preview sensor generation failed",raw,slot);
@@ -598,7 +655,8 @@ static int run(void) {
             record(need_submit ? "SUBMITTED" : "RETAINED",
                    preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
                                                            : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
-                                  : "virtual-preview=off DMA-is-not-screenshot-proof", raw, slot);
+                                  : (playback_bg_active ? "virtual-playback-bg=1 native-osd=1 DMA-is-not-screenshot-proof"
+                                                        : "virtual-preview=off DMA-is-not-screenshot-proof"), raw, slot);
         }
     }
 }

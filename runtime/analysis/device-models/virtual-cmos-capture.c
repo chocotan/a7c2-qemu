@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 /* Firmware glibc 2.25 exports __fxstat rather than glibc 2.33's fstat symbol. */
@@ -307,7 +308,7 @@ static void put_le32(uint8_t *p, uint32_t v) {
 
 static void write_exif_app1(struct byte_vec *out, unsigned width, unsigned height,
                             const struct virtual_lens_hud_state *hud) {
-    uint8_t tiff[512];
+    uint8_t tiff[1024];
     memset(tiff, 0, sizeof tiff);
     /* Little-endian TIFF header ("II", 42, IFD0 offset = 8). */
     tiff[0] = 'I'; tiff[1] = 'I';
@@ -319,20 +320,30 @@ static void write_exif_app1(struct byte_vec *out, unsigned width, unsigned heigh
     const char *software = "ILCE-7CM2 v2.01 QEMU Virtual CMOS";
     const char *lens = (hud && hud->lens_name[0]) ? hud->lens_name : "Virtual 35mm F4.0";
 
+    char dt[24];
+    time_t now = time(NULL);
+    struct tm tm_val;
+    if (now > 946684800 && localtime_r(&now, &tm_val)) {
+        snprintf(dt, sizeof dt, "%04d:%02d:%02d %02d:%02d:%02d",
+                 tm_val.tm_year + 1900, tm_val.tm_mon + 1, tm_val.tm_mday,
+                 tm_val.tm_hour, tm_val.tm_min, tm_val.tm_sec);
+    } else {
+        snprintf(dt, sizeof dt, "2026:11:22 12:00:00");
+    }
+
     uint32_t sh_num = (hud && hud->shutter_num) ? hud->shutter_num : 1u;
     uint32_t sh_den = (hud && hud->shutter_den) ? hud->shutter_den : 125u;
     uint32_t f_num = (hud && hud->aperture_x100) ? hud->aperture_x100 : 400u;
     uint32_t f_den = 100u;
     uint16_t iso = (uint16_t)(hud ? virtual_lens_hud_iso_value(hud->iso_cp_byte) : 100u);
 
-    /* IFD0 at offset 8: 5 entries -> 2 + 5*12 + 4 = 66 bytes (ends at 74). */
+    /* IFD0 at offset 8: 6 entries -> 2 + 6*12 + 4 = 78 bytes (ends at 86). */
     size_t ifd0 = 8;
-    size_t exif_ifd = 80; /* 6 entries -> 2 + 6*12 + 4 = 78 bytes (ends at 158). */
-    size_t data_off = 164;
+    size_t exif_ifd = 92; /* 9 entries -> 2 + 9*12 + 4 = 114 bytes (ends at 206). */
+    size_t data_off = 212;
 
-    /* Helper macro to write IFD entry at pos. */
     size_t p = ifd0;
-    put_le16(tiff + p, 5); p += 2;
+    put_le16(tiff + p, 6); p += 2;
     /* 0x010f Make */
     put_le16(tiff + p, 0x010f); put_le16(tiff + p + 2, 2); put_le32(tiff + p + 4, (uint32_t)strlen(make) + 1);
     put_le32(tiff + p + 8, (uint32_t)data_off);
@@ -347,13 +358,17 @@ static void write_exif_app1(struct byte_vec *out, unsigned width, unsigned heigh
     put_le16(tiff + p, 0x0131); put_le16(tiff + p + 2, 2); put_le32(tiff + p + 4, (uint32_t)strlen(software) + 1);
     put_le32(tiff + p + 8, (uint32_t)data_off);
     memcpy(tiff + data_off, software, strlen(software) + 1); data_off += strlen(software) + 1; p += 12;
+    /* 0x0132 DateTime */
+    put_le16(tiff + p, 0x0132); put_le16(tiff + p + 2, 2); put_le32(tiff + p + 4, 20);
+    put_le32(tiff + p + 8, (uint32_t)data_off);
+    memcpy(tiff + data_off, dt, 20); data_off += 20; p += 12;
     /* 0x8769 ExifIFDPointer */
     put_le16(tiff + p, 0x8769); put_le16(tiff + p + 2, 4); put_le32(tiff + p + 4, 1); put_le32(tiff + p + 8, (uint32_t)exif_ifd); p += 12;
     put_le32(tiff + p, 0); /* next IFD = 0 */
 
-    /* ExifIFD: 6 entries (strictly sorted by tag). */
+    /* ExifIFD: 9 entries (strictly sorted by tag). */
     p = exif_ifd;
-    put_le16(tiff + p, 6); p += 2;
+    put_le16(tiff + p, 9); p += 2;
     /* 0x829a ExposureTime (RATIONAL) */
     data_off = (data_off + 3u) & ~3u;
     put_le16(tiff + p, 0x829a); put_le16(tiff + p + 2, 5); put_le32(tiff + p + 4, 1); put_le32(tiff + p + 8, (uint32_t)data_off);
@@ -363,6 +378,17 @@ static void write_exif_app1(struct byte_vec *out, unsigned width, unsigned heigh
     put_le32(tiff + data_off, f_num); put_le32(tiff + data_off + 4, f_den); data_off += 8; p += 12;
     /* 0x8827 ISOSpeedRatings (SHORT) */
     put_le16(tiff + p, 0x8827); put_le16(tiff + p + 2, 3); put_le32(tiff + p + 4, 1); put_le16(tiff + p + 8, iso); p += 12;
+    /* 0x9000 ExifVersion (UNDEFINED, 4 bytes inline) */
+    put_le16(tiff + p, 0x9000); put_le16(tiff + p + 2, 7); put_le32(tiff + p + 4, 4);
+    memcpy(tiff + p + 8, "0232", 4); p += 12;
+    /* 0x9003 DateTimeOriginal (ASCII) */
+    put_le16(tiff + p, 0x9003); put_le16(tiff + p + 2, 2); put_le32(tiff + p + 4, 20);
+    put_le32(tiff + p + 8, (uint32_t)data_off);
+    memcpy(tiff + data_off, dt, 20); data_off += 20; p += 12;
+    /* 0x9004 DateTimeDigitized (ASCII) */
+    put_le16(tiff + p, 0x9004); put_le16(tiff + p + 2, 2); put_le32(tiff + p + 4, 20);
+    put_le32(tiff + p + 8, (uint32_t)data_off);
+    memcpy(tiff + data_off, dt, 20); data_off += 20; p += 12;
     /* 0xa002 PixelXDimension (LONG) */
     put_le16(tiff + p, 0xa002); put_le16(tiff + p + 2, 4); put_le32(tiff + p + 4, 1); put_le32(tiff + p + 8, width); p += 12;
     /* 0xa003 PixelYDimension (LONG) */
@@ -1130,15 +1156,15 @@ static void draw_text(uint8_t *rgb, unsigned x, unsigned y, const char *text,
     }
 }
 
-static int write_playback_frame(const char *frame_path, uint32_t seq, const uint8_t *rgb) {
-    if (!frame_path || !rgb) return -EINVAL;
-    char tmp[160];
+static int write_rgb_frame_with_magic(const char *frame_path, const char magic[8], uint32_t seq, const uint8_t *rgb) {
+    if (!frame_path || !magic || !rgb) return -EINVAL;
+    char tmp[512];
     int n = snprintf(tmp, sizeof tmp, "%s.tmp", frame_path);
     if (n <= 0 || n >= (int)sizeof tmp) return -ENAMETOOLONG;
     int fd = open(tmp, O_CREAT | O_WRONLY | O_TRUNC | O_NOFOLLOW, 0600);
     if (fd < 0) return -errno;
     uint8_t hdr[VIRTUAL_PLAYBACK_HEADER_BYTES];
-    memcpy(hdr, VIRTUAL_PLAYBACK_MAGIC, 8);
+    memcpy(hdr, magic, 8);
     put_le32(hdr + 8, seq);
     put_le16(hdr + 12, (uint16_t)VIRTUAL_CMOS_W);
     put_le16(hdr + 14, (uint16_t)VIRTUAL_CMOS_H);
@@ -1156,6 +1182,10 @@ static int write_playback_frame(const char *frame_path, uint32_t seq, const uint
         return -EIO;
     }
     return 0;
+}
+
+static int write_playback_frame(const char *frame_path, uint32_t seq, const uint8_t *rgb) {
+    return write_rgb_frame_with_magic(frame_path, VIRTUAL_PLAYBACK_MAGIC, seq, rgb);
 }
 
 static void scan_sd_photos(struct virtual_cmos_playback_state *pb,
@@ -1296,4 +1326,53 @@ void virtual_cmos_playback_exit(struct virtual_cmos_playback_state *pb,
                                 const char *frame_path) {
     if (pb) pb->active = 0;
     if (frame_path) unlink(frame_path);
+}
+
+int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
+                                    const char *jpeg_path,
+                                    const char *bg_path,
+                                    uint32_t seq) {
+    if (!ops || !ops->open_fn || !ops->read_fn || !ops->close_fn ||
+        !jpeg_path || !jpeg_path[0] || !bg_path || !bg_path[0])
+        return -EINVAL;
+    size_t cap = 512u * 1024u;
+    uint8_t *buf = malloc(cap);
+    if (!buf) return -ENOMEM;
+    size_t total = 0;
+    uint64_t h = 0;
+    if (ops->open_fn(jpeg_path, &h, 1u) != 0) {
+        free(buf);
+        return -ENOENT;
+    }
+    for (;;) {
+        if (total + 65536u > cap) {
+            if (cap >= 4u * 1024u * 1024u) break;
+            size_t next = cap * 2u;
+            uint8_t *nb = realloc(buf, next);
+            if (!nb) break;
+            buf = nb;
+            cap = next;
+        }
+        int got = ops->read_fn(h, buf + total, 65536);
+        if (got <= 0) break;
+        total += (size_t)got;
+    }
+    ops->close_fn(h);
+    if (total < 4u) {
+        free(buf);
+        return -EIO;
+    }
+    uint8_t *rgb = calloc(1, VIRTUAL_CMOS_RGB_BYTES);
+    if (!rgb) {
+        free(buf);
+        return -ENOMEM;
+    }
+    unsigned sw = 0, sh = 0;
+    int rc = virtual_cmos_decode_jpeg(buf, total, rgb, &sw, &sh, NULL, 0);
+    free(buf);
+    if (rc == 0) {
+        rc = write_rgb_frame_with_magic(bg_path, VIRTUAL_PLAYBACK_BG_MAGIC, seq, rgb);
+    }
+    free(rgb);
+    return rc;
 }

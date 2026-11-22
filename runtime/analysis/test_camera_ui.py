@@ -395,6 +395,65 @@ class GTKTests(unittest.TestCase):
         self.settle()
         self.assertIn('stop', self.vm.calls)
 
+    def test_close_in_non_running_state_skips_release_inputs(self):
+        self.vm.value.update(state='error', can_start=True, can_stop=False)
+        self.ui.update(self.vm.status())
+        self.ui.input_bindings = SimpleNamespace(release_all=lambda: (_ for _ in ()).throw(AssertionError('must not call')))
+        self.ui._close()
+        deadline = time.monotonic() + 2
+        while not self.ui.closed and time.monotonic() < deadline:
+            self.settle()
+        self.assertTrue(self.ui.closed)
+        self.assertIn('close', self.vm.calls)
+
+    def test_close_failure_offers_explicit_force_close_dialog(self):
+        self.running()
+        def fail_close():
+            self.vm.calls.append('close')
+            raise RuntimeError('injected save timeout')
+        def do_force_close():
+            self.vm.calls.append('force_close')
+            self.vm.value.update(state='exited', can_start=True, can_stop=False)
+        self.vm.close = fail_close
+        self.vm.force_close = do_force_close
+        self.ui._close()
+        deadline = time.monotonic() + 2
+        while self.ui.close_dialog is None and time.monotonic() < deadline:
+            self.settle()
+        self.assertIsNotNone(self.ui.close_dialog)
+        self.assertFalse(self.ui.closed)
+        # Cancel closes dialog without force-killing.
+        self.ui.close_dialog.response(Gtk.ResponseType.CANCEL)
+        self.settle()
+        self.assertIsNone(self.ui.close_dialog)
+        self.assertNotIn('force_close', self.vm.calls)
+        self.assertFalse(self.ui.closed)
+        # Second close attempt -> choose explicit Force Close.
+        self.ui._close()
+        deadline = time.monotonic() + 2
+        while self.ui.close_dialog is None and time.monotonic() < deadline:
+            self.settle()
+        self.ui.close_dialog.response(Gtk.ResponseType.REJECT)
+        deadline = time.monotonic() + 2
+        while not self.ui.closed and time.monotonic() < deadline:
+            self.settle()
+        self.assertTrue(self.ui.closed)
+        self.assertIn('force_close', self.vm.calls)
+
+    def test_force_close_failure_keeps_window_open_with_error(self):
+        self.running()
+        def fail_force():
+            self.vm.calls.append('force_close')
+            raise RuntimeError('process still alive')
+        self.vm.force_close = fail_force
+        self.ui._force_close()
+        deadline = time.monotonic() + 2
+        while self.ui.closing and time.monotonic() < deadline:
+            self.settle()
+        self.assertFalse(self.ui.closed)
+        self.assertIn('VM 强制关闭失败', self.ui.local_error)
+        self.assertIn('process still alive', self.ui.local_error)
+
     def test_lcd_only_backend_bytes_old_state_and_bad_png(self):
         self.running()
         self.assertIsNone(self.ui.pixbuf)

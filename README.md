@@ -17,27 +17,26 @@
 - **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸。不支持多指手势。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
 - **低延迟机身按键与 4 拨轮**：窗口提供主要按键和 4 个拨轮（前拨轮 ±22、后拨轮 ±30、控制轮 ±24、右上拨轮 ±1024）。LCD 通道直传 640×480 原始 RGB24（去掉同进程 PNG 编解码），空闲 15 Hz / 按键立即唤醒 60 Hz；Fn 键在 guest 内原子点按（20 ms）以避开固件 500 ms 长按分支。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
 - **默认 CMOS 色卡 + 自定义图片热替换**：默认启用色卡背景，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片（宿主等比缩放到 640×480 后经串口分块送入 guest `cmos-import` 原子替换），随时可点“恢复色卡”。
-- **全按快门写虚拟 SD + 播放页查看**：拍摄画面全按快门将当前色卡或自定义图片编码为 Baseline JPEG（含 Sony `ILCE-7CM2` 与当前光圈/快门/ISO EXIF），经原 `libInfraFsys.so` 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验；按**播放**键可叠加查看、左右翻页、删除及退出，关机导出的 `SD/card.img` 可在宿主直接解出照片。
+- **全按快门写虚拟 SD + 原厂播放界面**：拍摄画面全按快门将当前色卡或自定义图片编码为 Baseline JPEG（含 Sony `ILCE-7CM2` EXIF 2.32），经原 `libInfraFsys.so` 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验，同时经原 `libmpr.so` `sidb` 登记入图像索引；按**播放**键直接进入索尼原厂单张播放界面（`scr7102_0001_still`，支持 `LEFT`/`RIGHT` 翻页、`UP`/`DISP` 切换 `scr7102_0003_still` / `scr7102_0002_still`、再按播放键返回拍摄），由 `ramfb-viewer` 将真实 JPEG 软解码画面与原厂透明播放 OSD 合成显示；关机导出的 `SD/card.img` 可在宿主直接解出照片。
 - **使用虚拟 SD 卡与保留设置**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入与关机镜像导出；可跨启动保留语言和日期格式。
 - **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
 ## 近期更新与实机验证（2026-11-22）
 
-以下全部项目已在**独立隔离的冷启动 QEMU 实例**中配合真实 ILCE-7CM2 2.01 固件完成端到端实机验证（不干扰宿主已有实例）。软件虚拟 CMOS / 虚拟镜头模型不代表真实 CP ASIC 或物理 ISP，原厂硬件指标 `capture_verified` 仍保持 `false`。
+以下全部项目已在**独立隔离的冷启动 QEMU 实例**中配合真实 ILCE-7CM2 2.01 固件完成端到端实机验证（不干扰宿主已有实例）。软件虚拟 CMOS / 虚拟镜头 / 软件 JPEG 解码不代表真实 CP ASIC 或物理 ISP，原厂硬件指标 `capture_verified` 仍保持 `false`。
 
 | 项目 | 实现内容 | 实机验证结果 |
 | --- | --- | --- |
-| 按键与显示延迟 | `ContinuousLCD` 自适应 15/60 Hz + 按键即刻唤醒 + 零 PNG 原始 RGB24（921,600 B）直出到 `GdkPixbuf`；GTK 定时器降为 100 ms 并缓存 26 个按钮状态；移除底部“快捷键与日志”抽屉；`console.log` seek 增量读；guest `ramfb-viewer` RAM 缓存合成 + `inotify`；冷启动默认 `tb-size=2048` 且关闭 `-d` 跟踪 | 实机冷启动 **11.21 s**，原始 RGB24 零 PNG 生效；菜单开/关延迟 **624.6 ms / 827.9 ms**，Fn 打开延迟 **652.0 ms** |
+| 按键与显示延迟 | `ContinuousLCD` 自适应 15/60 Hz + 按键即刻唤醒 + 零 PNG 原始 RGB24（921,600 B）直出到 `GdkPixbuf`；GTK 定时器降为 100 ms 并缓存 26 个按钮状态；移除底部“快捷键与日志”抽屉；`console.log` seek 增量读；guest `ramfb-viewer` RAM 缓存合成 + `inotify`；冷启动默认 `tb-size=2048` 且关闭 `-d` 跟踪 | 实机冷启动 **11.21–13.92 s**，原始 RGB24 零 PNG 生效；菜单开/关延迟 **624.6 ms / 827.9 ms**，Fn 打开延迟 **652.0 ms** |
 | Fn 键 | GTK 按钮点击与键盘 `F` 均走 guest `inject-key --serve-app` 原子 `TAP`（20 ms hold），避免 guest 虚拟时钟快于宿主而落入 ≥500 ms 长按分支 | 实机打开原厂 Fn 快捷菜单（`CREATE_SCREEN id=0xc2` / `scr0135_0001`）并可正常退出 |
-| 4 个拨轮 + HUD 联动 | 对调后拨轮（`0x10000016` / `2ea`）与右上拨轮（`0x10000013` / `2ef`）；修正 A7C II 单步（前 ±22、后 ±30、控制 ±24、右上 ±1024）；`menu-observe.so` 按模式步进虚拟镜头 HUD 并重发 | 右上拨轮实机在 P 档调出橙色曝光补偿 `+0.7`；M 档前/后拨轮实机将底部原厂 HUD 从 `1/125 F4.0` 步进到 `1/1000 F5.6`（控制轮步进虚拟 ISO 至 `ISO 200` 写入 EXIF/播放页；原厂菜单为 Auto ISO 时底部 HUD 仍显示 `ISO AUTO`） |
-| 默认色卡 + 自定义 CMOS | `bootin.sh` 默认写入 `functional-cmos-chart-v1`；工具栏“选择图片…/恢复色卡”经 `cmos_source.py` + guest `cmos-import` 热替换 `/tmp/virtual-cmos-custom.rgb` | 实机默认即显示色卡；25 KB 自定义测试图 **3.32 s** 上传热替换生效，“恢复色卡”实时还原 |
-| 全按快门写卡 + 播放页 | `menu-observe.so` 在 `dlopen("libInfraFsys.so")` 时绑定全部 9 个原厂 `Fsys_*` 接口，全按写入 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验；播放键进入叠加回放（屏蔽下层键位避免误触拍摄菜单） | 实机连拍自定义图 `DSC00001.JPG`（27,878 B）与色卡 `DSC00002.JPG`（58,133 B）均 `rc=0 readback=1`；播放页正常展示/翻页/退出；导出 `SD/card.img` 后宿主 FAT16 解析与 Pillow + Sony EXIF（`SONY / ILCE-7CM2`）校验通过 |
+| 4 个拨轮 + 原厂聚焦一致 | 对调后拨轮（`0x10000016` / `2ea`）与右上拨轮（`0x10000013` / `2ef`）并修正单步；`menu-observe.so` 直接挂载 `appFw.so` 原厂 7 个拨轮叶子执行函数（光圈 / 快门 / 程序偏移 / ISO），完全跟随固件自身的挡位映射与橙色聚焦，不再私自猜测前后拨轮 | 实机验证 **A 档**前/后拨轮均调光圈并橙色聚焦 `F5.6`–`F6.3`；**S 档**前/后拨轮均调快门并橙色聚焦 `1/500`–`1/2000`；**M 档**前拨轮调光圈（`F8.0`）、后拨轮调快门（`1/4000` 橙色聚焦）；**P 档**前后拨轮触发程序偏移；右上拨轮调出橙色曝光补偿 `+0.7` |
+| 默认色卡 + 自定义 CMOS | `bootin.sh` 默认写入 `functional-cmos-chart-v1`；工具栏“选择图片…/恢复色卡”经 `cmos_source.py` + guest `cmos-import` 热替换 `/tmp/virtual-cmos-custom.rgb` | 实机默认即显示色卡；自定义测试图上传热替换生效，“恢复色卡”实时还原 |
+| 全按写卡 + 原厂播放界面 | `menu-observe.so` 绑定原厂 `libInfraFsys.so` 与 `libmpr.so` `sidb`，全按写 `DCIM/100MSDCF/DSCnnnnn.JPG`（含 EXIF 2.32 日期时间）并登记图像库；拦截被 CP Lane 0 阻塞的 `sequence_playback`（`0x30`）改由单常驻工作线程运行原厂 `sidb::Select` + `start_playback_exit`，由软件解码 JPEG 至 `/tmp/virtual-playback-bg.bin` 并经 `ramfb-viewer` 合成原厂透明播放 OSD | 实机连拍色卡 `DSC00001.JPG`（58,241 B）与自定义图 `DSC00002.JPG`（14,358 B）均 `rc=0 readback=1` 且 `sidb` 登记成功；按播放进入真原厂 `scr7102_0001_still`（`id=0x23`，70 控件，显示 `2/2` / `1/2`、`100-0001`、`3:2`、`22-11-2026 12:00:00`），`LEFT`/`RIGHT` 翻页、`UP`/`DISP` 切换 `scr7102_0003_still` / `scr7102_0002_still` 与返回拍摄全部实机验证通过（直方图/详细 EXIF 数据仍受 CP 缺失限制为空） |
+| OFF 关机与窗口关闭 | 移除 `menu-observe.so` 中的事件就地改写与高频 `pthread_create`，收敛为单常驻 pipe 唤醒工作线程；修复 `original-init-cold` 启动期关闭通道误关导致的挂死；窗口关闭在非运行态跳过输入释放，优雅关机失败时弹出明确确认的“重试正常保存 / 强制关闭”对话框且仅在核验子进程组退出后释放租约 | 实机连续多次验证 `OFF`（`EXPORT_SD + SHUTDOWN_STORAGE`）在 **2.43 s** 内完成：`ok=True`、`settings_ok=True`、`internal_frozen=True`、`qmp_quit_confirmed=True`、`returncode=0`、`signals_sent=[]` |
 
-拨轮映射（软件虚拟镜头模型）：P / AUTO / MR1–3 档前/后拨轮为程序偏移、控制轮为 ISO；A 档前拨轮光圈、后/控制轮 ISO；S 档前拨轮快门、后/控制轮 ISO；M 档前拨轮快门、后拨轮光圈、控制轮 ISO；右上拨轮由原厂固件原生处理曝光补偿。
-
-| 原厂 Fn 快捷菜单（实机） | 自定义 CMOS + 拨轮 M 档 HUD（实机） | 虚拟 SD 照片播放页（实机） |
+| 原厂 Fn 快捷菜单（实机） | 自定义 CMOS + 拨轮 M 档 HUD（实机） | 索尼原厂单张播放界面 `scr7102_0001_still`（实机） |
 | :---: | :---: | :---: |
-| ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与 1/1000 F5.6 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![虚拟 SD 照片播放页](docs/images/live-playback-20261122.png) |
+| ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与 1/1000 F5.6 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![索尼原厂播放界面 scr7102_0001_still](docs/images/live-playback-20261122.png) |
 
 ## 虚拟 CMOS 与静态照片
 

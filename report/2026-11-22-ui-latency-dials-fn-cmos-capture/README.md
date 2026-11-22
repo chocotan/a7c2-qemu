@@ -22,4 +22,25 @@
   - 4 拨轮：右上拨轮在 P 档调出原生橙色曝光补偿 `+0.7`；M 档前/后拨轮将底部原厂 HUD 从 `1/125 F4.0` 步进至 `1/1000 F5.6`（截图：[live-dial-m-hud-20261122.png](../../docs/images/live-dial-m-hud-20261122.png)）；控制轮步进虚拟 ISO 至 `ISO 200`（写入 EXIF 与播放页）。
   - 自定义 CMOS 图片 25,260 B 在 3.32 s 内上传热替换生效（截图：[live-custom-cmos-hud-20261122.png](../../docs/images/live-custom-cmos-hud-20261122.png)），恢复色卡生效。
   - 全按快门连拍两张：`A:/DCIM/100MSDCF/DSC00001.JPG`（自定义图，27,878 B）与 `DSC00002.JPG`（色卡，58,133 B）均 `rc=0 readback=1`；播放页展示/翻页/退出通过（截图：[live-playback-20261122.png](../../docs/images/live-playback-20261122.png)）；导出 `SD/card.img` 经宿主 FAT16 解析与 Pillow 解码确认 640×480 JPEG + Sony EXIF（`SONY / ILCE-7CM2`）。
-- **边界说明**：全部拍摄/镜头/预览为软件虚拟模型，不代表真实 CP ASIC、物理 ISP 或原厂 `DATABASE.BIN` 索引，`capture_verified` 保持 `false`。当原厂菜单设为 Auto ISO 时，底部原厂 ISO 框仍显示 `ISO AUTO`（虚拟 ISO 步进反映在 EXIF 与播放页）。
+- **边界说明**：全部拍摄/镜头/预览为软件虚拟模型，不代表真实 CP ASIC、物理 ISP 或硬件直方图/EXIF 解码，`capture_verified` 保持 `false`。当原厂菜单设为 Auto ISO 时，底部原厂 ISO 框仍显示 `ISO AUTO`（虚拟 ISO 步进反映在 EXIF）；`scr7102_0003_still` 直方图与详细 EXIF 面板受 CP 缺失限制保持为空。
+
+## 4. 后续实机问题根因修复（原生播放界面、拨轮与聚焦一致、OFF 关机与窗口关闭）
+
+用户实际体验反馈 4 项问题，全部已完成根因定位、修复与隔离实机复验：
+
+1. **播放界面非原厂 UI → 接入索尼原厂 `scr7102_0001_still`**：
+   - 根因：旧版使用自绘 5×7 点阵覆盖全屏（`/tmp/virtual-playback-frame.bin`）并改写按键消息，未走原厂 `libmpr.so` `sidb` 与 `sequence_playback`。
+   - 修复：全按写卡后调用原厂 `libmpr.so` `sidb` 登记新拍照片（`getrec_rc=0 uid_rc=0 upd_rc=0 flush_rc=0`）；在 `appFw+0x3228ec0` 拦截被 CP Lane 0 阻塞的 `sequence_playback`（`seq_id=0x30`），交由单常驻工作线程运行原厂 `0x33cd8fc`/`0x33d1b08`/`0x33cd894`，并在 `appFw+0x33d1478` 同步软件解码原厂 `sidb::Select` 选出的真实 JPEG 到 `/tmp/virtual-playback-bg.bin`、置 `*(uint32_t *)(obj + 3024) = (bg_rc == 0 ? 0 : 4)` 后调用纯 AP 路径 `start_playback_exit`（`appFw+0x33ce72c`）；`ramfb-viewer.c` 优先在 `playback_bg_active` 下将原厂透明播放 OSD 合成在真实 JPEG 背景上。EXIF 补齐 `0x0132` / `0x9000` / `0x9003` / `0x9004` 标准 2.32 字段。
+   - 实机验证：色卡 `DSC00001.JPG`（58,241 B，`uid=0x41020001`）与自定义图 `DSC00002.JPG`（14,358 B，`uid=0x41020004`）均写卡读回并入库成功；按 `PLAYBACK` 进入原厂 `scr7102_0001_still`（`id=0x23`，70 控件，显示 `2/2` / `1/2`、`100-0001`、`3:2`、`22-11-2026 12:00:00`），`LEFT`/`RIGHT` 同步切换 OSD 编号与解码 JPEG 背景，`UP`/`DISP` 循环 `scr7102_0001_still -> scr7102_0003_still -> scr7102_0002_still -> scr7102_0001_still`，再按 `PLAYBACK` 返回 `scr0132_0001` 并清除播放背景。
+2. **A 档后拨轮无效 / 聚焦与变化值错位 → 直接挂载原厂 7 个拨轮叶子执行函数**：
+   - 根因：旧版在 `menu-observe.c` 中根据前/后拨轮事件与本地猜测挡位自行改写虚拟光圈/快门，与 `appFw.so` 真实自定义拨轮分配及橙色聚焦框不一致（例如 A7C II 默认 M 档前拨轮为光圈、后拨轮为快门，A/S 档前后拨轮均调对应主参数）。
+   - 修复：删除手写拨轮-挡位猜测逻辑，直接 Hook `appFw.so` 自身执行光圈（`0x264fde0`）、快门（`0x274b1f8`）、程序偏移（`0x2552138`）及 ISO（`0x26a85cc`/`0x26a86bc`/`0x26a64ec`/`0x26a65dc`）的 7 个叶子函数，只在原厂决定改动某个参数时按相同方向步进并重发。
+   - 实机验证：A 档前后拨轮均调整光圈并橙色聚焦 `F5.6`/`F6.3`；S 档前后拨轮均调整快门并橙色聚焦 `1/500`/`1/2000`；M 档前拨轮调光圈（`F8.0`）、后拨轮调快门（`1/4000` 橙色聚焦）；P 档前后拨轮均触发 `progshift`。
+3. **点击 OFF 一直停在“正在关闭” → 消除事件就地改写与高频线程泄漏**：
+   - 根因：旧版每次按键/HUD 发布都 `pthread_create` 分离线程（70+ 并发线程叠加 `osal_snd_msg`）且在播放态直接将输入队列消息 `ev[0] = 0` 就地清零，导致 `bootin.elf` 挂起、`Backup_nread` 串口超时与串口事务失步。
+   - 修复：彻底取消 `ev[0] = 0` 改写，将所有异步 HUD/写卡/回放任务合并为**唯一常驻 pipe 唤醒工作线程**（`vcmos_worker_main`）。
+   - 实机验证：`EXPORT_SD + SHUTDOWN_STORAGE` 连续多轮均在 **2.43–2.63 s** 内完成，`ok=True`、`settings_ok=True`、`internal_frozen=True`、`qmp_quit_confirmed=True`、`returncode=0`、`signals_sent=[]`。
+4. **虚拟机开启后无法关闭窗口 → 修复启动期取消与增加明确确认的强制关闭兜底**：
+   - 根因：旧版在 `boot_profile == 'original-init-cold'` 且 `state == 'starting'` 时关闭窗口会直接关闭 `MENU_CONTROL_FD` 触发 `ORIGINAL_COLD_OWNER_RETAINED` 死等；且 `camera_ui._close()` 在非 `running` 态无条件调用 `release_inputs()` 导致静默拒绝关闭，优雅保存失败后也缺乏用户确认的兜底关闭入口。
+   - 修复：`menu_control.py` 启动期停止统一排队 `export_sd`；新增 `VM.force_close()` 仅对本控制器拥有且 `getpgid == pid` 的子进程组依次尝试 QMP `quit` / `SIGTERM` / `SIGKILL`，严格核验线程与进程组已彻底退出后才释放本实例租约；`camera_ui.py` 仅在 `running` 态调用 `release_inputs()`，在 `_close_failed()` 提供明确确认的“取消 / 重试正常保存 / 强制关闭”对话框，并将 `SIGINT`/`SIGTERM` 通过 `GLib.idle_add(ui._close)` 安全转交 GTK 主循环。
+

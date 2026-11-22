@@ -191,6 +191,7 @@ class CameraUI:
         self.reinitializing = False
         self.development_busy = False
         self.reset_dialog = None
+        self.close_dialog = None
         self.state = vm.status()
         self.wifi_syncing = False
         self.wifi_confirmed = False
@@ -1248,9 +1249,14 @@ class CameraUI:
             return True
         if self.reset_dialog is not None:
             self.reset_dialog.response(Gtk.ResponseType.CANCEL)
+        close_dialog = getattr(self, 'close_dialog', None)
+        if close_dialog is not None:
+            close_dialog.destroy()
+            self.close_dialog = None
         if self.closing:
             return True
-        if self.input_bindings is not None and not self.release_inputs():
+        if (self.input_bindings is not None and self.vm.status().get('state') == 'running'
+                and not self.release_inputs()):
             return True
         self.closing = True
         self._cancel_drag()
@@ -1275,9 +1281,64 @@ class CameraUI:
         self.root.set_sensitive(True)
         self.local_error = 'VM 清理失败；窗口保留，可再次关闭窗口重试：' + message
         self.update(self.vm.status())
+        close_dialog = getattr(self, 'close_dialog', None)
+        if close_dialog is not None:
+            close_dialog.destroy()
+            self.close_dialog = None
+        if self.window.get_mapped() and hasattr(self.vm, 'force_close'):
+            dialog = Gtk.MessageDialog(
+                transient_for=self.window, modal=True,
+                message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE,
+                text='无法正常保存并关闭虚拟机')
+            dialog.set_title('关闭确认')
+            dialog.format_secondary_text(
+                message + '\n\n可重试正常保存；如果虚拟机已无响应，可强制关闭本窗口及本窗口拥有的虚拟机（本次未保存的虚拟 SD 修改可能丢失）。')
+            dialog.add_button('取消', Gtk.ResponseType.CANCEL)
+            dialog.add_button('重试正常保存', Gtk.ResponseType.APPLY)
+            force_btn = dialog.add_button('强制关闭', Gtk.ResponseType.REJECT)
+            force_btn.get_style_context().add_class('danger')
+            dialog.set_default_response(Gtk.ResponseType.APPLY)
+            def on_response(widget, choice):
+                if getattr(self, 'close_dialog', None) is widget:
+                    self.close_dialog = None
+                widget.destroy()
+                if choice == Gtk.ResponseType.APPLY:
+                    self._close()
+                elif choice == Gtk.ResponseType.REJECT:
+                    self._force_close()
+            dialog.connect('response', on_response)
+            self.close_dialog = dialog
+            dialog.show_all()
+        return False
+
+    def _force_close(self):
+        if self.closing or self.closed:
+            return
+        self.closing = True
+        self._cancel_drag()
+        self.feedback.set_text('正在强制关闭本窗口拥有的 VM，请稍候。')
+        self.root.set_sensitive(False)
+        def worker():
+            try:
+                self.vm.force_close()
+            except (ValueError, RuntimeError, OSError) as error:
+                GLib.idle_add(self._force_close_failed, str(error))
+                return
+            GLib.idle_add(self._finish_close)
+        threading.Thread(target=worker, name='camera-owned-vm-force-close', daemon=True).start()
+
+    def _force_close_failed(self, message):
+        self.closing = False
+        self.root.set_sensitive(True)
+        self.local_error = 'VM 强制关闭失败；窗口与租约保留：' + message
+        self.update(self.vm.status())
         return False
 
     def _finish_close(self):
+        close_dialog = getattr(self, 'close_dialog', None)
+        if close_dialog is not None:
+            close_dialog.destroy()
+            self.close_dialog = None
         self.closed = True
         if self.source_id:
             GLib.source_remove(self.source_id)
@@ -1335,7 +1396,7 @@ def main(autostart=True, argv=None):
             persistent_storage=os.environ.get('A7C2_USE_PERSISTENT_STORAGE')=='1')
     ui = CameraUI(vm)
     def interrupted(*_):
-        ui._close()
+        GLib.idle_add(ui._close)
     signal.signal(signal.SIGINT, interrupted)
     signal.signal(signal.SIGTERM, interrupted)
     if autostart:

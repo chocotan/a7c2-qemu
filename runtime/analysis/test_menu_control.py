@@ -462,6 +462,65 @@ record('launcher-exited')
             self.assertTrue(final['cleanup']['mailbox_detached'])
             self.assertFalse(final['capture_verified'])
 
+    def test_original_cold_startup_cancel_queues_save_and_keeps_control_channel(self):
+        vm = control.VM(natural_boot=True, boot_profile='original-init-cold')
+        vm.state = 'starting'
+        vm.stop()
+        self.assertEqual(vm.state, 'stopping')
+        self.assertEqual(vm.commands.get_nowait(), {'action': 'export_sd', '_shutdown': True})
+        self.assertFalse(vm.cancel.is_set())
+
+    def test_force_close_terminates_owned_process_group_and_releases_leases(self):
+        child = subprocess.Popen(
+            [sys.executable, '-u', '-c', 'import time; time.sleep(60)'],
+            start_new_session=True,
+        )
+        try:
+            vm = control.VM(natural_boot=True, boot_profile='original-init-cold')
+            vm.state = 'error'
+            vm.cleanup_error = 'injected hang'
+            vm.owned_process = child
+            vm.instance_lease = mock.MagicMock()
+            vm.host_sd_context = mock.MagicMock()
+            vm.host_sd_lease = {}
+            vm.storage_context = mock.MagicMock()
+            vm.storage_lease = {}
+            vm.force_close()
+            self.assertIsNotNone(child.poll())
+            with self.assertRaises(ProcessLookupError):
+                os.killpg(child.pid, 0)
+            self.assertEqual(vm.state, 'exited')
+            self.assertEqual(vm.cleanup_error, '')
+            self.assertIsNone(vm.owned_process)
+            self.assertIsNone(vm.instance_lease)
+            self.assertIsNone(vm.host_sd_context)
+            self.assertIsNone(vm.storage_context)
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=5)
+
+    def test_force_close_retains_leases_when_owned_process_refuses_to_exit(self):
+        vm = control.VM(natural_boot=True, boot_profile='original-init-cold')
+        vm.state = 'error'
+        vm.cleanup_error = 'still alive'
+        owned = mock.Mock(pid=999999)
+        owned.poll.return_value = None
+        owned.wait.side_effect = subprocess.TimeoutExpired('stub', 2)
+        vm.owned_process = owned
+        vm.instance_lease = mock.MagicMock()
+        vm.host_sd_context = mock.MagicMock()
+        with mock.patch.object(control.os, 'getpgid', return_value=999999), \
+                mock.patch.object(control.os, 'killpg', return_value=None), \
+                mock.patch.object(control.time, 'monotonic', side_effect=iter(range(0, 1000, 10))), \
+                mock.patch.object(control.time, 'sleep', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, '尚未退出'):
+                vm.force_close()
+        self.assertIsNotNone(vm.instance_lease)
+        self.assertIsNotNone(vm.host_sd_context)
+        vm.instance_lease.__exit__.assert_not_called()
+        vm.host_sd_context.__exit__.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

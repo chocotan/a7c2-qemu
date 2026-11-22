@@ -2,6 +2,7 @@
 """Host ASan/UBSan tests for virtual CMOS JPEG+EXIF encoder, decoder, SD write, and Playback."""
 import ctypes
 from pathlib import Path
+import re
 import struct
 import subprocess
 import tempfile
@@ -132,10 +133,11 @@ static int fake_flush_volume(unsigned char drive) {
 }
 
 int main(int argc, char **argv) {
-    assert(argc == 4);
+    assert(argc == 5);
     const char *out_jpg = argv[1];
     const char *custom_rgb = argv[2];
     const char *pb_frame = argv[3];
+    const char *pb_bg = argv[4];
 
     struct virtual_lens_hud_state hud;
     virtual_lens_hud_init_defaults(&hud);
@@ -158,6 +160,12 @@ int main(int argc, char **argv) {
     /* Save DSC00001.JPG to host file for Pillow verification. */
     FILE *fp = fopen(out_jpg, "wb");
     assert(fp && fwrite(g_files[0].data, 1, g_files[0].len, fp) == g_files[0].len && fclose(fp) == 0);
+
+    /* 1b. Render decoded native-playback background for DSC00001.JPG */
+    assert(virtual_cmos_render_playback_bg(&ops, r1.path, pb_bg, 7u) == 0);
+    struct stat bg_st;
+    assert(stat(pb_bg, &bg_st) == 0 && (size_t)bg_st.st_size == VIRTUAL_PLAYBACK_FRAME_BYTES);
+    assert(virtual_cmos_render_playback_bg(&ops, "A:/DCIM/100MSDCF/MISSING.JPG", pb_bg, 8u) != 0);
 
     /* 2. Capture custom RGB -> DSC00002.JPG */
     struct virtual_cmos_capture_result r2;
@@ -207,6 +215,7 @@ def test_virtual_cmos_capture_jpeg_exif_and_playback_roundtrip():
         out_jpg = tmp_dir / 'DSC00001.JPG'
         custom_rgb = tmp_dir / 'custom.rgb'
         pb_frame = tmp_dir / 'playback.bin'
+        pb_bg = tmp_dir / 'playback-bg.bin'
 
         # Synthesize a bright blue/orange gradient custom 640x480 RGB image.
         img = Image.new('RGB', (640, 480))
@@ -216,10 +225,22 @@ def test_virtual_cmos_capture_jpeg_exif_and_playback_roundtrip():
                 px[x, y] = (x * 255 // 639, y * 255 // 479, 180)
         custom_rgb.write_bytes(img.tobytes())
 
-        out = subprocess.check_output([str(binary), str(out_jpg), str(custom_rgb), str(pb_frame)], text=True)
+        out = subprocess.check_output(
+            [str(binary), str(out_jpg), str(custom_rgb), str(pb_frame), str(pb_bg)],
+            text=True,
+        )
         assert 'VIRTUAL_CMOS_CAPTURE_C_PASS' in out
 
-        # Verify captured JPEG with independent Pillow decoder + EXIF tags.
+        # Verify native playback decoded background header and RGB payload.
+        bg_raw = pb_bg.read_bytes()
+        assert len(bg_raw) == 16 + 640 * 480 * 3
+        assert bg_raw[:8] == b'VPBG0001'
+        seq, bg_w, bg_h = struct.unpack('<IHH', bg_raw[8:16])
+        assert (seq, bg_w, bg_h) == (7, 640, 480)
+        bg_img = Image.frombytes('RGB', (640, 480), bg_raw[16:])
+        assert len(bg_img.getcolors(640 * 480) or []) > 50
+
+        # Verify captured JPEG with independent Pillow decoder + EXIF 2.32 tags.
         with Image.open(out_jpg) as decoded:
             assert decoded.format == 'JPEG'
             assert decoded.size == (640, 480)
@@ -227,7 +248,12 @@ def test_virtual_cmos_capture_jpeg_exif_and_playback_roundtrip():
             exif = decoded.getexif()
             assert exif.get(0x010f) == 'SONY'
             assert exif.get(0x0110) == 'ILCE-7CM2'
+            dt = exif.get(0x0132)
+            assert isinstance(dt, str) and re.fullmatch(r'\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}', dt), dt
             exif_ifd = exif.get_ifd(0x8769)
+            assert exif_ifd.get(0x9000) == b'0232'
+            assert exif_ifd.get(0x9003) == dt
+            assert exif_ifd.get(0x9004) == dt
             assert exif_ifd.get(0x8827) == 200
             assert abs(float(exif_ifd.get(0x829d)) - 5.0) < 0.01
             assert abs(float(exif_ifd.get(0x829a)) - (1.0 / 250.0)) < 1e-5

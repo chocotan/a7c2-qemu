@@ -16,6 +16,8 @@
 #define VIRTUAL_CMOS_CUSTOM_RGB_PATH "/tmp/virtual-cmos-custom.rgb"
 #define VIRTUAL_PLAYBACK_FRAME_PATH "/tmp/virtual-playback-frame.bin"
 #define VIRTUAL_PLAYBACK_MAGIC "VPLAY001"
+#define VIRTUAL_PLAYBACK_BG_PATH "/tmp/virtual-playback-bg.bin"
+#define VIRTUAL_PLAYBACK_BG_MAGIC "VPBG0001"
 #define VIRTUAL_PLAYBACK_HEADER_BYTES 16u
 #define VIRTUAL_PLAYBACK_FRAME_BYTES (VIRTUAL_PLAYBACK_HEADER_BYTES + VIRTUAL_CMOS_RGB_BYTES)
 #define VIRTUAL_SHUTTER_BLINK_PATH "/tmp/virtual-shutter-blink"
@@ -82,5 +84,10 @@ int virtual_cmos_playback_delete(struct virtual_cmos_playback_state *pb,
 
 void virtual_cmos_playback_exit(struct virtual_cmos_playback_state *pb,
                                 const char *frame_path);
+
+int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
+                                    const char *jpeg_path,
+                                    const char *bg_path,
+                                    uint32_t seq);
 
 #endif

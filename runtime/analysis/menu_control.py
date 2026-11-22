@@ -460,7 +460,9 @@ class VM:
             if self.state not in ('starting','running','faulted','stopping'):
                 raise ValueError('没有本控制台正在运行的 VM')
             if self.state=='stopping':return
-            if (self.state in ('running','faulted') or self.state == 'starting' and self.functional_camera) and self.natural_boot and not self.mock:
+            must_save = self.state in ('running','faulted') or (
+                self.state == 'starting' and (self.functional_camera or self.boot_profile == 'original-init-cold'))
+            if must_save and self.natural_boot and not self.mock:
                 try:self.commands.put_nowait({'action':'export_sd','_shutdown':True})
                 except queue.Full:raise ValueError('命令队列已满；尚未关机，请稍后重试') from None
                 self.shutdown_done.clear()
@@ -491,8 +493,9 @@ class VM:
                 self.event('本控制台的VM重试清理完成')
             return
         with self.lock:
-            save=self.natural_boot and not self.mock and (self.state in ('running','faulted','stopping') or
-                                                        self.state == 'starting' and self.functional_camera)
+            save=self.natural_boot and not self.mock and (
+                self.state in ('running','faulted','stopping') or
+                self.state == 'starting' and (self.functional_camera or self.boot_profile == 'original-init-cold'))
         if save:
             self.stop()
             if not self.shutdown_done.wait(timeout=180):
@@ -508,6 +511,101 @@ class VM:
             if self.thread.is_alive():raise RuntimeError('VM尚未完成退出；窗口保留')
         with self.lock:
             if self.cleanup_error:raise RuntimeError('VM清理失败：'+self.cleanup_error)
+
+    def force_close(self):
+        """Explicit user-confirmed teardown of ONLY this controller's owned VM after graceful close failed."""
+        import stat
+        with self.lock:
+            owned = self.owned_process
+            run_dir = self.run_dir
+            lcd = self.lcd_stream
+            thread = self.thread
+            self.cancel.set()
+            self.state, self.stale = 'stopping', True
+        if lcd is not None:
+            try:
+                lcd.stop()
+            except RuntimeError:
+                pass
+        if run_dir:
+            qmp_path = Path(run_dir) / 'qmp.sock'
+            try:
+                info = qmp_path.lstat()
+                if stat.S_ISSOCK(info.st_mode) and info.st_uid == os.geteuid():
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                        sock.settimeout(3)
+                        sock.connect(str(qmp_path))
+                        sock.recv(4096)
+                        sock.sendall(b'{"execute":"qmp_capabilities"}\n')
+                        sock.recv(4096)
+                        sock.sendall(b'{"execute":"quit"}\n')
+                        sock.recv(4096)
+            except OSError:
+                pass
+        own_group = False
+        if owned is not None and owned.pid > 1:
+            try:
+                own_group = os.getpgid(owned.pid) == owned.pid
+            except OSError:
+                own_group = False
+            try:
+                owned.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+            for sig, wait_s in ((signal.SIGTERM, 3), (signal.SIGKILL, 2)):
+                if own_group:
+                    try:
+                        os.killpg(owned.pid, sig)
+                    except ProcessLookupError:
+                        break
+                    except OSError:
+                        pass
+                else:
+                    try:
+                        if sig == signal.SIGTERM:
+                            owned.terminate()
+                        else:
+                            owned.kill()
+                    except OSError:
+                        pass
+                deadline = time.monotonic() + wait_s
+                while time.monotonic() < deadline:
+                    if owned.poll() is not None:
+                        if not own_group:
+                            break
+                        try:
+                            os.killpg(owned.pid, 0)
+                        except ProcessLookupError:
+                            break
+                    time.sleep(0.1)
+                else:
+                    continue
+                break
+            try:
+                owned.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5)
+            if thread.is_alive():
+                raise RuntimeError('VM 控制线程尚未退出，保留租约')
+        if owned is not None:
+            if owned.poll() is None:
+                raise RuntimeError('VM 进程尚未退出，保留租约')
+            if own_group:
+                try:
+                    os.killpg(owned.pid, 0)
+                    raise RuntimeError('VM 进程组仍有残留，保留租约')
+                except ProcessLookupError:
+                    pass
+        with self.lock:
+            for release in (self._release_instance_lease, self._release_host_sd_lease, self._release_storage_lease):
+                release(owned)
+            self.cleanup_error = ''
+            self.owned_process = None
+            self.state = 'exited'
+            self.shutdown_done.set()
+            self.event('用户确认后已强制关闭本窗口拥有的 VM')
 
     def _run(self):
         try:

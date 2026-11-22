@@ -58,8 +58,12 @@
       "ok": true,
       "top_ev_hud_changed": true,
       "m_mode_hud_bar_changed": true,
-      "virtual_hud_dial_publishes": 9,
-      "last_publish": "VIRTUAL_LENS_HUD_PUBLISHED reason=dial tid=859 rc_2044=0 rc_201b=0 rc_200e=0 rc_2036=0 aperture=560 shutter=1/1000 iso_cp=0xe virtual_lens_model=1 original_CP=0"
+      "appfw_leaf_hooks_armed": "dial_rc=0,0,0,0,0,0,0",
+      "mode_a_front_and_rear_aperture_focus_verified": "4.0->4.5->5.0->5.6->6.3",
+      "mode_s_front_and_rear_shutter_focus_verified": "1/125->1/250->1/500->1/1000->1/2000",
+      "mode_m_front_aperture_rear_shutter_focus_verified": "aperture=6.3->7.1->8.0 shutter=1/2000->1/4000",
+      "mode_p_progshift_hook_verified": true,
+      "last_publish": "VIRTUAL_LENS_HUD_PUBLISHED reason=dial tid=727 rc_2044=0 rc_201b=0 rc_200e=0 rc_2036=0 aperture=800 shutter=1/4000 iso_cp=0xb virtual_lens_model=1 original_CP=0"
     },
     "custom_cmos_upload": {
       "ok": true,
@@ -70,22 +74,39 @@
     },
     "shutter_capture": {
       "ok": true,
-      "capture_1": "rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG source=custom bytes=27878 fnv1a64=f5b5a96fe08d4094 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
-      "capture_2": "rc=0 path=A:/DCIM/100MSDCF/DSC00002.JPG source=chart bytes=58133 fnv1a64=51a59cda6cfb4be6 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+      "capture_1": "rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG source=chart bytes=58241 fnv1a64=b02615fe34221ab5 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+      "capture_1_sidb": "drive=A media=0x1000 slot=0 getrec_rc=0 uid_rc=0 uid=0x41020001 upd_rc=0 flush_rc=0",
+      "capture_2": "rc=0 path=A:/DCIM/100MSDCF/DSC00002.JPG source=custom bytes=14358 fnv1a64=92032b599991a8c5 readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified",
+      "capture_2_sidb": "drive=A media=0x1000 slot=0 getrec_rc=0 uid_rc=0 uid=0x41020004 upd_rc=0 flush_rc=0",
       "reset_restored_chart": true
     },
     "playback": {
       "ok": true,
-      "enter": "rc=0 count=2",
-      "step": "rc=0 index=0 count=2",
-      "exit": "exited"
+      "native_sony_ui": true,
+      "virtual_jpeg_decode_bg": true,
+      "physical_cp_isp_histogram_verified": false,
+      "enter_screen": "scr7102_0001_still (id=0x23, widgets=70)",
+      "index_summary": "index[1] num[2] -> 2/2 (DSC00002.JPG custom) -> LEFT -> 1/2 (DSC00001.JPG chart)",
+      "disp_cycle": "scr7102_0001_still -> scr7102_0003_still -> scr7102_0002_still -> scr7102_0001_still",
+      "exit": "scr7102_0001_still -> rep_shooting -> scr0132_0001 (VIRTUAL_CMOS_PLAYBACK_BG_CLEARED)"
+    },
+    "off_shutdown": {
+      "ok": true,
+      "elapsed_s": 2.43,
+      "settings_ok": true,
+      "internal_frozen": true,
+      "qmp_quit_confirmed": true,
+      "returncode": 0,
+      "signals_sent": []
     },
     "sd_export": {
       "ok": true,
       "export_ok": true,
+      "fsck_rc": 0,
+      "card_sha256": "b95350ab1e507bfbc59f180b453be8124bf52ac00c1505ac76612fbaacd9248e",
       "files": {
         "DSC00001.JPG": {
-          "bytes": 27878,
+          "bytes": 58241,
           "size": [
             640,
             480
@@ -95,7 +116,7 @@
           "exif_model": "ILCE-7CM2"
         },
         "DSC00002.JPG": {
-          "bytes": 58133,
+          "bytes": 14358,
           "size": [
             640,
             480

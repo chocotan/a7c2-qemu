@@ -89,12 +89,15 @@ void observe_bt_error_place(void *,unsigned short,unsigned int) __asm__("_ZN8BTU
 #include "device-models/virtual-cmos-capture.h"
 static void vcmos_resolve_handle(void *handle);
 static void vcmos_resolve(void);
+static void vcmos_resolve_mpr_handle(void *handle);
+static void vcmos_resolve_mpr(void);
 typedef unsigned long size_t;
 typedef unsigned long pthread_t;
 static int (*sd_ack_create)(pthread_t *,const void *,void *(*)(void *),void *);
 static int (*sd_ack_detach)(pthread_t);
 extern void *dlvsym(void *, const char *, const char *);
 extern int open(const char *, int, ...);
+extern int pipe(int[2]);
 extern int rename(const char *, const char *);
 extern int unlink(const char *);
 extern long write(int, const void *, size_t);
@@ -1459,6 +1462,9 @@ void *dlopen(const char *name, int flags) {
         if(same_name(name,"libInfraFsys.so") || same_name(name,"/usr/lib/libInfraFsys.so"))
             vcmos_resolve_handle(handle);
     }
+    if(handle && (same_name(name,"libmpr.so") || same_name(name,"/usr/lib/libmpr.so"))) {
+        vcmos_resolve_mpr_handle(handle);
+    }
     if(handle && rm_file_enabled && (same_name(name,"libInfraMediaCommon.so") || same_name(name,"/usr/lib/libInfraMediaCommon.so"))) {
         struct full_imaging_io io={real_allocate_msg,real_free_msg,real_set_source,real_send_msg,real_msg_size,real_get_source,record};
         int rc=native_rm_file_start("/image_mmca","/tmp/rm-file.claim",&io,real_reg_async,real_unreg_async,real_stat_msgq);
@@ -2660,21 +2666,19 @@ static void virtual_lens_hud_publish_state(const char *reason) {
     record("VIRTUAL_LENS_HUD_PUBLISHED ", text);
     *__errno_location() = saved_errno;
 }
-static void *virtual_lens_hud_publish_worker(void *arg) {
-    virtual_lens_hud_publish_state((const char *)arg);
-    return 0;
+static void vcmos_post_work(unsigned int flags);
+static unsigned int vcmos_pb_bg_active;
+static void vcmos_clear_playback_bg(void) {
+    if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
+        unlink(VIRTUAL_PLAYBACK_BG_PATH);
+        record("VIRTUAL_CMOS_PLAYBACK_BG_CLEARED ", "returned to shooting");
+    }
 }
 static void virtual_lens_hud_schedule_publish(const char *reason) {
+    (void)reason;
     if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
     if (__atomic_exchange_n(&virtual_lens_hud_hud_published, 1u, __ATOMIC_ACQ_REL)) return;
-    if (sd_ack_create) {
-        pthread_t thread = 0;
-        if (sd_ack_create(&thread, 0, virtual_lens_hud_publish_worker, (void *)reason) == 0) {
-            if (sd_ack_detach) sd_ack_detach(thread);
-            return;
-        }
-    }
-    __atomic_store_n(&virtual_lens_hud_hud_published, 0u, __ATOMIC_RELEASE);
+    vcmos_post_work(1u);
 }
 void virtual_hud_aperture_enter(unsigned long view) {
     if (!virtual_lens_hud_enabled || view < 0x100000UL || view >= 0x800000000000UL) return;
@@ -2682,16 +2686,21 @@ void virtual_hud_aperture_enter(unsigned long view) {
     unsigned char *p = (unsigned char *)view;
     unsigned int prev_mp = p[0x2b8];
     p[0x2b8] = 0u;
+    if (p[0x2a4]) vcmos_clear_playback_bg();
     virtual_lens_hud_schedule_publish("hud-aperture");
     unsigned int count = __atomic_fetch_add(&virtual_lens_hud_ap_logs, 1u, __ATOMIC_RELAXED);
     if (count < 4u) {
-        char text[192];
+        char text[224];
+        unsigned int ap_inh = appfw_base ? (unsigned int)*(const unsigned char *)(appfw_base + 0x833360aUL) : 255u;
+        unsigned int ss_inh = appfw_base ? (unsigned int)*(const unsigned char *)(appfw_base + 0x8333604UL) : 255u;
+        unsigned int ps_inh = appfw_base ? (unsigned int)*(const unsigned char *)(appfw_base + 0x8333437UL) : 255u;
         snprintf(text, sizeof text,
-                 "kind=aperture n=%u visible=%u prev_cp_mp=%u aperture_x100=%u hide=%u x=%u y=%u",
+                 "kind=aperture n=%u visible=%u prev_cp_mp=%u aperture_x100=%u hide=%u x=%u y=%u inh=%u,%u,%u",
                  count, (unsigned int)p[0x2a4], prev_mp,
                  (unsigned int)*(const unsigned short *)(p + 0x2ba),
                  *(const unsigned int *)(p + 0x2bc),
-                 *(const unsigned int *)(p + 0x290), *(const unsigned int *)(p + 0x294));
+                 *(const unsigned int *)(p + 0x290), *(const unsigned int *)(p + 0x294),
+                 ap_inh, ss_inh, ps_inh);
         record("VIRTUAL_LENS_HUD_WIDGET ", text);
     }
     *__errno_location() = saved_errno;
@@ -2734,6 +2743,68 @@ void virtual_hud_iso_enter(unsigned long view) {
     }
     *__errno_location() = saved_errno;
 }
+/* ---- Exact appFw dial leaf probes (synced 1:1 with native Sony focus & mode logic) ---- */
+static void *virtual_dial_aperture_continue, *virtual_dial_shutter_continue, *virtual_dial_progshift_continue;
+static void *virtual_dial_iso_up_continue, *virtual_dial_iso_dn_continue;
+static void *virtual_dial_iso_up2_continue, *virtual_dial_iso_dn2_continue;
+static void *virtual_pb_read_still_continue, *virtual_pb_create_yc_continue;
+static unsigned int virtual_dial_logs;
+static void virtual_dial_log(const char *kind, int delta) {
+    unsigned int n = __atomic_fetch_add(&virtual_dial_logs, 1u, __ATOMIC_RELAXED);
+    if (n < 32u) {
+        char text[192];
+        snprintf(text, sizeof text, "kind=%s n=%u delta=%d aperture=%u shutter=%u/%u iso_cp=%#x",
+                 kind, n, delta,
+                 (unsigned int)virtual_lens_hud_current.aperture_x100,
+                 (unsigned int)virtual_lens_hud_current.shutter_num,
+                 (unsigned int)virtual_lens_hud_current.shutter_den,
+                 (unsigned int)virtual_lens_hud_current.iso_cp_byte);
+        record("VIRTUAL_LENS_HUD_DIAL ", text);
+    }
+}
+void virtual_dial_aperture_enter(unsigned long ctx, int delta) {
+    (void)ctx;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled || !delta) return;
+    int saved_errno = *__errno_location();
+    if (virtual_lens_hud_step_aperture(&virtual_lens_hud_current, delta) == 0) {
+        virtual_dial_log("aperture", delta);
+        vcmos_post_work(1u);
+    }
+    *__errno_location() = saved_errno;
+}
+void virtual_dial_shutter_enter(unsigned long ctx, int delta, unsigned int flag) {
+    (void)ctx; (void)flag;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled || !delta) return;
+    int saved_errno = *__errno_location();
+    if (virtual_lens_hud_step_shutter(&virtual_lens_hud_current, delta) == 0) {
+        virtual_dial_log("shutter", delta);
+        vcmos_post_work(1u);
+    }
+    *__errno_location() = saved_errno;
+}
+void virtual_dial_progshift_enter(unsigned long ctx, int delta) {
+    (void)ctx;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled || !delta) return;
+    int saved_errno = *__errno_location();
+    if (virtual_lens_hud_program_shift(&virtual_lens_hud_current, delta) == 0) {
+        virtual_dial_log("progshift", delta);
+        vcmos_post_work(1u);
+    }
+    *__errno_location() = saved_errno;
+}
+void virtual_dial_iso_enter(unsigned long ctx, int delta) {
+    (void)ctx;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled || !delta) return;
+    int saved_errno = *__errno_location();
+    if (virtual_lens_hud_step_iso(&virtual_lens_hud_current, delta) == 0) {
+        virtual_dial_log("iso", delta);
+        vcmos_post_work(1u);
+    }
+    *__errno_location() = saved_errno;
+}
+static void vcmos_queue_pb_path(const char *path);
+void virtual_pb_read_still_enter(unsigned long req, unsigned long resp);
+void virtual_pb_create_yc_enter(unsigned long self);
 __asm__(
 ".text\n"
 ".globl virtual_hud_aperture_trampoline\n"
@@ -2775,10 +2846,174 @@ PROBE_RESTORE_ARGS
 "    adrp x16, virtual_hud_iso_continue\n"
 "    ldr x16, [x16, #:lo12:virtual_hud_iso_continue]\n"
 "    br x16\n"
+".globl virtual_dial_aperture_trampoline\n"
+".type virtual_dial_aperture_trampoline, %function\n"
+"virtual_dial_aperture_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_aperture_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_aperture_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_aperture_continue]\n"
+"    br x16\n"
+".globl virtual_dial_shutter_trampoline\n"
+".type virtual_dial_shutter_trampoline, %function\n"
+"virtual_dial_shutter_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_shutter_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9b97bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, virtual_dial_shutter_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_shutter_continue]\n"
+"    br x16\n"
+".globl virtual_dial_progshift_trampoline\n"
+".type virtual_dial_progshift_trampoline, %function\n"
+"virtual_dial_progshift_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_progshift_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_progshift_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_progshift_continue]\n"
+"    br x16\n"
+".globl virtual_dial_iso_up_trampoline\n"
+".type virtual_dial_iso_up_trampoline, %function\n"
+"virtual_dial_iso_up_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_iso_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_iso_up_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_iso_up_continue]\n"
+"    br x16\n"
+".globl virtual_dial_iso_dn_trampoline\n"
+".type virtual_dial_iso_dn_trampoline, %function\n"
+"virtual_dial_iso_dn_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_iso_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_iso_dn_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_iso_dn_continue]\n"
+"    br x16\n"
+".globl virtual_dial_iso_up2_trampoline\n"
+".type virtual_dial_iso_up2_trampoline, %function\n"
+"virtual_dial_iso_up2_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_iso_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_iso_up2_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_iso_up2_continue]\n"
+"    br x16\n"
+".globl virtual_dial_iso_dn2_trampoline\n"
+".type virtual_dial_iso_dn2_trampoline, %function\n"
+"virtual_dial_iso_dn2_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_dial_iso_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0xd2800022\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf90013f5\n"
+"    adrp x16, virtual_dial_iso_dn2_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_dial_iso_dn2_continue]\n"
+"    br x16\n"
+".globl virtual_pb_read_still_trampoline\n"
+".type virtual_pb_read_still_trampoline, %function\n"
+"virtual_pb_read_still_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_read_still_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd11843ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_pb_read_still_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_read_still_continue]\n"
+"    br x16\n"
+".globl virtual_pb_create_yc_trampoline\n"
+".type virtual_pb_create_yc_trampoline, %function\n"
+"virtual_pb_create_yc_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_create_yc_enter\n"
+PROBE_RESTORE_ARGS
+"    .inst 0xd12e43ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa90153f3\n"
+"    adrp x16, virtual_pb_create_yc_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_create_yc_continue]\n"
+"    br x16\n"
+".globl virtual_pb_enqueue_trampoline\n"
+".type virtual_pb_enqueue_trampoline, %function\n"
+"virtual_pb_enqueue_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_enqueue_intercept\n"
+"    mov w17, w0\n"
+PROBE_RESTORE_ARGS
+"    cbnz w17, 1f\n"
+"    .inst 0xa9bb7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xa9025bf5\n"
+"    .inst 0xaa0003f5\n"
+"    adrp x16, virtual_pb_enqueue_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_enqueue_continue]\n"
+"    br x16\n"
+"1:\n"
+"    mov x0, #0\n"
+"    ret\n"
+".globl virtual_pb_start_playback_trampoline\n"
+".type virtual_pb_start_playback_trampoline, %function\n"
+"virtual_pb_start_playback_trampoline:\n"
+PROBE_SAVE_ARGS
+"    bl virtual_pb_start_playback_intercept\n"
+"    mov w17, w0\n"
+PROBE_RESTORE_ARGS
+"    cbnz w17, 1f\n"
+"    .inst 0xd112c3ff\n"
+"    .inst 0xa9ba7bfd\n"
+"    .inst 0x910003fd\n"
+"    .inst 0xf9400001\n"
+"    adrp x16, virtual_pb_start_playback_continue\n"
+"    ldr x16, [x16, #:lo12:virtual_pb_start_playback_continue]\n"
+"    br x16\n"
+"1:\n"
+"    ret\n"
 );
+static void *virtual_pb_enqueue_continue, *virtual_pb_start_playback_continue;
 extern void virtual_hud_aperture_trampoline(void);
 extern void virtual_hud_shutter_trampoline(void);
 extern void virtual_hud_iso_trampoline(void);
+extern void virtual_dial_aperture_trampoline(void);
+extern void virtual_dial_shutter_trampoline(void);
+extern void virtual_dial_progshift_trampoline(void);
+extern void virtual_dial_iso_up_trampoline(void);
+extern void virtual_dial_iso_dn_trampoline(void);
+extern void virtual_dial_iso_up2_trampoline(void);
+extern void virtual_dial_iso_dn2_trampoline(void);
+extern void virtual_pb_read_still_trampoline(void);
+extern void virtual_pb_create_yc_trampoline(void);
+extern void virtual_pb_enqueue_trampoline(void);
+extern void virtual_pb_start_playback_trampoline(void);
 static void install_virtual_lens_hud_probes(unsigned long base) {
     if (!same_name(getenv("MENU_VIRTUAL_LENS_HUD"), "1")) return;
     virtual_lens_hud_init_defaults(&virtual_lens_hud_current);
@@ -2786,6 +3021,17 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
     virtual_hud_aperture_continue = (void *)(base + 0x181b670UL);
     virtual_hud_shutter_continue = (void *)(base + 0x181d06cUL);
     virtual_hud_iso_continue = (void *)(base + 0x181ca14UL);
+    virtual_dial_aperture_continue = (void *)(base + 0x264fdf0UL);
+    virtual_dial_shutter_continue = (void *)(base + 0x274b208UL);
+    virtual_dial_progshift_continue = (void *)(base + 0x2552148UL);
+    virtual_dial_iso_up_continue = (void *)(base + 0x26a85dcUL);
+    virtual_dial_iso_dn_continue = (void *)(base + 0x26a86ccUL);
+    virtual_dial_iso_up2_continue = (void *)(base + 0x26a64fcUL);
+    virtual_dial_iso_dn2_continue = (void *)(base + 0x26a65ecUL);
+    virtual_pb_read_still_continue = (void *)(base + 0x357b0d4UL);
+    virtual_pb_create_yc_continue = (void *)(base + 0x30418d8UL);
+    virtual_pb_enqueue_continue = (void *)(base + 0x3228ed0UL);
+    virtual_pb_start_playback_continue = (void *)(base + 0x33d1488UL);
     int rc_ap = arm_entry_probe(base + 0x181b660UL,
         (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9001, 0xa90153f3},
         (void *)virtual_hud_aperture_trampoline, virtual_hud_aperture_continue,
@@ -2798,24 +3044,78 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
         (const unsigned int[4]){0xa9bc7bfd, 0x910003fd, 0x394a9002, 0xa90153f3},
         (void *)virtual_hud_iso_trampoline, virtual_hud_iso_continue,
         "view_mp_iso_sensitivity 0x181ca04");
-    char text[192];
+    const unsigned int std_cmd_pro[4] = {0xa9ba7bfd, 0xd2800022, 0x910003fd, 0xf90013f5};
+    int rc_dap = arm_entry_probe(base + 0x264fde0UL, std_cmd_pro,
+        (void *)virtual_dial_aperture_trampoline, virtual_dial_aperture_continue,
+        "dial_aperture 0x264fde0");
+    int rc_dss = arm_entry_probe(base + 0x274b1f8UL,
+        (const unsigned int[4]){0xa9b97bfd, 0x910003fd, 0xf90013f5, 0xaa0003f5},
+        (void *)virtual_dial_shutter_trampoline, virtual_dial_shutter_continue,
+        "dial_shutter 0x274b1f8");
+    int rc_dps = arm_entry_probe(base + 0x2552138UL, std_cmd_pro,
+        (void *)virtual_dial_progshift_trampoline, virtual_dial_progshift_continue,
+        "dial_progshift 0x2552138");
+    int rc_di1 = arm_entry_probe(base + 0x26a85ccUL, std_cmd_pro,
+        (void *)virtual_dial_iso_up_trampoline, virtual_dial_iso_up_continue,
+        "dial_iso_up 0x26a85cc");
+    int rc_di2 = arm_entry_probe(base + 0x26a86bcUL, std_cmd_pro,
+        (void *)virtual_dial_iso_dn_trampoline, virtual_dial_iso_dn_continue,
+        "dial_iso_dn 0x26a86bc");
+    int rc_di3 = arm_entry_probe(base + 0x26a64ecUL, std_cmd_pro,
+        (void *)virtual_dial_iso_up2_trampoline, virtual_dial_iso_up2_continue,
+        "dial_iso_up2 0x26a64ec");
+    int rc_di4 = arm_entry_probe(base + 0x26a65dcUL, std_cmd_pro,
+        (void *)virtual_dial_iso_dn2_trampoline, virtual_dial_iso_dn2_continue,
+        "dial_iso_dn2 0x26a65dc");
+    int rc_pbr = arm_entry_probe(base + 0x357b0c4UL,
+        (const unsigned int[4]){0xd11843ff, 0xa9ba7bfd, 0x910003fd, 0xa90153f3},
+        (void *)virtual_pb_read_still_trampoline, virtual_pb_read_still_continue,
+        "pb_read_still 0x357b0c4");
+    int rc_pby = arm_entry_probe(base + 0x30418c8UL,
+        (const unsigned int[4]){0xd12e43ff, 0xa9ba7bfd, 0x910003fd, 0xa90153f3},
+        (void *)virtual_pb_create_yc_trampoline, virtual_pb_create_yc_continue,
+        "pb_create_yc 0x30418c8");
+    int rc_pbe = arm_entry_probe(base + 0x3228ec0UL,
+        (const unsigned int[4]){0xa9bb7bfd, 0x910003fd, 0xa9025bf5, 0xaa0003f5},
+        (void *)virtual_pb_enqueue_trampoline, virtual_pb_enqueue_continue,
+        "pb_enqueue_0x30 0x3228ec0");
+    int rc_pbs = arm_entry_probe(base + 0x33d1478UL,
+        (const unsigned int[4]){0xd112c3ff, 0xa9ba7bfd, 0x910003fd, 0xf9400001},
+        (void *)virtual_pb_start_playback_trampoline, virtual_pb_start_playback_continue,
+        "pb_start_playback 0x33d1478");
+    char text[320];
     snprintf(text, sizeof text,
-             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
-             rc_ap, rc_ss, rc_iso,
+             "enabled=1 rc_ap=%d rc_ss=%d rc_iso=%d dial_rc=%d,%d,%d,%d,%d,%d,%d pb_rc=%d,%d,%d,%d aperture=%u shutter=%u/%u iso_cp=%#x virtual_lens_model=1",
+             rc_ap, rc_ss, rc_iso, rc_dap, rc_dss, rc_dps, rc_di1, rc_di2, rc_di3, rc_di4, rc_pbr, rc_pby,
+             rc_pbe, rc_pbs,
              (unsigned int)virtual_lens_hud_current.aperture_x100,
              (unsigned int)virtual_lens_hud_current.shutter_num,
              (unsigned int)virtual_lens_hud_current.shutter_den,
              (unsigned int)virtual_lens_hud_current.iso_cp_byte);
     record("VIRTUAL_LENS_HUD_ARMED ", text);
 }
-/* ---- Software virtual camera input model (dials, shutter capture, playback) ----
- * Observes the injected App32 keys on queue 0x5503e0. Software model only:
- * physical CP/ISP and the original image database are not involved. */
-static unsigned int vcmos_shoot_mode = 3; /* original MODE position: P=3 A=5 S=4 M=6 */
-static unsigned int vcmos_hud_pending, vcmos_job_busy, vcmos_ops_bound;
-static unsigned int vcmos_pb_active, vcmos_pb_suppress_release_code, vcmos_blink_seq;
+/* ---- Software virtual CMOS capture, real sidb registration, and native Playback bg ----
+ * Uses ONE persistent worker thread (pipe-woken) and never mutates App32 key codes.
+ * Software virtual model only: physical CP/ISP is not involved. */
+static unsigned int vcmos_ops_bound, vcmos_mpr_bound, vcmos_blink_seq, vcmos_pb_bg_seq;
+static unsigned int vcmos_worker_state, vcmos_work_flags, vcmos_wake_notified;
+static int vcmos_wake_pipe[2] = {-1, -1};
+static unsigned char vcmos_pb_path_lock;
+static char vcmos_pb_req_path[264];
 static struct virtual_cmos_fsys_ops vcmos_ops;
-static struct virtual_cmos_playback_state vcmos_pb;
+struct vcmos_mpr_ops {
+    void (*rec_clear)(void *);
+    int (*issue_uid)(unsigned int, unsigned int *, int);
+    int (*sidb_update)(unsigned int, const void *, int, int);
+    int (*sidb_flush)(unsigned int);
+    int (*sidb_select)(unsigned int, unsigned int, void *, int);
+    unsigned int (*set_at)(const void *, unsigned int);
+    int (*get_record_info)(unsigned int, const char *, void *, int);
+    unsigned int (*get_media_id)(void *, char);
+    unsigned int (*get_slot_id)(void *, char);
+    void *g_msidconv;
+};
+static struct vcmos_mpr_ops vcmos_mpr;
 static void vcmos_resolve_handle(void *handle) {
     if (!real_dlsym) return;
     struct virtual_cmos_fsys_ops cand;
@@ -2845,9 +3145,190 @@ static void vcmos_resolve(void) {
     if (!__atomic_load_n(&vcmos_ops_bound, __ATOMIC_ACQUIRE)) vcmos_resolve_handle((void *)-1);
     if (!__atomic_load_n(&vcmos_ops_bound, __ATOMIC_ACQUIRE)) vcmos_resolve_handle((void *)0);
 }
+static void vcmos_resolve_mpr_handle(void *handle) {
+    if (!real_dlsym || !handle) return;
+    struct vcmos_mpr_ops cand;
+    __builtin_memset(&cand, 0, sizeof cand);
+    cand.rec_clear = real_dlsym(handle, "_ZN4sidb10recordInfo5clearEv");
+    cand.issue_uid = real_dlsym(handle, "_ZN4sidb13IssueUniqueIdEjPjb");
+    cand.sidb_update = real_dlsym(handle, "_ZN4sidb6UpdateEjRKNS_10recordInfoEbb");
+    cand.sidb_flush = real_dlsym(handle, "_ZN4sidb5FlushEj");
+    cand.sidb_select = real_dlsym(handle, "_ZN4sidb6SelectEjjPNS_10recordInfoEb");
+    cand.set_at = real_dlsym(handle, "_ZNK4sidb3set2atEj");
+    cand.get_record_info = real_dlsym(handle, "_ZN3mpr9stillplay13getRecordInfoEjPKcPN4sidb10recordInfoEb");
+    cand.get_media_id = real_dlsym(handle, "_ZN3mpr8msidconv25GetMediaIDFromDriveLetterEc");
+    cand.get_slot_id = real_dlsym(handle, "_ZN3mpr8msidconv24GetSlotIDFromDriveLetterEc");
+    cand.g_msidconv = real_dlsym(handle, "_ZN3mpr10g_msidconvE");
+    if (cand.rec_clear && cand.issue_uid && cand.sidb_update && cand.sidb_flush &&
+        cand.sidb_select && cand.set_at && cand.get_media_id && cand.get_slot_id && cand.g_msidconv) {
+        vcmos_mpr = cand;
+        __atomic_store_n(&vcmos_mpr_bound, 1u, __ATOMIC_RELEASE);
+        record("VIRTUAL_CMOS_MPR_BOUND ", "libmpr sidb ops resolved");
+    }
+}
+static void vcmos_resolve_mpr(void) {
+    if (__atomic_load_n(&vcmos_mpr_bound, __ATOMIC_ACQUIRE)) return;
+    if (real_dlopen) {
+        void *h = real_dlopen("libmpr.so", 6 /* RTLD_NOW | RTLD_NOLOAD */);
+        if (!h) h = real_dlopen("/usr/lib/libmpr.so", 6);
+        if (h) vcmos_resolve_mpr_handle(h);
+    }
+}
 static int vcmos_ops_ready(void) {
     if (!__atomic_load_n(&vcmos_ops_bound, __ATOMIC_ACQUIRE)) vcmos_resolve();
     return __atomic_load_n(&vcmos_ops_bound, __ATOMIC_ACQUIRE) != 0;
+}
+static int vcmos_mpr_ready(void) {
+    if (!__atomic_load_n(&vcmos_mpr_bound, __ATOMIC_ACQUIRE)) vcmos_resolve_mpr();
+    return __atomic_load_n(&vcmos_mpr_bound, __ATOMIC_ACQUIRE) != 0;
+}
+static void vcmos_register_sidb(const struct virtual_cmos_capture_result *result) {
+    if (!result || !result->path[0] || !vcmos_mpr_ready()) return;
+    char drive = result->path[0];
+    unsigned int media_id = vcmos_mpr.get_media_id(vcmos_mpr.g_msidconv, drive);
+    unsigned int slot_id = vcmos_mpr.get_slot_id(vcmos_mpr.g_msidconv, drive);
+    unsigned char *rec = malloc(2048);
+    if (!rec) return;
+    __builtin_memset(rec, 0, 2048);
+    vcmos_mpr.rec_clear(rec);
+    int getrec_rc = -999;
+    if (vcmos_mpr.get_record_info && slot_id <= 3u) {
+        getrec_rc = vcmos_mpr.get_record_info(slot_id, result->path, rec, 0);
+    }
+    /* Ensure mandatory DCF/STILL fields match Sony sidb::recordInfo layout (libmpr.so 0x9be90..0x9c028). */
+    *(unsigned int *)(rec + 0x000) = 1u; /* STILL */
+    if (!*(unsigned short *)(rec + 0x00e)) {
+        *(unsigned short *)(rec + 0x00c) = 0u;
+        *(unsigned short *)(rec + 0x00e) = 2026u;
+        rec[0x010] = 11u; rec[0x011] = 22u;
+        rec[0x012] = 12u; rec[0x013] = 0u; rec[0x014] = (unsigned char)(result->file_number % 60u);
+        *(unsigned short *)(rec + 0x016) = 0u;
+    }
+    *(unsigned short *)(rec + 0x018) = 100u; /* 100MSDCF */
+    *(unsigned short *)(rec + 0x01a) = (unsigned short)(result->file_number & 0xffffu);
+    rec[0x01c] = 1u;
+    rec[0x0c0] = 1u; /* jpgExist */
+    snprintf((char *)(rec + 0x0c1), 262u, "%s", result->path);
+    unsigned int uid = 0xffffffffu;
+    int uid_rc = -1;
+    int upd_rc = -1;
+    int flush_rc = -1;
+    if (media_id != 0xffffffffu) {
+        uid_rc = vcmos_mpr.issue_uid(media_id, &uid, 1);
+        if (uid_rc == 0) {
+            *(unsigned int *)(rec + 0x004) = uid;
+            upd_rc = vcmos_mpr.sidb_update(0xffffffffu, rec, 1, 1);
+            if (upd_rc == 0) flush_rc = vcmos_mpr.sidb_flush(media_id);
+        }
+    }
+    free(rec);
+    char text[240];
+    snprintf(text, sizeof text,
+             "drive=%c media=%#x slot=%u getrec_rc=%d uid_rc=%d uid=%#x upd_rc=%d flush_rc=%d path=%s",
+             drive, media_id, slot_id, getrec_rc, uid_rc, uid, upd_rc, flush_rc, result->path);
+    record("VIRTUAL_CMOS_SIDB_REGISTER ", text);
+}
+static void vcmos_queue_pb_path(const char *path) {
+    if (!path || !path[0]) return;
+    while (__atomic_test_and_set(&vcmos_pb_path_lock, __ATOMIC_ACQUIRE)) {}
+    snprintf(vcmos_pb_req_path, sizeof vcmos_pb_req_path, "%s", path);
+    __atomic_clear(&vcmos_pb_path_lock, __ATOMIC_RELEASE);
+    vcmos_post_work(4u);
+}
+void virtual_pb_read_still_enter(unsigned long req, unsigned long resp) {
+    (void)resp;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (!req || req < 0x100000UL || req >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    unsigned int index = *(const unsigned int *)(req + 8UL);
+    unsigned int dataset = *(const unsigned int *)(req + 20UL);
+    char path[264] = "";
+    unsigned int uid = 0xffffffffu;
+    int sel_rc = -999;
+    if (appfw_base && vcmos_mpr_ready()) {
+        void *(*get_set)(unsigned int) = (void *(*)(unsigned int))(appfw_base + 0x355513cUL);
+        void *set = get_set(dataset);
+        if (set) {
+            uid = vcmos_mpr.set_at(set, index);
+            unsigned char *rec = malloc(2048);
+            if (rec) {
+                __builtin_memset(rec, 0, 2048);
+                vcmos_mpr.rec_clear(rec);
+                sel_rc = vcmos_mpr.sidb_select(0xffffffffu, uid, rec, 1);
+                if (sel_rc == 0 && rec[0x0c0] && rec[0x0c1]) {
+                    snprintf(path, sizeof path, "%.260s", (const char *)(rec + 0x0c1));
+                    vcmos_queue_pb_path(path);
+                }
+                free(rec);
+            }
+        }
+    }
+    char text[256];
+    snprintf(text, sizeof text, "index=%u dataset=%u uid=%#x sel_rc=%d path=%s",
+             index, dataset, uid, sel_rc, path[0] ? path : "(none)");
+    record("VIRTUAL_CMOS_NATIVE_PLAY_READ ", text);
+    *__errno_location() = saved_errno;
+}
+void virtual_pb_create_yc_enter(unsigned long self) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
+    if (!self || self < 0x100000UL || self >= 0x800000000000UL) return;
+    int saved_errno = *__errno_location();
+    unsigned int ctype = *(const unsigned int *)(self + 0UL);
+    unsigned int index = *(const unsigned int *)(self + 8UL);
+    unsigned int dataset = *(const unsigned int *)(self + 5332UL);
+    char text[160];
+    snprintf(text, sizeof text, "ctype=%u index=%u dataset=%u", ctype, index, dataset);
+    record("VIRTUAL_CMOS_NATIVE_CREATE_YC ", text);
+    *__errno_location() = saved_errno;
+}
+static unsigned char vcmos_pb_param_lock;
+static unsigned int vcmos_pb_param[4];
+int virtual_pb_enqueue_intercept(unsigned long mgr, unsigned int seq_id, unsigned long param_ptr) {
+    (void)mgr;
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return 0;
+    if (seq_id != 0x30u || !appfw_base || !param_ptr || param_ptr < 0x100000UL || param_ptr >= 0x800000000000UL)
+        return 0;
+    int saved_errno = *__errno_location();
+    const unsigned int *src = (const unsigned int *)param_ptr;
+    while (__atomic_test_and_set(&vcmos_pb_param_lock, __ATOMIC_ACQUIRE)) {}
+    vcmos_pb_param[0] = src[0];
+    vcmos_pb_param[1] = src[1];
+    vcmos_pb_param[2] = src[2];
+    vcmos_pb_param[3] = 0;
+    __atomic_clear(&vcmos_pb_param_lock, __ATOMIC_RELEASE);
+    char text[160];
+    snprintf(text, sizeof text, "seq=0x%x tid=%ld p=[%#x,%#x,%#x] virtual_playback_dispatch=1 original_CP=0",
+             seq_id, syscall(178), src[0], src[1], src[2]);
+    record("VIRTUAL_CMOS_NATIVE_PB_ENQUEUE ", text);
+    vcmos_post_work(8u);
+    *__errno_location() = saved_errno;
+    return 1;
+}
+int virtual_pb_start_playback_intercept(unsigned long obj_addr) {
+    if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return 0;
+    if (!appfw_base || !obj_addr || obj_addr < 0x100000UL || obj_addr >= 0x800000000000UL) return 0;
+    int saved_errno = *__errno_location();
+    const char *jpg_path = (const char *)(obj_addr + 0x193UL);
+    int bg_rc = -1;
+    unsigned int seq = 0;
+    if (jpg_path[0] && vcmos_ops_ready()) {
+        seq = __atomic_add_fetch(&vcmos_pb_bg_seq, 1u, __ATOMIC_RELAXED);
+        bg_rc = virtual_cmos_render_playback_bg(&vcmos_ops, jpg_path, VIRTUAL_PLAYBACK_BG_PATH, seq);
+        if (bg_rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+    }
+    char text[256];
+    snprintf(text, sizeof text, "tid=%ld bg_rc=%d seq=%u path=%.160s ok=%d virtual_decode=1 original_CP=0",
+             syscall(178), bg_rc, seq, jpg_path[0] ? jpg_path : "(empty)", bg_rc == 0 ? 1 : 0);
+    record("VIRTUAL_CMOS_NATIVE_PB_START ", text);
+    /* Set sequence_playback displayability status (obj+3024 -> model 0x285c16c+2936):
+     * 0 = playable still (opens native scr7102_0001_still / 0002 / 0003), 4 = unable to display. */
+    *(unsigned int *)(obj_addr + 3024UL) = (bg_rc == 0) ? 0u : 4u;
+    /* Complete Sony's own sequence_playback::start_playback_exit(obj, ok) to publish real EXIF/OSD
+     * metadata and emit MODEL_PLAY_START_OK, opening native scr7102_0001_still. */
+    void (*start_pb_exit)(void *, int) = (void (*)(void *, int))(appfw_base + 0x33ce72cUL);
+    start_pb_exit((void *)obj_addr, bg_rc == 0 ? 1 : 0);
+    *__errno_location() = saved_errno;
+    return 1;
 }
 static void vcmos_touch_blink(void) {
     unsigned int seq = __atomic_add_fetch(&vcmos_blink_seq, 1u, __ATOMIC_RELAXED);
@@ -2861,132 +3342,111 @@ static void vcmos_touch_blink(void) {
     close(fd);
     if (rename(tmp, VIRTUAL_SHUTTER_BLINK_PATH) != 0) unlink(tmp);
 }
-static void *vcmos_hud_worker(void *arg) {
+static void *vcmos_worker_main(void *arg) {
     (void)arg;
-    __atomic_store_n(&vcmos_hud_pending, 0u, __ATOMIC_RELEASE);
-    virtual_lens_hud_publish_state("dial");
+    for (;;) {
+        char drain[32];
+        if (read(vcmos_wake_pipe[0], drain, sizeof drain) <= 0) {
+            if (*__errno_location() == 4 /* EINTR */) continue;
+            break;
+        }
+        __atomic_store_n(&vcmos_wake_notified, 0u, __ATOMIC_RELEASE);
+        for (;;) {
+            unsigned int flags = __atomic_exchange_n(&vcmos_work_flags, 0u, __ATOMIC_ACQ_REL);
+            if (!flags) break;
+            if (flags & 1u) {
+                virtual_lens_hud_publish_state("dial");
+            }
+            if (flags & 2u) {
+                if (!vcmos_ops_ready()) {
+                    record("VIRTUAL_CMOS_FAULT ", "Fsys ops unresolved; no capture");
+                } else {
+                    struct virtual_lens_hud_state hud_snap = virtual_lens_hud_current;
+                    struct virtual_cmos_capture_result result;
+                    __builtin_memset(&result, 0, sizeof result);
+                    int rc = virtual_cmos_capture_to_sd(&vcmos_ops, VIRTUAL_CMOS_CUSTOM_RGB_PATH, &hud_snap, &result);
+                    char text[224];
+                    snprintf(text, sizeof text,
+                             "rc=%d path=%s source=%s bytes=%lu fnv1a64=%016lx readback=%d software_virtual_cmos=1 physical_CP_ISP=unverified",
+                             rc, result.path, result.source, (unsigned long)result.bytes,
+                             (unsigned long)result.fnv1a64, result.readback_verified);
+                    record("VIRTUAL_CMOS_CAPTURE ", text);
+                    if (rc == 0) vcmos_register_sidb(&result);
+                }
+            }
+            if (flags & 4u) {
+                char path[264];
+                while (__atomic_test_and_set(&vcmos_pb_path_lock, __ATOMIC_ACQUIRE)) {}
+                snprintf(path, sizeof path, "%s", vcmos_pb_req_path);
+                __atomic_clear(&vcmos_pb_path_lock, __ATOMIC_RELEASE);
+                if (path[0] && vcmos_ops_ready()) {
+                    unsigned int seq = __atomic_add_fetch(&vcmos_pb_bg_seq, 1u, __ATOMIC_RELAXED);
+                    int rc = virtual_cmos_render_playback_bg(&vcmos_ops, path, VIRTUAL_PLAYBACK_BG_PATH, seq);
+                    if (rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                    char text[224];
+                    snprintf(text, sizeof text, "rc=%d seq=%u path=%s", rc, seq, path);
+                    record("VIRTUAL_CMOS_PLAYBACK_BG ", text);
+                }
+            }
+            if ((flags & 8u) && appfw_base) {
+                unsigned int param[4];
+                while (__atomic_test_and_set(&vcmos_pb_param_lock, __ATOMIC_ACQUIRE)) {}
+                param[0] = vcmos_pb_param[0];
+                param[1] = vcmos_pb_param[1];
+                param[2] = vcmos_pb_param[2];
+                param[3] = vcmos_pb_param[3];
+                __atomic_clear(&vcmos_pb_param_lock, __ATOMIC_RELEASE);
+                void *obj = malloc(0x1bc8UL);
+                if (obj) {
+                    __builtin_memset(obj, 0, 0x1bc8UL);
+                    void (*seq_ctor)(void *, const void *) = (void (*)(void *, const void *))(appfw_base + 0x33cd8fcUL);
+                    void (*seq_run)(void *) = (void (*)(void *))(appfw_base + 0x33d1b08UL);
+                    void (*seq_dtor)(void *) = (void (*)(void *))(appfw_base + 0x33cd894UL);
+                    seq_ctor(obj, param);
+                    seq_run(obj);
+                    seq_dtor(obj);
+                    free(obj);
+                }
+            }
+        }
+    }
     return 0;
 }
-static void vcmos_schedule_hud(void) {
-    if (__atomic_exchange_n(&vcmos_hud_pending, 1u, __ATOMIC_ACQ_REL)) return;
-    pthread_t thread = 0;
-    if (sd_ack_create && sd_ack_create(&thread, 0, vcmos_hud_worker, 0) == 0) {
-        if (sd_ack_detach) sd_ack_detach(thread);
+static void vcmos_ensure_worker(void) {
+    unsigned int st = __atomic_load_n(&vcmos_worker_state, __ATOMIC_ACQUIRE);
+    if (st == 2u) return;
+    unsigned int expected = 0u;
+    if (!__atomic_compare_exchange_n(&vcmos_worker_state, &expected, 1u, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         return;
     }
-    __atomic_store_n(&vcmos_hud_pending, 0u, __ATOMIC_RELEASE);
-}
-/* job: 1 capture, 2 playback enter, 3 prev, 4 next, 5 delete, 6 exit */
-static void *vcmos_job_worker(void *arg) {
-    long job = (long)arg;
-    char text[224];
-    if (!vcmos_ops_ready()) {
-        record("VIRTUAL_CMOS_FAULT ", "Fsys ops unresolved; no capture or playback");
-        if (job == 2) __atomic_store_n(&vcmos_pb_active, 0u, __ATOMIC_RELEASE);
-    } else if (job == 1) {
-        struct virtual_lens_hud_state hud_snap = virtual_lens_hud_current;
-        struct virtual_cmos_capture_result result;
-        __builtin_memset(&result, 0, sizeof result);
-        int rc = virtual_cmos_capture_to_sd(&vcmos_ops, VIRTUAL_CMOS_CUSTOM_RGB_PATH, &hud_snap, &result);
-        snprintf(text, sizeof text, "rc=%d path=%s source=%s bytes=%lu fnv1a64=%016lx readback=%d software_virtual_cmos=1 physical_CP_ISP=unverified",
-                 rc, result.path, result.source, (unsigned long)result.bytes, (unsigned long)result.fnv1a64, result.readback_verified);
-        record("VIRTUAL_CMOS_CAPTURE ", text);
-    } else if (job == 2) {
-        int rc = virtual_cmos_playback_enter(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH);
-        __atomic_store_n(&vcmos_pb_active, rc == 0 ? 1u : 0u, __ATOMIC_RELEASE);
-        snprintf(text, sizeof text, "rc=%d count=%u", rc, vcmos_pb.count);
-        record("VIRTUAL_CMOS_PLAYBACK_ENTER ", text);
-    } else if (job == 3 || job == 4) {
-        int rc = virtual_cmos_playback_step(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH, job == 3 ? -1 : 1);
-        snprintf(text, sizeof text, "rc=%d index=%u count=%u", rc, vcmos_pb.index, vcmos_pb.count);
-        record("VIRTUAL_CMOS_PLAYBACK_STEP ", text);
-    } else if (job == 5) {
-        int rc = virtual_cmos_playback_delete(&vcmos_pb, &vcmos_ops, VIRTUAL_PLAYBACK_FRAME_PATH);
-        snprintf(text, sizeof text, "rc=%d count=%u", rc, vcmos_pb.count);
-        record("VIRTUAL_CMOS_PLAYBACK_DELETE ", text);
-    } else if (job == 6) {
-        virtual_cmos_playback_exit(&vcmos_pb, VIRTUAL_PLAYBACK_FRAME_PATH);
-        __atomic_store_n(&vcmos_pb_active, 0u, __ATOMIC_RELEASE);
+    if (sd_ack_create && pipe(vcmos_wake_pipe) == 0) {
+        pthread_t thread = 0;
+        if (sd_ack_create(&thread, 0, vcmos_worker_main, 0) == 0) {
+            if (sd_ack_detach) sd_ack_detach(thread);
+            __atomic_store_n(&vcmos_worker_state, 2u, __ATOMIC_RELEASE);
+            return;
+        }
+        close(vcmos_wake_pipe[0]); close(vcmos_wake_pipe[1]);
+        vcmos_wake_pipe[0] = vcmos_wake_pipe[1] = -1;
     }
-    __atomic_store_n(&vcmos_job_busy, 0u, __ATOMIC_RELEASE);
-    return 0;
+    __atomic_store_n(&vcmos_worker_state, 0u, __ATOMIC_RELEASE);
 }
-static void vcmos_start_job(long job) {
-    if (__atomic_exchange_n(&vcmos_job_busy, 1u, __ATOMIC_ACQ_REL)) return;
-    pthread_t thread = 0;
-    if (sd_ack_create && sd_ack_create(&thread, 0, vcmos_job_worker, (void *)job) == 0) {
-        if (sd_ack_detach) sd_ack_detach(thread);
-        return;
+static void vcmos_post_work(unsigned int flags) {
+    __atomic_fetch_or(&vcmos_work_flags, flags, __ATOMIC_ACQ_REL);
+    vcmos_ensure_worker();
+    if (__atomic_load_n(&vcmos_worker_state, __ATOMIC_ACQUIRE) == 2u && vcmos_wake_pipe[1] >= 0) {
+        if (!__atomic_exchange_n(&vcmos_wake_notified, 1u, __ATOMIC_ACQ_REL)) {
+            char b = 'w';
+            if (write(vcmos_wake_pipe[1], &b, 1) < 0) { /* ignore */ }
+        }
     }
-    __atomic_store_n(&vcmos_job_busy, 0u, __ATOMIC_RELEASE);
-    if (job == 2) __atomic_store_n(&vcmos_pb_active, 0u, __ATOMIC_RELEASE);
 }
 static void virtual_input_observed(unsigned int *ev) {
     if (!virtual_lens_hud_enabled || functional_camera_enabled || cp_owned_state_enabled) return;
     unsigned int code = ev[0], status = ev[2];
-    if (code == 0x7025) { vcmos_shoot_mode = status; return; }
-    if (status == 0 && code && code == __atomic_load_n(&vcmos_pb_suppress_release_code, __ATOMIC_ACQUIRE)) {
-        __atomic_store_n(&vcmos_pb_suppress_release_code, 0u, __ATOMIC_RELEASE);
-        ev[0] = 0;
-        return;
-    }
-    if (code == 0x1000001c || code == 0x10000016 || code == 0x1000001d) {
-        if (!hosd_is_shooting_scene() || !status || __atomic_load_n(&vcmos_pb_active, __ATOMIC_ACQUIRE)) return;
-        int dir = (int)status > 0 ? 1 : -1;
-        int front = code == 0x1000001c, rear = code == 0x10000016;
-        int rc = -1;
-        switch (vcmos_shoot_mode) {
-        case 1: /* AUTO */
-        case 3: /* P */
-        case 7: /* MR1 */
-        case 19: /* MR2 */
-        case 20: /* MR3 */
-            rc = (front || rear) ? virtual_lens_hud_program_shift(&virtual_lens_hud_current, dir)
-                                 : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
-            break;
-        case 5: /* A: front aperture, rear/control ISO */
-            rc = front ? virtual_lens_hud_step_aperture(&virtual_lens_hud_current, dir)
-                       : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
-            break;
-        case 4: /* S: front shutter, rear/control ISO */
-            rc = front ? virtual_lens_hud_step_shutter(&virtual_lens_hud_current, dir)
-                       : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
-            break;
-        case 6: /* M: front shutter, rear aperture, control ISO */
-            rc = front ? virtual_lens_hud_step_shutter(&virtual_lens_hud_current, dir)
-                       : rear ? virtual_lens_hud_step_aperture(&virtual_lens_hud_current, dir)
-                              : virtual_lens_hud_step_iso(&virtual_lens_hud_current, dir);
-            break;
-        default: break;
-        }
-        if (rc == 0) vcmos_schedule_hud();
-        return;
-    }
-    if (__atomic_load_n(&vcmos_pb_active, __ATOMIC_ACQUIRE)) {
-        if (code == 0x15 || code == 0x1af || code == 0x1f8) {
-            if (status == 1) vcmos_start_job(code == 0x15 ? 3 : code == 0x1af ? 4 : 5);
-            ev[0] = 0; /* keep playback nav from disturbing the live shooting UI underneath */
-            return;
-        }
-        if ((code == 0x1ab || code == 0x1f1 || code == 0x1f7 || code == 0xa7 || code == 0x1ac) && status == 1) {
-            virtual_cmos_playback_exit(&vcmos_pb, VIRTUAL_PLAYBACK_FRAME_PATH);
-            __atomic_store_n(&vcmos_pb_active, 0u, __ATOMIC_RELEASE);
-            record("VIRTUAL_CMOS_PLAYBACK_EXIT ", "exited");
-            if (code == 0x1f7 || code == 0x1ab || code == 0x1ac) {
-                __atomic_store_n(&vcmos_pb_suppress_release_code, code, __ATOMIC_RELEASE);
-                ev[0] = 0;
-            }
-        }
-        return;
-    }
     if (code == 0xa7 && status == 1 && hosd_is_shooting_scene()) {
         vcmos_touch_blink();
-        vcmos_start_job(1);
-    } else if (code == 0x1f7 && status == 1 && hosd_is_shooting_scene()) {
-        __atomic_store_n(&vcmos_pb_active, 1u, __ATOMIC_RELEASE);
-        __atomic_store_n(&vcmos_pb_suppress_release_code, code, __ATOMIC_RELEASE);
-        ev[0] = 0;
-        vcmos_start_job(2);
+        vcmos_post_work(2u);
     }
 }
 /* Original request objects are observed only during their owning call. */
