@@ -446,7 +446,9 @@ class CameraUI:
         self.sd_action.get_accessible().set_name('虚拟 SD 插入或安全拔出')
         row.pack_start(self.sd_action, False, False, 0)
 
-        row.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 2)
+        self.usb_sep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+        self.usb_sep.set_no_show_all(True)
+        row.pack_start(self.usb_sep, False, False, 2)
 
         self.usb_connected = False
         self.usb_run = None
@@ -456,6 +458,7 @@ class CameraUI:
         self.usb_button.get_accessible().set_name('将虚拟相机通过 USB 连接本机电脑')
         self.usb_button.connect('clicked', lambda _: self.connect_computer())
         self.usb_button.set_tooltip_text('通过本机虚拟 USB 控制器连接；以宿主实际枚举和原相机响应为准')
+        self.usb_button.set_no_show_all(True)
         row.pack_start(self.usb_button, False, False, 0)
 
         net = Gtk.Box(spacing=6)
@@ -470,6 +473,10 @@ class CameraUI:
         self.wifi_switch.connect('notify::active',
                                  lambda widget, _: self.wifi(widget.get_active()))
         net.pack_start(self.wifi_switch, False, False, 0)
+        net.show_all()
+        net.set_no_show_all(True)
+        net.hide()
+        self.net_box = net
         row.pack_start(net, False, False, 4)
 
         cmos = Gtk.Box(spacing=6)
@@ -981,9 +988,11 @@ class CameraUI:
                       and not state.get('mock'))
         self.cmos_pick.set_sensitive(cmos_ready)
         self.cmos_default.set_sensitive(cmos_ready and cmos.get('source') == 'custom')
+        wifi_available = bool(state.get('usb_net'))
+        self.net_box.set_visible(wifi_available)
         self.wifi_label.set_text('Wi-Fi …' if wifi_pending else ('Wi-Fi 开' if self.wifi_confirmed else 'Wi-Fi 关'))
         self.wifi_switch.set_sensitive(not(self.closing or self.development_busy) and state.get('state') == 'running'
-                                       and bool(state.get('usb_net')) and not wifi_pending)
+                                       and wifi_available and not wifi_pending)
         if not wifi_pending:
             self.wifi_syncing = True
             try:
@@ -1003,8 +1012,11 @@ class CameraUI:
         if self.usb_run != state.get('run'):
             self.usb_run = state.get('run')
             self.usb_connected = False
+        usb_available = bool(state.get('run')) and (Path(state['run']) / 'usb-context.json').is_file()
+        self.usb_button.set_visible(usb_available)
+        self.usb_sep.set_visible(usb_available or wifi_available)
         self.usb_button.set_label('断开电脑' if self.usb_connected else '连接电脑')
-        self.usb_button.set_sensitive(not(self.closing or self.development_busy) and not self.usb_busy and state.get('state') == 'running')
+        self.usb_button.set_sensitive(usb_available and not(self.closing or self.development_busy) and not self.usb_busy and state.get('state') == 'running')
         self.sd_action.set_label('插入 SD' if card_state=='absent' else '安全拔出 SD')
         self.sd_action.set_sensitive(not(self.closing or self.development_busy) and state.get('state')=='running' and
                                      not(state.get('busy') or state.get('pending')) and

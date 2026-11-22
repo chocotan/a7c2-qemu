@@ -3092,6 +3092,8 @@ static void install_virtual_lens_hud_probes(unsigned long base) {
              (unsigned int)virtual_lens_hud_current.shutter_num,
              (unsigned int)virtual_lens_hud_current.shutter_den,
              (unsigned int)virtual_lens_hud_current.iso_cp_byte);
+    unlink(VIRTUAL_PLAYBACK_FRAME_PATH);
+    unlink(VIRTUAL_PLAYBACK_BG_PATH);
     record("VIRTUAL_LENS_HUD_ARMED ", text);
 }
 /* ---- Software virtual CMOS capture, real sidb registration, and native Playback bg ----

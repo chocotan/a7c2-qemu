@@ -115,6 +115,7 @@ def test_bootstrap_hands_mount_and_pivot_to_original_init():
     assert wrapper.index('sh /simulation/reset-runtime.sh')<wrapper.index('/simulation/ramfb-viewer')
     reset=cold.storage.runtime_reset_commands()
     assert any('/tmp/headless-osd-frame.bin ' in command for command in reset)
+    assert any('/tmp/virtual-playback-frame.bin ' in command and '/tmp/virtual-playback-bg.bin ' in command for command in reset)
     assert not any('*' in command or 'Backup' in command for command in reset)
     for source in cold.SOURCE.glob('*.sh'):subprocess.run(['sh','-n',str(source)],check=True,capture_output=True)
 

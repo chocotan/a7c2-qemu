@@ -17,7 +17,6 @@
 #define PREVIEW_PROFILE "/tmp/virtual-preview.profile"
 #define PREVIEW_NAME "functional-cmos-chart-v1\n"
 #define PREVIEW_CUSTOM_RGB "/tmp/virtual-cmos-custom.rgb"
-#define PREVIEW_PLAYBACK_FRAME "/tmp/virtual-playback-frame.bin"
 #define PREVIEW_PLAYBACK_BG "/tmp/virtual-playback-bg.bin"
 #define PREVIEW_SHUTTER_BLINK "/tmp/virtual-shutter-blink"
 #define PREVIEW_RGB_BYTES (640U * 480U * 3U)
@@ -458,40 +457,6 @@ static int present_stage(struct bus *b, unsigned char *pool, const unsigned char
     if (!result) *slot = target;
     return result;
 }
-/* Returns: 0 = not active, 1 = active & newly rendered to stage, 2 = active & unchanged. */
-static int check_playback_frame(unsigned char *stage, struct stat *last_st, int *was_active) {
-    static unsigned char pb_buf[PREVIEW_PLAYBACK_BYTES];
-    int fd = open(PREVIEW_PLAYBACK_FRAME, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
-    if (fd < 0) {
-        int exited = *was_active;
-        *was_active = 0;
-        memset(last_st, 0, sizeof *last_st);
-        return exited ? -1 : 0; /* -1 signals playback just exited, restore live OSD */
-    }
-    struct stat st;
-    if (view_stat(fd, &st) || !S_ISREG(st.st_mode) || (size_t)st.st_size != PREVIEW_PLAYBACK_BYTES) {
-        close(fd);
-        return *was_active ? 2 : 0;
-    }
-    if (*was_active &&
-        st.st_dev == last_st->st_dev && st.st_ino == last_st->st_ino &&
-        st.st_mtim.tv_sec == last_st->st_mtim.tv_sec &&
-        st.st_mtim.tv_nsec == last_st->st_mtim.tv_nsec) {
-        close(fd);
-        return 2;
-    }
-    if (read_all(fd, pb_buf, PREVIEW_PLAYBACK_BYTES) ||
-        memcmp(pb_buf, "VPLAY001", 8) != 0 ||
-        le(pb_buf + 12, 2) != 640 || le(pb_buf + 14, 2) != 480) {
-        close(fd);
-        return *was_active ? 2 : 0;
-    }
-    close(fd);
-    rgb24_to_xrgb8888(pb_buf + PREVIEW_PLAYBACK_HDR, stage);
-    *last_st = st;
-    *was_active = 1;
-    return 1;
-}
 static int check_shutter_blink(struct stat *last_st, int *have_last) {
     int fd = open(PREVIEW_SHUTTER_BLINK, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
     if (fd < 0) return 0;
@@ -554,10 +519,9 @@ static int run(void) {
              (unsigned long long)(RAMFB_BASE + RAMFB_CFG));
     record("INIT", init, raw, 0);
     unsigned slot = 1, ticks = 0;
-    struct stat pb_st, blink_st;
-    memset(&pb_st, 0, sizeof pb_st);
+    struct stat blink_st;
     memset(&blink_st, 0, sizeof blink_st);
-    int pb_active = 0, have_blink = 0, have_raw = 0;
+    int have_blink = 0, have_raw = 0;
     for (;;) {
         if (ticks > 0) {
             if (infd >= 0) {
@@ -574,26 +538,14 @@ static int run(void) {
         ++ticks;
 
         int force_redraw = 0;
-        int pb = check_playback_frame(stage, &pb_st, &pb_active);
-        if (pb == 1) {
-            int result = present_stage(&b, pool, stage, &slot, selector);
-            if (result) {
-                record("FAIL", result == -2 ? "DMA timeout; state uncertain" : "DMA error", raw, slot);
-                return 1;
-            }
-            record("SUBMITTED", "virtual-playback=1 DMA-is-not-screenshot-proof", raw, slot);
-        } else if (pb < 0) {
+        if (preview_enabled && refresh_custom_preview(PREVIEW_CUSTOM_RGB) && have_raw) {
+            force_redraw = 1;
+        }
+        if (refresh_playback_bg(PREVIEW_PLAYBACK_BG) && have_raw) {
             force_redraw = 1;
         }
 
-        if (preview_enabled && refresh_custom_preview(PREVIEW_CUSTOM_RGB) && have_raw && !pb_active) {
-            force_redraw = 1;
-        }
-        if (refresh_playback_bg(PREVIEW_PLAYBACK_BG) && have_raw && !pb_active) {
-            force_redraw = 1;
-        }
-
-        if (have_raw && !pb_active && check_shutter_blink(&blink_st, &have_blink)) {
+        if (have_raw && check_shutter_blink(&blink_st, &have_blink)) {
             memset(stage, 0, XRGB_BYTES);
             int result = present_stage(&b, pool, stage, &slot, selector);
             if (result) {
@@ -619,7 +571,7 @@ static int run(void) {
         }
         if (action == 0) {
             close(next);
-            if (force_redraw && have_raw && !pb_active) {
+            if (force_redraw && have_raw) {
                 if (convert_frame(raw, stage)) {
                     record("FAIL", "virtual-preview sensor generation failed", raw, slot);
                     return 1;
@@ -638,7 +590,7 @@ static int run(void) {
             continue;
         }
         have_raw = 1;
-        int need_submit = !pb_active && (action == 2 || force_redraw || ((preview_enabled || playback_bg_active) && action == 1));
+        int need_submit = action == 2 || force_redraw || ((preview_enabled || playback_bg_active) && action == 1);
         if (need_submit) {
             if (convert_frame(raw, stage)) {
                 record("FAIL","virtual-preview sensor generation failed",raw,slot);
@@ -651,13 +603,11 @@ static int run(void) {
             }
         }
         commit(&s, next, &st, raw);
-        if (!pb_active) {
-            record(need_submit ? "SUBMITTED" : "RETAINED",
-                   preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
-                                                           : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
-                                  : (playback_bg_active ? "virtual-playback-bg=1 native-osd=1 DMA-is-not-screenshot-proof"
-                                                        : "virtual-preview=off DMA-is-not-screenshot-proof"), raw, slot);
-        }
+        record(need_submit ? "SUBMITTED" : "RETAINED",
+               preview_active ? (custom_preview_active ? "virtual-preview=custom-rgb CP-YC-unverified DMA-is-not-screenshot-proof"
+                                                       : "virtual-preview=functional-cmos-chart-v1 CP-YC-unverified DMA-is-not-screenshot-proof")
+                              : (playback_bg_active ? "virtual-playback-bg=1 native-osd=1 DMA-is-not-screenshot-proof"
+                                                    : "virtual-preview=off DMA-is-not-screenshot-proof"), raw, slot);
     }
 }
 void _start(void) { _exit(run()); }

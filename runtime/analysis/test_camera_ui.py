@@ -454,6 +454,25 @@ class GTKTests(unittest.TestCase):
         self.assertIn('VM 强制关闭失败', self.ui.local_error)
         self.assertIn('process still alive', self.ui.local_error)
 
+    def test_optional_usb_and_wifi_controls_hidden_unless_backend_enabled(self):
+        import tempfile
+        self.running()
+        self.assertFalse(self.ui.usb_button.get_visible())
+        self.assertFalse(self.ui.net_box.get_visible())
+        self.assertFalse(self.ui.usb_sep.get_visible())
+        with tempfile.TemporaryDirectory() as tmp:
+            self.vm.value['run'] = tmp
+            self.ui.update(self.vm.status())
+            self.assertFalse(self.ui.usb_button.get_visible())
+            (Path(tmp) / 'usb-context.json').write_text('{}')
+            self.ui.update(self.vm.status())
+            self.assertTrue(self.ui.usb_button.get_visible())
+            self.assertTrue(self.ui.usb_button.get_sensitive())
+            self.assertTrue(self.ui.usb_sep.get_visible())
+            self.vm.value['usb_net'] = True
+            self.ui.update(self.vm.status())
+            self.assertTrue(self.ui.net_box.get_visible())
+
     def test_lcd_only_backend_bytes_old_state_and_bad_png(self):
         self.running()
         self.assertIsNone(self.ui.pixbuf)

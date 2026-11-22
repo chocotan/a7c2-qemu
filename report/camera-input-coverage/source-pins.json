@@ -114,7 +114,7 @@
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "263a6aaf6c56fafb7020533f920361c7e1d43cda8158fc4aed2b8e76073a8bec",
+      "sha256": "b584a6bbd021b017377d574572dec72c1b52516c7f927d5ca4142f6e5c18ef1e",
       "fast_boot_change_scope": "2026-11-21: add --cold-flag and --verify-sha/--no-verify-sha CLI/env forwarding; input bindings, touch coordinates, dial actions, and lifecycle gates preserved.",
       "ui_refactor_change_scope": "2026-11-20: concise and ergonomic single-window UI refactoring; integrated top plate, aligned rear thumb panel, viewfinder bezel, and unified bottom peripheral/drawer dock; all input bindings, touch coordinates, and lifecycle gates preserved.",
       "ram_window_change_scope": "2026-11-09/10: actual RAM controls and stopped p2-only reset confirmation; original input release gates and actual LCD consumption unchanged.",
@@ -123,7 +123,7 @@
       "product_development_change": "2026-11-08: three development groups with a busy gate shared by input/power/storage actions, staged file/original choice and actual guest readback. Hot RAM/update unsupported states remain explicit.",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
       "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",
-      "previous_sha256": "2660c942c2c5f76fd331d50027aa230b8afb557f0d0ffbb7e085e8c8975eecb1",
+      "previous_sha256": "263a6aaf6c56fafb7020533f920361c7e1d43cda8158fc4aed2b8e76073a8bec",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
         "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
@@ -134,12 +134,13 @@
         "f5b805ccb949d591fe3aa27aadf77b0856a54d9b6d88f0fdd45221af1ab6346c",
         "e840288e9288f8a8e86a2db5556ce8c31cb75a6355b69f2ddffc7279a7c4488e",
         "ec48298882004d567c54a1f313af86d4c6af7f86354ff581573c0cc3ba236c13",
-        "2660c942c2c5f76fd331d50027aa230b8afb557f0d0ffbb7e085e8c8975eecb1"
+        "2660c942c2c5f76fd331d50027aa230b8afb557f0d0ffbb7e085e8c8975eecb1",
+        "263a6aaf6c56fafb7020533f920361c7e1d43cda8158fc4aed2b8e76073a8bec"
       ],
       "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
       "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified.",
       "change_2026_11_22": "2026-11-22: FN clicks/shortcuts route through atomic guest TAP (20ms hold); ContinuousLCD zero-PNG raw RGB24 path to CameraUI; redundant shortcuts/log drawer removed; per-button GTK state cache. Software virtual model; physical CP/ISP unverified.",
-      "change_2026_11_22_lifecycle": "2026-11-22: _close() guards release_inputs() to running state; _close_failed() offers explicit user-confirmed Retry/Force Close dialog; _force_close() reports errors honestly without closing on failure; SIGINT/SIGTERM marshaled through GLib.idle_add. Input bindings unchanged."
+      "change_2026_11_22_lifecycle": "2026-11-22: _close() guards release_inputs() to running state; _close_failed() offers explicit user-confirmed Retry/Force Close dialog; _force_close() reports errors honestly without closing on failure; SIGINT/SIGTERM marshaled through GLib.idle_add; optional USB/Wi-Fi toolbar controls shown only when their backends are active. Input bindings unchanged."
     },
     {
       "path": "runtime/analysis/menu_live.py",
