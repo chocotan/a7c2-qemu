@@ -74,7 +74,18 @@
 
 全流程同时验证了自定义 CMOS 拍照（`DSC00001.JPG`, `source=custom`, `readback=1`）、原生回放无 1:1 黑边、原生删除（`VIRTUAL_CMOS_NATIVE_DELETE_DONE flush_rc=0`）与正常关机 4 GiB FAT32 SD 导出（`4,294,967,296 B`，实占 `10,067,968 B`，`fsck.fat -n` 返回 `0`）。
 
-## 4. 边界与剩余事项
+## 4. 伴随发现并修复：蓝牙启动竞争（`scr0039_0002`「系统出错」）
+
+在持久化磁盘二次启动且启用 `fast-shm` 提速后，实机操作暴露出一个既有竞态：
+
+- **现象与证据**（`run-miz6safi` 及持久 `nflasha10` 中的 `/bt-launch-780.log`）：`start-bt-virtual.sh` 后台执行 `/simulation/virtual-hci --virtual-rom > /tmp/virtual-hci.pty &` 时，父 shell 抢在子进程截断 `/tmp/virtual-hci.pty` 之前读到了上一次启动遗留的 `/dev/pts/0`，随即 `test -c /dev/pts/0` 失败打印 `BT_TTY_NOT_CHARACTER` 并 `exit 1`，导致 `bsa_server` 未启动；固件连续 12 次 `killall -0 bsa_server` 失败后触发 `INFRA_NOTIFY_BLUETOOTH_ERROR`（事件 `0x0100012e`）并锁定在 `scr0039_0002`（「系统出错」）。
+- **修复**：
+  - [`start-bt-virtual.sh`](../../runtime/analysis/start-bt-virtual.sh)：改为按 PID 独立文件 `/tmp/virtual-hci-$$.pty`，启动前先清理旧 `.pty`，并轮询等待直到读到 `/dev/pts/*` 且 `test -c "$BTDEV"` 成立后再启动 `bsa_server`。
+  - [`persistent_storage.py`](../../runtime/analysis/persistent_storage.py)：`runtime_reset_commands()` 新增显式清理 `/tmp/virtual-hci.pty /tmp/virtual-hci.pid /tmp/bsa-virtual.pid /tmp/bsa-virtual.log`。
+  - [`test_virtual_hci.py`](../../runtime/analysis/test_virtual_hci.py)：新增回归测试 `test_start_bt_virtual_avoids_stale_pty_race`（51 passed, 8 subtests passed）。
+- **实机复验**（`run-7ydpb8_i`，在含旧 `.pty` 的隔离克隆盘上启动）：`bt-launch-781.log` 成功拉起 `bsa_server`（PID 794），`virtual-hci` 正常完成 33+ 条 HCI 交互（含 `VHCI_DIAG 07f000`），原厂客户端打印 `bsa_cl_mgt_init`，全程 0 次 `BT_ERROR_PLACE line=4454`、0 次 `scr0039_0002`。
+
+## 5. 边界与剩余事项
 
 - `A7C2_RAM_MODE=1`（QEMU RAM 迁移保存/恢复会话）继续使用原匿名内存与 QMP 路径，以保持 `ram.qevm` 迁移合同不变。
 - `fast-shm` 仍属 AP 软件 OSD + 宿主虚拟 CP 合成模型，不代表物理 CP/ISP 硬件实机验证。

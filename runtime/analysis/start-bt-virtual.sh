@@ -9,16 +9,34 @@ echo BT_LAUNCH_PID=$$
 mkdir -p /dev/pts /tmp_bt
 /bin/busybox grep -q ' /dev/pts devpts ' /proc/mounts || mount -t devpts devpts /dev/pts
 test -c /dev/ptmx || mknod /dev/ptmx c 5 2
+# Remove any stale PTY path from a previous boot on persistent /tmp and write to a
+# per-invocation file so the parent shell can never race ahead of child O_TRUNC.
+PTY_FILE="/tmp/virtual-hci-$$.pty"
+rm -f "$PTY_FILE" /tmp/virtual-hci.pty
 # shortcut: only one Bluetooth startup per VM is validated; repeated radio restarts need owned controller teardown.
-/simulation/virtual-hci --virtual-rom > /tmp/virtual-hci.pty 2> /dev/console &
+/simulation/virtual-hci --virtual-rom > "$PTY_FILE" 2> /dev/console &
 echo $! > /tmp/virtual-hci.pid
 i=0
-while [ ! -s /tmp/virtual-hci.pty ] && [ "$i" -lt 100 ]; do sleep 0.05; i=$((i+1)); done
-IFS= read -r BTDEV < /tmp/virtual-hci.pty || exit 1
+BTDEV=
+while [ "$i" -lt 100 ]; do
+    if [ -s "$PTY_FILE" ]; then
+        IFS= read -r BTDEV < "$PTY_FILE" || BTDEV=
+        case "$BTDEV" in
+            /dev/pts/*)
+                if test -c "$BTDEV"; then break; fi
+                ;;
+        esac
+    fi
+    sleep 0.05
+    i=$((i+1))
+done
+rm -f "$PTY_FILE"
+[ -n "$BTDEV" ] || { echo BT_EMPTY_TTY; exit 1; }
 echo BT_LAUNCH_TTY=$BTDEV length=${#BTDEV}
 case "$BTDEV" in /dev/pts/*) number=${BTDEV#/dev/pts/};; *) echo BT_BAD_TTY_PREFIX;exit 1;; esac
 case "$number" in ''|*[!0-9]*) echo BT_BAD_TTY_NUMBER;exit 1;; esac
 if ! test -c "$BTDEV"; then echo BT_TTY_NOT_CHARACTER;ls -l "$BTDEV" /dev/pts;exit 1;fi
+printf '%s\n' "$BTDEV" > /tmp/virtual-hci.pty
 /usr/bin/bsa_server -r 14 -k /tmp_bt/ble_local_keys -u /tmp_bt/ -d "$BTDEV" -all=0 > /tmp/bsa-virtual.log 2>&1 &
 echo $! > /tmp/bsa-virtual.pid
 echo BT_LAUNCH_CHILD=$(cat /tmp/bsa-virtual.pid)

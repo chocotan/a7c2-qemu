@@ -244,6 +244,7 @@ def runtime_reset_commands():
         'rm -f /tmp/rm-file.claim /tmp/headless-osd.claim /tmp/gui-model.claim',
         'rm -f /tmp/sd-flush.request /tmp/sd-hotplug.state /tmp/date-clock.ready /tmp/system-sound.ready /tmp/headless-osd-frame.bin /tmp/headless-osd-frame.bin.part /tmp/gui-model-state.bin /tmp/hdmi-format-state.bin /tmp/hdmi-photo-state.bin',
         'rm -f /tmp/virtual-playback-frame.bin /tmp/virtual-playback-frame.bin.tmp /tmp/virtual-playback-bg.bin /tmp/virtual-playback-bg.bin.tmp /tmp/virtual-shutter-blink',
+        'rm -f /tmp/virtual-hci.pty /tmp/virtual-hci.pid /tmp/bsa-virtual.pid /tmp/bsa-virtual.log',
     ]
 
 
