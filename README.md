@@ -2,41 +2,28 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持页面选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡与播放页浏览，以及虚拟存储。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
+默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡、原厂单张播放界面以及虚拟存储。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
 
 ![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261122.png)
 
-上图为当前单窗口相机界面（LCD 画面为隔离实机冷启动的真实 [QEMU RAMFB 帧](docs/images/live-dial-m-hud-20261122.png)），工具栏新增 **CMOS 色卡 / 选择图片… / 恢复色卡**，底部移除冗余的“快捷键与日志”抽屉，仅保留折叠的“固件开发”面板。默认色卡由冷启动脚本写入 `functional-cmos-chart-v1` 开启，在原厂 HUD 透明层后合成；它属于软件虚拟 CMOS 模型，不代表真实 CP 的 YC 视频通路或物理 ISP。
+上图为单窗口相机控制界面（LCD 为真实 QEMU RAMFB 画面），工具栏提供 **CMOS 色卡 / 选择图片… / 恢复色卡** 与虚拟存储控制，底部可展开“固件开发”面板。拍摄预览、镜头曝光与播放解码均由软件虚拟模型提供，不代表真实 CP ASIC 或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
 ## 能做什么
 
-- **运行原厂程序与快速冷启动**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核，支持 `--cold-flag`（默认 `force`）与 `--no-verify-sha`（默认跳过启动全量 SHA 复算），配合 TCG `tb-size=2048` 实机约 11 秒到达首帧。
-- **查看原厂界面与底部曝光 HUD**：显示相机 LCD，可用简体中文完成首设、浏览主菜单和原厂 Fn 快捷菜单；拍摄主页下方通过虚拟镜头模型经原 OSAL 队列向原厂 HUD 实时显示快门、光圈与 ISO。
-- **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸。不支持多指手势。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
-- **低延迟机身按键与 4 拨轮**：窗口提供主要按键和 4 个拨轮（前拨轮 ±22、后拨轮 ±30、控制轮 ±24、右上拨轮 ±1024）。LCD 通道直传 640×480 原始 RGB24（去掉同进程 PNG 编解码），空闲 15 Hz / 按键立即唤醒 60 Hz；Fn 键在 guest 内原子点按（20 ms）以避开固件 500 ms 长按分支。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
-- **默认 CMOS 色卡 + 自定义图片热替换**：默认启用色卡背景，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片（宿主等比缩放到 640×480 后经串口分块送入 guest `cmos-import` 原子替换），随时可点“恢复色卡”。
-- **全按快门写虚拟 SD + 原厂播放界面**：拍摄画面全按快门将当前色卡或自定义图片编码为 Baseline JPEG（含 Sony `ILCE-7CM2` EXIF 2.32），经原 `libInfraFsys.so` 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并读回校验，同时经原 `libmpr.so` `sidb` 登记入图像索引；按**播放**键直接进入索尼原厂单张播放界面（`scr7102_0001_still`，支持 `LEFT`/`RIGHT` 翻页、`UP`/`DISP` 切换 `scr7102_0003_still` / `scr7102_0002_still`、再按播放键返回拍摄），由 `ramfb-viewer` 将真实 JPEG 软解码画面与原厂透明播放 OSD 合成显示；关机导出的 `SD/card.img` 可在宿主直接解出照片。
-- **使用虚拟 SD 卡与保留设置**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入与关机镜像导出；可跨启动保留语言和日期格式。
+- **运行原厂程序与冷启动**：从自己的 2.01 ALLLANG `BODYDATA.DAT` 导入相机程序和内核，支持 `--cold-flag` 与 `--verify-sha`/`--no-verify-sha` 启动选项。
+- **原厂界面、Fn 菜单与底部曝光 HUD**：显示 640×480 相机 LCD，可完成简体中文首设、浏览主菜单和原厂 Fn 快捷菜单；拍摄页面底部通过虚拟镜头模型实时联动原厂快门、光圈与 ISO 显示。
+- **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸（不支持多指手势）。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
+- **低延迟机身按键与 4 个拨轮**：提供机身按键、模式拨盘与 4 个拨轮（前拨轮、后拨轮、控制轮、右上曝光补偿拨轮），A / S / M / P 档跟随原厂固件自身的拨轮映射与橙色聚焦；LCD 采用零 PNG 原始 RGB24 自适应刷新。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
+- **虚拟 CMOS 色卡与自定义图片**：默认显示虚拟 CMOS 色卡，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片实时替换画面，或点击“恢复色卡”。
+- **虚拟拍摄写卡与原厂播放界面**：全按快门将当前色卡或自定义画面编码为含 Sony `ILCE-7CM2` EXIF 的 JPEG 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并登记入图像库；按**播放**键进入原厂单张播放界面（`scr7102_0001_still`，支持左右翻页、`DISP` 切换显示与返回拍摄；直方图与详细 EXIF 面板受 CP 缺失限制为空），关机导出的 `SD/card.img` 可在宿主直接提取照片。
+- **虚拟 SD 卡与保留设置**：原冷启动默认创建 1 GiB FAT16 虚拟卡，支持安全拔出、重新插入与关机镜像导出；可跨启动保留语言和日期格式。
 - **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
-## 近期更新与实机验证（2026-11-22）
-
-以下全部项目已在**独立隔离的冷启动 QEMU 实例**中配合真实 ILCE-7CM2 2.01 固件完成端到端实机验证（不干扰宿主已有实例）。软件虚拟 CMOS / 虚拟镜头 / 软件 JPEG 解码不代表真实 CP ASIC 或物理 ISP，原厂硬件指标 `capture_verified` 仍保持 `false`。
-
-| 项目 | 实现内容 | 实机验证结果 |
-| --- | --- | --- |
-| 按键与显示延迟 | `ContinuousLCD` 自适应 15/60 Hz + 按键即刻唤醒 + 零 PNG 原始 RGB24（921,600 B）直出到 `GdkPixbuf`；GTK 定时器降为 100 ms 并缓存 26 个按钮状态；移除底部“快捷键与日志”抽屉；`console.log` seek 增量读；guest `ramfb-viewer` RAM 缓存合成 + `inotify`；冷启动默认 `tb-size=2048` 且关闭 `-d` 跟踪 | 实机冷启动 **11.21–13.92 s**，原始 RGB24 零 PNG 生效；菜单开/关延迟 **624.6 ms / 827.9 ms**，Fn 打开延迟 **652.0 ms** |
-| Fn 键 | GTK 按钮点击与键盘 `F` 均走 guest `inject-key --serve-app` 原子 `TAP`（20 ms hold），避免 guest 虚拟时钟快于宿主而落入 ≥500 ms 长按分支 | 实机打开原厂 Fn 快捷菜单（`CREATE_SCREEN id=0xc2` / `scr0135_0001`）并可正常退出 |
-| 4 个拨轮 + 原厂聚焦一致 | 对调后拨轮（`0x10000016` / `2ea`）与右上拨轮（`0x10000013` / `2ef`）并修正单步；`menu-observe.so` 直接挂载 `appFw.so` 原厂 7 个拨轮叶子执行函数（光圈 / 快门 / 程序偏移 / ISO），完全跟随固件自身的挡位映射与橙色聚焦，不再私自猜测前后拨轮 | 实机验证 **A 档**前/后拨轮均调光圈并橙色聚焦 `F5.6`–`F6.3`；**S 档**前/后拨轮均调快门并橙色聚焦 `1/500`–`1/2000`；**M 档**前拨轮调光圈（`F8.0`）、后拨轮调快门（`1/4000` 橙色聚焦）；**P 档**前后拨轮触发程序偏移；右上拨轮调出橙色曝光补偿 `+0.7` |
-| 默认色卡 + 自定义 CMOS | `bootin.sh` 默认写入 `functional-cmos-chart-v1`；工具栏“选择图片…/恢复色卡”经 `cmos_source.py` + guest `cmos-import` 热替换 `/tmp/virtual-cmos-custom.rgb` | 实机默认即显示色卡；自定义测试图上传热替换生效，“恢复色卡”实时还原 |
-| 全按写卡 + 原厂播放界面 | `menu-observe.so` 绑定原厂 `libInfraFsys.so` 与 `libmpr.so` `sidb`，全按写 `DCIM/100MSDCF/DSCnnnnn.JPG`（含 EXIF 2.32 日期时间）并登记图像库；拦截被 CP Lane 0 阻塞的 `sequence_playback`（`0x30`）改由单常驻工作线程运行原厂 `sidb::Select` + `start_playback_exit`，由软件解码 JPEG 至 `/tmp/virtual-playback-bg.bin` 并经 `ramfb-viewer` 合成原厂透明播放 OSD | 实机连拍色卡 `DSC00001.JPG`（58,241 B）与自定义图 `DSC00002.JPG`（14,358 B）均 `rc=0 readback=1` 且 `sidb` 登记成功；按播放进入真原厂 `scr7102_0001_still`（`id=0x23`，70 控件，显示 `2/2` / `1/2`、`100-0001`、`3:2`、`22-11-2026 12:00:00`），`LEFT`/`RIGHT` 翻页、`UP`/`DISP` 切换 `scr7102_0003_still` / `scr7102_0002_still` 与返回拍摄全部实机验证通过（直方图/详细 EXIF 数据仍受 CP 缺失限制为空） |
-| OFF 关机与窗口关闭 | 移除 `menu-observe.so` 中的事件就地改写与高频 `pthread_create`，收敛为单常驻 pipe 唤醒工作线程；修复 `original-init-cold` 启动期关闭通道误关导致的挂死；窗口关闭在非运行态跳过输入释放，优雅关机失败时弹出明确确认的“重试正常保存 / 强制关闭”对话框且仅在核验子进程组退出后释放租约 | 实机连续多次验证 `OFF`（`EXPORT_SD + SHUTDOWN_STORAGE`）在 **2.43 s** 内完成：`ok=True`、`settings_ok=True`、`internal_frozen=True`、`qmp_quit_confirmed=True`、`returncode=0`、`signals_sent=[]` |
-
-| 原厂 Fn 快捷菜单（实机） | 自定义 CMOS + 拨轮 M 档 HUD（实机） | 索尼原厂单张播放界面 `scr7102_0001_still`（实机） |
+| 原厂 Fn 快捷菜单 | 自定义 CMOS + 曝光 HUD | 原厂单张播放界面 `scr7102_0001_still` |
 | :---: | :---: | :---: |
-| ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与 1/1000 F5.6 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![索尼原厂播放界面 scr7102_0001_still](docs/images/live-playback-20261122.png) |
+| ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与曝光 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![原厂播放界面 scr7102_0001_still](docs/images/live-playback-20261122.png) |
 
 ## 虚拟 CMOS 与静态照片
 
@@ -139,7 +126,7 @@ runtime/analysis/menu-runs/run-*/SD/card.img
 
 运行中可以点击 **安全拔出 SD**，等窗口确认卡已拔出，再点击 **插入 SD**。目前只能重插同一张虚拟卡，还不能在运行中换选另一张镜像。
 
-如果保存失败，窗口会保留运行实例和错误信息。请先处理错误，再关闭相关进程，避免丢失尚未保存的数据。
+如果保存失败，窗口会保留运行实例与错误信息，并提示重试正常保存或在确认后强制关闭本窗口拥有的虚拟机。
 
 ## 内部持久磁盘与固件开发
 
@@ -184,6 +171,7 @@ overwrite/
 - [开发面板与单盘集成](docs/tech/2026-11-08-development-and-storage.md)：文件替换、启动与存储实现。
 - [原 init 冷启动](docs/tech/2026-11-09-original-cold-boot.md)：从原 RAM0 经 `init`、根挂载和 `init2` 到相机应用的启动路径。
 - [图像源与显示配置](docs/tech/functional-source-and-display.md)：软件成像、显示与实验配置。
+- [低延迟输入、拨轮、虚拟 CMOS 与原厂播放实机报告](report/2026-11-22-ui-latency-dials-fn-cmos-capture/README.md)：相关实现细节、问题排查与实机验证收据。
 - [启动排障与技术笔记](docs/tech/README.md)：固件导入、显示、输入、存储和成像。
 - [验证记录](validation/README.md)与[源码来源](SOURCES.md)、[第三方许可](THIRD-PARTY.md)。
 
