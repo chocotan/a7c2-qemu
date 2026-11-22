@@ -59,12 +59,27 @@ def live_session(process,run,qmp,built,*,leased=None,ram_enabled=False,build_res
     save()
     def serial(command,*,timeout=30,cleanup=False):
         return serial_command(process,run/'console.log',command,timeout=timeout,allow_faulted_cleanup=cleanup)
+    from fast_shm import parse_inherited_fd as parse_fast_shm_fd, FastShmView
+    fast_shm_fd=None if ram_enabled else parse_fast_shm_fd(os.environ)
+    shm_view=FastShmView(fast_shm_fd) if fast_shm_fd is not None else None
     def display():
         nonlocal sequence
         sequence+=1
         from sony_usb_device import selected,guest_diagnostic
         if selected(os.environ):
             (run/('usb-diagnostic-'+str(sequence)+'.raw')).write_bytes(serial(guest_diagnostic(),timeout=30))
+        if shm_view is not None and shm_view.guest_display_ready():
+            import base64,io
+            from PIL import Image
+            pixels,osd_seq=shm_view.render_rgb24()
+            output=io.BytesIO()
+            Image.frombytes('RGB',(640,480),pixels).save(output,format='PNG')
+            return {'type':'snapshot','captured_at':time.time(),
+                    'png':base64.b64encode(output.getvalue()).decode(),
+                    'info':{'sequence':osd_seq,'pixel_source_seq':osd_seq,
+                            'sha256':hashlib.sha256(pixels).hexdigest(),
+                            'source':'fast-shm virtual CP display',
+                            'mode':'AP software display; not a captured photograph'}}
         qmp('screendump',dict(filename='/out/ui-display.ppm'))
         return display_snapshot_message(run/'ui-display.ppm',sequence)
     def download(request):
@@ -121,11 +136,13 @@ def live_session(process,run,qmp,built,*,leased=None,ram_enabled=False,build_res
         value.update(completed=True,receipt_sha256=sha(receipt_path(stream)),sony_wbi_resume_executed=False)
         state.update(ram_capture=value,save_verified=True);save()
         return value
-    storage._save(run/'runtime-manifest.json',dict(boot_profile='original-init-cold',original_cold_profile='original-init-v1',natural_boot=True,persistent_storage=True,internal_storage_profile=storage.PROFILE,rm_file_image_bytes=built['sd_card']['bytes'],sd_card=built['sd_card'],ram0_sha256=built['ram0_sha256'],kernel_sha256=built['kernel_sha256'],cold_build_result_sha256=sha(build_result),files=built['helper_sources'],original_libraries_unchanged=not built['overwrite']['entries'],ram_session=ram_enabled,ram_restore_verified=bool(restored and restored.get('same_boot_id') and restored.get('new_original_menu_and_shooting_pixels_verified')),capture_verified=False,full_boot_verified=False))
+    storage._save(run/'runtime-manifest.json',dict(boot_profile='original-init-cold',original_cold_profile='original-init-v1',natural_boot=True,persistent_storage=True,internal_storage_profile=storage.PROFILE,rm_file_image_bytes=built['sd_card']['bytes'],sd_card=built['sd_card'],ram0_sha256=built['ram0_sha256'],kernel_sha256=built['kernel_sha256'],cold_build_result_sha256=sha(build_result),files=built['helper_sources'],original_libraries_unchanged=not built['overwrite']['entries'],ram_session=ram_enabled,ram_restore_verified=bool(restored and restored.get('same_boot_id') and restored.get('new_original_menu_and_shooting_pixels_verified')),fast_shm=shm_view is not None,capture_verified=False,full_boot_verified=False))
     try:
-        run_live(process,run,int(os.environ['MENU_CONTROL_FD']),display_capture=display,sd_export=export,sd_card=SDHotplug(serial,run),storage_shutdown=shutdown,ram_capture=capture_ram if ram_enabled else None)
+        run_live(process,run,int(os.environ['MENU_CONTROL_FD']),display_capture=display,sd_export=export,sd_card=SDHotplug(serial,run),storage_shutdown=shutdown,ram_capture=capture_ram if ram_enabled else None,fast_shm_view=shm_view)
     except RuntimeError as error:
         if str(error)!='VM 控制通道已关闭':raise
+    finally:
+        if shm_view is not None:shm_view.close()
     need(saved_for_close(run),'Cold GUI controller ended without a current SD save, recovered flush owner and nineteen frozen internal volumes; retain owner')
     return dict(state,internal_storage=json.loads((run/'persistent-shutdown.json').read_text()))
 

@@ -623,6 +623,20 @@ PY
   native_link_args+=(-chardev socket,id=notify-peer,path=/native-link/notify.sock,server=on,wait=off)
   machine_args=(-machine virt,secure=off,gic-version=2,memory-backend=native-local-ram)
 fi
+fast_shm_args=()
+if [[ "${A7C2_FAST_SHM:-0}" == 1 && -n "${A7C2_FAST_SHM_FD:-}" && -z "${QEMU_NATIVE_AP_CP_LINK:-}" && "$ram_session" == 0 ]]; then
+  [[ "$A7C2_FAST_SHM_FD" =~ ^[1-9][0-9]*$ && "$A7C2_FAST_SHM_FD" -ge 3 ]] || { echo 'Invalid A7C2_FAST_SHM_FD' >&2; exit 2; }
+  machine_args=(-machine virt,secure=off,gic-version=2,memory-backend=fast-shm-ram)
+  if [[ "${A7C2_BOOT_QUIET:-}" == 1 || -n "${A7C2_ORIGINAL_COLD:-}" ]]; then
+    machine_args+=(-accel tcg,thread=single,tb-size=2048)
+  fi
+  fast_shm_args=(-object "memory-backend-file,id=fast-shm-ram,size=${memory_config}M,mem-path=/proc/self/fd/${A7C2_FAST_SHM_FD},share=on")
+  if [[ -z "$settings_restart" ]] && bwrap --help | grep -q -- --preserve-fds; then
+    _fast_max_fd="${A7C2_EMMC_FD:-3}"
+    (( A7C2_FAST_SHM_FD > _fast_max_fd )) && _fast_max_fd="$A7C2_FAST_SHM_FD"
+    persistent_fd_options=(--preserve-fds "$((_fast_max_fd-2))")
+  fi
+fi
 scope_bind=()
 scope_args=()
 if [[ -n "${QEMU_SCOPE_OBSERVER_PLUGIN:-}" ]]; then
@@ -836,5 +850,6 @@ runner=(exec)
       "${writer_args[@]}" \
       "${incoming_args[@]}" \
       "${native_link_args[@]}" \
+      "${fast_shm_args[@]}" \
       "${boot_args[@]}" "${loader_args[@]}" \
       "${trace_args[@]}"

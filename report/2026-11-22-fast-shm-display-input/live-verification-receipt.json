@@ -1,0 +1,90 @@
+{
+  "schema": "a7c2-fast-shm-live-verification-v1",
+  "date": "2026-11-22",
+  "ok": true,
+  "run_id": "run-l_dk8is3",
+  "boot_seconds": 13.57,
+  "first_snapshot": {
+    "sequence": 2,
+    "pixel_source_seq": 2,
+    "sha256": "b51c4da5c04e7e1fb7f7ea1026cb18a52d126147aca2f9a1aa7201360d803fb7",
+    "number": 1,
+    "source": "fast-shm virtual CP display",
+    "transport_samples": 1,
+    "changed_frames": 1
+  },
+  "steps": {
+    "firstboot_wizard_8_screens_seconds": 5.16,
+    "key_benchmark": [
+      {"key": "MENU", "ack_ms": 20.2, "frame_ms": 143.7},
+      {"key": "DOWN", "ack_ms": 20.3, "frame_ms": 76.4},
+      {"key": "DOWN", "ack_ms": 20.4, "frame_ms": 68.5},
+      {"key": "DOWN", "ack_ms": 20.2, "frame_ms": 59.6},
+      {"key": "UP", "ack_ms": 20.3, "frame_ms": 76.4},
+      {"key": "UP", "ack_ms": 20.3, "frame_ms": 60.0},
+      {"key": "MENU", "ack_ms": 20.3, "frame_ms": 51.3}
+    ],
+    "cmos_swap": {
+      "ack_ms": 20.3,
+      "frame_ms": 20.3,
+      "center_rgb": [220, 130, 45],
+      "edge_rgb": [40, 195, 210]
+    },
+    "shutter_capture": {
+      "ack_ms": 60.5,
+      "frame_ms": 60.5,
+      "log": [
+        "OBS VIRTUAL_CMOS_CAPTURE rc=0 path=A:/DCIM/100MSDCF/DSC00001.JPG source=custom bytes=6859 fnv1a64=2e69e3c6f4d7f32e readback=1 software_virtual_cmos=1 physical_CP_ISP=unverified"
+      ]
+    },
+    "playback": {
+      "ack_ms": 20.4,
+      "frame_ms": 51.7,
+      "luma": {"left": 150.0, "center": 147.0, "right": 146.31}
+    },
+    "delete": {
+      "done": true,
+      "log": [
+        "OBS VIRTUAL_CMOS_NATIVE_DELETE_DONE seq=0x62 flush_rc=0 native_mpr_delete=1 original_CP=0"
+      ]
+    },
+    "cmos_reset": {"ack_ms": 20.3}
+  },
+  "invariants": {
+    "fast_shm_enabled_logged": true,
+    "fast_shm_input_ready_logged": true,
+    "osd_fast_shm_logged": true,
+    "gui_model_fast_mem_only_logged": true,
+    "hosd_disk_persist_count": 0,
+    "original_lcd_ppm_absent": true,
+    "lcd_continuous_ppm_absent": true,
+    "custom_source_captured": true,
+    "custom_cmos_rendered_live": true,
+    "playback_no_dark_sidebars": true,
+    "delete_flush_ok": true
+  },
+  "lcd_result": {
+    "samples": 1646,
+    "changed_pixels": 45,
+    "error": "",
+    "elapsed_seconds": 15.53,
+    "qmp_peer": null,
+    "source": "fast-shm virtual CP display",
+    "capture_verified": false
+  },
+  "sd_export": {
+    "ok": true,
+    "bytes": 4294967296,
+    "allocated_bytes": 10067968,
+    "fsck_rc": 0
+  },
+  "host_acceptance": {
+    "workers": 2,
+    "groups_total": 4,
+    "groups_passed": 4,
+    "fast_shm_and_stream": "31 passed, 6 subtests passed",
+    "control_cold_and_input": "251 passed, 11 subtests passed",
+    "camera_ui_xvfb": "55 passed",
+    "c_headless_ramfb_and_shell": "bash -n + HOSD_COMPLETE_READBACK_AND_FAILURE_PRESERVATION_PASS + RAMFB_TEST_PASS"
+  }
+}

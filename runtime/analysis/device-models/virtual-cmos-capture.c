@@ -938,10 +938,20 @@ static int read_all_fd(int fd, uint8_t *buf, size_t n) {
     return 0;
 }
 
+static int (*g_custom_rgb_provider)(uint8_t *rgb_out);
+
+void virtual_cmos_set_custom_rgb_provider(int (*provider)(uint8_t *rgb_out)) {
+    g_custom_rgb_provider = provider;
+}
+
 int virtual_cmos_load_active_rgb(const char *custom_rgb_path,
                                  uint8_t *rgb_out,
                                  char *source_out, size_t source_cap) {
     if (!rgb_out) return -EINVAL;
+    if (g_custom_rgb_provider && g_custom_rgb_provider(rgb_out) == 1) {
+        if (source_out && source_cap) snprintf(source_out, source_cap, "custom");
+        return 0;
+    }
     if (custom_rgb_path && custom_rgb_path[0]) {
         int fd = open(custom_rgb_path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
         if (fd >= 0) {
@@ -1328,12 +1338,11 @@ void virtual_cmos_playback_exit(struct virtual_cmos_playback_state *pb,
     if (frame_path) unlink(frame_path);
 }
 
-int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
-                                    const char *jpeg_path,
-                                    const char *bg_path,
-                                    uint32_t seq) {
+int virtual_cmos_decode_playback_rgb(const struct virtual_cmos_fsys_ops *ops,
+                                     const char *jpeg_path,
+                                     uint8_t *rgb_out) {
     if (!ops || !ops->open_fn || !ops->read_fn || !ops->close_fn ||
-        !jpeg_path || !jpeg_path[0] || !bg_path || !bg_path[0])
+        !jpeg_path || !jpeg_path[0] || !rgb_out)
         return -EINVAL;
     size_t cap = 512u * 1024u;
     uint8_t *buf = malloc(cap);
@@ -1362,14 +1371,21 @@ int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
         free(buf);
         return -EIO;
     }
-    uint8_t *rgb = calloc(1, VIRTUAL_CMOS_RGB_BYTES);
-    if (!rgb) {
-        free(buf);
-        return -ENOMEM;
-    }
+    memset(rgb_out, 0, VIRTUAL_CMOS_RGB_BYTES);
     unsigned sw = 0, sh = 0;
-    int rc = virtual_cmos_decode_jpeg(buf, total, rgb, &sw, &sh, NULL, 0);
+    int rc = virtual_cmos_decode_jpeg(buf, total, rgb_out, &sw, &sh, NULL, 0);
     free(buf);
+    return rc;
+}
+
+int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
+                                    const char *jpeg_path,
+                                    const char *bg_path,
+                                    uint32_t seq) {
+    if (!bg_path || !bg_path[0]) return -EINVAL;
+    uint8_t *rgb = calloc(1, VIRTUAL_CMOS_RGB_BYTES);
+    if (!rgb) return -ENOMEM;
+    int rc = virtual_cmos_decode_playback_rgb(ops, jpeg_path, rgb);
     if (rc == 0) {
         rc = write_rgb_frame_with_magic(bg_path, VIRTUAL_PLAYBACK_BG_MAGIC, seq, rgb);
     }

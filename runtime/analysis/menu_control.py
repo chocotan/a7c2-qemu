@@ -689,6 +689,7 @@ class VM:
             return
         process = None
         monitor = None
+        fast_shm_fd = None
         parent, child = socket.socketpair()
         # run-menu-probe.sh reserves fd9 for its build/runtime flock.
         inherited = socket.socket(fileno=fcntl.fcntl(child.fileno(), fcntl.F_DUPFD_CLOEXEC, 20))
@@ -721,7 +722,8 @@ class VM:
             env['A7C2_BOOT_PROFILE']=self.boot_profile
             for name in ('A7C2_COLD_STORAGE_INSTANCE','A7C2_COLD_STORAGE_ROOT','A7C2_ORIGINAL_COLD',
                          'A7C2_RAM_WINDOW','A7C2_RAM_RESTORE_STREAM','A7C2_RAM_QEMU',
-                         'A7C2_SONY_USB_DEVICE','A7C2_USB_DEVICE_BUILD'):
+                         'A7C2_SONY_USB_DEVICE','A7C2_USB_DEVICE_BUILD',
+                         'A7C2_FAST_SHM','A7C2_FAST_SHM_FD'):
                 env.pop(name,None)
             if self.ram_enabled:
                 env.update(A7C2_RAM_WINDOW='1',A7C2_RAM_QEMU=self.ram_qemu)
@@ -819,11 +821,21 @@ class VM:
                 env.update(prepare_backup_profile(BASE,env))
             if self.native_display is not None:
                 native_display_environment(env, self.native_display)
+            if (not self.mock and self.boot_profile == 'original-init-cold'
+                    and not self.ram_enabled and os.environ.get('A7C2_FAST_SHM', '1') != '0'):
+                import fast_shm
+                fast_shm_fd = fast_shm.create_ram_memfd(24576)
+                env['A7C2_FAST_SHM'] = '1'
+                env['A7C2_FAST_SHM_FD'] = str(fast_shm_fd)
             env['MENU_CONTROL_FD'] = str(child.fileno())
             env['MENU_CONTROL_OWNER_PID']=str(os.getpid())
             process = subprocess.Popen(self.command, env=env, cwd=BASE.parent,
                                        stdout=log, stderr=subprocess.STDOUT,
-                                       start_new_session=True, pass_fds=(child.fileno(),)+((disk_fd,) if host_sd or directory_sd else ())+((storage_fd,) if storage_fd is not None else ()))
+                                       start_new_session=True,
+                                       pass_fds=(child.fileno(),)
+                                       + ((disk_fd,) if host_sd or directory_sd else ())
+                                       + ((storage_fd,) if storage_fd is not None else ())
+                                       + ((fast_shm_fd,) if fast_shm_fd is not None else ()))
             with self.lock:self.owned_process=process
             child.close()
             reply = receive_message(parent, timeout=300, cancelled=self.cancel.is_set)
@@ -869,7 +881,7 @@ class VM:
                         self.stale = bool(self.firmware_fault)
                     if self.lcd_changed is not None:
                         self.lcd_changed()
-                self.lcd_stream = ContinuousLCD(run, process, publish_lcd, encode_png=False).start()
+                self.lcd_stream = ContinuousLCD(run, process, publish_lcd, encode_png=False, fast_shm_fd=fast_shm_fd).start()
             cancelled()
             with self.lock:
                 if self.cancel.is_set():
@@ -1049,6 +1061,12 @@ class VM:
                 with self.lock:self._release_storage_lease()
             if log is not None:
                 log.close()
+            if fast_shm_fd is not None:
+                try:
+                    os.close(fast_shm_fd)
+                except OSError:
+                    pass
+                fast_shm_fd = None
             with self.lock:
                 self.busy, self.stale = '', True
                 self._ram_restore=None

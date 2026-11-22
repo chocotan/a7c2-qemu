@@ -95,7 +95,7 @@ def navigate_main_menu(process,runtime,qmp):
 def cold_environment(live=False):
     environment=dict(os.environ) if live else runpy.run_path(str(ANALYSIS/'start-menu.py'))['profile_environment']({},natural_boot=True)
     environment.update(SONY_TIMER_MODEL='1',SONY_DMM_SERVICE='1',QEMU_SYSTEM_SOUND_OWNER='1',QEMU_PIN_CONTROL_MEMORY='1',MENU_RM_FILE='1',MENU_NATIVE_WINDOW='1',QEMU_NATIVE_DISPLAY='none',QEMU_UI_LIVE='1',QEMU_TIMEOUT_SECONDS='0',QEMU_TRACE_FLAGS='guest_errors,unimp',A7C2_ORIGINAL_COLD='original-init-v1')
-    for name in ('A7C2_USB_GENERATION_OBSERVE','A7C2_COLD_FLAG','A7C2_VERIFY_SHA'):
+    for name in ('A7C2_USB_GENERATION_OBSERVE','A7C2_COLD_FLAG','A7C2_VERIFY_SHA','A7C2_FAST_SHM','A7C2_FAST_SHM_FD'):
         if name in os.environ:
             environment[name]=os.environ[name]
     environment.setdefault('A7C2_COLD_FLAG','force')
@@ -155,6 +155,11 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
         from sony_usb_device import selected
         need(not selected(environment),'Sony USB device migration is not audited; disconnect and use a RAM-only session')
         environment['QEMU_RAM_SESSION']='1';bind_ram_qemu(environment)
+        environment.pop('A7C2_FAST_SHM',None);environment.pop('A7C2_FAST_SHM_FD',None)
+    from fast_shm import parse_inherited_fd as parse_fast_shm_fd, FastShmView
+    fast_shm_fd=None if ram_session else parse_fast_shm_fd(environment)
+    if fast_shm_fd is None:
+        environment.pop('A7C2_FAST_SHM',None);environment.pop('A7C2_FAST_SHM_FD',None)
     environment['QEMU_OUTPUT_DIR']=str(runtime)
     if built is None:built=prepare(instance,output/'build',environment)
     from usb_scheduler import enabled as scheduler_enabled, load_contract as scheduler_contract
@@ -207,7 +212,8 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
                 clean_environment={k:v for k,v in os.environ.items() if not k.startswith(('QEMU_','MENU_','SONY_','A7C2_','LD_'))}
                 from menu_live import guard_process_group,owner_signal_guard,retain_running_owner,retain_process_group
                 owner_guards.enter_context(owner_signal_guard())
-                process=subprocess.Popen(command,cwd=ANALYSIS,env={**clean_environment,**environment},stdin=subprocess.PIPE,stdout=console,stderr=stderr,start_new_session=True,pass_fds=(leased['fd'],))
+                child_fds=(leased['fd'],)+((fast_shm_fd,) if fast_shm_fd is not None else ())
+                process=subprocess.Popen(command,cwd=ANALYSIS,env={**clean_environment,**environment},stdin=subprocess.PIPE,stdout=console,stderr=stderr,start_new_session=True,pass_fds=child_fds)
                 try:owner_guards.enter_context(guard_process_group(process,runtime))
                 except BaseException as error:
                     retain_running_owner(process,runtime,error,reason='qmp-exit')
@@ -261,12 +267,24 @@ def run(instance,output,seconds,*,live=False,ram_capture=None,ram_restore=None,b
                 need(b'COLD_RAM0_RELEASE original_rc=0 zero_prefix=1 bytes=512' in observed,'Original freeramdisk readback missing')
                 from PIL import Image
                 display_deadline=deadline
-                while True:
-                    qmp('screendump',dict(filename='/out/original-lcd.ppm'))
-                    with Image.open(runtime/'original-lcd.ppm') as image:
-                        need(image.size==(640,480),'Wrong original LCD geometry');rgb=image.convert('RGB')
-                    if len(rgb.getcolors(640*480) or [])>5:break
-                    need(time.monotonic()<display_deadline,'Original LCD has no meaningful color content');time.sleep(.2)
+                if fast_shm_fd is not None:
+                    shm_boot=FastShmView(fast_shm_fd)
+                    try:
+                        while True:
+                            if shm_boot.guest_display_ready() and shm_boot.display_state()[0]>0:
+                                pixels,_=shm_boot.render_rgb24()
+                                rgb=Image.frombytes('RGB',(640,480),pixels)
+                                if len(rgb.getcolors(640*480) or [])>5:break
+                            need(process.poll() is None and time.monotonic()<display_deadline,'Original fast-shm LCD has no meaningful color content');time.sleep(.05)
+                    finally:
+                        shm_boot.close()
+                else:
+                    while True:
+                        qmp('screendump',dict(filename='/out/original-lcd.ppm'))
+                        with Image.open(runtime/'original-lcd.ppm') as image:
+                            need(image.size==(640,480),'Wrong original LCD geometry');rgb=image.convert('RGB')
+                        if len(rgb.getcolors(640*480) or [])>5:break
+                        need(time.monotonic()<display_deadline,'Original LCD has no meaningful color content');time.sleep(.2)
                 rgb.save(runtime/'original-lcd.png');result['lcd_pixels_sha256']=hashlib.sha256(rgb.tobytes()).hexdigest()
                 if live:
                     from original_cold_live import live_session

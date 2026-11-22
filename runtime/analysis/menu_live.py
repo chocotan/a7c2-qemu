@@ -810,7 +810,7 @@ def display_snapshot_message(path,number):
                     'source':'QMP ramfb display','mode':'AP software display; not a captured photograph'}}
 
 
-def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None, storage_shutdown=None, ram_capture=None):
+def run_live(proc, out, descriptor, display_capture=None, sd_export=None, network=None, sd_card=None, storage_shutdown=None, ram_capture=None, fast_shm_view=None):
     monitor = FirmwareMonitor(out / 'console.log')
     input_stack_captured = False
     shutter_submitted = False
@@ -841,17 +841,32 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
         serial_command(proc, out / 'console.log', 'true', monitor=monitor)
         if os.environ.get('A7C2_MEDIA_INIT_WATCH') == '1' and os.environ.get('MENU_GUI_MODELS') == 'virtual-inline-v1':
             wait_initial_model_commit(proc, out/'console.log')
+        transport_label = 'original-infra20-or-menu-mailbox'
         if input_session is not None and input_session.app_input:
             from persistent_app_input import PersistentAppInput
-            input_session.input_fn = PersistentAppInput(proc, out/'console.log', monitor)
+            serial_app = PersistentAppInput(proc, out/'console.log', monitor)
+            if fast_shm_view is not None:
+                from fast_shm import FastShmAppInput
+                deadline = time.monotonic() + 2.0
+                while not fast_shm_view.guest_input_ready() and time.monotonic() < deadline:
+                    if proc.poll() is not None:
+                        break
+                    time.sleep(0.005)
+                fast_app = FastShmAppInput(fast_shm_view, serial_app, proc, monitor)
+                input_session.input_fn = fast_app
+                proc._app_input_transport = fast_app
+                transport_label = ('fast-shm-app32-ring' if fast_shm_view.guest_input_ready()
+                                   else 'original-app32-persistent-serial')
+            else:
+                input_session.input_fn = serial_app
+                transport_label = 'original-app32-persistent-serial'
         card_state=sd_card.status() if sd_card is not None else None
         if input_session is not None and input_session.app_input:
             input_session.input_fn.start()
         send_message(control, {'type': 'ready', 'run': str(out), 'sd_card': card_state,
                                'input_lifecycle': input_session is not None,
                                'touch_input': input_session is not None and input_session.app_input,
-                               'input_transport': ('original-app32-persistent-serial' if input_session is not None and input_session.app_input
-                                                   else 'original-infra20-or-menu-mailbox'),
+                               'input_transport': transport_label,
                                'input_state': input_session.status() if input_session else None})
         while True:
             fault=session_fault
@@ -931,7 +946,16 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             elif action=='cmos_source' and set(request) in ({'action','path'},{'action','default'}):
                 import cmos_source
                 try:
-                    if 'path' in request:
+                    if fast_shm_view is not None and fast_shm_view.guest_display_ready():
+                        if 'path' in request:
+                            rgb24=cmos_source.prepare_rgb24(request['path'])
+                            fast_shm_view.set_custom_cmos(rgb24)
+                            result={'type':'cmos_source','ok':True,'source':'custom','name':Path(request['path']).name}
+                        elif request['default'] is True:
+                            fast_shm_view.set_custom_cmos(None)
+                            result={'type':'cmos_source','ok':True,'source':'default-color-chart','name':'色卡'}
+                        else:raise ValueError('default 必须为 true')
+                    elif 'path' in request:
                         jpeg=cmos_source.prepare_jpeg(request['path'])
                         for guest_command in cmos_source.upload_commands(jpeg):live_serial(guest_command)
                         result={'type':'cmos_source','ok':True,'source':'custom','name':Path(request['path']).name}

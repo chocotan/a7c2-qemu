@@ -189,5 +189,9 @@ clang "${common[@]}" -Wl,-e,_start -Wl,--dynamic-linker=/lib/ld-linux-aarch64.so
   -Wl,--no-as-needed "$analysis_dir/menu-root/usr/lib/libosal_uipc.so" \
   "$analysis_dir/menu-root/usr/lib/libosal_utm.so" \
     -Wl,--allow-shlib-undefined "${libraries[@]}" -o "$analysis_dir/menu-root/simulation/backup-dump"
+host_cc="$(command -v cc || command -v clang)"
+"$host_cc" -O3 -shared -fPIC -Wall -Wextra -Werror \
+  "$source_dir/fast-osd-blend.c" "$source_dir/../../report/virtual-sensor/sensor-core.c" \
+  -o "$analysis_dir/fast-osd-blend.so"
 python3 "$analysis_dir/snapshot-observer-sources.py" --finish "$analysis_dir" "$device_build"
 python3 "$analysis_dir/snapshot-observer-sources.py" --write-stamp "$analysis_dir"

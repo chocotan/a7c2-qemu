@@ -10,8 +10,8 @@ CHUNK_CHARS = 760  # < 1000-byte physical serial line including the command pref
 PREFIX = '/simulation/cmos-import'
 
 
-def prepare_jpeg(path):
-    """Fit any PNG/JPEG into 640x480 (letterboxed, never stretched) as baseline 4:2:0 JPEG."""
+def _prepare_canvas(path):
+    """Validate and letterbox any supported image onto a 640x480 RGB canvas."""
     from PIL import Image, ImageOps
     path = Path(path)
     if not path.is_absolute() or not path.is_file():
@@ -27,6 +27,17 @@ def prepare_jpeg(path):
     fitted = ImageOps.contain(image, (WIDTH, HEIGHT), Image.LANCZOS)
     canvas = Image.new('RGB', (WIDTH, HEIGHT), (16, 16, 16))
     canvas.paste(fitted, ((WIDTH - fitted.width) // 2, (HEIGHT - fitted.height) // 2))
+    return canvas
+
+
+def prepare_rgb24(path):
+    """Fit any PNG/JPEG into 640x480 raw RGB24 bytes for direct shared-memory CMOS swap."""
+    return _prepare_canvas(path).tobytes()
+
+
+def prepare_jpeg(path):
+    """Fit any PNG/JPEG into 640x480 (letterboxed, never stretched) as baseline 4:2:0 JPEG."""
+    canvas = _prepare_canvas(path)
     out = io.BytesIO()
     canvas.save(out, 'JPEG', quality=85, subsampling=2, optimize=False, progressive=False)
     return out.getvalue()

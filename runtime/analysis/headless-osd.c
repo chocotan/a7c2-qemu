@@ -259,6 +259,11 @@ int hosd_is_shooting_scene(void) {
 static void hosd_update_shooting_scene(const struct hosd_metadata *m) {
     __atomic_store_n(&hosd_shooting_scene_flag, hosd_meta_is_shooting(m), __ATOMIC_RELEASE);
 }
+static struct hosd_fast_sink hosd_fast_sink_active;
+void hosd_set_fast_sink(const struct hosd_fast_sink *sink) {
+    if (sink && sink->acquire_slot && sink->publish) hosd_fast_sink_active = *sink;
+    else memset(&hosd_fast_sink_active, 0, sizeof hosd_fast_sink_active);
+}
 static int stopping(const struct hosd_ops *o) {
     return o->stop && __atomic_load_n(o->stop, __ATOMIC_ACQUIRE);
 }
@@ -269,6 +274,46 @@ static int consume(struct hosd_state *s, const struct hosd_ops *o, const char *p
     if (!s->have_descriptor || u16(d + 0x10) != 0 || u16(d + 0x14) != 640 || u16(d + 0x16) != 480 ||
         u16(d + 0x18) > 640 || u16(d + 0x1a) > 480 ||
         u16(d + 0x1c) > 640 - u16(d + 0x18) || u16(d + 0x1e) > 480 - u16(d + 0x1a)) return -1;
+    if (hosd_fast_sink_active.acquire_slot && hosd_fast_sink_active.publish && !getenv("MENU_OSD_META_PIXELS")) {
+        int prev_shooting = hosd_is_shooting_scene();
+        int next_shooting = hosd_meta_is_shooting(&s->frozen);
+        if (s->pending == 0x1005) {
+            ++s->sequence;
+            hosd_update_shooting_scene(&s->frozen);
+            if (next_shooting != prev_shooting) {
+                hosd_fast_sink_active.publish(0U, s->sequence, s->pixel_source_seq,
+                                              s->retained_frame.id, s->retained_frame.physical,
+                                              next_shooting, 0);
+            }
+            return 0;
+        }
+        unsigned int slot = 0;
+        unsigned char *dst = hosd_fast_sink_active.acquire_slot(&slot);
+        if (dst) {
+            struct hosd_frame f = {u32(d + 8), 640, 480, 1, 0};
+            s->phase = "capture";
+            int ok = !stopping(o) && !o->frame(&f, dst);
+            ok = ok &&
+                f.id == u32(d + 8) && f.width == 640 && f.height == 480 && f.format == 1 &&
+                f.physical >= 0x410000000UL && f.physical <= 0x500000000UL - HOSD_PIXELS;
+            if (!ok) return -1;
+            ++s->sequence;
+            s->pixel_source_seq = s->sequence;
+            memcpy(s->retained_descriptor, d, 36);
+            s->retained_frame = f;
+            hosd_update_shooting_scene(&s->frozen);
+            hosd_fast_sink_active.publish(slot, s->sequence, s->pixel_source_seq,
+                                          f.id, f.physical, next_shooting, 1);
+            if (s->sequence <= 8 || !(s->sequence & (s->sequence - 1))) {
+                char text[224];
+                snprintf(text, sizeof text,
+                         "seq=%lu pixel_source_seq=%lu id=%#x phys=%#lx slot=%u shooting=%d mode=AP-RGBA4444-fast-shm",
+                         s->sequence, s->pixel_source_seq, f.id, f.physical, slot, next_shooting);
+                o->log("OSD_HEADLESS_FAST_SHM ", text);
+            }
+            return 0;
+        }
+    }
     unsigned char *snapshot = malloc(HOSD_BYTES);
     if (!snapshot) return -1;
     memset(snapshot, 0, HOSD_HEADER);

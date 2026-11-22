@@ -58,35 +58,40 @@ int gui_model_store_step(struct gui_model_store *s, const struct gui_model_store
         next.generations[i]=next.packets;
     }
     next.current.present|=batch.present;
-    /* This file's generations and exposure fixture are virtual, not CP versions/wire fields. */
-    unsigned char raw[GUI_MODEL_STORE_BYTES]={0};
-    unsigned int length=GUI_MODEL_STORE_BASE_BYTES+size;
-    memcpy(raw,"GMDL0003",8);put64(raw+8,next.packets);
+    const char *fast_shm=getenv("MENU_FAST_SHM");
+    int fast_mem_only=fast_shm && !strcmp(fast_shm,"1") && next.packets>=2;
     unsigned long long hash=14695981039346656037ULL;
-    for(unsigned int i=0;i<size;i++){hash^=((const unsigned char *)message)[i];hash*=1099511628211ULL;}
-    put64(raw+16,hash);put32(raw+24,next.current.present);put32(raw+28,next.changed);
-    put32(raw+32,4);put32(raw+36,1);put32(raw+40,1);put32(raw+44,125);put32(raw+48,100);
-    put32(raw+52,1);put32(raw+56,GUI_MODEL_TYPES);put32(raw+60,length);
-    unsigned int offset=64;
-    for(unsigned int i=0;i<GUI_MODEL_TYPES;i++) {
-        const struct gui_model_value *value=&next.current.values[i];
-        put32(raw+offset,value->type);put32(raw+offset+4,value->bytes);
-        put64(raw+offset+8,next.generations[i]);offset+=16;
-        memcpy(raw+offset,value->data,value->bytes);offset+=value->bytes;
+    int persisted=0;
+    if(!fast_mem_only) {
+        /* This file's generations and exposure fixture are virtual, not CP versions/wire fields. */
+        unsigned char raw[GUI_MODEL_STORE_BYTES]={0};
+        unsigned int length=GUI_MODEL_STORE_BASE_BYTES+size;
+        memcpy(raw,"GMDL0003",8);put64(raw+8,next.packets);
+        for(unsigned int i=0;i<size;i++){hash^=((const unsigned char *)message)[i];hash*=1099511628211ULL;}
+        put64(raw+16,hash);put32(raw+24,next.current.present);put32(raw+28,next.changed);
+        put32(raw+32,4);put32(raw+36,1);put32(raw+40,1);put32(raw+44,125);put32(raw+48,100);
+        put32(raw+52,1);put32(raw+56,GUI_MODEL_TYPES);put32(raw+60,length);
+        unsigned int offset=64;
+        for(unsigned int i=0;i<GUI_MODEL_TYPES;i++) {
+            const struct gui_model_value *value=&next.current.values[i];
+            put32(raw+offset,value->type);put32(raw+offset+4,value->bytes);
+            put64(raw+offset+8,next.generations[i]);offset+=16;
+            memcpy(raw+offset,value->data,value->bytes);offset+=value->bytes;
+        }
+        memcpy(raw+GUI_MODEL_STORE_PREFIX_BYTES,message,size);
+        unsigned long long checksum=14695981039346656037ULL;
+        for(unsigned int i=0;i<length-8;i++){checksum^=raw[i];checksum*=1099511628211ULL;}
+        put64(raw+length-8,checksum);
+        /* A subset can be received first: unused space stays zero and records have length zero. */
+        persisted=o->persist(path,raw,length);
     }
-    memcpy(raw+GUI_MODEL_STORE_PREFIX_BYTES,message,size);
-    unsigned long long checksum=14695981039346656037ULL;
-    for(unsigned int i=0;i<length-8;i++){checksum^=raw[i];checksum*=1099511628211ULL;}
-    put64(raw+length-8,checksum);
-    /* A subset can be received first: unused space stays zero and records have length zero. */
-    int persisted=o->persist(path,raw,length);
     if(!persisted)*s=next;
     int freed=o->release(GUI_MODEL_QUEUE,message);
     if(persisted || freed)return fail(s,o,persisted?"snapshot commit/readback failed":"original message release failed");
     if(s->packets<=4 || !(s->packets&(s->packets-1))) {
         char text[256];
         snprintf(text,sizeof text,"packets=%llu types=%#x changed=%#x bytes=%u input_fnv=%llx original_free=0 state=%s CP_subscriptions=unimplemented exposure_fixture=F4,1/125,ISO100 records=%u opaque=%u",
-                 s->packets,s->current.present,s->changed,size,hash,path,batch.records,batch.opaque);
+                 s->packets,s->current.present,s->changed,size,hash,fast_mem_only?"fast-shm-mem-only":path,batch.records,batch.opaque);
         o->log("GUI_MODEL_COMMITTED ",text);
     }
     return 0;

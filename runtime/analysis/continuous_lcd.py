@@ -14,12 +14,13 @@ from PIL import Image
 
 
 class ContinuousLCD:
-    def __init__(self, run, owner, publish, *, fps=120, encode_png=True):
+    def __init__(self, run, owner, publish, *, fps=120, encode_png=True, fast_shm_fd=None):
         self.run = Path(run).resolve(strict=True)
         if self.run.is_symlink() or not 15 < fps <= 120:
             raise ValueError('Invalid LCD run or refresh rate')
         self.owner, self.publish, self.period = owner, publish, 1 / fps
         self.encode_png = bool(encode_png)
+        self.fast_shm_fd = fast_shm_fd
         from single_ap_sockets import roots_for_run
         self.roots = roots_for_run(run)
         if self.roots is not None:
@@ -39,6 +40,8 @@ class ContinuousLCD:
     IDLE_PERIOD = 1 / 15      # nothing is changing: screendump contends with the single-vCPU TCG guest
     BOOST_PERIOD = 1 / 60     # right after input or a changed frame
     BOOST_SECONDS = 1.5
+    SHM_ACTIVE_PERIOD = 1 / 120
+    SHM_IDLE_PERIOD = 1 / 60
 
     def nudge(self):
         """Input was just accepted: sample at the fast rate immediately until the screen settles."""
@@ -65,9 +68,74 @@ class ContinuousLCD:
     def start(self):
         if self.thread is not None:
             raise ValueError('LCD consumer already started')
-        self.thread = threading.Thread(target=self._run, name='camera-continuous-lcd', daemon=True)
+        target = self._run_fast_shm if self.fast_shm_fd is not None else self._run
+        self.thread = threading.Thread(target=target, name='camera-continuous-lcd', daemon=True)
         self.thread.start()
         return self
+
+    def _publish_rgb24(self, pixels, *, sequence, pixel_source_seq, source_label):
+        digest = hashlib.sha256(pixels).hexdigest()
+        if self.encode_png:
+            image = Image.frombytes('RGB', (640, 480), pixels)
+            buffer = io.BytesIO(); image.save(buffer, format='PNG', compress_level=1)
+            payload = buffer.getvalue()
+        else:
+            payload = pixels
+        self.boost_until = max(self.boost_until, time.monotonic() + self.BOOST_SECONDS)
+        self.changes += 1
+        info = dict(sequence=sequence, pixel_source_seq=pixel_source_seq, sha256=digest,
+                    captured_at=time.time(), number=self.changes, source=source_label,
+                    transport_samples=self.samples, changed_frames=self.changes)
+        self.publish(payload, info)
+        self.last_hash = digest
+
+    def _run_fast_shm(self):
+        from fast_shm import FastShmView
+        shm = None
+        black_frame = b'\x00' * (640 * 480 * 3)
+        try:
+            shm = FastShmView(self.fast_shm_fd)
+            # Wait briefly for guest OSD fast-shm publisher to become ready.
+            while not self.cancel.is_set() and not shm.guest_display_ready():
+                if self.owner is not None and self.owner.poll() is not None:
+                    return
+                self.wake.wait(0.01)
+                self.wake.clear()
+            last_key = None
+            last_blink = shm.display_state()[4]
+            while not self.cancel.is_set():
+                if self.owner is not None and self.owner.poll() is not None:
+                    return
+                state = shm.display_state()
+                osd_seq, slot, flags, pb_seq, blink_seq, custom_active, custom_seq, osd_pixel_seq = state
+                self.samples += 1
+                if blink_seq != last_blink:
+                    last_blink = blink_seq
+                    self._publish_rgb24(black_frame, sequence=osd_seq, pixel_source_seq=osd_pixel_seq,
+                                        source_label='fast-shm virtual CP display')
+                    if self.cancel.wait(0.055):
+                        return
+                    last_key = None  # Force immediate redraw of the live frame after 55ms shutter blink.
+                key = (osd_seq, slot, flags, pb_seq, custom_active, custom_seq)
+                if osd_seq > 0 and key != last_key:
+                    pixels, rendered_seq = shm.render_rgb24()
+                    last_key = key
+                    self._publish_rgb24(pixels, sequence=rendered_seq, pixel_source_seq=osd_pixel_seq,
+                                        source_label='fast-shm virtual CP display')
+                delay = self.SHM_ACTIVE_PERIOD if time.monotonic() < self.boost_until else self.SHM_IDLE_PERIOD
+                if not self.cancel.is_set():
+                    self.wake.wait(delay)
+                    self.wake.clear()
+        except (OSError, ValueError, RuntimeError, EOFError) as error:
+            if not self.cancel.is_set():
+                self.error = str(error)
+        finally:
+            if shm is not None:
+                shm.close()
+            report = dict(samples=self.samples, changed_pixels=self.changes, error=self.error,
+                          elapsed_seconds=time.monotonic() - self.started, qmp_peer=None,
+                          source='fast-shm virtual CP display', capture_verified=False)
+            (self.run / 'lcd-continuous-result.json').write_text(json.dumps(report, indent=2) + '\n')
 
     def _run(self):
         from menu_live import connect_in_run

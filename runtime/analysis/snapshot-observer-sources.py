@@ -105,6 +105,7 @@ def _build_stamp_state(native):
         native / 'menu-root/simulation/inject-key',
         native / 'menu-root/simulation/inject-cp-event',
         native / 'menu-root/simulation/backup-dump',
+        native / 'fast-osd-blend.so',
     ]
     media_flags = (os.environ.get('MENU_MEDIA_SELFTEST', '0'), os.environ.get('MENU_RM_FILE', '0'))
     if '1' in media_flags:

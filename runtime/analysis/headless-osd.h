@@ -64,4 +64,12 @@ int hosd_claim(const char *path, const char *modules,
                int (*stat_queue)(unsigned int, unsigned int *), void (*log)(const char *, const char *));
 /* Returns 1 when the latest committed OSD metadata matches the shooting HUD scene. */
 int hosd_is_shooting_scene(void);
+/* Optional zero-VFAT shared-memory fast sink registered when MENU_FAST_SHM=1. */
+struct hosd_fast_sink {
+    unsigned char *(*acquire_slot)(unsigned int *slot_out);
+    void (*publish)(unsigned int slot, unsigned long seq, unsigned long pixel_seq,
+                    unsigned int frame_id, unsigned long frame_phys,
+                    int is_shooting, int pixels_updated);
+};
+void hosd_set_fast_sink(const struct hosd_fast_sink *sink);
 #endif

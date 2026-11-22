@@ -476,6 +476,10 @@ static int check_shutter_blink(struct stat *last_st, int *have_last) {
     return triggered;
 }
 static int run(void) {
+    const char *fast_shm = getenv("MENU_FAST_SHM");
+    if (fast_shm && !strcmp(fast_shm, "1")) {
+        return 0;
+    }
     static unsigned char raw[HOSD_BYTES];
     static unsigned char stage[XRGB_BYTES];
     struct consumer s = {.fd = -1};

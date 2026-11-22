@@ -118,6 +118,8 @@ def guest_environment(host):
         selected['MENU_VIRTUAL_LENS_HUD']='0'
     if host.get('A7C2_AUTO_WAKE')=='0':
         selected['MENU_AUTO_WAKE']='0'
+    if host.get('A7C2_FAST_SHM')=='1' and host.get('QEMU_RAM_SESSION')!='1':
+        selected['MENU_FAST_SHM']='1'
     from sony_usb_device import selected as usb_selected
     if usb_selected(host):selected['PRODUCT_SONY_USB_DEVICE']='1'
     if host.get('A7C2_USB_SENSER') is not None:

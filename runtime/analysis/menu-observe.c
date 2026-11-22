@@ -3,6 +3,7 @@
 #include "hdmi-format-service.h"
 #include "dmm-service.h"
 #include "headless-osd.h"
+#include "fast-shm.h"
 #include "gui-model-store.h"
 #include "device-models/vdf-device.h"
 #include "device-models/touch-panel-device.h"
@@ -1364,7 +1365,7 @@ static void record(const char *prefix, const char *name) {
             "FULL_TOUCH_PANEL_", "FULL_TCIN_", "FULL_VEF_PATH_", "FULL_VEF_RESOURCES_", "FULL_ADF_PROC_", "FULL_ADF_SET_INPUT_", "FULL_ADF_SET_OUTPUT_", "DMM_REQUEST ", "DMM_SERVICE ", "DMM_ALLOC_",
             "FULL_DIG_LEVEL_", "FULL_CP_PERIODIC_",
             "FULL_DMM_UNIT_",
-            "VIRTUAL_LENS_HUD_", "VIRTUAL_CMOS_",
+            "VIRTUAL_LENS_HUD_", "VIRTUAL_CMOS_", "FAST_SHM_",
             "NATIVE_CP_BACKGROUND_", "NATIVE_CP_FACE_", "NATIVE_CP302C_NOCONVERT_", "NATIVE_CP302C_DIAGNOSTIC_", "NATIVE_CP_NOTIFICATION_", "NATIVE_CP_PARAMETER_BATCH_", "NATIVE_CP_CAPTURE_FORMAT_", "NATIVE_CP_OUTPUT_POLICY_", "NATIVE_CP_STARTUP_DIAGNOSTIC_", "NATIVE_CP_EE_DIAGNOSTIC_", "NATIVE_CP_MOVIE_FORMAT_DIAGNOSTIC_", "NATIVE_CP_STATE_PUBLICATION_", "NATIVE_CP_OWNED_STATE_", "NATIVE_CP_PARAMETER_STATE_", "NATIVE_CP_OWNED_INPUTS ", "FUNCTIONAL_CAMERA_", "FUNCTIONAL_FOCUS_RESET_MODEL ", "FUNCTIONAL_STILL_FORMAT_", "FUNCTIONAL_STILL_FORMAT ", "FUNCTIONAL_STARTUP_CONTROL ", "FUNCTIONAL_STARTUP_CONTROL_", "FUNCTIONAL_MPR_", "FUNCTIONAL_JPEG_CODEC ", "FUNCTIONAL_VDF_PATH_", "FUNCTIONAL_VDF_REFRESH_QUEUE_", "FUNCTIONAL_HISTOGRAM_", "FUNCTIONAL_BACKGROUND_START_", "FUNCTIONAL_FACE_DMM_", "FUNCTIONAL_FACE_SOURCE_", "FUNCTIONAL_LAYOUT_STAGE_", "FUNCTIONAL_CP_ZOOM", "FUNCTIONAL_CP_PARAMETER_BANK_", "FUNCTIONAL_CP_CRANK_CONTROL_", "FUNCTIONAL_CP_MOVIE_FORMAT_", "FUNCTIONAL_CP_OU_CRANK_CONTROL_", "FUNCTIONAL_BB_TIMECODE_", "NATIVE_BB_TIMECODE_INPUT_AUDIT ",
             "FULL_MEDIA_MOUNT_", "KEY_DIAG ",
             "FULL_RM_FILE_",
@@ -2667,10 +2668,18 @@ static void virtual_lens_hud_publish_state(const char *reason) {
     *__errno_location() = saved_errno;
 }
 static void vcmos_post_work(unsigned int flags);
+static int fast_shm_is_active(void);
+static unsigned char *fast_shm_playback_bg_ptr(void);
+static void fast_shm_set_playback_bg(int active);
+static void fast_shm_touch_blink(void);
 static unsigned int vcmos_pb_bg_active;
 static void vcmos_clear_playback_bg(void) {
     if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
-        unlink(VIRTUAL_PLAYBACK_BG_PATH);
+        if (fast_shm_is_active()) {
+            fast_shm_set_playback_bg(0);
+        } else {
+            unlink(VIRTUAL_PLAYBACK_BG_PATH);
+        }
         record("VIRTUAL_CMOS_PLAYBACK_BG_CLEARED ", "returned to shooting");
     }
 }
@@ -3432,8 +3441,17 @@ int virtual_pb_start_playback_intercept(unsigned long obj_addr) {
     unsigned int seq = 0;
     if (jpg_path[0] && vcmos_ops_ready()) {
         seq = __atomic_add_fetch(&vcmos_pb_bg_seq, 1u, __ATOMIC_RELAXED);
-        bg_rc = virtual_cmos_render_playback_bg(&vcmos_ops, jpg_path, VIRTUAL_PLAYBACK_BG_PATH, seq);
-        if (bg_rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+        unsigned char *shm_bg = fast_shm_playback_bg_ptr();
+        if (shm_bg) {
+            bg_rc = virtual_cmos_decode_playback_rgb(&vcmos_ops, jpg_path, shm_bg);
+            if (bg_rc == 0) {
+                __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                fast_shm_set_playback_bg(1);
+            }
+        } else {
+            bg_rc = virtual_cmos_render_playback_bg(&vcmos_ops, jpg_path, VIRTUAL_PLAYBACK_BG_PATH, seq);
+            if (bg_rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+        }
     }
     char text[256];
     snprintf(text, sizeof text, "tid=%ld bg_rc=%d seq=%u path=%.160s ok=%d virtual_decode=1 original_CP=0",
@@ -3458,7 +3476,8 @@ int virtual_pb_delete_intercept(unsigned long param_ptr, unsigned int sync_flag,
     if (!appfw_base) return 0;
     int saved_errno = *__errno_location();
     if (__atomic_exchange_n(&vcmos_pb_bg_active, 0u, __ATOMIC_ACQ_REL)) {
-        unlink(VIRTUAL_PLAYBACK_BG_PATH);
+        if (fast_shm_is_active()) fast_shm_set_playback_bg(0);
+        else unlink(VIRTUAL_PLAYBACK_BG_PATH);
     }
     char text[128];
     snprintf(text, sizeof text, "seq=0x62 tid=%ld sync=%u native_delete_dispatch=1 original_CP=0",
@@ -3469,6 +3488,10 @@ int virtual_pb_delete_intercept(unsigned long param_ptr, unsigned int sync_flag,
     return 1;
 }
 static void vcmos_touch_blink(void) {
+    if (fast_shm_is_active()) {
+        fast_shm_touch_blink();
+        return;
+    }
     unsigned int seq = __atomic_add_fetch(&vcmos_blink_seq, 1u, __ATOMIC_RELAXED);
     char tmp[64], buf[32];
     int n = snprintf(tmp, sizeof tmp, "%s.%u", VIRTUAL_SHUTTER_BLINK_PATH, seq);
@@ -3519,8 +3542,18 @@ static void *vcmos_worker_main(void *arg) {
                 __atomic_clear(&vcmos_pb_path_lock, __ATOMIC_RELEASE);
                 if (path[0] && vcmos_ops_ready()) {
                     unsigned int seq = __atomic_add_fetch(&vcmos_pb_bg_seq, 1u, __ATOMIC_RELAXED);
-                    int rc = virtual_cmos_render_playback_bg(&vcmos_ops, path, VIRTUAL_PLAYBACK_BG_PATH, seq);
-                    if (rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                    unsigned char *shm_bg = fast_shm_playback_bg_ptr();
+                    int rc;
+                    if (shm_bg) {
+                        rc = virtual_cmos_decode_playback_rgb(&vcmos_ops, path, shm_bg);
+                        if (rc == 0) {
+                            __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                            fast_shm_set_playback_bg(1);
+                        }
+                    } else {
+                        rc = virtual_cmos_render_playback_bg(&vcmos_ops, path, VIRTUAL_PLAYBACK_BG_PATH, seq);
+                        if (rc == 0) __atomic_store_n(&vcmos_pb_bg_active, 1u, __ATOMIC_RELEASE);
+                    }
                     char text[224];
                     snprintf(text, sizeof text, "rc=%d seq=%u path=%s", rc, seq, path);
                     record("VIRTUAL_CMOS_PLAYBACK_BG ", text);
@@ -13362,10 +13395,188 @@ __asm__(
 "br x16\n");
 extern unsigned long headless_fin_original(void);
 static unsigned long (*headless_finish)(void) = headless_fin_original;
+static unsigned char *fast_shm_map;
+static struct fast_shm_ctrl *fast_shm_ctrl;
+static unsigned int fast_shm_active;
+static unsigned int fast_shm_osd_next_slot;
+static pthread_t fast_input_thread;
+static int fast_input_thread_live;
+
+static int fast_shm_is_active(void) {
+    return __atomic_load_n(&fast_shm_active, __ATOMIC_ACQUIRE) != 0U;
+}
+static unsigned char *fast_shm_playback_bg_ptr(void) {
+    if (!fast_shm_is_active() || !fast_shm_map) return 0;
+    return fast_shm_map + FAST_SHM_PLAYBACK_BG_OFF;
+}
+static void fast_shm_set_playback_bg(int active) {
+    if (!fast_shm_is_active() || !fast_shm_ctrl) return;
+    if (active) {
+        __atomic_add_fetch(&fast_shm_ctrl->playback_bg_seq, 1U, __ATOMIC_RELEASE);
+        __atomic_fetch_or(&fast_shm_ctrl->display_flags, FAST_SHM_FLAG_PLAYBACK_BG, __ATOMIC_ACQ_REL);
+    } else {
+        __atomic_fetch_and(&fast_shm_ctrl->display_flags, ~FAST_SHM_FLAG_PLAYBACK_BG, __ATOMIC_ACQ_REL);
+    }
+    __atomic_add_fetch(&fast_shm_ctrl->osd_seq, 1ULL, __ATOMIC_RELEASE);
+}
+static void fast_shm_touch_blink(void) {
+    if (!fast_shm_is_active() || !fast_shm_ctrl) return;
+    __atomic_add_fetch(&fast_shm_ctrl->blink_seq, 1U, __ATOMIC_RELEASE);
+}
+static int fast_shm_read_custom_cmos(uint8_t *rgb_out) {
+    if (!fast_shm_is_active() || !fast_shm_ctrl || !fast_shm_map || !rgb_out) return 0;
+    if (__atomic_load_n(&fast_shm_ctrl->custom_cmos_active, __ATOMIC_ACQUIRE) != 1U) return 0;
+    for (unsigned int attempt = 0; attempt < 4U; ++attempt) {
+        uint32_t seq1 = __atomic_load_n(&fast_shm_ctrl->custom_cmos_seq, __ATOMIC_ACQUIRE);
+        __builtin_memcpy(rgb_out, fast_shm_map + FAST_SHM_CUSTOM_CMOS_OFF, FAST_SHM_RGB_BYTES);
+        uint32_t seq2 = __atomic_load_n(&fast_shm_ctrl->custom_cmos_seq, __ATOMIC_ACQUIRE);
+        if (seq1 == seq2) {
+            return __atomic_load_n(&fast_shm_ctrl->custom_cmos_active, __ATOMIC_ACQUIRE) == 1U ? 1 : 0;
+        }
+    }
+    return __atomic_load_n(&fast_shm_ctrl->custom_cmos_active, __ATOMIC_ACQUIRE) == 1U ? 1 : 0;
+}
+static unsigned char *fast_shm_acquire_osd_slot(unsigned int *slot_out) {
+    if (!fast_shm_is_active() || !fast_shm_map) return 0;
+    unsigned int slot = fast_shm_osd_next_slot & 1U;
+    if (slot_out) *slot_out = slot;
+    return fast_shm_map + (slot ? FAST_SHM_OSD1_OFF : FAST_SHM_OSD0_OFF);
+}
+static void fast_shm_publish_osd(unsigned int slot, unsigned long seq, unsigned long pixel_seq,
+                                 unsigned int frame_id, unsigned long frame_phys,
+                                 int is_shooting, int pixels_updated) {
+    (void)seq;
+    if (!fast_shm_is_active() || !fast_shm_ctrl) return;
+    if (pixels_updated) {
+        fast_shm_osd_next_slot = (slot ^ 1U) & 1U;
+        __atomic_store_n(&fast_shm_ctrl->osd_slot, slot & 1U, __ATOMIC_RELAXED);
+        __atomic_store_n(&fast_shm_ctrl->osd_pixel_seq, (uint64_t)pixel_seq, __ATOMIC_RELAXED);
+        __atomic_store_n(&fast_shm_ctrl->osd_frame_phys, (uint64_t)frame_phys, __ATOMIC_RELAXED);
+        __atomic_store_n(&fast_shm_ctrl->osd_frame_id, (uint32_t)frame_id, __ATOMIC_RELAXED);
+    }
+    if (is_shooting) {
+        __atomic_fetch_or(&fast_shm_ctrl->display_flags, FAST_SHM_FLAG_SHOOTING, __ATOMIC_ACQ_REL);
+    } else {
+        __atomic_fetch_and(&fast_shm_ctrl->display_flags, ~FAST_SHM_FLAG_SHOOTING, __ATOMIC_ACQ_REL);
+    }
+    __atomic_add_fetch(&fast_shm_ctrl->osd_seq, 1ULL, __ATOMIC_RELEASE);
+}
+static int fast_shm_send_app32(unsigned int key, unsigned int sub, unsigned int status,
+                               unsigned int ex, unsigned int from) {
+    if (!real_allocate_msg || !real_set_source || !real_send_msg || !real_free_msg) return 3;
+    const unsigned int queue = 0x005503e0U;
+    void *msg = 0;
+    int rc = real_allocate_msg(queue, &msg, 32U, 1U);
+    if (rc || !msg) return 3;
+    unsigned int *w = (unsigned int *)msg;
+    for (int i = 0; i < 8; ++i) w[i] = 0U;
+    w[0] = key;
+    w[1] = sub;
+    w[2] = status;
+    w[4] = ex;
+    w[6] = from;
+    real_set_source(msg, queue);
+    rc = real_send_msg(queue, msg);
+    if (rc) {
+        real_free_msg(queue, msg);
+        return 4;
+    }
+    return 0;
+}
+static void *fast_input_worker(void *arg) {
+    (void)arg;
+    struct fast_shm_ctrl *ctrl = fast_shm_ctrl;
+    if (!ctrl) return 0;
+    __atomic_store_n(&ctrl->guest_input_ready, 1U, __ATOMIC_RELEASE);
+    record("FAST_SHM_INPUT_READY ", "direct shared-memory App32 ring active; zero UART round-trip");
+    unsigned int idle_spins = 0U;
+    while (!__atomic_load_n(&headless_stop, __ATOMIC_ACQUIRE)) {
+        uint64_t tail = __atomic_load_n(&ctrl->key_tail, __ATOMIC_RELAXED);
+        uint64_t head = __atomic_load_n(&ctrl->key_head, __ATOMIC_ACQUIRE);
+        if (tail == head) {
+            long req[2] = {0L, idle_spins < 400U ? 1000000L : 4000000L};
+            if (idle_spins < 400U) ++idle_spins;
+            syscall(101 /* SYS_nanosleep */, req, 0);
+            continue;
+        }
+        idle_spins = 0U;
+        struct fast_shm_key_cmd cmd = ctrl->ring[tail & FAST_SHM_RING_MASK];
+        int rc = 0;
+        if (cmd.op == FAST_SHM_KEY_OP_EVENT) {
+            rc = fast_shm_send_app32(cmd.key, cmd.sub, cmd.status, cmd.ex, cmd.from);
+        } else if (cmd.op == FAST_SHM_KEY_OP_TAP) {
+            unsigned int hold = cmd.hold_us <= 100000U ? cmd.hold_us : 15000U;
+            int r1 = fast_shm_send_app32(cmd.key, cmd.sub, 1U, cmd.ex, cmd.from);
+            if (!r1 && hold) {
+                long req[2] = {0L, (long)hold * 1000L};
+                syscall(101 /* SYS_nanosleep */, req, 0);
+            }
+            int r2 = fast_shm_send_app32(cmd.key, cmd.sub, 0U, cmd.ex, cmd.from);
+            rc = r1 ? r1 : r2;
+        } else {
+            rc = 2;
+        }
+        __atomic_store_n(&ctrl->key_last_rc, rc, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&ctrl->key_sent_count, 1U, __ATOMIC_RELAXED);
+        __atomic_store_n(&ctrl->key_tail, tail + 1ULL, __ATOMIC_RELEASE);
+        __atomic_store_n(&ctrl->key_ack_seq, cmd.seq, __ATOMIC_RELEASE);
+    }
+    __atomic_store_n(&ctrl->guest_input_ready, 0U, __ATOMIC_RELEASE);
+    return 0;
+}
+static void fast_shm_init(int (*create)(pthread_t *, const void *, void *(*)(void *), void *)) {
+    const char *env = getenv("MENU_FAST_SHM");
+    if (!env || !same_name(env, "1")) return;
+    int fd = open("/dev/mem", 2);
+    if (fd < 0) {
+        record("FAST_SHM_FALLBACK ", "open /dev/mem failed; using legacy path");
+        return;
+    }
+    void *mapped = mmap(0, FAST_SHM_MAP_SIZE, 3, 1, fd, FAST_SHM_PHYS_BASE);
+    close(fd);
+    if (mapped == (void *)-1) {
+        record("FAST_SHM_FALLBACK ", "mmap reserved window failed; using legacy path");
+        return;
+    }
+    struct fast_shm_ctrl *ctrl = (struct fast_shm_ctrl *)((unsigned char *)mapped + FAST_SHM_CTRL_OFF);
+    uint32_t magic = __atomic_load_n(&ctrl->magic, __ATOMIC_ACQUIRE);
+    uint32_t ver = __atomic_load_n(&ctrl->version, __ATOMIC_ACQUIRE);
+    if (magic != FAST_SHM_MAGIC || ver != FAST_SHM_VERSION) {
+        munmap(mapped, FAST_SHM_MAP_SIZE);
+        record("FAST_SHM_FALLBACK ", "host fast-shm header absent; using legacy path");
+        return;
+    }
+    fast_shm_map = (unsigned char *)mapped;
+    fast_shm_ctrl = ctrl;
+    fast_shm_osd_next_slot = 0U;
+    __atomic_store_n(&fast_shm_active, 1U, __ATOMIC_RELEASE);
+    struct hosd_fast_sink sink = {fast_shm_acquire_osd_slot, fast_shm_publish_osd};
+    hosd_set_fast_sink(&sink);
+    virtual_cmos_set_custom_rgb_provider(fast_shm_read_custom_cmos);
+    __atomic_store_n(&ctrl->guest_display_ready, 1U, __ATOMIC_RELEASE);
+    if (create && create(&fast_input_thread, 0, fast_input_worker, 0) == 0) {
+        fast_input_thread_live = 1;
+    } else {
+        record("FAST_SHM_INPUT_WARN ", "fast_input_worker pthread_create failed; host will fallback to serial");
+    }
+    char text[160];
+    snprintf(text, sizeof text, "phys=0x%lx size=0x%x display=1 input=%d zero_vfat=1",
+             (unsigned long)FAST_SHM_PHYS_BASE, FAST_SHM_MAP_SIZE, fast_input_thread_live);
+    record("FAST_SHM_ENABLED ", text);
+}
+
 static unsigned long observe_grm_fin(void) {
     /* Serialize both startup and actual teardown; no FB access can outlive join. */
     if (pthread_mutex_lock(headless_lifecycle_mutex)) return (unsigned long)-1;
     __atomic_store_n(&headless_stop, 1, __ATOMIC_RELEASE);
+    if (fast_input_thread_live && headless_join) {
+        (void)headless_join(fast_input_thread, 0);
+        fast_input_thread_live = 0;
+    }
+    if (fast_shm_ctrl) {
+        __atomic_store_n(&fast_shm_ctrl->guest_display_ready, 0U, __ATOMIC_RELEASE);
+    }
+    hosd_set_fast_sink(0);
     if (headless_thread_live) {
         if (!headless_join || headless_join(headless_thread, 0)) {
             record("OSD_HEADLESS_FAILED ", "join failed; native grm_fin refused");
@@ -13420,6 +13631,7 @@ static void start_headless_osd(void) {
     if (!headless_native.wait_sem || !headless_native.signal_sem || !create || !headless_join || install_headless_fin(b)) {
         record("OSD_HEADLESS_FAILED ", "native lease symbols/actual grm_fin entry hook unavailable"); goto done;
     }
+    fast_shm_init(create);
     if (create(&headless_thread, 0, hosd_worker, &ops))
         record("OSD_HEADLESS_FAILED ", "pthread creation unavailable");
     else { headless_thread_live = 1; headless_panel_owner_pid=getpid(); }

@@ -90,4 +90,10 @@ int virtual_cmos_render_playback_bg(const struct virtual_cmos_fsys_ops *ops,
                                     const char *bg_path,
                                     uint32_t seq);
 
+int virtual_cmos_decode_playback_rgb(const struct virtual_cmos_fsys_ops *ops,
+                                     const char *jpeg_path,
+                                     uint8_t *rgb_out);
+
+void virtual_cmos_set_custom_rgb_provider(int (*provider)(uint8_t *rgb_out));
+
 #endif
