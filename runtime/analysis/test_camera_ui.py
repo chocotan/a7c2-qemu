@@ -701,7 +701,9 @@ class GTKTests(unittest.TestCase):
             self.settle()
             w, h = self.ui.window.get_size()
             shot = Gdk.pixbuf_get_from_window(self.ui.window.get_window(), 0, 0, w, h)
-            shot.savev(str(hud_path.with_name('camera-ui-window-20261120.png')), 'png', [], [])
+            evidence = Path(__file__).parent / 'evidence'
+            evidence.mkdir(exist_ok=True)
+            shot.savev(str(evidence / 'gtk-hud-preview.png'), 'png', [], [])
         for name, button in self.ui.buttons.items():
             self.assertTrue(button.get_sensitive(), name)
             if name == 'MODE':
@@ -983,6 +985,51 @@ class GTKTests(unittest.TestCase):
         }
         self.ui.update(self.vm.status())
         self.assertEqual(self.ui.rec_badge.get_text(), '录像 C0001.MP4')
+
+    def test_a7c2_blueprint_geometry_and_art_state(self):
+        from camera_body_art import (
+            REAR_BUTTONS,
+            REAR_H,
+            REAR_RING_RECT,
+            REAR_W,
+            RING_BUTTONS,
+            TOP_BUTTONS,
+            TOP_H,
+            TOP_W,
+        )
+        for group, bounds_w, bounds_h in ((TOP_BUTTONS, TOP_W, TOP_H),
+                                          (REAR_BUTTONS, REAR_W, REAR_H),
+                                          (RING_BUTTONS, REAR_RING_RECT[2], REAR_RING_RECT[3])):
+            rects = list(group.items())
+            for i, (name, (x, y, w, h)) in enumerate(rects):
+                self.assertGreaterEqual(w, 44, name)
+                self.assertGreaterEqual(h, 44, name)
+                self.assertGreaterEqual(x, 0, name)
+                self.assertGreaterEqual(y, 0, name)
+                self.assertLessEqual(x + w, bounds_w, name)
+                self.assertLessEqual(y + h, bounds_h, name)
+                widget = {'ON': self.ui.on, 'OFF': self.ui.off}.get(name) or self.ui.buttons[name]
+                self.assertEqual(widget.get_allocated_width(), w, name)
+                self.assertEqual(widget.get_allocated_height(), h, name)
+                for other_name, (ox, oy, ow, oh) in rects[i + 1:]:
+                    overlap_x = min(x + w, ox + ow) - max(x, ox)
+                    overlap_y = min(y + h, oy + oh) - max(y, oy)
+                    self.assertFalse(overlap_x > 0 and overlap_y > 0, (name, other_name))
+
+        self.mode_available()
+        self.triplet_available()
+        self.click(self.ui.buttons['MODE'])
+        self.click(self.mode_choices()['AUTO'])
+        self.assertEqual(self.ui._art_state()['mode_pos'], 'AUTO')
+        self.click(self.ui.buttons['MODE_MOVIE'])
+        self.assertEqual(self.ui._art_state()['mode_switch'], 2)
+        self.vm.value['video_recording'] = {'active': True, 'saving': False, 'mode_switch': 3}
+        self.ui.update(self.vm.status())
+        art = self.ui._art_state()
+        self.assertTrue(art['running'])
+        self.assertTrue(art['recording'])
+        self.assertEqual(art['mode_switch'], 3)
+
 
 class TouchStubVM(StubVM):
     """StubVM plus the input lifecycle surface attach_gtk needs for LCD touch."""
