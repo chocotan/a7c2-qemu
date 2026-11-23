@@ -2,11 +2,11 @@
 
 在 Linux 电脑上运行 Sony A7C II（ILCE-7CM2）的原厂固件，用相机外观的窗口操作原厂界面、按键和拨盘，方便研究相机软件，无需连接真实相机。
 
-默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持选择本地图片热替换）、底部曝光 HUD、全按快门虚拟拍摄写卡、原厂单张播放界面、省电自动唤醒、相机 USB 设备（「连接电脑」）以及虚拟存储，并可在界面“功能开关”栏中按需开启或关闭。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
+默认窗口提供原厂界面、菜单、机身按键、4 个拨轮、默认虚拟 CMOS 色卡（支持本地图片与 `.mp4` 视频热替换）、底部曝光 HUD、静态照片拍摄与原厂单张播放/删除、软件 H.264 录像写卡（`PRIVATE/M4ROOT/CLIP/Cxxxx.MP4`）、省电自动唤醒、相机 USB 设备（「连接电脑」）以及虚拟存储，并可在界面“功能开关”栏中按需开启或关闭。33 MP JPEG 与未压缩 RAW 写卡仍使用独立的实验配置。
 
 ![A7C II 模拟器单窗口控制界面](docs/images/camera-ui-window-20261122.png)
 
-上图为单窗口相机控制界面（LCD 为真实 QEMU RAMFB 画面），工具栏提供虚拟存储、**连接电脑**（USB 设备）、**CMOS 色卡 / 选择图片… / 恢复色卡**与常驻**功能开关**栏，底部可展开“固件开发”面板。拍摄预览、镜头曝光与播放解码均由软件虚拟模型提供，不代表真实 CP ASIC 或物理 ISP。
+上图为单窗口相机控制界面（LCD 为真实 QEMU RAMFB / Fast-SHM 画面），工具栏提供虚拟存储、**连接电脑**（USB 设备）、**CMOS 色卡 / 选择图片/视频… / 恢复色卡**、录像状态指示与常驻**功能开关**栏，底部可展开“固件开发”面板。取景合成、CMOS 帧流、镜头曝光、H.264 视频编码与播放解码均由软件虚拟模型提供，写入虚拟 SD 卡文件与设置存储则调用原厂固件接口落盘，不代表真实 CP ASIC 或物理 ISP。
 
 **独立运行产品：外部只需自己的 `BODYDATA.DAT` 和 QEMU 11.1.2 源码归档。** 相机运行代码、虚拟设备、资源导入和构建入口均在本仓库；不需要 `a7c2-re`、系统 dump 或历史实验目录。
 
@@ -18,14 +18,78 @@
 - **相机 USB 设备与 UI 功能开关**：默认启用相机 USB 设备端点（「连接电脑」），与 QEMU RAM 快照会话、省电自动唤醒、虚拟镜头 HUD/拍摄、内部持久磁盘等均可在界面中直接开关。
 - **LCD 触屏**：在画面内用鼠标左键点击或拖动，也支持 GDK 单指触摸（不支持多指手势）。见[触屏用法](report/2026-11-11-touchscreen/README.md)。
 - **低延迟机身按键与 4 个拨轮**：提供机身按键、模式拨盘与 4 个拨轮（前拨轮、后拨轮、控制轮、右上曝光补偿拨轮），A / S / M / P 档跟随原厂固件自身的拨轮映射与橙色聚焦；LCD 采用零 PNG 原始 RGB24 自适应刷新。见[输入和显示实现](docs/tech/2026-11-07-low-latency.md)。
-- **虚拟 CMOS 色卡与自定义图片**：默认显示虚拟 CMOS 色卡，可在工具栏点击“选择图片…”导入本地 PNG/JPEG 等图片实时替换画面，或点击“恢复色卡”。
-- **虚拟拍摄写卡与原厂播放界面**：全按快门将当前色卡或自定义画面编码为含 Sony `ILCE-7CM2` EXIF 的 JPEG 写入虚拟 SD 卡 `DCIM/100MSDCF/DSCnnnnn.JPG` 并登记入图像库；按**播放**键进入原厂单张播放界面（`scr7102_0001_still`，全幅无 1:1 暗边，支持左右翻页、`DISP` 切换显示、原厂照片删除与返回拍摄；直方图与详细 EXIF 面板受 CP 缺失限制为空），关机导出的 `SD/card.img` 可在宿主直接提取照片。
+- **虚拟 CMOS 色卡与本地图片 / 视频输入**：默认显示虚拟 CMOS 色卡，可在工具栏点击“选择图片/视频…”导入本地 PNG/JPEG 等图片，或选择 `.mp4` / `.m4v` / `.mov` 视频实时缩放/垫边为 640×480 循环播放作为实时 CMOS 画面源（可用于拍照与录像），或点击“恢复色卡”。
+- **虚拟拍照写卡与原厂单张播放界面**：全按快门将当前色卡、自定义图片或视频当前帧编码为含 Sony `ILCE-7CM2` EXIF 的 JPEG，调用原厂 `libInfraFsys.so` 写入 `DCIM/100MSDCF/DSCnnnnn.JPG` 并登记入 `libmpr.so`（`sidb`）；按**播放**键进入原厂单张播放界面（`scr7102_0001_still`，全幅无 1:1 暗边，支持左右翻页、`DISP` 切换显示、原厂照片删除与返回拍摄；直方图与详细 EXIF 面板受 CP 缺失限制为空），关机导出的 `SD/card.img` 可在宿主直接提取照片。
+- **软件虚拟视频录制写卡**：实景取景下按 **REC**，或切换至 **MOVIE / S&Q** 档按全按快门即可起停录像（窗口与取景画面左上角同步显示 `REC MM:SS` 计时）；停录或直接点击 **OFF** 关机时自动收尾，由宿主虚拟视频引擎（`libx264` + `libavformat`）编码为 640×480 H.264 `.MP4`，再传回 guest 经索尼原厂 `libInfraFsys.so` 写入虚拟卡 `PRIVATE/M4ROOT/CLIP/Cxxxx.MP4` 并执行 FNV-1a 读回校验与 FAT32 刷盘。导出的 `SD/card.img` 可在宿主机直接提取播放 `.MP4`；未写入原厂 `MEDIAPRO.XML` / 视频 `sidb`（机身**播放**键仅回放静态照片）。
 - **虚拟 SD 卡与保留设置**：原冷启动默认创建 4 GiB FAT32 稀疏虚拟卡（同时兼容既有 1 GiB 存档卡镜像），支持安全拔出、重新插入与关机镜像导出；可跨启动保留语言和日期格式。
 - **修改运行环境**：用 `overwrite/` 替换程序或库，或用“固件开发”面板切换替代文件与原版，并从 guest 读回文件属性和摘要。
 
 | 原厂 Fn 快捷菜单 | 自定义 CMOS + 曝光 HUD | 原厂单张播放界面 `scr7102_0001_still` |
 | :---: | :---: | :---: |
 | ![原厂 Fn 快捷菜单](docs/images/live-fn-menu-20261122.png) | ![自定义 CMOS 与曝光 HUD](docs/images/live-custom-cmos-hud-20261122.png) | ![原厂播放界面 scr7102_0001_still](docs/images/live-playback-20261122.png) |
+
+## 系统架构与模块边界
+
+真机 ILCE-7CM2 为 **AP（ARM64 Linux）+ CP（独立协处理器与 ISP / 编码 / 显示 ASIC）** 双芯片架构。QEMU 中完整运行 **Sony 原厂 ARM64 内核与应用程序**，缺失的物理 CP ASIC、光学 CMOS 与外设则由 **QEMU 虚拟硬件 + 宿主/Guest 软件模型** 协同模拟：
+
+```mermaid
+flowchart LR
+    subgraph Host["宿主控制与软件模拟 (Host)"]
+        UI["CameraUI 窗口 (GTK3)"]
+        Ctrl["VM 会话控制 (menu_control / menu_live)"]
+        CmosSrc["[软件模拟] 虚拟 CMOS 源（色卡 / 图片 / ffmpeg MP4 实时流）"]
+        Blend["[软件模拟] Fast-SHM 合成器 (fast-osd-blend.so: OSD + CMOS + REC HUD)"]
+        HostEnc["[软件模拟] 虚拟视频引擎 (video_recorder + virtual-video-host.so / libx264)"]
+        UsbHost["[软件模拟] 宿主 USB/VHCI 后端 (sony_usb_device)"]
+    end
+
+    subgraph Bridge["QEMU 虚拟硬件与匿名共享内存"]
+        Shm["匿名共享内存 (fast-shm: OSD 双缓冲 / CMOS / 按键环 / MP4 传输)"]
+        Storage["虚拟存储控制器（内部持久闪存 a7c2-persistent / 4 GiB FAT32 SD）"]
+        Bus["[虚拟总线] 虚拟蓝牙 (virtual-rom-v1) / USB 设备端口"]
+    end
+
+    subgraph Guest["Sony A7C II 原厂固件 (QEMU ARM64 Guest)"]
+        Kernel["[原厂固件] Sony Linux 内核（UPM / IPC / Flash 驱动）"]
+        AppFw["[原厂固件] appFw.so（原生菜单 / 状态机 / 拨轮聚焦 / APO 省电）"]
+        LibMpr["[原厂固件] libmpr.so (sidb: 照片库登记 / 原生删除与回放)"]
+        LibFsys["[原厂固件] libInfraFsys.so（FAT32 JPG & MP4 写卡与刷盘）"]
+        Hook["[桥接挂钩] menu-observe.so / headless-osd（OSD / 镜头 / 录像写卡钩子）"]
+    end
+
+    UI -->|按键 / 拨轮 / 触屏 / CMOS路径| Ctrl
+    Ctrl -->|写入按键环| Shm
+    Ctrl -->|启停与路径| CmosSrc
+    CmosSrc -->|640x480 RGB24| Shm
+
+    Shm -->|读取按键 / MP4分块| Hook
+    Hook -->|注入原厂 App32 队列| AppFw
+    AppFw -->|640x480 RGBA4444 OSD| Hook
+    Hook -->|OSD帧 / REC状态 / JPEG| Shm
+
+    AppFw -->|调度回放与删除| LibMpr
+    Hook -->|照片sidb入库 / JPEG+MP4写卡| LibMpr
+    LibMpr --> LibFsys
+    Hook -->|JPG & Cxxxx.MP4 写卡 + FlushVolume| LibFsys
+    LibFsys --> Storage
+
+    Shm -->|OSD + CMOS + 录播状态| Blend
+    Blend -->|640x480 RGB24 画面| UI
+    Shm -->|采样活跃CMOS帧| HostEnc
+    HostEnc -->|H.264 MP4 512KiB分块| Shm
+
+    Kernel <-->|UIPC / HCI / USB| Bus
+    AppFw <--> Kernel
+    Bus <--> UsbHost
+```
+
+| 子系统 | 实现位置 | 归属性质 | 具体职责与边界 |
+| --- | --- | --- | --- |
+| 原厂系统与 UI | `vmlinux`、`init`/`init2`、`appFw.so`、`bsa_server` | **原厂固件运行** | 启动流程、全部菜单与取景 HUD 绘制、A/S/M/P 拨轮逻辑、APO 省电定时、蓝牙服务管理 |
+| 媒体库与写卡 | `libmpr.so`（`sidb`）、`libInfraFsys.so` | **原厂固件运行** | 静态照片目录登记与原生删除、FAT32 目录创建、JPG / MP4 写入与卷刷盘（暂不写视频 `sidb` / `MEDIAPRO.XML`） |
+| 虚拟存储与总线 | `a7c2-persistent`、`sd-window-export`、`virtual-hci`、`sony_usb_device` | **QEMU / 虚拟硬件模拟** | 19 卷内部持久盘、4 GiB FAT32 稀疏 SD 卡与导出、蓝牙控制器 ROM 应答、USB 设备端点 |
+| 显示与 CMOS 输入 | `fast-shm`、`fast-osd-blend.so`、`cmos_source.py`、`headless-osd` | **软件虚拟模型** | 采集 AP 提交的 `RGBA4444` OSD、模拟 CMOS 色卡/图片/`ffmpeg` MP4 帧流、宿主零拷贝合成 LCD |
+| 镜头 / 拍照 / 录像 | `virtual-lens-hud`、`virtual-cmos-capture`、`virtual-video-host.so` | **软件虚拟模型** | 响应原厂拨轮调整曝光显示、编码 640×480 照片 JPEG、在宿主用 `libx264` 编码 MP4 并传回 guest 调原厂 Fsys 写卡（不模拟物理 CP ASIC / ISP） |
 
 ## 虚拟 CMOS 与静态照片
 
@@ -41,7 +105,7 @@ RAW 模式可以在宿主和 guest 之间使用无损 RLE 传送 RGB 帧，guest
 
 [完整 7008×4672 色卡](docs/images/virtual-cmos-color-chart.png)由宿主传感器模型直接生成，是输入场景示意，不是固件写卡成片。
 
-RAW 写卡后的资源清理仍属于实验范围。RAW＋JPEG、其他 RAW 压缩模式和录像写卡不在当前支持范围内。
+RAW 写卡后的资源清理仍属于实验范围；RAW＋JPEG 与其他 RAW 压缩模式不在当前支持范围内。默认主窗口另提供基于软件虚拟视频引擎与原厂 `libInfraFsys` 的 640×480 MP4 录像写卡（不代表物理 CP ASIC 硬件编码，亦不支持机内回放录像）。
 
 ## 怎么运行
 
@@ -170,6 +234,7 @@ A7C2_OVERWRITE_DIR=/path/to/my-overwrite ./start.sh
 - [图像源与显示配置](docs/tech/functional-source-and-display.md)：软件成像、显示与实验配置。
 - [低延迟输入、拨轮、虚拟 CMOS 与原厂播放实机报告](report/2026-11-22-ui-latency-dials-fn-cmos-capture/README.md)：相关实现细节、问题排查与实机验证收据。
 - [环境配置、默认功能与 APO1 唤醒实机报告](report/2026-11-22-env-config-default-features-apo-wake/README.md)：`a7c2.env` 纯环境配置、UI 功能开关与省电唤醒验证记录。
+- [MP4 虚拟 CMOS 输入与视频录制写卡报告](report/2026-11-23-mp4-cmos-and-movie-record/README.md)：本地 `.mp4` 实时 CMOS 推流、宿主 `libx264` 录像与原厂 `libInfraFsys` SD 写卡实现、实机验收与模块边界说明。
 - [启动排障与技术笔记](docs/tech/README.md)：固件导入、显示、输入、存储和成像。
 - [验证记录](validation/README.md)与[源码来源](SOURCES.md)、[第三方许可](THIRD-PARTY.md)。
 

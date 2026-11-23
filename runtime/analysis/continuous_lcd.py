@@ -73,7 +73,7 @@ class ContinuousLCD:
         self.thread.start()
         return self
 
-    def _publish_rgb24(self, pixels, *, sequence, pixel_source_seq, source_label):
+    def _publish_rgb24(self, pixels, *, sequence, pixel_source_seq, source_label, extra_info=None):
         digest = hashlib.sha256(pixels).hexdigest()
         if self.encode_png:
             image = Image.frombytes('RGB', (640, 480), pixels)
@@ -86,6 +86,8 @@ class ContinuousLCD:
         info = dict(sequence=sequence, pixel_source_seq=pixel_source_seq, sha256=digest,
                     captured_at=time.time(), number=self.changes, source=source_label,
                     transport_samples=self.samples, changed_frames=self.changes)
+        if extra_info:
+            info.update(extra_info)
         self.publish(payload, info)
         self.last_hash = digest
 
@@ -107,7 +109,9 @@ class ContinuousLCD:
                 if self.owner is not None and self.owner.poll() is not None:
                     return
                 state = shm.display_state()
+                vstate = shm.video_state()
                 osd_seq, slot, flags, pb_seq, blink_seq, custom_active, custom_seq, osd_pixel_seq = state
+                hud_seq = vstate[8]
                 self.samples += 1
                 if blink_seq != last_blink:
                     last_blink = blink_seq
@@ -117,17 +121,24 @@ class ContinuousLCD:
                         return
                     # Re-read display state after the blink sleep so updates during the blink are not missed.
                     state = shm.display_state()
+                    vstate = shm.video_state()
                     osd_seq, slot, flags, pb_seq, blink_seq, custom_active, custom_seq, osd_pixel_seq = state
+                    hud_seq = vstate[8]
                     last_blink = blink_seq
                     last_key = None  # Force immediate redraw of the live frame after 55ms shutter blink.
-                key = (osd_seq, slot, flags, pb_seq, custom_active, custom_seq)
+                key = (osd_seq, slot, flags, pb_seq, custom_active, custom_seq, hud_seq)
                 if osd_seq > 0 and key != last_key:
                     pixels, rendered_seq = shm.render_rgb24()
                     after_state = shm.display_state()
+                    after_video = shm.video_state()
                     last_key = (rendered_seq, after_state[1], after_state[2], after_state[3],
-                                after_state[5], after_state[6])
+                                after_state[5], after_state[6], after_video[8])
+                    vinfo = dict(active=bool(after_video[4]), saving=bool(after_video[5]),
+                                 elapsed_ms=after_video[6], frames=after_video[7],
+                                 mode_switch=after_video[3])
                     self._publish_rgb24(pixels, sequence=rendered_seq, pixel_source_seq=after_state[7],
-                                        source_label='fast-shm virtual CP display')
+                                        source_label='fast-shm virtual CP display',
+                                        extra_info={'video_recording': vinfo})
                 delay = self.SHM_ACTIVE_PERIOD if time.monotonic() < self.boost_until else self.SHM_IDLE_PERIOD
                 if not self.cancel.is_set():
                     self.wake.wait(delay)

@@ -110,4 +110,66 @@ _Static_assert(FAST_SHM_OSD0_OFF + FAST_SHM_OSD_BYTES <= FAST_SHM_OSD1_OFF, "osd
 _Static_assert(FAST_SHM_OSD1_OFF + FAST_SHM_OSD_BYTES <= FAST_SHM_CTRL_OFF, "osd1 overlap");
 _Static_assert(FAST_SHM_CTRL_OFF + sizeof(struct fast_shm_ctrl) <= FAST_SHM_MAP_SIZE - 0x1000U, "ctrl overlap");
 
+/* Virtual video recording control + 512 KiB MP4 Fsys chunk buffer inside unused tail:
+ *   0x451000 .. 0x451fff  (  4,096 B) struct fast_shm_video_ctrl
+ *   0x460000 .. 0x4dffff  (524,288 B) MP4 transfer chunk staging buffer
+ */
+#define FAST_SHM_VIDEO_MAGIC      0x31444956U /* "VID1" little-endian */
+#define FAST_SHM_VIDEO_VERSION    1U
+#define FAST_SHM_VIDEO_CTRL_OFF   0x451000U
+#define FAST_SHM_VIDEO_BUF_OFF    0x460000U
+#define FAST_SHM_VIDEO_BUF_SIZE   (512U * 1024U)
+
+#define FAST_SHM_VIDEO_OP_BEGIN   1U
+#define FAST_SHM_VIDEO_OP_CHUNK   2U
+#define FAST_SHM_VIDEO_OP_COMMIT  3U
+#define FAST_SHM_VIDEO_OP_ABORT   4U
+
+struct fast_shm_video_ctrl {
+    /* Header: offset 0..15 */
+    uint32_t magic;               /* Host writes FAST_SHM_VIDEO_MAGIC */
+    uint32_t version;             /* Host writes FAST_SHM_VIDEO_VERSION */
+    uint32_t guest_video_ready;   /* Guest sets 1 when fast-shm + Fsys worker ready */
+    uint32_t _v_pad0;
+
+    /* Guest -> Host recording triggers: offset 16..31 */
+    uint32_t rec_toggle_seq;      /* Guest increments on REC press (or Movie SHUTTER) */
+    uint32_t rec_stop_seq;        /* Guest increments on force-stop (e.g. Playback/APO) */
+    uint32_t rec_mode_switch;     /* 1=STILL, 2=MOVIE, 3=SQ */
+    uint32_t _v_pad1;
+
+    /* Host -> Guest recording indicator status: offset 32..63 */
+    uint32_t rec_active;          /* 1 while actively recording frames */
+    uint32_t rec_saving;          /* 1 while finalizing/writing MP4 to SD */
+    uint32_t rec_elapsed_ms;      /* Elapsed recording time in ms for HUD */
+    uint32_t rec_frames;          /* Frames captured/encoded */
+    uint32_t rec_hud_seq;         /* Bumped by host on REC indicator/timer change */
+    uint32_t _v_pad2[3];
+
+    /* Host -> Guest MP4 Fsys SD-write handshake: offset 64..191 */
+    uint32_t xfer_req_seq;        /* Host increments after preparing buffer/args */
+    uint32_t xfer_op;             /* FAST_SHM_VIDEO_OP_* */
+    uint32_t xfer_len;            /* Payload bytes in FAST_SHM_VIDEO_BUF_OFF (CHUNK) */
+    uint32_t xfer_flags;          /* Reserved */
+    uint64_t xfer_total_bytes;    /* Expected total bytes on COMMIT */
+    uint64_t xfer_expected_hash;  /* FNV-1a 64-bit over MP4 bytes on COMMIT */
+
+    uint32_t xfer_ack_seq;        /* Guest stores matching xfer_req_seq on completion */
+    int32_t  xfer_status;         /* 0 or negative errno */
+    uint32_t xfer_file_num;       /* C0001..C9999 */
+    uint32_t xfer_readback_ok;    /* 1 when full Fsys readback + FNV verify + FlushVolume ok */
+    uint64_t xfer_bytes_written;  /* Guest written byte count */
+    uint64_t xfer_guest_hash;     /* Guest verified readback FNV-1a hash */
+    char     xfer_guest_path[64]; /* Guest Fsys path, e.g. "A:/PRIVATE/M4ROOT/CLIP/C0001.MP4" */
+};
+
+_Static_assert(offsetof(struct fast_shm_video_ctrl, rec_toggle_seq) == 16U, "video rec_toggle_seq offset");
+_Static_assert(offsetof(struct fast_shm_video_ctrl, rec_active) == 32U, "video rec_active offset");
+_Static_assert(offsetof(struct fast_shm_video_ctrl, xfer_req_seq) == 64U, "video xfer_req_seq offset");
+_Static_assert(offsetof(struct fast_shm_video_ctrl, xfer_ack_seq) == 96U, "video xfer_ack_seq offset");
+_Static_assert(sizeof(struct fast_shm_video_ctrl) == 192U, "fast_shm_video_ctrl size");
+_Static_assert(FAST_SHM_CTRL_OFF + sizeof(struct fast_shm_ctrl) <= FAST_SHM_VIDEO_CTRL_OFF, "video ctrl overlap");
+_Static_assert(FAST_SHM_VIDEO_CTRL_OFF + sizeof(struct fast_shm_video_ctrl) <= FAST_SHM_VIDEO_BUF_OFF, "video buf overlap");
+_Static_assert(FAST_SHM_VIDEO_BUF_OFF + FAST_SHM_VIDEO_BUF_SIZE <= FAST_SHM_MAP_SIZE - 0x1000U, "video tail overlap");
+
 #endif /* A7C2_FAST_SHM_H */

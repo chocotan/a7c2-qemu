@@ -130,6 +130,7 @@ class VM:
         self.storage_instance=str(Path(storage_instance).absolute()) if storage_instance is not None else None
         self.wifi = None
         self.cmos_source = None
+        self.video_recording = None
         self.sd_card = None
         self.sd_pending = 0
         self.natural_boot=natural_boot
@@ -386,6 +387,43 @@ class VM:
         self.event_id += 1
         self.events.appendleft({'id': self.event_id, 'time': time.time(), 'message': message, 'kind': kind})
 
+    def _sync_video_state(self, vinfo, run_dir=''):
+        if not isinstance(vinfo, dict):
+            return
+        prev = self.video_recording or {}
+        merged = {
+            'active': bool(vinfo.get('active')),
+            'saving': bool(vinfo.get('saving')),
+            'elapsed_ms': int(vinfo.get('elapsed_ms') or 0),
+            'frames': int(vinfo.get('frames') or 0),
+            'mode_switch': int(vinfo.get('mode_switch') or prev.get('mode_switch') or 1),
+            'last_clip': vinfo.get('last_clip') if 'last_clip' in vinfo else prev.get('last_clip'),
+            'error': vinfo.get('error') if 'error' in vinfo else prev.get('error', ''),
+        }
+        dropped_to_idle = ((prev.get('active') or prev.get('saving'))
+                           and not merged['active'] and not merged['saving'])
+        if ('last_clip' not in vinfo) and dropped_to_idle and run_dir:
+            receipt = Path(run_dir) / 'last-video-record.json'
+            if receipt.is_file():
+                try:
+                    data = json.loads(receipt.read_text())
+                    if data.get('ok') is True:
+                        merged['last_clip'] = data
+                        merged['error'] = ''
+                    elif data.get('error'):
+                        merged['error'] = str(data['error'])
+                except (OSError, json.JSONDecodeError):
+                    pass
+        prev_clip = prev.get('last_clip') or {}
+        cur_clip = merged.get('last_clip') or {}
+        if cur_clip and (cur_clip.get('path'), cur_clip.get('fnv1a64')) != (prev_clip.get('path'), prev_clip.get('fnv1a64')):
+            self.event(f'录像已写入虚拟 SD：{cur_clip.get("path", "")} ({cur_clip.get("bytes", 0)} B)', kind='storage')
+        elif merged['active'] and not prev.get('active'):
+            self.event('正在录制虚拟视频…', kind='storage')
+        elif merged['error'] and merged['error'] != prev.get('error'):
+            self.event('录像失败：' + merged['error'], kind='storage')
+        self.video_recording = merged
+
     def status(self):
         with self.lock:
             return dict(state=self.state, error=self.error, snapshot=self.snapshot, stale=self.stale,
@@ -405,6 +443,7 @@ class VM:
                         usb_device_enabled=self.usb_device_enabled,usb_device_available=self.usb_device_build is not None,
                         auto_wake_enabled=self.auto_wake_enabled,virtual_lens_hud_enabled=self.virtual_lens_hud_enabled,
                         wifi=self.wifi, usb_net=self.usb_net, cmos_source=self.cmos_source,
+                        video_recording=self.video_recording,
                         sd_card=self.sd_card,
                         settings_persistent=self.instance is not None,settings_generation=self.settings_generation,
                         log=self.log_path, run=self.run_dir)
@@ -433,7 +472,7 @@ class VM:
             self.input_lifecycle = False
             self.touch_input = False
             self.input_state = {'held': [], 'uncertain_codes': [], 'error': ''}
-            self.wifi = None; self.cmos_source = None
+            self.wifi = None; self.cmos_source = None; self.video_recording = None
             self.rgb = None
             self.sd_card = None
             self.sd_pending = 0
@@ -458,7 +497,7 @@ class VM:
     def _admit_queued(self, command):
         releasing = camera_input_module().is_release(command)
         if (self.sd_pending or (self.sd_card or {}).get('state') in ('ejecting','inserting','uncertain')) and (
-                command.get('action') not in ('snapshot','export_sd','sd_card')) and not releasing:
+                command.get('action') not in ('snapshot','export_sd','sd_card','video_status')) and not releasing:
             self.event('SD 介质变化未收敛；已拒绝排队的 '+str(command.get('action')),kind='storage')
             return False
         return True
@@ -470,7 +509,7 @@ class VM:
                 raise ValueError('VM 尚未运行')
             card_state=(self.sd_card or {}).get('state')
             if (self.sd_pending or self.busy=='sd_card' or card_state in ('ejecting','inserting','uncertain')) and (
-                    not isinstance(command,dict) or command.get('action') not in ('snapshot','export_sd')) and not releasing:
+                    not isinstance(command,dict) or command.get('action') not in ('snapshot','export_sd','video_status')) and not releasing:
                 raise ValueError('SD 介质变化未收敛；暂停新的机身输入')
             if isinstance(command, dict) and command.get('action') == 'camera_input':
                 if not self.input_lifecycle:
@@ -483,6 +522,8 @@ class VM:
                 from firmware_development import validate_check
                 validate_check(command)
             elif command == {'action': 'snapshot'}:
+                pass
+            elif command == {'action': 'video_status'}:
                 pass
             elif command=={'action':'export_sd'} and self.natural_boot and not self.mock:
                 pass
@@ -878,6 +919,8 @@ class VM:
                             self.rgb, self.png, self.snapshot = frame_bytes, None, info
                         else:
                             self.png, self.rgb, self.snapshot = frame_bytes, None, info
+                        if isinstance(info, dict) and 'video_recording' in info:
+                            self._sync_video_state(info['video_recording'], self.run_dir)
                         self.stale = bool(self.firmware_fault)
                     if self.lcd_changed is not None:
                         self.lcd_changed()
@@ -952,6 +995,8 @@ class VM:
                         self.event(f'快照 #{self.snapshot["number"]} 已校验；事务 {info["sequence"]}')
                     elif command['action'] == 'camera_input' and reply.get('type') == 'camera_input' and reply.get('request') == command:
                         self.input_state = reply['input_state']
+                        if 'video_recording' in reply:
+                            self._sync_video_state(reply['video_recording'], self.run_dir)
                         if reply.get('ok') is True:
                             if self.error.startswith('机身输入未完成：') and not self.input_state.get('error'):
                                 self.error = ''
@@ -971,8 +1016,14 @@ class VM:
                             self.event(self.error,kind='firmware')
                     elif command['action'] == 'shutter_cycle' and reply == {'type': 'shutter_cycle'}:
                         self.event('自然快门序列已提交；消费者与拍照结果待独立证据', kind='input')
-                    elif command['action'] == 'key' and reply == {'type': 'key', 'key': command['key']}:
+                    elif (command['action'] == 'key' and reply.get('type') == 'key'
+                          and reply.get('key') == command['key']
+                          and set(reply) <= {'type', 'key', 'video_recording'}):
+                        if 'video_recording' in reply:
+                            self._sync_video_state(reply['video_recording'], self.run_dir)
                         self.event(command['key'] + '：输入已提交', kind='input')
+                    elif command['action'] == 'video_status' and reply.get('type') == 'video_status':
+                        self._sync_video_state(reply, self.run_dir)
                     elif command['action']=='position' and reply=={'type':'position','key':command['key'],'position':command['position']}:
                         self.event(command['key']+' '+command['position']+'：位置输入已提交',kind='input')
                     elif command['action']=='sd_card' and reply.get('type')=='sd_card':

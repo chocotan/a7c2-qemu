@@ -193,5 +193,10 @@ host_cc="$(command -v cc || command -v clang)"
 "$host_cc" -O3 -shared -fPIC -Wall -Wextra -Werror \
   "$source_dir/fast-osd-blend.c" "$source_dir/../../report/virtual-sensor/sensor-core.c" \
   -o "$analysis_dir/fast-osd-blend.so"
+# shellcheck disable=SC2046
+"$host_cc" -O2 -std=c11 -shared -fPIC -Wall -Wextra -Werror \
+  "$source_dir/virtual-video-host.c" "$source_dir/../../report/virtual-video-engine/video-engine.c" \
+  $(pkg-config --cflags --libs libavcodec libavformat libavutil libswscale) \
+  -o "$analysis_dir/virtual-video-host.so"
 python3 "$analysis_dir/snapshot-observer-sources.py" --finish "$analysis_dir" "$device_build"
 python3 "$analysis_dir/snapshot-observer-sources.py" --write-stamp "$analysis_dir"

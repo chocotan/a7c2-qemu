@@ -944,6 +944,46 @@ class GTKTests(unittest.TestCase):
         self.click(self.ui.off)
         self.assertEqual(self.vm.calls[-1], 'stop')
 
+    def test_mp4_cmos_source_label_and_video_recording_badge(self):
+        self.vm.value['mock'] = False
+        self.running()
+        self.assertEqual(self.ui.cmos_pick.get_label(), '选择图片/视频…')
+        self.assertFalse(self.ui.rec_badge.get_visible())
+
+        self.ui.set_cmos_source('/nonexistent/sample_clip.mp4')
+        self.assertEqual(self.vm.calls[-1], {'action': 'cmos_source', 'path': '/nonexistent/sample_clip.mp4'})
+        self.assertIn('MP4', self.ui.feedback.get_text())
+        self.vm.value['cmos_source'] = {
+            'ok': True, 'source': 'custom', 'kind': 'video', 'name': 'sample_clip.mp4',
+        }
+        self.ui.update(self.vm.status())
+        self.assertEqual(self.ui.cmos_label.get_text(), 'CMOS 视频 sample_clip.mp')
+        self.assertTrue(self.ui.cmos_default.get_sensitive())
+
+        # Active recording highlights REC button and shows elapsed badge.
+        self.vm.value['video_recording'] = {
+            'active': True, 'saving': False, 'elapsed_ms': 4000, 'frames': 96,
+        }
+        self.ui.update(self.vm.status())
+        self.assertTrue(self.ui.rec_badge.get_visible())
+        self.assertEqual(self.ui.rec_badge.get_text(), '● REC 00:04')
+        self.assertTrue(self.ui.buttons['REC'].get_style_context().has_class('recording'))
+
+        # Saving transition and saved clip badge.
+        self.vm.value['video_recording'] = {
+            'active': False, 'saving': True, 'elapsed_ms': 4000, 'frames': 96,
+        }
+        self.ui.update(self.vm.status())
+        self.assertEqual(self.ui.rec_badge.get_text(), '正在写入 SD…')
+        self.assertFalse(self.ui.buttons['REC'].get_style_context().has_class('recording'))
+
+        self.vm.value['video_recording'] = {
+            'active': False, 'saving': False, 'elapsed_ms': 0, 'frames': 96,
+            'last_clip': {'path': 'A:/PRIVATE/M4ROOT/CLIP/C0001.MP4', 'bytes': 123456},
+        }
+        self.ui.update(self.vm.status())
+        self.assertEqual(self.ui.rec_badge.get_text(), '录像 C0001.MP4')
+
 class TouchStubVM(StubVM):
     """StubVM plus the input lifecycle surface attach_gtk needs for LCD touch."""
     supports_input_lifecycle = True

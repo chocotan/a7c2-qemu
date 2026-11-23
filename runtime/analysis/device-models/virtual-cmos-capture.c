@@ -22,12 +22,15 @@ static int vcmos_fstat(int fd, struct stat *st) {
 #endif
 }
 
-static uint64_t vcmos_fnv64(const uint8_t *p, size_t n) {
-    uint64_t h = UINT64_C(14695981039346656037);
+static uint64_t vcmos_fnv64_step(uint64_t h, const uint8_t *p, size_t n) {
     for (size_t i = 0; i < n; ++i) {
         h = (h ^ p[i]) * UINT64_C(1099511628211);
     }
     return h;
+}
+
+static uint64_t vcmos_fnv64(const uint8_t *p, size_t n) {
+    return vcmos_fnv64_step(UINT64_C(14695981039346656037), p, n);
 }
 
 static int clamp_u8(int v) {
@@ -993,7 +996,38 @@ static int file_exists_fsys(const struct virtual_cmos_fsys_ops *ops, const char 
     return 1;
 }
 
+static int vcmos_fsys_write_all(const struct virtual_cmos_fsys_ops *ops, uint64_t handle,
+                                const uint8_t *buf, size_t len) {
+    size_t written = 0u;
+    while (written < len) {
+        size_t chunk = len - written;
+        if (chunk > 65536u) chunk = 65536u;
+        int got = ops->write_fn(handle, buf + written, (int)chunk);
+        if (got <= 0) return -EIO;
+        written += (size_t)got;
+    }
+    return 0;
+}
+
+static int vcmos_pick_numbered_path(const struct virtual_cmos_fsys_ops *ops,
+                                    unsigned char drive, const char *fmt,
+                                    uint32_t last_num, uint32_t *chosen_out,
+                                    char *path_out, size_t path_cap) {
+    uint32_t start = last_num ? last_num + 1u : 1u;
+    if (start > 9999u) start = 1u;
+    for (uint32_t n = start; n <= 9999u; ++n) {
+        snprintf(path_out, path_cap, fmt, drive, n);
+        if (!file_exists_fsys(ops, path_out)) { *chosen_out = n; return 0; }
+    }
+    for (uint32_t n = 1u; n < start; ++n) {
+        snprintf(path_out, path_cap, fmt, drive, n);
+        if (!file_exists_fsys(ops, path_out)) { *chosen_out = n; return 0; }
+    }
+    return -ENOSPC;
+}
+
 static uint32_t g_last_capture_num;
+static uint32_t g_last_movie_num;
 
 int virtual_cmos_capture_to_sd(const struct virtual_cmos_fsys_ops *ops,
                                const char *custom_rgb_path,
@@ -1025,36 +1059,21 @@ int virtual_cmos_capture_to_sd(const struct virtual_cmos_fsys_ops *ops,
     (void)ops->mkdir_fn(dir_dcim);
     (void)ops->mkdir_fn(dir_dcf);
 
-    uint32_t start = g_last_capture_num ? g_last_capture_num + 1u : 1u;
-    if (start > 9999u) start = 1u;
     uint32_t chosen = 0;
     char path[64];
-    for (uint32_t n = start; n <= 9999u; ++n) {
-        snprintf(path, sizeof path, "%c:/DCIM/100MSDCF/DSC%05u.JPG", drive, n);
-        if (!file_exists_fsys(ops, path)) { chosen = n; break; }
+    if (vcmos_pick_numbered_path(ops, drive, "%c:/DCIM/100MSDCF/DSC%05u.JPG",
+                                 g_last_capture_num, &chosen, path, sizeof path) != 0) {
+        free(jpeg);
+        return -ENOSPC;
     }
-    if (!chosen) {
-        for (uint32_t n = 1u; n < start; ++n) {
-            snprintf(path, sizeof path, "%c:/DCIM/100MSDCF/DSC%05u.JPG", drive, n);
-            if (!file_exists_fsys(ops, path)) { chosen = n; break; }
-        }
-    }
-    if (!chosen) { free(jpeg); return -ENOSPC; }
 
     uint64_t handle = 0;
     if (ops->open_fn(path, &handle, 0xfu) != 0) { free(jpeg); return -EIO; }
 
-    size_t written = 0;
-    while (written < jpeg_len) {
-        size_t chunk = jpeg_len - written;
-        if (chunk > 65536u) chunk = 65536u;
-        int got = ops->write_fn(handle, jpeg + written, (int)chunk);
-        if (got <= 0) {
-            ops->close_fn(handle);
-            free(jpeg);
-            return -EIO;
-        }
-        written += (size_t)got;
+    if (vcmos_fsys_write_all(ops, handle, jpeg, jpeg_len) != 0) {
+        ops->close_fn(handle);
+        free(jpeg);
+        return -EIO;
     }
     int frc = ops->flush_fn(handle);
     int crc = ops->close_fn(handle);
@@ -1091,6 +1110,132 @@ int virtual_cmos_capture_to_sd(const struct virtual_cmos_fsys_ops *ops,
     result->bytes = jpeg_len;
     result->fnv1a64 = expected_hash;
     result->file_number = chosen;
+    result->readback_verified = 1;
+    return 0;
+}
+
+void virtual_cmos_movie_abort(struct virtual_cmos_movie_writer *w,
+                              const struct virtual_cmos_fsys_ops *ops) {
+    if (!w) return;
+    if (w->active && ops && w->handle && ops->close_fn) {
+        (void)ops->close_fn(w->handle);
+    }
+    if (w->path[0] && ops && ops->remove_fn) {
+        (void)ops->remove_fn(w->path);
+    }
+    memset(w, 0, sizeof *w);
+}
+
+int virtual_cmos_movie_begin(struct virtual_cmos_movie_writer *w,
+                             const struct virtual_cmos_fsys_ops *ops) {
+    if (!w || !ops || !ops->get_mount_drives || !ops->mkdir_fn || !ops->open_fn ||
+        !ops->write_fn || !ops->read_fn || !ops->flush_fn || !ops->close_fn ||
+        !ops->flush_volume_fn)
+        return -EINVAL;
+    if (w->active) virtual_cmos_movie_abort(w, ops);
+    memset(w, 0, sizeof *w);
+
+    unsigned char drive = first_mounted_drive(ops);
+    if (!drive) return -ENODEV;
+
+    char dir_priv[32], dir_m4[48], dir_clip[56];
+    snprintf(dir_priv, sizeof dir_priv, "%c:/PRIVATE", drive);
+    snprintf(dir_m4, sizeof dir_m4, "%c:/PRIVATE/M4ROOT", drive);
+    snprintf(dir_clip, sizeof dir_clip, "%c:/PRIVATE/M4ROOT/CLIP", drive);
+    (void)ops->mkdir_fn(dir_priv);
+    (void)ops->mkdir_fn(dir_m4);
+    (void)ops->mkdir_fn(dir_clip);
+
+    uint32_t chosen = 0;
+    char path[64];
+    if (vcmos_pick_numbered_path(ops, drive, "%c:/PRIVATE/M4ROOT/CLIP/C%04u.MP4",
+                                 g_last_movie_num, &chosen, path, sizeof path) != 0)
+        return -ENOSPC;
+
+    uint64_t handle = 0;
+    if (ops->open_fn(path, &handle, 0xfu) != 0) return -EIO;
+
+    w->active = 1;
+    w->drive = drive;
+    w->handle = handle;
+    w->file_number = chosen;
+    w->bytes_written = 0u;
+    w->running_fnv1a64 = UINT64_C(14695981039346656037);
+    snprintf(w->path, sizeof w->path, "%s", path);
+    return 0;
+}
+
+int virtual_cmos_movie_write_chunk(struct virtual_cmos_movie_writer *w,
+                                   const struct virtual_cmos_fsys_ops *ops,
+                                   const uint8_t *data, size_t len) {
+    if (!w || !ops || !ops->write_fn || !w->active) return -EINVAL;
+    if (len == 0u) return 0;
+    if (!data) return -EINVAL;
+    if (vcmos_fsys_write_all(ops, w->handle, data, len) != 0) return -EIO;
+    w->bytes_written += len;
+    w->running_fnv1a64 = vcmos_fnv64_step(w->running_fnv1a64, data, len);
+    return 0;
+}
+
+int virtual_cmos_movie_commit(struct virtual_cmos_movie_writer *w,
+                              const struct virtual_cmos_fsys_ops *ops,
+                              size_t expected_bytes,
+                              uint64_t expected_fnv1a64,
+                              struct virtual_cmos_capture_result *result) {
+    if (!w || !ops || !ops->flush_fn || !ops->close_fn || !ops->open_fn ||
+        !ops->read_fn || !ops->flush_volume_fn || !w->active || !result)
+        return -EINVAL;
+    memset(result, 0, sizeof *result);
+
+    int frc = ops->flush_fn(w->handle);
+    int crc = ops->close_fn(w->handle);
+    w->handle = 0u;
+    w->active = 0;
+    if (frc || crc) {
+        if (ops->remove_fn) (void)ops->remove_fn(w->path);
+        return -EIO;
+    }
+    if (w->bytes_written != expected_bytes || w->running_fnv1a64 != expected_fnv1a64 ||
+        expected_bytes == 0u) {
+        if (ops->remove_fn) (void)ops->remove_fn(w->path);
+        return -EIO;
+    }
+
+    uint8_t *rb = malloc(65536u);
+    if (!rb) return -ENOMEM;
+    uint64_t rh = 0u;
+    int verified = 0;
+    uint64_t rb_hash = UINT64_C(14695981039346656037);
+    size_t total = 0u;
+    if (ops->open_fn(w->path, &rh, 1u) == 0) {
+        while (total < expected_bytes) {
+            size_t want = expected_bytes - total;
+            if (want > 65536u) want = 65536u;
+            int got = ops->read_fn(rh, rb, (int)want);
+            if (got <= 0) break;
+            rb_hash = vcmos_fnv64_step(rb_hash, rb, (size_t)got);
+            total += (size_t)got;
+        }
+        /* Confirm no trailing bytes exist beyond expected_bytes. */
+        if (total == expected_bytes && ops->read_fn(rh, rb, 1) <= 0 &&
+            rb_hash == expected_fnv1a64) {
+            verified = 1;
+        }
+        ops->close_fn(rh);
+    }
+    free(rb);
+    if (!verified) {
+        if (ops->remove_fn) (void)ops->remove_fn(w->path);
+        return -EIO;
+    }
+    if (ops->flush_volume_fn(w->drive) != 0) return -EIO;
+
+    g_last_movie_num = w->file_number;
+    snprintf(result->path, sizeof result->path, "%s", w->path);
+    snprintf(result->source, sizeof result->source, "video");
+    result->bytes = total;
+    result->fnv1a64 = rb_hash;
+    result->file_number = w->file_number;
     result->readback_verified = 1;
     return 0;
 }

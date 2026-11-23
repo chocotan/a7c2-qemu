@@ -24,7 +24,8 @@ def test_c_header_and_python_abi_offsets_match():
 #include <stddef.h>
 #include "fast-shm.h"
 int main(void) {
-    printf("%u %u %lu %u %u %u %u %u %u %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu\n",
+    printf("%u %u %lu %u %u %u %u %u %u %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu "
+           "%u %u %u %u %u %zu %zu %zu %zu\n",
         FAST_SHM_MAGIC, FAST_SHM_VERSION,
         (unsigned long)FAST_SHM_MEMFD_OFFSET, FAST_SHM_MAP_SIZE,
         FAST_SHM_PLAYBACK_BG_OFF, FAST_SHM_CUSTOM_CMOS_OFF,
@@ -38,7 +39,13 @@ int main(void) {
         offsetof(struct fast_shm_ctrl, blink_seq),
         offsetof(struct fast_shm_ctrl, custom_cmos_active),
         offsetof(struct fast_shm_ctrl, key_head),
-        offsetof(struct fast_shm_ctrl, ring));
+        offsetof(struct fast_shm_ctrl, ring),
+        FAST_SHM_VIDEO_MAGIC, FAST_SHM_VIDEO_VERSION,
+        FAST_SHM_VIDEO_CTRL_OFF, FAST_SHM_VIDEO_BUF_OFF, FAST_SHM_VIDEO_BUF_SIZE,
+        offsetof(struct fast_shm_video_ctrl, rec_toggle_seq),
+        offsetof(struct fast_shm_video_ctrl, rec_active),
+        offsetof(struct fast_shm_video_ctrl, xfer_req_seq),
+        offsetof(struct fast_shm_video_ctrl, xfer_ack_seq));
     return 0;
 }
 '''
@@ -65,6 +72,12 @@ int main(void) {
         fast_shm.OFF_CUSTOM_CMOS_ACTIVE,
         fast_shm.OFF_KEY_HEAD,
         fast_shm.OFF_RING,
+        fast_shm.VIDEO_MAGIC, fast_shm.VIDEO_VERSION,
+        fast_shm.VIDEO_CTRL_OFF, fast_shm.VIDEO_BUF_OFF, fast_shm.VIDEO_BUF_SIZE,
+        fast_shm.OFF_V_REC_TOGGLE_SEQ,
+        fast_shm.OFF_V_REC_ACTIVE,
+        fast_shm.OFF_V_XFER_REQ_SEQ,
+        fast_shm.OFF_V_XFER_ACK_SEQ,
     ]
     assert vals == expected
 
@@ -446,4 +459,87 @@ def test_continuous_lcd_shutter_blink_rereads_post_sleep_state(tmp_path):
         lcd.stop()
         raw.close()
         os.close(fd)
+
+
+def test_fast_shm_rec_hud_overlay_and_video_xfer_roundtrip():
+    fd = fast_shm.create_ram_memfd()
+    raw = mmap.mmap(fd, fast_shm.MAP_SIZE, offset=fast_shm.MEMFD_OFFSET)
+    stop = threading.Event()
+    shm = fast_shm.FastShmView(fd)
+    try:
+        # Transparent OSD + shooting flag + solid blue CMOS input.
+        raw[fast_shm.OSD0_OFF:fast_shm.OSD0_OFF + fast_shm.OSD_BYTES] = b'\x00\x00' * (fast_shm.WIDTH * fast_shm.HEIGHT)
+        struct.pack_into('<I', raw, fast_shm.CTRL_OFF + fast_shm.OFF_GUEST_DISPLAY_READY, 1)
+        struct.pack_into('<QII', raw, fast_shm.CTRL_OFF + fast_shm.OFF_OSD_SEQ, 1, 0, fast_shm.FLAG_SHOOTING)
+        cmos_blue = bytes((10, 20, 220)) * (fast_shm.WIDTH * fast_shm.HEIGHT)
+        shm.set_custom_cmos(cmos_blue)
+
+        # Before REC: clean CMOS without overlay.
+        frame_idle, _ = shm.render_rgb24()
+        assert frame_idle == cmos_blue
+
+        # Active REC draws crimson pill around (x=14..26, y=10..32) ONLY in preview, never mutating CMOS!
+        shm.set_video_status(active=True, saving=False, elapsed_ms=5000, frames=120, bump_hud=True)
+        frame_rec, _ = shm.render_rgb24()
+        assert frame_rec != cmos_blue
+        dot_off = (21 * fast_shm.WIDTH + 25) * 3
+        assert frame_rec[dot_off] > 200 and frame_rec[dot_off + 2] < 80
+        raw_cmos, kind = shm.read_active_cmos_rgb24()
+        assert kind == 'custom' and raw_cmos == cmos_blue
+
+        shm.set_video_status(active=False, saving=False, elapsed_ms=0, frames=120, bump_hud=True)
+        frame_after, _ = shm.render_rgb24()
+        assert frame_after == cmos_blue
+
+        # Simulated guest Fsys video xfer handler.
+        seen_ops = []
+        written_buf = bytearray()
+
+        def fake_guest():
+            struct.pack_into('<I', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_GUEST_READY, 1)
+            handled = 0
+            while not stop.is_set():
+                req_seq = struct.unpack_from('<I', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_REQ_SEQ)[0]
+                if req_seq == handled:
+                    time.sleep(0.002)
+                    continue
+                op, length, _, total, exp_hash = struct.unpack_from(
+                    '<IIIQQ', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_OP,
+                )
+                seen_ops.append(op)
+                if op == fast_shm.VIDEO_OP_BEGIN:
+                    written_buf.clear()
+                    path_bytes = b'A:/PRIVATE/M4ROOT/CLIP/C0001.MP4\x00'
+                    raw[fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_GUEST_PATH:
+                        fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_GUEST_PATH + len(path_bytes)] = path_bytes
+                    struct.pack_into('<iII', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_STATUS, 0, 1, 0)
+                elif op == fast_shm.VIDEO_OP_CHUNK:
+                    written_buf.extend(raw[fast_shm.VIDEO_BUF_OFF:fast_shm.VIDEO_BUF_OFF + length])
+                    struct.pack_into('<i', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_STATUS, 0)
+                elif op == fast_shm.VIDEO_OP_COMMIT:
+                    ok = 1 if len(written_buf) == total else 0
+                    struct.pack_into('<iIIQQ', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_STATUS,
+                                     0 if ok else -5, 1, ok, len(written_buf), exp_hash)
+                handled = req_seq
+                struct.pack_into('<I', raw, fast_shm.VIDEO_CTRL_OFF + fast_shm.OFF_V_XFER_ACK_SEQ, req_seq)
+
+        t = threading.Thread(target=fake_guest, daemon=True)
+        t.start()
+        deadline = time.monotonic() + 2.0
+        while not shm.guest_video_ready() and time.monotonic() < deadline:
+            time.sleep(0.002)
+        assert shm.guest_video_ready()
+        assert shm.submit_video_xfer(fast_shm.VIDEO_OP_BEGIN)['status'] == 0
+        payload = b'MP4PAYLOAD_0123456789'
+        assert shm.submit_video_xfer(fast_shm.VIDEO_OP_CHUNK, payload)['status'] == 0
+        fin = shm.submit_video_xfer(fast_shm.VIDEO_OP_COMMIT, total_bytes=len(payload), expected_hash=42)
+        assert fin['status'] == 0 and fin['readback_ok'] and fin['file_num'] == 1
+        assert fin['guest_path'] == 'A:/PRIVATE/M4ROOT/CLIP/C0001.MP4'
+        assert bytes(written_buf) == payload and seen_ops == [1, 2, 3]
+    finally:
+        stop.set()
+        shm.close()
+        raw.close()
+        os.close(fd)
+
 

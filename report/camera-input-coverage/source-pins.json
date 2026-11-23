@@ -18,11 +18,13 @@
     {
       "path": "runtime/analysis/menu_live.py",
       "symbol": "KEY_DEFINITIONS",
-      "sha256": "978451b32acc620ae470ac2faeb0a7ab076655eb2b1ce75ea5baf211f286d126",
+      "sha256": "642a66ec215e903796b7d3ebc13ca4f7a0ef9a65ebfc36ca62b58c040e097882",
       "sha256_history": [
-        "e2c19cd36de9103cdd568f30837805fa675096dc8d324196c8b19daccfb628a2"
+        "e2c19cd36de9103cdd568f30837805fa675096dc8d324196c8b19daccfb628a2",
+        "978451b32acc620ae470ac2faeb0a7ab076655eb2b1ce75ea5baf211f286d126"
       ],
-      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified."
+      "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified.",
+      "change_2026_11_23_mp4_record": "2026-11-23: support local MP4/M4V/MOV virtual CMOS streaming and software H.264/MP4 recording via virtual-video-host.so -> Sony libInfraFsys (Cxxxx.MP4) + REC/UI status; original key codes, dials, App32 ring, and QMP lifecycle unchanged."
     },
     {
       "path": "runtime/analysis/menu_live.py",
@@ -61,11 +63,11 @@
     },
     {
       "path": "runtime/analysis/menu_live.py",
-      "sha256": "562de1c7f3cccc44ece450fd0efaa4f646de9cac7d09b099edae8f2ade88570a",
+      "sha256": "6fd6814cc2056de47368dd291f3dd335b9e940dc10b6729e8bb2042c1d63426c",
       "ram_window_change_scope": "2026-11-09: optional RAM capture runs only after current SD save and nineteen-volume freeze; input mappings, 50ms release and serial sender unchanged.",
       "cold_gui_previous_sha256": "7cdf356a191b36baca3c5514bdf013bf50b0bf7f7178cacdace2a458d30eb9a7",
       "cold_gui_change_scope": "2026-11-09: optional storage shutdown callback after actual SD export, for a current cold-GUI full-freeze receipt; input mappings and serial sender unchanged. No USB, full hardware boot or capture verification.",
-      "previous_sha256": "ee04a8ece6b58a9944d8d574fe7077ee7441f72af5b1836f4f1c8ab0b2c12370",
+      "previous_sha256": "562de1c7f3cccc44ece450fd0efaa4f646de9cac7d09b099edae8f2ade88570a",
       "product_development_change": "2026-11-08: existing serial-owner gate also serves bounded guest file readback; shutdown may explicitly close the isolated internal volumes only after real SD export. Input mappings, actual contacts and consumption checks remain.",
       "change_scope": "Original App32 allocation/32-byte layout/send/free are shared by CLI and a persistent foreground serial mode. Only sequence plus five original fields cross UART per edge, with exact original return reply. Diagnostic serial commands first request monotonic STOP and require a unique shell-return RC marker. Lost boundaries retain owner/uncertain contacts and prohibit retry/fallback. InputSession mappings/held cleanup and explicit 50ms tap are unchanged. Earlier FIFO/short-shell performance failures remain archived. Sender real readiness is now required before reporting ready, after initial card status; no warmup key is sent.",
       "sha256_history": [
@@ -77,22 +79,24 @@
         "24becf12a31ca2944e5a14313b763234bd965e2ec08d1fd5c18f29cb6e8f0d1b",
         "2c532d9e759d13827832c07817c92edd1b4f7aa6c31b8046a929d59e3e427128",
         "f01cbbaac16241ec79fccca85a186bc8e9d80277886020b4eb22e382be7be6b4",
-        "ee04a8ece6b58a9944d8d574fe7077ee7441f72af5b1836f4f1c8ab0b2c12370"
+        "ee04a8ece6b58a9944d8d574fe7077ee7441f72af5b1836f4f1c8ab0b2c12370",
+        "562de1c7f3cccc44ece450fd0efaa4f646de9cac7d09b099edae8f2ade88570a"
       ],
       "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
       "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified.",
-      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged."
+      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged.",
+      "change_2026_11_23_mp4_record": "2026-11-23: support local MP4/M4V/MOV virtual CMOS streaming and software H.264/MP4 recording via virtual-video-host.so -> Sony libInfraFsys (Cxxxx.MP4) + REC/UI status; original key codes, dials, App32 ring, and QMP lifecycle unchanged."
     },
     {
       "path": "runtime/analysis/menu_control.py",
-      "sha256": "691946ef44fd25a868f794902c8ae8d15fd64e9132ad55939cef6b45ea3913e3",
+      "sha256": "1c95e4af69a9fc4a6385c5ebae163ac5ae4819b0812d0c16584c54e77d3f32bc",
       "ram_window_change_scope": "2026-11-09/10: verified same-disk RAM save/restore, p2-only reset transaction and selected original-file restoration; non-confirmation keeps StoreError before any write; input ownership and QMP-only exit unchanged.",
       "cold_gui_previous_sha256": "172c972b44c5e666aeb0d35aa7688f90a0ff951e356546782a97a1fbb24d6817",
       "cold_gui_change_scope": "2026-11-09: explicit original-init-cold route gives the launcher the sole persistent lease; direct-bootin remains available; unsupported device combinations and legacy reset refused. Input ownership and QMP-only exit unchanged.",
       "product_development_change": "2026-11-08: stopped-only file selection and guest readback, opt-in persistent disk FD/lease lifecycle, explicit internal shutdown verification; old input/error ownership and QMP-only host exit are retained. Internal shutdown now requires original-kernel full-volume freeze readback; it is not called readonly or original power-off.",
       "authority_sha256": "8999819525684b81ca33c2b58c8ab349c97e0ae5952ff13dadeb3f901688a420",
       "public_adaptation": "Remove only the unavailable historical screenshot route; all input mappings and owner cleanup remain unchanged.",
-      "previous_sha256": "ab2ee195c2038cfd1df7c52c9203afdd9336cc520ed608ea39027ed3b5cc96e3",
+      "previous_sha256": "691946ef44fd25a868f794902c8ae8d15fd64e9132ad55939cef6b45ea3913e3",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
         "72a49b8290a0fc3c7552f32b0b0dbcc3e2c3c313903f9d36184f3c5f89d0e3ce",
@@ -110,17 +114,19 @@
         "6cdfc792ed3da4e77b6b24329bde2ea6eb8473856324675c6af42ec834d06bc1",
         "9d88b6871633b62efb61ce7366937119065b0e0f68911beb623649b747ff34fc",
         "0e752f45273beb33a31f6558ead25963d9267d9ececce8fdf331becc570f5fcb",
-        "ab2ee195c2038cfd1df7c52c9203afdd9336cc520ed608ea39027ed3b5cc96e3"
+        "ab2ee195c2038cfd1df7c52c9203afdd9336cc520ed608ea39027ed3b5cc96e3",
+        "691946ef44fd25a868f794902c8ae8d15fd64e9132ad55939cef6b45ea3913e3"
       ],
       "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
       "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified.",
       "change_2026_11_22": "2026-11-22: FN clicks/shortcuts route through atomic guest TAP (20ms hold); ContinuousLCD zero-PNG raw RGB24 path to CameraUI; redundant shortcuts/log drawer removed; per-button GTK state cache. Software virtual model; physical CP/ISP unverified.",
       "change_2026_11_22_lifecycle": "2026-11-22: original-init-cold startup cancel queues export_sd instead of premature channel EOF; explicit user-confirmed VM.force_close() fallback checks owned pgid and verifies thread/process exit before releasing leases. Input mappings and graceful QMP-only default close unchanged.",
-      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged."
+      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged.",
+      "change_2026_11_23_mp4_record": "2026-11-23: support local MP4/M4V/MOV virtual CMOS streaming and software H.264/MP4 recording via virtual-video-host.so -> Sony libInfraFsys (Cxxxx.MP4) + REC/UI status; original key codes, dials, App32 ring, and QMP lifecycle unchanged."
     },
     {
       "path": "runtime/analysis/camera_ui.py",
-      "sha256": "a6fb19fec8a1026d107710933365bddbdf6b6a066761f8b9770a330d84772e21",
+      "sha256": "ec3c4387a49cf7dda911c401ac4d77fdaed46f76600c02dd6b8c8c4d5e973b7e",
       "fast_boot_change_scope": "2026-11-21: add --cold-flag and --verify-sha/--no-verify-sha CLI/env forwarding; input bindings, touch coordinates, dial actions, and lifecycle gates preserved.",
       "ui_refactor_change_scope": "2026-11-20: concise and ergonomic single-window UI refactoring; integrated top plate, aligned rear thumb panel, viewfinder bezel, and unified bottom peripheral/drawer dock; all input bindings, touch coordinates, and lifecycle gates preserved.",
       "ram_window_change_scope": "2026-11-09/10: actual RAM controls and stopped p2-only reset confirmation; original input release gates and actual LCD consumption unchanged.",
@@ -129,7 +135,7 @@
       "product_development_change": "2026-11-08: three development groups with a busy gate shared by input/power/storage actions, staged file/original choice and actual guest readback. Hot RAM/update unsupported states remain explicit.",
       "authority_sha256": "20ee524cc57fbe76228d181b5c131e7aa427cd7898a351af06b7f647f9d73358",
       "public_adaptation": "Resolve the unchanged USB action helper through this package's flat runtime/report layout.",
-      "previous_sha256": "d515a4eeee86cc598d3d867048054973ee06c368c0d267f46d1162bcd4550c58",
+      "previous_sha256": "a6fb19fec8a1026d107710933365bddbdf6b6a066761f8b9770a330d84772e21",
       "change_scope": "Original input encoders and release/error gates remain. New valid LCD pixels notify GTK through one coalesced main-loop idle; QMP thread never renders. Continuous display, actual 50ms contacts and natural QMP-only shutdown stay in place. Previous 109ms product samples remain below-target failure evidence.",
       "sha256_history": [
         "29320cd30ae357c6cb8e691cd957537c1230972b707bbb1980ad3e9c08023bd5",
@@ -145,13 +151,15 @@
         "b584a6bbd021b017377d574572dec72c1b52516c7f927d5ca4142f6e5c18ef1e",
         "d398de5011448d9087621e7e2eebc927ace3657444a25b47ad85bda929225857",
         "1c727cd980599ea8b91a8b514e5c418eab8985ea60b08ab5b5bd9af8226bc31c",
-        "d515a4eeee86cc598d3d867048054973ee06c368c0d267f46d1162bcd4550c58"
+        "d515a4eeee86cc598d3d867048054973ee06c368c0d267f46d1162bcd4550c58",
+        "a6fb19fec8a1026d107710933365bddbdf6b6a066761f8b9770a330d84772e21"
       ],
       "touchscreen_change_scope": "Original App32 touch code 0x270, high16 x/low16 y, single finger lifecycle and scaled GTK LCD coordinates; preserves key mappings, 50ms contacts, original serial owner and cleanup refusal.",
       "change_2026_11_21": "2026-11-21: dial codes REAR=0x10000016 (UIBIZ 2ea) / TOP=0x10000013 (UIBIZ 2ef) swapped back to the original mapping; A7C II single-tick statuses FRONT +-22, REAR +-30, CONTROL +-24, TOP +-1024; guest-atomic TAP for non-shutter taps (avoids the firmware 500 ms long-press branch). Software virtual model; physical CP unverified.",
       "change_2026_11_22": "2026-11-22: FN clicks/shortcuts route through atomic guest TAP (20ms hold); ContinuousLCD zero-PNG raw RGB24 path to CameraUI; redundant shortcuts/log drawer removed; per-button GTK state cache. Software virtual model; physical CP/ISP unverified.",
       "change_2026_11_22_lifecycle": "2026-11-22: _close() guards release_inputs() to running state; _close_failed() offers explicit user-confirmed Retry/Force Close dialog; _force_close() reports errors honestly without closing on failure; SIGINT/SIGTERM marshaled through GLib.idle_add; optional USB/Wi-Fi toolbar controls shown only when their backends are active. Input bindings unchanged.",
-      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged."
+      "change_2026_11_22_env_features": "2026-11-22: pure environment variable configuration (a7c2.env), default-ON USB device/auto-wake/virtual-lens-HUD with always-visible UI toggles and smooth USB/RAM switching; original input mappings and QMP cleanup unchanged.",
+      "change_2026_11_23_mp4_record": "2026-11-23: support local MP4/M4V/MOV virtual CMOS streaming and software H.264/MP4 recording via virtual-video-host.so -> Sony libInfraFsys (Cxxxx.MP4) + REC/UI status; original key codes, dials, App32 ring, and QMP lifecycle unchanged."
     },
     {
       "path": "runtime/analysis/menu_live.py",

@@ -15,6 +15,7 @@ METADATA_INPUTS = (
     'report/native-video-au-contract/native-au.c', 'report/native-video-au-contract/native-au.h',
     'report/native-video-length-format/native-lengths.c', 'report/native-video-length-format/native-lengths.h',
     'report/virtual-video-engine/video-engine.h',
+    'report/virtual-video-engine/video-engine.c',
     'report/functional-capture-input/capture-input.c', 'report/functional-capture-input/capture-input.h',
     'report/functional-capture-input/capture-mapper.c', 'report/functional-capture-input/capture-mapper.h',
     'report/functional-capture-input/capture-jpeg-input.c', 'report/functional-capture-input/capture-jpeg-input.h',
@@ -106,6 +107,7 @@ def _build_stamp_state(native):
         native / 'menu-root/simulation/inject-cp-event',
         native / 'menu-root/simulation/backup-dump',
         native / 'fast-osd-blend.so',
+        native / 'virtual-video-host.so',
     ]
     media_flags = (os.environ.get('MENU_MEDIA_SELFTEST', '0'), os.environ.get('MENU_RM_FILE', '0'))
     if '1' in media_flags:

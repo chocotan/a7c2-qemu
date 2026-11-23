@@ -96,4 +96,27 @@ int virtual_cmos_decode_playback_rgb(const struct virtual_cmos_fsys_ops *ops,
 
 void virtual_cmos_set_custom_rgb_provider(int (*provider)(uint8_t *rgb_out));
 
+struct virtual_cmos_movie_writer {
+    int active;
+    unsigned char drive;
+    uint64_t handle;
+    uint32_t file_number;
+    size_t bytes_written;
+    uint64_t running_fnv1a64;
+    char path[64];
+};
+
+int virtual_cmos_movie_begin(struct virtual_cmos_movie_writer *w,
+                             const struct virtual_cmos_fsys_ops *ops);
+int virtual_cmos_movie_write_chunk(struct virtual_cmos_movie_writer *w,
+                                   const struct virtual_cmos_fsys_ops *ops,
+                                   const uint8_t *data, size_t len);
+int virtual_cmos_movie_commit(struct virtual_cmos_movie_writer *w,
+                              const struct virtual_cmos_fsys_ops *ops,
+                              size_t expected_bytes,
+                              uint64_t expected_fnv1a64,
+                              struct virtual_cmos_capture_result *result);
+void virtual_cmos_movie_abort(struct virtual_cmos_movie_writer *w,
+                              const struct virtual_cmos_fsys_ops *ops);
+
 #endif

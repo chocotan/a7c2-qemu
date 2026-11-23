@@ -60,6 +60,7 @@ button.wheel-step:disabled { background-color: #171e21; border-color: #2c363a; c
 .shutter-full { border-radius: 50px; border: 2px solid #9ba9a5; background-color: #354146; color: #ffffff; }
 popover.mode-positions { background: @body; color: @ink; border: 1px solid @edge; }
 .record { border-radius: 44px; border: 2px solid @danger; color: #ffb4ac; }
+.record.recording { background-color: #c83232; border-color: #ff7b72; color: #ffffff; }
 .power { border-color: @ok; color: #a3ecc5; }
 .danger { border-color: #8f4f4b; color: @danger; }
 .wheel { border: 6px solid #56666c; border-radius: 140px; background: #13191c; padding: 8px; }
@@ -488,10 +489,10 @@ class CameraUI:
         cmos.set_valign(Gtk.Align.CENTER)
         self.cmos_label = label('CMOS 色卡', 'hint')
         cmos.pack_start(self.cmos_label, False, False, 0)
-        self.cmos_pick = Gtk.Button(label='选择图片…')
+        self.cmos_pick = Gtk.Button(label='选择图片/视频…')
         self.cmos_pick.set_size_request(-1, 44)
-        self.cmos_pick.get_accessible().set_name('选择本地图片作为虚拟 CMOS 画面源')
-        self.cmos_pick.set_tooltip_text('PNG/JPEG 等；自动缩放到 640×480，实时替换取景画面，全按快门写入虚拟 SD')
+        self.cmos_pick.get_accessible().set_name('选择本地图片或 MP4 视频作为虚拟 CMOS 画面源')
+        self.cmos_pick.set_tooltip_text('PNG/JPEG 等图片或本地 MP4 视频；自动缩放到 640×480 实时替换取景画面，支持拍照及按 REC 录像写入虚拟 SD')
         self.cmos_pick.connect('clicked', lambda _: self.choose_cmos_image())
         cmos.pack_start(self.cmos_pick, False, False, 0)
         self.cmos_default = Gtk.Button(label='恢复色卡')
@@ -499,6 +500,10 @@ class CameraUI:
         self.cmos_default.get_accessible().set_name('恢复默认虚拟 CMOS 色卡')
         self.cmos_default.connect('clicked', lambda _: self.set_cmos_source(None))
         cmos.pack_start(self.cmos_default, False, False, 0)
+        self.rec_badge = label('', 'pill-badge')
+        self.rec_badge.set_no_show_all(True)
+        self.rec_badge.hide()
+        cmos.pack_start(self.rec_badge, False, False, 2)
         row.pack_start(cmos, False, False, 4)
 
         self.reset_button = Gtk.Button(label='重置设置')
@@ -753,14 +758,28 @@ class CameraUI:
     def choose_cmos_image(self):
         if self.closing:
             return
-        dialog = Gtk.FileChooserDialog(title='选择 CMOS 模拟图片', transient_for=self.window,
+        dialog = Gtk.FileChooserDialog(title='选择 CMOS 模拟图片或 MP4 视频', transient_for=self.window,
                                        action=Gtk.FileChooserAction.OPEN)
         dialog.add_buttons('取消', Gtk.ResponseType.CANCEL, '选择', Gtk.ResponseType.ACCEPT)
+        combined = Gtk.FileFilter()
+        combined.set_name('图片或视频 (MP4/PNG/JPEG/BMP/WEBP/GIF)')
+        video_patterns = ('*.mp4', '*.m4v', '*.mov')
+        image_patterns = ('*.png', '*.jpg', '*.jpeg', '*.bmp', '*.webp', '*.gif')
+        for pattern in video_patterns + image_patterns:
+            combined.add_pattern(pattern)
+            combined.add_pattern(pattern.upper())
+        videos = Gtk.FileFilter()
+        videos.set_name('MP4 视频 (*.mp4/*.m4v/*.mov)')
+        for pattern in video_patterns:
+            videos.add_pattern(pattern)
+            videos.add_pattern(pattern.upper())
         images = Gtk.FileFilter()
         images.set_name('图片 (PNG/JPEG/BMP/WEBP/GIF)')
-        for pattern in ('*.png', '*.jpg', '*.jpeg', '*.bmp', '*.webp', '*.gif'):
+        for pattern in image_patterns:
             images.add_pattern(pattern)
             images.add_pattern(pattern.upper())
+        dialog.add_filter(combined)
+        dialog.add_filter(videos)
         dialog.add_filter(images)
         try:
             if dialog.run() == Gtk.ResponseType.ACCEPT:
@@ -779,7 +798,13 @@ class CameraUI:
             self.local_error = 'CMOS 画面源未发送：' + str(error)
             self.update(self.vm.status())
             return
-        self.feedback.set_text('CMOS 画面源切换已排队；图片缩放为 640×480 后实时替换取景画面。')
+        is_video = bool(path) and Path(path).suffix.lower() in ('.mp4', '.m4v', '.mov')
+        if is_video:
+            self.feedback.set_text('CMOS 视频源切换已排队；MP4 将缩放到 640×480 循环播放，并可用于拍照与 REC 录像写卡。')
+        elif path:
+            self.feedback.set_text('CMOS 画面源切换已排队；图片缩放为 640×480 后实时替换取景画面。')
+        else:
+            self.feedback.set_text('CMOS 恢复默认色卡已排队。')
 
     def wifi(self, enabled):
         if self.closing or self.wifi_syncing:
@@ -1082,13 +1107,40 @@ class CameraUI:
                 self.cmos_label.set_text('CMOS 切换失败')
                 self.cmos_label.set_tooltip_text(str(cmos.get('error')))
             elif cmos.get('source') == 'custom':
-                self.cmos_label.set_text('CMOS ' + str(cmos.get('name'))[:18])
+                prefix_cmos = 'CMOS 视频 ' if cmos.get('kind') == 'video' else 'CMOS '
+                self.cmos_label.set_text(prefix_cmos + str(cmos.get('name'))[:14])
+                self.cmos_label.set_tooltip_text(str(cmos.get('name', '')))
             elif not str(self.cmos_label.get_text()).endswith('…') or cmos:
                 self.cmos_label.set_text('CMOS 色卡')
         cmos_ready = (not (self.closing or self.development_busy) and state.get('state') == 'running'
                       and not state.get('mock'))
         self.cmos_pick.set_sensitive(cmos_ready)
         self.cmos_default.set_sensitive(cmos_ready and cmos.get('source') == 'custom')
+        vrec = (state.get('video_recording') or {}) if state.get('state') == 'running' else {}
+        rec_active = bool(vrec.get('active'))
+        rec_saving = bool(vrec.get('saving'))
+        rec_btn = self.buttons.get('REC')
+        if rec_btn is not None:
+            ctx = rec_btn.get_style_context()
+            if rec_active:
+                ctx.add_class('recording')
+            else:
+                ctx.remove_class('recording')
+        if rec_active:
+            sec = int(vrec.get('elapsed_ms') or 0) // 1000
+            self.rec_badge.set_text(f'● REC {sec // 60:02d}:{sec % 60:02d}')
+            self.rec_badge.show()
+        elif rec_saving:
+            self.rec_badge.set_text('正在写入 SD…')
+            self.rec_badge.show()
+        elif isinstance(vrec.get('last_clip'), dict) and vrec['last_clip'].get('path'):
+            clip = vrec['last_clip']
+            clip_name = Path(str(clip['path'])).name
+            self.rec_badge.set_text(f'录像 {clip_name}')
+            self.rec_badge.set_tooltip_text(f'{clip["path"]} ({clip.get("bytes", 0)} B)')
+            self.rec_badge.show()
+        else:
+            self.rec_badge.hide()
         wifi_available = bool(state.get('usb_net'))
         self.net_box.set_visible(wifi_available)
         self.wifi_label.set_text('Wi-Fi …' if wifi_pending else ('Wi-Fi 开' if self.wifi_confirmed else 'Wi-Fi 关'))

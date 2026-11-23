@@ -4,6 +4,7 @@
  *   v = le16(px): R = (v >> 12) * 17, G = ((v >> 8) & 15) * 17,
  *                 B = ((v >> 4) & 15) * 17, A = v & 15 (0..15).
  */
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +59,91 @@ void fast_blend_rgba4444_over_rgb24(const uint16_t *osd, const uint8_t *bg,
             dst[1] = (uint8_t)(((((v >> 8) & 15U) * 17U * a) + src_bg[1] * inv + 7U) / 15U);
             dst[2] = (uint8_t)(((((v >> 4) & 15U) * 17U * a) + src_bg[2] * inv + 7U) / 15U);
         }
+    }
+}
+
+static void fast_hud_glyph(char ch, uint8_t rows[7]) {
+    memset(rows, 0, 7);
+    static const struct { char c; uint8_t r[7]; } k_glyphs[] = {
+        {'0',{0x0e,0x11,0x13,0x15,0x19,0x11,0x0e}}, {'1',{0x04,0x0c,0x04,0x04,0x04,0x04,0x0e}},
+        {'2',{0x0e,0x11,0x01,0x06,0x08,0x10,0x1f}}, {'3',{0x1f,0x02,0x04,0x02,0x01,0x11,0x0e}},
+        {'4',{0x02,0x06,0x0a,0x12,0x1f,0x02,0x02}}, {'5',{0x1f,0x10,0x1e,0x01,0x01,0x11,0x0e}},
+        {'6',{0x06,0x08,0x10,0x1e,0x11,0x11,0x0e}}, {'7',{0x1f,0x01,0x02,0x04,0x08,0x08,0x08}},
+        {'8',{0x0e,0x11,0x11,0x0e,0x11,0x11,0x0e}}, {'9',{0x0e,0x11,0x11,0x0f,0x01,0x02,0x0c}},
+        {'R',{0x1e,0x11,0x11,0x1e,0x14,0x12,0x11}}, {'E',{0x1f,0x10,0x10,0x1e,0x10,0x10,0x1f}},
+        {'C',{0x0e,0x11,0x10,0x10,0x10,0x11,0x0e}}, {'S',{0x0f,0x10,0x10,0x0e,0x01,0x01,0x1e}},
+        {'D',{0x1c,0x12,0x11,0x11,0x11,0x12,0x1c}}, {'W',{0x11,0x11,0x11,0x15,0x15,0x15,0x0a}},
+        {'A',{0x0e,0x11,0x11,0x1f,0x11,0x11,0x11}}, {'V',{0x11,0x11,0x11,0x11,0x11,0x0a,0x04}},
+        {'I',{0x0e,0x04,0x04,0x04,0x04,0x04,0x0e}}, {'N',{0x11,0x11,0x19,0x15,0x13,0x11,0x11}},
+        {'G',{0x0e,0x11,0x10,0x17,0x11,0x11,0x0f}}, {':',{0x00,0x0c,0x0c,0x00,0x0c,0x0c,0x00}},
+        {'.',{0x00,0x00,0x00,0x00,0x00,0x0c,0x0c}},
+    };
+    for (size_t i = 0; i < sizeof k_glyphs / sizeof k_glyphs[0]; ++i) {
+        if (k_glyphs[i].c == ch) { memcpy(rows, k_glyphs[i].r, 7); return; }
+    }
+}
+
+void fast_draw_rec_hud(uint8_t *rgb24, int rec_active, int rec_saving, uint32_t elapsed_ms) {
+    if (!rgb24 || (!rec_active && !rec_saving)) return;
+    char label[24];
+    if (rec_saving) {
+        snprintf(label, sizeof label, "SD SAVING...");
+    } else {
+        unsigned sec = elapsed_ms / 1000U;
+        unsigned mins = (sec / 60U) % 100U;
+        unsigned rem = sec % 60U;
+        snprintf(label, sizeof label, "REC %02u:%02u", mins, rem);
+    }
+    const unsigned x0 = 14U, y0 = 10U, scale = 2U;
+    const unsigned nchars = (unsigned)strlen(label);
+    const unsigned box_w = 24U + nchars * 6U * scale + 10U;
+    const unsigned box_h = 22U;
+    for (unsigned y = y0; y < y0 + box_h && y < 480U; ++y) {
+        uint8_t *row = rgb24 + (size_t)y * 640U * 3U;
+        for (unsigned x = x0; x < x0 + box_w && x < 640U; ++x) {
+            uint8_t *p = row + (size_t)x * 3U;
+            p[0] = (uint8_t)(p[0] >> 2);
+            p[1] = (uint8_t)(p[1] >> 2);
+            p[2] = (uint8_t)(p[2] >> 2);
+        }
+    }
+    /* Solid dot: crimson while recording, amber while saving */
+    const unsigned cx = x0 + 11U, cy = y0 + 11U, r2 = 30U;
+    const uint8_t dr = rec_saving ? 255U : 235U;
+    const uint8_t dg = rec_saving ? 185U : 45U;
+    const uint8_t db = 45U;
+    for (int dy = -6; dy <= 6; ++dy) {
+        for (int dx = -6; dx <= 6; ++dx) {
+            if ((unsigned)(dx * dx + dy * dy) <= r2) {
+                unsigned px = cx + (unsigned)dx, py = cy + (unsigned)dy;
+                if (px < 640U && py < 480U) {
+                    uint8_t *p = rgb24 + ((size_t)py * 640U + px) * 3U;
+                    p[0] = dr; p[1] = dg; p[2] = db;
+                }
+            }
+        }
+    }
+    unsigned tx = x0 + 24U, ty = y0 + 4U;
+    for (unsigned i = 0; i < nchars; ++i) {
+        uint8_t rows[7];
+        fast_hud_glyph(label[i], rows);
+        for (unsigned ry = 0; ry < 7U; ++ry) {
+            for (unsigned rx = 0; rx < 5U; ++rx) {
+                if (rows[ry] & (1U << (4U - rx))) {
+                    for (unsigned sy = 0; sy < scale; ++sy) {
+                        for (unsigned sx = 0; sx < scale; ++sx) {
+                            unsigned px = tx + rx * scale + sx;
+                            unsigned py = ty + ry * scale + sy;
+                            if (px < 640U && py < 480U) {
+                                uint8_t *p = rgb24 + ((size_t)py * 640U + px) * 3U;
+                                p[0] = 255U; p[1] = 255U; p[2] = 255U;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        tx += 6U * scale;
     }
 }
 

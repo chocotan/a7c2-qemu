@@ -10,6 +10,7 @@ import select
 import signal
 import socket
 import stat
+import subprocess
 import time
 import threading
 import hashlib
@@ -55,10 +56,10 @@ KEY_DEFINITIONS = {
     'SHUTTER_HALF': dict(label='半按',code='0x1f1',
                          note='原始码→UIBIZ 1d LOCK已核；仅点按半按触点，不持续保持；AF/AE功能待验'),
     'SHUTTER': dict(label='全按快门',code='0xa7',note='原始码→UIBIZ f全按事件已核；仅点按全按触点，成像与文件输出尚未恢复'),
-    'REC': dict(label='REC',code='0x1f0',note='原始码→UIBIZ 1c→02150012已核；录像及文件输出待实现'),
+    'REC': dict(label='REC',code='0x1f0',note='原始码→UIBIZ 1c→02150012已核；软件虚拟录像经 Libx264/MP4 写入虚拟 SD 卡 /PRIVATE/M4ROOT/CLIP/'),
     'MODE_STILL':dict(label='照片档',code='0x71c9',status='1',note='原2240002→switch0合法位置已核；实际照片档切换待验'),
-    'MODE_MOVIE':dict(label='录像档',code='0x71c9',status='2',note='原2240002→switch1合法位置已核；不是开始录像，功能待验'),
-    'MODE_SQ':dict(label='S&Q档',code='0x71c9',status='3',note='原2240002→switch2合法位置已核；不是编码或慢动作已完成'),
+    'MODE_MOVIE':dict(label='录像档',code='0x71c9',status='2',note='原2240002→switch1合法位置已核；全按/REC 可启停软件虚拟录像写卡'),
+    'MODE_SQ':dict(label='S&Q档',code='0x71c9',status='3',note='原2240002→switch2合法位置已核；不是硬件高速编码完成'),
     'MODE': dict(label='模式拨盘',code='0x7025',
                  # Original ID1c75 entries declare AUTO0/P1/A2/S3/M4; name-array order differs.
                  positions={'P':3,'A':5,'S':4,'M':6,'AUTO':1,'MR1':7,'MR2':19,'MR3':20},
@@ -833,10 +834,23 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             if sd_export is None:raise
             return {'type':'error','error':str(error)}
         return result
+    cmos_video_streamer = None
+    def _stop_cmos_streamer():
+        nonlocal cmos_video_streamer
+        streamer, cmos_video_streamer = cmos_video_streamer, None
+        if streamer is not None:
+            streamer.stop()
+
+    video_recorder = None
+    if fast_shm_view is not None and fast_shm_view.video_ctrl_ready():
+        from video_recorder import VideoRecordManager
+        video_recorder = VideoRecordManager(fast_shm_view, out, proc=proc).start()
+
     input_session = (None if os.environ.get('MENU_LIVE_KEY_FILE') else
                      camera_input_module().InputSession(live_serial,
                          app_input=os.environ.get('MENU_LIVE_APP_INPUT') == '1'))
     with socket.socket(fileno=descriptor) as control:
+      try:
         # Barrier follows the entire queued setup, not a shell prompt or stdout "ready".
         serial_command(proc, out / 'console.log', 'true', monitor=monitor)
         if os.environ.get('A7C2_MEDIA_INIT_WATCH') == '1' and os.environ.get('MENU_GUI_MODELS') == 'virtual-inline-v1':
@@ -904,7 +918,7 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             releasing = camera_input_module().is_release(request)
             if fault and action!='export_sd' and not releasing:
                 send_message(control,{'type':'error','error':fault});continue
-            if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd') and not releasing:
+            if sd_card is not None and sd_card.input_blocked() and action not in ('sd_card','snapshot','export_sd','video_status') and not releasing:
                 raise ValueError('SD transition has no terminal observation; camera input is paused')
             if (action in ('key', 'position', 'shutter_cycle') and input_session is not None
                     and (input_session.held or input_session.uncertain or input_session.touch_contact is not None)):
@@ -913,10 +927,16 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             if action == 'camera_input':
                 if input_session is None:
                     raise ValueError('Legacy input mailbox does not support held contacts')
+                prev_vtoggle = video_recorder.toggle_seq() if video_recorder is not None else 0
                 result = input_session.handle(request)
                 if (result.get('ok') is True and request.get('op') in ('press', 'tap')
                         and request.get('key') == 'SHUTTER'):
                     shutter_submitted = True
+                if (result.get('ok') is True and video_recorder is not None
+                        and request.get('op') in ('press', 'tap')
+                        and (request.get('key') == 'REC'
+                             or (request.get('key') == 'SHUTTER' and fast_shm_view.video_state()[3] != 1))):
+                    result['video_recording'] = video_recorder.wait_after_rec_key(prev_vtoggle)
             elif action=='firmware_readback':
                 from firmware_development import readback_command, parse_readback
                 data=live_serial(readback_command(request))
@@ -946,25 +966,48 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             elif action=='cmos_source' and set(request) in ({'action','path'},{'action','default'}):
                 import cmos_source
                 try:
+                    _stop_cmos_streamer()
                     if fast_shm_view is not None and fast_shm_view.guest_display_ready():
                         if 'path' in request:
-                            rgb24=cmos_source.prepare_rgb24(request['path'])
-                            fast_shm_view.set_custom_cmos(rgb24)
-                            result={'type':'cmos_source','ok':True,'source':'custom','name':Path(request['path']).name}
+                            req_path = request['path']
+                            if cmos_source.is_video_path(req_path):
+                                cmos_video_streamer = cmos_source.VideoCmosStreamer(
+                                    req_path, fast_shm_view.set_custom_cmos,
+                                ).start()
+                                result={'type':'cmos_source','ok':True,'source':'custom','kind':'video',
+                                        'name':Path(req_path).name,'fps':cmos_video_streamer.fps,
+                                        'width':cmos_video_streamer.width,'height':cmos_video_streamer.height}
+                            else:
+                                rgb24=cmos_source.prepare_rgb24(req_path)
+                                fast_shm_view.set_custom_cmos(rgb24)
+                                result={'type':'cmos_source','ok':True,'source':'custom','kind':'image',
+                                        'name':Path(req_path).name}
                         elif request['default'] is True:
                             fast_shm_view.set_custom_cmos(None)
                             result={'type':'cmos_source','ok':True,'source':'default-color-chart','name':'色卡'}
                         else:raise ValueError('default 必须为 true')
                     elif 'path' in request:
-                        jpeg=cmos_source.prepare_jpeg(request['path'])
+                        req_path = request['path']
+                        if cmos_source.is_video_path(req_path):
+                            jpeg, meta = cmos_source.read_first_video_frame_jpeg(req_path)
+                            kind = 'video'
+                        else:
+                            jpeg = cmos_source.prepare_jpeg(req_path)
+                            kind = 'image'
                         for guest_command in cmos_source.upload_commands(jpeg):live_serial(guest_command)
-                        result={'type':'cmos_source','ok':True,'source':'custom','name':Path(request['path']).name}
+                        result={'type':'cmos_source','ok':True,'source':'custom','kind':kind,'name':Path(req_path).name}
                     elif request['default'] is True:
                         live_serial(cmos_source.reset_command())
                         result={'type':'cmos_source','ok':True,'source':'default-color-chart','name':'色卡'}
                     else:raise ValueError('default 必须为 true')
-                except (OSError,RuntimeError,ValueError) as error:
+                except (OSError,RuntimeError,ValueError,subprocess.SubprocessError) as error:
+                    _stop_cmos_streamer()
                     result={'type':'cmos_source','ok':False,'error':f'{type(error).__name__}: {error}'}
+            elif action=='video_status' and set(request)=={'action'}:
+                if video_recorder is not None:
+                    result={'type':'video_status','ok':True,**video_recorder.snapshot()}
+                else:
+                    result={'type':'video_status','ok':True,'active':False,'saving':False,'frames':0,'elapsed_ms':0,'last_clip':None}
             elif action=='export_sd' and (set(request)=={'action'} or set(request)=={'action','shutdown_storage'} and request['shutdown_storage'] is True or set(request)=={'action','shutdown_storage','capture_ram'} and request['shutdown_storage'] is True and request['capture_ram'] is True):
                 if sd_export is None:raise ValueError('This session has no virtual SD export profile')
                 if request.get('capture_ram') and ram_capture is None:
@@ -978,6 +1021,8 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                             'error': 'Camera contacts were not released: ' + released['input_state']['error'],
                             'input_state': released['input_state']})
                         continue
+                if video_recorder is not None:
+                    video_recorder.stop_if_recording()
                 if shutter_submitted and late_passive is None and os.environ.get('A7C2_EE_PASSIVE_AFTER_SHUTTER')=='1':
                     try:
                         from ee_entry_snapshot import collect_passive,collect_group0
@@ -1074,8 +1119,13 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
                            else key_command(request['key'],os.environ.get('MENU_LIVE_APP_INPUT')=='1'))
                 if command is None:
                     raise ValueError('该控件在当前输入通道未实现')
+                prev_vtoggle = video_recorder.toggle_seq() if video_recorder is not None else 0
                 result=submit_input(command,{'type':'key','key':request['key']})
                 if result.get('type')=='error':send_message(control,result);continue
+                if (video_recorder is not None and
+                        (request['key'] == 'REC'
+                         or (request['key'] == 'SHUTTER' and fast_shm_view.video_state()[3] != 1))):
+                    result['video_recording'] = video_recorder.wait_after_rec_key(prev_vtoggle)
                 if os.environ.get('MENU_INPUT_STACK_DIAG')=='1' and not input_stack_captured:
                     diagnostic = ('for p in /proc/[0-9]*; do '
                                   'if /bin/busybox grep -q /usr/lib/appFw.so "$p/maps" 2>/dev/null; then '
@@ -1094,3 +1144,7 @@ def run_live(proc, out, descriptor, display_capture=None, sd_export=None, networ
             else:
                 raise ValueError('非法私有控制命令')
             send_message(control, result)
+      finally:
+        _stop_cmos_streamer()
+        if video_recorder is not None:
+            video_recorder.close()

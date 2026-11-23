@@ -42,6 +42,17 @@ RING_MASK = RING_SIZE - 1
 KEY_OP_EVENT = 1
 KEY_OP_TAP = 2
 
+VIDEO_MAGIC = 0x31444956  # "VID1" little-endian
+VIDEO_VERSION = 1
+VIDEO_CTRL_OFF = 0x451000
+VIDEO_BUF_OFF = 0x460000
+VIDEO_BUF_SIZE = 512 * 1024
+
+VIDEO_OP_BEGIN = 1
+VIDEO_OP_CHUNK = 2
+VIDEO_OP_COMMIT = 3
+VIDEO_OP_ABORT = 4
+
 # Exact field offsets inside struct fast_shm_ctrl (verified against fast-shm.h).
 OFF_MAGIC = 0
 OFF_VERSION = 4
@@ -69,6 +80,32 @@ OFF_KEY_SENT_COUNT = 156
 OFF_RING = 192
 RING_CMD_STRUCT = struct.Struct('<QIIIIIIII')  # 40 bytes
 
+# Exact field offsets inside struct fast_shm_video_ctrl (verified against fast-shm.h).
+OFF_V_MAGIC = 0
+OFF_V_VERSION = 4
+OFF_V_GUEST_READY = 8
+OFF_V_REC_TOGGLE_SEQ = 16
+OFF_V_REC_STOP_SEQ = 20
+OFF_V_REC_MODE_SWITCH = 24
+OFF_V_REC_ACTIVE = 32
+OFF_V_REC_SAVING = 36
+OFF_V_REC_ELAPSED_MS = 40
+OFF_V_REC_FRAMES = 44
+OFF_V_REC_HUD_SEQ = 48
+OFF_V_XFER_REQ_SEQ = 64
+OFF_V_XFER_OP = 68
+OFF_V_XFER_LEN = 72
+OFF_V_XFER_FLAGS = 76
+OFF_V_XFER_TOTAL_BYTES = 80
+OFF_V_XFER_EXPECTED_HASH = 88
+OFF_V_XFER_ACK_SEQ = 96
+OFF_V_XFER_STATUS = 100
+OFF_V_XFER_FILE_NUM = 104
+OFF_V_XFER_READBACK_OK = 108
+OFF_V_XFER_BYTES_WRITTEN = 112
+OFF_V_XFER_GUEST_HASH = 120
+OFF_V_XFER_GUEST_PATH = 128
+
 _NUMBER = r'(?:0x[0-9a-fA-F]+|[0-9]+)'
 _COMMAND = re.compile(r'/simulation/inject-key --app\s+(' + _NUMBER + r'(?:\s+' + _NUMBER + r'){6})')
 
@@ -91,6 +128,11 @@ def _load_blend_lib():
             ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int,
         ]
         lib.fast_blend_rgba4444_over_rgb24.restype = None
+        if hasattr(lib, 'fast_draw_rec_hud'):
+            lib.fast_draw_rec_hud.argtypes = [
+                ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_uint32,
+            ]
+            lib.fast_draw_rec_hud.restype = None
         lib.fast_default_chart_rgb24.argtypes = [ctypes.c_void_p]
         lib.fast_default_chart_rgb24.restype = ctypes.c_int
         lib.fast_atomic_load_u32.argtypes = [ctypes.c_void_p]
@@ -157,9 +199,10 @@ def create_ram_memfd(ram_mb=24576, *, min_fd=60):
     raw_fd = os.memfd_create('a7c2-guest-ram', 0)
     try:
         os.ftruncate(raw_fd, ram_mb * 1024 * 1024)
-        # Initialize only the control page (one 4 KiB sparse allocation).
+        # Initialize only the control pages (4 KiB sparse allocations).
         with mmap.mmap(raw_fd, MAP_SIZE, offset=MEMFD_OFFSET) as view:
             struct.pack_into('<IIIII', view, CTRL_OFF, MAGIC, VERSION, 0, 0, 1)
+            struct.pack_into('<IIII', view, VIDEO_CTRL_OFF, VIDEO_MAGIC, VIDEO_VERSION, 0, 0)
         fd = fcntl.fcntl(raw_fd, fcntl.F_DUPFD_CLOEXEC, min_fd)
     finally:
         os.close(raw_fd)
@@ -200,34 +243,65 @@ class FastShmView:
         self._chart_buf = (ctypes.c_ubyte * RGB_BYTES).from_buffer_copy(default_chart_rgb24())
         self._closed = False
         self._io_lock = threading.Lock()
+        self._cmos_lock = threading.Lock()
+        self._ring_lock = threading.Lock()
+        self._video_xfer_lock = threading.Lock()
         if self._u32(OFF_MAGIC) != MAGIC or self._u32(OFF_VERSION) != VERSION:
             self.close()
             raise ValueError('fast-shm control header magic/version mismatch')
 
-    def _u32(self, off):
+    def _load_u32(self, area_off, off):
         if self._lib is not None:
-            return int(self._lib.fast_atomic_load_u32(self._base_addr + CTRL_OFF + off))
-        return struct.unpack_from('<I', self._mm, CTRL_OFF + off)[0]
+            return int(self._lib.fast_atomic_load_u32(self._base_addr + area_off + off))
+        return struct.unpack_from('<I', self._mm, area_off + off)[0]
+
+    def _store_u32(self, area_off, off, val):
+        if self._lib is not None:
+            self._lib.fast_atomic_store_u32(self._base_addr + area_off + off, int(val))
+        else:
+            struct.pack_into('<I', self._mm, area_off + off, int(val))
+
+    def _load_u64(self, area_off, off):
+        if self._lib is not None:
+            return int(self._lib.fast_atomic_load_u64(self._base_addr + area_off + off))
+        return struct.unpack_from('<Q', self._mm, area_off + off)[0]
+
+    def _store_u64(self, area_off, off, val):
+        if self._lib is not None:
+            self._lib.fast_atomic_store_u64(self._base_addr + area_off + off, int(val))
+        else:
+            struct.pack_into('<Q', self._mm, area_off + off, int(val))
+
+    def _u32(self, off):
+        return self._load_u32(CTRL_OFF, off)
 
     def _set_u32(self, off, val):
-        if self._lib is not None:
-            self._lib.fast_atomic_store_u32(self._base_addr + CTRL_OFF + off, int(val))
-        else:
-            struct.pack_into('<I', self._mm, CTRL_OFF + off, int(val))
+        self._store_u32(CTRL_OFF, off, val)
 
     def _u64(self, off):
-        if self._lib is not None:
-            return int(self._lib.fast_atomic_load_u64(self._base_addr + CTRL_OFF + off))
-        return struct.unpack_from('<Q', self._mm, CTRL_OFF + off)[0]
+        return self._load_u64(CTRL_OFF, off)
 
     def _set_u64(self, off, val):
-        if self._lib is not None:
-            self._lib.fast_atomic_store_u64(self._base_addr + CTRL_OFF + off, int(val))
-        else:
-            struct.pack_into('<Q', self._mm, CTRL_OFF + off, int(val))
+        self._store_u64(CTRL_OFF, off, val)
+
+    def _vu32(self, off):
+        return self._load_u32(VIDEO_CTRL_OFF, off)
+
+    def _set_vu32(self, off, val):
+        self._store_u32(VIDEO_CTRL_OFF, off, val)
+
+    def _vu64(self, off):
+        return self._load_u64(VIDEO_CTRL_OFF, off)
+
+    def _set_vu64(self, off, val):
+        self._store_u64(VIDEO_CTRL_OFF, off, val)
 
     def _i32(self, off):
         v = self._u32(off)
+        return v - 0x100000000 if v >= 0x80000000 else v
+
+    def _vi32(self, off):
+        v = self._vu32(off)
         return v - 0x100000000 if v >= 0x80000000 else v
 
     def guest_display_ready(self):
@@ -235,6 +309,43 @@ class FastShmView:
 
     def guest_input_ready(self):
         return not self._closed and self._u32(OFF_GUEST_INPUT_READY) == 1
+
+    def video_ctrl_ready(self):
+        return (not self._closed
+                and self._vu32(OFF_V_MAGIC) == VIDEO_MAGIC
+                and self._vu32(OFF_V_VERSION) == VIDEO_VERSION)
+
+    def guest_video_ready(self):
+        return self.video_ctrl_ready() and self._vu32(OFF_V_GUEST_READY) == 1
+
+    def video_state(self):
+        """Return (guest_ready, toggle_seq, stop_seq, mode_switch, rec_active, rec_saving, elapsed_ms, frames, hud_seq)."""
+        if not self.video_ctrl_ready():
+            return (0, 0, 0, 1, 0, 0, 0, 0, 0)
+        return (
+            self._vu32(OFF_V_GUEST_READY),
+            self._vu32(OFF_V_REC_TOGGLE_SEQ),
+            self._vu32(OFF_V_REC_STOP_SEQ),
+            self._vu32(OFF_V_REC_MODE_SWITCH) or 1,
+            self._vu32(OFF_V_REC_ACTIVE),
+            self._vu32(OFF_V_REC_SAVING),
+            self._vu32(OFF_V_REC_ELAPSED_MS),
+            self._vu32(OFF_V_REC_FRAMES),
+            self._vu32(OFF_V_REC_HUD_SEQ),
+        )
+
+    def set_video_status(self, *, active, saving, elapsed_ms, frames, bump_hud=False):
+        if self._closed or not self.video_ctrl_ready():
+            return 0
+        self._set_vu32(OFF_V_REC_ACTIVE, 1 if active else 0)
+        self._set_vu32(OFF_V_REC_SAVING, 1 if saving else 0)
+        self._set_vu32(OFF_V_REC_ELAPSED_MS, int(elapsed_ms) & 0xFFFFFFFF)
+        self._set_vu32(OFF_V_REC_FRAMES, int(frames) & 0xFFFFFFFF)
+        if bump_hud:
+            seq = (self._vu32(OFF_V_REC_HUD_SEQ) + 1) & 0xFFFFFFFF
+            self._set_vu32(OFF_V_REC_HUD_SEQ, seq)
+            return seq
+        return self._vu32(OFF_V_REC_HUD_SEQ)
 
     def display_state(self):
         """Return (osd_seq, osd_slot, display_flags, playback_bg_seq, blink_seq, custom_cmos_active, custom_cmos_seq, osd_pixel_seq)."""
@@ -255,8 +366,10 @@ class FastShmView:
         with self._io_lock:
             if self._closed:
                 raise RuntimeError('fast-shm view is closed')
+            has_rec_hud = self._lib is not None and hasattr(self._lib, 'fast_draw_rec_hud')
             for _ in range(4):
                 osd_seq, slot, flags, pb_seq, _blink, custom_active, custom_seq, _pseq = self.display_state()
+                _, _, _, _, rec_active, rec_saving, rec_elapsed_ms, _, rec_hud_seq = self.video_state()
                 osd_off = OSD1_OFF if slot else OSD0_OFF
                 if flags & FLAG_PLAYBACK_BG:
                     bg_addr = self._base_addr + PLAYBACK_BG_OFF
@@ -282,6 +395,14 @@ class FastShmView:
                         ctypes.addressof(self._out_buf),
                         has_bg,
                     )
+                    if (has_rec_hud and (flags & FLAG_SHOOTING) and not (flags & FLAG_PLAYBACK_BG)
+                            and (rec_active or rec_saving)):
+                        self._lib.fast_draw_rec_hud(
+                            ctypes.addressof(self._out_buf),
+                            int(rec_active),
+                            int(rec_saving),
+                            int(rec_elapsed_ms),
+                        )
                     frame = bytes(self._out_buf)
                 else:
                     osd_raw = bytes(self._mm[osd_off:osd_off + OSD_BYTES])
@@ -295,14 +416,33 @@ class FastShmView:
 
                 # Tear check: verify no concurrent overwrite of background or slot switch occurred.
                 osd_seq2, slot2, flags2, pb_seq2, _b2, ca2, cs2, _p2 = self.display_state()
+                rec_hud_seq2 = self.video_state()[8]
                 if (osd_seq2 == osd_seq and slot2 == slot and flags2 == flags
-                        and pb_seq2 == pb_seq and ca2 == custom_active and cs2 == custom_seq):
+                        and pb_seq2 == pb_seq and ca2 == custom_active and cs2 == custom_seq
+                        and rec_hud_seq2 == rec_hud_seq):
                     return frame, osd_seq
             return frame, osd_seq2
 
+    def read_active_cmos_rgb24(self):
+        """Return clean 640x480 RGB24 bytes from active CMOS source (custom video/image or default chart)."""
+        with self._cmos_lock:
+            if self._closed:
+                raise RuntimeError('fast-shm view is closed')
+            for _ in range(4):
+                if self._u32(OFF_CUSTOM_CMOS_ACTIVE) != 1:
+                    return default_chart_rgb24(), 'chart'
+                seq1 = self._u32(OFF_CUSTOM_CMOS_SEQ)
+                data = bytes(self._mm[CUSTOM_CMOS_OFF:CUSTOM_CMOS_OFF + RGB_BYTES])
+                seq2 = self._u32(OFF_CUSTOM_CMOS_SEQ)
+                if seq1 == seq2:
+                    if self._u32(OFF_CUSTOM_CMOS_ACTIVE) != 1:
+                        return default_chart_rgb24(), 'chart'
+                    return data, 'custom'
+            return bytes(self._mm[CUSTOM_CMOS_OFF:CUSTOM_CMOS_OFF + RGB_BYTES]), 'custom'
+
     def set_custom_cmos(self, rgb24_bytes):
         """Write 640x480 RGB24 custom CMOS frame (or None to revert to default chart)."""
-        with self._io_lock:
+        with self._cmos_lock:
             if self._closed:
                 raise RuntimeError('fast-shm view is closed')
             if rgb24_bytes is None:
@@ -318,9 +458,54 @@ class FastShmView:
             self._set_u32(OFF_CUSTOM_CMOS_SEQ, seq)
             return seq
 
+    def submit_video_xfer(self, op, payload=b'', *, total_bytes=0, expected_hash=0, flags=0, timeout=30.0, check_fn=None):
+        """Synchronously execute one MP4 Fsys transfer command over the shared 512 KiB staging buffer."""
+        with self._video_xfer_lock:
+            if self._closed:
+                raise RuntimeError('fast-shm view is closed')
+            if not self.guest_video_ready():
+                raise RuntimeError('fast-shm guest video worker not ready')
+            if payload:
+                if len(payload) > VIDEO_BUF_SIZE:
+                    raise ValueError(f'video xfer payload exceeds {VIDEO_BUF_SIZE} bytes')
+                self._mm[VIDEO_BUF_OFF:VIDEO_BUF_OFF + len(payload)] = payload
+            seq = (self._vu32(OFF_V_XFER_REQ_SEQ) + 1) & 0xFFFFFFFF
+            if seq == 0:
+                seq = 1
+            self._set_vu32(OFF_V_XFER_OP, int(op))
+            self._set_vu32(OFF_V_XFER_LEN, len(payload))
+            self._set_vu32(OFF_V_XFER_FLAGS, int(flags))
+            self._set_vu64(OFF_V_XFER_TOTAL_BYTES, int(total_bytes))
+            self._set_vu64(OFF_V_XFER_EXPECTED_HASH, int(expected_hash))
+            self._set_vu32(OFF_V_XFER_REQ_SEQ, seq)
+
+            deadline = time.monotonic() + timeout
+            spin = 0
+            while time.monotonic() < deadline:
+                if self._closed:
+                    raise RuntimeError('fast-shm view closed during video xfer')
+                if self._vu32(OFF_V_XFER_ACK_SEQ) == seq:
+                    raw_path = bytes(self._mm[VIDEO_CTRL_OFF + OFF_V_XFER_GUEST_PATH:
+                                              VIDEO_CTRL_OFF + OFF_V_XFER_GUEST_PATH + 64])
+                    guest_path = raw_path.split(b'\x00', 1)[0].decode('utf-8', 'replace')
+                    return {
+                        'seq': seq,
+                        'status': self._vi32(OFF_V_XFER_STATUS),
+                        'file_num': self._vu32(OFF_V_XFER_FILE_NUM),
+                        'readback_ok': self._vu32(OFF_V_XFER_READBACK_OK) == 1,
+                        'bytes_written': self._vu64(OFF_V_XFER_BYTES_WRITTEN),
+                        'guest_hash': self._vu64(OFF_V_XFER_GUEST_HASH),
+                        'guest_path': guest_path,
+                    }
+                if check_fn is not None:
+                    check_fn()
+                spin += 1
+                time.sleep(0.0005 if spin < 40 else 0.002)
+            raise TimeoutError('fast-shm video xfer timed out')
+
     def submit_key(self, op, key, sub, status, ex, origin, hold_us=0, *, timeout=10.0, check_fn=None):
         """Push one command onto the SPSC ring and wait for guest OSAL send ACK."""
-        with self._io_lock:
+        with self._ring_lock:
             if self._closed:
                 raise RuntimeError('fast-shm view is closed')
             if not self.guest_input_ready():
@@ -340,6 +525,8 @@ class FastShmView:
             deadline = time.monotonic() + timeout
             spin = 0
             while time.monotonic() < deadline:
+                if self._closed:
+                    raise RuntimeError('fast-shm view closed during input wait')
                 if self._u64(OFF_KEY_ACK_SEQ) >= seq:
                     rc = self._i32(OFF_KEY_LAST_RC)
                     return seq, rc
@@ -353,11 +540,12 @@ class FastShmView:
         if self._closed:
             return
         self._closed = True
-        try:
-            del self._buf
-        except AttributeError:
-            pass
-        self._mm.close()
+        with self._io_lock, self._cmos_lock:
+            try:
+                del self._buf
+            except AttributeError:
+                pass
+            self._mm.close()
 
 
 class FastShmAppInput:

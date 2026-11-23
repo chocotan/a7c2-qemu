@@ -188,6 +188,36 @@ int main(int argc, char **argv) {
     virtual_cmos_playback_exit(&pb, pb_frame);
     assert(pb.active == 0 && stat(pb_frame, &st) != 0);
 
+    /* 4. Streamed Fsys MP4 movie writer: begin -> chunks -> FNV verify commit -> auto C0002 -> hash mismatch & abort */
+    struct virtual_cmos_movie_writer mw;
+    memset(&mw, 0, sizeof mw);
+    assert(virtual_cmos_movie_begin(&mw, &ops) == 0);
+    assert(strcmp(mw.path, "A:/PRIVATE/M4ROOT/CLIP/C0001.MP4") == 0);
+    uint8_t part1[] = "ftypisom_fake_mp4_header_";
+    uint8_t part2[70000];
+    for (size_t i = 0; i < sizeof part2; ++i) part2[i] = (uint8_t)((i * 29u + 7u) & 0xffu);
+    assert(virtual_cmos_movie_write_chunk(&mw, &ops, part1, sizeof part1 - 1u) == 0);
+    assert(virtual_cmos_movie_write_chunk(&mw, &ops, part2, sizeof part2) == 0);
+    uint64_t exp_hash = UINT64_C(14695981039346656037);
+    for (size_t i = 0; i < sizeof part1 - 1u; ++i) exp_hash = (exp_hash ^ part1[i]) * UINT64_C(1099511628211);
+    for (size_t i = 0; i < sizeof part2; ++i) exp_hash = (exp_hash ^ part2[i]) * UINT64_C(1099511628211);
+    struct virtual_cmos_capture_result mr1;
+    assert(virtual_cmos_movie_commit(&mw, &ops, (sizeof part1 - 1u) + sizeof part2, exp_hash, &mr1) == 0);
+    assert(strcmp(mr1.path, "A:/PRIVATE/M4ROOT/CLIP/C0001.MP4") == 0);
+    assert(mr1.file_number == 1u && mr1.readback_verified == 1 && mr1.fnv1a64 == exp_hash);
+
+    /* Next clip auto-increments to C0002.MP4; hash mismatch must fail and clean up! */
+    assert(virtual_cmos_movie_begin(&mw, &ops) == 0);
+    assert(strcmp(mw.path, "A:/PRIVATE/M4ROOT/CLIP/C0002.MP4") == 0);
+    assert(virtual_cmos_movie_write_chunk(&mw, &ops, part1, 8u) == 0);
+    assert(virtual_cmos_movie_commit(&mw, &ops, 8u, exp_hash ^ 1ULL, &mr1) != 0);
+
+    /* Abort closes & cleans cleanly, then begin reuses C0002.MP4 */
+    assert(virtual_cmos_movie_begin(&mw, &ops) == 0);
+    assert(strcmp(mw.path, "A:/PRIVATE/M4ROOT/CLIP/C0002.MP4") == 0);
+    virtual_cmos_movie_abort(&mw, &ops);
+    assert(mw.active == 0);
+
     /* Clean memory for ASan leak check */
     for (int i = 0; i < MAX_FILES; ++i) free(g_files[i].data);
     puts("VIRTUAL_CMOS_CAPTURE_C_PASS");

@@ -1,0 +1,118 @@
+{
+  "date": "2026-11-23",
+  "scope": "Virtual local MP4 CMOS input and software virtual H.264/MP4 recording via Sony libInfraFsys to 4 GiB FAT32 SD",
+  "boundaries": {
+    "software_virtual_cmos": true,
+    "software_virtual_video": true,
+    "original_CP": false,
+    "in_camera_video_playback_supported": false,
+    "mediapro_xml_or_video_sidb_mutated": false,
+    "host_video_encoder": "report/virtual-video-engine/video-engine.c via runtime/analysis/virtual-video-host.c (libx264 + libavformat)"
+  },
+  "live_qemu_run": {
+    "run_id": "run-szte281y",
+    "isolated_storage": true,
+    "default_storage_untouched": true,
+    "boot_wizard_screens": [
+      "0x12d",
+      "0x1c6",
+      "0x1e0",
+      "0x1dd",
+      "0x1c5",
+      "0xd1",
+      "0x11c",
+      "0x9d",
+      "0x1db",
+      "0x1f4",
+      "0x1e6"
+    ],
+    "check1_mp4_cmos_live": {
+      "passed": true,
+      "lcd_unique_hashes_1_2s": 24
+    },
+    "check2_rec_toggle_clip": {
+      "passed": true,
+      "path": "A:/PRIVATE/M4ROOT/CLIP/C0001.MP4",
+      "file_number": 1,
+      "bytes": 551210,
+      "fnv1a64": "fba665141ee56039",
+      "frames": 66,
+      "fps": 24,
+      "width": 640,
+      "height": 480,
+      "elapsed_ms": 2750,
+      "codec": "h264",
+      "source_kinds": ["custom"],
+      "readback_verified": true
+    },
+    "check3_still_playback_delete_regression": {
+      "passed": true,
+      "captures": [
+        {
+          "path": "A:/DCIM/100MSDCF/DSC00001.JPG",
+          "bytes": 24003,
+          "fnv1a64": "56a285a498f88b5a",
+          "source": "custom"
+        },
+        {
+          "path": "A:/DCIM/100MSDCF/DSC00002.JPG",
+          "bytes": 23915,
+          "fnv1a64": "87dce8f76389d9ae",
+          "source": "custom"
+        }
+      ],
+      "native_playback_ok": true,
+      "native_delete_seq": "0x62",
+      "native_delete_flush_rc": 0
+    },
+    "check4_mode_movie_shutter_off_auto_finalize": {
+      "passed": true,
+      "trigger_code": "0xa7",
+      "mode": 2,
+      "path": "A:/PRIVATE/M4ROOT/CLIP/C0002.MP4",
+      "file_number": 2,
+      "bytes": 352417,
+      "fnv1a64": "aacb288836c9db03",
+      "frames": 43,
+      "fps": 24,
+      "width": 640,
+      "height": 480,
+      "elapsed_ms": 1791,
+      "codec": "h264",
+      "source_kinds": ["custom"],
+      "readback_verified": true,
+      "vm_exit_state": "exited"
+    },
+    "check5_sd_image_fat32_and_independent_decode": {
+      "fsck_fat_rc": 0,
+      "clip_dir_entries": [".", "..", "C0001.MP4", "C0002.MP4"],
+      "dcim_dir_entries": [".", "..", "DSC00001.JPG"],
+      "C0001.MP4": {
+        "bytes": 551210,
+        "fnv1a64": "fba665141ee56039",
+        "codec_name": "h264",
+        "width": 640,
+        "height": 480,
+        "duration": "2.750000",
+        "nb_frames": "66",
+        "decoded_frames": 66,
+        "unique_frames": 66
+      },
+      "C0002.MP4": {
+        "bytes": 352417,
+        "fnv1a64": "aacb288836c9db03",
+        "codec_name": "h264",
+        "width": 640,
+        "height": 480,
+        "duration": "1.791667",
+        "nb_frames": "43",
+        "decoded_frames": 43,
+        "unique_frames": 43
+      },
+      "DSC00001.JPG": {
+        "bytes": 24003,
+        "fnv1a64": "56a285a498f88b5a"
+      }
+    }
+  }
+}

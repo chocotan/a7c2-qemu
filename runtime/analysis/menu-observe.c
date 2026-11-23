@@ -2672,6 +2672,11 @@ static int fast_shm_is_active(void);
 static unsigned char *fast_shm_playback_bg_ptr(void);
 static void fast_shm_set_playback_bg(int active);
 static void fast_shm_touch_blink(void);
+static void fast_shm_request_video_stop(void);
+static void fast_shm_notify_rec_toggle(unsigned int code);
+static unsigned int fast_shm_set_mode_switch(unsigned int status);
+static unsigned int fast_shm_get_mode_switch(void);
+static void fast_shm_process_video_xfers(void);
 static unsigned int vcmos_pb_bg_active;
 static unsigned int vcmos_in_playback_screen;
 static unsigned int vcmos_s1_held;
@@ -3971,6 +3976,9 @@ static void *vcmos_worker_main(void *arg) {
                     }
                 }
             }
+            if (flags & 1024u) {
+                fast_shm_process_video_xfers();
+            }
         }
     }
     return 0;
@@ -4037,6 +4045,9 @@ static void virtual_input_observed(unsigned int *ev) {
         }
     }
     if (!virtual_lens_hud_enabled) return;
+    if (code == 0x71c9u) {
+        (void)fast_shm_set_mode_switch(status);
+    }
     if (code == 0x1f1u) {
         if (status != 0u) {
             __atomic_store_n(&vcmos_s1_held, 1u, __ATOMIC_RELEASE);
@@ -4048,7 +4059,14 @@ static void virtual_input_observed(unsigned int *ev) {
     if (code == 0x1f0u && status == 0u) {
         vcmos_post_work(512u);
     }
-    if (code == 0xa7 && status == 1 && hosd_is_shooting_scene()) {
+    if (((code == 0x1f0u && status == 1u) ||
+         (code == 0xa7u && status == 1u && fast_shm_get_mode_switch() != 1u)) &&
+        !__atomic_load_n(&vcmos_in_playback_screen, __ATOMIC_ACQUIRE) &&
+        hosd_is_shooting_scene()) {
+        fast_shm_notify_rec_toggle(code);
+    } else if (code == 0xa7u && status == 1u &&
+               fast_shm_get_mode_switch() == 1u &&
+               hosd_is_shooting_scene()) {
         vcmos_touch_blink();
         vcmos_post_work(2u);
     }
@@ -8500,6 +8518,7 @@ static void *observe_create_screen(void *a0, void *a1, void *a2, void *a3, void 
     void *result = real_create_screen(a0, a1, a2, a3, a4, a5, a6, a7);
     __atomic_store_n(&last_input_screen,id,__ATOMIC_RELEASE);
     if (id == 0x344u || id == 0x345u || id == 0x23u || id == 0x26u || id == 0x28u) {
+        fast_shm_request_video_stop();
         __atomic_store_n(&vcmos_in_playback_screen, 1u, __ATOMIC_RELEASE);
         hosd_set_screen_liveview(0);
         if (virtual_lens_hud_enabled && appfw_base &&
@@ -8538,6 +8557,7 @@ static void *observe_create_screen(void *a0, void *a1, void *a2, void *a3, void 
         hosd_set_screen_liveview(0);
     }
     if (id == 0x309u) {
+        fast_shm_request_video_stop();
         __atomic_store_n(&vcmos_in_apo_sleep, 1u, __ATOMIC_RELEASE);
         __atomic_store_n(&vcmos_wake_in_progress, 0u, __ATOMIC_RELEASE);
         vcmos_clear_playback_bg();
@@ -13745,6 +13765,12 @@ extern unsigned long headless_fin_original(void);
 static unsigned long (*headless_finish)(void) = headless_fin_original;
 static unsigned char *fast_shm_map;
 static struct fast_shm_ctrl *fast_shm_ctrl;
+static struct fast_shm_video_ctrl *fast_shm_video;
+static unsigned char *fast_shm_video_buf;
+static struct virtual_cmos_movie_writer fast_video_writer;
+static uint32_t fast_video_xfer_handled;
+static uint32_t fast_video_xfer_posted;
+static unsigned int vcmos_mode_switch = 1u;
 static unsigned int fast_shm_active;
 static unsigned int fast_shm_osd_next_slot;
 static pthread_t fast_input_thread;
@@ -13752,6 +13778,99 @@ static int fast_input_thread_live;
 
 static int fast_shm_is_active(void) {
     return __atomic_load_n(&fast_shm_active, __ATOMIC_ACQUIRE) != 0U;
+}
+static void fast_shm_request_video_stop(void) {
+    if (!fast_shm_is_active() || !fast_shm_video) return;
+    if (__atomic_load_n(&fast_shm_video->rec_active, __ATOMIC_ACQUIRE)) {
+        __atomic_add_fetch(&fast_shm_video->rec_stop_seq, 1U, __ATOMIC_RELEASE);
+    }
+}
+static unsigned int fast_shm_set_mode_switch(unsigned int status) {
+    if (status >= 1U && status <= 3U) {
+        __atomic_store_n(&vcmos_mode_switch, status, __ATOMIC_RELEASE);
+        if (fast_shm_is_active() && fast_shm_video) {
+            __atomic_store_n(&fast_shm_video->rec_mode_switch, status, __ATOMIC_RELEASE);
+        }
+    }
+    return __atomic_load_n(&vcmos_mode_switch, __ATOMIC_ACQUIRE);
+}
+static unsigned int fast_shm_get_mode_switch(void) {
+    return __atomic_load_n(&vcmos_mode_switch, __ATOMIC_ACQUIRE);
+}
+static void fast_shm_notify_rec_toggle(unsigned int code) {
+    if (!fast_shm_is_active() || !fast_shm_video) return;
+    uint32_t seq = __atomic_add_fetch(&fast_shm_video->rec_toggle_seq, 1U, __ATOMIC_RELEASE);
+    char text[128];
+    snprintf(text, sizeof text, "code=%#x mode=%u toggle_seq=%u active=%u",
+             code, fast_shm_get_mode_switch(), seq,
+             __atomic_load_n(&fast_shm_video->rec_active, __ATOMIC_ACQUIRE));
+    record("VIRTUAL_CMOS_VIDEO_REC_TRIGGER ", text);
+}
+static void fast_shm_process_video_xfers(void) {
+    if (!fast_shm_is_active() || !fast_shm_video || !fast_shm_video_buf) return;
+    for (;;) {
+        uint32_t req_seq = __atomic_load_n(&fast_shm_video->xfer_req_seq, __ATOMIC_ACQUIRE);
+        if (req_seq == fast_video_xfer_handled) break;
+        uint32_t op = __atomic_load_n(&fast_shm_video->xfer_op, __ATOMIC_RELAXED);
+        uint32_t len = __atomic_load_n(&fast_shm_video->xfer_len, __ATOMIC_RELAXED);
+        uint64_t total = __atomic_load_n(&fast_shm_video->xfer_total_bytes, __ATOMIC_RELAXED);
+        uint64_t exp_hash = __atomic_load_n(&fast_shm_video->xfer_expected_hash, __ATOMIC_RELAXED);
+        int rc = -22;
+        if (!vcmos_ops_ready()) {
+            rc = -19;
+        } else if (op == FAST_SHM_VIDEO_OP_BEGIN) {
+            fast_shm_video->xfer_readback_ok = 0U;
+            fast_shm_video->xfer_file_num = 0U;
+            fast_shm_video->xfer_bytes_written = 0ULL;
+            fast_shm_video->xfer_guest_hash = 0ULL;
+            fast_shm_video->xfer_guest_path[0] = '\0';
+            rc = virtual_cmos_movie_begin(&fast_video_writer, &vcmos_ops);
+            if (rc == 0) {
+                fast_shm_video->xfer_file_num = fast_video_writer.file_number;
+                snprintf(fast_shm_video->xfer_guest_path,
+                         sizeof fast_shm_video->xfer_guest_path, "%s", fast_video_writer.path);
+            }
+        } else if (op == FAST_SHM_VIDEO_OP_CHUNK) {
+            if (len > FAST_SHM_VIDEO_BUF_SIZE) {
+                rc = -22;
+            } else {
+                rc = virtual_cmos_movie_write_chunk(&fast_video_writer, &vcmos_ops,
+                                                    fast_shm_video_buf, len);
+                if (rc == 0) {
+                    fast_shm_video->xfer_bytes_written = (uint64_t)fast_video_writer.bytes_written;
+                    fast_shm_video->xfer_guest_hash = fast_video_writer.running_fnv1a64;
+                }
+            }
+        } else if (op == FAST_SHM_VIDEO_OP_COMMIT) {
+            struct virtual_cmos_capture_result res;
+            __builtin_memset(&res, 0, sizeof res);
+            rc = virtual_cmos_movie_commit(&fast_video_writer, &vcmos_ops,
+                                           (size_t)total, exp_hash, &res);
+            if (rc == 0) {
+                fast_shm_video->xfer_file_num = res.file_number;
+                fast_shm_video->xfer_readback_ok = res.readback_verified ? 1U : 0U;
+                fast_shm_video->xfer_bytes_written = (uint64_t)res.bytes;
+                fast_shm_video->xfer_guest_hash = res.fnv1a64;
+                snprintf(fast_shm_video->xfer_guest_path,
+                         sizeof fast_shm_video->xfer_guest_path, "%s", res.path);
+            } else {
+                fast_shm_video->xfer_readback_ok = 0U;
+            }
+            char text[224];
+            snprintf(text, sizeof text,
+                     "rc=%d path=%s bytes=%lu fnv1a64=%016lx readback=%d software_video_record=1 original_CP=0",
+                     rc, res.path, (unsigned long)res.bytes,
+                     (unsigned long)res.fnv1a64, res.readback_verified);
+            record("VIRTUAL_CMOS_VIDEO_RECORD ", text);
+        } else if (op == FAST_SHM_VIDEO_OP_ABORT) {
+            virtual_cmos_movie_abort(&fast_video_writer, &vcmos_ops);
+            fast_shm_video->xfer_readback_ok = 0U;
+            rc = 0;
+        }
+        __atomic_store_n(&fast_shm_video->xfer_status, (int32_t)rc, __ATOMIC_RELEASE);
+        fast_video_xfer_handled = req_seq;
+        __atomic_store_n(&fast_shm_video->xfer_ack_seq, req_seq, __ATOMIC_RELEASE);
+    }
 }
 static unsigned char *fast_shm_playback_bg_ptr(void) {
     if (!fast_shm_is_active() || !fast_shm_map) return 0;
@@ -13855,6 +13974,14 @@ static void *fast_input_worker(void *arg) {
     record("FAST_SHM_INPUT_READY ", "direct shared-memory App32 ring active; zero UART round-trip");
     unsigned int idle_spins = 0U;
     while (!__atomic_load_n(&headless_stop, __ATOMIC_ACQUIRE)) {
+        if (fast_shm_video) {
+            uint32_t vreq = __atomic_load_n(&fast_shm_video->xfer_req_seq, __ATOMIC_ACQUIRE);
+            if (vreq != fast_video_xfer_posted) {
+                fast_video_xfer_posted = vreq;
+                idle_spins = 0U;
+                vcmos_post_work(1024U);
+            }
+        }
         uint64_t tail = __atomic_load_n(&ctrl->key_tail, __ATOMIC_RELAXED);
         uint64_t head = __atomic_load_n(&ctrl->key_head, __ATOMIC_ACQUIRE);
         if (tail == head) {
@@ -13913,6 +14040,14 @@ static void fast_shm_init(int (*create)(pthread_t *, const void *, void *(*)(voi
     fast_shm_map = (unsigned char *)mapped;
     fast_shm_ctrl = ctrl;
     fast_shm_osd_next_slot = 0U;
+    struct fast_shm_video_ctrl *vctrl = (struct fast_shm_video_ctrl *)((unsigned char *)mapped + FAST_SHM_VIDEO_CTRL_OFF);
+    if (__atomic_load_n(&vctrl->magic, __ATOMIC_ACQUIRE) == FAST_SHM_VIDEO_MAGIC &&
+        __atomic_load_n(&vctrl->version, __ATOMIC_ACQUIRE) == FAST_SHM_VIDEO_VERSION) {
+        fast_shm_video = vctrl;
+        fast_shm_video_buf = (unsigned char *)mapped + FAST_SHM_VIDEO_BUF_OFF;
+        __atomic_store_n(&vctrl->rec_mode_switch, vcmos_mode_switch, __ATOMIC_RELEASE);
+        __atomic_store_n(&vctrl->guest_video_ready, 1U, __ATOMIC_RELEASE);
+    }
     __atomic_store_n(&fast_shm_active, 1U, __ATOMIC_RELEASE);
     struct hosd_fast_sink sink = {fast_shm_acquire_osd_slot, fast_shm_publish_osd};
     hosd_set_fast_sink(&sink);
@@ -13924,8 +14059,9 @@ static void fast_shm_init(int (*create)(pthread_t *, const void *, void *(*)(voi
         record("FAST_SHM_INPUT_WARN ", "fast_input_worker pthread_create failed; host will fallback to serial");
     }
     char text[160];
-    snprintf(text, sizeof text, "phys=0x%lx size=0x%x display=1 input=%d zero_vfat=1",
-             (unsigned long)FAST_SHM_PHYS_BASE, FAST_SHM_MAP_SIZE, fast_input_thread_live);
+    snprintf(text, sizeof text, "phys=0x%lx size=0x%x display=1 input=%d video=%d zero_vfat=1",
+             (unsigned long)FAST_SHM_PHYS_BASE, FAST_SHM_MAP_SIZE, fast_input_thread_live,
+             fast_shm_video ? 1 : 0);
     record("FAST_SHM_ENABLED ", text);
 }
 
@@ -13936,6 +14072,9 @@ static unsigned long observe_grm_fin(void) {
     if (fast_input_thread_live && headless_join) {
         (void)headless_join(fast_input_thread, 0);
         fast_input_thread_live = 0;
+    }
+    if (fast_shm_video) {
+        __atomic_store_n(&fast_shm_video->guest_video_ready, 0U, __ATOMIC_RELEASE);
     }
     if (fast_shm_ctrl) {
         __atomic_store_n(&fast_shm_ctrl->guest_display_ready, 0U, __ATOMIC_RELEASE);
