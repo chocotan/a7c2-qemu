@@ -33,54 +33,55 @@
 真机 ILCE-7CM2 为 **AP（ARM64 Linux）+ CP（独立协处理器与 ISP / 编码 / 显示 ASIC）** 双芯片架构。QEMU 中完整运行 **Sony 原厂 ARM64 内核与应用程序**，缺失的物理 CP ASIC、光学 CMOS 与外设则由 **QEMU 虚拟硬件 + 宿主/Guest 软件模型** 协同模拟：
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph Host["宿主控制与软件模拟 (Host)"]
-        UI["CameraUI 窗口 (GTK3)"]
+        UI["CameraUI 控制窗口 (GTK3)"]
         Ctrl["VM 会话控制 (menu_control / menu_live)"]
-        CmosSrc["[软件模拟] 虚拟 CMOS 源（色卡 / 图片 / ffmpeg MP4 实时流）"]
-        Blend["[软件模拟] Fast-SHM 合成器 (fast-osd-blend.so: OSD + CMOS + REC HUD)"]
-        HostEnc["[软件模拟] 虚拟视频引擎 (video_recorder + virtual-video-host.so / libx264)"]
-        UsbHost["[软件模拟] 宿主 USB/VHCI 后端 (sony_usb_device)"]
+        CmosSrc["软件模拟：虚拟 CMOS 源（色卡 / 图片 / ffmpeg MP4 实时流）"]
+        Blend["软件模拟：Fast-SHM 合成器 (fast-osd-blend.so)"]
+        HostEnc["软件模拟：虚拟视频引擎 (video_recorder + virtual-video-host.so)"]
+        UsbHost["软件模拟：宿主 USB 与 VHCI 后端 (sony_usb_device)"]
     end
 
     subgraph Bridge["QEMU 虚拟硬件与匿名共享内存"]
-        Shm["匿名共享内存 (fast-shm: OSD 双缓冲 / CMOS / 按键环 / MP4 传输)"]
-        Storage["虚拟存储控制器（内部持久闪存 a7c2-persistent / 4 GiB FAT32 SD）"]
-        Bus["[虚拟总线] 虚拟蓝牙 (virtual-rom-v1) / USB 设备端口"]
+        Shm["匿名共享内存 (fast-shm: OSD / CMOS / 按键环 / MP4 传输)"]
+        Storage["虚拟存储控制器 (a7c2-persistent / 4 GiB FAT32 SD)"]
+        Bus["虚拟硬件总线 (virtual-rom-v1 蓝牙 / USB 设备端口)"]
     end
 
     subgraph Guest["Sony A7C II 原厂固件 (QEMU ARM64 Guest)"]
-        Kernel["[原厂固件] Sony Linux 内核（UPM / IPC / Flash 驱动）"]
-        AppFw["[原厂固件] appFw.so（原生菜单 / 状态机 / 拨轮聚焦 / APO 省电）"]
-        LibMpr["[原厂固件] libmpr.so (sidb: 照片库登记 / 原生删除与回放)"]
-        LibFsys["[原厂固件] libInfraFsys.so（FAT32 JPG & MP4 写卡与刷盘）"]
-        Hook["[桥接挂钩] menu-observe.so / headless-osd（OSD / 镜头 / 录像写卡钩子）"]
+        Hook["桥接挂钩：menu-observe.so / headless-osd"]
+        AppFw["原厂固件：appFw.so（菜单 / 状态机 / 拨轮聚焦 / APO）"]
+        LibMpr["原厂固件：libmpr.so（sidb 照片库 / 原生删除与回放）"]
+        LibFsys["原厂固件：libInfraFsys.so（FAT32 写卡与刷盘）"]
+        Kernel["原厂固件：Sony Linux 内核（UPM / IPC / Flash 驱动）"]
     end
 
-    UI -->|按键 / 拨轮 / 触屏 / CMOS路径| Ctrl
-    Ctrl -->|写入按键环| Shm
-    Ctrl -->|启停与路径| CmosSrc
-    CmosSrc -->|640x480 RGB24| Shm
+    UI -->|"按键 / 拨轮 / 触屏 / CMOS 路径"| Ctrl
+    Ctrl -->|"写入按键环"| Shm
+    Ctrl -->|"启停与路径"| CmosSrc
+    CmosSrc -->|"640x480 RGB24 帧"| Shm
 
-    Shm -->|读取按键 / MP4分块| Hook
-    Hook -->|注入原厂 App32 队列| AppFw
-    AppFw -->|640x480 RGBA4444 OSD| Hook
-    Hook -->|OSD帧 / REC状态 / JPEG| Shm
+    Shm -->|"OSD / CMOS / 录播状态"| Blend
+    Blend -->|"640x480 RGB24 LCD 画面"| UI
+    Shm -->|"采样活跃 CMOS 帧"| HostEnc
+    HostEnc -->|"H.264 MP4 分块 (512 KiB)"| Shm
 
-    AppFw -->|调度回放与删除| LibMpr
-    Hook -->|照片sidb入库 / JPEG+MP4写卡| LibMpr
+    Shm -->|"读取按键 / MP4 分块"| Hook
+    Hook -->|"注入原厂 App32 队列"| AppFw
+    AppFw -->|"640x480 RGBA4444 OSD"| Hook
+    Hook -->|"OSD 帧 / REC 状态 / JPEG"| Shm
+
+    AppFw -->|"调度回放与删除"| LibMpr
+    Hook -->|"照片 sidb 登记"| LibMpr
     LibMpr --> LibFsys
-    Hook -->|JPG & Cxxxx.MP4 写卡 + FlushVolume| LibFsys
-    LibFsys --> Storage
+    Hook -->|"JPG 与 Cxxxx.MP4 写卡刷盘"| LibFsys
+    LibFsys -->|"读写虚拟卡与内部盘"| Storage
 
-    Shm -->|OSD + CMOS + 录播状态| Blend
-    Blend -->|640x480 RGB24 画面| UI
-    Shm -->|采样活跃CMOS帧| HostEnc
-    HostEnc -->|H.264 MP4 512KiB分块| Shm
-
-    Kernel <-->|UIPC / HCI / USB| Bus
-    AppFw <--> Kernel
-    Bus <--> UsbHost
+    AppFw -->|"IPC / UPM / Flash 调用"| Kernel
+    Kernel -->|"UIPC / HCI / USB"| Bus
+    Bus -->|"VHCI 与 USB 传输"| UsbHost
+    UsbHost -.->|"设备事件与应答"| Bus
 ```
 
 | 子系统 | 实现位置 | 归属性质 | 具体职责与边界 |
