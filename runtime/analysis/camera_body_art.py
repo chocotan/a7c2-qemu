@@ -83,6 +83,14 @@ MODE_ANGLES = {
     '3': -130.0,
 }
 
+MODE_DIAL_RING = ('AUTO', 'P', 'A', 'S', 'M', 'MR1', 'MR2', 'MR3')
+
+MODE_SWITCH_ANGLES = {
+    1: 58.0,   # STILL (right detent aligned to MODE_STILL)
+    2: 90.0,   # MOVIE (center detent aligned to MODE_MOVIE)
+    3: 122.0,  # S&Q   (left detent aligned to MODE_SQ)
+}
+
 
 def _round_rect(cr, x, y, w, h, r):
     r = min(r, w / 2.0, h / 2.0)
@@ -121,13 +129,14 @@ def _text(cr, x, y, text, size=11.0, bold=True, color=COL_INK, align='center', f
     cr.restore()
 
 
-def _knurled_edge(cr, cx, cy, r_outer, r_inner, count, color=COL_LINE_DIM, width=1.0):
+def _knurled_edge(cr, cx, cy, r_outer, r_inner, count, color=COL_LINE_DIM, width=1.0, offset_deg=0.0):
     cr.save()
     cr.new_path()
     cr.set_source_rgba(*color[:3], color[3] if len(color) > 3 else 1.0)
     cr.set_line_width(width)
+    offset = math.radians(offset_deg)
     for idx in range(count):
-        ang = (2.0 * math.pi * idx) / count
+        ang = offset + (2.0 * math.pi * idx) / count
         ca, sa = math.cos(ang), math.sin(ang)
         cr.move_to(cx + r_inner * ca, cy + r_inner * sa)
         cr.line_to(cx + r_outer * ca, cy + r_outer * sa)
@@ -432,13 +441,69 @@ def draw_top_chassis(cr, ui_state):
     cr.move_to(660, 72)
     cr.curve_to(756, 62, 858, 68, 934, 102)
     cr.stroke()
-    # Sculpted shutter + power switch collar outline uniting grip controls
+    # Sculpted shutter plinth + coaxial ON/OFF rotary power collar, curved track, and lever arm
     _round_rect(cr, 767, 13, 108, 60, 28)
     cr.set_source_rgb(*COL_DARK)
     cr.fill_preserve()
     cr.set_source_rgb(*COL_LINE_FAINT)
     cr.set_line_width(1.1)
     cr.stroke()
+    cr.restore()
+
+    # Coaxial ON/OFF switch housing & animated rotary lever centered on Shutter (846, 44)
+    power_pos = max(0.0, min(1.0, float(ui_state.get('power_pos', 1.0 if ui_state.get('running') else 0.0))))
+    power_ang = -11.0 + 46.0 * power_pos
+    cr.save()
+    _top_silhouette_path(cr)
+    cr.clip()
+    cr.new_sub_path()
+    cr.arc(846.0, 44.0, 74.0, math.radians(-20.0), math.radians(45.0))
+    cr.arc_negative(846.0, 44.0, 30.0, math.radians(45.0), math.radians(-20.0))
+    cr.close_path()
+    cr.set_source_rgb(*COL_DARK)
+    cr.fill_preserve()
+    cr.set_source_rgb(*COL_LINE_DIM)
+    cr.set_line_width(1.1)
+    cr.stroke()
+    # Curved guide slot connecting OFF (-11 deg) and ON (+35 deg) detents
+    cr.save()
+    cr.new_path()
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    cr.arc(846.0, 44.0, 46.0, math.radians(-13.0), math.radians(37.0))
+    cr.set_source_rgb(*COL_BG)
+    cr.set_line_width(7.5)
+    cr.stroke_preserve()
+    cr.set_source_rgba(*(COL_GREEN if power_pos > 0.5 else COL_LINE_FAINT), 0.55)
+    cr.set_line_width(1.2)
+    cr.stroke()
+    cr.restore()
+    # Coaxial machined collar ring around Shutter
+    _circle(cr, 846.0, 44.0, 30.5)
+    cr.set_source_rgb(*COL_PANEL)
+    cr.fill_preserve()
+    cr.set_source_rgb(*COL_LINE_DIM)
+    cr.set_line_width(1.1)
+    cr.stroke()
+    # Rotating physical lever arm + knurled thumb paddle
+    cr.save()
+    cr.translate(846.0, 44.0)
+    cr.rotate(math.radians(power_ang))
+    _round_rect(cr, 25.0, -7.2, 27.0, 14.4, 4.5)
+    cr.set_source_rgb(*COL_METAL)
+    cr.fill_preserve()
+    cr.set_source_rgb(*(COL_GREEN if power_pos > 0.5 else COL_LINE))
+    cr.set_line_width(1.35)
+    cr.stroke()
+    cr.set_source_rgb(*COL_LINE_DIM)
+    cr.set_line_width(1.0)
+    for rx in (35.0, 39.0, 43.0):
+        cr.move_to(rx, -4.4)
+        cr.line_to(rx, 4.4)
+    cr.stroke()
+    _circle(cr, 48.0, 0.0, 2.2)
+    cr.set_source_rgb(*(COL_GREEN if power_pos > 0.5 else COL_LINE))
+    cr.fill()
+    cr.restore()
     cr.restore()
 
     # Dual speaker vents
@@ -503,18 +568,59 @@ def draw_top_chassis(cr, ui_state):
     cr.stroke()
     cr.restore()
 
-    # Coaxial Still/Movie/S&Q radial selector lever protruding from Mode Dial base
+    # Coaxial Still/Movie/S&Q fanned base plate, detent track, and swinging radial lever
     mode_sw = int(ui_state.get('mode_switch') or 1)
-    ang_deg = {3: 132.0, 2: 90.0, 1: 48.0}.get(mode_sw, 48.0)
+    ang_deg = float(ui_state.get('mode_switch_deg', MODE_SWITCH_ANGLES.get(mode_sw, 58.0)))
+    cr.save()
+    cr.new_sub_path()
+    cr.arc(600.0, 92.0, 67.0, math.radians(38.0), math.radians(142.0))
+    cr.arc_negative(600.0, 92.0, 42.0, math.radians(142.0), math.radians(38.0))
+    cr.close_path()
+    cr.set_source_rgb(*COL_DARK)
+    cr.fill_preserve()
+    cr.set_source_rgb(*COL_LINE_DIM)
+    cr.set_line_width(1.1)
+    cr.stroke()
+    # Curved guide arc & three detent ticks (STILL 58°, MOVIE 90°, S&Q 122°)
+    cr.save()
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    cr.new_path()
+    cr.arc(600.0, 92.0, 52.0, math.radians(55.0), math.radians(125.0))
+    cr.set_source_rgb(*COL_BG)
+    cr.set_line_width(6.5)
+    cr.stroke()
+    for det_deg in (58.0, 90.0, 122.0):
+        rad = math.radians(det_deg)
+        ca, sa = math.cos(rad), math.sin(rad)
+        is_near = abs(ang_deg - det_deg) < 8.0
+        cr.set_source_rgb(*(COL_ACCENT if is_near else COL_LINE_DIM))
+        cr.set_line_width(2.0 if is_near else 1.2)
+        cr.move_to(600.0 + 61.5 * ca, 92.0 + 61.5 * sa)
+        cr.line_to(600.0 + 66.5 * ca, 92.0 + 66.5 * sa)
+        cr.stroke()
+    cr.restore()
+    # Swinging physical coaxial lever arm
     cr.save()
     cr.translate(600.0, 92.0)
     cr.rotate(math.radians(ang_deg))
-    _round_rect(cr, 40.0, -5.0, 18.0, 10.0, 3.0)
+    _round_rect(cr, 39.0, -7.0, 22.0, 14.0, 4.0)
     cr.set_source_rgb(*COL_METAL)
     cr.fill_preserve()
-    cr.set_source_rgb(*COL_ACCENT if ui_state.get('running') else COL_LINE_DIM)
-    cr.set_line_width(1.2)
+    cr.set_source_rgb(*(COL_ACCENT if ui_state.get('running') else COL_LINE))
+    cr.set_line_width(1.3)
     cr.stroke()
+    cr.set_source_rgb(*COL_LINE_DIM)
+    cr.set_line_width(1.0)
+    for gx in (45.0, 49.0, 53.0):
+        cr.move_to(gx, -4.2)
+        cr.line_to(gx, 4.2)
+    cr.stroke()
+    cr.set_source_rgb(*(COL_ACCENT if ui_state.get('running') else COL_INK))
+    cr.set_line_width(2.0)
+    cr.move_to(56.0, 0.0)
+    cr.line_to(60.5, 0.0)
+    cr.stroke()
+    cr.restore()
     cr.restore()
 
     # Crisp blueprint dial callouts for 前拨轮 & 右上拨轮 (non-overlapping with hitboxes)
@@ -810,6 +916,8 @@ def draw_camera_button(name, widget, cr, ui_state):
 
     if name == 'MODE':
         r = min(w, h) / 2.0 - 3.0
+        sel = ui_state.get('mode_pos') or 'M'
+        rot = float(ui_state.get('mode_rot', MODE_ANGLES.get(sel, -10.0)))
         cr.save()
         _circle(cr, cx, cy, r)
         cr.set_source_rgba(*COL_METAL, alpha)
@@ -817,36 +925,37 @@ def draw_camera_button(name, widget, cr, ui_state):
         cr.set_source_rgba(*(COL_ACCENT if hover else COL_LINE), alpha)
         cr.set_line_width(1.6)
         cr.stroke()
-        _knurled_edge(cr, cx, cy, r - 0.5, r - 6.0, 44, (*COL_LINE_DIM, alpha), 1.0)
+        _knurled_edge(cr, cx, cy, r - 0.5, r - 6.0, 44, (*COL_LINE_DIM, alpha), 1.0, offset_deg=-rot)
         _circle(cr, cx, cy, r - 6.0)
         cr.set_source_rgba(*COL_PANEL, alpha)
         cr.fill_preserve()
         cr.set_source_rgba(*COL_LINE_DIM, alpha)
         cr.set_line_width(1.0)
         cr.stroke()
-        sel = ui_state.get('mode_pos') or 'M'
-        rot = MODE_ANGLES.get(sel, -10.0)
         for label_txt, base_deg in (('AUTO', 142.0), ('P', 102.0), ('A', 64.0), ('S', 28.0),
                                     ('M', -10.0), ('1', -54.0), ('2', -92.0), ('3', -130.0)):
             ang = math.radians(base_deg - rot + 180.0)
             lx = cx + (r - 17.5) * math.cos(ang)
             ly = cy + (r - 17.5) * math.sin(ang)
+            mapped = 'MR' + label_txt if label_txt in ('1', '2', '3') else label_txt
+            is_cur = mapped == sel or label_txt == sel
             if label_txt == 'AUTO':
                 cr.save()
                 cr.translate(lx, ly)
                 _round_rect(cr, -12.5, -5.0, 25.0, 10.0, 2.0)
-                cr.set_source_rgba(*COL_TEAL, alpha)
+                cr.set_source_rgba(*(COL_ACCENT if is_cur else COL_TEAL), alpha)
                 cr.fill()
                 _text(cr, 0, 0, 'AUTO', size=7.2, bold=True, color=(*COL_INK, alpha))
                 cr.restore()
             else:
                 _text(cr, lx, ly, label_txt, size=9.2 if label_txt in 'PASM' else 8.6,
-                      bold=True, color=(*COL_INK, alpha))
+                      bold=True, color=(*(COL_ACCENT if is_cur else COL_INK), alpha))
+        # Central push-lock button (click center or press Enter/Space to open full mode popover)
         _circle(cr, cx, cy, r - 29.0)
-        cr.set_source_rgba(*COL_DARK, alpha)
+        cr.set_source_rgba(*(COL_METAL if hover else COL_DARK), alpha)
         cr.fill_preserve()
-        cr.set_source_rgba(*COL_LINE_FAINT, alpha)
-        cr.set_line_width(1.0)
+        cr.set_source_rgba(*(COL_ACCENT if hover else COL_LINE_DIM), alpha)
+        cr.set_line_width(1.1)
         cr.stroke()
         _text(cr, cx, cy, sel, size=9.5, bold=True, color=(*COL_ACCENT, alpha))
         cr.restore()
@@ -859,19 +968,26 @@ def draw_camera_button(name, widget, cr, ui_state):
                   or (name == 'MODE_MOVIE' and sw == 2)
                   or (name == 'MODE_SQ' and sw == 3))
         cr.save()
-        _round_rect(cr, 2, 5, w - 4, h - 10, 9)
-        cr.set_source_rgba(*(COL_METAL if is_sel or hover else COL_DARK), alpha)
+        # Keep top edge open so the swinging coaxial lever on top_canvas aligns unobstructed
+        pad_y, pad_h = 9.0, h - 13.0
+        _round_rect(cr, 3.0, pad_y, w - 6.0, pad_h, 8.0)
+        cr.set_source_rgba(*(COL_METAL if is_sel or hover else COL_DARK), alpha * (0.94 if (is_sel or hover) else 0.78))
         cr.fill_preserve()
         cr.set_source_rgba(*(COL_ACCENT if is_sel else COL_LINE_DIM if hover else COL_LINE_FAINT), alpha)
-        cr.set_line_width(1.4 if is_sel else 1.0)
+        cr.set_line_width(1.5 if is_sel else 1.0)
         cr.stroke()
+        if is_sel:
+            _circle(cr, cx, pad_y + 3.5, 1.8)
+            cr.set_source_rgba(*COL_ACCENT, alpha)
+            cr.fill()
         col = (*(COL_INK if is_sel else COL_LINE), alpha)
+        iy = pad_y + pad_h * 0.54
         if name == 'MODE_SQ':
-            _text(cr, cx, cy, 'S&Q', size=10.5, bold=True, color=col)
+            _text(cr, cx, iy, 'S&Q', size=10.0, bold=True, color=col)
         elif name == 'MODE_MOVIE':
-            _movie_icon(cr, cx, cy, scale=1.05, color=col)
+            _movie_icon(cr, cx, iy, scale=1.0, color=col)
         else:
-            _camera_icon(cr, cx, cy, scale=1.05, color=col)
+            _camera_icon(cr, cx, iy, scale=1.0, color=col)
         cr.restore()
         _draw_button_focus(cr, w, h, focused)
         return True
@@ -935,21 +1051,27 @@ def draw_camera_button(name, widget, cr, ui_state):
     if name in ('ON', 'OFF'):
         running = bool(ui_state.get('running'))
         lit = (name == 'ON' and running) or (name == 'OFF' and not running)
-        # Keep the active hardware position crisp even when clicking its same state is disabled
         cap_alpha = 0.96 if lit else (0.58 if disabled else 1.0)
+        ly = cy + (3.0 if name == 'OFF' else 0.0)
         cr.save()
-        _round_rect(cr, 3, 5, w - 6, h - 10, 10)
-        bg = (0.11, 0.28, 0.20) if (name == 'ON' and running) else (COL_METAL if hover else COL_DARK)
-        cr.set_source_rgba(*bg, cap_alpha)
-        cr.fill_preserve()
-        border = COL_GREEN if (name == 'ON' and running) else (COL_ACCENT if hover else (COL_LINE if lit else COL_LINE_FAINT))
-        cr.set_source_rgba(*border, cap_alpha)
-        cr.set_line_width(1.6 if lit else 1.0)
-        cr.stroke()
-        _circle(cr, 11, cy, 2.5)
-        cr.set_source_rgba(*(COL_GREEN if (name == 'ON' and running) else (COL_INK if lit else COL_LINE_FAINT)), cap_alpha)
+        # Keep the left track open for the coaxial rotary lever; render outer detent indicator
+        if hover or lit:
+            _round_rect(cr, 16.0, ly - 11.0, w - 18.0, 22.0, 7.0)
+            if name == 'ON' and lit:
+                cr.set_source_rgba(0.11, 0.30, 0.21, 0.82 * cap_alpha)
+            elif hover:
+                cr.set_source_rgba(*COL_METAL, 0.65 * cap_alpha)
+            else:
+                cr.set_source_rgba(*COL_DARK, 0.65 * cap_alpha)
+            cr.fill_preserve()
+            border = COL_GREEN if (name == 'ON' and lit) else (COL_ACCENT if hover else COL_LINE_DIM)
+            cr.set_source_rgba(*border, cap_alpha)
+            cr.set_line_width(1.3 if lit else 1.0)
+            cr.stroke()
+        _circle(cr, 20.0, ly, 2.2)
+        cr.set_source_rgba(*(COL_GREEN if (name == 'ON' and lit) else (COL_INK if lit else COL_LINE_DIM)), cap_alpha)
         cr.fill()
-        _text(cr, cx + 4, cy, name, size=10.5, bold=True, color=(*COL_INK, cap_alpha))
+        _text(cr, 32.0, ly, name, size=8.4, bold=True, color=(*(COL_INK if lit or hover else COL_LINE), cap_alpha))
         cr.restore()
         _draw_button_focus(cr, w, h, focused)
         return True

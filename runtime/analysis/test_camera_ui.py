@@ -1021,14 +1021,86 @@ class GTKTests(unittest.TestCase):
         self.click(self.ui.buttons['MODE'])
         self.click(self.mode_choices()['AUTO'])
         self.assertEqual(self.ui._art_state()['mode_pos'], 'AUTO')
+        self.assertAlmostEqual(self.ui._art_state()['mode_rot'], 142.0, places=2)
         self.click(self.ui.buttons['MODE_MOVIE'])
         self.assertEqual(self.ui._art_state()['mode_switch'], 2)
+        self.assertAlmostEqual(self.ui._art_state()['mode_switch_deg'], 90.0, places=2)
+
+        # Scroll over MODE dial steps across positions and rotates smoothly; center click still pops menu
+        origin = self.ui.window.get_window().get_origin()
+        mx, my = self.ui.buttons['MODE'].translate_coordinates(self.ui.window, 0, 0)
+        mw = self.ui.buttons['MODE'].get_allocated_width()
+        mh = self.ui.buttons['MODE'].get_allocated_height()
+        subprocess.run(['xdotool', 'mousemove', '--sync', str(origin[-2] + mx + mw // 2),
+                        str(origin[-1] + my + mh // 2), 'click', '5'], check=True)
+        self.settle()
+        self.assertEqual(self.vm.calls[-1], {'action': 'position', 'key': 'MODE', 'position': 'P'})
+        self.assertEqual(self.ui._art_state()['mode_pos'], 'P')
+        self.assertAlmostEqual(self.ui._art_state()['mode_rot'], 102.0, places=2)
+
+        # Direct click on outer dial label 'A' spins dial to A without popping menu
+        subprocess.run(['xdotool', 'mousemove', '--sync', str(origin[-2] + mx + 26),
+                        str(origin[-1] + my + 62), 'click', '1'], check=True)
+        self.settle()
+        self.assertEqual(self.vm.calls[-1], {'action': 'position', 'key': 'MODE', 'position': 'A'})
+        self.assertAlmostEqual(self.ui._art_state()['mode_rot'], 64.0, places=2)
+        self.assertTrue(self.ui.mode_popover is None or not self.ui.mode_popover.get_visible())
+
+        # Scroll across Still / Movie / S&Q coaxial lever (Movie -> Still -> Movie -> S&Q)
+        sx, sy = self.ui.buttons['MODE_MOVIE'].translate_coordinates(self.ui.window, 0, 0)
+        subprocess.run(['xdotool', 'mousemove', '--sync', str(origin[-2] + sx + 22),
+                        str(origin[-1] + sy + 22), 'click', '5'], check=True)
+        self.settle()
+        self.assertEqual(self.vm.calls[-1], {'action': 'key', 'key': 'MODE_STILL'})
+        self.assertAlmostEqual(self.ui._art_state()['mode_switch_deg'], 58.0, places=2)
+        subprocess.run(['xdotool', 'click', '4'], check=True)
+        self.settle()
+        self.assertEqual(self.vm.calls[-1], {'action': 'key', 'key': 'MODE_MOVIE'})
+
         self.vm.value['video_recording'] = {'active': True, 'saving': False, 'mode_switch': 3}
         self.ui.update(self.vm.status())
         art = self.ui._art_state()
         self.assertTrue(art['running'])
         self.assertTrue(art['recording'])
         self.assertEqual(art['mode_switch'], 3)
+        self.assertAlmostEqual(art['mode_switch_deg'], 122.0, places=2)
+        self.assertAlmostEqual(art['power_pos'], 1.0, places=2)
+
+        # Scroll OFF lever up while hovering insensitive ON, then back ON while hovering insensitive OFF
+        ox, oy = self.ui.on.translate_coordinates(self.ui.window, 0, 0)
+        subprocess.run(['xdotool', 'mousemove', '--sync', str(origin[-2] + ox + 22),
+                        str(origin[-1] + oy + 22), 'click', '4'], check=True)
+        self.settle()
+        self.assertIn('stop', self.vm.calls)
+        self.assertAlmostEqual(self.ui._art_state()['power_pos'], 0.0, places=2)
+        time.sleep(0.28)
+        fx, fy = self.ui.off.translate_coordinates(self.ui.window, 0, 0)
+        calls_before = len(self.vm.calls)
+        subprocess.run(['xdotool', 'mousemove', '--sync', str(origin[-2] + fx + 22),
+                        str(origin[-1] + fy + 22), 'click', '5'], check=True)
+        self.settle()
+        self.assertEqual(self.vm.calls[calls_before:], ['start'])
+        self.assertAlmostEqual(self.ui._art_state()['power_pos'], 1.0, places=2)
+
+        # Animated UI instance transitions smoothly across intermediate frames when timer=True
+        anim_vm = StubVM()
+        anim_ui = CameraUI(anim_vm, timer=True)
+        try:
+            anim_ui.power(True)
+            anim_ui._step_control_animations()
+            mid_pow = anim_ui._art_state()['power_pos']
+            self.assertGreater(mid_pow, 0.0)
+            self.assertLess(mid_pow, 1.0)
+            while anim_ui._step_control_animations():
+                pass
+            self.assertAlmostEqual(anim_ui._art_state()['power_pos'], 1.0, places=2)
+        finally:
+            if not anim_ui.closed:
+                anim_ui._close()
+                deadline = time.monotonic() + 2
+                while not anim_ui.closed and time.monotonic() < deadline:
+                    while Gtk.events_pending():
+                        Gtk.main_iteration_do(False)
 
 
 class TouchStubVM(StubVM):

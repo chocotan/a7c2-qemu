@@ -18,6 +18,9 @@ from gi.repository import Atk, Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
 
 
 from camera_body_art import (
+    MODE_ANGLES,
+    MODE_DIAL_RING,
+    MODE_SWITCH_ANGLES,
     REAR_BUTTONS,
     REAR_H,
     REAR_LCD_RECT,
@@ -207,6 +210,13 @@ class CameraUI:
         self.state = vm.status()
         self.selected_mode = 'M'
         self.selected_mode_switch = 1
+        running_init = self.state.get('state') in ('running', 'starting')
+        self._anim_enabled = bool(timer)
+        self._anim_timer_id = 0
+        self._anim_power = 1.0 if running_init else 0.0
+        self._anim_mode_deg = MODE_ANGLES.get(self.selected_mode, -10.0)
+        self._anim_switch_deg = MODE_SWITCH_ANGLES.get(self.selected_mode_switch, 58.0)
+        self._mode_direct_press = None
         self.wifi_syncing = False
         self.wifi_confirmed = False
         self.buttons = {}
@@ -261,6 +271,69 @@ class CameraUI:
             # so a continuous display needs no 60 Hz idle wakeups.
             self.source_id = GLib.timeout_add(100 if getattr(vm, 'continuous_display', False) else 16, self.tick)
 
+    def _anim_targets(self):
+        state = self.state or {}
+        vm_state = state.get('state', 'disconnected')
+        running = vm_state in ('running', 'starting')
+        vrec = state.get('video_recording') or {}
+        mode_sw = int(vrec.get('mode_switch') or getattr(self, 'selected_mode_switch', 1) or 1)
+        sel_mode = getattr(self, 'selected_mode', 'M') or 'M'
+        return (
+            1.0 if running else 0.0,
+            MODE_ANGLES.get(sel_mode, -10.0),
+            MODE_SWITCH_ANGLES.get(mode_sw, 58.0),
+        )
+
+    def _sync_control_animations(self, immediate=False):
+        if not hasattr(self, '_anim_power'):
+            return
+        t_pow, t_mode, t_sw = self._anim_targets()
+        if immediate or not getattr(self, '_anim_enabled', False):
+            self._anim_power, self._anim_mode_deg, self._anim_switch_deg = t_pow, t_mode, t_sw
+            if hasattr(self, 'camera'):
+                self.camera.queue_draw()
+            return
+        if not getattr(self, '_anim_timer_id', 0):
+            self._anim_timer_id = GLib.timeout_add(16, self._step_control_animations)
+
+    def _step_control_animations(self):
+        if self.closed or not hasattr(self, '_anim_power'):
+            self._anim_timer_id = 0
+            return False
+        t_pow, t_mode, t_sw = self._anim_targets()
+        moved = False
+
+        dp = t_pow - self._anim_power
+        if abs(dp) <= 0.015:
+            self._anim_power = t_pow
+        else:
+            step = math.copysign(max(0.08, abs(dp) * 0.34), dp)
+            self._anim_power = t_pow if abs(step) >= abs(dp) else self._anim_power + step
+            moved = True
+
+        dm = (t_mode - self._anim_mode_deg + 180.0) % 360.0 - 180.0
+        if abs(dm) <= 0.6:
+            self._anim_mode_deg = t_mode
+        else:
+            step = math.copysign(max(3.5, abs(dm) * 0.32), dm)
+            self._anim_mode_deg = t_mode if abs(step) >= abs(dm) else self._anim_mode_deg + step
+            moved = True
+
+        ds = t_sw - self._anim_switch_deg
+        if abs(ds) <= 0.6:
+            self._anim_switch_deg = t_sw
+        else:
+            step = math.copysign(max(3.2, abs(ds) * 0.34), ds)
+            self._anim_switch_deg = t_sw if abs(step) >= abs(ds) else self._anim_switch_deg + step
+            moved = True
+
+        if hasattr(self, 'camera'):
+            self.camera.queue_draw()
+        if not moved:
+            self._anim_timer_id = 0
+            return False
+        return True
+
     def _art_state(self):
         state = self.state or {}
         vm_state = state.get('state', 'disconnected')
@@ -271,7 +344,10 @@ class CameraUI:
             'running': vm_state in ('running', 'starting'),
             'recording': vm_state == 'running' and bool(vrec.get('active')),
             'mode_pos': self.selected_mode,
+            'mode_rot': getattr(self, '_anim_mode_deg', MODE_ANGLES.get(self.selected_mode, -10.0)),
             'mode_switch': mode_sw,
+            'mode_switch_deg': getattr(self, '_anim_switch_deg', MODE_SWITCH_ANGLES.get(mode_sw, 58.0)),
+            'power_pos': getattr(self, '_anim_power', 1.0 if vm_state in ('running', 'starting') else 0.0),
         }
 
     def _build_header(self):
@@ -321,6 +397,8 @@ class CameraUI:
                 enabled = name == 'ON'
                 btn.connect('clicked', lambda _, value=enabled: self.power(value))
                 btn.connect('draw', lambda widget, cr, n=name: draw_camera_button(n, widget, cr, self._art_state()))
+                btn.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+                btn.connect('scroll-event', self._scroll_power)
                 btn.get_accessible().set_name(('ON 启动' if enabled else 'OFF 停止') + '本窗口拥有的 VM')
                 child = btn.get_child()
                 if child is not None:
@@ -343,7 +421,14 @@ class CameraUI:
         ])
         overlay.set_focus_chain([fixed])
         self.top_overlay = overlay
-        self.camera.pack_start(overlay, False, False, 0)
+        top_box = Gtk.EventBox()
+        top_box.set_visible_window(False)
+        top_box.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        top_box.connect('scroll-event', self._top_area_scroll)
+        top_box.add(overlay)
+        top_box.set_focus_chain([overlay])
+        self.top_box = top_box
+        self.camera.pack_start(top_box, False, False, 0)
 
     def _button(self, name, text=None, style=None):
         button = Gtk.Button(label=text or KEY_NAMES.get(name, name))
@@ -359,7 +444,19 @@ class CameraUI:
                 child.set_no_show_all(True)
                 child.hide()
             button.connect('draw', lambda widget, cr, key=name: draw_camera_button(key, widget, cr, self._art_state()))
-        button.connect('clicked', lambda _: self.send(name))
+            if name == 'MODE':
+                button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK | Gdk.EventMask.BUTTON_PRESS_MASK)
+                button.connect('scroll-event', self._scroll_mode)
+                button.connect('button-press-event', self._mode_pointer_press)
+            elif name in ('MODE_STILL', 'MODE_MOVIE', 'MODE_SQ'):
+                button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+                button.connect('scroll-event', self._scroll_mode_switch)
+        if name == 'MODE':
+            button.connect('clicked', lambda _: self._activate_mode())
+        elif name in ('MODE_STILL', 'MODE_MOVIE', 'MODE_SQ'):
+            button.connect('clicked', lambda _, key=name: self._activate_switch(key))
+        else:
+            button.connect('clicked', lambda _: self.send(name))
         prefix = name.rsplit('_', 1)[0]
         if prefix in ('FRONT', 'REAR', 'TOP', 'CONTROL'):
             button.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
@@ -440,7 +537,7 @@ class CameraUI:
         overlay.set_focus_chain([fixed])
         self.rear_overlay = overlay
         self.camera.pack_start(overlay, False, False, 0)
-        self.camera.set_focus_chain([self.top_overlay, self.rear_overlay])
+        self.camera.set_focus_chain([self.top_box, self.rear_overlay])
 
     def _build_footer(self):
         row = Gtk.Box(spacing=8)
@@ -739,6 +836,7 @@ class CameraUI:
             self.feedback.set_text(name + (f' / {position}' if name=='MODE' else '') + ' 已排队；实际响应以固件新画面为准。')
             self.poller.after_input(self.clock())
             self.update(self.vm.status())
+            self._sync_control_animations()
             if hasattr(self, 'camera'):
                 self.camera.queue_draw()
             return True
@@ -746,6 +844,126 @@ class CameraUI:
             self.local_error = '输入未发送：' + str(error)
             self.update(self.vm.status())
             return False
+
+    def _mode_pointer_press(self, widget, event):
+        self._mode_direct_press = None
+        if event.button != 1:
+            return False
+        alloc = widget.get_allocation()
+        dx, dy = event.x - alloc.width / 2.0, event.y - alloc.height / 2.0
+        dist = math.hypot(dx, dy)
+        r = min(alloc.width, alloc.height) / 2.0 - 3.0
+        if not (17.0 <= dist <= r):
+            return False
+        positions = (self.state.get('controls', {}).get('MODE', {}).get('positions') or {})
+        rot = getattr(self, '_anim_mode_deg', MODE_ANGLES.get(self.selected_mode, -10.0))
+        click_deg = math.degrees(math.atan2(dy, dx))
+        best, best_diff = None, 22.0
+        for label_txt, base_deg in (('AUTO', 142.0), ('P', 102.0), ('A', 64.0), ('S', 28.0),
+                                    ('M', -10.0), ('1', -54.0), ('2', -92.0), ('3', -130.0)):
+            vis_deg = base_deg - rot + 180.0
+            diff = abs((click_deg - vis_deg + 180.0) % 360.0 - 180.0)
+            target = 'MR' + label_txt if label_txt in ('1', '2', '3') and ('MR' + label_txt) in positions else label_txt
+            if diff < best_diff and target in positions:
+                best, best_diff = target, diff
+        self._mode_direct_press = best
+        return False
+
+    def _activate_mode(self):
+        target = getattr(self, '_mode_direct_press', None)
+        self._mode_direct_press = None
+        if target is not None:
+            if self.send('MODE', position=target):
+                self.selected_mode = target
+                self._sync_control_animations()
+                return True
+            return False
+        return self.send('MODE')
+
+    def _activate_switch(self, name):
+        ok = self.send(name)
+        if ok:
+            self.selected_mode_switch = {'MODE_STILL': 1, 'MODE_MOVIE': 2, 'MODE_SQ': 3}[name]
+            self._sync_control_animations()
+        return ok
+
+    @staticmethod
+    def _scroll_forward(event):
+        if event.direction == Gdk.ScrollDirection.SMOOTH:
+            ok, dx, dy = event.get_scroll_deltas()
+            delta = dy if abs(dy) >= abs(dx) else dx
+            if not ok or abs(delta) < .1:
+                return None
+            return delta > 0
+        return event.direction in (Gdk.ScrollDirection.DOWN, Gdk.ScrollDirection.RIGHT)
+
+    def _scroll_mode(self, _, event):
+        right = self._scroll_forward(event)
+        if right is None:
+            return True
+        now = self.clock()
+        if now - self.last_input.get('MODE_SCROLL', -math.inf) < .10:
+            return True
+        positions = list((self.state.get('controls', {}).get('MODE', {}).get('positions') or {}).keys())
+        ring = [pos for pos in MODE_DIAL_RING if pos in positions] or positions
+        if not ring:
+            self.send('MODE')
+            return True
+        cur = getattr(self, 'selected_mode', 'M')
+        idx = ring.index(cur) if cur in ring else 0
+        next_pos = ring[(idx + (1 if right else -1)) % len(ring)]
+        self.last_input['MODE_SCROLL'] = now
+        if self.send('MODE', position=next_pos):
+            self.selected_mode = next_pos
+            self._sync_control_animations()
+        return True
+
+    def _scroll_mode_switch(self, _, event):
+        right = self._scroll_forward(event)
+        if right is None:
+            return True
+        now = self.clock()
+        if now - self.last_input.get('SWITCH_SCROLL', -math.inf) < .12:
+            return True
+        order = ('MODE_SQ', 'MODE_MOVIE', 'MODE_STILL')
+        sw = int(self._art_state().get('mode_switch') or 1)
+        cur_idx = {3: 0, 2: 1, 1: 2}.get(sw, 2)
+        next_idx = max(0, min(2, cur_idx + (1 if right else -1)))
+        self.last_input['SWITCH_SCROLL'] = now
+        if next_idx != cur_idx:
+            self._activate_switch(order[next_idx])
+        return True
+
+    def _scroll_power(self, _, event):
+        right = self._scroll_forward(event)
+        if right is None:
+            return True
+        now = self.clock()
+        if now - self.last_input.get('POWER_SCROLL', -math.inf) < .25:
+            return True
+        self.last_input['POWER_SCROLL'] = now
+        state = self.vm.status()
+        target_on = bool(right)
+        if target_on and state.get('can_start', state.get('state') in ('disconnected', 'exited', 'error')):
+            self.power(True)
+        elif not target_on and state.get('can_stop', state.get('state') in ('starting', 'running')):
+            self.power(False)
+        return True
+
+    def _top_area_scroll(self, widget, event):
+        win = self.top_canvas.get_window()
+        if win is not None and getattr(event, 'x_root', None) is not None:
+            origin = win.get_origin()
+            x, y = float(event.x_root) - origin[-2], float(event.y_root) - origin[-1]
+        else:
+            x, y = event.x, event.y
+        if 820 <= x <= 926 and 10 <= y <= 108:
+            return self._scroll_power(widget, event)
+        if 530 <= x <= 670 and 136 <= y <= 198:
+            return self._scroll_mode_switch(widget, event)
+        if 552 <= x <= 648 and 44 <= y <= 140:
+            return self._scroll_mode(widget, event)
+        return False
 
     def _open_mode_positions(self):
         if self.mode_popover is not None:self.mode_popover.destroy()
@@ -769,6 +987,7 @@ class CameraUI:
         self.mode_popover.popdown()
         if self.send('MODE',position=position):
             self.selected_mode = position
+            self._sync_control_animations()
             if hasattr(self, 'camera'):
                 self.camera.queue_draw()
             return True
@@ -1184,6 +1403,7 @@ class CameraUI:
         )
         if art_key != getattr(self, '_last_art_state', None):
             self._last_art_state = art_key
+            self._sync_control_animations()
             if hasattr(self, 'camera'):
                 self.camera.queue_draw()
         wifi_available = bool(state.get('usb_net'))
@@ -1419,14 +1639,9 @@ class CameraUI:
         self.wheel_widgets.append((widget, prefix))
 
     def _scroll(self, widget, event, prefix):
-        if event.direction == Gdk.ScrollDirection.SMOOTH:
-            ok, dx, dy = event.get_scroll_deltas()
-            delta = dy if abs(dy) >= abs(dx) else dx
-            if not ok or abs(delta) < .1:
-                return True
-            right = delta > 0
-        else:
-            right = event.direction in (Gdk.ScrollDirection.DOWN, Gdk.ScrollDirection.RIGHT)
+        right = self._scroll_forward(event)
+        if right is None:
+            return True
         name = prefix + ('_RIGHT' if right else '_LEFT')
         now = self.clock()
         if now - self.last_input.get(name, -math.inf) >= .15:
@@ -1601,6 +1816,9 @@ class CameraUI:
         if self.source_id:
             GLib.source_remove(self.source_id)
             self.source_id = 0
+        if getattr(self, '_anim_timer_id', 0):
+            GLib.source_remove(self._anim_timer_id)
+            self._anim_timer_id = 0
         self.window.destroy()
         if Gtk.main_level():
             Gtk.main_quit()
